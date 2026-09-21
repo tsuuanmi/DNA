@@ -12,12 +12,13 @@ from typing import Any
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 ROOT = Path(__file__).resolve().parents[1]
-ANALYSIS_SCHEMA = ROOT / "docs" / "contracts" / "schemas" / "analysis-v7.schema.json"
-ANALYSIS_EXAMPLE = ROOT / "docs" / "contracts" / "examples" / "analysis-v7.example.json"
-BASECALL_SCHEMA = ROOT / "docs" / "schemas" / "basecalls-v2.schema.json"
-BASECALL_EXAMPLE = ROOT / "docs" / "contracts" / "examples" / "basecalls-v2.example.json"
-SAMPLE_SCHEMA = ROOT / "docs" / "schemas" / "sample-evidence-v8.schema.json"
-SAMPLE_EXAMPLE = ROOT / "docs" / "contracts" / "examples" / "sample-evidence-v8.example.json"
+CONTRACTS = ROOT / "docs" / "contracts"
+ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v7.schema.json"
+ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v7.example.json"
+BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v2.schema.json"
+BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v2.example.json"
+SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v8.schema.json"
+SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v8.example.json"
 
 
 def load_json(path: Path) -> Any:
