@@ -6,7 +6,7 @@ The repository root is a Rust project. First-party production source under `src/
 
 ## Pull-request lane
 
-Every pull request runs three independent required jobs.
+Every pull request runs four independent required jobs.
 
 ### Rust quality
 
@@ -32,6 +32,10 @@ cargo +1.85.0 check --locked --all-targets
 ```
 
 The MSRV and release toolchain are intentionally separate: the former is a compatibility promise; the latter is the reproducible toolchain used for release-quality checks.
+
+### Dependency audit
+
+CI installs the pinned `cargo-audit 0.22.2` tool and audits the committed `Cargo.lock` against the RustSec advisory database.
 
 ### Repository policy and Python companion tooling
 
