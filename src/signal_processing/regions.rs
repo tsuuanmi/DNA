@@ -20,16 +20,16 @@ pub(super) fn merge(windows: &[DNAWindow], minimum_noisy_windows: usize) -> Vec<
             continue;
         }
 
-        if let Some(region) = current.as_mut() {
-            if window.call_start_0based > region.call_end_0based_exclusive {
-                append_if_supported(
-                    &mut regions,
-                    current.take(),
-                    run_length,
-                    minimum_noisy_windows,
-                );
-                run_length = 0;
-            }
+        if let Some(region) = current.as_mut()
+            && window.call_start_0based > region.call_end_0based_exclusive
+        {
+            append_if_supported(
+                &mut regions,
+                current.take(),
+                run_length,
+                minimum_noisy_windows,
+            );
+            run_length = 0;
         }
 
         if let Some(region) = current.as_mut() {
@@ -62,10 +62,10 @@ fn append_if_supported(
     run_length: usize,
     minimum_noisy_windows: usize,
 ) {
-    if run_length >= minimum_noisy_windows {
-        if let Some(region) = region {
-            regions.push(region);
-        }
+    if run_length >= minimum_noisy_windows
+        && let Some(region) = region
+    {
+        regions.push(region);
     }
 }
 
