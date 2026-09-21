@@ -129,6 +129,23 @@ future scope = capabilities not yet implemented or not yet justified
 
 A current capability may remain in the product contract while its real-trace evidence continues to strengthen.
 
+## Production-readiness track
+
+Engineering maturity is developed in parallel with scientific confidence. The repository now targets a production-grade delivery baseline with:
+
+- pinned Rust release/MSRV toolchains;
+- warnings-clean Rust CI and locked builds;
+- Rust-only production source boundaries;
+- cargo-deny, RustSec audit, and pull-request dependency review;
+- immutable GitHub Action pins maintained by Dependabot;
+- CodeQL and OpenSSF Scorecard;
+- ABIF fuzz smoke plus scheduled adversarial campaigns;
+- protected-branch/tag governance contract;
+- SBOM, SHA-256 checksums, and cryptographic release attestations;
+- explicit platform/versioning/security policies.
+
+These controls make the software build and supply chain defensible. They do not replace the remaining scientific release evidence. The production-ready milestone is reached only when an exact tagged revision also has approved real-AB1 ground-truth regression, difficult-locus analysis, and runtime/peak-memory evidence recorded with the release template.
+
 ## Deferred until after MVP confidence
 
 The following are intentionally deferred:
