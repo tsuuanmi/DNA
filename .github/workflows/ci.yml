@@ -50,15 +50,15 @@ jobs:
         run: cargo audit
 
   msrv:
-    name: MSRV 1.85
+    name: MSRV 1.88
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Install declared minimum Rust
-        run: rustup toolchain install 1.85.0 --profile minimal
+        run: rustup toolchain install 1.88.0 --profile minimal
       - name: Check declared MSRV
-        run: cargo +1.85.0 check --locked --all-targets
+        run: cargo +1.88.0 check --locked --all-targets
 
   repository-policy:
     name: Repository policy and Python tooling
