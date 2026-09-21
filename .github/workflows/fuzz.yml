@@ -24,10 +24,10 @@ jobs:
         with:
           persist-credentials: false
       - name: Install nightly Rust
-        run: rustup toolchain install nightly --profile minimal
+        run: rustup toolchain install nightly-2026-09-01 --profile minimal
       - name: Install cargo-fuzz
-        run: cargo +nightly install cargo-fuzz --version 0.13.2 --locked
+        run: cargo +nightly-2026-09-01 install cargo-fuzz --version 0.13.2 --locked
       - name: Fuzz ABIF parser
         env:
           FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '300' || '30' }}
-        run: cargo +nightly fuzz run abif_parse -- -max_total_time="$FUZZ_SECONDS" -rss_limit_mb=2048
+        run: cargo +nightly-2026-09-01 fuzz run abif_parse -- -max_total_time="$FUZZ_SECONDS" -rss_limit_mb=2048
