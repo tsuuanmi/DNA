@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish Linux release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify tag matches crate version
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          test "$GITHUB_REF_NAME" = "v$version"
+      - name: Verify release revision
+        run: |
+          cargo fmt --all --check
+          cargo check --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --all-targets
+          RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
+      - name: Build release binary
+        run: cargo build --locked --release
+      - name: Package artifact and provenance
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/dna dist/dna
+          strip dist/dna
+          rustc --version --verbose > dist/rustc-version.txt
+          cargo --version --verbose > dist/cargo-version.txt
+          git rev-parse HEAD > dist/source-revision.txt
+          sha256sum Cargo.lock > dist/Cargo.lock.sha256
+          tar -C dist -czf "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" \
+            dna rustc-version.txt cargo-version.txt source-revision.txt Cargo.lock.sha256
+          rm dist/dna dist/rustc-version.txt dist/cargo-version.txt dist/source-revision.txt dist/Cargo.lock.sha256
+          sha256sum dist/*.tar.gz > dist/SHA256SUMS
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes
+          fi
