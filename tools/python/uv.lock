@@ -202,8 +202,8 @@ wheels = [
 ]
 
 [[package]]
-name = "DNA"
-version = "0.1.0"
+name = "dna-dev-tools"
+version = "0.0.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
