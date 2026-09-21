@@ -24,6 +24,7 @@ A release may be described as production-ready only when all mandatory gates bel
 - CI MUST verify the declared minimum Rust version and the project-selected stable release toolchain.
 - The release toolchain MUST be explicit and reproducible from repository metadata; silently following an unpinned moving toolchain is insufficient for a release build.
 - Formatting and lint behavior used as release gates MUST therefore be tied to the selected toolchain.
+- Third-party GitHub Actions used by CI/release MUST be pinned to immutable full commit SHAs and updated through reviewed dependency-update PRs.
 - Supported target platforms MUST be documented. DNA MUST NOT imply support for a platform that is not built and tested by the release process.
 
 ### 2. Source-quality gates
@@ -38,7 +39,7 @@ cargo test --all-targets
 cargo doc --no-deps
 ```
 
-Repository-specific Python/schema/reference checks remain part of the same quality contract.
+Repository-specific Python/schema/reference checks remain part of the same quality contract. Rust CodeQL analysis and a bounded ABIF fuzz smoke run are also required pull-request controls.
 
 Production Rust continues to:
 
@@ -66,7 +67,10 @@ Every release dependency graph MUST be checked for:
 - known RustSec advisories;
 - disallowed or unexpected dependency sources;
 - license policy violations;
-- yanked or explicitly banned dependencies according to project policy.
+- yanked or explicitly banned dependencies according to project policy;
+- pull-request dependency additions that introduce known moderate-or-higher vulnerabilities.
+
+`deny.toml` is the authoritative Cargo source/license/bans policy. `cargo-audit` provides an independent RustSec check. GitHub dependency review protects the dependency delta before merge, and Dependabot provides reviewed update PRs for Cargo, uv tooling, Actions pins, and the release Rust toolchain.
 
 Exceptions MUST be documented with a reason and review date. A vulnerability or policy exception must never be silently ignored.
 
@@ -81,7 +85,9 @@ At minimum the release record MUST retain:
 - Rust/Cargo toolchain identity;
 - `Cargo.lock` identity;
 - release artifact SHA-256;
-- supported target triple.
+- supported target triple;
+- an SPDX SBOM for the shipped artifact;
+- cryptographically verifiable build-provenance and SBOM attestations tied to the release workflow and source revision.
 
 Existing JSON contracts MUST NOT be mutated retroactively. If software/build provenance is added to scientific output, it requires a new versioned output contract or another explicitly versioned provenance record.
 
@@ -99,12 +105,13 @@ A release checklist MUST identify the exact revision and record the outcome of:
 
 - source-quality gates;
 - schema/configuration/reference validation;
-- dependency audit;
+- dependency policy, audit, and pull-request dependency review;
+- CodeQL/security-analysis status;
 - adversarial/fuzz validation status;
 - synthetic regression suite;
 - approved real-AB1 regression suite;
 - documented runtime and peak-memory measurement;
-- artifact checksum and toolchain identity.
+- artifact checksum, SBOM, attestations, and toolchain identity.
 
 Passing source checks without approved real-trace scientific evidence is not sufficient for a production scientific release.
 
