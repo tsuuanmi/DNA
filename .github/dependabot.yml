@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Bangkok"
+    open-pull-requests-limit: 5
+    groups:
+      rust-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "uv"
+    directory: "/tools/python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:15"
+      timezone: "Asia/Bangkok"
+    open-pull-requests-limit: 5
+    groups:
+      python-tooling:
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:30"
+      timezone: "Asia/Bangkok"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "rust-toolchain"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "04:45"
+      timezone: "Asia/Bangkok"
+    open-pull-requests-limit: 2
