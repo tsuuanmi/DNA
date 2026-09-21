@@ -38,6 +38,17 @@ jobs:
       - name: Release build
         run: cargo build --locked --release
 
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Audit Cargo.lock
+        run: cargo audit
+
   msrv:
     name: MSRV 1.85
     runs-on: ubuntu-latest
