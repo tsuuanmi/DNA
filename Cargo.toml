@@ -6,6 +6,10 @@ rust-version = "1.88"
 description = "DNA sequencing trace analysis in Rust"
 publish = false
 
+[features]
+default = []
+fuzzing = []
+
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
