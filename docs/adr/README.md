@@ -1,5 +1,20 @@
 # Architecture Decision Records
 
+## ADR lifecycle and deduplication
+
+ADRs record durable architectural or scientific decisions, not every implementation increment, schema revision, or research step. The repository preserves historical ADRs, but each current decision scope must have one clear authority.
+
+Before creating a new ADR:
+
+1. Search the SRS, architecture/invariants, methods/contracts, and this index for an existing decision with the same scope.
+2. If the work only implements, documents, validates, or clarifies an accepted decision, update the owning SRS/method/contract/tests instead of creating another ADR.
+3. If the same decision is being refined without replacing its core choice, amend the existing ADR with a concise dated revision or follow-up section.
+4. If a material choice changes, create a new ADR and explicitly mark the previous ADR as `Superseded` or `Superseded in part`, with links in both directions.
+5. Create a new ADR only when the decision has an independently reviewable boundary, alternatives, tradeoffs, and consequences.
+6. Do not leave two `Accepted` ADRs claiming authority over the same decision scope. Split the scopes explicitly or resolve the relationship through supersession.
+
+ADR numbers are historical identifiers and are never reused. Gaps in numbering are expected.
+
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-mvp-vertical-slice.md) | End-to-end MVP first | Accepted |

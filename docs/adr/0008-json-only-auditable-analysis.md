@@ -1,6 +1,6 @@
 # ADR-0008: Emit a Single JSON-Only, Auditable Analysis Document
 
-- **Status:** Superseded by ADR-0011
+- **Status:** Superseded in part by ADR-0011
 - **Date:** 2026-08-22
 
 ## Context

@@ -140,6 +140,26 @@ A module manual should describe:
 
 It should not translate implementation line by line.
 
+### 8. ADRs are deduplicated by decision boundary
+
+One accepted ADR is the canonical rationale for one durable decision scope.
+
+Before adding a production ADR, contributors and agents must search the SRS,
+architecture/invariants, method and contract documentation, and the ADR index for
+an existing decision that already owns the concern.
+
+A new implementation step, schema version, validation observation, or documentation
+clarification does not by itself require a new ADR. If the underlying choice is
+unchanged, update the authoritative SRS/method/contract and, when useful, add a
+small dated clarification or follow-up to the existing ADR.
+
+When a material choice changes, the replacement decision must explicitly supersede
+the prior ADR in whole or in part, and the prior ADR must point to the replacement.
+Two accepted ADRs must not claim authority over the same decision scope.
+
+Superseded ADRs remain in the repository as historical provenance; their numbers
+are never reused.
+
 ## Consequences
 
 ### Positive

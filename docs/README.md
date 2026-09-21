@@ -6,7 +6,7 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 
 ## Read order for a change
 
-1. [Requirements](requirements.md) — what the system is intended to do.
+1. [SRS](SRS.md) — what the system is intended to do.
 2. [Architecture](architecture/README.md) and [system invariants](architecture/invariants.md) — where the behavior belongs and what must always remain true.
 3. [Accepted/proposed ADRs](adr/README.md) — why relevant decisions were made.
 4. [Methods](methods/README.md) — current scientific/algorithmic behavior.
@@ -18,7 +18,7 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 
 | Documentation | Role |
 |---|---|
-| [SRS](requirements.md) | normative intended behavior |
+| [SRS](SRS.md) | normative intended behavior |
 | JSON schemas / config contract | exact machine-visible contract for the named version |
 | [ADRs](adr/README.md) | decision and rationale |
 | [Architecture + invariants](architecture/README.md) | boundaries and cross-cutting truths |
@@ -32,7 +32,7 @@ If source and normative production documentation disagree, surface the mismatch.
 
 ## Product and requirements
 
-- [Requirements / SRS](requirements.md)
+- [SRS](SRS.md)
 - [Roadmap](roadmap.md)
 - [Development readiness](development-readiness.md)
 - [Glossary](glossary.md)

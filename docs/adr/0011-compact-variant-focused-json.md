@@ -1,6 +1,6 @@
 # ADR-0011: Emit Compact Variant-Focused JSON
 
-- **Status:** Superseded by ADR-0012
+- **Status:** Superseded in part by ADR-0012
 - **Date:** 2026-08-23
 
 ## Context

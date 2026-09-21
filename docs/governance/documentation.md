@@ -49,11 +49,22 @@ A code change should update only the documentation layers it actually affects.
 - New architectural dependency or boundary: update architecture and usually an ADR.
 - Research-only work: keep it under `docs/research/<topic>/`; do not edit root production contracts until promotion.
 
+## ADR lifecycle and deduplication
+
+Treat ADRs as a decision log, not a changelog.
+
+- Search the SRS, architecture/invariants, methods/contracts, and ADR index before creating a new ADR.
+- Reuse the existing ADR when the decision boundary and core choice are unchanged; implementation progress, schema revisions, validation results, and clarifications normally belong in their owning documentation.
+- Create a replacement ADR only for a material new choice, then mark the previous ADR `Superseded` or `Superseded in part` and link the relationship both ways.
+- Do not keep two `Accepted` ADRs that claim authority over the same decision scope.
+- Keep superseded ADRs for provenance and never reuse their numbers.
+
 ## Staleness rules
 
 - A `docs/src` file without a matching source file is stale.
 - A source module without the required mirror is undocumented.
 - An ADR marked Superseded must point to the replacing decision.
+- Two Accepted ADRs must not claim authority over the same decision scope.
 - Examples must validate against their named schema.
 - Roadmap or research text must not be used to justify current production behavior.
 
@@ -63,7 +74,7 @@ Use stable role-based names over temporary project names.
 
 Prefer:
 
-- `requirements.md`, `architecture.md`, `operations/ci.md`, `roadmap.md`;
+- `SRS.md`, `architecture.md`, `operations/ci.md`, `roadmap.md`;
 - `docs/research/<topic>/` for explorations;
 - `docs/src/<same-relative-path>.md` for implementation manuals.
 
