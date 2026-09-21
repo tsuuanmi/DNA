@@ -1,16 +1,16 @@
 # CI and Verification Lanes
 
-CI exists to protect known invariants, not to maximize the number of badges.
+CI exists to protect documented invariants and security boundaries, not to maximize the number of badges.
 
 The repository root is a Rust project. First-party production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is permitted only for research, validation, test, and repository tooling.
 
-## Pull-request lane
+All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependabot owns routine updates to those pins.
 
-Every pull request runs four independent required jobs.
+## Pull-request lane
 
 ### Rust quality
 
-The release toolchain is pinned by `rust-toolchain.toml`. The Rust quality job runs:
+The release toolchain is pinned by `rust-toolchain.toml`. Every pull request runs:
 
 ```bash
 cargo fmt --all --check
@@ -33,9 +33,30 @@ cargo +1.88.0 check --locked --all-targets
 
 The MSRV and release toolchain are intentionally separate: the former is a compatibility promise; the latter is the reproducible toolchain used for release-quality checks.
 
-### Dependency audit
+### Dependency policy
 
-CI installs the pinned `cargo-audit 0.22.2` tool and audits the committed `Cargo.lock` against the RustSec advisory database.
+Dependency verification has three layers:
+
+1. `cargo-deny` checks advisories, yanked crates, licenses, trusted sources, wildcard requirements, banned/replacement crates, and duplicate-version policy.
+2. pinned `cargo-audit 0.22.2` independently checks the committed `Cargo.lock` against RustSec.
+3. GitHub dependency review rejects pull requests that introduce dependencies with moderate-or-higher known vulnerabilities.
+
+`deny.toml` is the authoritative source/license/bans policy. Exceptions must include a concrete reason and review date rather than silently weakening the global policy.
+
+### Static security analysis
+
+CodeQL analyzes Rust on pull requests, `main`, and a weekly schedule with the `security-extended` query suite. Results are published to GitHub code scanning.
+
+### Adversarial parser validation
+
+The `ABIF fuzz smoke` job exercises the bounds-checked ABIF directory parser with `cargo-fuzz`:
+
+- 30-second campaigns on pull requests and `main`;
+- longer scheduled campaigns;
+- pinned nightly toolchain and cargo-fuzz version;
+- retained minimized regressions when a defect is found.
+
+Fuzzing complements deterministic malformed-input tests; it does not replace them.
 
 ### Repository policy and Python companion tooling
 
@@ -53,47 +74,64 @@ The repository-policy job:
 - verifies the documented environment template;
 - verifies the rCRS checksum and reference length.
 
-The Rust source-policy gate complements compiler/Clippy checks by rejecting explicit production compatibility scaffolding that could otherwise be intentionally suppressed: `#[deprecated]` APIs, legacy/backward-compatibility feature gates or declarations, and `allow`/`expect` escape hatches for deprecated/dead/unreachable/unused code. It is deliberately narrow: it does not claim to prove that all conceptual legacy code has been detected.
+The Rust source-policy gate complements compiler/Clippy checks by rejecting explicit production compatibility scaffolding that could otherwise be intentionally suppressed.
+
+## Scheduled security posture
+
+OpenSSF Scorecard runs on `main` and weekly. Its SARIF output is retained briefly as an Actions artifact and uploaded to GitHub code scanning.
+
+Dependabot monitors:
+
+- Cargo dependencies;
+- the isolated uv Python tooling project;
+- full-SHA GitHub Actions pins;
+- the pinned Rust release toolchain.
 
 ## Release / delivery lane
 
-Pushing a version tag matching `v*` triggers the release workflow.
+Pushing a version tag matching `v*` triggers the release workflow only after the tagged commit is verified to be reachable from `main`.
 
 The workflow:
 
-1. verifies the tag exactly matches the crate version;
+1. verifies the tag exactly matches the crate version and belongs to `main`;
 2. reruns formatting, compilation, Clippy, tests, and Rustdoc with the locked dependency graph;
-3. audits `Cargo.lock` with pinned `cargo-audit`;
-4. builds the release binary;
+3. reruns `cargo-deny` and RustSec audit;
+4. builds and strips the release binary;
 5. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
-6. packages the Linux `x86_64-unknown-linux-gnu` artifact;
-7. produces SHA-256 checksums;
-8. publishes the artifact and checksums to the GitHub Release for that tag.
+6. generates an SPDX JSON SBOM with a pinned Syft version;
+7. packages the Linux `x86_64-unknown-linux-gnu` artifact;
+8. produces SHA-256 checksums;
+9. creates GitHub/Sigstore build-provenance and SBOM attestations;
+10. publishes the archive, SBOM, and checksums to the GitHub Release.
 
 The current automated binary support claim is therefore Linux x86_64 only. Other platforms are not implied to be release-supported until they are built, tested, and published by the release process.
 
-## Extended lane
+## Extended scientific lane
 
-Checks with higher runtime or specialized toolchains may run on a schedule, release candidate, or targeted change:
+Checks that cannot be reduced to normal public CI remain release evidence:
 
-- fuzz campaigns;
-- mutation testing;
-- property-test expansion;
-- deeper dependency/license policy review beyond the required RustSec audit;
-- performance regression measurements;
-- approved real-AB1 regression corpus.
+- property/invariant expansion;
+- long fuzz campaigns;
+- performance and peak-memory measurements;
+- approved real-AB1 regression corpus;
+- ground-truth biological comparison and disagreement analysis.
 
-A check should be added only when its protected failure mode is documented.
+A check is added only when its protected failure mode is documented.
+
+## Enforcement
+
+CI is not itself an enforcement mechanism. The protected-`main` and protected-`v*` rules described in [repository governance](repository-governance.md) make the required checks non-bypassable.
 
 ## Failure ownership
 
-- Rust source-policy failure: obsolete/compatibility scaffolding or a diagnostic suppression that must be removed or explicitly redesigned;
-- formatter/lint/compiler/Rustdoc failure: engineering defect;
+- source-policy/formatter/lint/compiler/Rustdoc failure: engineering defect;
 - MSRV failure: declared compatibility or dependency-resolution defect;
+- cargo-deny/audit/dependency-review failure: supply-chain or licensing blocker;
+- CodeQL failure/alert: security review blocker until triaged;
+- fuzz failure: parser/adversarial correctness blocker;
 - schema/example mismatch: contract defect;
 - synthetic test failure: algorithm/implementation regression;
 - real-trace disagreement: scientific validation issue requiring analysis, not automatic suppression;
-- dependency audit failure: supply-chain/release blocker unless explicitly reviewed;
-- release provenance/checksum failure: delivery blocker.
+- provenance/SBOM/attestation failure: delivery blocker.
 
-See [release operations](release.md), the [production-readiness ADR](../adr/0018-production-readiness-release-contract.md), and the [data policy](../data.md).
+See [release operations](release.md), [repository governance](repository-governance.md), the [production-readiness ADR](../adr/0018-production-readiness-release-contract.md), and the [data policy](../data.md).
