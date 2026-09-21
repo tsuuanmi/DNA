@@ -46,7 +46,7 @@ pub(super) fn median_usize(values: &[usize]) -> Result<f64> {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
     let middle = sorted.len() / 2;
-    Ok(if sorted.len() % 2 == 0 {
+    Ok(if sorted.len().is_multiple_of(2) {
         (sorted[middle - 1] as f64 + sorted[middle] as f64) / 2.0
     } else {
         sorted[middle] as f64
@@ -77,7 +77,7 @@ fn median_i32(values: &[i32]) -> Result<f64> {
 
 fn median_sorted_i32(sorted: &[i32]) -> f64 {
     let middle = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (f64::from(sorted[middle - 1]) + f64::from(sorted[middle])) / 2.0
     } else {
         f64::from(sorted[middle])
@@ -107,7 +107,7 @@ fn noise_sigma(samples: &[i32]) -> Result<f64> {
 
 fn median_sorted_f64(sorted: &[f64]) -> f64 {
     let middle = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[middle - 1] + sorted[middle]) / 2.0
     } else {
         sorted[middle]
