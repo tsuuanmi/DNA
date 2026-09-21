@@ -108,6 +108,9 @@ jobs:
       - name: Validate Rust source policy
         working-directory: tools/python
         run: uv run python scripts/validate_rust_source_policy.py
+      - name: Validate GitHub Actions policy
+        working-directory: tools/python
+        run: uv run python scripts/validate_workflow_policy.py
       - name: Ruff format
         working-directory: tools/python
         run: uv run ruff format --check scripts tests
