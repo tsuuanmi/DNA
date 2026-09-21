@@ -5,22 +5,30 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   release:
     name: Build and publish Linux release
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: Swatinem/rust-cache@v2
-      - name: Verify tag matches crate version
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Verify release identity
         shell: bash
         run: |
           version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
           test "$GITHUB_REF_NAME" = "v$version"
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Verify release revision
         run: |
           cargo fmt --all --check
@@ -28,26 +36,51 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked --all-targets
           RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
-      - name: Audit dependency graph
+      - name: Dependency policy
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
+        with:
+          command: check
+      - name: RustSec audit
         run: |
           cargo install cargo-audit --version 0.22.2 --locked
           cargo audit
       - name: Build release binary
         run: cargo build --locked --release
-      - name: Package artifact and provenance
+      - name: Prepare artifact and provenance
         shell: bash
         run: |
-          mkdir -p dist
-          cp target/release/dna dist/dna
-          strip dist/dna
-          rustc --version --verbose > dist/rustc-version.txt
-          cargo --version --verbose > dist/cargo-version.txt
-          git rev-parse HEAD > dist/source-revision.txt
-          sha256sum Cargo.lock > dist/Cargo.lock.sha256
-          tar -C dist -czf "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" \
-            dna rustc-version.txt cargo-version.txt source-revision.txt Cargo.lock.sha256
-          rm dist/dna dist/rustc-version.txt dist/cargo-version.txt dist/source-revision.txt dist/Cargo.lock.sha256
-          sha256sum dist/*.tar.gz > dist/SHA256SUMS
+          mkdir -p dist/package
+          cp target/release/dna dist/package/dna
+          strip dist/package/dna
+          rustc --version --verbose > dist/package/rustc-version.txt
+          cargo --version --verbose > dist/package/cargo-version.txt
+          git rev-parse HEAD > dist/package/source-revision.txt
+          sha256sum Cargo.lock > dist/package/Cargo.lock.sha256
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          file: dist/package/dna
+          format: spdx-json
+          output-file: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          syft-version: v1.52.0
+      - name: Package release
+        shell: bash
+        run: |
+          cp "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json" dist/package/SBOM.spdx.json
+          tar -C dist/package -czf "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" .
+          rm -rf dist/package
+          sha256sum             "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz"             "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json"             > dist/SHA256SUMS
+      - name: Attest build provenance
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+      - name: Attest SBOM
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+          sbom-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
