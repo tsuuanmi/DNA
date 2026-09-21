@@ -9,3 +9,6 @@ __pycache__/
 /tools/python/.venv/
 /target/
 /out/
+
+/fuzz/artifacts/
+/fuzz/target/
