@@ -45,4 +45,4 @@ A check should be added only when its protected failure mode is documented.
 - real-trace disagreement: scientific validation issue requiring analysis, not automatic suppression;
 - dependency audit failure: supply-chain/release blocker unless explicitly reviewed.
 
-See [release operations](release.md) and the [data policy](../data.md).
+See [release operations](release.md) and the [data policy](../governance/data.md).

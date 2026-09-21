@@ -1,11 +1,8 @@
 # Current Scientific and Algorithmic Methods
 
-These documents describe current production behavior, not exploratory research.
+These documents describe current production algorithms and scientific behavior, not public serialization shape.
 
-- [Pipeline](../pipeline.md): authoritative stage sequence and implemented algorithms.
-- [DNA processing](../signal-processing.md): rolling SNR method and current limitations.
-- [Basecall output](../basecall-output.md): reference-free projection of the shared read pipeline.
-- [Analysis output](../json-output.md): reference-guided result semantics.
-- [Sample evidence output](../sample-output.md): N-read reconciliation evidence and Tracy-derived overlap admission semantics.
+- [Pipeline](pipeline.md): authoritative stage sequence and implemented algorithms.
+- [Signal processing](signal-processing.md): rolling SNR, locus evidence, trace-integrity observations, and interpretation limits.
 
-When a method is still exploratory, document it under `docs/research/<topic>/` instead. Promote it here only when the root production contract adopts it.
+Public configuration and result semantics live under [contracts](../contracts/README.md). Exploratory methods belong under [research](../research/README.md) until explicitly promoted into the production SRS/ADR/method/contract system.

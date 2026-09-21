@@ -28,7 +28,7 @@ signal analyze <trace.ab1> --reference <reference.fasta>
 signal sample <sample-id> <trace.ab1>... --reference <reference.fasta>
 ```
 
-A successful core CLI invocation creates the command-specific basecall, analysis, or `results/<sample-id>.sample.json` result and appends a separate operational log. Core operation failure creates no JSON result, and an existing target is never overwritten. The external batch wrapper has separate selected-cleanup semantics documented in `data.md`; a later batch failure may leave partial new outputs.
+A successful core CLI invocation creates the command-specific basecall, analysis, or `results/<sample-id>.sample.json` result and appends a separate operational log. Core operation failure creates no JSON result, and an existing target is never overwritten. The external batch wrapper has separate selected-cleanup semantics documented in `governance/data.md` and `operations/batch.md`; a later batch failure may leave partial new outputs.
 
 ## Acceptance
 
@@ -36,9 +36,9 @@ A successful core CLI invocation creates the command-specific basecall, analysis
 - compact analysis v7 JSON exposes input/reference/configuration hashes, call count/trim, merged noisy regions, alignment summary, normalized variants with reviewer-facing reference-oriented peak/quality evidence, and warning counts; effective parameters remain in strict configuration schema v5;
 - internal coordinates and external 1-based variants are explicit;
 - circular rCRS origin-spanning reads are representable;
-- analysis v7 omits filenames, full sequences/windows/gapped rows, method constants, full peaks, and vendor data; basecalls v2 includes full sequences but omits reference/alignment/variant evidence; sample evidence v7 factors read identity/orientation/coverage once, emits coverage topology plus concise overlap/admission evidence, differential loci, and normalized variant support, and omits consensus/interpretation; no current contract emits compatibility output, genotype, heteroplasmy fraction, clinical meaning, VCF/BCF, or hidden regional correction;
+- analysis v7 omits filenames, full sequences/windows/gapped rows, method constants, full peaks, and vendor data; basecalls v2 includes full sequences but omits reference/alignment/variant evidence; sample evidence v8 factors read identity/orientation/coverage once, emits coverage topology plus concise overlap/admission evidence, differential loci, and normalized variant support, and omits consensus/interpretation; no current contract emits compatibility output, genotype, heteroplasmy fraction, clinical meaning, VCF/BCF, or hidden regional correction;
 - format/check/Clippy/tests/rustdoc/schema/TOML/reference/docs-mirror gates pass;
 - batch cleanup is limited to fully preflighted selected sample directories and matching logs, rejects ambiguity/collisions/symlinks, and preserves unselected artifacts;
 - approved real-trace validation is recorded before a scientific release claim.
 
-See `pipeline.md` for formulas and `compatibility.md` for intentional Apollo divergences.
+See `methods/pipeline.md` for formulas and `governance/compatibility.md` for intentional Apollo divergences.

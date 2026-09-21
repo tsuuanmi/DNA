@@ -4,7 +4,7 @@ This document answers one question:
 
 > Is DNA's active scientific-core MVP defined clearly enough to begin implementation without reopening the product architecture on every change?
 
-It is not a production-release checklist. Production readiness is governed separately by [ADR-0018](adr/0018-production-readiness-release-contract.md).
+It is not a production-release checklist. Production readiness is governed separately by [ADR-0018](../adr/0018-production-readiness-release-contract.md).
 
 ## Three design lenses
 

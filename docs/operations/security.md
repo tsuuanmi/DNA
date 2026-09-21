@@ -31,7 +31,7 @@ Input-controlled dimensions must be bounded before large allocation. Alignment-c
 
 ## Data privacy
 
-Sequences, chromatograms, variant evidence, and sample-linked metadata may be identifying biological data. Logs and test fixtures must follow [data policy](../data.md) and must not leak complete sequences or dense signal payloads unless the contract explicitly requires them.
+Sequences, chromatograms, variant evidence, and sample-linked metadata may be identifying biological data. Logs and test fixtures must follow [data policy](../governance/data.md) and must not leak complete sequences or dense signal payloads unless the contract explicitly requires them.
 
 ## Dependencies
 

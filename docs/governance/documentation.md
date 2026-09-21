@@ -74,7 +74,7 @@ Use stable role-based names over temporary project names.
 
 Prefer:
 
-- `srs/README.md`, `architecture.md`, `operations/ci.md`, `roadmap.md`;
+- `srs/README.md`, `architecture/system.md`, `contracts/README.md`, `operations/ci.md`, `roadmap.md`;
 - `docs/research/<topic>/` for explorations;
 - `docs/src/<same-relative-path>.md` for implementation manuals.
 

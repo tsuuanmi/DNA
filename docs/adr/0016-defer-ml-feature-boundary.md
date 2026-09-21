@@ -7,7 +7,7 @@
 
 The compact `dna.analysis/v5` and `dna.basecalls/v1` contracts are deliberately small, deterministic, and privacy-constrained (ADR-0014, ADR-0015). A future machine-learning path needs richer internal evidence—per-call peaks, rolling windows, spacing, and alignment context—than those production results expose. Adding bulk fields to the compact contracts would violate their one-result, no-compatibility-output boundary and increase identifying payload.
 
-The repository has no approved truth-labeled corpus, no feature registry, no chosen first prediction target, and no trained model (ADR-0013, [`data.md`](../data.md)). AGENTS.md prohibits speculative features, single-use abstractions, and unused configuration. Unused Rust scaffolding would fail the clippy dead-code lint and the `docs/src` one-to-one mirror gate.
+The repository has no approved truth-labeled corpus, no feature registry, no chosen first prediction target, and no trained model (ADR-0013, [`data.md`](../governance/data.md)). AGENTS.md prohibits speculative features, single-use abstractions, and unused configuration. Unused Rust scaffolding would fail the clippy dead-code lint and the `docs/src` one-to-one mirror gate.
 
 ## Options
 
@@ -25,7 +25,7 @@ Choose option 3. The ML-ready JSON direction in [`docs/roadmap.md`](../roadmap.m
 
 `ExtractedEvidence` and `FeatureSet` are feature-subsystem types owned by `src/features/`, not `src/model/`. The `model/` module is the shared scientific domain vocabulary and serializable production result records, not transient post-pipeline algorithmic state. The top-level `crate::features` module is namespace-isolated from the existing private `crate::signal_processing::features` submodule (rolling-SNR calculation); `features` is the chosen name for the post-pipeline subsystem, and the conceptual collision is resolved by module path.
 
-Labels remain independently governed data joined by an opaque example identity. The training example embeds a minimal, privacy-reviewed provenance and scientific projection, not the unchanged full command result, because the basecall result contains complete identifying sequences that contradict [`data.md`](../data.md).
+Labels remain independently governed data joined by an opaque example identity. The training example embeds a minimal, privacy-reviewed provenance and scientific projection, not the unchanged full command result, because the basecall result contains complete identifying sequences that contradict [`data.md`](../governance/data.md).
 
 No `features` module, training schema, CLI command, or training output is implemented until the roadmap delivery phases approve a task, corpus, feature registry, label registry, and closed schema.
 

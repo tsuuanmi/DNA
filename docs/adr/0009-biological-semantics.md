@@ -23,7 +23,7 @@ Choose option 2. Variants are classified `primary_sequence_difference` and are
 derived solely from the primary sequence alignment. The pipeline does not
 estimate allele fractions, genotype likelihoods, or heteroplasmy levels, and it
 does not decompose mixed or two-allele signals. The documentation
-(`docs/pipeline.md`) states these limitations explicitly.
+(`docs/methods/pipeline.md`) states these limitations explicitly.
 
 ## Consequences
 
