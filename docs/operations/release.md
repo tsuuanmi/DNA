@@ -2,39 +2,46 @@
 
 This is the operational companion to ADR-0018.
 
-A release record should identify the exact:
+A release record must identify the exact:
 
-- DNA semantic version;
-- source revision;
+- DNA semantic version and source revision;
+- release tag and supported target triple;
 - Rust/Cargo toolchain;
-- Cargo.lock identity;
-- supported target triple(s);
+- `Cargo.lock` identity;
 - artifact SHA-256;
-- schema/config versions;
-- dependency audit status;
-- CI gate status;
-- fuzz/adversarial status required for the release;
+- SPDX SBOM;
+- GitHub artifact provenance and SBOM attestations;
+- dependency-policy/audit status;
+- CodeQL and CI status;
+- fuzz/adversarial status;
 - synthetic regression status;
 - approved real-AB1 validation status;
 - documented runtime and peak-memory measurement.
+
+Use [the release evidence template](release-evidence-template.md) for any release candidate intended to carry the production-ready label.
 
 ## Release states
 
 Use explicit language:
 
-- **build verified** — engineering build/check gates passed;
+- **build verified** — engineering, dependency, security, provenance, and artifact gates passed;
 - **scientifically validated for the documented corpus/domain** — approved real-trace evidence passed;
-- **production-ready release** — ADR-0018 release contract is satisfied.
+- **production-ready release** — the full ADR-0018 release contract is satisfied.
 
 Do not collapse these into one status.
 
-## Artifact behavior
-
-Existing versioned scientific JSON contracts must not gain unversioned build metadata. Software/build provenance belongs in a separately designed versioned contract or a new result-schema version when required.
-
-
 ## Automated delivery
 
-Tags matching `v*` trigger `.github/workflows/release.yml`. The workflow verifies that the tag matches the crate version, reruns the required Rust engineering gates, builds with the pinned release toolchain and locked dependency graph, records source/toolchain/lockfile provenance, produces SHA-256 checksums, and publishes a Linux x86_64 GitHub Release artifact.
+Tags matching `v*` trigger `.github/workflows/release.yml`.
 
-This automation establishes a **build verified** delivery artifact. It does not by itself satisfy the scientific-validation, dependency-audit, fuzz/adversarial, performance, and real-corpus evidence required by ADR-0018 for a **production-ready release**.
+The workflow refuses a tag that does not match `Cargo.toml` or whose commit is not reachable from `main`. It reruns the Rust and dependency gates, builds using the pinned release toolchain and locked dependency graph, generates an SPDX SBOM, packages the supported Linux artifact, writes checksums, generates cryptographic GitHub/Sigstore attestations, and publishes the archive/SBOM/checksums as release assets.
+
+Consumers can verify a downloaded artifact with GitHub CLI attestation verification in addition to checking `SHA256SUMS`.
+
+## Artifact behavior
+
+Existing versioned scientific JSON contracts must not gain unversioned build metadata. Software/build provenance belongs in release metadata/attestations or in a separately versioned scientific output contract.
+
+## Production decision
+
+Automated delivery establishes a **build verified** artifact. It does not by itself establish biological validity. A release must not be described as production-ready until the exact revision also has the scientific, adversarial, performance, and approved real-corpus evidence required by ADR-0018.
