@@ -177,7 +177,7 @@ Key entry points:
 - [ADR index](docs/adr/README.md)
 - [current methods](docs/methods/README.md)
 - [contracts](docs/contracts/README.md)
-- [source mirror](docs/src/README.md)
+- [source mirror](docs/architecture/source-mirror.md)
 - [development and release operations](docs/operations/README.md)
 - [traceability](docs/traceability.md)
 - [research](docs/research/README.md)

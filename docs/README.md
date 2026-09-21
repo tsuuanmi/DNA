@@ -11,7 +11,7 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 3. [ADRs](adr/README.md) — why durable architectural or scientific choices were made.
 4. [Methods](methods/README.md) — current scientific and algorithmic behavior.
 5. [Contracts](contracts/README.md) — public and machine-visible interfaces.
-6. [Implementation mirror](src/README.md) and affected source — implementation ownership and executable behavior.
+6. [Implementation mirror](architecture/source-mirror.md) and affected source — implementation ownership and executable behavior.
 7. [Traceability](traceability.md) and [operations](operations/README.md) — tests and evidence that protect the behavior.
 
 ## Authority
@@ -24,7 +24,7 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 | [Architecture](architecture/README.md) | boundaries and cross-cutting invariants |
 | [Methods](methods/README.md) | detailed current scientific/algorithmic semantics |
 | source code | actual behavior executed by the current revision |
-| [docs/src](src/README.md) | descriptive implementation ownership; must track source |
+| [docs/src mirror policy](architecture/source-mirror.md) | descriptive implementation ownership; `docs/src/` must track source one-to-one |
 | [Governance](governance/README.md) | change, compatibility, data, and documentation policy |
 | [Operations](operations/README.md) | development, batch, CI, release, and delivery procedures |
 | [Roadmap](roadmap.md) | future direction; non-normative |
@@ -42,7 +42,7 @@ docs/
 ├── adr/            # durable design/science decisions
 ├── methods/        # current algorithms and scientific behavior
 ├── contracts/      # config, result semantics, schemas, examples
-├── src/            # source-module implementation mirror
+├── src/            # exact source-module implementation mirror
 ├── operations/     # development, batch, CI, release, delivery
 ├── governance/     # documentation, compatibility, data policy
 ├── research/       # non-normative exploration
@@ -60,7 +60,7 @@ Root-level documents are intentionally limited to cross-cutting entry points.
 - [ADR index](adr/README.md)
 - [Methods](methods/README.md)
 - [Contracts](contracts/README.md)
-- [Implementation mirror](src/README.md)
+- [Implementation mirror](architecture/source-mirror.md)
 - [Operations](operations/README.md)
 - [Governance](governance/README.md)
 - [Research](research/README.md)
