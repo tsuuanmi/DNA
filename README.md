@@ -20,7 +20,7 @@ The compiler cannot prove biological correctness. Real scientific claims still r
 
 ## Current status
 
-The JSON-based single-trace pipeline is implemented and is being hardened toward an evidence-backed production release profile.
+The JSON-based pipeline is implemented with production-oriented engineering controls. A release is not called production-ready until the exact revision also satisfies the scientific validation and release-evidence contract in ADR-0018.
 
 Current supported behavior includes:
 
@@ -214,11 +214,13 @@ uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 ```
 
-CI also verifies the declared MSRV and rejects non-Rust files under `src/`. Tagged `v*` releases run the required Rust gates again, build the locked release binary, capture toolchain/source/lockfile provenance, generate SHA-256 checksums, and publish a Linux x86_64 GitHub Release artifact.
+CI also verifies the declared MSRV, Rust-only production source, dependency policy/review, RustSec, CodeQL, Python tooling, schemas/reference data, and an ABIF fuzz smoke campaign. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
-Longer-running or release-oriented validation such as fuzzing, dependency audit, mutation testing, performance measurement, and approved real-AB1 regression belongs to the extended validation/release lanes rather than being added mechanically to every pull request.
+Tagged `v*` releases rerun the required Rust/security gates, require the tagged commit to belong to `main`, build with the locked dependency graph, generate an SPDX SBOM, SHA-256 checksums, and cryptographic GitHub build/SBOM attestations, then publish the supported Linux x86_64 artifact.
 
-See [CI and verification lanes](docs/operations/ci.md) and [production readiness](docs/adr/0018-production-readiness-release-contract.md).
+Longer scientific validation—real-AB1 ground-truth comparison, extended fuzzing, and performance/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
+
+See [CI and verification lanes](docs/operations/ci.md), [repository governance](docs/operations/repository-governance.md), [release evidence](docs/operations/release-evidence-template.md), and [production readiness](docs/adr/0018-production-readiness-release-contract.md).
 
 ## Agent development
 
