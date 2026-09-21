@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Cleanly analyze selected manifest samples into per-sample result folders."""
 
 from __future__ import annotations
