@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "validate_rust_source_policy.py"
+ROOT = Path(__file__).resolve().parents[3]
+SCRIPT = ROOT / "tools" / "python" / "scripts" / "validate_rust_source_policy.py"
 
 
 class RustSourcePolicyTests(unittest.TestCase):
