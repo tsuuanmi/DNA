@@ -16,14 +16,15 @@ AB1 -> decode -> basecalling -> signal_processing -> quality_control
                                                    |
                                                    +-> basecall report v2
                                                    |
-FASTA -----------------------------------------> alignment -+-> variant_calling -+
-                                                           +-> phase -----------+-> ReadObservation
-                                                         /          \
-                                                        v            v
-                                               analysis report v7   SampleEvidence
-                                                                        |
-                                                                        v
-                                                         sample_evidence/v8
+FASTA -----------------------------------------> alignment -> variant_calling -> ReadObservation
+                                                                                   |
+                                                            +----------------------+
+                                                            |                      |
+                                                            v                      v
+                                                   analysis report v7       sample aggregation
+                                                                                   |
+                                                                                   v
+                                                                     sample_evidence/v8
 ```
 
 `pipeline::observation` is the one authoritative reference-guided read path.
@@ -68,7 +69,7 @@ The completed typed result is serialized before filesystem publication. The core
 
 ## External batch orchestration
 
-`scripts/analyze_samples.py` is outside the core CLI boundary. It validates the manifest, selected traces, identities, destinations, and cleanup targets; rejects ambiguous matches, trace-stem collisions, and symlinks; then builds or validates the binary before deleting anything. Cleanup removes only selected sample directories plus matching per-trace and sample logs, preserving unselected artifacts. Each selected trace first runs through the one-file no-overwrite CLI in isolation. When every trace for a sample succeeds, the script invokes `signal sample` with that complete trace set and atomically publishes the aggregate as `results/<sample>/<sample>.json` beside the per-trace JSON files. If any trace fails, the aggregate is skipped so no incomplete sample result is presented as complete. Because cleanup is intentionally destructive and execution is sequential, a later failure may leave partial new outputs from earlier successful traces; it does not restore the removed prior batch.
+Local corpus discovery, selected cleanup, per-trace execution, and aggregate publication are outside the core scientific architecture. Their authoritative operational contract is [local batch orchestration](../operations/batch.md).
 
 ## Resource bounds
 
