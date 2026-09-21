@@ -6,7 +6,7 @@ DNA documentation is organized by authority, not by file age or document length.
 
 | Layer | Purpose | Normative? |
 |---|---|---|
-| SRS | Intended system requirements | Yes |
+| SRS (`srs/`) | Intended system requirements | Yes |
 | JSON Schema / configuration contract | Exact machine-visible contract for the named version | Yes |
 | Accepted ADR | Decision and rationale | Yes for the decision it governs |
 | Method docs | Detailed current scientific/algorithmic semantics | Yes |
@@ -74,7 +74,7 @@ Use stable role-based names over temporary project names.
 
 Prefer:
 
-- `SRS.md`, `architecture.md`, `operations/ci.md`, `roadmap.md`;
+- `srs/README.md`, `architecture.md`, `operations/ci.md`, `roadmap.md`;
 - `docs/research/<topic>/` for explorations;
 - `docs/src/<same-relative-path>.md` for implementation manuals.
 

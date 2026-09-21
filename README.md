@@ -171,7 +171,7 @@ Exploratory work lives under `docs/research/<topic>/` and is non-normative until
 
 Key entry points:
 
-- [SRS](docs/SRS.md)
+- [SRS](docs/srs/README.md)
 - [architecture](docs/architecture/README.md)
 - [system invariants](docs/architecture/invariants.md)
 - [ADR index](docs/adr/README.md)
