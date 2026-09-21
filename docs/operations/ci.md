@@ -28,7 +28,7 @@ cargo build --locked --release
 `Cargo.toml` declares the MSRV. CI independently installs that exact compiler and verifies:
 
 ```bash
-cargo +1.85.0 check --locked --all-targets
+cargo +1.88.0 check --locked --all-targets
 ```
 
 The MSRV and release toolchain are intentionally separate: the former is a compatibility promise; the latter is the reproducible toolchain used for release-quality checks.
