@@ -120,8 +120,8 @@ sample   -> results/<sample-id>.sample.json
 
 Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample. The batch runner persists only the sample log while keeping per-trace JSON results.
 
-The external batch runner `scripts/analyze_samples.py` keeps per-trace results and
-the aggregate together:
+The external Python batch runner `tools/python/scripts/analyze_samples.py` keeps per-trace results and
+the aggregate together. Python is companion tooling for research, validation, and testing; the production runtime remains Rust-only:
 
 ```text
 results/<sample-id>/
@@ -185,27 +185,36 @@ Key entry points:
 
 ## Development
 
-Create the locked development environment:
+The repository root is a Rust project. Production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is used only for research, validation, and test tooling.
+
+The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV).
+
+Create the locked Python tooling environment only when those companion tools are needed:
 
 ```bash
-uv sync --locked
+uv sync --project tools/python --frozen
 ```
 
 Required repository checks:
 
 ```bash
-uv run ruff format --check scripts/
-uv run ruff check scripts/
-uv run basedpyright scripts/
+cargo fmt --all --check
+cargo check --locked --all-targets
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked --all-targets
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
+cargo build --locked --release
+
+cd tools/python
+uv run ruff format --check scripts tests
+uv run ruff check scripts tests
+uv run basedpyright scripts tests
+uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
-
-cargo fmt --all --check
-cargo check --all-targets
-cargo clippy --all-targets -- -D warnings
-cargo test --all-targets
-cargo doc --no-deps
 ```
+
+CI also verifies the declared MSRV and rejects non-Rust files under `src/`. Tagged `v*` releases run the required Rust gates again, build the locked release binary, capture toolchain/source/lockfile provenance, generate SHA-256 checksums, and publish a Linux x86_64 GitHub Release artifact.
 
 Longer-running or release-oriented validation such as fuzzing, dependency audit, mutation testing, performance measurement, and approved real-AB1 regression belongs to the extended validation/release lanes rather than being added mechanically to every pull request.
 
