@@ -25,7 +25,7 @@ def violations(root: Path) -> list[str]:
             stripped = line.strip()
             for token in FORBIDDEN:
                 if token in stripped:
-                    found.append(f"{path}:{number}: forbidden workflow construct {token!r}")
+                    found.append(\n                        f"{path}:{number}: forbidden workflow construct {token!r}"\n                    )
             match = USES.match(line)
             if match and not FULL_SHA.fullmatch(match.group(2)):
                 found.append(
