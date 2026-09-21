@@ -11,7 +11,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 ANALYSIS_SCHEMA = ROOT / "docs" / "schemas" / "analysis-v7.schema.json"
 ANALYSIS_EXAMPLE = ROOT / "docs" / "examples" / "analysis-v7.example.json"
 BASECALL_SCHEMA = ROOT / "docs" / "schemas" / "basecalls-v2.schema.json"
