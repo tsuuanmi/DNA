@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:basecalls:v2",
+  "title": "DNA reference-free basecalls v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provenance",
+    "read",
+    "signal_quality",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.basecalls/v2"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "read": {
+      "$ref": "#/$defs/read"
+    },
+    "signal_quality": {
+      "$ref": "#/$defs/signalQuality"
+    },
+    "warnings": {
+      "$ref": "#/$defs/warnings"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input",
+        "configuration_sha256"
+      ],
+      "properties": {
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sha256"
+          ],
+          "properties": {
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_count",
+        "primary",
+        "ambiguity",
+        "retained",
+        "trim"
+      ],
+      "properties": {
+        "call_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "primary": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[ACGTN]+$"
+        },
+        "ambiguity": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[ACGTRYSWKMBDHVN]+$"
+        },
+        "retained": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[ACGTN]+$"
+        },
+        "trim": {
+          "$ref": "#/$defs/interval"
+        }
+      }
+    },
+    "noisyRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "samples",
+        "minimum_primary_snr"
+      ],
+      "properties": {
+        "calls": {
+          "$ref": "#/$defs/interval"
+        },
+        "samples": {
+          "$ref": "#/$defs/interval"
+        },
+        "minimum_primary_snr": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "signalQuality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "noisy_regions"
+      ],
+      "properties": {
+        "noisy_regions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/noisyRegion"
+          }
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        }
+      }
+    },
+    "warnings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unresolved_primary_calls",
+        "multi_channel_unresolved_calls",
+        "vendor_disagreements",
+        "ploc_vendor_length_mismatches",
+        "clipped_channel_samples"
+      ],
+      "properties": {
+        "unresolved_primary_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "multi_channel_unresolved_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vendor_disagreements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ploc_vendor_length_mismatches": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "clipped_channel_samples": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ploc_count",
+        "clipped_channel_samples"
+      ],
+      "properties": {
+        "ploc_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "vendor_primary_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vendor_quality_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum_ploc_spacing": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "median_ploc_spacing": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maximum_ploc_spacing": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "clipped_channel_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_to_median_event_signal_ratio": {
+          "type": "number",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ploc_count": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "ploc_count"
+            ]
+          },
+          "then": {
+            "required": [
+              "minimum_ploc_spacing",
+              "median_ploc_spacing",
+              "maximum_ploc_spacing"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "minimum_ploc_spacing"
+                  ]
+                },
+                {
+                  "required": [
+                    "median_ploc_spacing"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximum_ploc_spacing"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

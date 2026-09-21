@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install locked Python dependencies
+        run: uv sync --frozen
+      - name: Validate Rust source policy
+        run: uv run python scripts/validate_rust_source_policy.py
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Check
+        run: cargo check --all-targets
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
+      - name: Rustdoc
+        run: cargo doc --no-deps
+      - name: Ruff format
+        run: uv run ruff format --check scripts/ tests/python/
+      - name: Ruff check
+        run: uv run ruff check scripts/ tests/python/
+      - name: Basedpyright
+        run: uv run basedpyright scripts/ tests/python/
+      - name: Python tests
+        run: uv run python -m unittest discover -s tests/python -p 'test_*.py'
+      - name: Validate result schemas
+        run: uv run python scripts/validate_result_schemas.py
+      - name: Validate configuration templates
+        shell: bash
+        run: |
+          uv run python -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/dna.toml").read_text())'
+          set -a
+          source .env.example
+          test "$DNA_CONFIG" = "config/dna.toml"
+      - name: Validate rCRS reference
+        shell: bash
+        run: |
+          test "$(sha256sum references/rCRS.fasta | cut -d' ' -f1)" = "f0f08344920d29af5f0870f7b2c7b5a880e338b10b41d3536a0db7e6e5cd724a"
+          test "$(awk '!/^>/ { gsub(/[[:space:]]/, ""); n += length } END { print n }' references/rCRS.fasta)" = "16569"

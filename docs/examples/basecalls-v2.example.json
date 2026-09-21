@@ -1,0 +1,39 @@
+{
+  "schema_version": "dna.basecalls/v2",
+  "provenance": {
+    "input": {
+      "sha256": "a48e07b87c6c8e84bdb99a8fb4d4935522627134a6f0d6f7f471a20bf49f0c13"
+    },
+    "configuration_sha256": "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675"
+  },
+  "read": {
+    "call_count": 28,
+    "primary": "ACGTCAGTACGATCGTACCTGAGTACGA",
+    "ambiguity": "ACGTCAGTACGATCGTACCTGAGTACGA",
+    "retained": "ACGTCAGTACGATCGTACCTGAGTACGA",
+    "trim": {
+      "start": 0,
+      "end": 28
+    }
+  },
+  "signal_quality": {
+    "integrity": {
+      "ploc_count": 28,
+      "vendor_primary_count": 28,
+      "vendor_quality_count": 28,
+      "minimum_ploc_spacing": 4,
+      "median_ploc_spacing": 4,
+      "maximum_ploc_spacing": 4,
+      "clipped_channel_samples": 0,
+      "maximum_to_median_event_signal_ratio": 1
+    },
+    "noisy_regions": []
+  },
+  "warnings": {
+    "unresolved_primary_calls": 0,
+    "multi_channel_unresolved_calls": 0,
+    "vendor_disagreements": 0,
+    "ploc_vendor_length_mismatches": 0,
+    "clipped_channel_samples": 0
+  }
+}

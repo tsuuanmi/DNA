@@ -1,0 +1,292 @@
+{
+  "schema_version": "dna.sample_evidence/v8",
+  "sample_id": "sample-001",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "reads": [
+    {
+      "name": "read-a",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "integrity": {
+        "ploc_count": 28,
+        "vendor_primary_count": 28,
+        "vendor_quality_count": 28,
+        "minimum_ploc_spacing": 4,
+        "median_ploc_spacing": 4,
+        "maximum_ploc_spacing": 4,
+        "clipped_channel_samples": 0,
+        "maximum_to_median_event_signal_ratio": 1
+      },
+      "alignment": {
+        "orientation": "forward",
+        "callable_bases": 120,
+        "identity": 0.98,
+        "unresolved_bases": 0,
+        "gap_opens": 0,
+        "reference_segments": [
+          {
+            "start": 100,
+            "end": 220
+          }
+        ],
+        "wraps_origin": false
+      }
+    },
+    {
+      "name": "read-b",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "integrity": {
+        "ploc_count": 28,
+        "vendor_primary_count": 28,
+        "vendor_quality_count": 28,
+        "minimum_ploc_spacing": 4,
+        "median_ploc_spacing": 4,
+        "maximum_ploc_spacing": 4,
+        "clipped_channel_samples": 0,
+        "maximum_to_median_event_signal_ratio": 1
+      },
+      "alignment": {
+        "orientation": "reverse",
+        "callable_bases": 120,
+        "identity": 0.975,
+        "unresolved_bases": 0,
+        "gap_opens": 0,
+        "reference_segments": [
+          {
+            "start": 140,
+            "end": 260
+          }
+        ],
+        "wraps_origin": false
+      }
+    }
+  ],
+  "coverage": [
+    {
+      "reference": {
+        "start": 100,
+        "end": 140
+      },
+      "read_depth": 1,
+      "forward_depth": 1,
+      "reverse_depth": 0
+    },
+    {
+      "reference": {
+        "start": 140,
+        "end": 220
+      },
+      "read_depth": 2,
+      "forward_depth": 1,
+      "reverse_depth": 1
+    },
+    {
+      "reference": {
+        "start": 220,
+        "end": 260
+      },
+      "read_depth": 1,
+      "forward_depth": 0,
+      "reverse_depth": 1
+    }
+  ],
+  "overlaps": [
+    {
+      "left": "read-a",
+      "right": "read-b",
+      "shared_positions": 80,
+      "comparable_bases": 80,
+      "agreements": 79,
+      "conflicts": 1,
+      "agreement": 0.9875,
+      "eligible": true,
+      "exclusion_reasons": []
+    }
+  ],
+  "locus_differences": [
+    {
+      "position": 150,
+      "reference": "C",
+      "observations": [
+        {
+          "read": "read-a",
+          "state": "alternate",
+          "base": "T",
+          "quality": 56,
+          "profile": {
+            "A": 0.01,
+            "C": 0.04,
+            "G": 0.03,
+            "T": 0.92
+          },
+          "in_noisy_region": false
+        },
+        {
+          "read": "read-b",
+          "state": "reference",
+          "base": "C",
+          "quality": 52,
+          "profile": {
+            "A": 0.01,
+            "C": 0.95,
+            "G": 0.02,
+            "T": 0.02
+          },
+          "in_noisy_region": false
+        }
+      ],
+      "support_topology": {
+        "reads": 2,
+        "forward_reads": 1,
+        "reverse_reads": 1,
+        "reference_reads": 1,
+        "alternate_reads": 1,
+        "unresolved_reads": 0,
+        "deletion_reads": 0,
+        "profile_reads": 2,
+        "profile_forward_reads": 1,
+        "profile_reverse_reads": 1
+      }
+    },
+    {
+      "position": 199,
+      "reference": "T",
+      "observations": [
+        {
+          "read": "read-a",
+          "state": "alternate",
+          "base": "C",
+          "quality": 56,
+          "profile": {
+            "A": 0.01,
+            "C": 0.93,
+            "G": 0.04,
+            "T": 0.02
+          },
+          "in_noisy_region": false
+        },
+        {
+          "read": "read-b",
+          "state": "alternate",
+          "base": "C",
+          "quality": 48,
+          "profile": {
+            "A": 0.02,
+            "C": 0.69,
+            "G": 0.03,
+            "T": 0.26
+          },
+          "in_noisy_region": true
+        }
+      ],
+      "support_topology": {
+        "reads": 2,
+        "forward_reads": 1,
+        "reverse_reads": 1,
+        "reference_reads": 0,
+        "alternate_reads": 2,
+        "unresolved_reads": 0,
+        "deletion_reads": 0,
+        "profile_reads": 2,
+        "profile_forward_reads": 1,
+        "profile_reverse_reads": 1
+      }
+    }
+  ],
+  "variants": [
+    {
+      "position": 150,
+      "reference": "C",
+      "alternate": "T",
+      "kind": "SNV",
+      "support": [
+        {
+          "read": "read-a",
+          "eligible": true,
+          "exclusion_reasons": [],
+          "calls": [
+            {
+              "role": "supporting",
+              "base": "T",
+              "peaks": {
+                "A": 18,
+                "C": 42,
+                "G": 25,
+                "T": 812
+              },
+              "quality": 56
+            }
+          ]
+        }
+      ],
+      "support_topology": {
+        "reads": 1,
+        "eligible_reads": 1,
+        "forward_reads": 1,
+        "reverse_reads": 0,
+        "eligible_forward_reads": 1,
+        "eligible_reverse_reads": 0
+      }
+    },
+    {
+      "position": 199,
+      "reference": "T",
+      "alternate": "C",
+      "kind": "SNV",
+      "support": [
+        {
+          "read": "read-a",
+          "eligible": true,
+          "exclusion_reasons": [],
+          "calls": [
+            {
+              "role": "supporting",
+              "base": "C",
+              "peaks": {
+                "A": 16,
+                "C": 790,
+                "G": 31,
+                "T": 22
+              },
+              "quality": 56
+            }
+          ]
+        },
+        {
+          "read": "read-b",
+          "eligible": false,
+          "exclusion_reasons": [
+            "mixed_supporting_dna"
+          ],
+          "calls": [
+            {
+              "role": "supporting",
+              "base": "C",
+              "peaks": {
+                "A": 14,
+                "C": 790,
+                "G": 29,
+                "T": 300
+              },
+              "quality": 48
+            }
+          ]
+        }
+      ],
+      "support_topology": {
+        "reads": 2,
+        "eligible_reads": 1,
+        "forward_reads": 1,
+        "reverse_reads": 1,
+        "eligible_forward_reads": 1,
+        "eligible_reverse_reads": 0
+      }
+    }
+  ]
+}

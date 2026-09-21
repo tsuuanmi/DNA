@@ -1,0 +1,88 @@
+{
+  "schema_version": "dna.analysis/v7",
+  "provenance": {
+    "input": {
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "reference": {
+      "name": "synthetic-reference",
+      "topology": "linear",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "configuration_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "read": {
+    "call_count": 28,
+    "trim": {
+      "start": 2,
+      "end": 26
+    }
+  },
+  "signal_quality": {
+    "integrity": {
+      "ploc_count": 28,
+      "vendor_primary_count": 28,
+      "vendor_quality_count": 28,
+      "minimum_ploc_spacing": 4,
+      "median_ploc_spacing": 4,
+      "maximum_ploc_spacing": 4,
+      "clipped_channel_samples": 0,
+      "maximum_to_median_event_signal_ratio": 1
+    },
+    "noisy_regions": [
+      {
+        "calls": {
+          "start": 8,
+          "end": 15
+        },
+        "samples": {
+          "start": 79,
+          "end": 151
+        },
+        "minimum_primary_snr": 4.125
+      }
+    ]
+  },
+  "alignment": {
+    "orientation": "forward",
+    "callable_bases": 24,
+    "identity": 0.9583333333333334,
+    "unresolved_bases": 0,
+    "gap_opens": 0,
+    "reference_segments": [
+      {
+        "start": 100,
+        "end": 124
+      }
+    ],
+    "wraps_origin": false
+  },
+  "variants": [
+    {
+      "position": 112,
+      "reference": "A",
+      "alternate": "G",
+      "kind": "SNV",
+      "calls": [
+        {
+          "role": "supporting",
+          "base": "G",
+          "peaks": {
+            "A": 84,
+            "C": 36,
+            "G": 842,
+            "T": 21
+          },
+          "quality": 37
+        }
+      ]
+    }
+  ],
+  "warnings": {
+    "unresolved_primary_calls": 0,
+    "multi_channel_unresolved_calls": 0,
+    "excluded_variant_candidates": 1,
+    "ploc_vendor_length_mismatches": 0,
+    "clipped_channel_samples": 0
+  }
+}

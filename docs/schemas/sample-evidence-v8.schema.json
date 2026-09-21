@@ -1,0 +1,876 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:sample-evidence:v8",
+  "title": "DNA sample evidence v8",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sample_id",
+    "provenance",
+    "reads",
+    "coverage",
+    "overlaps",
+    "locus_differences",
+    "variants"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.sample_evidence/v8"
+    },
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "reads": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/read"
+      }
+    },
+    "locus_differences": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/locusDifference"
+      }
+    },
+    "variants": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/variant"
+      }
+    },
+    "overlaps": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/overlap"
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/coverage"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "orientation": {
+      "enum": [
+        "forward",
+        "reverse"
+      ]
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "topology",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topology": {
+          "enum": [
+            "linear",
+            "circular"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "configuration_sha256"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/reference"
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256",
+        "integrity",
+        "alignment"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "alignment": {
+          "$ref": "#/$defs/readAlignment"
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        }
+      }
+    },
+    "readAlignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orientation",
+        "callable_bases",
+        "identity",
+        "gap_opens",
+        "unresolved_bases",
+        "reference_segments",
+        "wraps_origin"
+      ],
+      "properties": {
+        "orientation": {
+          "$ref": "#/$defs/orientation"
+        },
+        "callable_bases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "identity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "gap_opens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_bases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference_segments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/interval"
+          }
+        },
+        "wraps_origin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "locusDifference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "reference",
+        "support_topology",
+        "observations"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[ACGTN]$"
+        },
+        "observations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/locusObservation"
+          },
+          "contains": {
+            "$ref": "#/$defs/nonReferenceObservation"
+          },
+          "minContains": 1
+        },
+        "support_topology": {
+          "$ref": "#/$defs/locusSupportTopology"
+        }
+      }
+    },
+    "exclusionReason": {
+      "enum": [
+        "non_canonical_allele",
+        "indel_length_exceeded",
+        "outside_configured_region",
+        "peak_below_minimum",
+        "relative_quality_not_above_threshold",
+        "mixed_supporting_dna"
+      ]
+    },
+    "variantCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "base",
+        "peaks",
+        "quality"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "supporting",
+            "flanking"
+          ]
+        },
+        "base": {
+          "type": "string",
+          "pattern": "^[ACGT]$"
+        },
+        "peaks": {
+          "$ref": "#/$defs/peakHeights"
+        },
+        "quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "variantSupport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "eligible",
+        "exclusion_reasons",
+        "calls"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "exclusion_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/exclusionReason"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/variantCall"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eligible": {
+                "const": true
+              }
+            },
+            "required": [
+              "eligible"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exclusion_reasons": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "exclusion_reasons": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "reference",
+        "alternate",
+        "kind",
+        "support_topology",
+        "support"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[ACGT]+$"
+        },
+        "alternate": {
+          "type": "string",
+          "pattern": "^[ACGT]+$"
+        },
+        "kind": {
+          "enum": [
+            "SNV",
+            "INS",
+            "DEL"
+          ]
+        },
+        "support": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/variantSupport"
+          }
+        },
+        "support_topology": {
+          "$ref": "#/$defs/variantSupportTopology"
+        }
+      }
+    },
+    "calledObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "state",
+        "base",
+        "quality",
+        "in_noisy_region"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "reference",
+            "alternate",
+            "unresolved"
+          ]
+        },
+        "base": {
+          "type": "string",
+          "pattern": "^[ACGTN]$"
+        },
+        "quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "profile": {
+          "$ref": "#/$defs/evidenceProfile"
+        },
+        "in_noisy_region": {
+          "type": "boolean"
+        }
+      }
+    },
+    "deletionObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "state"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "const": "deletion"
+        }
+      }
+    },
+    "locusObservation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/calledObservation"
+        },
+        {
+          "$ref": "#/$defs/deletionObservation"
+        }
+      ]
+    },
+    "nonReferenceCalledObservation": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "alternate",
+            "unresolved"
+          ]
+        }
+      }
+    },
+    "nonReferenceObservation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonReferenceCalledObservation"
+        },
+        {
+          "$ref": "#/$defs/deletionObservation"
+        }
+      ]
+    },
+    "peakHeights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ],
+      "properties": {
+        "A": {
+          "type": "integer"
+        },
+        "C": {
+          "type": "integer"
+        },
+        "G": {
+          "type": "integer"
+        },
+        "T": {
+          "type": "integer"
+        }
+      }
+    },
+    "overlapExclusionReason": {
+      "enum": [
+        "comparable_bases_below_minimum",
+        "agreement_below_minimum"
+      ]
+    },
+    "overlap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left",
+        "right",
+        "shared_positions",
+        "comparable_bases",
+        "agreements",
+        "conflicts",
+        "eligible",
+        "exclusion_reasons"
+      ],
+      "properties": {
+        "left": {
+          "type": "string",
+          "minLength": 1
+        },
+        "right": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shared_positions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "comparable_bases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agreements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "conflicts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agreement": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "exclusion_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/overlapExclusionReason"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eligible": {
+                "const": true
+              }
+            },
+            "required": [
+              "eligible"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exclusion_reasons": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "exclusion_reasons": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "comparable_bases": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "comparable_bases"
+            ]
+          },
+          "then": {
+            "required": [
+              "agreement"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "agreement"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ploc_count",
+        "clipped_channel_samples"
+      ],
+      "properties": {
+        "ploc_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "vendor_primary_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vendor_quality_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum_ploc_spacing": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "median_ploc_spacing": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maximum_ploc_spacing": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "clipped_channel_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_to_median_event_signal_ratio": {
+          "type": "number",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ploc_count": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "ploc_count"
+            ]
+          },
+          "then": {
+            "required": [
+              "minimum_ploc_spacing",
+              "median_ploc_spacing",
+              "maximum_ploc_spacing"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "minimum_ploc_spacing"
+                  ]
+                },
+                {
+                  "required": [
+                    "median_ploc_spacing"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximum_ploc_spacing"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "read_depth",
+        "forward_depth",
+        "reverse_depth"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/interval"
+        },
+        "read_depth": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "forward_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reverse_depth": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "forward_depth": {
+              "minimum": 1
+            }
+          },
+          "required": [
+            "forward_depth"
+          ]
+        },
+        {
+          "properties": {
+            "reverse_depth": {
+              "minimum": 1
+            }
+          },
+          "required": [
+            "reverse_depth"
+          ]
+        }
+      ]
+    },
+    "variantSupportTopology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reads",
+        "eligible_reads",
+        "forward_reads",
+        "reverse_reads",
+        "eligible_forward_reads",
+        "eligible_reverse_reads"
+      ],
+      "properties": {
+        "reads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eligible_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forward_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reverse_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligible_forward_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligible_reverse_reads": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "evidenceProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ],
+      "properties": {
+        "A": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "C": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "G": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "T": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "locusSupportTopology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reads",
+        "forward_reads",
+        "reverse_reads",
+        "reference_reads",
+        "alternate_reads",
+        "unresolved_reads",
+        "deletion_reads",
+        "profile_reads",
+        "profile_forward_reads",
+        "profile_reverse_reads"
+      ],
+      "properties": {
+        "reads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "forward_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reverse_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "alternate_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deletion_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "profile_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "profile_forward_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "profile_reverse_reads": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

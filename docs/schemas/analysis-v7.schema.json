@@ -1,0 +1,546 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:analysis:v7",
+  "title": "DNA compact analysis v7",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provenance",
+    "read",
+    "signal_quality",
+    "alignment",
+    "variants",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.analysis/v7"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "read": {
+      "$ref": "#/$defs/read"
+    },
+    "signal_quality": {
+      "$ref": "#/$defs/signalQuality"
+    },
+    "alignment": {
+      "$ref": "#/$defs/alignment"
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/variant"
+      }
+    },
+    "warnings": {
+      "$ref": "#/$defs/warnings"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input",
+        "reference",
+        "configuration_sha256"
+      ],
+      "properties": {
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sha256"
+          ],
+          "properties": {
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "reference": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "topology",
+            "sha256"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "topology": {
+              "enum": [
+                "linear",
+                "circular"
+              ]
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_count",
+        "trim"
+      ],
+      "properties": {
+        "call_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "trim": {
+          "$ref": "#/$defs/interval"
+        }
+      }
+    },
+    "noisyRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "samples",
+        "minimum_primary_snr"
+      ],
+      "properties": {
+        "calls": {
+          "$ref": "#/$defs/interval"
+        },
+        "samples": {
+          "$ref": "#/$defs/interval"
+        },
+        "minimum_primary_snr": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "signalQuality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "noisy_regions"
+      ],
+      "properties": {
+        "noisy_regions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/noisyRegion"
+          }
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        }
+      }
+    },
+    "alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orientation",
+        "callable_bases",
+        "identity",
+        "unresolved_bases",
+        "gap_opens",
+        "reference_segments",
+        "wraps_origin"
+      ],
+      "properties": {
+        "orientation": {
+          "enum": [
+            "forward",
+            "reverse"
+          ]
+        },
+        "callable_bases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "identity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "unresolved_bases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gap_opens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference_segments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/interval"
+          }
+        },
+        "wraps_origin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "variantCore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "reference",
+        "alternate",
+        "kind",
+        "calls"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[ACGT]+$"
+        },
+        "alternate": {
+          "type": "string",
+          "pattern": "^[ACGT]+$"
+        },
+        "kind": {
+          "enum": [
+            "SNV",
+            "INS",
+            "DEL"
+          ]
+        },
+        "calls": {
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    },
+    "snvVariant": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/variantCore"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "SNV"
+            },
+            "calls": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/variantCall"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "const": "supporting"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "insertionVariant": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/variantCore"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "INS"
+            },
+            "calls": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/variantCall"
+              },
+              "contains": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/variantCall"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "const": "supporting"
+                      }
+                    }
+                  }
+                ]
+              },
+              "minContains": 1
+            }
+          }
+        }
+      ]
+    },
+    "deletionVariant": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/variantCore"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "DEL"
+            },
+            "calls": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/variantCall"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "const": "flanking"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "variant": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/snvVariant"
+        },
+        {
+          "$ref": "#/$defs/insertionVariant"
+        },
+        {
+          "$ref": "#/$defs/deletionVariant"
+        }
+      ]
+    },
+    "warnings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unresolved_primary_calls",
+        "multi_channel_unresolved_calls",
+        "ploc_vendor_length_mismatches",
+        "clipped_channel_samples",
+        "excluded_variant_candidates"
+      ],
+      "properties": {
+        "unresolved_primary_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "multi_channel_unresolved_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded_variant_candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ploc_vendor_length_mismatches": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "clipped_channel_samples": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "peakHeights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ],
+      "properties": {
+        "A": {
+          "type": "integer"
+        },
+        "C": {
+          "type": "integer"
+        },
+        "G": {
+          "type": "integer"
+        },
+        "T": {
+          "type": "integer"
+        }
+      }
+    },
+    "variantCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "base",
+        "peaks",
+        "quality"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "supporting",
+            "flanking"
+          ]
+        },
+        "base": {
+          "type": "string",
+          "pattern": "^[ACGT]$"
+        },
+        "peaks": {
+          "$ref": "#/$defs/peakHeights"
+        },
+        "quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ploc_count",
+        "clipped_channel_samples"
+      ],
+      "properties": {
+        "ploc_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "vendor_primary_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vendor_quality_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum_ploc_spacing": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "median_ploc_spacing": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maximum_ploc_spacing": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "clipped_channel_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_to_median_event_signal_ratio": {
+          "type": "number",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ploc_count": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "ploc_count"
+            ]
+          },
+          "then": {
+            "required": [
+              "minimum_ploc_spacing",
+              "median_ploc_spacing",
+              "maximum_ploc_spacing"
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "minimum_ploc_spacing"
+                  ]
+                },
+                {
+                  "required": [
+                    "median_ploc_spacing"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximum_ploc_spacing"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

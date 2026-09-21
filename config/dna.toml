@@ -1,0 +1,49 @@
+# DNA scientific configuration. Unknown or missing keys are errors.
+schema_version = 5
+
+[reference]
+# rCRS is a circular mitochondrial reference.
+topology = "circular"
+
+[basecalling]
+# A channel's selected peak and signal at the primary peak must reach this fraction.
+secondary_peak_ratio = 0.33
+
+[signal_processing]
+# Observation-only rolling SNR annotation; it does not alter scientific calls.
+window_size_bases = 10
+minimum_primary_snr = 3.0
+# At least two candidate windows are required for a noisy interval.
+minimum_noisy_windows = 2
+
+[quality_control]
+# Relative, uncalibrated quality and end-trimming settings.
+trim_window_size = 10
+best_section_fraction = 0.10
+max_relative_quality_score = 60
+trim_stringency = 7.0
+minimum_retained_bases = 20
+
+[alignment]
+# Semi-global affine-gap scoring. A length-k gap costs open + k * extension.
+match_score = 3
+mismatch_score = -5
+ambiguous_score = 0
+gap_open_score = -10
+gap_extension_score = -4
+minimum_callable_bases = 20
+minimum_identity = 0.80
+
+[sample_reconciliation]
+# Tracy-derived pre-consensus overlap admission, applied after independent placement.
+minimum_comparable_bases = 25
+minimum_overlap_agreement = 0.50
+
+[variant_calling]
+# Anchor bases do not count toward this changed-length limit.
+max_indel_length = 50
+# SNV and inserted-base supporting calls must meet both evidence thresholds.
+minimum_peak_height = 150
+relative_quality_threshold = 30
+# Inclusive 1-based normalized variant anchor ranges (HV1, HV2, HV3).
+regions = [[16024, 16365], [73, 340], [438, 576]]

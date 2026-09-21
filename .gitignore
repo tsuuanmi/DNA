@@ -1,0 +1,10 @@
+data/
+results
+logs/
+validation-results/
+.env
+__pycache__/
+
+/.venv/
+/target/
+/out/
