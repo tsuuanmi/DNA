@@ -63,11 +63,12 @@ The workflow:
 
 1. verifies the tag exactly matches the crate version;
 2. reruns formatting, compilation, Clippy, tests, and Rustdoc with the locked dependency graph;
-3. builds the release binary;
-4. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
-5. packages the Linux `x86_64-unknown-linux-gnu` artifact;
-6. produces SHA-256 checksums;
-7. publishes the artifact and checksums to the GitHub Release for that tag.
+3. audits `Cargo.lock` with pinned `cargo-audit`;
+4. builds the release binary;
+5. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
+6. packages the Linux `x86_64-unknown-linux-gnu` artifact;
+7. produces SHA-256 checksums;
+8. publishes the artifact and checksums to the GitHub Release for that tag.
 
 The current automated binary support claim is therefore Linux x86_64 only. Other platforms are not implied to be release-supported until they are built, tested, and published by the release process.
 
@@ -78,7 +79,7 @@ Checks with higher runtime or specialized toolchains may run on a schedule, rele
 - fuzz campaigns;
 - mutation testing;
 - property-test expansion;
-- dependency/license/advisory audit;
+- deeper dependency/license policy review beyond the required RustSec audit;
 - performance regression measurements;
 - approved real-AB1 regression corpus.
 
