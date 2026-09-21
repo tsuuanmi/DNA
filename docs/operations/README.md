@@ -4,6 +4,8 @@
 - [CI lanes](ci.md): required verification gates.
 - [Repository governance](repository-governance.md): required branch/tag protection and security settings.
 - [Release evidence template](release-evidence-template.md): auditable evidence required for a production-ready release.
+- [Platform support](platform-support.md): evidence-backed supported target policy.
+- [Versioning](versioning.md): software/tag and scientific-contract versioning policy.
 - [Data policy](../data.md): local AB1 provenance/privacy rules.
 - [Delivery record](../delivery-record.md): historical delivery acceptance record.
 - [Production readiness ADR](../adr/0018-production-readiness-release-contract.md): release-quality contract.
