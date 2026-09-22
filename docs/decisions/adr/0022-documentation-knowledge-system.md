@@ -1,168 +1,145 @@
 # ADR-0022: Govern documentation as an executable knowledge system
 
-## Status
-
-Accepted
-
-**Supersedes:** ADR-0006
+- **Status:** Accepted
+- **Date:** 2026-09-22
+- **Supersedes:** ADR-0006
 
 ## Context
 
-DNA contains multiple kinds of knowledge: requirements, architecture, decisions,
-scientific methods, public contracts, implementation ownership, validation,
-operations, research, roadmap material, and agent instructions.
+DNA has multiple kinds of knowledge: normative requirements, architecture,
+current mechanisms, public contracts, durable decisions, proposed changes,
+research evidence, validation, engineering/release process, operations, security,
+governance, implementation ownership, and agent instructions.
 
-These artifacts do not have equal authority. A parallel source-documentation tree
-also creates a second hierarchy that can drift from the code it describes.
+These artifacts do not have equal authority or lifecycle. Without an explicit
+model, humans and coding agents can treat research as production truth, use an ADR
+as a current design manual, duplicate specifications across folders, or let
+implementation documentation drift away from source.
 
-The goal is therefore not to maximize documentation volume. The goal is to make
-current truth easy to locate, hard to duplicate, and synchronized with the code.
+The goal is not to maximize documentation volume. The goal is one canonical home
+per fact, explicit lifecycle, clear ownership, traceability, and executable
+repository checks.
 
 ## Decision
 
 DNA documentation is governed as a layered knowledge system.
 
-### 1. Current production knowledge is authoritative by role
+### 1. Knowledge is separated by role
 
-- **SRS** defines what the current system MUST/SHOULD/MAY do.
-- **Accepted ADRs** record why durable architectural or scientific choices were made.
-- **Architecture** defines stable boundaries, dependency direction, data flow, and
-  cross-cutting invariants.
-- **Methods** define current scientific and algorithmic behavior.
-- **Contracts** define user-visible and machine-visible interfaces.
-- **Source-directory README files** define implementation ownership and route
-  readers to relevant code and canonical documentation.
-- **Validation, operations, and governance** define verification and operating policy.
-- **Roadmap and research** are non-normative.
+| Area | Responsibility | Lifecycle class |
+|---|---|---|
+| `requirements/` | normative intended behavior and quality attributes | canonical / living |
+| `architecture/` | system structure and cross-cutting invariants | canonical / living |
+| `design/` | current mechanisms and algorithms | canonical / living |
+| `reference/` | public/configuration/schema/coordinate semantics | canonical / living |
+| `validation/` | acceptance, evidence, limitations, traceability | canonical / living |
+| `engineering/` | development, testing, CI/CD, release, dependencies | canonical / living |
+| `operations/` | readiness, observability, runbooks, playbooks | canonical / living |
+| `security/` | trust boundaries, threats, supply-chain policy | canonical / living |
+| `governance/` | documentation/data/versioning/ownership/lifecycle policy | canonical / living |
+| `decisions/` | durable decision rationale | historical / durable |
+| `proposals/` | reviewed changes under consideration | evolutionary |
+| `research/` | evidence, experiments, candidate ideas | exploratory |
 
-A disagreement between source and normative production documentation is a defect
-to reconcile, not permission to choose whichever artifact is convenient.
+Machine-readable schemas remain authoritative for the exact shape of their named
+version. Source code is executable reality. A disagreement between source and
+normative current-state documentation is a defect to reconcile, not a reason to
+silently choose whichever artifact is convenient.
 
 ### 2. README files are routers
 
-README files orient readers; they do not become duplicate specifications.
+- root `README.md` routes users and contributors;
+- `docs/README.md` routes knowledge by authority/lifecycle;
+- every documentation folder has one canonical `README.md` index;
+- every real source directory has a colocated `README.md` describing ownership;
+- `AGENTS.md` contains routing plus repository-wide invariants.
 
-- The repository `README.md` routes users and contributors into the project.
-- `docs/README.md` routes readers to canonical knowledge by role.
-- Each documentation-folder `README.md` indexes that knowledge area.
-- Each source-directory `README.md` describes module responsibility and links to
-  deeper SRS, architecture, methods, contracts, ADRs, and tests.
+Routers link to deeper canonical material rather than duplicating it.
 
-### 3. Implementation documentation is colocated with code
+### 3. Implementation documentation is colocated with source
 
-Every directory under `src/` has an up-to-date `README.md`.
+Every directory under `src/` has an up-to-date `README.md` describing
+responsibility, non-responsibilities, entry points, dependency direction, local
+invariants, and links to relevant canonical docs/tests.
 
-The README describes:
+File-only Rust modules use rustdoc/source comments. DNA does not maintain a
+parallel `docs/src/` shadow tree.
 
-- responsibility and non-responsibilities;
-- boundary entry points;
-- important child modules/files;
-- dependencies and local invariants;
-- links to canonical requirements, methods, decisions, contracts, and tests.
+### 4. Current truth, history, change, and evidence are distinct
 
-File-only modules continue to use rustdoc/module comments. They are not converted
-into directories solely to create documentation.
+- requirements/architecture/design/reference describe current intended truth;
+- ADRs explain why durable choices were made;
+- proposals describe changes not yet current;
+- research supplies evidence and hypotheses;
+- validation demonstrates whether claims/requirements are supported.
 
-DNA does not maintain a `docs/src/` shadow tree. This replaces ADR-0006's
-one-to-one source/manual mirroring model with a lower-duplication, colocated
-ownership model.
+Historical ADRs are not rewritten into current design manuals. Current-state docs
+are not retained as legacy copies after replacement; Git preserves their history.
 
-### 4. Cross-cutting invariants have one explicit home
-
-Stable invariants spanning modules belong under
-`docs/architecture/invariants/`. Source README files link to those invariants
-rather than restating them inconsistently.
-
-### 5. Traceability connects intent to implementation and evidence
-
-`docs/validation/traceability.md` maps requirement families to current architecture/methods,
-owning source modules, tests/evidence, and public contracts. It is a navigation
-aid, not a second specification.
-
-### 6. Research is explicitly non-normative
-
-Exploratory work belongs under `docs/research/<topic>/`.
-
-Promotion is explicit:
+### 5. Change promotion is explicit
 
 ```text
-research evidence
+research
   ↓
-accepted decision when needed
+proposal / review
   ↓
-current requirement / architecture / method / contract
+decision when architecturally significant
   ↓
-implementation + source-local README + tests
+requirements + architecture + design + reference
+  ↓
+source + source README + tests
   ↓
 validation
+  ↓
+release / operations
 ```
 
-Research does not change production behavior merely by existing.
+Accepted research/proposals do not become production behavior until the relevant
+current-state authorities, implementation, tests, and validation are updated.
 
-### 7. AGENTS.md is routing plus invariants
+### 6. Traceability connects intent to evidence
 
-Root `AGENTS.md` remains concise and repository-agnostic. It tells an agent:
+`docs/validation/traceability.md` maps requirement families to architecture/design,
+owning source, tests/evidence, and public reference contracts. It is a navigation
+aid, not a duplicated specification.
 
-- how to find repository and documentation entry points;
-- how to resolve authority by role;
-- that the nearest source README defines implementation ownership;
-- that code and affected documentation change together;
-- which repository-wide implementation invariants must be preserved;
-- how to discover verification from CI and operations docs.
-
-Repository-specific scientific detail, commands, and contracts remain in their
-canonical homes instead of being copied into `AGENTS.md`.
-
-### 8. ADRs are deduplicated by decision boundary
+### 7. ADRs are deduplicated by decision boundary
 
 One accepted ADR is the canonical rationale for one durable decision scope.
+Implementation progress, schema revisions, validation observations, or ordinary
+documentation cleanup do not require new ADRs. A materially changed choice
+creates a successor that explicitly supersedes the prior ADR in whole or in part.
 
-Implementation progress, schema revisions, validation observations, and ordinary
-documentation cleanup do not require new ADRs. A material replacement creates a
-successor that explicitly supersedes the prior decision in whole or in part.
+### 8. Documentation structure is executable policy
+
+CI validates:
+
+- one README index per documentation folder;
+- one README per source directory;
+- no `docs/src/` shadow mirror;
+- no duplicate `topic.md` + `topic/README.md` entry points;
+- no legacy/archive/history/temp current-state paths;
+- repository-local Markdown links resolve.
 
 ## Consequences
 
 ### Positive
 
-- implementation documentation is visible where developers browse the code;
-- there is no second one-to-one source hierarchy to keep synchronized;
-- README files remain compact navigation surfaces;
-- agents can move from requirement to implementation without treating research as truth;
-- source changes have an explicit documentation-impact rule;
-- CI can enforce both documentation-folder indexes and source-directory README coverage.
+- humans and agents can determine which artifact is authoritative;
+- research and proposals can be rich without contaminating production semantics;
+- decision history is preserved without becoming current-state duplication;
+- source ownership is visible where developers browse code;
+- navigation drift is caught by CI;
+- requirement -> design -> source -> test/validation paths are explicit.
 
 ### Cost
 
-- module owners must keep colocated README files current when responsibilities change;
-- documentation review remains necessary because structural checks cannot prove prose accuracy;
-- migration removes the existing `docs/src/` manuals and their dedicated mirror test.
+- behavior changes may require coordinated updates across several authorities;
+- module owners must maintain source-local README files when responsibilities move;
+- lifecycle and link validation add repository-maintenance discipline.
 
-## Revision
+## Non-goal
 
-2026-09-22: refined the accepted documentation-system decision by replacing the
-ADR-0006 `docs/src/` one-to-one mirror with colocated source-directory README
-routers and narrowing `AGENTS.md` to routing plus invariants.
-
-
-## 2026-09-22 taxonomy amendment
-
-The layered-knowledge decision remains unchanged, but the current role names were
-refined to reduce ambiguity and make lifecycle explicit:
-
-- `srs/` -> `requirements/` with `SRS.md`, quality attributes, constraints,
-  and stable requirement-family documents;
-- `methods/` -> `design/` for current mechanisms and algorithms;
-- `contracts/` -> `reference/` for public/configuration/schema semantics;
-- `adr/` -> `decisions/adr/`, with `decisions/` as the historical rationale layer;
-- `proposals/` is the evolutionary layer between research and accepted current truth;
-- `validation/` owns acceptance criteria, datasets/evidence, limitations, benchmarks,
-  and requirement-to-implementation traceability;
-- `engineering/` owns development/testing/CI/CD/release/dependencies/code quality;
-- `operations/` owns readiness, observability, runbooks, and playbooks;
-- `security/` owns trust boundaries, threat modeling, and supply-chain/vulnerability policy;
-- `governance/` owns documentation lifecycle, ownership, versioning, and data policy.
-
-The original wording above is retained as historical decision context. Current
-navigation and authority are defined by [documentation governance](../../governance/documentation.md)
-and [docs/README.md](../../README.md).
+The taxonomy does not require empty enterprise-style folders. Documentation areas
+are created when the system has a real artifact or governance boundary to place
+there.
