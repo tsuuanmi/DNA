@@ -72,7 +72,7 @@ jobs:
         with:
           file: dist/package/dna
           format: spdx-json
-          output-file: dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.spdx.json
+          output-file: dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.spdx.json
           upload-artifact: false
           upload-release-assets: false
           syft-version: v1.52.0
@@ -80,7 +80,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/package/dna
-          sbom-path: dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.spdx.json
+          sbom-path: dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.spdx.json
       - name: Package release
         shell: bash
         run: |
@@ -94,14 +94,14 @@ jobs:
       - name: Attest release archive provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.tar.gz
+          subject-path: dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.tar.gz
       - name: Stage verified release assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-assets
           path: |
-            dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.tar.gz
-            dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.spdx.json
+            dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.tar.gz
+            dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.spdx.json
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 1
