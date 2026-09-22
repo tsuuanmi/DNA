@@ -24,6 +24,7 @@ Required settings:
 
 Required pull-request status checks:
 
+- `Workflow security`;
 - `Rust quality`;
 - `Dependency policy`;
 - `Dependency review`;
