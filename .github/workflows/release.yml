@@ -8,15 +8,14 @@ on:
 permissions: {}
 
 jobs:
-  release:
-    name: Build and publish Linux release
+  build:
+    name: Build and attest Linux release
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
-      artifact-metadata: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,12 +38,12 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
         with:
           command: check
-      - name: RustSec audit
+      - name: Install release audit tooling
         run: |
           cargo install cargo-audit --version 0.22.2 --locked
-          cargo audit
-      - name: Install auditable build tooling
-        run: cargo install cargo-auditable --version 0.7.6 --locked
+          cargo install cargo-auditable --version 0.7.6 --locked
+      - name: RustSec lockfile audit
+        run: cargo audit
       - name: Build auditable release binary
         run: cargo auditable build --locked --release
       - name: Audit built binary
@@ -87,6 +86,33 @@ jobs:
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+      - name: Stage verified release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: |
+            dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+            dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: release-assets
+          path: dist
+      - name: Verify staged checksums
+        run: sha256sum -c dist/SHA256SUMS
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
