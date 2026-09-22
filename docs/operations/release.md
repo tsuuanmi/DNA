@@ -52,3 +52,12 @@ Automated delivery establishes a **build verified** artifact. It does not by its
 ## Release immutability
 
 Repository settings must enable GitHub immutable releases before production delivery. The workflow is create-only and does not replace existing release assets. Once published, GitHub must prevent the associated release tag and assets from being modified.
+
+
+## Runtime and memory evidence
+
+The Linux validation tooling includes `tools/python/scripts/measure_command.py`.
+Use it around the exact approved validation command to record wall time, CPU time,
+peak RSS, exit status, platform identity, and command arguments as
+`dna.performance/v1` JSON. Retain that file (or its checksum and controlled
+location) with the release evidence record.
