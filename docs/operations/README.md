@@ -1,11 +1,12 @@
-# Development and Release Operations
+# Operations
 
-- [Local batch orchestration](batch.md): local corpus selection, clean reruns, and `scripts/analyze_samples.py` operational behavior.
-- [CI lanes](ci.md): required verification gates.
-- [Release operations](release.md): release procedure and evidence.
-- [Security and trust boundaries](security.md): operational security boundaries.
-- [Production readiness ADR](../adr/0018-production-readiness-release-contract.md): release-quality decision contract.
+Operations documentation owns how DNA is run, observed, investigated, and declared ready for production use.
 
-Current and future product priorities live in the [roadmap](../roadmap.md). Scientific stage contracts belong to the [SRS](../srs/README.md) and [methods](../methods/README.md), not to a separate readiness checklist.
+- [Production readiness](production-readiness.md)
+- [Observability](observability.md)
+- [Runbooks](runbooks/README.md)
+- [Playbooks](playbooks/README.md)
 
-Data privacy, provenance, and approval policy live under [governance/data.md](../governance/data.md). Repository commands that agents and developers must run are defined by root `AGENTS.md` and CI. Operational documentation must not redefine scientific semantics.
+Software build/test/release mechanics live in [engineering](../engineering/README.md). Security policy lives in [security](../security/README.md).
+
+DNA is currently a local CLI rather than a continuously deployed network service, so service SLO, disaster-recovery, and deployment-topology documents are not created until those operational boundaries actually exist.

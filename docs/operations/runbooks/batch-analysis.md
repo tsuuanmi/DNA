@@ -1,4 +1,8 @@
-# Local Batch Orchestration
+# Batch Analysis Runbook
+
+This runbook owns the known procedure for local corpus/sample batch execution.
+
+## Operational Contract
 
 `scripts/analyze_samples.py` is an external development/validation wrapper around the core DNA CLI. It selects local traces, performs a guarded clean rerun, preserves per-trace results, and publishes one sample aggregate only after every selected trace for that sample succeeds.
 
@@ -16,7 +20,7 @@ data/
         └── *.ab1
 ```
 
-The exact corpus, identifiers, and file count are local state and are not repository contracts. Data handling is governed by [data and fixture governance](../governance/data.md).
+The exact corpus, identifiers, and file count are local state and are not repository contracts. Data handling is governed by [data and fixture governance](../../governance/data.md).
 
 ## Default run
 
@@ -75,3 +79,4 @@ The clean rerun is intentionally not one transaction across the whole selected w
 - Final status reports trace and sample failures explicitly.
 
 These semantics are operational behavior of the wrapper, not scientific interpretation.
+
