@@ -1,4 +1,4 @@
-# CI and Verification Lanes
+# CI/CD and Verification Lanes
 
 CI exists to protect known invariants, not to maximize the number of badges.
 

@@ -31,3 +31,5 @@ Do not collapse these into one status.
 ## Artifact behavior
 
 Existing versioned scientific JSON contracts must not gain unversioned build metadata. Software/build provenance belongs in a separately designed versioned contract or a new result-schema version when required.
+
+The release procedure consumes the living [production-readiness checklist](../operations/production-readiness.md) rather than duplicating readiness evidence here.
