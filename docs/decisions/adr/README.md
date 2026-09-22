@@ -1,4 +1,6 @@
-# Architecture Decision Records
+# Architecture Decision Records (ADR)
+
+ADRs are historical decision records. Current-state truth lives in requirements, architecture, design, reference, source, and validation documentation.
 
 ## ADR lifecycle and deduplication
 
