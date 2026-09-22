@@ -84,7 +84,7 @@ Important boundaries:
 - unresolved evidence remains unresolved;
 - normalized variant representation must not erase the trace evidence from which it was observed.
 
-See [ADR-0019](docs/adr/0019-scientific-evidence-hierarchy.md) and the [system invariants](docs/architecture/invariants.md).
+See [ADR-0019](docs/decisions/adr/0019-scientific-evidence-hierarchy.md) and the [system invariants](docs/architecture/invariants/README.md).
 
 ## Quick start
 
@@ -141,7 +141,7 @@ Current public result contracts are:
 - `dna.analysis/v7` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
 - `dna.sample_evidence/v8` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
 
-The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/contracts](docs/contracts/README.md).
+The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 
 Public schemas are versioned contracts. Incompatible output changes require a new schema version rather than silent mutation of an existing version.
 
@@ -149,39 +149,31 @@ Public schemas are versioned contracts. Incompatible output changes require a ne
 
 Start with [docs/README.md](docs/README.md).
 
-The documentation system is organized by authority:
+The documentation system is organized as a knowledge lifecycle:
 
 ```text
-SRS
- ↓
-architecture + invariants
- ↓
-ADRs
- ↓
-current methods + public contracts
- ↓
-docs/src implementation mirror
- ↓
-source + tests
- ↓
-validation + release evidence
+requirements -> research/proposal -> decision
+            -> architecture/design/reference
+            -> source + tests -> validation
+            -> engineering/release -> operations
 ```
 
-Exploratory work lives under `docs/research/<topic>/` and is non-normative until promoted into the root production SRS/ADR/contract system.
+Current truth lives in requirements/architecture/design/reference and executable source. Decisions preserve why; proposals explore change; research provides evidence; validation proves behavior; operations keep the released system supportable.
 
 Key entry points:
 
-- [requirements / SRS](docs/requirements.md)
+- [requirements / SRS](docs/requirements/SRS.md)
 - [architecture](docs/architecture/README.md)
-- [system invariants](docs/architecture/invariants.md)
-- [ADR index](docs/adr/README.md)
-- [current methods](docs/methods/README.md)
-- [contracts](docs/contracts/README.md)
-- [source mirror](docs/source-mirror.md)
-- [development and release operations](docs/operations/README.md)
-- [traceability](docs/traceability.md)
+- [system invariants](docs/architecture/invariants/README.md)
+- [decisions / ADRs](docs/decisions/README.md)
+- [design](docs/design/README.md)
+- [reference / contracts](docs/reference/README.md)
+- [source modules](src/README.md)
+- [engineering](docs/engineering/README.md)
+- [traceability](docs/validation/traceability.md)
 - [research](docs/research/README.md)
-- [roadmap](docs/roadmap.md)
+- [roadmap](docs/proposals/roadmap.md)
+- [documentation architecture standard](docs/governance/documentation-architecture.md)
 
 ## Development
 
@@ -199,6 +191,7 @@ uv run ruff check scripts/
 uv run basedpyright scripts/
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
+uv run python scripts/validate_docs_structure.py
 
 cargo fmt --all --check
 cargo check --all-targets
@@ -209,10 +202,10 @@ cargo doc --no-deps
 
 Longer-running or release-oriented validation such as fuzzing, dependency audit, mutation testing, performance measurement, and approved real-AB1 regression belongs to the extended validation/release lanes rather than being added mechanically to every pull request.
 
-See [CI and verification lanes](docs/operations/ci.md) and [production readiness](docs/adr/0018-production-readiness-release-contract.md).
+See [CI and verification lanes](docs/engineering/ci-cd.md), the living [production-readiness checklist](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md) for the rationale behind that release contract.
 
 ## Agent development
 
-Coding agents should start with [AGENTS.md](AGENTS.md). It defines a reusable discover → understand → plan → implement → verify → reconcile → review → report workflow, then expects the agent to discover this repository's own requirements, architecture, contracts, tests, and validation sources rather than relying on hard-coded file paths.
+Coding agents should start with [AGENTS.md](AGENTS.md). It is intentionally limited to routing and repository-wide invariants; project knowledge remains in canonical docs, source-directory README files, source, and tests.
 
 The repository intentionally treats documentation as part of the correctness system, not as an after-the-fact description of the code.

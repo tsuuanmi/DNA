@@ -1,95 +1,69 @@
 # DNA Documentation
 
-This is the documentation entry point for humans and coding agents.
+This is the canonical knowledge router for humans and coding agents.
 
-DNA documentation is organized by **authority and responsibility**. Do not infer current production behavior from a research note or roadmap item.
+DNA documentation implements the reusable [Documentation Architecture Standard](governance/documentation-architecture.md). It is organized by **role, authority, lifecycle, and ownership**. One fact has one canonical home; other documents link to it rather than duplicating it.
 
 ## Read order for a change
 
-1. [Requirements](requirements.md) — what the system is intended to do.
-2. [Architecture](architecture/README.md) and [system invariants](architecture/invariants.md) — where the behavior belongs and what must always remain true.
-3. [Accepted/proposed ADRs](adr/README.md) — why relevant decisions were made.
-4. [Methods](methods/README.md) — current scientific/algorithmic behavior.
-5. [Contracts](contracts/README.md) — public/machine-visible interfaces and coordinate semantics.
-6. [Source mirror](source-mirror.md) and affected source — implementation ownership and current executable behavior.
-7. [Traceability](traceability.md) and CI/release operations — tests and evidence that protect the behavior.
+1. [Requirements](requirements/README.md) — what must be true.
+2. [Architecture](architecture/README.md) — where responsibilities and invariants belong.
+3. [Design](design/README.md) — how current mechanisms work.
+4. [Decisions](decisions/README.md) — why durable choices were made.
+5. [Proposals](proposals/README.md) and [research](research/README.md) — changes/evidence that are not current truth.
+6. [Reference](reference/README.md) — exact public/configuration/schema semantics.
+7. The nearest [source README](../src/README.md) and affected source — implementation ownership and executable behavior.
+8. [Validation](validation/README.md) — evidence that protects the behavior.
+9. [Engineering](engineering/README.md), [operations](operations/README.md), and [security](security/README.md) — delivery and production support.
+10. [Governance](governance/README.md) — lifecycle, ownership, versioning, and documentation policy.
 
-## Authority
+## Authority and durability
 
-| Documentation | Role |
-|---|---|
-| [SRS](requirements.md) | normative intended behavior |
-| JSON schemas / config contract | exact machine-visible contract for the named version |
-| [ADRs](adr/README.md) | decision and rationale |
-| [Architecture + invariants](architecture/README.md) | boundaries and cross-cutting truths |
-| [Methods](methods/README.md) | detailed current scientific/algorithmic semantics |
-| source code | actual behavior executed by the current revision |
-| [docs/src](source-mirror.md) | descriptive module ownership; must track source |
-| [Roadmap](roadmap.md) | future direction; non-normative |
-| [Research](research/README.md) | exploratory work; non-normative |
+| Area | Role | Class |
+|---|---|---|
+| [Requirements](requirements/README.md) | normative intended behavior | canonical / living |
+| [Architecture](architecture/README.md) | stable structure and invariants | canonical / living |
+| [Design](design/README.md) | current mechanisms | canonical / living |
+| [Reference](reference/README.md) | exact interfaces/contracts | canonical / living |
+| source + tests | executable behavior/evidence | executable reality |
+| [Validation](validation/README.md) | acceptance/evidence policy | canonical / living |
+| [Engineering](engineering/README.md) | development/delivery process | canonical / living |
+| [Operations](operations/README.md) | runtime/readiness/support procedures | canonical / living |
+| [Security](security/README.md) | trust boundaries and controls | canonical / living |
+| [Governance](governance/README.md) | lifecycle/ownership/versioning policy | canonical / living |
+| [Decisions](decisions/README.md) | historical rationale | historical / durable |
+| [Proposals](proposals/README.md) | reviewed change under evolution | evolutionary |
+| [Research](research/README.md) | evidence/experiments | exploratory |
 
-If source and normative production documentation disagree, surface the mismatch. Do not silently choose whichever artifact is convenient. See [documentation governance](governance/documentation.md).
+If source and normative current-state documentation disagree, surface and reconcile the mismatch. Do not silently choose whichever artifact is convenient.
 
-## Product and requirements
+## Directory layout
 
-- [Requirements / SRS](requirements.md)
-- [Roadmap](roadmap.md)
-- [Development readiness](development-readiness.md)
-- [Glossary](glossary.md)
+```text
+docs/
+├── README.md
+├── requirements/
+├── architecture/
+│   └── invariants/
+├── design/
+├── decisions/
+│   └── adr/
+├── proposals/
+├── research/
+├── validation/
+├── engineering/
+├── operations/
+│   ├── runbooks/
+│   └── playbooks/
+├── security/
+├── reference/
+└── governance/
+```
 
-## Architecture and decisions
+Categories are created when they have real artifacts or governance value. DNA intentionally does not create empty service-only documentation such as deployment topology, service SLOs, or disaster recovery while those system boundaries do not exist.
 
-- [Architecture index](architecture/README.md)
-- [System overview](architecture.md)
-- [System invariants](architecture/invariants.md)
-- [Source layout](source-layout.md)
-- [ADR index](adr/README.md)
-- [Traceability](traceability.md)
+## Core principle
 
-## Current methods
+> Specs define truth. Research provides evidence. Proposals explore change. ADRs preserve decisions. Architecture describes structure. Design describes mechanisms. Code realizes design. Tests and validation prove behavior. Operations keep it supportable. Learning feeds new requirements and research.
 
-- [Method index](methods/README.md)
-- [Pipeline](pipeline.md)
-- [DNA processing](signal-processing.md)
-
-## Contracts
-
-- [Contract index](contracts/README.md)
-- [Coordinate contract](contracts/coordinates.md)
-- [Configuration](configuration.md)
-- [Reference-free basecall output](basecall-output.md)
-- [Sample evidence output](sample-output.md)
-- [Reference analysis output](json-output.md)
-- [Schemas](schemas/)
-- [Examples](examples/)
-
-## Implementation manuals
-
-- [Source mirror](source-mirror.md) — mirrors `src/**/*.rs`.
-
-Every mirrored source file has a same-relative-path manual. Manuals describe ownership, inputs/outputs, invariants, dependencies, failure modes, and traceability rather than translating code line by line.
-
-## Validation and operations
-
-- [Development/release operations](operations/README.md)
-- [CI lanes](operations/ci.md)
-- [Release operations](operations/release.md)
-- [Security and trust boundaries](operations/security.md)
-- [Data policy](data.md)
-- [Delivery record](delivery-record.md)
-
-## Governance
-
-- [Governance index](governance/README.md)
-- [Documentation governance](governance/documentation.md)
-- [Compatibility](compatibility.md)
-- [Changelog](../CHANGELOG.md)
-
-## Research
-
-Research lives only under [`docs/research/`](research/README.md) and does not change production behavior until promoted through the root ADR/SRS/contract process.
-
-- [DNA research](research/DNA/README.md)
-- Tracy research follows the same model under `docs/research/Tracy/` once that research subtree is integrated.
-
-The old catch-all DNA research files were moved into `docs/research/DNA/` so they cannot be mistaken for production requirements.
+See the reusable [documentation architecture standard](governance/documentation-architecture.md), the [DNA documentation policy](governance/documentation.md), and [lifecycle](governance/lifecycle.md).

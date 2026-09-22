@@ -1,70 +1,136 @@
-# Documentation Governance
+# DNA Documentation Policy
 
-DNA documentation is organized by authority, not by file age or document length.
+DNA adopts the reusable [Documentation Architecture Standard](documentation-architecture.md).
+This document records the DNA-specific application of that standard and the
+repository rules enforced by CI.
 
-## Authority model
+## Current DNA knowledge areas
 
-| Layer | Purpose | Normative? |
-|---|---|---|
-| SRS | Intended system requirements | Yes |
-| JSON Schema / configuration contract | Exact machine-visible contract for the named version | Yes |
-| Accepted ADR | Decision and rationale | Yes for the decision it governs |
-| Method docs | Detailed current scientific/algorithmic semantics | Yes |
-| Architecture / invariants | Module boundaries and cross-cutting truths | Yes |
-| Source | Actual behavior of the current revision | Executable reality |
-| docs/src mirror | Module ownership and implementation manual | Descriptive; must track source |
-| Validation docs | Required evidence and acceptance method | Yes for validation policy |
-| Research | Exploration and candidate designs | No |
-| Roadmap | Future direction and priorities | No |
+| Area | DNA-specific responsibility |
+|---|---|
+| [requirements](../requirements/README.md) | normative DNA SRS, quality attributes, and constraints |
+| [architecture](../architecture/README.md) | DNA system context, module boundaries, flow, interfaces, and invariants |
+| [design](../design/README.md) | current scientific and algorithmic mechanisms |
+| [decisions](../decisions/README.md) | durable DNA ADR history |
+| [proposals](../proposals/README.md) | DNA changes under review plus the non-normative roadmap |
+| [research](../research/README.md) | exploratory scientific/engineering evidence |
+| [validation](../validation/README.md) | acceptance, datasets/evidence, limitations, benchmarks, and traceability |
+| [engineering](../engineering/README.md) | development, testing, CI/CD, release, dependencies, and code quality |
+| [operations](../operations/README.md) | readiness, observability, batch runbook, and investigation playbook |
+| [security](../security/README.md) | local-CLI trust boundaries, threat model, and supply-chain policy |
+| [reference](../reference/README.md) | JSON schemas, result/configuration semantics, coordinates, examples, glossary |
+| [governance](README.md) | documentation/data/versioning/ownership/lifecycle policy |
 
-If source and normative documentation disagree, do not silently choose one. Surface the mismatch as a defect, incomplete implementation, or stale documentation and resolve it in the change that owns the behavior.
+DNA does not create empty service-only documentation such as deployment topology,
+service SLOs, incident/postmortem collections, or disaster recovery while those
+boundaries do not exist.
 
-## Promotion path
+## Navigation
 
-Research becomes production behavior only through an explicit promotion path:
+- root `README.md` is the product/contributor router;
+- `docs/README.md` is the knowledge router;
+- every documentation folder has one `README.md` index;
+- every directory under `src/` has a colocated `README.md`;
+- `AGENTS.md` contains agent routing plus repository-wide invariants.
+
+README files do not duplicate full specifications.
+
+## Authority
+
+For DNA:
+
+- requirements define intended behavior;
+- architecture/design/reference define current structure, mechanisms, and exact
+  interfaces;
+- source is executable reality;
+- tests and validation provide evidence;
+- accepted ADRs preserve rationale but do not override newer current-state docs;
+- proposals and research are non-authoritative until explicitly promoted.
+
+If source and normative current-state documentation disagree, treat that as a
+defect to reconcile in the owning change.
+
+## Source-local documentation
+
+Every `src/**/` directory has an up-to-date `README.md` describing its
+responsibility boundary and navigation.
+
+File-only Rust modules use rustdoc/source comments. DNA does not maintain a
+`docs/src/` mirror.
+
+## DNA promotion flow
 
 ```text
-docs/research/<topic>
-        ↓
-root ADR if a decision is architectural/scientific
-        ↓
-root SRS and contract change when behavior changes
-        ↓
-source + docs/src + tests
-        ↓
-validation evidence
-        ↓
-changelog/release evidence when user-visible
+research
+  ↓
+proposal / review
+  ↓
+ADR when durable rationale is needed
+  ↓
+requirements + architecture + design + reference
+  ↓
+source + source README + tests
+  ↓
+validation
+  ↓
+engineering / release
+  ↓
+operations feedback
 ```
 
-A research ADR is not a production ADR.
+Not every change needs every stage. The affected canonical layers must still be
+updated atomically with the implementation.
 
 ## Change impact
 
-A code change should update only the documentation layers it actually affects.
+- internal refactor without boundary/behavior change -> source/tests only as needed;
+- module responsibility/dependency change -> source README + architecture;
+- scientific/algorithm behavior change -> requirements + design + tests + validation;
+- public schema/config/CLI change -> requirements + reference + examples/tests;
+- durable architectural/scientific/security choice -> ADR or successor ADR;
+- unaccepted change -> proposal;
+- exploratory work -> research;
+- build/test/release process -> engineering;
+- runtime/support procedure -> operations;
+- trust-boundary or vulnerability policy -> security.
 
-- Internal refactor with unchanged behavior: update `docs/src` only when ownership/responsibility changes.
-- Scientific behavior change: update SRS, method docs, relevant ADR if needed, tests, validation implications, and `docs/src`.
-- Schema/config/CLI change: update the machine contract, human contract, SRS, tests, examples, and changelog.
-- New architectural dependency or boundary: update architecture and usually an ADR.
-- Research-only work: keep it under `docs/research/<topic>/`; do not edit root production contracts until promotion.
+## ADR policy
 
-## Staleness rules
+DNA ADRs are append-only decision history.
 
-- A `docs/src` file without a matching source file is stale.
-- A source module without the required mirror is undocumented.
-- An ADR marked Superseded must point to the replacing decision.
-- Examples must validate against their named schema.
-- Roadmap or research text must not be used to justify current production behavior.
+- search existing current-state docs and ADRs before creating another record;
+- do not create ADRs for ordinary implementation progress;
+- create a successor for a materially changed decision;
+- mark supersession in both directions where applicable;
+- never reuse an ADR identifier.
 
-## Naming
+[ADR-0022](../decisions/adr/0022-documentation-knowledge-system.md) is the owning
+decision for this documentation system.
 
-Use stable role-based names over temporary project names.
+## CI enforcement
 
-Prefer:
+`scripts/validate_docs_structure.py` enforces:
 
-- `requirements.md`, `architecture.md`, `operations/ci.md`, `roadmap.md`;
-- `docs/research/<topic>/` for explorations;
-- `docs/src/<same-relative-path>.md` for implementation manuals.
+- one README per documentation folder;
+- one README per source directory;
+- no `docs/src/` shadow tree;
+- no duplicate `topic.md` + `topic/README.md` entry points;
+- no repository-defined legacy/archive/history/temp current-state paths;
+- repository-local Markdown links resolve.
 
-Avoid new catch-all files such as `NOTES.md`, `NEW.md`, or `FINAL.md` when the content has an existing authoritative home.
+Other CI gates validate source policy, formatting, static analysis, tests, schemas,
+configuration, and reference identity.
+
+Structural validation cannot prove prose accuracy. Reviewers still own semantic
+correctness.
+
+## Cleanup
+
+Do not keep renamed compatibility pointers, old/current parallel docs, or a generic
+legacy archive after migration. Git preserves history.
+
+When research or temporary planning is fully promoted, delete duplicated text
+unless it contains unique evidence worth retaining.
+
+See also [lifecycle](lifecycle.md), [ownership](ownership.md), and
+[versioning](versioning.md).

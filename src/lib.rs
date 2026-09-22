@@ -3,7 +3,7 @@
 
 //! Library boundary for DNA operations.
 //!
-//! The module graph is documented in `docs/source-layout.md`. `lib.rs` remains
+//! The source-module graph is routed from `src/README.md`. `lib.rs` remains
 //! the minimal dispatcher: it exposes stable CLI and error boundaries, routes
 //! commands, and keeps configuration, decoding, scientific stages, and reporting
 //! behind the pipeline boundary.
