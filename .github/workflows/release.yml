@@ -4,34 +4,48 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/release.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "src/**"
+      - "config/**"
+      - "references/**"
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions: {}
 
 env:
   RELEASE_TARGET: x86_64-unknown-linux-gnu
+  RELEASE_LABEL: ${{ github.event_name == 'push' && github.ref_name || format('pr-{0}', github.event.pull_request.number) }}
 
 jobs:
-  build:
-    name: Build and attest Linux release
+  package:
+    name: Release package
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
       contents: read
-      id-token: write
-      attestations: write
-      artifact-metadata: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify release identity
+        if: github.event_name == 'push'
         shell: bash
         run: |
           version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
           test "$GITHUB_REF_NAME" = "v$version"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Verify release revision
+        if: github.event_name == 'push'
         run: |
           cargo fmt --all --check
           cargo check --locked --all-targets --all-features
@@ -39,6 +53,7 @@ jobs:
           cargo test --locked --all-targets --all-features
           RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
       - name: Dependency policy
+        if: github.event_name == 'push'
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
         with:
           command: check
@@ -49,13 +64,14 @@ jobs:
           cargo install cargo-audit --version 0.22.2 --locked
           cargo install cargo-auditable --version 0.7.6 --locked
       - name: RustSec lockfile audit
+        if: github.event_name == 'push'
         run: cargo audit
       - name: Build auditable release binary
         run: cargo auditable build --locked --release --target "$RELEASE_TARGET"
       - name: Prepare artifact and provenance
         shell: bash
         run: |
-          mkdir -p dist/package/config dist/package/references
+          mkdir -p dist/package/config dist/package/references dist/staging
           cp "target/${RELEASE_TARGET}/release/dna" dist/package/dna
           cp config/dna.toml dist/package/config/dna.toml
           cp references/rCRS.fasta dist/package/references/rCRS.fasta
@@ -69,7 +85,7 @@ jobs:
             sha256sum config/dna.toml > config/dna.toml.sha256
             sha256sum references/rCRS.fasta > references/rCRS.fasta.sha256
           )
-      - name: Verify packaged binary audit metadata
+      - name: Verify packaged binary and runtime assets
         shell: bash
         run: |
           readelf -S dist/package/dna | grep -F '.dep-v0'
@@ -85,43 +101,80 @@ jobs:
         with:
           file: dist/package/dna
           format: spdx-json
-          output-file: dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.spdx.json
+          output-file: dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.spdx.json
           upload-artifact: false
           upload-release-assets: false
           syft-version: v1.52.0
-      - name: Attest binary SBOM
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: dist/package/dna
-          sbom-path: dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.spdx.json
       - name: Package release
         shell: bash
         run: |
-          cp "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.spdx.json" dist/package/SBOM.spdx.json
-          tar -C dist/package -czf "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.tar.gz" .
+          cp dist/package/dna dist/staging/dna
+          cp "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" dist/package/SBOM.spdx.json
+          tar -C dist/package -czf "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" .
           rm -rf dist/package
           sha256sum \
-            "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.tar.gz" \
-            "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.spdx.json" \
+            "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" \
+            "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" \
             > dist/SHA256SUMS
-      - name: Attest release archive provenance
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.tar.gz
+      - name: Verify packaged release
+        shell: bash
+        run: |
+          (
+            cd dist
+            sha256sum -c SHA256SUMS
+            tar -tzf "dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" >/dev/null
+          )
       - name: Stage verified release assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-assets
           path: |
-            dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.tar.gz
-            dist/dna-${{ github.ref_name }}-${{ env.RELEASE_TARGET }}.spdx.json
+            dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.tar.gz
+            dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.spdx.json
             dist/SHA256SUMS
+            dist/staging/dna
           if-no-files-found: error
           retention-days: 1
 
+  attest:
+    name: Attest release assets
+    if: github.event_name == 'push'
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: dist
+      - name: Verify staged checksums
+        run: |
+          (
+            cd dist
+            sha256sum -c SHA256SUMS
+          )
+      - name: Attest binary SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/staging/dna
+          sbom-path: dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.spdx.json
+      - name: Attest release archive provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.tar.gz
+
   publish:
     name: Publish GitHub release
-    needs: build
+    if: github.event_name == 'push'
+    needs:
+      - package
+      - attest
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -134,13 +187,20 @@ jobs:
           name: release-assets
           path: dist
       - name: Verify staged checksums
-        run: sha256sum -c dist/SHA256SUMS
+        run: |
+          (
+            cd dist
+            sha256sum -c SHA256SUMS
+          )
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" \
+            "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" \
+            dist/SHA256SUMS \
             --verify-tag \
             --generate-notes \
             --repo "$GITHUB_REPOSITORY"
