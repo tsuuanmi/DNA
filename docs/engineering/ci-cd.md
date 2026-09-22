@@ -74,7 +74,7 @@ Python dependencies are locked under `tools/python/`; they are not runtime depen
 
 The repository-policy job:
 
-- rejects any non-`.rs` file under `src/`;
+- rejects files under `src/` other than Rust source and source-local `README.md` documentation;
 - validates the explicit Rust source policy;
 - runs Ruff formatting and lint checks;
 - runs basedpyright;
