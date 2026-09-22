@@ -20,7 +20,7 @@ cargo test --all-targets
 cargo doc --no-deps
 ```
 
-The documentation-structure gate enforces one `README.md` index per documentation folder except the exact `docs/src/**` source mirror, rejects duplicate `topic.md` + `topic/README.md` entry points, and rejects legacy/archive/history/temporary documentation directories.
+The documentation-structure gate enforces one `README.md` index per documentation folder except the exact `docs/src/**` source mirror, rejects duplicate `topic.md` + `topic/README.md` entry points, and rejects legacy/archive/history/temporary documentation files or directories.
 
 The Rust source-policy gate complements compiler/Clippy checks by rejecting explicit production compatibility scaffolding that could otherwise be intentionally suppressed: `#[deprecated]` APIs, legacy/backward-compatibility feature gates or declarations, and `allow`/`expect` escape hatches for deprecated/dead/unreachable/unused code. It is deliberately narrow: it does not claim to prove that all conceptual legacy code has been detected.
 

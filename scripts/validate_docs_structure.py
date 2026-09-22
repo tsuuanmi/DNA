@@ -25,7 +25,19 @@ def main() -> None:
     if not (DOCS / "README.md").is_file():
         errors.append("docs/README.md is required")
 
-    directories = sorted(path for path in DOCS.rglob("*") if path.is_dir())
+    documentation_paths = sorted(path for path in DOCS.rglob("*") if not is_source_mirror(path))
+
+    forbidden_files = [
+        path
+        for path in documentation_paths
+        if path.is_file() and path.stem.lower() in FORBIDDEN_DIRECTORY_NAMES
+    ]
+    for path in forbidden_files:
+        errors.append(
+            f"legacy/temporary documentation file is not allowed: {path.relative_to(ROOT)}"
+        )
+
+    directories = [path for path in documentation_paths if path.is_dir()]
     for directory in directories:
         if is_source_mirror(directory):
             continue

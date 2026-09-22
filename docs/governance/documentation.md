@@ -71,7 +71,7 @@ Treat ADRs as a decision log, not a changelog.
 - Every documentation folder under `docs/` MUST contain a canonical `README.md` index, except `docs/src/` and its descendants because that tree must remain an exact one-to-one mirror of Rust source files.
 - A folder index defines the purpose, authority, and navigation for that folder. Do not keep a sibling `<folder>.md` as a second index.
 - When exploratory/temporary documentation is fully promoted into persistent SRS, architecture, ADR, method, contract, governance, or operations documentation, delete the promoted temporary document or folder.
-- Do not keep compatibility pointers, legacy copies, renamed duplicates, or “old/new” parallel documentation paths after migration.
+- Do not keep compatibility pointers, legacy copies, renamed duplicates, or “old/new” parallel documentation paths after migration. Legacy/archive/history/temporary document names are rejected by CI.
 - Retain a research document only while it still contains active non-normative research that has not been promoted.
 
 ## Naming
