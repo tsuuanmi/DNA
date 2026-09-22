@@ -4,7 +4,7 @@ CI exists to protect documented invariants and security boundaries, not to maxim
 
 The repository root is a Rust project. First-party production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is permitted only for research, validation, test, and repository tooling.
 
-All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependabot owns routine updates to those pins.
+All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependabot owns routine updates to those pins. Linux jobs pin the GitHub-hosted Ubuntu 24.04 runner image instead of the moving `ubuntu-latest` label so OS/toolchain baseline changes are explicit reviews.
 
 ## Pull-request lane
 
