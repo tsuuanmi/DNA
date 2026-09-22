@@ -48,7 +48,9 @@ def aggregate_violations(path: Path) -> list[str]:
     if "jobs:" not in lines:
         return []
 
-    jobs = {match.group(1) for line in lines if (match := JOB_ID.match(line))}
+    jobs_index = lines.index("jobs:")
+    job_lines = lines[jobs_index + 1 :]
+    jobs = {match.group(1) for line in job_lines if (match := JOB_ID.match(line))}
     if AGGREGATE_JOB not in jobs:
         return [f"{path}: missing aggregate job {AGGREGATE_JOB!r}"]
 
