@@ -25,11 +25,14 @@ def violations(root: Path) -> list[str]:
             stripped = line.strip()
             for token in FORBIDDEN:
                 if token in stripped:
-                    found.append(\n                        f"{path}:{number}: forbidden workflow construct {token!r}"\n                    )
+                    found.append(
+                        f"{path}:{number}: forbidden workflow construct {token!r}"
+                    )
             match = USES.match(line)
             if match and not FULL_SHA.fullmatch(match.group(2)):
                 found.append(
-                    f"{path}:{number}: action {match.group(1)!r} must use a full 40-character commit SHA"
+                    f"{path}:{number}: action {match.group(1)!r} must use a full "
+                    "40-character commit SHA"
                 )
     return found
 
