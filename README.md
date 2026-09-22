@@ -217,7 +217,7 @@ uv run python scripts/validate_rust_source_policy.py
 
 CI also verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency policy/review, RustSec, CodeQL, Python tooling, schemas/reference data, and an ABIF fuzz smoke campaign. Mandatory jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
-Tagged `v*` releases rerun the required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary with the locked dependency graph, preserve and verify its embedded dependency metadata after stripping, generate an SPDX SBOM, SHA-256 checksums, and cryptographic GitHub build/SBOM attestations, then publish the supported Linux x86_64 artifact.
+Tagged `v*` releases rerun the required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary with the locked dependency graph, preserve and verify its embedded dependency metadata after stripping, bundle the authoritative config and rCRS reference with checksums, generate an SPDX SBOM, SHA-256 checksums, and cryptographic GitHub build/SBOM attestations, then publish the supported Linux x86_64 artifact.
 
 Longer scientific validation—real-AB1 ground-truth comparison, extended fuzzing, and performance/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
 
