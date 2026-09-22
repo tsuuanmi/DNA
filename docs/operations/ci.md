@@ -113,7 +113,7 @@ The workflow:
 4. installs and builds the explicit `x86_64-unknown-linux-gnu` target with pinned `cargo-auditable`, strips it while explicitly preserving `.dep-v0`, and audits the packaged binary;
 5. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
 6. generates an SPDX JSON SBOM from the auditable binary with a pinned Syft version;
-7. packages the Linux `x86_64-unknown-linux-gnu` artifact;
+7. packages the Linux `x86_64-unknown-linux-gnu` binary together with the authoritative `config/dna.toml` and `references/rCRS.fasta`, including per-file checksums;
 8. produces SHA-256 checksums;
 9. creates GitHub/Sigstore build-provenance and SBOM attestations;
 10. publishes the archive, SBOM, and checksums to the GitHub Release.
