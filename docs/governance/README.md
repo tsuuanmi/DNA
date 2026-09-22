@@ -1,8 +1,13 @@
 # Governance
 
-- [Documentation governance](documentation.md): authority, promotion, staleness, ADR lifecycle, and change-impact rules.
-- [Reference validation](reference-validation.md): external-reference differential evidence and intentional divergences.
-- [Data and fixture policy](data.md): AB1 privacy, provenance, approval, and release-evidence handling.
-- [Roadmap](../roadmap.md): non-normative future direction.
+Governance defines how DNA knowledge, decisions, versions, ownership, data, and external-reference evidence evolve without confusing current truth with history or exploration.
 
-Governance defines how DNA changes without confusing research, implementation, historical evidence, and production contracts.
+- [Documentation architecture](documentation.md)
+- [Documentation lifecycle](lifecycle.md)
+- [Ownership](ownership.md)
+- [Versioning](versioning.md)
+- [Data and fixture policy](data.md)
+- [Reference validation](reference-validation.md)
+- [Roadmap](../proposals/roadmap.md)
+
+Repository-wide process rules should live here rather than being duplicated across feature documentation.

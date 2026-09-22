@@ -21,7 +21,7 @@ become duplicate specifications.
 
 | Layer | Purpose | Normative? |
 |---|---|---|
-| SRS (`srs/`) | intended system requirements | Yes |
+| Requirements (`requirements/`) | intended system requirements | Yes |
 | machine-readable schemas / configuration contract | exact machine-visible contract for the named version | Yes |
 | accepted ADR | durable decision and rationale | Yes for the decision it governs |
 | methods | detailed current scientific/algorithmic semantics | Yes |
@@ -99,7 +99,7 @@ A code change updates only the documentation layers it actually affects.
 
 - Internal refactor with unchanged responsibility: source README usually unchanged.
 - Module responsibility/dependency change: update the nearest source README.
-- Scientific behavior change: update SRS, method docs, tests, validation
+- Scientific behavior change: update requirements, design docs, tests, validation
   implications, and the source README when its boundary changes.
 - Schema/config/CLI change: update machine and human contracts, SRS, tests, and examples.
 - New architectural dependency or boundary: update architecture and the owning ADR
