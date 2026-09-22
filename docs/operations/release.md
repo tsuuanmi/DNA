@@ -61,3 +61,8 @@ Use it around the exact approved validation command to record wall time, CPU tim
 peak RSS, exit status, platform identity, and command arguments as
 `dna.performance/v1` JSON. Retain that file (or its checksum and controlled
 location) with the release evidence record.
+
+
+## Target identity
+
+The release target is explicit: `x86_64-unknown-linux-gnu`. The workflow installs that Rust target and builds with `--target`; it does not infer the supported artifact identity from whatever host target the current runner happens to use.
