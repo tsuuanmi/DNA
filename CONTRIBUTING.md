@@ -21,6 +21,7 @@ are non-normative until promoted into the authoritative documentation system.
 
 ```bash
 cargo fmt --all --check
+cargo shear --deny-warnings
 cargo check --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --all-targets
