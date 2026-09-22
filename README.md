@@ -200,10 +200,10 @@ Required repository checks:
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked --all-targets
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
+cargo check --locked --all-targets --all-features
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
 cargo build --locked --release
 
 cd tools/python
