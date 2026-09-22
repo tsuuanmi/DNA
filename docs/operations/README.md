@@ -1,13 +1,13 @@
-# Development and Release Operations
+# Operations
 
-- [Development readiness](../development-readiness.md): whether the architecture and active scientific core are sufficiently defined to begin focused implementation.
-- [CI lanes](ci.md): required verification gates.
-- [Repository governance](repository-governance.md): required branch/tag protection and security settings.
-- [Release evidence template](release-evidence-template.md): auditable evidence required for a production-ready release.
-- [Platform support](platform-support.md): evidence-backed supported target policy.
-- [Versioning](versioning.md): software/tag and scientific-contract versioning policy.
-- [Data policy](../data.md): local AB1 provenance/privacy rules.
-- [Delivery record](../delivery-record.md): historical delivery acceptance record.
-- [Production readiness ADR](../adr/0018-production-readiness-release-contract.md): release-quality contract.
+Operations documentation owns how DNA is run, observed, investigated, and declared ready for production use.
 
-Repository commands that agents and developers must run are defined by root `AGENTS.md` and CI. Operational documentation must not redefine scientific semantics.
+- [Production readiness](production-readiness.md)
+- [Release evidence template](release-evidence-template.md)
+- [Observability](observability.md)
+- [Runbooks](runbooks/README.md)
+- [Playbooks](playbooks/README.md)
+
+Software build/test/release mechanics live in [engineering](../engineering/README.md). Security policy lives in [security](../security/README.md).
+
+DNA is currently a local CLI rather than a continuously deployed network service, so service SLO, disaster-recovery, and deployment-topology documents are not created until those operational boundaries actually exist.

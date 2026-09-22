@@ -84,7 +84,7 @@ Important boundaries:
 - unresolved evidence remains unresolved;
 - normalized variant representation must not erase the trace evidence from which it was observed.
 
-See [ADR-0019](docs/adr/0019-scientific-evidence-hierarchy.md) and the [system invariants](docs/architecture/invariants.md).
+See [ADR-0019](docs/decisions/adr/0019-scientific-evidence-hierarchy.md) and the [system invariants](docs/architecture/invariants/README.md).
 
 ## Quick start
 
@@ -120,8 +120,7 @@ sample   -> results/<sample-id>.sample.json
 
 Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample. The batch runner persists only the sample log while keeping per-trace JSON results.
 
-The external Python batch runner `tools/python/scripts/analyze_samples.py` keeps per-trace results and
-the aggregate together. Python is companion tooling for research, validation, and testing; the production runtime remains Rust-only:
+The external Python batch runner `tools/python/scripts/analyze_samples.py` keeps per-trace results and the aggregate together. Python is companion tooling for research, validation, and testing; the production runtime remains Rust-only:
 
 ```text
 results/<sample-id>/
@@ -141,7 +140,7 @@ Current public result contracts are:
 - `dna.analysis/v7` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
 - `dna.sample_evidence/v8` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
 
-The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/contracts](docs/contracts/README.md).
+The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 
 Public schemas are versioned contracts. Incompatible output changes require a new schema version rather than silent mutation of an existing version.
 
@@ -149,43 +148,35 @@ Public schemas are versioned contracts. Incompatible output changes require a ne
 
 Start with [docs/README.md](docs/README.md).
 
-The documentation system is organized by authority:
+The documentation system is organized as a knowledge lifecycle:
 
 ```text
-SRS
- ↓
-architecture + invariants
- ↓
-ADRs
- ↓
-current methods + public contracts
- ↓
-docs/src implementation mirror
- ↓
-source + tests
- ↓
-validation + release evidence
+requirements -> research/proposal -> decision
+            -> architecture/design/reference
+            -> source + tests -> validation
+            -> engineering/release -> operations
 ```
 
-Exploratory work lives under `docs/research/<topic>/` and is non-normative until promoted into the root production SRS/ADR/contract system.
+Current truth lives in requirements/architecture/design/reference and executable source. Decisions preserve why; proposals explore change; research provides evidence; validation proves behavior; operations keep the released system supportable.
 
 Key entry points:
 
-- [requirements / SRS](docs/requirements.md)
+- [requirements / SRS](docs/requirements/SRS.md)
 - [architecture](docs/architecture/README.md)
-- [system invariants](docs/architecture/invariants.md)
-- [ADR index](docs/adr/README.md)
-- [current methods](docs/methods/README.md)
-- [contracts](docs/contracts/README.md)
-- [source mirror](docs/source-mirror.md)
-- [development and release operations](docs/operations/README.md)
-- [traceability](docs/traceability.md)
+- [system invariants](docs/architecture/invariants/README.md)
+- [decisions / ADRs](docs/decisions/README.md)
+- [design](docs/design/README.md)
+- [reference / contracts](docs/reference/README.md)
+- [source modules](src/README.md)
+- [engineering](docs/engineering/README.md)
+- [traceability](docs/validation/traceability.md)
 - [research](docs/research/README.md)
-- [roadmap](docs/roadmap.md)
+- [roadmap](docs/proposals/roadmap.md)
+- [documentation architecture standard](docs/governance/documentation-architecture.md)
 
 ## Development
 
-The repository root is a Rust project. Production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is used only for research, validation, and test tooling.
+The repository root is a Rust project. Production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is used only for research, validation, orchestration, and test tooling.
 
 The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 
@@ -213,18 +204,19 @@ uv run basedpyright scripts tests
 uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
+uv run python scripts/validate_docs_structure.py
 ```
 
-CI also verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency policy/review, RustSec, CodeQL, Python tooling, schemas/reference data, an ABIF fuzz smoke campaign, and a release packaging smoke for pull requests. Mandatory jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
+CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency/source hygiene, dependency policy/review, RustSec, CodeQL, schemas/reference data, an ABIF fuzz smoke campaign, and a release-package smoke. Mandatory CI jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
-Tagged `v*` releases rerun the required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary with the locked dependency graph, preserve and verify its embedded dependency metadata after stripping, bundle the authoritative config and rCRS reference with checksums, generate an SPDX SBOM, SHA-256 checksums, and cryptographic GitHub build/SBOM attestations, then publish the supported Linux x86_64 artifact.
+Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
 
-Longer scientific validation—real-AB1 ground-truth comparison, extended fuzzing, and performance/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
+Longer scientific validation—approved real-AB1 ground-truth comparison, extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
 
-See [CI and verification lanes](docs/operations/ci.md), [repository governance](docs/operations/repository-governance.md), [release evidence](docs/operations/release-evidence-template.md), and [production readiness](docs/adr/0018-production-readiness-release-contract.md).
+See [CI/CD](docs/engineering/ci-cd.md), [repository governance](docs/governance/repository.md), [release evidence](docs/operations/release-evidence-template.md), [production readiness](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md).
 
 ## Agent development
 
-Coding agents should start with [AGENTS.md](AGENTS.md). It defines a reusable discover → understand → plan → implement → verify → reconcile → review → report workflow, then expects the agent to discover this repository's own requirements, architecture, contracts, tests, and validation sources rather than relying on hard-coded file paths.
+Coding agents should start with [AGENTS.md](AGENTS.md). It is intentionally limited to routing and repository-wide invariants; project knowledge remains in canonical docs, source-directory README files, source, and tests.
 
 The repository intentionally treats documentation as part of the correctness system, not as an after-the-fact description of the code.

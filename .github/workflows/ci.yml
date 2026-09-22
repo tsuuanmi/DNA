@@ -134,6 +134,9 @@ jobs:
       - name: Validate GitHub Actions policy
         working-directory: tools/python
         run: uv run python scripts/validate_workflow_policy.py
+      - name: Validate documentation structure
+        working-directory: tools/python
+        run: uv run python scripts/validate_docs_structure.py
       - name: Ruff format
         working-directory: tools/python
         run: uv run ruff format --check scripts tests

@@ -41,7 +41,7 @@ Particularly sensitive surfaces include:
 - logs and output containing sample-linked biological evidence.
 
 The detailed engineering trust model is documented in
-[docs/operations/security.md](docs/operations/security.md).
+[docs/security/README.md](docs/security/README.md).
 
 ## Coordinated disclosure
 

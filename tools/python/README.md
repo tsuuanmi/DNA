@@ -24,6 +24,7 @@ uv run basedpyright scripts tests
 uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
+uv run python scripts/validate_docs_structure.py
 ```
 
 The lockfile in this directory belongs only to these Python development tools. Rust dependencies remain authoritative in the root `Cargo.toml` and `Cargo.lock`.

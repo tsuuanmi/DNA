@@ -5,9 +5,11 @@ invariants and the documented interpretation boundary.
 
 ## Before changing code
 
-Read the relevant requirements, architecture/invariants, ADRs, current methods,
-public contracts, and the implementation mirror under `docs/`. Research notes
-are non-normative until promoted into the authoritative documentation system.
+Read the repository `README.md`, then use `docs/README.md` to locate the relevant
+requirements, architecture/invariants, decisions, design, reference contracts, and
+validation policy. Read the nearest source-directory `README.md` for implementation
+ownership. Research and proposals are non-normative until promoted through the
+documented lifecycle.
 
 ## Source boundaries
 
