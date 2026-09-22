@@ -187,7 +187,7 @@ Key entry points:
 
 The repository root is a Rust project. Production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is used only for research, validation, and test tooling.
 
-The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV).
+The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 
 Create the locked Python tooling environment only when those companion tools are needed:
 
