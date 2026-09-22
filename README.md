@@ -167,7 +167,7 @@ source + tests
 validation + release evidence
 ```
 
-Exploratory work lives under `docs/research/<topic>/` and is non-normative until promoted into the root production SRS/ADR/contract system.
+Exploratory work lives under `docs/research/<topic>/` and is non-normative until accepted conclusions are promoted into the appropriate persistent SRS, architecture, ADR, method, contract, governance, or operations authority.
 
 Key entry points:
 
@@ -199,6 +199,7 @@ uv run ruff check scripts/
 uv run basedpyright scripts/
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
+uv run python scripts/validate_docs_structure.py
 
 cargo fmt --all --check
 cargo check --all-targets

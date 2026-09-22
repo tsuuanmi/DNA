@@ -24,20 +24,18 @@ If source and normative documentation disagree, do not silently choose one. Surf
 Research becomes production behavior only through an explicit promotion path:
 
 ```text
-docs/research/<topic>
+docs/research/<topic>/
         ↓
-root ADR if a decision is architectural/scientific
+promote durable decisions into docs/adr/ when needed
         ↓
-root SRS and contract change when behavior changes
+promote current truth into the appropriate persistent authority
         ↓
 source + docs/src + tests
         ↓
-validation evidence
-        ↓
-release evidence when user-visible
+validation and release evidence
 ```
 
-A research ADR is not a production ADR.
+A research note is not production authority. Once exploratory content becomes current production truth, move that truth into its persistent authoritative document and remove the temporary duplicate.
 
 ## Change impact
 

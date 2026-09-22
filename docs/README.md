@@ -43,7 +43,7 @@ docs/
 ├── methods/        # current algorithms and scientific behavior
 ├── contracts/      # config, result semantics, schemas, examples
 ├── src/            # exact source-module implementation mirror
-├── operations/     # development, batch, CI, release, delivery
+├── operations/     # batch, CI, release, security
 ├── governance/     # documentation, reference validation, data policy
 ├── research/       # non-normative exploration
 ├── glossary.md
