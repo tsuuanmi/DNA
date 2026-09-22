@@ -123,9 +123,9 @@ jobs:
       - name: Enforce Rust-only production source
         shell: bash
         run: |
-          unexpected="$(find src -type f ! -name '*.rs' -print)"
+          unexpected="$(find src -type f ! -name '*.rs' ! -name 'README.md' -print)"
           if [ -n "$unexpected" ]; then
-            printf 'Only Rust source is allowed under src/:\n%s\n' "$unexpected" >&2
+            printf 'Only Rust source and source-local README.md documentation are allowed under src/:\n%s\n' "$unexpected" >&2
             exit 1
           fi
       - name: Validate Rust source policy
