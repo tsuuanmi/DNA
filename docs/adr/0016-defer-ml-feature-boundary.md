@@ -7,7 +7,7 @@
 
 The compact `dna.analysis/v5` and `dna.basecalls/v1` contracts are deliberately small, deterministic, and privacy-constrained (ADR-0014, ADR-0015). A future machine-learning path needs richer internal evidence—per-call peaks, rolling windows, spacing, and alignment context—than those production results expose. Adding bulk fields to the compact contracts would violate their one-result, no-compatibility-output boundary and increase identifying payload.
 
-The repository has no approved truth-labeled corpus, no feature registry, no chosen first prediction target, and no trained model (ADR-0013, [`data.md`](../governance/data.md)). AGENTS.md prohibits speculative features, single-use abstractions, and unused configuration. Unused Rust scaffolding would fail the clippy dead-code lint and the `docs/src` one-to-one mirror gate.
+The repository has no approved truth-labeled corpus, no feature registry, no chosen first prediction target, and no trained model (ADR-0013, [`data.md`](../governance/data.md)). AGENTS.md prohibits speculative features, single-use abstractions, and unused configuration. Unused Rust scaffolding would fail the Clippy dead-code policy, and any new source directory would also require its colocated README.
 
 ## Options
 
@@ -35,7 +35,7 @@ The production contracts remain the single authority for `signal analyze` and `s
 
 A training exporter conflicts with the current one-file CLI contract: `SRS-IN-001`, `SRS-IN-010`, and `SRS-OUT-001` fix each command to one input and exactly one command-specific JSON output with no duplicate compatibility output. An opt-in exporter therefore requires a future ADR amendment or successor and an SRS update establishing its invocation contract (separate subcommand, output path, overwrite semantics) before any `report::training` or pipeline integration. The compact v5 and basecalls-v1 schemas are already closed (`additionalProperties: false`), so a training-keyed production document is already rejected at the schema-field level by the existing validator; no additional schema-field guard test is needed. CLI emission-boundary tests remain a future-implementation concern.
 
-Implementation requires a later ADR or amendment, a closed Draft 2020-12 schema, synthetic example, `docs/src` mirror for any new Rust source, focused tests, and biological validation before any model alters scientific results. All new Rust sources, their mirrors, CLI wiring, and tests must land in one atomic commit so the docs-mirror and clippy dead-code gates stay green.
+Implementation requires a later ADR or amendment, a closed Draft 2020-12 schema, synthetic example, source-directory README for any new module directory, focused tests, and biological validation before any model alters scientific results. New source, module routing documentation, CLI wiring, and tests must land coherently so documentation-structure and Clippy gates stay green.
 
 ## Supersession
 

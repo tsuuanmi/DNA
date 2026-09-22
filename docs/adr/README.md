@@ -30,7 +30,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | nucleotide contribution/profile geometry | ADR-0038 through ADR-0043 | sample SRS/method; public subset in sample contract |
 | reviewer-facing public signal evidence | ADR-0026, ADR-0053 | analysis/sample contracts |
 | release/readiness | ADR-0018, ADR-0021 | release operations + roadmap/validation evidence |
-| documentation governance | ADR-0006, ADR-0022 | documentation governance + source-mirror policy |
+| documentation governance | ADR-0006 → ADR-0022 | documentation governance + source-local README policy |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
@@ -41,7 +41,7 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0003](0003-behavioral-compatibility.md) | Apollo behavioral evidence | Superseded in part by ADR-0009 |
 | [0004](0004-rcrs-direct-alignment.md) | Direct rCRS alignment | Superseded by ADR-0010 |
 | [0005](0005-versioned-output-contracts.md) | JSON plus VCF | Superseded by ADR-0008 |
-| [0006](0006-source-documentation-mirroring.md) | Source/manual mirroring | Accepted |
+| [0006](0006-source-documentation-mirroring.md) | Source/manual mirroring | Superseded by ADR-0022 |
 | [0007](0007-configuration-and-environment.md) | Strict TOML and environment path | Accepted |
 | [0008](0008-json-only-auditable-analysis.md) | JSON-only auditable output | Superseded in part by ADR-0011 |
 | [0009](0009-biological-semantics.md) | Biologically explicit semantics | Accepted |

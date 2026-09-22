@@ -160,9 +160,7 @@ ADRs
  ↓
 current methods + public contracts
  ↓
-docs/src implementation mirror
- ↓
-source + tests
+source-directory README + source + tests
  ↓
 validation + release evidence
 ```
@@ -177,7 +175,7 @@ Key entry points:
 - [ADR index](docs/adr/README.md)
 - [current methods](docs/methods/README.md)
 - [contracts](docs/contracts/README.md)
-- [source mirror](docs/architecture/source-mirror.md)
+- [source modules](src/README.md)
 - [development and release operations](docs/operations/README.md)
 - [traceability](docs/traceability.md)
 - [research](docs/research/README.md)
@@ -214,6 +212,6 @@ See [CI and verification lanes](docs/operations/ci.md) and [production readiness
 
 ## Agent development
 
-Coding agents should start with [AGENTS.md](AGENTS.md). It defines a reusable discover → understand → plan → implement → verify → reconcile → review → report workflow, then expects the agent to discover this repository's own requirements, architecture, contracts, tests, and validation sources rather than relying on hard-coded file paths.
+Coding agents should start with [AGENTS.md](AGENTS.md). It is intentionally limited to routing and repository-wide invariants; project knowledge remains in canonical docs, source-directory README files, source, and tests.
 
 The repository intentionally treats documentation as part of the correctness system, not as an after-the-fact description of the code.

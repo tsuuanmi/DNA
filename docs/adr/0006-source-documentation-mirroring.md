@@ -1,7 +1,8 @@
 # ADR-0006: Mirror Rust Source Documentation One-to-One
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0022
 - **Date:** 2026-08-22
+- **Superseded:** 2026-09-22
 
 ## Context
 
@@ -33,4 +34,6 @@ checks cannot prove prose accuracy; review discipline remains necessary.
 
 ## Supersession
 
-Any replacement must provide equivalent automatic coverage and traceability.
+ADR-0022 replaces this one-to-one shadow tree with source-directory `README.md`
+routers colocated with the code. The replacement preserves module ownership and CI
+coverage while avoiding duplicated per-file documentation.

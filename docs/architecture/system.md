@@ -7,7 +7,7 @@
 - Models enforce cardinality and coordinate invariants; scientific functions have no filesystem side effects.
 - The CLI and operating-system boundary remain thin.
 - Algorithms are deterministic and biologically explicit; known Apollo defects are not parity requirements.
-- Every Rust source has a same-path manual under `docs/src/`.
+- Every source directory has an up-to-date colocated `README.md` that routes readers to its code and canonical documentation.
 
 ## Flow
 

@@ -27,4 +27,4 @@ DNA is a deterministic Rust CLI for reference-free base re-calling and research 
 - Add a requirement to the file that owns its system responsibility; do not mirror the `src/` tree here.
 - Do not create one file per requirement. Split a family only when it has a durable domain boundary and update this index when doing so.
 - Cross-family requirements should reference the authoritative requirement ID and family document rather than restating the requirement.
-- Detailed algorithms belong in method documentation, rationale belongs in ADRs, implementation ownership belongs in `docs/src`, and exact serialized shapes belong in machine-readable contracts.
+- Detailed algorithms belong in method documentation, rationale belongs in ADRs, implementation ownership belongs in source-directory `README.md` files, and exact serialized shapes belong in machine-readable contracts.

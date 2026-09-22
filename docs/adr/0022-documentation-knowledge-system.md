@@ -4,178 +4,142 @@
 
 Accepted
 
+**Supersedes:** ADR-0006
+
 ## Context
 
-DNA is becoming a scientific software system with several kinds of documentation:
+DNA contains multiple kinds of knowledge: requirements, architecture, decisions,
+scientific methods, public contracts, implementation ownership, validation,
+operations, research, roadmap material, and agent instructions.
 
-- normative requirements;
-- architecture and design decisions;
-- scientific/method descriptions;
-- public schemas and configuration contracts;
-- implementation manuals;
-- validation evidence;
-- research notes;
-- roadmap material;
-- agent instructions.
+These artifacts do not have equal authority. A parallel source-documentation tree
+also creates a second hierarchy that can drift from the code it describes.
 
-These documents do not have equal authority.
-
-Without an explicit documentation model, humans and coding agents can select the wrong source of truth, treat research as production behavior, copy stale implementation notes, or make a locally reasonable refactor that violates a cross-cutting scientific invariant.
-
-The problem is therefore not "write more documentation". The problem is to make documentation navigable, authoritative, traceable, and hard to misinterpret.
+The goal is therefore not to maximize documentation volume. The goal is to make
+current truth easy to locate, hard to duplicate, and synchronized with the code.
 
 ## Decision
 
-DNA documentation will be governed as a layered knowledge system.
+DNA documentation is governed as a layered knowledge system.
 
-### 1. Root production documentation is authoritative by role
+### 1. Current production knowledge is authoritative by role
 
-The production documentation set has distinct responsibilities:
+- **SRS** defines what the current system MUST/SHOULD/MAY do.
+- **Accepted ADRs** record why durable architectural or scientific choices were made.
+- **Architecture** defines stable boundaries, dependency direction, data flow, and
+  cross-cutting invariants.
+- **Methods** define current scientific and algorithmic behavior.
+- **Contracts** define user-visible and machine-visible interfaces.
+- **Source-directory README files** define implementation ownership and route
+  readers to relevant code and canonical documentation.
+- **Validation, operations, and governance** define verification and operating policy.
+- **Roadmap and research** are non-normative.
 
-- **SRS** defines what the current intended system MUST/SHOULD/MAY do.
-- **Accepted ADRs** record why architectural or scientific decisions were made.
-- **Architecture** defines component boundaries, dependencies, data flow, and cross-cutting invariants.
-- **Method documentation** defines the current scientific and algorithmic behavior.
-- **Contracts** define user-visible and machine-visible interfaces such as CLI, configuration, coordinates, schemas, and serialization semantics.
-- **docs/src** mirrors implementation ownership and module responsibilities.
-- **Validation** defines how software and scientific claims are verified.
-- **Operations/governance** define development, release, security, data, and documentation processes.
-- **Roadmap** describes future direction and is non-normative.
+A disagreement between source and normative production documentation is a defect
+to reconcile, not permission to choose whichever artifact is convenient.
 
-### 2. Research is explicitly non-normative
+### 2. README files are routers
 
-All exploratory work belongs under:
+README files orient readers; they do not become duplicate specifications.
 
-```text
-docs/research/<topic>/
-```
+- The repository `README.md` routes users and contributors into the project.
+- `docs/README.md` routes readers to canonical knowledge by role.
+- Each documentation-folder `README.md` indexes that knowledge area.
+- Each source-directory `README.md` describes module responsibility and links to
+  deeper SRS, architecture, methods, contracts, ADRs, and tests.
 
-A research subtree may mirror production documentation with its own requirements, ADRs, architecture, validation, and roadmap, as done by the Tracy research work.
+### 3. Implementation documentation is colocated with code
 
-Research material does not change production behavior merely by existing.
+Every directory under `src/` has an up-to-date `README.md`.
 
-Promotion requires an explicit path:
+The README describes:
+
+- responsibility and non-responsibilities;
+- boundary entry points;
+- important child modules/files;
+- dependencies and local invariants;
+- links to canonical requirements, methods, decisions, contracts, and tests.
+
+File-only modules continue to use rustdoc/module comments. They are not converted
+into directories solely to create documentation.
+
+DNA does not maintain a `docs/src/` shadow tree. This replaces ADR-0006's
+one-to-one source/manual mirroring model with a lower-duplication, colocated
+ownership model.
+
+### 4. Cross-cutting invariants have one explicit home
+
+Stable invariants spanning modules belong under
+`docs/architecture/invariants/`. Source README files link to those invariants
+rather than restating them inconsistently.
+
+### 5. Traceability connects intent to implementation and evidence
+
+`docs/traceability.md` maps requirement families to current architecture/methods,
+owning source modules, tests/evidence, and public contracts. It is a navigation
+aid, not a second specification.
+
+### 6. Research is explicitly non-normative
+
+Exploratory work belongs under `docs/research/<topic>/`.
+
+Promotion is explicit:
 
 ```text
 research evidence
   ↓
-root ADR when a decision is architectural/scientific
+accepted decision when needed
   ↓
-root SRS/contract change when behavior changes
+current requirement / architecture / method / contract
   ↓
-implementation + tests
+implementation + source-local README + tests
   ↓
 validation
 ```
 
-### 3. Documentation authority is explicit
+Research does not change production behavior merely by existing.
 
-When documents disagree:
+### 7. AGENTS.md is routing plus invariants
 
-1. a machine-readable public schema is authoritative for the serialized shape of that schema version;
-2. root SRS is authoritative for intended normative behavior;
-3. accepted ADRs are authoritative for the rationale and decision they govern;
-4. current method/contracts define the intended detailed semantics;
-5. source code is authoritative for what the current revision actually executes;
-6. docs/src describes implementation ownership and must track source;
-7. roadmap and research are never authority for current production behavior.
+Root `AGENTS.md` remains concise and repository-agnostic. It tells an agent:
 
-A disagreement between source and the normative production docs is a defect, incomplete implementation, or stale documentation. It must be surfaced rather than silently resolved by choosing whichever file is convenient.
+- how to find repository and documentation entry points;
+- how to resolve authority by role;
+- that the nearest source README defines implementation ownership;
+- that code and affected documentation change together;
+- which repository-wide implementation invariants must be preserved;
+- how to discover verification from CI and operations docs.
 
-### 4. Cross-cutting invariants have one explicit home
-
-Stable invariants that span modules belong in `docs/architecture/invariants/README.md`.
-
-Examples include:
-
-- coordinate bases and units;
-- source-evidence immutability;
-- strand mapping;
-- output atomicity;
-- unresolved biological state semantics;
-- deterministic ordering.
-
-Implementation manuals should reference these invariants rather than restating them inconsistently.
-
-### 5. Traceability connects intent to evidence
-
-`docs/traceability.md` maps requirement families to:
-
-- architecture/method documentation;
-- owning source modules;
-- tests;
-- public contracts;
-- validation evidence.
-
-The traceability map is a navigation aid, not a duplicated specification.
-
-### 6. AGENTS.md is a reusable workflow protocol, not a repository encyclopedia
-
-Root `AGENTS.md` should define a generic development workflow that can transfer across repositories.
-
-It should teach an agent how to:
-
-- discover repository instructions and documentation roles;
-- resolve authority by role rather than by hard-coded filenames;
-- understand intent and implementation before editing;
-- plan the smallest coherent change;
-- choose verification based on failure modes;
-- reconcile source, contracts, tests, and documentation;
-- review the final diff and report residual risk.
-
-Repository-specific commands, scientific invariants, file paths, and product semantics remain in the repository's own docs, CI configuration, build metadata, and contracts. The agent discovers those sources rather than having them duplicated into AGENTS.md.
-
-### 7. Documentation mirrors responsibility, not line-by-line code
-
-`docs/src` mirrors the source/crate/module layout so agents can discover ownership.
-
-A module manual should describe:
-
-- responsibility;
-- inputs/outputs;
-- invariants;
-- dependencies;
-- failure modes;
-- related SRS/ADR/contracts/tests.
-
-It should not translate implementation line by line.
+Repository-specific scientific detail, commands, and contracts remain in their
+canonical homes instead of being copied into `AGENTS.md`.
 
 ### 8. ADRs are deduplicated by decision boundary
 
 One accepted ADR is the canonical rationale for one durable decision scope.
 
-Before adding a production ADR, contributors and agents must search the SRS,
-architecture/invariants, method and contract documentation, and the ADR index for
-an existing decision that already owns the concern.
-
-A new implementation step, schema version, validation observation, or documentation
-clarification does not by itself require a new ADR. If the underlying choice is
-unchanged, update the authoritative SRS/method/contract and, when useful, add a
-small dated clarification or follow-up to the existing ADR.
-
-When a material choice changes, the replacement decision must explicitly supersede
-the prior ADR in whole or in part, and the prior ADR must point to the replacement.
-Two accepted ADRs must not claim authority over the same decision scope.
-
-Superseded ADRs remain in the repository as historical provenance; their numbers
-are never reused.
+Implementation progress, schema revisions, validation observations, and ordinary
+documentation cleanup do not require new ADRs. A material replacement creates a
+successor that explicitly supersedes the prior decision in whole or in part.
 
 ## Consequences
 
 ### Positive
 
-- agents can navigate the repository without guessing which document is authoritative;
-- research can be rich without contaminating current production semantics;
-- cross-cutting invariants are less likely to drift between modules;
-- source changes have a clear documentation impact path;
-- the repository becomes easier to audit and hand over.
+- implementation documentation is visible where developers browse the code;
+- there is no second one-to-one source hierarchy to keep synchronized;
+- README files remain compact navigation surfaces;
+- agents can move from requirement to implementation without treating research as truth;
+- source changes have an explicit documentation-impact rule;
+- CI can enforce both documentation-folder indexes and source-directory README coverage.
 
 ### Cost
 
-- documentation changes require discipline when behavior crosses multiple layers;
-- stale links or traceability entries become maintenance issues;
-- some existing flat documents need classification or gradual relocation.
+- module owners must keep colocated README files current when responsibilities change;
+- documentation review remains necessary because structural checks cannot prove prose accuracy;
+- migration removes the existing `docs/src/` manuals and their dedicated mirror test.
 
-## Non-goal
+## Revision
 
-This ADR does not require moving every existing Markdown file immediately. Structure should improve incrementally without creating churn that provides no additional clarity.
+2026-09-22: refined the accepted documentation-system decision by replacing the
+ADR-0006 `docs/src/` one-to-one mirror with colocated source-directory README
+routers and narrowing `AGENTS.md` to routing plus invariants.

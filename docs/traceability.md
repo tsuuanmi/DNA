@@ -25,7 +25,7 @@ For a behavior change:
 1. locate the requirement family;
 2. read the linked method/architecture document;
 3. read relevant accepted ADRs;
-4. read the owning `docs/src` manual and source;
+4. read the nearest owning source-directory `README.md` and source;
 5. inspect the linked tests/contracts;
 6. update every affected layer in the same change.
 
