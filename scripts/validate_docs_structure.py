@@ -41,9 +41,7 @@ def main() -> None:
         relative = directory.relative_to(ROOT)
 
         if directory.name.lower() in FORBIDDEN_NAMES:
-            errors.append(
-                f"legacy/temporary docs directory is not allowed: {relative}"
-            )
+            errors.append(f"legacy/temporary docs directory is not allowed: {relative}")
 
         if not (directory / "README.md").is_file():
             errors.append(
