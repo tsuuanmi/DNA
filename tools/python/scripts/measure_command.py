@@ -42,7 +42,9 @@ def normalized_command(values: list[str]) -> list[str]:
 
 def measure(command: list[str]) -> tuple[int, dict[str, Any]]:
     if sys.platform != "linux":
-        raise RuntimeError("performance evidence measurement currently supports Linux only")
+        raise RuntimeError(
+            "performance evidence measurement currently supports Linux only"
+        )
 
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     started_at = datetime.now(UTC)
