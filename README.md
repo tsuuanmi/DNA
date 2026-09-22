@@ -214,7 +214,7 @@ uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 ```
 
-CI also verifies the declared MSRV, Rust-only production source, dependency policy/review, RustSec, CodeQL, Python tooling, schemas/reference data, and an ABIF fuzz smoke campaign. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
+CI also verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency policy/review, RustSec, CodeQL, Python tooling, schemas/reference data, and an ABIF fuzz smoke campaign. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
 Tagged `v*` releases rerun the required Rust/security gates, require the tagged commit to belong to `main`, build with the locked dependency graph, generate an SPDX SBOM, SHA-256 checksums, and cryptographic GitHub build/SBOM attestations, then publish the supported Linux x86_64 artifact.
 
