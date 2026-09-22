@@ -110,7 +110,7 @@ The workflow:
 1. verifies the tag exactly matches the crate version and belongs to `main`;
 2. reruns formatting, compilation, Clippy, tests, and Rustdoc with the locked dependency graph;
 3. reruns `cargo-deny` and RustSec audit;
-4. builds the release binary with pinned `cargo-auditable`, strips it while explicitly preserving `.dep-v0`, and audits the packaged binary;
+4. installs and builds the explicit `x86_64-unknown-linux-gnu` target with pinned `cargo-auditable`, strips it while explicitly preserving `.dep-v0`, and audits the packaged binary;
 5. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
 6. generates an SPDX JSON SBOM from the auditable binary with a pinned Syft version;
 7. packages the Linux `x86_64-unknown-linux-gnu` artifact;
