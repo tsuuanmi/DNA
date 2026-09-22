@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist/package/config dist/package/references
-          cp target/${RELEASE_TARGET}/release/dna dist/package/dna
+          cp "target/${RELEASE_TARGET}/release/dna" dist/package/dna
           cp config/dna.toml dist/package/config/dna.toml
           cp references/rCRS.fasta dist/package/references/rCRS.fasta
           strip --keep-section=.dep-v0 dist/package/dna
