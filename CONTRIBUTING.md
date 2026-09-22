@@ -13,7 +13,7 @@ documented lifecycle.
 
 ## Source boundaries
 
-- Production runtime code under `src/` is Rust.
+- Executable production source under `src/` is Rust; source-local `README.md` files are the only non-Rust files allowed there.
 - Python under `tools/python/` is for research, validation, orchestration, and
   tests only and must not become a runtime dependency of the `dna` binary.
 - Scientific behavior changes require matching tests and documentation.
