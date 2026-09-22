@@ -9,7 +9,7 @@ Platform support is evidence-based.
 | `x86_64-unknown-linux-gnu` | release-supported | Explicit `--target` self-contained release bundle plus CI verification, runtime-asset checksums, SBOM, checksums, and attestations |
 
 A release-supported target is one that the release process builds and verifies for
-the exact release revision.
+the exact release revision. The current Linux build/verification runner baseline is Ubuntu 24.04 and changes to that baseline are reviewed explicitly.
 
 ## Buildable but not release-supported
 
