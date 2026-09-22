@@ -10,6 +10,6 @@ and `orient.rs`.
 
 This module does not extract variants or mutate upstream signal evidence.
 
-See [alignment requirements](../../docs/srs/alignment.md),
-[alignment method](../../docs/methods/alignment.md), and
+See [alignment requirements](../../docs/requirements/alignment.md),
+[alignment method](../../docs/design/alignment.md), and
 [alignment invariants](../../docs/architecture/invariants/alignment.md).

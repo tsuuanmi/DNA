@@ -8,6 +8,6 @@ Key children: `extract.rs`, `mapping.rs`, `normalize.rs`, and `filter.rs`.
 This module does not infer genotype, heteroplasmy, phase, pathogenicity, or
 clinical significance.
 
-See [variant requirements](../../docs/srs/variants.md),
-[variant-calling method](../../docs/methods/variant-calling.md), and
+See [variant requirements](../../docs/requirements/variants.md),
+[variant-calling method](../../docs/design/variant-calling.md), and
 [scientific-state invariants](../../docs/architecture/invariants/scientific-state.md).

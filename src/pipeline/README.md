@@ -8,6 +8,6 @@ observation processing, sample-read processing, metrics, and command publication
 Pipeline code sequences stages and preserves typed failures; algorithm internals
 remain in their owning modules.
 
-See [pipeline method](../../docs/methods/pipeline.md),
+See [pipeline method](../../docs/design/pipeline.md),
 [pipeline invariants](../../docs/architecture/invariants/pipeline.md), and
-[output requirements](../../docs/srs/output.md).
+[output requirements](../../docs/requirements/output.md).

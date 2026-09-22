@@ -9,6 +9,6 @@ contribution policy, profile geometry, nucleotide support, and variant aggregati
 This module does not discover input files, infer samples from filenames, or emit
 final reports.
 
-See [sample requirements](../../docs/srs/sample-evidence/README.md),
-[sample methods](../../docs/methods/sample-evidence/README.md), and
+See [sample requirements](../../docs/requirements/sample-evidence/README.md),
+[sample methods](../../docs/design/sample-evidence/README.md), and
 [sample invariants](../../docs/architecture/invariants/sample-boundaries.md).

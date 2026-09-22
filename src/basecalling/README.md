@@ -8,5 +8,5 @@ Key children: `peak.rs`, `iupac.rs`, and `call.rs`.
 
 This module does not trim reads, align to a reference, or call variants.
 
-See [basecalling requirements](../../docs/srs/basecalling.md) and
-[basecalling method](../../docs/methods/basecalling.md).
+See [basecalling requirements](../../docs/requirements/basecalling.md) and
+[basecalling method](../../docs/design/basecalling.md).

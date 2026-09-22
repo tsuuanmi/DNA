@@ -9,6 +9,6 @@ trace-integrity observations, and candidate-noisy region merging.
 This module does not mutate channels, perform reference interpretation, or decide
 variant eligibility.
 
-See [signal requirements](../../docs/srs/signal-processing.md),
-[signal methods](../../docs/methods/signal-processing/README.md), and
+See [signal requirements](../../docs/requirements/signal-processing.md),
+[signal methods](../../docs/design/signal-processing/README.md), and
 [evidence invariants](../../docs/architecture/invariants/evidence.md).

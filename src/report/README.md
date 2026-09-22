@@ -8,6 +8,6 @@ and atomic publication concerns.
 
 Scientific decisions remain upstream.
 
-See [contracts](../../docs/contracts/README.md),
-[output requirements](../../docs/srs/output.md), and
+See [contracts](../../docs/reference/README.md),
+[output requirements](../../docs/requirements/output.md), and
 [output/operations invariants](../../docs/architecture/invariants/output-operations.md).
