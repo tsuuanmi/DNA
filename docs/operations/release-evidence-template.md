@@ -23,6 +23,7 @@ Copy this template for every release candidate that is intended to carry the
 - MSRV:
 - dependency policy (`cargo-deny`):
 - RustSec lockfile audit:
+- packaged auditable binary `.dep-v0` present: yes/no
 - auditable binary dependency scan:
 - dependency review:
 - CodeQL:
