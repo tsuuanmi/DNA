@@ -1,6 +1,6 @@
 # Data and Fixture Governance
 
-This document governs local biological data, derived results, validation truth, and approved real-trace evidence. Operational batch mechanics live in [operations/batch.md](../operations/batch.md).
+This document governs local biological data, derived results, validation truth, and approved real-trace evidence. Operational batch mechanics live in [operations/batch.md](../operations/runbooks/batch-analysis.md).
 
 ## Scope
 
@@ -55,4 +55,4 @@ A trace without this record may be used for exploratory local debugging, but not
 
 ## Operational boundary
 
-Selecting, grouping, cleaning, and rerunning a local corpus is external orchestration. It does not expand the core CLI input contract. See [local batch orchestration](../operations/batch.md).
+Selecting, grouping, cleaning, and rerunning a local corpus is external orchestration. It does not expand the core CLI input contract. See [local batch orchestration](../operations/runbooks/batch-analysis.md).

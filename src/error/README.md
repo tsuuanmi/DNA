@@ -6,4 +6,4 @@ Errors preserve structured failure context without printing, exiting, or decidin
 recovery policy.
 
 See [system architecture](../../docs/architecture/overview.md) and
-[quality requirements](../../docs/requirements/quality-validation.md).
+[quality requirements](../../docs/requirements/quality-attributes.md).
