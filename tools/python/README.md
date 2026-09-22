@@ -27,3 +27,17 @@ uv run python scripts/validate_rust_source_policy.py
 ```
 
 The lockfile in this directory belongs only to these Python development tools. Rust dependencies remain authoritative in the root `Cargo.toml` and `Cargo.lock`.
+
+
+## Performance evidence
+
+For Linux release-validation runs, measure one exact command and write machine-readable
+runtime/CPU/peak-RSS evidence:
+
+```bash
+uv run python scripts/measure_command.py \
+  --output ../../results/validation/performance.json \
+  -- ../../target/release/dna analyze TRACE.ab1 --reference ../../references/rCRS.fasta
+```
+
+The wrapper executes the command directly without a shell and propagates its exit status.
