@@ -7,6 +7,8 @@ updates:
       day: "monday"
       time: "04:00"
       timezone: "Asia/Bangkok"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       rust-minor-patch:
@@ -20,6 +22,8 @@ updates:
       day: "monday"
       time: "04:15"
       timezone: "Asia/Bangkok"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       python-tooling:
@@ -32,6 +36,8 @@ updates:
       day: "monday"
       time: "04:30"
       timezone: "Asia/Bangkok"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
 
   - package-ecosystem: "rust-toolchain"
@@ -40,4 +46,6 @@ updates:
       interval: "monthly"
       time: "04:45"
       timezone: "Asia/Bangkok"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 2
