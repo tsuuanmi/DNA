@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-BC-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-BC-001:** Calls MUST derive from analyzed A/C/G/T signals at validated PLOC loci. PBAS MUST NOT become final algorithm output.
 - **SRS-BC-002:** Windows MUST use neighboring PLOC midpoints with bounded first/last extrapolation.

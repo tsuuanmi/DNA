@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-VAR-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-VAR-001:** Variants MUST derive only from the selected primary-sequence alignment.
 - **SRS-VAR-002:** Canonical primary A/C/G/T mismatches MAY produce normalized SNV observations; unresolved primary N differences MUST be excluded and counted. A mixed call may still produce a primary-sequence difference from its strongest channel, but mixed supporting signal MUST remain explicit and MUST NOT be presented as an ordinary clean SNV.

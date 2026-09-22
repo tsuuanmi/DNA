@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-QC-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-QC-001:** Each call MUST receive a documented ambiguity/spacing penalty and bounded relative score.
 - **SRS-QC-002:** The relative score MUST be explicitly uncalibrated. PCON MUST remain separate internally and apply only when PBAS agrees with the re-called primary; compact JSON MUST omit both the calibration flag and vendor evidence.

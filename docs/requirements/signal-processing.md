@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-SIG-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-SIG-001:** DNA processing MUST read the immutable analyzed A/C/G/T channels and basecalling evidence; it MUST NOT replace decoded channels or selected peaks.
 - **SRS-SIG-002:** Configuration MUST require a rolling window in `5..=10` bases, a finite positive minimum primary SNR, and a minimum noisy-window run length of at least 2.

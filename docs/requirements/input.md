@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-IN-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-IN-001:** `analyze` and `basecall` MUST accept exactly one regular non-empty AB1 path. `sample` MUST accept one sample identifier and one or more regular non-empty AB1 paths. Reference-guided commands MUST require one regular non-empty FASTA path; `basecall` MUST NOT accept a reference. Directories, manifest/list compatibility inputs, and globs MUST NOT be accepted by the core CLI.
 - **SRS-IN-002:** AB1 bytes MUST begin with `ABIF`; every directory count, size, product, offset, inline payload, and allocation MUST be checked before use.

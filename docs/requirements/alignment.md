@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-ALN-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-ALN-001:** DNA MUST align retained forward and reverse-complement evidence-profile queries with affine-gap semi-global Gotoh, consuming the complete retained query and allowing free reference flanks.
 - **SRS-ALN-002:** Canonical reference substitution scoring MUST use the retained `EvidenceProfile` mass for that reference base as a fixed-point expected match/mismatch score. A missing profile or non-canonical reference base MUST use the configured ambiguous score. A gap of length `k` MUST retain `open + k × extension` semantics in the same fixed-point score scale.

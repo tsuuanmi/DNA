@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-BAT-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-BAT-001:** The external batch runner MUST validate the selected manifest prefix, trace directory, reference, configuration, selected trace workload, identities, destinations, and cleanup targets before deleting any artifact.
 - **SRS-BAT-002:** Batch preflight MUST reject invalid or duplicate selected IDs, missing selected traces, traces matching multiple selected samples, unsafe target types, path escapes, and symlinked traces or cleanup targets.

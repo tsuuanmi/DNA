@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-CFG-*`
 
-These requirements are part of the canonical [DNA SRS](README.md).
+These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-CFG-001:** DNA MUST load `DNA_CONFIG` or `config/dna.toml`; it MUST NOT parse `.env`.
 - **SRS-CFG-002:** Schema version MUST be integer `5`; all documented sections/keys are required.
