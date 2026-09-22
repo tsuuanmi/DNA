@@ -44,11 +44,14 @@ jobs:
           cargo clippy --locked --all-targets --all-features -- -D warnings
           cargo test --locked --all-targets --all-features
           RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+      - name: Install release dependency policy tool
+        if: github.event_name == 'push'
+        uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+        with:
+          tool: cargo-deny@0.20.2
       - name: Dependency policy
         if: github.event_name == 'push'
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
-        with:
-          command: check
+        run: cargo deny check
       - name: Install release target
         run: rustup target add "$RELEASE_TARGET"
       - name: Install release audit tooling
@@ -63,7 +66,7 @@ jobs:
       - name: Prepare artifact and provenance
         shell: bash
         run: |
-          mkdir -p dist/package/config dist/package/references dist/staging
+          mkdir -p dist/package/config dist/package/references
           cp "target/${RELEASE_TARGET}/release/dna" dist/package/dna
           cp config/dna.toml dist/package/config/dna.toml
           cp references/rCRS.fasta dist/package/references/rCRS.fasta
@@ -100,7 +103,6 @@ jobs:
       - name: Package release
         shell: bash
         run: |
-          cp dist/package/dna dist/staging/dna
           cp "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" dist/package/SBOM.spdx.json
           tar -C dist/package -czf "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" .
           rm -rf dist/package
@@ -124,7 +126,6 @@ jobs:
             dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.tar.gz
             dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.spdx.json
             dist/SHA256SUMS
-            dist/staging/dna
           if-no-files-found: error
           retention-days: 1
 
@@ -146,16 +147,20 @@ jobs:
         with:
           name: release-assets
           path: dist
-      - name: Verify staged checksums
+      - name: Verify staged checksums and extract attestation subject
+        shell: bash
         run: |
           (
             cd dist
             sha256sum -c SHA256SUMS
           )
+          mkdir -p dist/attest
+          tar -xzf "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" -C dist/attest
+          test -x dist/attest/dna
       - name: Attest binary SBOM
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: dist/staging/dna
+          subject-path: dist/attest/dna
           sbom-path: dist/dna-${{ env.RELEASE_LABEL }}-${{ env.RELEASE_TARGET }}.spdx.json
       - name: Attest release archive provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
