@@ -12,15 +12,29 @@ contributors.
 Required settings:
 
 - require changes through pull requests;
-- require at least one approving review;
-- require review from Code Owners;
-- dismiss stale approvals when new commits are pushed;
 - require all review conversations to be resolved;
 - require the branch to be up to date before merge;
 - require linear history;
 - block force pushes;
 - block branch deletion;
 - do not allow routine bypass of the ruleset.
+
+### Review policy
+
+The ruleset must remain usable for the actual maintainer topology.
+
+While DNA has only one independent maintainer, configure:
+
+- required approving reviews: `0`;
+- required Code Owner review: disabled.
+
+The pull-request requirement, non-bypassable status checks, and linear-history rules still apply. Requiring one approval from a sole Code Owner would make ordinary maintainer pull requests impossible to merge because authors cannot approve their own pull requests.
+
+When a second independent maintainer is available, raise the policy to:
+
+- at least one approving review;
+- Code Owner review for high-risk surfaces;
+- dismiss stale approvals after material new pushes.
 
 Required pull-request status checks:
 
@@ -48,6 +62,7 @@ The release workflow independently verifies the final two conditions.
 
 Enable:
 
+- GitHub Actions policy requiring third-party actions to be pinned to full-length commit SHAs;
 - GitHub private vulnerability reporting;
 - Dependabot alerts;
 - Dependabot security updates;
@@ -79,18 +94,20 @@ merge invariant.
 
 Repository files cannot enable GitHub security settings or rulesets by themselves. Before calling a release production-ready, an administrator must complete these GitHub settings:
 
-1. **Settings → Security and quality → Advanced Security**
+1. **Settings → Actions → General**
+   - enable **Require actions to be pinned to a full-length commit SHA**.
+2. **Settings → Security and quality → Advanced Security**
    - enable Dependency Graph;
    - enable Dependabot alerts;
    - enable Dependabot security updates;
    - enable Private vulnerability reporting;
    - enable Secret scanning and Push protection when available for the repository plan.
-2. **Settings → Rules → Rulesets**
+3. **Settings → Rules → Rulesets**
    - create the protected-`main` ruleset described above;
    - create the protected-`v*` tag ruleset described above;
    - keep bypass permissions empty for normal development.
-3. **Settings → General → Releases**
+4. **Settings → General → Releases**
    - enable release immutability so published release tags and assets cannot be replaced.
-4. Re-run the pull request checks after Dependency Graph is enabled. The `Dependency review` job is intentionally required and will fail while the graph is disabled.
+5. Re-run the pull request checks after Dependency Graph is enabled. The `Dependency review` job is intentionally required and will fail while the graph is disabled.
 
 These settings are part of the production contract, not optional repository polish.
