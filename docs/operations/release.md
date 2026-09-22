@@ -47,3 +47,8 @@ Existing versioned scientific JSON contracts must not gain unversioned build met
 ## Production decision
 
 Automated delivery establishes a **build verified** artifact. It does not by itself establish biological validity. A release must not be described as production-ready until the exact revision also has the scientific, adversarial, performance, and approved real-corpus evidence required by ADR-0018.
+
+
+## Release immutability
+
+Repository settings must enable GitHub immutable releases before production delivery. The workflow is create-only and does not replace existing release assets. Once published, GitHub must prevent the associated release tag and assets from being modified.
