@@ -153,3 +153,29 @@ jobs:
         run: |
           test "$(sha256sum references/rCRS.fasta | cut -d' ' -f1)" = "f0f08344920d29af5f0870f7b2c7b5a880e338b10b41d3536a0db7e6e5cd724a"
           test "$(awk '!/^>/ { gsub(/[[:space:]]/, ""); n += length } END { print n }' references/rCRS.fasta)" = "16569"
+
+
+  ci-success:
+    name: CI success
+    if: ${{ always() }}
+    needs:
+      - workflow-security
+      - rust-quality
+      - dependency-policy
+      - dependency-review
+      - msrv
+      - repository-policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every applicable CI gate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            jq -e 'all(.[]; .result == "success")' <<<"$NEEDS_JSON"
+          else
+            jq -e 'all(to_entries[]; .value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' <<<"$NEEDS_JSON"
+          fi
