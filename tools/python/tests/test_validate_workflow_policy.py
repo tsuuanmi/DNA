@@ -39,6 +39,37 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("write-all", errors[0])
 
+    def test_accepts_complete_ci_aggregate(self) -> None:
+        workflow = (
+            "jobs:\n"
+            "  rust-quality:\n"
+            "    runs-on: ubuntu-latest\n"
+            "  dependency-policy:\n"
+            "    runs-on: ubuntu-latest\n"
+            "  ci-success:\n"
+            "    needs:\n"
+            "      - rust-quality\n"
+            "      - dependency-policy\n"
+            "    runs-on: ubuntu-latest\n"
+        )
+        self.assertEqual(self.validate(workflow), [])
+
+    def test_rejects_incomplete_ci_aggregate(self) -> None:
+        workflow = (
+            "jobs:\n"
+            "  rust-quality:\n"
+            "    runs-on: ubuntu-latest\n"
+            "  dependency-policy:\n"
+            "    runs-on: ubuntu-latest\n"
+            "  ci-success:\n"
+            "    needs:\n"
+            "      - rust-quality\n"
+            "    runs-on: ubuntu-latest\n"
+        )
+        errors = self.validate(workflow)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("dependency-policy", errors[0])
+
 
 if __name__ == "__main__":
     unittest.main()
