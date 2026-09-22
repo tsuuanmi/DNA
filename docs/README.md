@@ -2,7 +2,7 @@
 
 This is the canonical knowledge router for humans and coding agents.
 
-DNA documentation is organized by **role, authority, lifecycle, and ownership**. One fact has one canonical home; other documents link to it rather than duplicating it.
+DNA documentation implements the reusable [Documentation Architecture Standard](governance/documentation-architecture.md). It is organized by **role, authority, lifecycle, and ownership**. One fact has one canonical home; other documents link to it rather than duplicating it.
 
 ## Read order for a change
 
@@ -66,4 +66,4 @@ Categories are created when they have real artifacts or governance value. DNA in
 
 > Specs define truth. Research provides evidence. Proposals explore change. ADRs preserve decisions. Architecture describes structure. Design describes mechanisms. Code realizes design. Tests and validation prove behavior. Operations keep it supportable. Learning feeds new requirements and research.
 
-See [documentation governance](governance/documentation.md) and [lifecycle](governance/lifecycle.md).
+See the reusable [documentation architecture standard](governance/documentation-architecture.md), the [DNA documentation policy](governance/documentation.md), and [lifecycle](governance/lifecycle.md).

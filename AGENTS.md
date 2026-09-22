@@ -68,4 +68,4 @@ Before completion:
 
 ## Canonical navigation
 
-Use [docs/README.md](docs/README.md) as the knowledge router. Development/verification commands belong in [engineering](docs/engineering/README.md), not in this file.
+Use [docs/README.md](docs/README.md) as the knowledge router. The reusable taxonomy and authority model are defined by the [documentation architecture standard](docs/governance/documentation-architecture.md); DNA-specific enforcement is in the [documentation policy](docs/governance/documentation.md). Development/verification commands belong in [engineering](docs/engineering/README.md), not in this file.

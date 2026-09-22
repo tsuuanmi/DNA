@@ -141,7 +141,7 @@ Current public result contracts are:
 - `dna.analysis/v7` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
 - `dna.sample_evidence/v8` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
 
-The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/contracts](docs/reference/README.md).
+The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 
 Public schemas are versioned contracts. Incompatible output changes require a new schema version rather than silent mutation of an existing version.
 
@@ -173,6 +173,7 @@ Key entry points:
 - [traceability](docs/validation/traceability.md)
 - [research](docs/research/README.md)
 - [roadmap](docs/proposals/roadmap.md)
+- [documentation architecture standard](docs/governance/documentation-architecture.md)
 
 ## Development
 
@@ -201,7 +202,7 @@ cargo doc --no-deps
 
 Longer-running or release-oriented validation such as fuzzing, dependency audit, mutation testing, performance measurement, and approved real-AB1 regression belongs to the extended validation/release lanes rather than being added mechanically to every pull request.
 
-See [CI and verification lanes](docs/engineering/ci-cd.md) and [production readiness](docs/decisions/adr/0018-production-readiness-release-contract.md).
+See [CI and verification lanes](docs/engineering/ci-cd.md), the living [production-readiness checklist](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md) for the rationale behind that release contract.
 
 ## Agent development
 

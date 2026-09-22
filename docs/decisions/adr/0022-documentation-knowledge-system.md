@@ -143,3 +143,7 @@ CI validates:
 The taxonomy does not require empty enterprise-style folders. Documentation areas
 are created when the system has a real artifact or governance boundary to place
 there.
+
+The repository-agnostic rationale and adoption guidance live in the reusable
+[Documentation Architecture Standard](../../governance/documentation-architecture.md).
+DNA-specific enforcement lives in the [DNA documentation policy](../../governance/documentation.md).
