@@ -55,18 +55,31 @@ jobs:
       - name: Prepare artifact and provenance
         shell: bash
         run: |
-          mkdir -p dist/package
+          mkdir -p dist/package/config dist/package/references
           cp target/${RELEASE_TARGET}/release/dna dist/package/dna
+          cp config/dna.toml dist/package/config/dna.toml
+          cp references/rCRS.fasta dist/package/references/rCRS.fasta
           strip --keep-section=.dep-v0 dist/package/dna
           rustc --version --verbose > dist/package/rustc-version.txt
           cargo --version --verbose > dist/package/cargo-version.txt
           git rev-parse HEAD > dist/package/source-revision.txt
           sha256sum Cargo.lock > dist/package/Cargo.lock.sha256
+          (
+            cd dist/package
+            sha256sum config/dna.toml > config/dna.toml.sha256
+            sha256sum references/rCRS.fasta > references/rCRS.fasta.sha256
+          )
       - name: Verify packaged binary audit metadata
         shell: bash
         run: |
           readelf -S dist/package/dna | grep -F '.dep-v0'
           cargo audit bin dist/package/dna
+          (
+            cd dist/package
+            sha256sum -c config/dna.toml.sha256
+            sha256sum -c references/rCRS.fasta.sha256
+            ./dna --help >/dev/null
+          )
       - name: Generate SPDX SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
