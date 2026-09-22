@@ -90,6 +90,18 @@ The Rust source-policy gate complements compiler/Clippy checks by rejecting expl
 
 The `CI success` job waits for every mandatory job in `.github/workflows/ci.yml` and fails unless all applicable gates succeeded. Branch rules should require this aggregate check instead of duplicating every internal job name, reducing protection drift as CI evolves.
 
+### Release packaging smoke
+
+Pull requests that change release-relevant Rust, workflow, configuration, or reference files run the `Release package` job from `.github/workflows/release.yml`. It exercises the actual delivery path before a tag exists:
+
+- builds the explicit supported target with `cargo-auditable`;
+- strips while preserving `.dep-v0`, then audits the packaged binary;
+- verifies the bundled authoritative configuration and rCRS reference;
+- generates the SPDX SBOM;
+- creates and verifies the release archive and checksums.
+
+The pull-request smoke job has only `contents: read`. OIDC, attestation, and release-write permissions exist only in downstream tag-only jobs that do not compile source code.
+
 ## Scheduled security posture
 
 OpenSSF Scorecard runs on `main` and weekly. Its SARIF output is retained briefly as an Actions artifact and uploaded to GitHub code scanning.
