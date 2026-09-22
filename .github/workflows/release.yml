@@ -43,8 +43,12 @@ jobs:
         run: |
           cargo install cargo-audit --version 0.22.2 --locked
           cargo audit
-      - name: Build release binary
-        run: cargo build --locked --release
+      - name: Install auditable build tooling
+        run: cargo install cargo-auditable --version 0.7.6 --locked
+      - name: Build auditable release binary
+        run: cargo auditable build --locked --release
+      - name: Audit built binary
+        run: cargo audit bin target/release/dna
       - name: Prepare artifact and provenance
         shell: bash
         run: |
@@ -64,22 +68,25 @@ jobs:
           upload-artifact: false
           upload-release-assets: false
           syft-version: v1.52.0
+      - name: Attest binary SBOM
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: dist/package/dna
+          sbom-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
       - name: Package release
         shell: bash
         run: |
           cp "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json" dist/package/SBOM.spdx.json
           tar -C dist/package -czf "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" .
           rm -rf dist/package
-          sha256sum             "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz"             "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json"             > dist/SHA256SUMS
-      - name: Attest build provenance
+          sha256sum \
+            "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" \
+            "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json" \
+            > dist/SHA256SUMS
+      - name: Attest release archive provenance
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
-      - name: Attest SBOM
-        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
-        with:
-          subject-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
-          sbom-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
