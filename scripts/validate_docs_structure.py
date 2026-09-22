@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 SOURCE_MIRROR = DOCS / "src"
-FORBIDDEN_DIRECTORY_NAMES = {
+FORBIDDEN_NAMES = {
     "archive",
     "archives",
     "deprecated",
@@ -25,27 +25,25 @@ def main() -> None:
     if not (DOCS / "README.md").is_file():
         errors.append("docs/README.md is required")
 
-    documentation_paths = sorted(\n        path for path in DOCS.rglob("*") if not is_source_mirror(path)\n    )
+    documentation_paths = sorted(
+        path for path in DOCS.rglob("*") if not is_source_mirror(path)
+    )
 
-    forbidden_files = [
-        path
-        for path in documentation_paths
-        if path.is_file() and path.stem.lower() in FORBIDDEN_DIRECTORY_NAMES
-    ]
-    for path in forbidden_files:
-        errors.append(
-            f"legacy/temporary documentation file is not allowed: {path.relative_to(ROOT)}"
-        )
+    for path in documentation_paths:
+        if path.is_file() and path.stem.lower() in FORBIDDEN_NAMES:
+            errors.append(
+                f"legacy/temporary documentation file is not allowed: "
+                f"{path.relative_to(ROOT)}"
+            )
 
     directories = [path for path in documentation_paths if path.is_dir()]
     for directory in directories:
-        if is_source_mirror(directory):
-            continue
-
         relative = directory.relative_to(ROOT)
 
-        if directory.name.lower() in FORBIDDEN_DIRECTORY_NAMES:
-            errors.append(f"legacy/temporary docs directory is not allowed: {relative}")
+        if directory.name.lower() in FORBIDDEN_NAMES:
+            errors.append(
+                f"legacy/temporary docs directory is not allowed: {relative}"
+            )
 
         if not (directory / "README.md").is_file():
             errors.append(
