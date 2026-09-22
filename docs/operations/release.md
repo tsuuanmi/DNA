@@ -34,7 +34,7 @@ Do not collapse these into one status.
 
 Tags matching `v*` trigger `.github/workflows/release.yml`.
 
-The workflow refuses a tag that does not match `Cargo.toml` or whose commit is not reachable from `main`. It reruns the Rust and dependency gates, builds using the pinned release toolchain, locked dependency graph, and pinned `cargo-auditable`, verifies the produced binary with RustSec, generates an SPDX SBOM from that auditable binary, packages the supported Linux artifact, writes checksums, generates cryptographic GitHub/Sigstore attestations, and publishes the archive/SBOM/checksums as release assets.
+The workflow refuses a tag that does not match `Cargo.toml` or whose commit is not reachable from `main`. It reruns the Rust and dependency gates, builds using the pinned release toolchain, locked dependency graph, and pinned `cargo-auditable`, explicitly preserves `.dep-v0` during stripping, verifies the packaged binary with RustSec, generates an SPDX SBOM from that auditable binary, packages the supported Linux artifact, writes checksums, generates cryptographic GitHub/Sigstore attestations, and publishes the archive/SBOM/checksums as release assets.
 
 The release job does not restore shared CI build caches. This keeps the artifact-producing path independent of cache state written by ordinary CI.
 
