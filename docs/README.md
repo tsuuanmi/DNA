@@ -26,7 +26,8 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 | source code | actual behavior executed by the current revision |
 | [docs/src mirror policy](architecture/source-mirror.md) | descriptive implementation ownership; `docs/src/` must track source one-to-one |
 | [Governance](governance/README.md) | change, compatibility, data, and documentation policy |
-| [Operations](operations/README.md) | development, batch, CI, release, and delivery procedures |
+| [Operations](operations/README.md) | current development, batch, CI, and release procedures |
+| [History](history/README.md) | non-authoritative delivery/migration provenance |
 | [Roadmap](roadmap.md) | future direction; non-normative |
 | [Research](research/README.md) | exploratory work; non-normative |
 
@@ -45,6 +46,7 @@ docs/
 ├── src/            # exact source-module implementation mirror
 ├── operations/     # development, batch, CI, release, delivery
 ├── governance/     # documentation, compatibility, data policy
+├── history/        # non-authoritative historical delivery/migration records
 ├── research/       # non-normative exploration
 ├── glossary.md
 ├── roadmap.md
@@ -63,6 +65,7 @@ Root-level documents are intentionally limited to cross-cutting entry points.
 - [Implementation mirror](architecture/source-mirror.md)
 - [Operations](operations/README.md)
 - [Governance](governance/README.md)
+- [History](history/README.md)
 - [Research](research/README.md)
 - [Traceability](traceability.md)
 - [Glossary](glossary.md)

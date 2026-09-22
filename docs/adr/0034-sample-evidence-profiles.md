@@ -1,6 +1,6 @@
 # ADR-0034: Preserve reference-oriented evidence profiles in sample evidence
 
-- **Status:** Accepted
+- **Status:** Superseded in part by ADR-0037
 - **Date:** 2026-09-19
 
 ## Context
@@ -72,6 +72,10 @@ The profile is retained in the internal `SampleEvidence` science model for:
 - `VariantCallEvidence` records.
 
 At the time of this decision the public sample contract remained unchanged. ADR-0053 later promotes each differential-locus observation's normalized profile into `dna.sample_evidence/v8`; corrected amplitudes, SNR, and variant-associated call-signal context remain internal so the reviewer-facing projection stays compact.
+
+## Relationship to ADR-0037
+
+ADR-0037 supersedes the separate profile-projection implementation boundary with one authoritative call-signal projection. The requirements to preserve real profiles, preserve absence, and project A/C/G/T evidence to reference orientation remain in force.
 
 ## Consequences
 

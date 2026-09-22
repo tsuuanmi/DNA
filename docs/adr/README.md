@@ -15,6 +15,25 @@ Before creating a new ADR:
 
 ADR numbers are historical identifiers and are never reused. Gaps in numbering are expected.
 
+## Current decision families
+
+Use this map to find current rationale without treating the chronological ADR list as a second specification.
+
+| Concern | Current decision chain | Current production authority |
+|---|---|---|
+| biological claim boundary | ADR-0009, ADR-0019 | SRS + scientific-state invariants |
+| circular/reference placement | ADR-0010, ADR-0029, ADR-0047 | alignment SRS/method + alignment invariants |
+| signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
+| sample boundary and sparse evidence | ADR-0023, ADR-0025 | sample SRS/method + sample contract |
+| overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035 | sample SRS/method + sample contract |
+| sample call-signal projection | ADR-0037 (partially supersedes ADR-0034 and ADR-0036) | sample method + sample contract |
+| nucleotide contribution/profile geometry | ADR-0038 through ADR-0043 | sample SRS/method; public subset in sample contract |
+| reviewer-facing public signal evidence | ADR-0026, ADR-0053 | analysis/sample contracts |
+| release/readiness | ADR-0018, ADR-0021 | release operations + roadmap/validation evidence |
+| documentation governance | ADR-0006, ADR-0022 | documentation governance + source-mirror policy |
+
+The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
+
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-mvp-vertical-slice.md) | End-to-end MVP first | Accepted |
@@ -50,9 +69,9 @@ ADR numbers are historical identifiers and are never reused. Gaps in numbering a
 | [0031](0031-trace-integrity-evidence.md) | Preserve PLOC and signal-integrity evidence without artifact reclassification | Accepted |
 | [0032](0032-sample-coverage-topology.md) | Expose sample coverage topology before consensus | Accepted |
 | [0033](0033-variant-support-topology.md) | Factor normalized-variant support by eligibility and orientation | Accepted |
-| [0034](0034-sample-evidence-profiles.md) | Preserve reference-oriented evidence profiles in sample evidence | Accepted |
+| [0034](0034-sample-evidence-profiles.md) | Preserve reference-oriented evidence profiles in sample evidence | Superseded in part by ADR-0037 |
 | [0035](0035-locus-support-topology.md) | Factor differential-locus support topology before consensus | Accepted |
-| [0036](0036-sample-local-noise-context.md) | Preserve local noisy-region context in sample evidence | Accepted |
+| [0036](0036-sample-local-noise-context.md) | Preserve local noisy-region context in sample evidence | Superseded in part by ADR-0037 |
 | [0037](0037-sample-call-signal-evidence.md) | Unify reference-oriented call signal evidence at sample scope | Accepted |
 | [0038](0038-locus-profile-availability.md) | Expose differential-locus profile availability before consensus | Accepted |
 | [0039](0039-nucleotide-contribution-eligibility.md) | Define structural nucleotide contribution eligibility | Accepted |

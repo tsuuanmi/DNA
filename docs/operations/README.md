@@ -4,7 +4,7 @@
 - [CI lanes](ci.md): required verification gates.
 - [Release operations](release.md): release procedure and evidence.
 - [Security and trust boundaries](security.md): operational security boundaries.
-- [Delivery record](delivery-record.md): historical implementation/delivery acceptance record.
+- [Delivery history](../history/delivery-record.md): historical implementation/delivery acceptance record.
 - [Production readiness ADR](../adr/0018-production-readiness-release-contract.md): release-quality decision contract.
 
 Current and future product priorities live in the [roadmap](../roadmap.md). Scientific stage contracts belong to the [SRS](../srs/README.md) and [methods](../methods/README.md), not to a separate readiness checklist.

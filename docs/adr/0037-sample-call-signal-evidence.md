@@ -19,6 +19,10 @@ single-read signal-processing stage.
 Adding another independent lookup path would duplicate index validation and make
 orientation projection easier to apply inconsistently.
 
+## Supersedes in part
+
+This decision supersedes the separate sample projection boundaries introduced by ADR-0034 and ADR-0036. It preserves their evidence semantics while replacing their split lookup/projection structure with one authoritative call-signal projection.
+
 ## Decision
 
 Replace the split profile/noise projection helpers with one authoritative

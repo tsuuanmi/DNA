@@ -1,0 +1,5 @@
+# Reference-oriented Call Signal Projection
+
+Part of the canonical [sample evidence aggregation method](../sample-evidence.md).
+
+Before sparse locus/variant projection, sample reconciliation resolves every call-backed sample observation back to the authoritative `LocusEvidence` record by original call index. One internal `CallDNAEvidence` preserves baseline-corrected A/C/G/T amplitudes, per-channel SNR, the optional basecall-independent `EvidenceProfile`, and existing merged candidate-noisy-region membership. All channel-valued evidence is projected into reference orientation: forward reads keep A/C/G/T order and reverse reads reorder T/G/C/A into reference-oriented A/C/G/T, including profile complementation. A zero-signal locus remains profile-less and deletion observations have no call signal object. This evidence does not alter placement, overlap admission, callability, variant eligibility, or consensus weighting. The v8 sample report projects only the normalized reference-oriented profile and existing noisy-region membership at retained differential loci; corrected amplitudes and per-channel SNR remain internal.

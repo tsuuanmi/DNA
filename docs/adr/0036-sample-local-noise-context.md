@@ -1,6 +1,6 @@
 # ADR-0036: Preserve local noisy-region context in sample evidence
 
-- **Status:** Accepted
+- **Status:** Superseded in part by ADR-0037
 - **Date:** 2026-09-19
 
 ## Context
@@ -44,6 +44,10 @@ code does not recalculate SNR, merge windows, or introduce a threshold.
 This context was initially internal. ADR-0053 later projects call-backed differential-locus noisy-region membership into `dna.sample_evidence/v8` without changing its observational semantics.
 Production sample logging consumes aggregate noisy locus-observation and
 variant-call counts.
+
+## Relationship to ADR-0037
+
+ADR-0037 supersedes the separate noisy-region projection helper with the unified call-signal projection. The observational semantics and deletion/missing-call behavior defined here remain in force.
 
 ## Consequences
 
