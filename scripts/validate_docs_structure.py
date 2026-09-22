@@ -36,7 +36,7 @@ def main() -> None:
             errors.append(f"legacy/temporary docs directory is not allowed: {relative}")
 
         if not (directory / "README.md").is_file():
-            errors.append(f"documentation folder is missing README.md index: {relative}")
+            errors.append(\n                f"documentation folder is missing README.md index: {relative}"\n            )
 
         companion = directory.parent / f"{directory.name}.md"
         if companion.is_file():
