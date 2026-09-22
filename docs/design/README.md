@@ -1,14 +1,14 @@
-# Current Scientific and Algorithmic Methods
+# Design and Methods
 
-These documents describe current production algorithms and scientific behavior, not public serialization shape.
+These documents describe **current mechanisms**: how DNA implements its scientific and technical behavior. They are living design documentation, not public serialization contracts and not historical decision records.
 
-- [Pipeline](pipeline.md): canonical orchestration map and stage boundaries.
-- [ABIF decoding](abif-decoding.md): bounded container decode and canonical scientific-tag extraction.
+- [Pipeline](pipeline.md): orchestration and stage boundaries.
+- [ABIF decoding](abif-decoding.md): bounded container decode and scientific-tag extraction.
 - [Basecalling](basecalling.md): PLOC-window peak selection and primary/ambiguity calls.
 - [Signal processing](signal-processing/README.md): rolling SNR, locus evidence, trace-integrity observations, and interpretation limits.
 - [Quality control](quality-control.md): penalty, relative quality, best-section selection, and end trimming.
 - [Alignment](alignment.md): profile-aware Gotoh placement, traceback, orientation, and circular mapping.
 - [Variant calling](variant-calling.md): difference extraction, normalization, eligibility, and deterministic ordering.
-- [Sample evidence aggregation](sample-evidence/README.md): aggregation after independent read placement.
+- [Sample evidence](sample-evidence/README.md): aggregation after independent read placement.
 
-Public configuration and result semantics live under [contracts](../contracts/README.md). Exploratory methods belong under [research](../research/README.md) until explicitly promoted into the production SRS/ADR/method/contract system.
+Normative behavior lives in [requirements](../requirements/README.md), rationale in [decisions](../decisions/README.md), exact public/configuration shapes in [reference](../reference/README.md), and exploratory work in [research](../research/README.md).
