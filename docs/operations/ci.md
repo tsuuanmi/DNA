@@ -100,7 +100,7 @@ Pull requests that change release-relevant Rust, workflow, configuration, or ref
 - generates the SPDX SBOM;
 - creates and verifies the release archive and checksums.
 
-The pull-request smoke job has only `contents: read`. OIDC, attestation, and release-write permissions exist only in downstream tag-only jobs that do not compile source code.
+Because `Release package` is a required branch check, its workflow must run on every pull request; workflow-level path filters would leave the required check pending when skipped. The pull-request smoke job has only `contents: read`. OIDC, attestation, and release-write permissions exist only in downstream tag-only jobs that do not compile source code.
 
 ## Scheduled security posture
 
