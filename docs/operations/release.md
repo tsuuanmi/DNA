@@ -76,3 +76,10 @@ SHA-256 sidecars inside the archive, and the workflow verifies them before
 publishing. A user extracting the archive therefore does not need a source
 checkout merely to satisfy DNA's default configuration path or use the bundled
 rCRS reference.
+
+
+## Pre-tag packaging smoke
+
+Release-relevant pull requests execute the same package-building path before a tag is created. This catches target, strip/audit metadata, runtime-asset, SBOM, archive, and checksum defects without creating attestations or publishing a release.
+
+The tag workflow then adds two privilege-separated stages: a source-free attestation job and a source-free publication job.
