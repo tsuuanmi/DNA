@@ -1,6 +1,6 @@
-# Production Contracts
+# Reference and Production Contracts
 
-This directory owns public, machine-visible, and configuration contracts.
+This directory is the canonical reference for public, machine-visible, configuration, coordinate, schema, and result-contract semantics.
 
 ## Human-readable contracts
 
@@ -19,3 +19,5 @@ This directory owns public, machine-visible, and configuration contracts.
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.
+
+Detailed mechanisms live in [design](../design/README.md); normative behavioral requirements live in [requirements](../requirements/README.md). Reference documentation explains stable interfaces and shapes rather than implementation internals.
