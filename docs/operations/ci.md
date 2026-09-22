@@ -23,6 +23,7 @@ The release toolchain is pinned by `rust-toolchain.toml`. Every pull request run
 
 ```bash
 cargo fmt --all --check
+cargo shear --deny-warnings
 cargo check --locked --all-targets
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --all-targets
@@ -30,7 +31,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
 cargo build --locked --release
 ```
 
-`--locked` prevents CI from silently changing dependency resolution. Rustdoc warnings are release-blocking alongside compiler and Clippy warnings.
+`cargo shear --deny-warnings` rejects unused/misplaced dependencies and unlinked Rust source files. `--locked` prevents CI from silently changing dependency resolution. Rustdoc warnings are release-blocking alongside compiler and Clippy warnings.
 
 ### Minimum supported Rust version
 
