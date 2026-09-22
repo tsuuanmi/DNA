@@ -1,12 +1,27 @@
 # Research
 
-Research under `docs/research/<topic>/` is exploratory and non-normative.
+Research is **exploratory evidence**, not current production truth.
 
-A research note, prototype design, or research ADR does not change production behavior merely by existing. Promotion into production requires updates to the appropriate persistent SRS, ADR, method, contract, architecture/governance/operations documents, implementation, tests, and validation evidence described by [documentation governance](../governance/documentation.md).
+Use `docs/research/<topic>/` for external-system analysis, experiments, algorithm investigation, benchmarks under exploration, and evidence that has not yet been accepted into the product.
 
-Keep topic-specific exploration inside its own subtree rather than adding catch-all notes to the `docs/` root.
+## Promotion
 
+```text
+research evidence
+      ↓
+proposal / review
+      ↓
+decision when architecturally significant
+      ↓
+requirements + architecture/design/reference
+      ↓
+source + tests
+      ↓
+validation + release
+```
 
-## Promotion and cleanup
+A research note does not change production behavior merely by existing. Agents must not implement directly from research when it conflicts with or has not been promoted into canonical current-state documentation.
 
-Research is temporary by default. When a conclusion becomes accepted production behavior, move its current truth into the appropriate persistent authority and delete duplicated research text once it no longer contains unique open investigation. Do not keep research files as compatibility pointers to promoted documentation.
+When a conclusion is fully promoted, delete duplicated temporary research text unless it still contains unique evidence worth retaining.
+
+See [proposal lifecycle](../proposals/README.md), [documentation lifecycle](../governance/lifecycle.md), and [documentation governance](../governance/documentation.md).
