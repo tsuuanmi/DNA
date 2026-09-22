@@ -25,7 +25,7 @@ def main() -> None:
     if not (DOCS / "README.md").is_file():
         errors.append("docs/README.md is required")
 
-    documentation_paths = sorted(path for path in DOCS.rglob("*") if not is_source_mirror(path))
+    documentation_paths = sorted(\n        path for path in DOCS.rglob("*") if not is_source_mirror(path)\n    )
 
     forbidden_files = [
         path
