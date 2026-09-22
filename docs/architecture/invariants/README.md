@@ -15,6 +15,6 @@ This is the canonical index for cross-cutting DNA invariants. Invariant IDs rema
 
 ## Use
 
-Read only the invariant families relevant to the change, then follow [traceability](../../traceability.md) to the owning requirements, methods, contracts, implementation, and tests.
+Read only the invariant families relevant to the change, then follow [traceability](../../validation/traceability.md) to the owning requirements, methods, contracts, implementation, and tests.
 
 Do not duplicate an invariant into another architecture document. Other documents should reference the invariant ID and this canonical family instead.

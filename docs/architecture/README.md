@@ -1,12 +1,13 @@
 # Architecture
 
-- [System overview](system.md): current module boundaries, data flow, dependency direction, resource bounds, and publication model.
-- [System invariants](invariants/README.md): canonical index of cross-cutting invariant families.
-- [Architecture decisions](../adr/README.md): accepted, superseded, and historical durable decisions.
-- [Source navigation](../../src/README.md): implementation ownership colocated with the Rust source tree.
+Architecture describes **current system structure**: stable boundaries, context, data flow, interfaces, dependency direction, and cross-cutting invariants.
 
-Architecture describes stable system structure and dependency direction. Detailed
-scientific algorithms live in [methods](../methods/README.md), while implementation
-ownership lives in the nearest source-directory `README.md`.
+- [Overview](overview.md)
+- [System context](context.md)
+- [Data flow](data-flow.md)
+- [Interfaces and boundaries](interfaces.md)
+- [System invariants](invariants/README.md)
+- [Decision history](../decisions/README.md)
+- [Source navigation](../../src/README.md)
 
-Do not maintain a second hand-written source inventory under `docs/`.
+Detailed mechanisms belong in [design](../design/README.md). Exact public/configuration shapes belong in [reference](../reference/README.md). Architecture should not duplicate either.
