@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,36 @@ FORBIDDEN_NAMES = {
     "temp",
     "temporary",
 }
+MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+
+
+def validate_markdown_links(path: Path, errors: list[str]) -> None:
+    text = path.read_text(encoding="utf-8")
+    for raw_target in MARKDOWN_LINK.findall(text):
+        target = raw_target.strip().split(maxsplit=1)[0].strip("<>")
+        if (
+            not target
+            or target.startswith(("#", "http://", "https://", "mailto:"))
+        ):
+            continue
+
+        target = target.split("#", 1)[0]
+        if not target:
+            continue
+
+        resolved = (path.parent / target).resolve()
+        try:
+            resolved.relative_to(ROOT)
+        except ValueError:
+            errors.append(
+                f"markdown link escapes repository: {path.relative_to(ROOT)} -> {raw_target}"
+            )
+            continue
+
+        if not resolved.exists():
+            errors.append(
+                f"broken markdown link: {path.relative_to(ROOT)} -> {raw_target}"
+            )
 
 
 def main() -> None:
@@ -65,6 +96,15 @@ def main() -> None:
                 "source module/package directory is missing README.md: "
                 f"{directory.relative_to(ROOT)}"
             )
+
+    markdown_files = [
+        ROOT / "README.md",
+        ROOT / "AGENTS.md",
+        *sorted(DOCS.rglob("*.md")),
+        *sorted(SOURCE.rglob("README.md")),
+    ]
+    for markdown_file in markdown_files:
+        validate_markdown_links(markdown_file, errors)
 
     if errors:
         raise SystemExit("\n".join(errors))
