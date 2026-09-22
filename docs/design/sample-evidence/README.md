@@ -2,7 +2,7 @@
 
 This is the canonical method entry point for sample aggregation after every trace has independently completed the one-read observation path.
 
-Normative requirements live in [SRS-SAMPLE-*](../../srs/sample-evidence/README.md), public serialization semantics live in the [sample evidence contract](../../contracts/sample-evidence/README.md), and rationale lives in the relevant ADR decision family.
+Normative requirements live in [SRS-SAMPLE-*](../../requirements/sample-evidence/README.md), public serialization semantics live in the [sample evidence contract](../../reference/sample-evidence/README.md), and rationale lives in the relevant ADR decision family.
 
 ## Methods
 
