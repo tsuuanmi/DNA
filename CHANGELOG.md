@@ -10,7 +10,7 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
-- Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene.
+- Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and pre-tag release-package smoke testing.
 - Rust/Python source-boundary enforcement.
 - Dependency policy, dependency review, CodeQL, OpenSSF Scorecard, fuzzing,
   self-contained explicit-target auditable release bundles with post-strip metadata verification, release SBOMs, and artifact attestations.
