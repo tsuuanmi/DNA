@@ -106,10 +106,13 @@ jobs:
           cp "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" dist/package/SBOM.spdx.json
           tar -C dist/package -czf "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" .
           rm -rf dist/package
-          sha256sum \
-            "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" \
-            "dist/dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" \
-            > dist/SHA256SUMS
+          (
+            cd dist
+            sha256sum \
+              "dna-${RELEASE_LABEL}-${RELEASE_TARGET}.tar.gz" \
+              "dna-${RELEASE_LABEL}-${RELEASE_TARGET}.spdx.json" \
+              > SHA256SUMS
+          )
       - name: Verify packaged release
         shell: bash
         run: |
