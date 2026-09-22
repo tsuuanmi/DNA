@@ -47,18 +47,21 @@ jobs:
         run: cargo audit
       - name: Build auditable release binary
         run: cargo auditable build --locked --release
-      - name: Audit built binary
-        run: cargo audit bin target/release/dna
       - name: Prepare artifact and provenance
         shell: bash
         run: |
           mkdir -p dist/package
           cp target/release/dna dist/package/dna
-          strip dist/package/dna
+          strip --keep-section=.dep-v0 dist/package/dna
           rustc --version --verbose > dist/package/rustc-version.txt
           cargo --version --verbose > dist/package/cargo-version.txt
           git rev-parse HEAD > dist/package/source-revision.txt
           sha256sum Cargo.lock > dist/package/Cargo.lock.sha256
+      - name: Verify packaged binary audit metadata
+        shell: bash
+        run: |
+          readelf -S dist/package/dna | grep -F '.dep-v0'
+          cargo audit bin dist/package/dna
       - name: Generate SPDX SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
