@@ -89,6 +89,8 @@ Repository files cannot enable GitHub security settings or rulesets by themselve
    - create the protected-`main` ruleset described above;
    - create the protected-`v*` tag ruleset described above;
    - keep bypass permissions empty for normal development.
-3. Re-run the pull request checks after Dependency Graph is enabled. The `Dependency review` job is intentionally required and will fail while the graph is disabled.
+3. **Settings → General → Releases**
+   - enable release immutability so published release tags and assets cannot be replaced.
+4. Re-run the pull request checks after Dependency Graph is enabled. The `Dependency review` job is intentionally required and will fail while the graph is disabled.
 
 These settings are part of the production contract, not optional repository polish.
