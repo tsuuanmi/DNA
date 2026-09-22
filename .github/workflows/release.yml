@@ -7,6 +7,9 @@ on:
 
 permissions: {}
 
+env:
+  RELEASE_TARGET: x86_64-unknown-linux-gnu
+
 jobs:
   build:
     name: Build and attest Linux release
@@ -39,6 +42,8 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
         with:
           command: check
+      - name: Install release target
+        run: rustup target add "$RELEASE_TARGET"
       - name: Install release audit tooling
         run: |
           cargo install cargo-audit --version 0.22.2 --locked
@@ -46,12 +51,12 @@ jobs:
       - name: RustSec lockfile audit
         run: cargo audit
       - name: Build auditable release binary
-        run: cargo auditable build --locked --release
+        run: cargo auditable build --locked --release --target "$RELEASE_TARGET"
       - name: Prepare artifact and provenance
         shell: bash
         run: |
           mkdir -p dist/package
-          cp target/release/dna dist/package/dna
+          cp target/${RELEASE_TARGET}/release/dna dist/package/dna
           strip --keep-section=.dep-v0 dist/package/dna
           rustc --version --verbose > dist/package/rustc-version.txt
           cargo --version --verbose > dist/package/cargo-version.txt
@@ -67,7 +72,7 @@ jobs:
         with:
           file: dist/package/dna
           format: spdx-json
-          output-file: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
+          output-file: dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.spdx.json
           upload-artifact: false
           upload-release-assets: false
           syft-version: v1.52.0
@@ -75,28 +80,28 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/package/dna
-          sbom-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
+          sbom-path: dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.spdx.json
       - name: Package release
         shell: bash
         run: |
-          cp "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json" dist/package/SBOM.spdx.json
-          tar -C dist/package -czf "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" .
+          cp "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.spdx.json" dist/package/SBOM.spdx.json
+          tar -C dist/package -czf "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.tar.gz" .
           rm -rf dist/package
           sha256sum \
-            "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz" \
-            "dist/dna-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.spdx.json" \
+            "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.tar.gz" \
+            "dist/dna-${GITHUB_REF_NAME}-${RELEASE_TARGET}.spdx.json" \
             > dist/SHA256SUMS
       - name: Attest release archive provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+          subject-path: dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.tar.gz
       - name: Stage verified release assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-assets
           path: |
-            dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
-            dist/dna-${{ github.ref_name }}-x86_64-unknown-linux-gnu.spdx.json
+            dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.tar.gz
+            dist/dna-${{ github.ref_name }}-${RELEASE_TARGET}.spdx.json
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 1
