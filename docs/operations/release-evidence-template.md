@@ -22,7 +22,8 @@ Copy this template for every release candidate that is intended to carry the
 - Rust quality CI:
 - MSRV:
 - dependency policy (`cargo-deny`):
-- RustSec audit:
+- RustSec lockfile audit:
+- auditable binary dependency scan:
 - dependency review:
 - CodeQL:
 - OpenSSF Scorecard reviewed:
