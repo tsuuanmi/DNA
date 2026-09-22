@@ -28,7 +28,7 @@ env:
 jobs:
   package:
     name: Release package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
       contents: read
@@ -140,7 +140,7 @@ jobs:
     name: Attest release assets
     if: github.event_name == 'push'
     needs: package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -176,7 +176,7 @@ jobs:
     needs:
       - package
       - attest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
