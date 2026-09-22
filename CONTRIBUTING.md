@@ -41,7 +41,7 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 CI additionally runs workflow security analysis, dependency policy/review, MSRV checks,
-CodeQL, fuzz smoke, schema/reference validation, Python validation-tool tests, and scheduled security checks. The
+CodeQL, fuzz smoke, release-package smoke testing, schema/reference validation, Python validation-tool tests, and scheduled security checks. The
 aggregate `CI success` job is the required branch-protection signal for the main CI workflow.
 
 ## Pull requests
