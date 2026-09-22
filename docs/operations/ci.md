@@ -8,7 +8,16 @@ All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependa
 
 ## Pull-request lane
 
+### GitHub Actions policy
+
+Workflow changes are checked three ways:
+
+- the repository validator rejects mutable third-party action pins and privileged untrusted triggers;
+- `actionlint` validates GitHub Actions syntax and expressions;
+- `zizmor` performs GitHub Actions security analysis.
+
 ### Rust quality
+
 
 The release toolchain is pinned by `rust-toolchain.toml`. Every pull request runs:
 
@@ -124,6 +133,7 @@ CI is not itself an enforcement mechanism. The protected-`main` and protected-`v
 
 ## Failure ownership
 
+- workflow-policy/actionlint/zizmor failure: CI supply-chain or workflow-security defect;
 - source-policy/formatter/lint/compiler/Rustdoc failure: engineering defect;
 - MSRV failure: declared compatibility or dependency-resolution defect;
 - cargo-deny/audit/dependency-review failure: supply-chain or licensing blocker;
