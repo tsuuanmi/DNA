@@ -55,7 +55,10 @@ def main() -> None:
                 f"{companion.relative_to(ROOT)} and {relative / 'README.md'}"
             )
 
-    source_directories = [SOURCE, *sorted(path for path in SOURCE.rglob("*") if path.is_dir())]
+    source_directories = [
+        SOURCE,
+        *sorted(path for path in SOURCE.rglob("*") if path.is_dir()),
+    ]
     for directory in source_directories:
         if not (directory / "README.md").is_file():
             errors.append(
