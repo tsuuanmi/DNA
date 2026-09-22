@@ -41,6 +41,12 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Toolchain
         run: rustc --version && cargo --version
+      - name: Install cargo-shear
+        uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+        with:
+          tool: cargo-shear@1.13.4
+      - name: Dependency and source hygiene
+        run: cargo shear --deny-warnings
       - name: Format
         run: cargo fmt --all --check
       - name: Check
