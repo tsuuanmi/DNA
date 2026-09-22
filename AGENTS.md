@@ -10,7 +10,7 @@ For any non-trivial change:
 
 1. Read the repository `README.md` for scope and development entry points.
 2. Read `docs/README.md` to find the authoritative requirements, architecture,
-   decisions, methods, contracts, validation, and operations documentation.
+   decisions, design, reference, validation, and operations documentation.
 3. Read the nearest `README.md` in the affected source directory to understand
    module responsibility and dependency boundaries.
 4. Read the affected source and tests.
@@ -31,15 +31,15 @@ choosing one.
 - Do not introduce speculative abstractions, unused configuration, or dependencies
   without a concrete requirement.
 - Research is non-normative until explicitly promoted into current requirements,
-  decisions, methods, contracts, implementation, tests, and validation.
+  decisions, design, reference, implementation, tests, and validation.
 
 Documentation is part of the change:
 
 - code behavior change -> update affected canonical docs and tests;
 - module responsibility/dependency change -> update the nearest source README;
-- public API/schema/config/CLI change -> update contracts, examples, requirements,
+- public API/schema/config/CLI change -> update reference/contracts, examples, requirements,
   and tests;
-- algorithm/scientific behavior change -> update requirements, methods, tests, and
+- algorithm/scientific behavior change -> update requirements, design, tests, and
   validation implications;
 - architectural decision change -> update architecture and the owning ADR, or
   create a successor only when the decision materially changes;
@@ -65,3 +65,7 @@ Before completion:
 - confirm source, tests, contracts, and documentation agree;
 - confirm every source directory still has an up-to-date `README.md`;
 - report what changed, what was verified, and any remaining uncertainty.
+
+## Canonical navigation
+
+Use [docs/README.md](docs/README.md) as the knowledge router. Development/verification commands belong in [engineering](docs/engineering/README.md), not in this file.

@@ -1,73 +1,69 @@
 # DNA Documentation
 
-This is the canonical documentation router for humans and coding agents.
+This is the canonical knowledge router for humans and coding agents.
 
-DNA documentation is organized by **authority and responsibility**. Do not infer
-current production behavior from a research note or roadmap item.
+DNA documentation is organized by **role, authority, lifecycle, and ownership**. One fact has one canonical home; other documents link to it rather than duplicating it.
 
 ## Read order for a change
 
-1. [SRS](srs/README.md) — what the system is intended to do.
-2. [Architecture](architecture/README.md) and [system invariants](architecture/invariants/README.md) — where behavior belongs and what must always remain true.
-3. [ADRs](adr/README.md) — why durable architectural or scientific choices were made.
-4. [Methods](methods/README.md) — current scientific and algorithmic behavior.
-5. [Contracts](contracts/README.md) — public and machine-visible interfaces.
-6. The nearest [source-directory README](../src/README.md) and affected source — implementation ownership and executable behavior.
-7. [Traceability](traceability.md) and [operations](operations/README.md) — tests and evidence that protect the behavior.
+1. [Requirements](requirements/README.md) — what must be true.
+2. [Architecture](architecture/README.md) — where responsibilities and invariants belong.
+3. [Design](design/README.md) — how current mechanisms work.
+4. [Decisions](decisions/README.md) — why durable choices were made.
+5. [Proposals](proposals/README.md) and [research](research/README.md) — changes/evidence that are not current truth.
+6. [Reference](reference/README.md) — exact public/configuration/schema semantics.
+7. The nearest [source README](../src/README.md) and affected source — implementation ownership and executable behavior.
+8. [Validation](validation/README.md) — evidence that protects the behavior.
+9. [Engineering](engineering/README.md), [operations](operations/README.md), and [security](security/README.md) — delivery and production support.
+10. [Governance](governance/README.md) — lifecycle, ownership, versioning, and documentation policy.
 
-## Authority
+## Authority and durability
 
-| Documentation | Role |
-|---|---|
-| [SRS](srs/README.md) | normative intended behavior |
-| [Contracts](contracts/README.md) | exact public/configuration/serialization contract |
-| [ADRs](adr/README.md) | durable decision and rationale |
-| [Architecture](architecture/README.md) | boundaries and cross-cutting invariants |
-| [Methods](methods/README.md) | detailed current scientific/algorithmic semantics |
-| source code | actual behavior executed by the current revision |
-| source-directory README files | descriptive implementation ownership colocated with code |
-| [Governance](governance/README.md) | change, reference-validation, data, and documentation policy |
-| [Operations](operations/README.md) | current development, batch, CI, and release procedures |
-| [Roadmap](roadmap.md) | future direction; non-normative |
-| [Research](research/README.md) | exploratory work; non-normative |
+| Area | Role | Class |
+|---|---|---|
+| [Requirements](requirements/README.md) | normative intended behavior | canonical / living |
+| [Architecture](architecture/README.md) | stable structure and invariants | canonical / living |
+| [Design](design/README.md) | current mechanisms | canonical / living |
+| [Reference](reference/README.md) | exact interfaces/contracts | canonical / living |
+| source + tests | executable behavior/evidence | executable reality |
+| [Validation](validation/README.md) | acceptance/evidence policy | canonical / living |
+| [Engineering](engineering/README.md) | development/delivery process | canonical / living |
+| [Operations](operations/README.md) | runtime/readiness/support procedures | canonical / living |
+| [Security](security/README.md) | trust boundaries and controls | canonical / living |
+| [Governance](governance/README.md) | lifecycle/ownership/versioning policy | canonical / living |
+| [Decisions](decisions/README.md) | historical rationale | historical / durable |
+| [Proposals](proposals/README.md) | reviewed change under evolution | evolutionary |
+| [Research](research/README.md) | evidence/experiments | exploratory |
 
-If source and normative production documentation disagree, surface the mismatch.
-Do not silently choose whichever artifact is convenient. See
-[documentation governance](governance/documentation.md).
+If source and normative current-state documentation disagree, surface and reconcile the mismatch. Do not silently choose whichever artifact is convenient.
 
 ## Directory layout
 
 ```text
 docs/
 ├── README.md
-├── srs/            # normative system requirements
-├── architecture/   # system structure and invariants
-├── adr/            # durable design/science decisions
-├── methods/        # current algorithms and scientific behavior
-├── contracts/      # config, result semantics, schemas, examples
-├── operations/     # batch, CI, release, security
-├── governance/     # documentation, reference validation, data policy
-├── research/       # non-normative exploration
-├── glossary.md
-├── roadmap.md
-└── traceability.md
+├── requirements/
+├── architecture/
+│   └── invariants/
+├── design/
+├── decisions/
+│   └── adr/
+├── proposals/
+├── research/
+├── validation/
+├── engineering/
+├── operations/
+│   ├── runbooks/
+│   └── playbooks/
+├── security/
+├── reference/
+└── governance/
 ```
 
-Root-level documents are intentionally limited to cross-cutting entry points.
-Implementation ownership is colocated with code under `src/**/README.md`, not
-mirrored under `docs/`.
+Categories are created when they have real artifacts or governance value. DNA intentionally does not create empty service-only documentation such as deployment topology, service SLOs, or disaster recovery while those system boundaries do not exist.
 
-## Key entry points
+## Core principle
 
-- [SRS](srs/README.md)
-- [Architecture](architecture/README.md)
-- [ADR index](adr/README.md)
-- [Methods](methods/README.md)
-- [Contracts](contracts/README.md)
-- [Source modules](../src/README.md)
-- [Operations](operations/README.md)
-- [Governance](governance/README.md)
-- [Research](research/README.md)
-- [Traceability](traceability.md)
-- [Glossary](glossary.md)
-- [Roadmap](roadmap.md)
+> Specs define truth. Research provides evidence. Proposals explore change. ADRs preserve decisions. Architecture describes structure. Design describes mechanisms. Code realizes design. Tests and validation prove behavior. Operations keep it supportable. Learning feeds new requirements and research.
+
+See [documentation governance](governance/documentation.md) and [lifecycle](governance/lifecycle.md).
