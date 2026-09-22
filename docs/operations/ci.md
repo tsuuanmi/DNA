@@ -85,6 +85,10 @@ The repository-policy job:
 
 The Rust source-policy gate complements compiler/Clippy checks by rejecting explicit production compatibility scaffolding that could otherwise be intentionally suppressed.
 
+### Aggregate required check
+
+The `CI success` job waits for every mandatory job in `.github/workflows/ci.yml` and fails unless all applicable gates succeeded. Branch rules should require this aggregate check instead of duplicating every internal job name, reducing protection drift as CI evolves.
+
 ## Scheduled security posture
 
 OpenSSF Scorecard runs on `main` and weekly. Its SARIF output is retained briefly as an Actions artifact and uploaded to GitHub code scanning.
