@@ -66,3 +66,13 @@ location) with the release evidence record.
 ## Target identity
 
 The release target is explicit: `x86_64-unknown-linux-gnu`. The workflow installs that Rust target and builds with `--target`; it does not infer the supported artifact identity from whatever host target the current runner happens to use.
+
+
+## Self-contained bundle
+
+The Linux release archive contains the executable plus the authoritative default
+`config/dna.toml` and `references/rCRS.fasta`. Both runtime assets carry
+SHA-256 sidecars inside the archive, and the workflow verifies them before
+publishing. A user extracting the archive therefore does not need a source
+checkout merely to satisfy DNA's default configuration path or use the bundled
+rCRS reference.
