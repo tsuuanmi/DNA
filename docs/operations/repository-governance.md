@@ -24,14 +24,11 @@ Required settings:
 
 Required pull-request status checks:
 
-- `Workflow security`;
-- `Rust quality`;
-- `Dependency policy`;
-- `Dependency review`;
-- `MSRV 1.88`;
-- `Repository policy and Python tooling`;
+- `CI success` — aggregate gate for workflow security, Rust quality, dependency policy/review, MSRV, and repository/Python policy;
 - `CodeQL Rust`;
 - `ABIF fuzz smoke`.
+
+The aggregate job must remain dependent on every mandatory job in `.github/workflows/ci.yml`; adding a new mandatory CI job requires adding it to `CI success` in the same change.
 
 `OpenSSF Scorecard` runs on `main` and on a schedule and is therefore an
 observability/security-posture signal rather than a pull-request merge check.
