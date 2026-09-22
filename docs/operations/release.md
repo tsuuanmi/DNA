@@ -80,6 +80,6 @@ rCRS reference.
 
 ## Pre-tag packaging smoke
 
-Release-relevant pull requests execute the same package-building path before a tag is created. This catches target, strip/audit metadata, runtime-asset, SBOM, archive, and checksum defects without creating attestations or publishing a release.
+Pull requests execute the same package-building path before a tag is created. This catches target, strip/audit metadata, runtime-asset, SBOM, archive, and checksum defects without creating attestations or publishing a release.
 
 The tag workflow then adds two privilege-separated stages: a source-free attestation job and a source-free publication job.
