@@ -22,4 +22,4 @@ DNA uses several coordinate domains. They are deliberately distinct.
 
 See also [system invariants](../architecture/invariants.md) and the versioned output contracts.
 
-Reviewer-facing analysis v6 and sample-evidence v2 variant calls intentionally do not serialize original call index or PLOC. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.
+Reviewer-facing `dna.analysis/v7` and `dna.sample_evidence/v8` variant evidence intentionally does not serialize original call index or PLOC. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.
