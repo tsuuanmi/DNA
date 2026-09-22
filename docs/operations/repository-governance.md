@@ -40,7 +40,8 @@ Required pull-request status checks:
 
 - `CI success` — aggregate gate for workflow security, Rust quality, dependency policy/review, MSRV, and repository/Python policy;
 - `CodeQL Rust`;
-- `ABIF fuzz smoke`.
+- `ABIF fuzz smoke`;
+- `Release package`.
 
 The aggregate job must remain dependent on every mandatory job in `.github/workflows/ci.yml`; adding a new mandatory CI job requires adding it to `CI success` in the same change.
 
