@@ -20,7 +20,7 @@ The compiler cannot prove biological correctness. Real scientific claims still r
 
 ## Current status
 
-The JSON-based single-trace pipeline is implemented and is being hardened toward an evidence-backed production release profile.
+The JSON-based pipeline is implemented with production-oriented engineering controls. A release is not called production-ready until the exact revision also satisfies the scientific validation and release-evidence contract in ADR-0018.
 
 Current supported behavior includes:
 
@@ -120,8 +120,7 @@ sample   -> results/<sample-id>.sample.json
 
 Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample. The batch runner persists only the sample log while keeping per-trace JSON results.
 
-The external batch runner `scripts/analyze_samples.py` keeps per-trace results and
-the aggregate together:
+The external Python batch runner `tools/python/scripts/analyze_samples.py` keeps per-trace results and the aggregate together. Python is companion tooling for research, validation, and testing; the production runtime remains Rust-only:
 
 ```text
 results/<sample-id>/
@@ -177,32 +176,44 @@ Key entry points:
 
 ## Development
 
-Create the locked development environment:
+The repository root is a Rust project. Executable source under `src/` is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for research, validation, orchestration, and test tooling.
+
+The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
+
+Create the locked Python tooling environment only when those companion tools are needed:
 
 ```bash
-uv sync --locked
+uv sync --project tools/python --frozen
 ```
 
 Required repository checks:
 
 ```bash
-uv run ruff format --check scripts/
-uv run ruff check scripts/
-uv run basedpyright scripts/
+cargo fmt --all --check
+cargo shear --deny-warnings
+cargo check --locked --all-targets --all-features
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+cargo build --locked --release
+
+cd tools/python
+uv run ruff format --check scripts tests
+uv run ruff check scripts tests
+uv run basedpyright scripts tests
+uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 uv run python scripts/validate_docs_structure.py
-
-cargo fmt --all --check
-cargo check --all-targets
-cargo clippy --all-targets -- -D warnings
-cargo test --all-targets
-cargo doc --no-deps
 ```
 
-Longer-running or release-oriented validation such as fuzzing, dependency audit, mutation testing, performance measurement, and approved real-AB1 regression belongs to the extended validation/release lanes rather than being added mechanically to every pull request.
+CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency/source hygiene, dependency policy/review, RustSec, CodeQL, schemas/reference data, an ABIF fuzz smoke campaign, and a release-package smoke. Mandatory CI jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
-See [CI and verification lanes](docs/engineering/ci-cd.md), the living [production-readiness checklist](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md) for the rationale behind that release contract.
+Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
+
+Longer scientific validation—approved real-AB1 ground-truth comparison, extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
+
+See [CI/CD](docs/engineering/ci-cd.md), [repository governance](docs/governance/repository.md), [release evidence](docs/operations/release-evidence-template.md), [production readiness](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md).
 
 ## Agent development
 

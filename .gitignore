@@ -6,5 +6,9 @@ validation-results/
 __pycache__/
 
 /.venv/
+/tools/python/.venv/
 /target/
 /out/
+
+/fuzz/artifacts/
+/fuzz/target/

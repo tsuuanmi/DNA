@@ -1,0 +1,12 @@
+# Repository-wide ownership. Branch rules should require code-owner review.
+* @tsuuanmi
+
+# High-risk correctness and release surfaces.
+.github/workflows/ @tsuuanmi
+Cargo.toml @tsuuanmi
+Cargo.lock @tsuuanmi
+deny.toml @tsuuanmi
+rust-toolchain.toml @tsuuanmi
+src/ @tsuuanmi
+docs/decisions/adr/ @tsuuanmi
+docs/reference/ @tsuuanmi

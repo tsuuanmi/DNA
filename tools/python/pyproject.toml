@@ -1,8 +1,7 @@
 [project]
-name = "DNA"
-version = "0.1.0"
-description = "Deterministic analysis of a Sanger ABIF/AB1 chromatogram against a reference FASTA."
-readme = "README.md"
+name = "dna-dev-tools"
+version = "0.0.0"
+description = "Python-only research, validation, and test tooling for the Rust DNA core."
 requires-python = ">=3.12"
 dependencies = []
 

@@ -10,6 +10,7 @@ or exploration.
 - [Documentation lifecycle](lifecycle.md)
 - [Ownership](ownership.md)
 - [Versioning](versioning.md)
+- [Repository governance](repository.md)
 - [Data and fixture policy](data.md)
 - [Reference validation](reference-validation.md)
 - [Roadmap](../proposals/roadmap.md)

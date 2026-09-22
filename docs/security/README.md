@@ -38,4 +38,14 @@ Sequences, chromatograms, variant evidence, and sample-linked metadata may be id
 Release dependencies are reviewed for known advisories, source policy, licenses, and explicit exceptions as defined by ADR-0018.
 
 
+## Static and adversarial analysis
+
+- CodeQL runs the Rust `security-extended` query suite on pull requests, `main`, and weekly.
+- The ABIF parser has a dedicated `cargo-fuzz` harness with pull-request smoke campaigns and longer scheduled campaigns.
+- A fuzz-discovered defect is incomplete until a minimized regression input is retained when practical.
+
+## Supply chain and release integrity
+
+GitHub Actions use immutable commit pins, dependency changes are reviewed before merge, Cargo policy is checked with `cargo-deny` and RustSec, and tagged release artifacts carry checksums, an SPDX SBOM, and cryptographic attestations. See [supply-chain security](supply-chain.md).
+
 See [threat model](threat-model.md) and [supply-chain security](supply-chain.md) for focused controls.

@@ -3,6 +3,7 @@
 Operations documentation owns how DNA is run, observed, investigated, and declared ready for production use.
 
 - [Production readiness](production-readiness.md)
+- [Release evidence template](release-evidence-template.md)
 - [Observability](observability.md)
 - [Runbooks](runbooks/README.md)
 - [Playbooks](playbooks/README.md)

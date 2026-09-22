@@ -2,58 +2,191 @@ name: CI
 
 on:
   push:
+    branches: ["main"]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
+  workflow-security:
+    name: Workflow security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.12"
-      - uses: dtolnay/rust-toolchain@stable
+          persist-credentials: false
+      - name: Lint GitHub Actions
+        uses: eifinger/actionlint-action@1fc89649be682d16ec5cf65ea16e269eb88d3982 # v1.10.2
+      - name: Analyze GitHub Actions security
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Install locked Python dependencies
-        run: uv sync --frozen
-      - name: Validate Rust source policy
-        run: uv run python scripts/validate_rust_source_policy.py
-      - name: Validate documentation structure
-        run: uv run python scripts/validate_docs_structure.py
+          advanced-security: false
+          version: "1.29.0"
+
+  rust-quality:
+    name: Rust quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Toolchain
+        run: rustc --version && cargo --version
+      - name: Install cargo-shear
+        uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+        with:
+          tool: cargo-shear@1.13.4
+      - name: Dependency and source hygiene
+        run: cargo shear --deny-warnings
       - name: Format
         run: cargo fmt --all --check
       - name: Check
-        run: cargo check --all-targets
+        run: cargo check --locked --all-targets --all-features
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - name: Test
-        run: cargo test
+        run: cargo test --locked --all-targets --all-features
       - name: Rustdoc
-        run: cargo doc --no-deps
-      - name: Ruff format
-        run: uv run ruff format --check scripts/ tests/python/
-      - name: Ruff check
-        run: uv run ruff check scripts/ tests/python/
-      - name: Basedpyright
-        run: uv run basedpyright scripts/ tests/python/
-      - name: Python tests
-        run: uv run python -m unittest discover -s tests/python -p 'test_*.py'
-      - name: Validate result schemas
-        run: uv run python scripts/validate_result_schemas.py
-      - name: Validate configuration templates
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --no-deps --all-features
+      - name: Release build
+        run: cargo build --locked --release
+
+  dependency-policy:
+    name: Dependency policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: License, source, ban, and advisory policy
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 / cargo-deny 0.20.2
+        with:
+          command: check
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: RustSec audit
+        run: cargo audit
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+
+  msrv:
+    name: MSRV 1.88
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install declared minimum Rust
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Check declared MSRV
+        run: cargo +1.88.0 check --locked --all-targets
+
+  repository-policy:
+    name: Repository policy and Python tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+          version: "0.12.17"
+      - name: Install locked Python tooling
+        run: uv sync --project tools/python --frozen
+      - name: Enforce Rust-only production source
         shell: bash
         run: |
-          uv run python -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/dna.toml").read_text())'
+          unexpected="$(find src -type f ! -name '*.rs' ! -name 'README.md' -print)"
+          if [ -n "$unexpected" ]; then
+            printf 'Only Rust source and source-local README.md documentation are allowed under src/:\n%s\n' "$unexpected" >&2
+            exit 1
+          fi
+      - name: Validate Rust source policy
+        working-directory: tools/python
+        run: uv run python scripts/validate_rust_source_policy.py
+      - name: Validate GitHub Actions policy
+        working-directory: tools/python
+        run: uv run python scripts/validate_workflow_policy.py
+      - name: Validate documentation structure
+        working-directory: tools/python
+        run: uv run python scripts/validate_docs_structure.py
+      - name: Ruff format
+        working-directory: tools/python
+        run: uv run ruff format --check scripts tests
+      - name: Ruff check
+        working-directory: tools/python
+        run: uv run ruff check scripts tests
+      - name: Basedpyright
+        working-directory: tools/python
+        run: uv run basedpyright scripts tests
+      - name: Python tests
+        working-directory: tools/python
+        run: uv run python -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate result schemas
+        working-directory: tools/python
+        run: uv run python scripts/validate_result_schemas.py
+      - name: Validate configuration template
+        run: |
+          uv run --project tools/python python -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/dna.toml").read_text())'
           set -a
           source .env.example
           test "$DNA_CONFIG" = "config/dna.toml"
+          test "$DNA_LOG_DIR" = "logs"
       - name: Validate rCRS reference
         shell: bash
         run: |
           test "$(sha256sum references/rCRS.fasta | cut -d' ' -f1)" = "f0f08344920d29af5f0870f7b2c7b5a880e338b10b41d3536a0db7e6e5cd724a"
           test "$(awk '!/^>/ { gsub(/[[:space:]]/, ""); n += length } END { print n }' references/rCRS.fasta)" = "16569"
+
+
+  ci-success:
+    name: CI success
+    if: ${{ always() }}
+    needs:
+      - workflow-security
+      - rust-quality
+      - dependency-policy
+      - dependency-review
+      - msrv
+      - repository-policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every applicable CI gate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            jq -e 'all(.[]; .result == "success")' <<<"$NEEDS_JSON"
+          else
+            jq -e 'all(to_entries[]; .value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' <<<"$NEEDS_JSON"
+          fi

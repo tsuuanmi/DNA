@@ -1,17 +1,42 @@
 # Supply-Chain and Vulnerability Management
 
-Dependency and release integrity are part of the production trust boundary.
+Dependency, CI, and release integrity are part of the production trust boundary.
 
 ## Dependencies
 
-- use locked Rust/Python dependency graphs;
-- add dependencies only for a concrete required capability;
-- review source, maintenance, license, advisory, and transitive cost;
-- do not suppress advisory findings merely to keep a release green.
+- Rust and Python tooling use committed lockfiles.
+- `cargo-shear --deny-warnings` rejects unused/misplaced dependencies and unlinked Rust source.
+- `cargo-deny` enforces license, source, ban, yank, wildcard, and advisory policy.
+- pinned `cargo-audit` independently checks RustSec.
+- GitHub dependency review blocks moderate-or-higher vulnerable additions on pull requests.
+- Dependabot maintains Cargo, uv-tooling, GitHub Actions, and Rust-toolchain update PRs.
+- dependency/advisory findings are reviewed; they are not suppressed merely to make CI green.
+
+## GitHub Actions
+
+Third-party Actions are pinned to full 40-character commit SHAs. Repository policy rejects mutable pins and privileged untrusted triggers; actionlint and zizmor analyze workflow syntax and security.
+
+Linux verification/release jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 
 ## Release provenance
 
-A production release records source revision, toolchain, lockfile identity, artifact SHA-256, schema/config versions, CI status, validation status, and dependency-review status.
+The supported release target is explicit: `x86_64-unknown-linux-gnu`.
+
+Pull requests exercise the real release-package path. Tagged delivery separates three trust zones:
+
+1. package/build with read-only repository access;
+2. source-free OIDC/SBOM/provenance attestation;
+3. source-free publication with release-write permission.
+
+The package path:
+
+- builds with pinned `cargo-auditable` and locked dependencies;
+- strips while preserving `.dep-v0`, then verifies and audits the packaged binary;
+- bundles authoritative `config/dna.toml` and `references/rCRS.fasta` with checksums;
+- emits an SPDX JSON SBOM and SHA-256 checksums;
+- verifies the archive before staging it for attestation/publication.
+
+Release builds do not restore shared CI build caches.
 
 ## Vulnerabilities
 
@@ -25,4 +50,4 @@ A newly discovered vulnerability is triaged by:
 
 If a mitigation changes architecture, public behavior, or trust boundaries, update the corresponding decision and canonical docs rather than maintaining a hidden workaround.
 
-See [dependency policy](../engineering/dependencies.md) and [release engineering](../engineering/release.md).
+See [dependency policy](../engineering/dependencies.md), [release engineering](../engineering/release.md), [repository governance](../governance/repository.md), and [ADR-0018](../decisions/adr/0018-production-readiness-release-contract.md).

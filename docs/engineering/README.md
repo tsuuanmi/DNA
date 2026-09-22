@@ -6,6 +6,7 @@ Engineering documentation owns the software-development and delivery process.
 - [Testing](testing.md)
 - [CI/CD](ci-cd.md)
 - [Release engineering](release.md)
+- [Platform support](platform-support.md)
 - [Dependencies](dependencies.md)
 - [Code quality](code-quality.md)
 

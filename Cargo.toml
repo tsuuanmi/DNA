@@ -2,9 +2,15 @@
 name = "dna"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "DNA sequencing trace analysis in Rust"
+repository = "https://github.com/tsuuanmi/DNA"
+readme = "README.md"
 publish = false
+
+[features]
+default = []
+fuzzing = []
 
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }

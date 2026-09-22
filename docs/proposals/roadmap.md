@@ -31,6 +31,22 @@ Detailed acceptance rules belong to the SRS and method/contract documents rather
 
 The roadmap does not maintain a second list of current capabilities. Current behavior is persistent production documentation owned by the [SRS](../requirements/SRS.md), [methods](../design/README.md), [contracts](../reference/README.md), and [../architecture/invariants](../architecture/README.md).
 
+## Production-readiness track
+
+Engineering maturity is developed in parallel with scientific confidence. The repository targets a production-grade delivery baseline with:
+
+- pinned Rust release/MSRV toolchains and an explicit Ubuntu 24.04 runner baseline;
+- warnings-clean all-feature Rust CI, strict dependency/source hygiene, and locked builds;
+- Rust-only production source boundaries with Python isolated to research/validation/test tooling;
+- cargo-deny, RustSec audit, and pull-request dependency review;
+- immutable GitHub Action pins maintained by Dependabot;
+- actionlint/zizmor workflow analysis, CodeQL, and OpenSSF Scorecard;
+- ABIF fuzz smoke plus scheduled adversarial campaigns;
+- protected-branch/tag governance and immutable-release policy;
+- self-contained auditable release bundles with SBOMs, checksums, and cryptographic attestations.
+
+These controls make the software build and supply chain defensible. They do not replace scientific release evidence. The production-ready milestone is reached only when an exact tagged revision also has approved real-AB1 ground-truth regression, difficult-locus/disagreement analysis, and runtime/peak-memory evidence recorded with the release template.
+
 ## Deferred product directions
 
 The following remain outside the current production interpretation boundary until separately specified, decided, implemented, and validated:

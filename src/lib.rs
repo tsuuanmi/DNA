@@ -26,6 +26,15 @@ mod signal_processing;
 mod trace;
 mod variant_calling;
 
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzzing {
+    /// Exercises the bounds-checked ABIF directory parser without filesystem I/O.
+    pub fn parse_abif(bytes: &[u8]) {
+        let _ = crate::trace::parse_abif(bytes.to_vec());
+    }
+}
+
 use cli::{Cli, Command};
 use error::Result;
 
