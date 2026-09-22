@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-SAMPLE-007..SRS-SAMPLE-012`
 
-These requirements are part of the canonical [sample evidence SRS](../sample-evidence.md) and cover pairwise overlap admission, coverage topology, and normalized-variant support topology.
+These requirements are part of the canonical [sample evidence SRS](README.md) and cover pairwise overlap admission, coverage topology, and normalized-variant support topology.
 
 - **SRS-SAMPLE-007:** After deterministic SHA-256 read ordering, sample reconciliation MUST discover an unordered read-pair overlap only from shared mapped reference coordinates. A pair with no shared coordinate MUST produce no overlap edge, and lack of an overlapping or canonical F/R partner MUST NOT reject an otherwise valid read.
 - **SRS-SAMPLE-008:** Pairwise overlap evidence MUST distinguish all shared reference positions from comparable nucleotide positions. Only coordinates where both reads have canonical A/C/G/T query bases MAY enter the nucleotide agreement denominator; unresolved symbols and deletions MUST remain outside that denominator, and indel/gap evidence MUST remain in its dedicated locus/variant evidence rather than receive fabricated nucleotide agreement.

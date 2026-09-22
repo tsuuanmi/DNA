@@ -1,6 +1,6 @@
 # Analysis Provenance, Read, and Signal Quality
 
-Part of the canonical [analysis contract](../analysis.md).
+Part of the canonical [analysis contract](README.md).
 
 ## Provenance
 

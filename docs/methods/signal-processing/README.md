@@ -17,9 +17,9 @@ Both are 0-based. Window and region intervals are half-open. Shared PLOC geometr
 
 ## Methods
 
-- [Windowed SNR](signal-processing/windowed-snr.md): rolling local signal-quality observations and candidate-noisy regions.
-- [Trace integrity](signal-processing/trace-integrity.md): PLOC/vendor cardinality, spacing, clipping, and whole-trace event-signal observations.
-- [Locus evidence](signal-processing/locus-evidence.md): basecall-independent per-locus A/C/G/T evidence and normalized evidence profiles.
+- [Windowed SNR](windowed-snr.md): rolling local signal-quality observations and candidate-noisy regions.
+- [Trace integrity](trace-integrity.md): PLOC/vendor cardinality, spacing, clipping, and whole-trace event-signal observations.
+- [Locus evidence](locus-evidence.md): basecall-independent per-locus A/C/G/T evidence and normalized evidence profiles.
 
 ## Interpretation limits
 
@@ -35,6 +35,6 @@ Phred demonstrates that trace features require empirical calibration before beco
 
 ## Deferred cleaning
 
-No disabled transform or compatibility branch is included. A later behavior-changing method must preserve the decoded trace and produce a separate processed projection. Candidate methods include peak-preserving Savitzky–Golay smoothing ([Savitzky and Golay 1964](https://doi.org/10.1021/ac60214a047)), asymmetric baseline correction ([Eilers 2003](https://doi.org/10.1021/ac034173t); [airPLS](https://doi.org/10.1039/b922045c)), and wavelet soft-thresholding ([Donoho 1995](https://doi.org/10.1109/18.382009)).
+No disabled transform or alternate legacy branch is included. A later behavior-changing method must preserve the decoded trace and produce a separate processed projection. Candidate methods include peak-preserving Savitzky–Golay smoothing ([Savitzky and Golay 1964](https://doi.org/10.1021/ac60214a047)), asymmetric baseline correction ([Eilers 2003](https://doi.org/10.1021/ac034173t); [airPLS](https://doi.org/10.1039/b922045c)), and wavelet soft-thresholding ([Donoho 1995](https://doi.org/10.1109/18.382009)).
 
 Before any transform or noisy-region filter affects calls, validation must use approved truth-labeled traces and synthetic major/secondary peaks, baseline drift, impulses, compressed peaks, homopolymers, and read ends. It must measure secondary-peak retention and both false-positive and false-negative variants.

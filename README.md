@@ -84,7 +84,7 @@ Important boundaries:
 - unresolved evidence remains unresolved;
 - normalized variant representation must not erase the trace evidence from which it was observed.
 
-See [ADR-0019](docs/adr/0019-scientific-evidence-hierarchy.md) and the [system invariants](docs/architecture/invariants.md).
+See [ADR-0019](docs/adr/0019-scientific-evidence-hierarchy.md) and the [system invariants](docs/architecture/invariants/README.md).
 
 ## Quick start
 
@@ -173,7 +173,7 @@ Key entry points:
 
 - [SRS](docs/srs/README.md)
 - [architecture](docs/architecture/README.md)
-- [system invariants](docs/architecture/invariants.md)
+- [system invariants](docs/architecture/invariants/README.md)
 - [ADR index](docs/adr/README.md)
 - [current methods](docs/methods/README.md)
 - [contracts](docs/contracts/README.md)

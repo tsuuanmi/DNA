@@ -1,6 +1,6 @@
 # Rust implementation Invariants
 
-These invariants are part of the canonical [system invariant set](../invariants.md).
+These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-RUST-001:** First-party production code forbids unsafe Rust and denies deprecated API use; first-party source cannot suppress that diagnostic under the source-policy gate.
 - **INV-RUST-002:** Production paths do not use `unwrap` or `expect` for recoverable external conditions.

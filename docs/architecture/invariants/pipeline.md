@@ -1,6 +1,6 @@
 # Pipeline Invariants
 
-These invariants are part of the canonical [system invariant set](../invariants.md).
+These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-PIPE-001:** Scientific stages consume validated output from earlier stages and do not silently re-parse or reinterpret external inputs.
 - **INV-PIPE-002:** Reference-aware stages do not alter upstream signal-derived base calls.

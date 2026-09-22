@@ -1,6 +1,6 @@
 # Sample Structure and Topology Invariants
 
-Part of the canonical [read/sample invariant family](../sample-boundaries.md).
+Part of the canonical [read/sample invariant family](sample-boundaries.md).
 
 - **INV-SAMPLE-001:** A future consensus sequence is a downstream projection, not the authoritative source of sample variants or discordance.
 - **INV-SAMPLE-002:** Missing coverage is distinct from reference support. For each read, mapped reference segments define coverage; inside coverage, omission from sparse `locus_differences[]` means canonical reference match, while positions outside coverage remain uncovered.

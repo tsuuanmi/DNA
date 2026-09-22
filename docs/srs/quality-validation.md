@@ -1,10 +1,10 @@
-# Compatibility, Quality, and Validation Requirements
+# Reference Comparison, Quality, and Validation Requirements
 
 **Requirement namespaces:** `SRS-COMPAT-*`, `SRS-NFR-*`, `SRS-VAL-*`
 
 These requirements are part of the canonical [DNA SRS](README.md).
 
-- **SRS-COMPAT-001:** Apollo comparisons MUST follow [compatibility policy](../governance/compatibility.md); known defects are intentional divergences, not parity failures.
+- **SRS-COMPAT-001:** Apollo comparisons MUST follow [reference validation policy](../governance/reference-validation.md); known defects are intentional divergences, not parity failures or backward-compatibility obligations.
 - **SRS-COMPAT-002:** Approved differential evidence MUST compare exact decoded arrays and unaffected deterministic results; normalized variants compare by full tuple without ignoring extras/missing calls.
 - **SRS-NFR-001:** Production code MUST forbid unsafe Rust, deny deprecated API use at crate roots, and avoid production `unwrap`/`expect`. First-party source MUST NOT suppress the deprecated-use diagnostic.
 - **SRS-NFR-002:** Scientific stage functions MUST be side-effect-free and return typed results; only pipeline-level operational logging and report publication write files.

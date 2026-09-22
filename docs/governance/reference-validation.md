@@ -1,8 +1,10 @@
-# Apollo Compatibility and Scientific Corrections
+# Apollo Reference Validation
 
 ## Policy
 
-Apollo C++ is evidence for intended behavior, not authority for known unsafe, inconsistent, or biologically misleading behavior. DNA preserves compatible behavior where it is well-defined and records intentional divergences.
+Apollo C++ is an external reference implementation used as differential evidence, not a backward-compatibility target and not authority for known unsafe, inconsistent, or biologically misleading behavior.
+
+DNA compares behaviors only where the scientific preconditions match. Current DNA contracts remain authoritative; no legacy API, output alias, compatibility switch, or removed behavior is preserved for Apollo.
 
 ## Mapping
 
@@ -17,7 +19,7 @@ Apollo C++ is evidence for intended behavior, not authority for known unsafe, in
 | `logger.rs` | `logger` | Apollo-style timestamp/level/source records written to per-trace files |
 | `report/json.h` | `report` | versioned, nested, schema-governed JSON |
 
-## Exact evidence targets
+## Differential evidence targets
 
 For an approved fixture, raw decoded bytes, channel remapping, PLOC positions, unique positive local maxima, unaffected penalty arithmetic, affine scores, and unambiguous normalized variants should compare exactly when preconditions match.
 
@@ -53,4 +55,4 @@ The previous Apollo Rust port is not ground truth where it uses PBAS as the fina
 
 ## Differential evidence
 
-Local ignored AB1 files are candidates, not goldens. A compatibility claim requires approval, source/checksums, region/orientation, config identity, generating revision, expected fields, and an exact comparison rule. Missing/extra variants are never ignored.
+Local ignored AB1 files are candidates, not goldens. A reference-comparison claim requires approval, source/checksums, region/orientation, config identity, generating revision, expected fields, and an exact comparison rule. Missing/extra variants are never ignored.

@@ -1,6 +1,6 @@
 # Variants and Differential-locus Signal Evidence
 
-Part of the canonical [sample evidence contract](../sample-evidence.md).
+Part of the canonical [sample evidence contract](README.md).
 
 ## Variants
 

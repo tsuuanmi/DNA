@@ -1,7 +1,7 @@
 # Governance
 
 - [Documentation governance](documentation.md): authority, promotion, staleness, ADR lifecycle, and change-impact rules.
-- [Compatibility policy](compatibility.md): compatibility evidence and intentional divergences.
+- [Reference validation](reference-validation.md): external-reference differential evidence and intentional divergences.
 - [Data and fixture policy](data.md): AB1 privacy, provenance, approval, and release-evidence handling.
 - [Roadmap](../roadmap.md): non-normative future direction.
 

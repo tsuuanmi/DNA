@@ -84,7 +84,7 @@ A disagreement between source and the normative production docs is a defect, inc
 
 ### 4. Cross-cutting invariants have one explicit home
 
-Stable invariants that span modules belong in `docs/architecture/invariants.md`.
+Stable invariants that span modules belong in `docs/architecture/invariants/README.md`.
 
 Examples include:
 

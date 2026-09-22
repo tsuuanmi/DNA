@@ -1,6 +1,6 @@
 # Analysis Alignment and Variants
 
-Part of the canonical [analysis contract](../analysis.md).
+Part of the canonical [analysis contract](README.md).
 
 ## Alignment summary
 

@@ -35,11 +35,11 @@ typed result; no stage mutates shared state.
 |---|---|
 | 1 | [ABIF decoding](abif-decoding.md) |
 | 2 | [Basecalling](basecalling.md) |
-| 3 | [Signal processing](signal-processing.md) |
+| 3 | [Signal processing](signal-processing/README.md) |
 | 4 | [Quality control](quality-control.md) |
 | 5 | [Alignment](alignment.md) |
 | 6 | [Variant calling](variant-calling.md) |
-| sample aggregation | [Sample evidence aggregation](sample-evidence.md) |
+| sample aggregation | [Sample evidence aggregation](sample-evidence/README.md) |
 
 ## One-read observation boundary
 

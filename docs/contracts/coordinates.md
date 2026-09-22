@@ -20,6 +20,6 @@ DNA uses several coordinate domains. They are deliberately distinct.
 5. Variant normalization may move the reported anchor in a repeat while observed call mappings remain tied to the alignment evidence.
 6. Circular projection uses the reference modulo length; wrapped alignments may be represented by two 0-based half-open reference segments.
 
-See also [system invariants](../architecture/invariants.md) and the versioned output contracts.
+See also [system invariants](../architecture/invariants/README.md) and the versioned output contracts.
 
 Reviewer-facing `dna.analysis/v7` and `dna.sample_evidence/v8` variant evidence intentionally does not serialize original call index or PLOC. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.

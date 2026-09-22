@@ -3,9 +3,9 @@
 `signal sample <sample-id> <trace.ab1>... --reference <reference.fasta>`
 writes one deterministic `results/<sample-id>.sample.json` document identified as
 `dna.sample_evidence/v8`. The authoritative schema is
-[`schemas/sample-evidence-v8.schema.json`](schemas/sample-evidence-v8.schema.json)
+[`schemas/sample-evidence-v8.schema.json`](../schemas/sample-evidence-v8.schema.json)
 and the example is
-[`examples/sample-evidence-v8.example.json`](examples/sample-evidence-v8.example.json).
+[`examples/sample-evidence-v8.example.json`](../examples/sample-evidence-v8.example.json).
 
 The sample identifier and read names are reviewer-facing provenance. They never
 constrain scientific placement, orientation, overlap discovery, or variant
@@ -13,9 +13,9 @@ reconciliation.
 
 ## Contract sections
 
-- [Reads and coverage](sample-evidence/reads-coverage.md)
-- [Overlaps and differential loci](sample-evidence/overlaps-loci.md)
-- [Variants and differential-locus signal evidence](sample-evidence/variants-signal.md)
+- [Reads and coverage](reads-coverage.md)
+- [Overlaps and differential loci](overlaps-loci.md)
+- [Variants and differential-locus signal evidence](variants-signal.md)
 
 ## Why the evidence layers are separate
 

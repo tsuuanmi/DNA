@@ -7,7 +7,7 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 ## Read order for a change
 
 1. [SRS](srs/README.md) — what the system is intended to do.
-2. [Architecture](architecture/README.md) and [system invariants](architecture/invariants.md) — where behavior belongs and what must always remain true.
+2. [Architecture](architecture/README.md) and [system invariants](architecture/invariants/README.md) — where behavior belongs and what must always remain true.
 3. [ADRs](adr/README.md) — why durable architectural or scientific choices were made.
 4. [Methods](methods/README.md) — current scientific and algorithmic behavior.
 5. [Contracts](contracts/README.md) — public and machine-visible interfaces.
@@ -25,9 +25,8 @@ DNA documentation is organized by **authority and responsibility**. Do not infer
 | [Methods](methods/README.md) | detailed current scientific/algorithmic semantics |
 | source code | actual behavior executed by the current revision |
 | [docs/src mirror policy](architecture/source-mirror.md) | descriptive implementation ownership; `docs/src/` must track source one-to-one |
-| [Governance](governance/README.md) | change, compatibility, data, and documentation policy |
+| [Governance](governance/README.md) | change, reference-validation, data, and documentation policy |
 | [Operations](operations/README.md) | current development, batch, CI, and release procedures |
-| [History](history/README.md) | non-authoritative delivery/migration provenance |
 | [Roadmap](roadmap.md) | future direction; non-normative |
 | [Research](research/README.md) | exploratory work; non-normative |
 
@@ -45,8 +44,7 @@ docs/
 ├── contracts/      # config, result semantics, schemas, examples
 ├── src/            # exact source-module implementation mirror
 ├── operations/     # development, batch, CI, release, delivery
-├── governance/     # documentation, compatibility, data policy
-├── history/        # non-authoritative historical delivery/migration records
+├── governance/     # documentation, reference validation, data policy
 ├── research/       # non-normative exploration
 ├── glossary.md
 ├── roadmap.md
@@ -65,7 +63,6 @@ Root-level documents are intentionally limited to cross-cutting entry points.
 - [Implementation mirror](architecture/source-mirror.md)
 - [Operations](operations/README.md)
 - [Governance](governance/README.md)
-- [History](history/README.md)
 - [Research](research/README.md)
 - [Traceability](traceability.md)
 - [Glossary](glossary.md)

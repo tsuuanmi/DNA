@@ -1,6 +1,6 @@
 # Coordinates and identity Invariants
 
-These invariants are part of the canonical [system invariant set](../invariants.md).
+These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-COORD-001:** Trace sample positions, original call indexes, PLOC values, trim bounds, signal-window bounds, and reference segments are 0-based unless a contract explicitly says otherwise.
 - **INV-COORD-002:** Reported biological variant positions are 1-based.

@@ -1,6 +1,6 @@
 # Overlaps and Differential Loci
 
-Part of the canonical [sample evidence contract](../sample-evidence.md).
+Part of the canonical [sample evidence contract](README.md).
 
 ## Pairwise overlap admission
 

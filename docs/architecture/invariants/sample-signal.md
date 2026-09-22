@@ -1,6 +1,6 @@
 # Sample Signal and Profile Invariants
 
-Part of the canonical [read/sample invariant family](../sample-boundaries.md).
+Part of the canonical [read/sample invariant family](sample-boundaries.md).
 
 - **INV-SAMPLE-012:** Basecall-independent nucleotide profiles retained at sample scope must originate from the matching read `LocusEvidence` call index and be projected only by the selected read orientation. Missing profiles remain missing and deletion observations carry no nucleotide profile; sample reconciliation cannot reconstruct profile evidence from called bases or the reference.
 - **INV-SAMPLE-013:** Differential-locus support topology is derived only from the explicit observations retained at that reference coordinate. Total reads must equal both the forward/reverse partition and the reference/alternate/unresolved/deletion partition; missing coverage cannot enter either partition and the summary cannot become a vote or confidence verdict.

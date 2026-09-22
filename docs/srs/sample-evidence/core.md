@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-SAMPLE-001..SRS-SAMPLE-006`
 
-These requirements are part of the canonical [sample evidence SRS](../sample-evidence.md) and cover independent read processing, identity, sparse evidence, and preserved observations.
+These requirements are part of the canonical [sample evidence SRS](README.md) and cover independent read processing, identity, sparse evidence, and preserved observations.
 
 - **SRS-SAMPLE-001:** Multi-read sample analysis MUST process every trace independently through the same authoritative read-observation path used by single-read analysis before cross-read reconciliation.
 - **SRS-SAMPLE-002:** Cross-read overlap and support MUST be discovered from mapped reference coordinates/variants rather than inferred from canonical F/R pair names.

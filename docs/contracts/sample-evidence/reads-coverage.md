@@ -1,6 +1,6 @@
 # Reads and Coverage
 
-Part of the canonical [sample evidence contract](../sample-evidence.md).
+Part of the canonical [sample evidence contract](README.md).
 
 ## Reads and post-trim coverage
 

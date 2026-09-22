@@ -27,20 +27,9 @@ Prioritize evidence that demonstrates:
 
 Detailed acceptance rules belong to the SRS and method/contract documents rather than being copied here.
 
-## Current supported baseline
+## Current production behavior
 
-Capabilities intentionally retained while validation evidence strengthens include:
-
-- observational rolling SNR and trace-integrity evidence;
-- circular-reference placement;
-- supported small insertion/deletion extraction and canonical representation;
-- external batch orchestration;
-- independently placed multi-read sample evidence;
-- run-length coverage topology and pairwise overlap/admission evidence;
-- sparse differential loci and factorized normalized-variant support;
-- reference-oriented per-call and evidence-profile projections.
-
-Being listed here does not make the roadmap authoritative for their semantics.
+The roadmap does not maintain a second list of current capabilities. Current behavior is persistent production documentation owned by the [SRS](srs/README.md), [methods](methods/README.md), [contracts](contracts/README.md), and [architecture/invariants](architecture/README.md).
 
 ## Deferred product directions
 

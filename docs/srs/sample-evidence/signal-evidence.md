@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-SAMPLE-013..SRS-SAMPLE-018`
 
-These requirements are part of the canonical [sample evidence SRS](../sample-evidence.md) and cover reference-oriented locus profiles, noisy context, call evidence, availability, and structural contribution eligibility.
+These requirements are part of the canonical [sample evidence SRS](README.md) and cover reference-oriented locus profiles, noisy context, call evidence, availability, and structural contribution eligibility.
 
 - **SRS-SAMPLE-013:** Sample aggregation MUST preserve the existing basecall-independent `EvidenceProfile` for every call-backed differential-locus observation and variant-associated call by matching original call index to `LocusEvidence`, then projecting A/C/G/T weights into the selected reference orientation. A valid zero-signal locus with no profile MUST remain absent; DNA MUST NOT synthesize a called-base, uniform, or reference-derived fallback. Deletion observations MUST have no nucleotide profile. Public differential-locus projection is governed by `SRS-SAMPLE-023`; profile evidence MUST NOT change placement, read/variant eligibility, or produce consensus by itself.
 - **SRS-SAMPLE-014:** Every retained differential locus MUST derive factorized support topology from its authoritative observations and selected read orientations: total reads, forward/reverse reads, and reference/alternate/unresolved/deletion reads. The orientation counts and state counts MUST each sum to total reads. The topology MUST NOT treat missing coverage as reference support and MUST NOT imply weighting, confidence, consensus, or biological strand independence.

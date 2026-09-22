@@ -1,6 +1,6 @@
 # Coverage and Pairwise Overlap
 
-Part of the canonical [sample evidence aggregation method](../sample-evidence.md).
+Part of the canonical [sample evidence aggregation method](README.md).
 
 Before pairwise/locus aggregation, DNA derives a run-length reference coverage topology from every selected post-trim read segment. Each maximal interval records total read depth plus forward/reverse orientation depth. This counts all independently placed reads regardless of later pairwise eligibility and does not imply nucleotide agreement or consensus admission.
 

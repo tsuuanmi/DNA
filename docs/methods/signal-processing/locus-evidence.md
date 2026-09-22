@@ -1,6 +1,6 @@
 # Locus Evidence and Evidence Profile
 
-Part of the canonical [signal-processing method](../signal-processing.md).
+Part of the canonical [signal-processing method](README.md).
 
 For each PLOC-defined locus, DNA selects a deterministic rolling context and estimates A/C/G/T local baseline and first-difference-MAD noise with the same primitives used by windowed SNR. It then forms the total non-negative baseline-corrected A+C+G+T signal series inside the locus window and identifies positive local maxima. Event refinement selects the local maximum nearest PLOC; equally distant candidates prefer greater total corrected signal and then the lower sample coordinate. If no positive total-signal local maximum exists, the validated PLOC sample is used directly. This keeps event placement nucleotide/basecall-independent while preventing a stronger neighboring base event elsewhere in the midpoint window from taking over the locus profile.
 

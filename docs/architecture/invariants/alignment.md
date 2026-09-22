@@ -1,6 +1,6 @@
 # Alignment canonicality Invariants
 
-These invariants are part of the canonical [system invariant set](../invariants.md).
+These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-ALN-001:** Scientific alignment score optimality precedes canonicalization. A right-most gap cannot replace a higher-scoring traceback.
 - **INV-ALN-002:** Repeat-equivalent optimal indel placements have one canonical reference-oriented topology: preserve equivalent gap content contiguously where possible, then place it furthest 3' on the rCRS light strand (right-most in ordinary increasing rCRS coordinates).

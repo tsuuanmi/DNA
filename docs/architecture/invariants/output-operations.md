@@ -1,6 +1,6 @@
 # Output and operations Invariants
 
-These invariants are part of the canonical [system invariant set](../invariants.md).
+These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-OUT-001:** A failed core analysis publishes no scientific result.
 - **INV-OUT-002:** Core result publication is atomic and does not overwrite an existing result.

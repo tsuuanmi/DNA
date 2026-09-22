@@ -1,6 +1,6 @@
 # Trace Integrity Evidence
 
-Part of the canonical [signal-processing method](../signal-processing.md).
+Part of the canonical [signal-processing method](README.md).
 
 DNA retains the validated PLOC series as the current method's event-anchor
 authority, but optional vendor PBAS/PCON cardinality is treated separately.

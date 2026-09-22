@@ -1,6 +1,6 @@
 # Windowed SNR Method
 
-Part of the canonical [signal-processing method](../signal-processing.md).
+Part of the canonical [signal-processing method](README.md).
 
 Configuration chooses `window_size_bases` in `5..=10`, a positive finite `minimum_primary_snr`, and `minimum_noisy_windows` of at least `2`. The default window is 10 bases. Windows have that complete width and stride one; short partial windows are never emitted. A noisy interval is emitted only when a consecutive run contains at least the configured number of candidate-noisy windows.
 

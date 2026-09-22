@@ -1,6 +1,6 @@
 # Evidence Invariants
 
-These invariants are part of the canonical [system invariant set](../invariants.md).
+These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-EVID-001:** Decoded analyzed A/C/G/T channel arrays are immutable source evidence after validation.
 - **INV-EVID-002:** Derived signal features, corrected waveforms, quality values, alignments, and variants never overwrite the source evidence from which they were derived.

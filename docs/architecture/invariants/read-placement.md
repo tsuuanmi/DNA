@@ -1,6 +1,6 @@
 # Read Placement Invariants
 
-Part of the canonical [read/sample invariant family](../sample-boundaries.md).
+Part of the canonical [read/sample invariant family](sample-boundaries.md).
 
 - **INV-READ-001:** Every trace is scientifically processed and placed independently before any cross-read reconciliation.
 - **INV-READ-002:** Read orientation and covered reference segments are derived from alignment evidence; filename, amplicon/HV label, primer label, and declared F/R direction do not constrain default placement.

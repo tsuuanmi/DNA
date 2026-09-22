@@ -14,11 +14,11 @@ DNA is a deterministic Rust CLI for reference-free base re-calling and research 
 | `SRS-SIG-*` | observational signal processing | [signal-processing.md](signal-processing.md) |
 | `SRS-QC-*` | quality control and trimming | [quality-control.md](quality-control.md) |
 | `SRS-ALN-*` | reference alignment and placement | [alignment.md](alignment.md) |
-| `SRS-SAMPLE-*` | multi-read sample evidence | [sample-evidence.md](sample-evidence.md) |
+| `SRS-SAMPLE-*` | multi-read sample evidence | [sample-evidence](sample-evidence/README.md) |
 | `SRS-VAR-*` | primary-sequence differences | [variants.md](variants.md) |
 | `SRS-OUT-*` | result publication and operational logging | [output.md](output.md) |
 | `SRS-BAT-*` | external batch orchestration | [batch.md](batch.md) |
-| `SRS-COMPAT-*`, `SRS-NFR-*`, `SRS-VAL-*` | compatibility, non-functional requirements, and validation | [quality-validation.md](quality-validation.md) |
+| `SRS-COMPAT-*`, `SRS-NFR-*`, `SRS-VAL-*` | reference comparison, non-functional requirements, and validation | [quality-validation.md](quality-validation.md) |
 
 ## Organization rules
 

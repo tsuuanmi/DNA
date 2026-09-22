@@ -2,7 +2,7 @@
 
 **Requirement namespace:** `SRS-SAMPLE-019..SRS-SAMPLE-023`
 
-These requirements are part of the canonical [sample evidence SRS](../sample-evidence.md) and cover unit-mass support, mean profiles, heterogeneity geometry, and directional profile distance.
+These requirements are part of the canonical [sample evidence SRS](README.md) and cover unit-mass support, mean profiles, heterogeneity geometry, and directional profile distance.
 
 - **SRS-SAMPLE-019:** Every retained differential locus MUST accumulate reference-oriented A/C/G/T `EvidenceProfile` vectors from `Eligible` observations using unit read mass, retaining total plus forward-only and reverse-only support vectors and contributor counts. Total contributors MUST equal forward plus reverse contributors, and total support MUST be the channel-wise sum of the orientation partitions. Missing-profile observations and deletion events MUST contribute no nucleotide mass. This accumulator MUST NOT use amplitude, SNR, relative quality, noisy-region state, or alignment score as a weight and MUST NOT normalize or select a consensus base.
 - **SRS-SAMPLE-020:** Each non-empty total/forward/reverse unit-mass nucleotide-support partition MUST derive an arithmetic mean A/C/G/T evidence profile by dividing channel support by that partition's contributor count; empty partitions MUST have no mean profile. Mean profiles MUST preserve contributor counts and MUST NOT select a nucleotide, classify agreement/discordance, assign confidence, or introduce quality/SNR/artifact weighting.
