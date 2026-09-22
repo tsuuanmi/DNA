@@ -7,7 +7,7 @@
 
 The compact `dna.analysis/v5` and `dna.basecalls/v1` contracts are deliberately small, deterministic, and privacy-constrained (ADR-0014, ADR-0015). A future machine-learning path needs richer internal evidence—per-call peaks, rolling windows, spacing, and alignment context—than those production results expose. Adding bulk fields to the compact contracts would violate their one-result, no-compatibility-output boundary and increase identifying payload.
 
-The repository has no approved truth-labeled corpus, no feature registry, no chosen first prediction target, and no trained model (ADR-0013, [`data.md`](../governance/data.md)). AGENTS.md prohibits speculative features, single-use abstractions, and unused configuration. Unused Rust scaffolding would fail the Clippy dead-code policy, and any new source directory would also require its colocated README.
+The repository has no approved truth-labeled corpus, no feature registry, no chosen first prediction target, and no trained model (ADR-0013, [`data.md`](../../governance/data.md)). AGENTS.md prohibits speculative features, single-use abstractions, and unused configuration. Unused Rust scaffolding would fail the Clippy dead-code policy, and any new source directory would also require its colocated README.
 
 ## Options
 
@@ -17,7 +17,7 @@ The repository has no approved truth-labeled corpus, no feature registry, no cho
 
 ## Decision
 
-Choose option 3. The ML-ready JSON direction in [`docs/roadmap.md`](../roadmap.md) documents a future opt-in, independently versioned training envelope such as `dna.training-example/v1`. One explicit feature subsystem sits after the existing scientific pipeline and before a `report::training` JSON projection:
+Choose option 3. The ML-ready JSON direction in [`docs/proposals/roadmap.md`](../../proposals/roadmap.md) documents a future opt-in, independently versioned training envelope such as `dna.training-example/v1`. One explicit feature subsystem sits after the existing scientific pipeline and before a `report::training` JSON projection:
 
 - `features::extract` receives the complete immutable output bundle for one successful command and produces a private `ExtractedEvidence` value;
 - `features::engineer` consumes only `ExtractedEvidence` plus a versioned feature definition and produces one canonical `FeatureSet`;
@@ -25,7 +25,7 @@ Choose option 3. The ML-ready JSON direction in [`docs/roadmap.md`](../roadmap.m
 
 `ExtractedEvidence` and `FeatureSet` are feature-subsystem types owned by `src/features/`, not `src/model/`. The `model/` module is the shared scientific domain vocabulary and serializable production result records, not transient post-pipeline algorithmic state. The top-level `crate::features` module is namespace-isolated from the existing private `crate::signal_processing::features` submodule (rolling-SNR calculation); `features` is the chosen name for the post-pipeline subsystem, and the conceptual collision is resolved by module path.
 
-Labels remain independently governed data joined by an opaque example identity. The training example embeds a minimal, privacy-reviewed provenance and scientific projection, not the unchanged full command result, because the basecall result contains complete identifying sequences that contradict [`data.md`](../governance/data.md).
+Labels remain independently governed data joined by an opaque example identity. The training example embeds a minimal, privacy-reviewed provenance and scientific projection, not the unchanged full command result, because the basecall result contains complete identifying sequences that contradict [`data.md`](../../governance/data.md).
 
 No `features` module, training schema, CLI command, or training output is implemented until the roadmap delivery phases approve a task, corpus, feature registry, label registry, and closed schema.
 

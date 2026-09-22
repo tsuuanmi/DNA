@@ -75,7 +75,7 @@ rather than restating them inconsistently.
 
 ### 5. Traceability connects intent to implementation and evidence
 
-`docs/traceability.md` maps requirement families to current architecture/methods,
+`docs/validation/traceability.md` maps requirement families to current architecture/methods,
 owning source modules, tests/evidence, and public contracts. It is a navigation
 aid, not a second specification.
 
