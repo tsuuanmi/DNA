@@ -109,13 +109,15 @@ The workflow:
 1. verifies the tag exactly matches the crate version and belongs to `main`;
 2. reruns formatting, compilation, Clippy, tests, and Rustdoc with the locked dependency graph;
 3. reruns `cargo-deny` and RustSec audit;
-4. builds and strips the release binary;
+4. builds the release binary with pinned `cargo-auditable` and audits the produced binary;
 5. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
-6. generates an SPDX JSON SBOM with a pinned Syft version;
+6. generates an SPDX JSON SBOM from the auditable binary with a pinned Syft version;
 7. packages the Linux `x86_64-unknown-linux-gnu` artifact;
 8. produces SHA-256 checksums;
 9. creates GitHub/Sigstore build-provenance and SBOM attestations;
 10. publishes the archive, SBOM, and checksums to the GitHub Release.
+
+Release builds deliberately do not restore shared CI caches; artifact-producing workflows build from source and the locked dependency graph to avoid cache-poisoning risk.
 
 The current automated binary support claim is therefore Linux x86_64 only. Other platforms are not implied to be release-supported until they are built, tested, and published by the release process.
 
