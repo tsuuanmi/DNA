@@ -6,7 +6,7 @@ Platform support is evidence-based.
 
 | Target | Status | Evidence |
 |---|---|---|
-| `x86_64-unknown-linux-gnu` | release-supported | CI verification plus tagged release build, SBOM, checksums, and attestations |
+| `x86_64-unknown-linux-gnu` | release-supported | Explicit `--target` release build plus CI verification, SBOM, checksums, and attestations |
 
 A release-supported target is one that the release process builds and verifies for
 the exact release revision.
