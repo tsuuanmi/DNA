@@ -176,7 +176,7 @@ Key entry points:
 
 ## Development
 
-The repository root is a Rust project. Production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is used only for research, validation, orchestration, and test tooling.
+The repository root is a Rust project. Executable source under `src/` is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for research, validation, orchestration, and test tooling.
 
 The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 
