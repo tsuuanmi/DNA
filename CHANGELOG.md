@@ -13,7 +13,7 @@ remain independently versioned and are never silently changed in place.
 - Production-oriented CI/CD and supply-chain verification.
 - Rust/Python source-boundary enforcement.
 - Dependency policy, dependency review, CodeQL, OpenSSF Scorecard, fuzzing,
-  release SBOMs, and artifact attestations.
+  auditable release binaries, release SBOMs, and artifact attestations.
 
 ### Changed
 
