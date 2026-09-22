@@ -36,3 +36,6 @@ Sequences, chromatograms, variant evidence, and sample-linked metadata may be id
 ## Dependencies
 
 Release dependencies are reviewed for known advisories, source policy, licenses, and explicit exceptions as defined by ADR-0018.
+
+
+See [threat model](threat-model.md) and [supply-chain security](supply-chain.md) for focused controls.
