@@ -143,3 +143,26 @@ successor that explicitly supersedes the prior decision in whole or in part.
 2026-09-22: refined the accepted documentation-system decision by replacing the
 ADR-0006 `docs/src/` one-to-one mirror with colocated source-directory README
 routers and narrowing `AGENTS.md` to routing plus invariants.
+
+
+## 2026-09-22 taxonomy amendment
+
+The layered-knowledge decision remains unchanged, but the current role names were
+refined to reduce ambiguity and make lifecycle explicit:
+
+- `srs/` -> `requirements/` with `SRS.md`, quality attributes, constraints,
+  and stable requirement-family documents;
+- `methods/` -> `design/` for current mechanisms and algorithms;
+- `contracts/` -> `reference/` for public/configuration/schema semantics;
+- `adr/` -> `decisions/adr/`, with `decisions/` as the historical rationale layer;
+- `proposals/` is the evolutionary layer between research and accepted current truth;
+- `validation/` owns acceptance criteria, datasets/evidence, limitations, benchmarks,
+  and requirement-to-implementation traceability;
+- `engineering/` owns development/testing/CI/CD/release/dependencies/code quality;
+- `operations/` owns readiness, observability, runbooks, and playbooks;
+- `security/` owns trust boundaries, threat modeling, and supply-chain/vulnerability policy;
+- `governance/` owns documentation lifecycle, ownership, versioning, and data policy.
+
+The original wording above is retained as historical decision context. Current
+navigation and authority are defined by [documentation governance](../../governance/documentation.md)
+and [docs/README.md](../../README.md).

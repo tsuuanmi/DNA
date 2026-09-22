@@ -1,149 +1,154 @@
 # Documentation Governance
 
-DNA documentation is organized by authority and responsibility, not by file age,
-document length, or a shadow copy of the source tree.
+DNA documentation is organized as a **knowledge system** with explicit authority,
+lifecycle, ownership, and traceability. Folder names reflect the role of the
+knowledge they contain; they are not a second copy of source layout.
 
-## Documentation architecture
-
-DNA uses four navigation layers with different responsibilities:
+## Navigation layers
 
 | Layer | Purpose |
 |---|---|
-| repository `README.md` | product and contributor router |
-| `docs/README.md` and folder `README.md` files | canonical knowledge routers |
-| source-directory `README.md` files | implementation ownership routers colocated with code |
-| `AGENTS.md` | agent routing and repository-wide change invariants |
+| repository `README.md` | product/use/contributor router |
+| `docs/README.md` | canonical knowledge router |
+| folder `README.md` files | area-specific router and authority boundary |
+| source-directory `README.md` files | implementation ownership colocated with code |
+| `AGENTS.md` | agent routing plus repository-wide invariants |
 
-README files orient the reader and link to deeper canonical material. They must not
-become duplicate specifications.
+README files orient and link. They must not become duplicate specifications.
 
 ## Authority model
 
-| Layer | Purpose | Normative? |
+| Area | Owns | Class |
 |---|---|---|
-| Requirements (`requirements/`) | intended system requirements | Yes |
-| machine-readable schemas / configuration contract | exact machine-visible contract for the named version | Yes |
-| accepted ADR | durable decision and rationale | Yes for the decision it governs |
-| methods | detailed current scientific/algorithmic semantics | Yes |
-| architecture / invariants | stable boundaries, dependency direction, and cross-cutting truths | Yes |
-| source | behavior executed by the current revision | Executable reality |
-| source-directory README | implementation ownership, boundary, and navigation | Descriptive; must track source |
-| validation / operations / governance | verification and operational policy | Yes for the policy it governs |
-| roadmap | future direction | No |
-| research | exploration and candidate designs | No |
+| `requirements/` | normative intended behavior and quality attributes | canonical / living |
+| `architecture/` | stable system structure and cross-cutting invariants | canonical / living |
+| `design/` | current mechanisms and algorithms | canonical / living |
+| `reference/` | exact public/configuration/schema/coordinate semantics | canonical / living |
+| source + tests | executable behavior and encoded evidence | executable reality |
+| `validation/` | evidence strategy, acceptance, datasets, limits, traceability | canonical / living |
+| `engineering/` | development/testing/CI/CD/release/dependency process | canonical / living |
+| `operations/` | readiness, observability, procedures, investigation | canonical / living |
+| `security/` | trust boundaries and security controls | canonical / living |
+| `governance/` | lifecycle, ownership, versioning, data/document policy | canonical / living |
+| `decisions/` | durable historical rationale | historical / durable |
+| `proposals/` | reviewed changes under evolution | evolutionary |
+| `research/` | evidence and experiments | exploratory |
 
-If source and normative documentation disagree, do not silently choose one.
-Surface the mismatch as a defect, incomplete implementation, or stale
-documentation and resolve it in the change that owns the behavior.
+A machine-readable schema is authoritative for the exact serialized shape of its
+named version. Requirements govern intended behavior; design/reference explain
+current mechanisms/interfaces. Accepted ADRs preserve rationale rather than
+overriding newer current-state documents.
+
+If source and normative current-state documentation disagree, surface the mismatch
+and reconcile it in the change that owns the behavior. Do not silently choose the
+artifact that is easiest to implement.
 
 ## Canonical-home rule
 
-One fact should have one authoritative home.
+One fact has one authoritative home.
 
-- Requirements belong in the SRS.
-- Durable rationale belongs in ADRs.
-- Current algorithms belong in methods.
-- Public/configuration/serialization semantics belong in contracts.
-- Stable system boundaries and cross-cutting invariants belong in architecture.
-- Implementation ownership belongs beside code in source-directory README files.
-- Operational procedures belong in operations.
-- Exploratory evidence belongs in research.
+- what must be true -> requirements;
+- stable system structure/invariants -> architecture;
+- how current mechanisms work -> design;
+- exact interfaces/shapes -> reference;
+- why a durable choice was made -> decisions/ADR;
+- what change is being considered -> proposals;
+- what was learned but not accepted -> research;
+- how correctness is demonstrated -> validation;
+- how software is developed/released -> engineering;
+- how it is run/investigated -> operations;
+- how trust boundaries are protected -> security;
+- how knowledge/process evolves -> governance.
 
-Routers and related documents link to the authoritative source instead of copying
-its content.
+Other documents link to the canonical home instead of copying its specification.
 
 ## Promotion path
 
-Research becomes production behavior only through explicit promotion:
-
 ```text
 research evidence
-        ↓
-proposal/decision when a durable choice is required
-        ↓
-current requirement / architecture / method / contract
-        ↓
-source + source-local README + tests
-        ↓
-validation and release evidence
+      ↓
+proposal / review
+      ↓
+decision when architecturally significant
+      ↓
+requirements + architecture + design + reference
+      ↓
+source + source README + tests
+      ↓
+validation
+      ↓
+engineering/release
+      ↓
+operations / production feedback
 ```
 
-A research note is never production authority merely because it exists. Once
-exploratory content becomes current production truth, move that truth into its
-persistent authoritative home and delete the temporary duplicate.
+Research and proposals do not become production truth merely by existing or being
+accepted. Current-state authorities, implementation, tests, and validation must
+be updated explicitly.
 
 ## Source-local README rule
 
-Every directory under `src/` must contain an up-to-date `README.md`.
+Every directory under `src/` must contain an up-to-date `README.md` describing
+the responsibility boundary and routing to canonical documentation.
 
-A source-directory README is a compact router for a real implementation boundary.
-It should describe or link to:
+A source README may describe responsibility, non-responsibilities, entry points,
+child modules, dependency direction, local invariants, and links. It must not
+translate source line-by-line or duplicate full algorithm specifications.
 
-- responsibility and non-responsibilities;
-- public or crate-level entry points;
-- important child files/modules;
-- dependency direction and local invariants;
-- relevant requirements, architecture, methods, contracts, ADRs, and tests.
-
-It must not translate source line by line or duplicate the full algorithm
-specification.
-
-File-only Rust modules do not need to be converted into directories merely to gain
-a README. Use rustdoc/module comments for file-local API documentation.
-
-DNA does not maintain a parallel `docs/src/` tree.
+File-only Rust modules use rustdoc/source comments. DNA does not maintain a
+parallel `docs/src/` mirror.
 
 ## Change impact
 
-A code change updates only the documentation layers it actually affects.
+Update only the authorities affected by the change:
 
-- Internal refactor with unchanged responsibility: source README usually unchanged.
-- Module responsibility/dependency change: update the nearest source README.
-- Scientific behavior change: update requirements, design docs, tests, validation
-  implications, and the source README when its boundary changes.
-- Schema/config/CLI change: update machine and human contracts, SRS, tests, and examples.
-- New architectural dependency or boundary: update architecture and the owning ADR
-  when the durable decision changes.
-- Research-only work: keep it under `docs/research/<topic>/` until promotion.
+- internal refactor with unchanged responsibility -> source README usually unchanged;
+- ownership/dependency boundary -> source README + architecture as needed;
+- scientific/algorithm behavior -> requirements + design + tests + validation;
+- public schema/config/CLI -> requirements + reference + examples/tests;
+- durable architectural/scientific/security choice -> ADR or ADR successor;
+- proposed but not accepted change -> proposal only, plus research evidence;
+- research-only work -> research only until promotion;
+- build/test/release process -> engineering;
+- runtime/support procedure -> operations;
+- trust boundary/dependency vulnerability policy -> security.
 
 Code and affected documentation should land in the same change.
 
-## ADR lifecycle and deduplication
+## ADR lifecycle
 
-Treat ADRs as a decision log, not a changelog.
+Treat ADRs as an append-only decision log.
 
-- Search the SRS, architecture/invariants, methods/contracts, and ADR index before
-  creating a new ADR.
-- If the decision boundary and core choice are unchanged, update the owning
-  current-state documentation and amend the existing ADR only when clarification
-  of the rationale is useful.
-- Create a successor ADR only for a material new choice, then mark the previous ADR
-  `Superseded` or `Superseded in part` and link the relationship both ways.
-- Never keep two accepted ADRs claiming authority over the same decision scope.
-- Superseded ADRs remain as historical provenance; numbers are never reused.
+- search current requirements/architecture/design/reference and existing ADRs first;
+- do not create an ADR for ordinary implementation progress or documentation cleanup;
+- a materially changed choice creates a successor that explicitly supersedes the prior ADR;
+- historical ADR identifiers are never reused;
+- current truth belongs in living documentation, not in a rewritten historical ADR.
 
 ## Folder indexes and cleanup
 
-- Every documentation folder under `docs/` must contain one canonical
-  `README.md` index.
-- Every source directory under `src/` must contain one current `README.md`.
-- A folder README is a router; do not keep a sibling `<folder>.md` as a second index.
-- Do not keep compatibility pointers, legacy copies, renamed duplicates, or
-  old/new parallel documentation paths after migration.
-- When temporary research is fully promoted, delete the promoted temporary copy.
-- Git history is the archive for deleted stale documentation; do not create a
-  generic legacy-document graveyard.
+- every documentation folder under `docs/` has one canonical `README.md`;
+- every source directory under `src/` has one current `README.md`;
+- do not keep sibling `topic.md` + `topic/README.md` entry points;
+- do not keep compatibility pointers, legacy copies, or old/new parallel docs after migration;
+- promoted temporary research/planning is deleted once no unique evidence remains;
+- Git history is the archive for removed stale current-state documentation.
 
 ## Naming
 
-Use stable responsibility-based names.
+Prefer stable responsibility names such as:
 
-Prefer:
+- `requirements/SRS.md`;
+- `architecture/overview.md`;
+- `design/pipeline.md`;
+- `decisions/adr/`;
+- `validation/strategy.md`;
+- `engineering/ci-cd.md`;
+- `operations/runbooks/`;
+- `security/threat-model.md`;
+- `reference/schemas/`.
 
-- `srs/README.md`, `architecture/system.md`, `contracts/README.md`,
-  `operations/ci.md`;
-- `src/<module>/README.md` for implementation ownership;
-- `docs/research/<topic>/` for explorations.
+Avoid catch-all or lifecycle-noise names such as `NOTES.md`, `NEW.md`,
+`FINAL.md`, `legacy/`, or `old/`.
 
-Avoid catch-all names such as `NOTES.md`, `NEW.md`, or `FINAL.md` when the
-content has an existing authoritative home.
+See [lifecycle](lifecycle.md), [ownership](ownership.md), and [versioning](versioning.md).

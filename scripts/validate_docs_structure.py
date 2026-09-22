@@ -21,10 +21,7 @@ def validate_markdown_links(path: Path, errors: list[str]) -> None:
     text = path.read_text(encoding="utf-8")
     for raw_target in MARKDOWN_LINK.findall(text):
         target = raw_target.strip().split(maxsplit=1)[0].strip("<>")
-        if (
-            not target
-            or target.startswith(("#", "http://", "https://", "mailto:"))
-        ):
+        if not target or target.startswith(("#", "http://", "https://", "mailto:")):
             continue
 
         target = target.split("#", 1)[0]
