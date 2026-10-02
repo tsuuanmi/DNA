@@ -33,6 +33,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | reviewer-facing public signal evidence | ADR-0026, ADR-0053 | analysis/sample contracts |
 | release/readiness | ADR-0018, ADR-0021 | release operations + roadmap/validation evidence |
 | documentation governance | ADR-0006 → ADR-0022 | documentation governance + source-local README policy |
+| modular analysis/public API boundaries | ADR-0058 | proposal + future architecture/design/reference as implemented |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
@@ -85,3 +86,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0047](0047-canonical-right-aligned-mtdna-gaps.md) | Canonical right-aligned mtDNA gap placement | Accepted |
 | [0053](0053-public-differential-locus-signal-evidence.md) | Expose concise differential-locus signal evidence in sample output | Accepted |
 | [0057](0057-haplotype-correctness-and-variant-nomenclature.md) | Separate haplotype correctness from variant nomenclature | Accepted |
+| [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Accepted |
