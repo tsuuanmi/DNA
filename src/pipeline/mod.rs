@@ -16,18 +16,23 @@ use crate::error::{Error, Result};
 use crate::logger::Logger;
 
 /// Runs one AB1-to-reference analysis.
-pub(crate) fn analyze(trace: &Path, reference: &Path) -> Result<()> {
-    analyze::run(trace, reference)
+pub(crate) fn analyze(trace: &Path, reference: &Path, config_path: &Path) -> Result<()> {
+    analyze::run(trace, reference, config_path)
 }
 
 /// Runs one reference-free AB1 basecall operation.
-pub(crate) fn basecall(trace: &Path) -> Result<()> {
-    basecall::run(trace)
+pub(crate) fn basecall(trace: &Path, config_path: &Path) -> Result<()> {
+    basecall::run(trace, config_path)
 }
 
 /// Runs one multi-read sample evidence operation.
-pub(crate) fn sample(sample_id: &str, traces: &[PathBuf], reference: &Path) -> Result<()> {
-    sample::run(sample_id, traces, reference)
+pub(crate) fn sample(
+    sample_id: &str,
+    traces: &[PathBuf],
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    sample::run(sample_id, traces, reference, config_path)
 }
 
 /// Records a terminal operation failure without discarding either error.

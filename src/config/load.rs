@@ -9,15 +9,15 @@ use crate::config::defaults::{DEFAULT_CONFIG_PATH, MAX_CONFIG_BYTES};
 use crate::config::types::{Config, RawConfig};
 use crate::error::{Error, Result};
 
-/// Loads and validates the one authoritative configuration file.
-pub(crate) fn load() -> Result<Config> {
-    let path = env::var_os("DNA_CONFIG")
+/// Resolves the authoritative configuration path without performing I/O.
+pub(crate) fn resolve_path() -> PathBuf {
+    env::var_os("DNA_CONFIG")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH));
-    load_path(&path)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH))
 }
 
-fn load_path(path: &Path) -> Result<Config> {
+/// Loads and validates one explicit configuration file.
+pub(crate) fn load_path(path: &Path) -> Result<Config> {
     let metadata = fs::metadata(path).map_err(|source| Error::Read {
         kind: "configuration",
         path: path.to_path_buf(),

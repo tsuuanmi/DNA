@@ -31,10 +31,14 @@ pub(crate) struct SampleInputs {
 }
 
 /// Validates and loads one trace, one reference, and one configuration.
-pub(crate) fn load_analysis(trace_path: &Path, reference_path: &Path) -> Result<AnalysisInputs> {
+pub(crate) fn load_analysis(
+    trace_path: &Path,
+    reference_path: &Path,
+    config_path: &Path,
+) -> Result<AnalysisInputs> {
     require_regular_file(trace_path, "AB1")?;
     require_regular_file(reference_path, "reference")?;
-    let config = load_config()?;
+    let config = load_config(config_path)?;
     let output = analysis_output_path(trace_path)?;
     validate_output(&output)?;
     let trace = trace::load(trace_path)?;
@@ -48,9 +52,9 @@ pub(crate) fn load_analysis(trace_path: &Path, reference_path: &Path) -> Result<
 }
 
 /// Validates and loads one trace and one configuration without a reference.
-pub(crate) fn load_basecall(trace_path: &Path) -> Result<BasecallInputs> {
+pub(crate) fn load_basecall(trace_path: &Path, config_path: &Path) -> Result<BasecallInputs> {
     require_regular_file(trace_path, "AB1")?;
-    let config = load_config()?;
+    let config = load_config(config_path)?;
     let output = basecall_output_path(trace_path)?;
     validate_output(&output)?;
     let trace = trace::load(trace_path)?;
@@ -62,7 +66,11 @@ pub(crate) fn load_basecall(trace_path: &Path) -> Result<BasecallInputs> {
 }
 
 /// Validates and loads one or more sample traces against one shared reference.
-pub(crate) fn load_sample(trace_paths: &[PathBuf], reference_path: &Path) -> Result<SampleInputs> {
+pub(crate) fn load_sample(
+    trace_paths: &[PathBuf],
+    reference_path: &Path,
+    config_path: &Path,
+) -> Result<SampleInputs> {
     if trace_paths.is_empty() {
         return Err(Error::Sample(
             "sample analysis requires at least one AB1 trace".into(),
@@ -72,7 +80,7 @@ pub(crate) fn load_sample(trace_paths: &[PathBuf], reference_path: &Path) -> Res
         require_regular_file(trace_path, "AB1")?;
     }
     require_regular_file(reference_path, "reference")?;
-    let config = load_config()?;
+    let config = load_config(config_path)?;
     let traces = trace_paths
         .iter()
         .map(|path| trace::load(path))
@@ -85,8 +93,8 @@ pub(crate) fn load_sample(trace_paths: &[PathBuf], reference_path: &Path) -> Res
     })
 }
 
-fn load_config() -> Result<Config> {
-    let config = config::load()?;
+fn load_config(path: &Path) -> Result<Config> {
+    let config = config::load_path(path)?;
     require_regular_file(&config.source_path, "configuration")?;
     Ok(config)
 }
