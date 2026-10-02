@@ -9,7 +9,7 @@ use crate::pipeline::{input, observation};
 use crate::report::{self, CompletedAnalysis};
 
 /// Runs one complete AB1-to-JSON analysis with one per-trace append-only log.
-pub(crate) fn run(trace: &Path, reference: &Path) -> Result<()> {
+pub(crate) fn run(trace: &Path, reference: &Path, config_path: &Path) -> Result<()> {
     let trace_stem = input::trace_stem(trace)?;
     let mut logger = Logger::open(trace_stem)?;
     let analysis_started = Instant::now();
@@ -25,7 +25,14 @@ pub(crate) fn run(trace: &Path, reference: &Path) -> Result<()> {
     )?;
 
     let mut stage = "input_loading";
-    match run_logged(trace, reference, &mut logger, &mut stage, analysis_started) {
+    match run_logged(
+        trace,
+        reference,
+        config_path,
+        &mut logger,
+        &mut stage,
+        analysis_started,
+    ) {
         Ok(()) => Ok(()),
         Err(error) => Err(super::record_failure(
             &mut logger,
@@ -40,13 +47,14 @@ pub(crate) fn run(trace: &Path, reference: &Path) -> Result<()> {
 fn run_logged(
     trace: &Path,
     reference: &Path,
+    config_path: &Path,
     logger: &mut Logger,
     stage: &mut &'static str,
     analysis_started: Instant,
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_analysis(trace, reference)?;
+    let inputs = input::load_analysis(trace, reference, config_path)?;
     logger.info(
         module_path!(),
         line!(),
