@@ -8,12 +8,18 @@ use crate::model::reference::Reference;
 use crate::model::trace::Chromatogram;
 use crate::{reference, trace};
 
-/// Inputs for one reference-guided analysis.
+/// Validated paths and configuration prepared before decoding analysis inputs.
+pub(crate) struct PreparedAnalysisInputs {
+    config: Config,
+    trace_path: PathBuf,
+    reference_path: PathBuf,
+}
+
+/// Scientific inputs for one reference-guided analysis.
 pub(crate) struct AnalysisInputs {
     pub(crate) config: Config,
     pub(crate) trace: Chromatogram,
     pub(crate) reference: Reference,
-    pub(crate) output: PathBuf,
 }
 
 /// Inputs for one reference-free basecall operation.
@@ -30,24 +36,35 @@ pub(crate) struct SampleInputs {
     pub(crate) reference: Reference,
 }
 
-/// Validates and loads one trace, one reference, and one configuration.
-pub(crate) fn load_analysis(
+/// Validates analysis source paths and loads the explicit configuration.
+pub(crate) fn prepare_analysis(
     trace_path: &Path,
     reference_path: &Path,
     config_path: &Path,
-) -> Result<AnalysisInputs> {
+) -> Result<PreparedAnalysisInputs> {
     require_regular_file(trace_path, "AB1")?;
     require_regular_file(reference_path, "reference")?;
     let config = load_config(config_path)?;
-    let output = analysis_output_path(trace_path)?;
-    validate_output(&output)?;
-    let trace = trace::load(trace_path)?;
-    let reference = reference::load(reference_path, config.reference.topology)?;
+    Ok(PreparedAnalysisInputs {
+        config,
+        trace_path: trace_path.to_path_buf(),
+        reference_path: reference_path.to_path_buf(),
+    })
+}
+
+/// Decodes prepared analysis inputs without inspecting any publication target.
+pub(crate) fn load_analysis(prepared: PreparedAnalysisInputs) -> Result<AnalysisInputs> {
+    let PreparedAnalysisInputs {
+        config,
+        trace_path,
+        reference_path,
+    } = prepared;
+    let trace = trace::load(&trace_path)?;
+    let reference = reference::load(&reference_path, config.reference.topology)?;
     Ok(AnalysisInputs {
         config,
         trace,
         reference,
-        output,
     })
 }
 
@@ -137,8 +154,11 @@ fn validate_output(output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn analysis_output_path(trace: &Path) -> Result<PathBuf> {
-    Ok(PathBuf::from("results").join(format!("{}.json", trace_stem(trace)?)))
+/// Returns and validates the deterministic CLI publication path for analysis.
+pub(crate) fn analysis_output(trace: &Path) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{}.json", trace_stem(trace)?));
+    validate_output(&output)?;
+    Ok(output)
 }
 
 fn basecall_output_path(trace: &Path) -> Result<PathBuf> {
