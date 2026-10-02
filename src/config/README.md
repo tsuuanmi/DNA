@@ -9,6 +9,9 @@ Configuration path selection is an outer application concern. The current CLI
 adapter resolves `DNA_CONFIG` or the default path, while pipeline operations
 receive that path explicitly and never inspect process environment themselves.
 
+The path itself is not scientific identity; reproducibility continues to use the
+validated configuration content checksum recorded in result provenance.
+
 This module does not provide per-setting environment fallbacks or silently clamp
 invalid values.
 
