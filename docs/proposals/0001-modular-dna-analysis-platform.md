@@ -1,11 +1,11 @@
 ---
 id: PROP-0001
 type: proposal
-status: proposed
+status: accepted
 owners: []
 created: 2026-10-03
 related-requirements: []
-related-decisions: []
+related-decisions: [ADR-0058]
 implementation: []
 ---
 
@@ -491,12 +491,15 @@ explicitly updates their requirements/reference documentation.
 
 ## Decision
 
-Proposed for review.
+Accepted on 2026-10-03.
 
-If accepted, the durable architectural choices around canonical contracts,
-dependency direction, public API ownership, and replaceable implementations
-should be recorded in an ADR before or with the first architectural
-implementation.
+The durable architectural choices around canonical contracts, dependency
+direction, public API ownership, replaceable implementations, provider
+boundaries, and provenance are recorded by
+[ADR-0058](../decisions/adr/0058-canonical-contracts-and-modular-analysis-composition.md).
+
+Acceptance establishes architectural direction; it does not make unimplemented
+capabilities current production behavior.
 
 ## Implementation
 
