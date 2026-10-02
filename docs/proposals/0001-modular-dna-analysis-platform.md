@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9]
+implementation: [PR-9, PR-10]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -507,6 +507,10 @@ Implementation is in progress through focused PRs.
 
 - [PR #9](https://github.com/tsuuanmi/DNA/pull/9) decouples the pipeline operation
   boundary from CLI/`clap` argument types without changing scientific behavior.
+
+- [PR #10](https://github.com/tsuuanmi/DNA/pull/10) makes configuration-path
+  selection explicit at the outer application boundary so pipeline operations
+  no longer depend on process-global environment selection.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
