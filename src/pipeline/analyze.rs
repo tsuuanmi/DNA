@@ -1,16 +1,16 @@
 //! Single-read analysis orchestration, reporting, and publication.
 
+use std::path::Path;
 use std::time::Instant;
 
-use crate::cli::AnalyzeArgs;
 use crate::error::Result;
 use crate::logger::Logger;
 use crate::pipeline::{input, observation};
 use crate::report::{self, CompletedAnalysis};
 
 /// Runs one complete AB1-to-JSON analysis with one per-trace append-only log.
-pub(crate) fn run(args: &AnalyzeArgs) -> Result<()> {
-    let trace_stem = input::trace_stem(&args.trace)?;
+pub(crate) fn run(trace: &Path, reference: &Path) -> Result<()> {
+    let trace_stem = input::trace_stem(trace)?;
     let mut logger = Logger::open(trace_stem)?;
     let analysis_started = Instant::now();
     logger.info(
@@ -19,13 +19,13 @@ pub(crate) fn run(args: &AnalyzeArgs) -> Result<()> {
         format_args!(
             "event=analysis_started version={} trace_path={:?} reference_path={:?}",
             env!("CARGO_PKG_VERSION"),
-            args.trace.display().to_string(),
-            args.reference.display().to_string()
+            trace.display().to_string(),
+            reference.display().to_string()
         ),
     )?;
 
     let mut stage = "input_loading";
-    match run_logged(args, &mut logger, &mut stage, analysis_started) {
+    match run_logged(trace, reference, &mut logger, &mut stage, analysis_started) {
         Ok(()) => Ok(()),
         Err(error) => Err(super::record_failure(
             &mut logger,
@@ -38,14 +38,15 @@ pub(crate) fn run(args: &AnalyzeArgs) -> Result<()> {
 }
 
 fn run_logged(
-    args: &AnalyzeArgs,
+    trace: &Path,
+    reference: &Path,
     logger: &mut Logger,
     stage: &mut &'static str,
     analysis_started: Instant,
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_analysis(args)?;
+    let inputs = input::load_analysis(trace, reference)?;
     logger.info(
         module_path!(),
         line!(),
