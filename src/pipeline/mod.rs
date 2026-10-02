@@ -26,11 +26,7 @@ pub(crate) fn basecall(trace: &Path) -> Result<()> {
 }
 
 /// Runs one multi-read sample evidence operation.
-pub(crate) fn sample(
-    sample_id: &str,
-    traces: &[PathBuf],
-    reference: &Path,
-) -> Result<()> {
+pub(crate) fn sample(sample_id: &str, traces: &[PathBuf], reference: &Path) -> Result<()> {
     sample::run(sample_id, traces, reference)
 }
 
