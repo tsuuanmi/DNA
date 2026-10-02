@@ -1,8 +1,8 @@
 //! Reference-free base re-calling, quality trimming, and result publication.
 
+use std::path::Path;
 use std::time::Instant;
 
-use crate::cli::BasecallArgs;
 use crate::error::Result;
 use crate::logger::Logger;
 use crate::pipeline::read::ProcessedRead;
@@ -10,8 +10,8 @@ use crate::pipeline::{input, read};
 use crate::report::{self, CompletedBasecall};
 
 /// Runs one complete AB1-to-basecalls JSON operation.
-pub(crate) fn run(args: &BasecallArgs) -> Result<()> {
-    let trace_stem = input::trace_stem(&args.trace)?;
+pub(crate) fn run(trace: &Path) -> Result<()> {
+    let trace_stem = input::trace_stem(trace)?;
     let mut logger = Logger::open(trace_stem)?;
     let started = Instant::now();
     logger.info(
@@ -20,12 +20,12 @@ pub(crate) fn run(args: &BasecallArgs) -> Result<()> {
         format_args!(
             "event=basecall_started version={} trace_path={:?}",
             env!("CARGO_PKG_VERSION"),
-            args.trace.display().to_string()
+            trace.display().to_string()
         ),
     )?;
 
     let mut stage = "input_loading";
-    match run_logged(args, &mut logger, &mut stage, started) {
+    match run_logged(trace, &mut logger, &mut stage, started) {
         Ok(()) => Ok(()),
         Err(error) => Err(super::record_failure(
             &mut logger,
@@ -38,14 +38,14 @@ pub(crate) fn run(args: &BasecallArgs) -> Result<()> {
 }
 
 fn run_logged(
-    args: &BasecallArgs,
+    trace: &Path,
     logger: &mut Logger,
     stage: &mut &'static str,
     started: Instant,
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_basecall(args)?;
+    let inputs = input::load_basecall(trace)?;
     logger.info(
         module_path!(),
         line!(),
