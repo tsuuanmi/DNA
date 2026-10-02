@@ -1,8 +1,7 @@
-//! Path validation and command-specific input loading.
+//! Path validation and operation-specific input loading.
 
 use std::path::{Path, PathBuf};
 
-use crate::cli::{AnalyzeArgs, BasecallArgs, SampleArgs};
 use crate::config::{self, Config};
 use crate::error::{Error, Result};
 use crate::model::reference::Reference;
@@ -32,14 +31,14 @@ pub(crate) struct SampleInputs {
 }
 
 /// Validates and loads one trace, one reference, and one configuration.
-pub(crate) fn load_analysis(args: &AnalyzeArgs) -> Result<AnalysisInputs> {
-    require_regular_file(&args.trace, "AB1")?;
-    require_regular_file(&args.reference, "reference")?;
+pub(crate) fn load_analysis(trace_path: &Path, reference_path: &Path) -> Result<AnalysisInputs> {
+    require_regular_file(trace_path, "AB1")?;
+    require_regular_file(reference_path, "reference")?;
     let config = load_config()?;
-    let output = analysis_output_path(&args.trace)?;
+    let output = analysis_output_path(trace_path)?;
     validate_output(&output)?;
-    let trace = trace::load(&args.trace)?;
-    let reference = reference::load(&args.reference, config.reference.topology)?;
+    let trace = trace::load(trace_path)?;
+    let reference = reference::load(reference_path, config.reference.topology)?;
     Ok(AnalysisInputs {
         config,
         trace,
@@ -49,12 +48,12 @@ pub(crate) fn load_analysis(args: &AnalyzeArgs) -> Result<AnalysisInputs> {
 }
 
 /// Validates and loads one trace and one configuration without a reference.
-pub(crate) fn load_basecall(args: &BasecallArgs) -> Result<BasecallInputs> {
-    require_regular_file(&args.trace, "AB1")?;
+pub(crate) fn load_basecall(trace_path: &Path) -> Result<BasecallInputs> {
+    require_regular_file(trace_path, "AB1")?;
     let config = load_config()?;
-    let output = basecall_output_path(&args.trace)?;
+    let output = basecall_output_path(trace_path)?;
     validate_output(&output)?;
-    let trace = trace::load(&args.trace)?;
+    let trace = trace::load(trace_path)?;
     Ok(BasecallInputs {
         config,
         trace,
@@ -63,24 +62,22 @@ pub(crate) fn load_basecall(args: &BasecallArgs) -> Result<BasecallInputs> {
 }
 
 /// Validates and loads one or more sample traces against one shared reference.
-pub(crate) fn load_sample(args: &SampleArgs) -> Result<SampleInputs> {
-    validate_sample_id(&args.sample_id)?;
-    if args.traces.is_empty() {
+pub(crate) fn load_sample(trace_paths: &[PathBuf], reference_path: &Path) -> Result<SampleInputs> {
+    if trace_paths.is_empty() {
         return Err(Error::Sample(
             "sample analysis requires at least one AB1 trace".into(),
         ));
     }
-    for trace_path in &args.traces {
+    for trace_path in trace_paths {
         require_regular_file(trace_path, "AB1")?;
     }
-    require_regular_file(&args.reference, "reference")?;
+    require_regular_file(reference_path, "reference")?;
     let config = load_config()?;
-    let traces = args
-        .traces
+    let traces = trace_paths
         .iter()
         .map(|path| trace::load(path))
         .collect::<Result<Vec<_>>>()?;
-    let reference = reference::load(&args.reference, config.reference.topology)?;
+    let reference = reference::load(reference_path, config.reference.topology)?;
     Ok(SampleInputs {
         config,
         traces,
