@@ -54,7 +54,9 @@ fn run_logged(
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_analysis(trace, reference, config_path)?;
+    let prepared = input::prepare_analysis(trace, reference, config_path)?;
+    let output = input::analysis_output(trace)?;
+    let inputs = input::load_analysis(prepared)?;
     logger.info(
         module_path!(),
         line!(),
@@ -78,7 +80,7 @@ fn run_logged(
             inputs.reference.len(),
             inputs.config.source_path.display().to_string(),
             inputs.config.source_sha256,
-            inputs.output.display().to_string()
+            output.display().to_string()
         ),
     )?;
 
@@ -92,7 +94,6 @@ fn run_logged(
 
     *stage = "reporting";
     let stage_started = Instant::now();
-    let output = inputs.output.clone();
     let warning_total = completed.warning_total;
     let result = report::build_analysis(CompletedAnalysis {
         reference: inputs.reference,
