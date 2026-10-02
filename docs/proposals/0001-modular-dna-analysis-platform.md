@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10]
+implementation: [PR-9, PR-10, PR-11]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -511,6 +511,10 @@ Implementation is in progress through focused PRs.
 - [PR #10](https://github.com/tsuuanmi/DNA/pull/10) makes configuration-path
   selection explicit at the outer application boundary so pipeline operations
   no longer depend on process-global environment selection.
+
+- [PR #11](https://github.com/tsuuanmi/DNA/pull/11) separates single-read
+  scientific input loading from JSON publication-path validation so reusable
+  analysis is not coupled to an existing `results/*.json` target.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
