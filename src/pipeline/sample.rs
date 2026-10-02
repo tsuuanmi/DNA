@@ -1,8 +1,8 @@
 //! Multi-read sample evidence orchestration and publication.
 
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::cli::SampleArgs;
 use crate::error::Result;
 use crate::logger::Logger;
 use crate::pipeline::input;
@@ -12,9 +12,9 @@ use crate::sample as sample_science;
 use super::{sample_metrics, sample_reads};
 
 /// Runs one sample-evidence operation with one sample-level append-only log.
-pub(crate) fn run(args: &SampleArgs) -> Result<()> {
-    input::validate_sample_id(&args.sample_id)?;
-    let mut logger = Logger::open(&args.sample_id)?;
+pub(crate) fn run(sample_id: &str, traces: &[PathBuf], reference: &Path) -> Result<()> {
+    input::validate_sample_id(sample_id)?;
+    let mut logger = Logger::open(sample_id)?;
     let started = Instant::now();
     logger.info(
         module_path!(),
@@ -22,14 +22,21 @@ pub(crate) fn run(args: &SampleArgs) -> Result<()> {
         format_args!(
             "event=sample_started version={} sample_id={:?} traces={} reference_path={:?}",
             env!("CARGO_PKG_VERSION"),
-            args.sample_id,
-            args.traces.len(),
-            args.reference.display().to_string()
+            sample_id,
+            traces.len(),
+            reference.display().to_string()
         ),
     )?;
 
     let mut stage = "input_loading";
-    match run_logged(args, &mut logger, &mut stage, started) {
+    match run_logged(
+        sample_id,
+        traces,
+        reference,
+        &mut logger,
+        &mut stage,
+        started,
+    ) {
         Ok(()) => Ok(()),
         Err(error) => Err(super::record_failure(
             &mut logger,
@@ -42,15 +49,17 @@ pub(crate) fn run(args: &SampleArgs) -> Result<()> {
 }
 
 fn run_logged(
-    args: &SampleArgs,
+    sample_id: &str,
+    traces: &[PathBuf],
+    reference: &Path,
     logger: &mut Logger,
     stage: &mut &'static str,
     started: Instant,
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_sample(args)?;
-    let output = input::sample_output(&args.sample_id)?;
+    let inputs = input::load_sample(traces, reference)?;
+    let output = input::sample_output(sample_id)?;
     logger.info(
         module_path!(),
         line!(),
@@ -61,7 +70,7 @@ fn run_logged(
                 "config_path={:?} config_sha256={} output_path={:?}"
             ),
             stage_started.elapsed().as_millis(),
-            args.sample_id,
+            sample_id,
             inputs.traces.len(),
             inputs.reference.name,
             inputs.reference.sequence_sha256,
@@ -155,7 +164,7 @@ fn run_logged(
     *stage = "reporting";
     let stage_started = Instant::now();
     let result = report::build_sample(CompletedSampleEvidence {
-        sample_id: args.sample_id.clone(),
+        sample_id: sample_id.to_owned(),
         reference: inputs.reference,
         evidence,
     })?;
