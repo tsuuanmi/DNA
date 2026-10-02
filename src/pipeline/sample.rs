@@ -12,7 +12,11 @@ use crate::sample as sample_science;
 use super::{sample_metrics, sample_reads};
 
 /// Runs one sample-evidence operation with one sample-level append-only log.
-pub(crate) fn run(\n    sample_id: &str,\n    traces: &[PathBuf],\n    reference: &Path,\n) -> Result<()> {
+pub(crate) fn run(
+    sample_id: &str,
+    traces: &[PathBuf],
+    reference: &Path,
+) -> Result<()> {
     input::validate_sample_id(sample_id)?;
     let mut logger = Logger::open(sample_id)?;
     let started = Instant::now();
