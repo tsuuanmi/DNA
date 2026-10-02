@@ -14,7 +14,7 @@ API documentation lives in rustdoc and source comments.
 - [config](config/README.md) — strict configuration loading and validation.
 - [error](error/README.md) — typed application failures.
 - [model](model/README.md) — validated domain vocabulary.
-- [pipeline](pipeline/README.md) — end-to-end command orchestration.
+- [pipeline](pipeline/README.md) — end-to-end operation orchestration.
 - [quality_control](quality_control/README.md) — relative quality and trimming.
 - [reference](reference/README.md) — FASTA loading and identity.
 - [report](report/README.md) — contract projection, serialization, publication.
@@ -28,8 +28,12 @@ rustdoc/source comments. Do not create directories solely to attach README files
 
 ## Dependency rule
 
-Dependencies should point toward shared domain/config/error boundaries rather than
-forming cycles. Cross-cutting invariants are canonical in
+Dependencies point inward toward operation/scientific boundaries and shared
+domain/config/error types rather than outward toward frontends. In particular,
+the CLI may call the pipeline boundary, but pipeline and scientific modules must
+not depend on CLI/`clap` argument types.
+
+Cross-cutting invariants are canonical in
 [docs/architecture/invariants](../docs/architecture/invariants/README.md).
 
 When a directory's responsibility or dependency boundary changes, update its

@@ -1,12 +1,12 @@
 ---
 id: PROP-0001
 type: proposal
-status: accepted
+status: implementing
 owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: []
+implementation: [PR-9]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -503,8 +503,11 @@ capabilities current production behavior.
 
 ## Implementation
 
-No source implementation is included in this proposal.
+Implementation is in progress through focused PRs.
 
-Implementation should proceed through focused PRs after the proposal is accepted.
-Each PR must update current architecture/design/reference/source-local
-documentation in the same change when it changes current truth.
+- [PR #9](https://github.com/tsuuanmi/DNA/pull/9) decouples the pipeline operation
+  boundary from CLI/`clap` argument types without changing scientific behavior.
+
+Each implementation PR must update current
+architecture/design/reference/source-local documentation in the same change when
+it changes current truth.

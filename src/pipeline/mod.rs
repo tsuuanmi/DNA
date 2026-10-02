@@ -9,25 +9,25 @@ mod sample;
 mod sample_metrics;
 mod sample_reads;
 
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::cli::{AnalyzeArgs, BasecallArgs, SampleArgs};
 use crate::error::{Error, Result};
 use crate::logger::Logger;
 
 /// Runs one AB1-to-reference analysis.
-pub(crate) fn analyze(args: &AnalyzeArgs) -> Result<()> {
-    analyze::run(args)
+pub(crate) fn analyze(trace: &Path, reference: &Path) -> Result<()> {
+    analyze::run(trace, reference)
 }
 
 /// Runs one reference-free AB1 basecall operation.
-pub(crate) fn basecall(args: &BasecallArgs) -> Result<()> {
-    basecall::run(args)
+pub(crate) fn basecall(trace: &Path) -> Result<()> {
+    basecall::run(trace)
 }
 
 /// Runs one multi-read sample evidence operation.
-pub(crate) fn sample(args: &SampleArgs) -> Result<()> {
-    sample::run(args)
+pub(crate) fn sample(sample_id: &str, traces: &[PathBuf], reference: &Path) -> Result<()> {
+    sample::run(sample_id, traces, reference)
 }
 
 /// Records a terminal operation failure without discarding either error.

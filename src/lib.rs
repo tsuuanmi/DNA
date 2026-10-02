@@ -4,9 +4,9 @@
 //! Library boundary for DNA operations.
 //!
 //! The source-module graph is routed from `src/README.md`. `lib.rs` remains
-//! the minimal dispatcher: it exposes stable CLI and error boundaries, routes
-//! commands, and keeps configuration, decoding, scientific stages, and reporting
-//! behind the pipeline boundary.
+//! the minimal dispatcher: it exposes stable CLI and error boundaries, translates
+//! parsed command arguments into pipeline inputs, and keeps configuration,
+//! decoding, scientific stages, and reporting behind the pipeline boundary.
 
 mod alignment;
 mod basecalling;
@@ -41,8 +41,8 @@ use error::Result;
 /// Dispatches a parsed command through the application boundary.
 pub fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Command::Analyze(args) => pipeline::analyze(&args),
-        Command::Basecall(args) => pipeline::basecall(&args),
-        Command::Sample(args) => pipeline::sample(&args),
+        Command::Analyze(args) => pipeline::analyze(&args.trace, &args.reference),
+        Command::Basecall(args) => pipeline::basecall(&args.trace),
+        Command::Sample(args) => pipeline::sample(&args.sample_id, &args.traces, &args.reference),
     }
 }

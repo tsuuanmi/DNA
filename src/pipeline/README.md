@@ -1,9 +1,16 @@
 # Pipeline
 
-Owns production command orchestration for `analyze`, `basecall`, and `sample`.
+Owns production operation orchestration for `analyze`, `basecall`, and
+`sample`.
+
+Pipeline entry points accept operation values such as paths and sample
+identifiers rather than CLI/`clap` argument structs. This keeps orchestration
+independent of the command-line frontend and prepares the same boundary for
+non-CLI callers.
 
 Key children separate input loading, shared read processing, reference-guided
-observation processing, sample-read processing, metrics, and command publication.
+observation processing, sample-read processing, metrics, and result
+publication.
 
 Pipeline code sequences stages and preserves typed failures; algorithm internals
 remain in their owning modules.
