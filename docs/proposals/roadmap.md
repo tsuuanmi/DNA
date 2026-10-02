@@ -10,7 +10,7 @@ The core confidence floor remains the read-level path defined by [ADR-0021](../d
 
 ## Architectural evolution
 
-[PROP-0001](0001-modular-dna-analysis-platform.md) proposes the long-term direction for DNA as a modular analysis platform with a public Rust API, canonical typed contracts between capabilities, multiple input modalities such as Sanger and NGS, independently replaceable alignment and variant-calling implementations, replaceable scientific data providers, and downstream modules such as haplogroup and nomenclature.
+[PROP-0001](0001-modular-dna-analysis-platform.md), accepted by [ADR-0058](../decisions/adr/0058-canonical-contracts-and-modular-analysis-composition.md), defines the long-term direction for DNA as a modular analysis platform with a public Rust API, canonical typed contracts between capabilities, multiple input modalities such as Sanger and NGS, independently replaceable alignment and variant-calling implementations, replaceable scientific data providers, and downstream modules such as haplogroup and nomenclature.
 
 The proposal is not current production architecture. Its implementation is intentionally incremental: preserve the validated Sanger path, introduce stable public and canonical boundaries first, add alternative implementations only where independent variation is real, and extract crates only when dependency or lifecycle boundaries justify them.
 
