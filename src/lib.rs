@@ -43,8 +43,6 @@ pub fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Analyze(args) => pipeline::analyze(&args.trace, &args.reference),
         Command::Basecall(args) => pipeline::basecall(&args.trace),
-        Command::Sample(args) => {
-            pipeline::sample(&args.sample_id, &args.traces, &args.reference)
-        }
+        Command::Sample(args) => pipeline::sample(&args.sample_id, &args.traces, &args.reference),
     }
 }
