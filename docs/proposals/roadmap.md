@@ -8,6 +8,12 @@ Strengthen evidence-backed confidence in the implemented Sanger analysis path be
 
 The core confidence floor remains the read-level path defined by [ADR-0021](../decisions/adr/0021-scientific-core-confidence-floor.md), but the current supported baseline already includes intentional capabilities beyond that floor. The roadmap does not redefine those capabilities.
 
+## Architectural evolution
+
+[PROP-0001](0001-modular-dna-analysis-platform.md) proposes the long-term direction for DNA as a modular analysis platform with a public Rust API, canonical typed contracts between capabilities, multiple input modalities such as Sanger and NGS, independently replaceable alignment and variant-calling implementations, replaceable scientific data providers, and downstream modules such as haplogroup and nomenclature.
+
+The proposal is not current production architecture. Its implementation is intentionally incremental: preserve the validated Sanger path, introduce stable public and canonical boundaries first, add alternative implementations only where independent variation is real, and extract crates only when dependency or lifecycle boundaries justify them.
+
 ## Validation priorities
 
 ### Approved real-trace baseline
