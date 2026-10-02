@@ -40,9 +40,12 @@ use error::Result;
 
 /// Dispatches a parsed command through the application boundary.
 pub fn run(cli: Cli) -> Result<()> {
+    let config_path = config::resolve_path();
     match cli.command {
-        Command::Analyze(args) => pipeline::analyze(&args.trace, &args.reference),
-        Command::Basecall(args) => pipeline::basecall(&args.trace),
-        Command::Sample(args) => pipeline::sample(&args.sample_id, &args.traces, &args.reference),
+        Command::Analyze(args) => pipeline::analyze(&args.trace, &args.reference, &config_path),
+        Command::Basecall(args) => pipeline::basecall(&args.trace, &config_path),
+        Command::Sample(args) => {
+            pipeline::sample(&args.sample_id, &args.traces, &args.reference, &config_path)
+        }
     }
 }
