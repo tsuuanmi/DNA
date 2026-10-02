@@ -10,7 +10,7 @@ use crate::pipeline::{input, read};
 use crate::report::{self, CompletedBasecall};
 
 /// Runs one complete AB1-to-basecalls JSON operation.
-pub(crate) fn run(trace: &Path) -> Result<()> {
+pub(crate) fn run(trace: &Path, config_path: &Path) -> Result<()> {
     let trace_stem = input::trace_stem(trace)?;
     let mut logger = Logger::open(trace_stem)?;
     let started = Instant::now();
@@ -25,7 +25,7 @@ pub(crate) fn run(trace: &Path) -> Result<()> {
     )?;
 
     let mut stage = "input_loading";
-    match run_logged(trace, &mut logger, &mut stage, started) {
+    match run_logged(trace, config_path, &mut logger, &mut stage, started) {
         Ok(()) => Ok(()),
         Err(error) => Err(super::record_failure(
             &mut logger,
@@ -39,13 +39,14 @@ pub(crate) fn run(trace: &Path) -> Result<()> {
 
 fn run_logged(
     trace: &Path,
+    config_path: &Path,
     logger: &mut Logger,
     stage: &mut &'static str,
     started: Instant,
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_basecall(trace)?;
+    let inputs = input::load_basecall(trace, config_path)?;
     logger.info(
         module_path!(),
         line!(),
