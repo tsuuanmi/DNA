@@ -55,6 +55,33 @@ fn prepared_sanger_analyzer_matches_one_shot_analysis() -> Result<(), Box<dyn st
 }
 
 #[test]
+fn prepared_analyzer_does_not_reread_reference_or_configuration()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+
+    write_abif(&trace, QUERY)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+
+    let analyzer = SangerAnalyzer::load(&reference, &config)?;
+    fs::remove_file(&reference)?;
+    fs::remove_file(&config)?;
+
+    let result = analyzer.analyze(&trace)?;
+
+    assert!(result.variants.is_empty());
+    assert_eq!(result.reference, *analyzer.reference_identity());
+    assert_eq!(
+        result.configuration_sha256,
+        analyzer.configuration_sha256()
+    );
+    Ok(())
+}
+
+#[test]
 fn one_prepared_analyzer_can_process_multiple_traces() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace_a = directory.path().join("a.ab1");
