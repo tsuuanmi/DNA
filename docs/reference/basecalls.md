@@ -11,25 +11,29 @@ The authoritative contract is
 example is [`examples/basecalls-v2.example.json`](examples/basecalls-v2.example.json).
 Every object is closed and `schema_version` is `dna.basecalls/v2`.
 
+The versioned v2 schema retains `ploc_*` field names for ABIF-origin integrity
+evidence. Internally, DNA projects `PLOC.2` into canonical Sanger locus positions
+at the input boundary and scientific stages use locus terminology.
+
 ## Fields
 
 - `provenance`: input AB1 SHA-256 and complete strict configuration SHA-256.
   Software/build identity, the trace filename, local paths, timestamps, and host
   data are omitted; software/build provenance is deferred until a stable
   versioning strategy is defined.
-- `read.call_count`: number of decoded PLOC call loci.
+- `read.call_count`: number of canonical Sanger call loci decoded from `PLOC.2`.
 - `read.primary`: strongest conservative signal-derived base at each locus.
 - `read.ambiguity`: canonical/IUPAC ambiguity symbol at each locus.
 - `read.retained`: the primary sequence inside `read.trim` after end trimming.
 - `read.trim`: 0-based half-open call interval `[start, end)`.
-- `signal_quality.integrity`: PLOC/vendor-series cardinality evidence, adjacent
-  PLOC spacing summary, exact signed-16-bit clipping count, and optional
+- `signal_quality.integrity`: ABIF-origin locus/vendor-series cardinality evidence, adjacent
+  locus-spacing summary, exact signed-16-bit clipping count, and optional
   maximum-to-median corrected event-signal ratio. These observations do not
   reclassify artifacts or alter the read.
 - `signal_quality.noisy_regions`: merged observation-only call/sample intervals
   and their minimum primary SNR. Individual rolling windows are omitted.
 - `warnings`: unresolved-primary and multi-channel-unresolved counts, vendor
-  disagreement count when optional vendor calls are available, vendor/PLOC
+  disagreement count when optional vendor calls are available, vendor/locus
   cardinality mismatch count, and exact clipped-channel-sample count.
 
 The primary and ambiguity sequence lengths equal `call_count`; trim bounds lie
