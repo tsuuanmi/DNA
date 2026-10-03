@@ -36,7 +36,7 @@ fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
     assert_eq!(result.variants.len(), 1);
     let variant = &result.variants[0];
     assert_eq!(variant.kind, VariantKind::Snv);
-    assert_eq!(variant.position, 15);
+    assert_eq!(variant.position_1based, 15);
     assert_eq!(variant.alternate.len(), 1);
     assert_ne!(variant.reference, variant.alternate);
     assert!(!result.input_sha256.is_empty());
