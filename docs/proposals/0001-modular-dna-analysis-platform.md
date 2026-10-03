@@ -6,14 +6,14 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19]
 ---
 
 # Proposal: Modular DNA Analysis Platform
 
 ## Problem
 
-DNA currently implements a production-oriented Sanger AB1 analysis path whose
+DNA currently implements a production-oriented Sanger ABIF analysis path whose
 stages are deliberately explicit: trace decoding, base calling, signal
 processing, quality control, alignment, variant calling, sample evidence, and
 reporting.
@@ -416,7 +416,7 @@ for scientific interpretation, validation, and auditability.
 
 ### Use file formats as the internal integration contract
 
-Rejected because public/external formats such as AB1, BAM/CRAM, VCF, or JSON are
+Rejected because public/external formats such as ABIF, BAM/CRAM, VCF, or JSON are
 transport/storage concerns. Internal scientific contracts should express typed
 domain semantics directly.
 
@@ -533,6 +533,11 @@ Implementation is in progress through focused PRs.
   Sanger input loading from the operation pipeline so Variant Analysis and CLI
   workflows consume the same adapter without coupling scientific inputs to
   result-path or publication concerns.
+
+- [PR #19](https://github.com/tsuuanmi/DNA/pull/19) formalizes the format/modality
+  boundary: ABIF parsing/decoding is owned by the Sanger input adapter, while the
+  decoded `Chromatogram` remains canonical Sanger evidence independent of file
+  extension and ABIF container internals.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
