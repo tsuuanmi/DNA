@@ -10,8 +10,8 @@ use support::{write_abif, write_config, write_reference};
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 
 #[test]
-fn sanger_analysis_returns_canonical_variants_without_cli_side_effects(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
+-> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace = directory.path().join("trace.ab1");
     let reference = directory.path().join("reference.fa");
