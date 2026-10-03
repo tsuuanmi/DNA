@@ -144,9 +144,9 @@ future source --> modality evidence --> source-specific caller/adapter -----+   
 
 Called biological variants are the first likely convergence point because
 upstream Sanger chromatogram evidence and future NGS read/alignment/depth
-evidence remain scientifically different. Canonical variants are produced only
-after an explicit haplotype-preserving canonicalization policy and, where
-applicable, target-specific nomenclature.
+evidence remain scientifically different. Normalization/canonicalization and
+target nomenclature are optional capabilities selected by the workflow rather
+than mandatory stages of every variant path.
 
 The platform is not defined by one linear pipeline. As capabilities grow, it may
 form a graph of analysis modules operating on canonical artifacts.
@@ -219,24 +219,21 @@ raw sequencing
              |
              v
        called variants
-             |
-             v
- variant canonicalization
-             |
-             v
-   target nomenclature
-             |
-             v
-     canonical variants
+        /      |       \
+       v       v        v
+ direct use  optional  optional
+             normalize nomenclature
+                |
+                +----> optional nomenclature
 ```
 
 Internally these stages remain independently owned and testable. Public callers
 are not required to orchestrate every upstream read-processing stage themselves.
 
 The current production Variant Analysis capability ends at the called-variant
-result. Post-calling canonicalization and target nomenclature are explicit
-downstream capabilities defined by ADR-0060 and must be implemented separately
-rather than hidden inside the caller.
+result. Post-calling normalization/canonicalization and target nomenclature are
+explicit optional downstream capabilities defined by ADR-0060 and must be
+implemented separately rather than hidden inside the caller.
 
 ### Canonical contracts
 
@@ -349,9 +346,13 @@ A future high-level API may conceptually resemble:
 
 ```rust
 let called = dna::variant_analysis::analyze(input, reference, config)?;
-let canonical = dna::variant_normalization::canonicalize(&called, normalization_config)?;
-let nomenclature = dna::nomenclature::analyze(&canonical, nomenclature_config)?;
-let haplogroup = dna::haplogroup::analyze(&canonical, haplogroup_config)?;
+
+// Optional, selected by the workflow/target.
+let normalized = dna::variant_normalization::normalize(&called, normalization_config)?;
+let represented = dna::nomenclature::apply(&normalized, nomenclature_config)?;
+
+// Other consumers may use called or normalized variants directly.
+let haplogroup = dna::haplogroup::analyze(&normalized, haplogroup_config)?;
 ```
 
 This example is illustrative, not an accepted exact API.
@@ -526,8 +527,8 @@ Recommended rollout sequence:
 1. accept the architectural direction and public-contract principles;
 2. define the initial public Rust API without changing scientific behavior;
 3. keep raw-to-called-variant analysis as a high-level capability boundary;
-4. introduce post-calling haplotype canonicalization as an explicit capability;
-5. introduce target-specific nomenclature after generic canonicalization;
+4. introduce optional post-calling haplotype normalization/canonicalization as an explicit capability;
+5. introduce optional target-specific nomenclature as a separate representation capability;
 6. add additional implementations such as NGS input, alternative alignment, or
    alternative calling independently;
 7. add downstream analysis modules such as haplogroup and targeted/SNP analysis;
