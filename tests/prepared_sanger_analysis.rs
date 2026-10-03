@@ -17,8 +17,7 @@ fn prepared_sanger_analyzer_is_send_sync() {
 }
 
 #[test]
-fn prepared_sanger_analyzer_matches_one_shot_analysis()
--> Result<(), Box<dyn std::error::Error>> {
+fn prepared_sanger_analyzer_matches_one_shot_analysis() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace = directory.path().join("trace.ab1");
     let reference = directory.path().join("reference.fa");
@@ -56,8 +55,7 @@ fn prepared_sanger_analyzer_matches_one_shot_analysis()
 }
 
 #[test]
-fn one_prepared_analyzer_can_process_multiple_traces()
--> Result<(), Box<dyn std::error::Error>> {
+fn one_prepared_analyzer_can_process_multiple_traces() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace_a = directory.path().join("a.ab1");
     let trace_b = directory.path().join("b.ab1");
