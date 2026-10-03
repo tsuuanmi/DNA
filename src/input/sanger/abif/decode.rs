@@ -8,7 +8,7 @@ use crate::config::MAX_ABIF_BYTES;
 use crate::error::{Error, Result};
 use crate::input::sanger::abif::container::{AbifEntry, AbifFile, parse};
 use crate::input::sanger::abif::reader::Reader;
-use crate::model::trace::{Chromatogram, VendorEvidence};
+use crate::model::sanger::{Chromatogram, VendorEvidence};
 
 const TYPE_BYTE: u16 = 1;
 const TYPE_CHAR: u16 = 2;
@@ -88,24 +88,24 @@ fn decode(path: &Path, abif: AbifFile, source_sha256: String) -> Result<Chromato
 
     let ploc_entry = abif.required(b"PLOC", 2)?;
     require_layout(ploc_entry, TYPE_SHORT, 2)?;
-    let base_locations: Vec<usize> = decode_i16(&abif, ploc_entry)?
+    let locus_positions: Vec<usize> = decode_i16(&abif, ploc_entry)?
         .into_iter()
         .map(|value| {
             usize::try_from(value)
                 .map_err(|_| Error::Abif("PLOC.2 contains a negative position".into()))
         })
         .collect::<Result<_>>()?;
-    if base_locations.is_empty() {
+    if locus_positions.is_empty() {
         return Err(Error::Abif("PLOC.2 is empty".into()));
     }
-    for pair in base_locations.windows(2) {
+    for pair in locus_positions.windows(2) {
         if pair[0] >= pair[1] {
             return Err(Error::Abif(
                 "PLOC.2 positions must be strictly increasing".into(),
             ));
         }
     }
-    if base_locations
+    if locus_positions
         .iter()
         .any(|position| *position >= sample_count)
     {
@@ -126,7 +126,7 @@ fn decode(path: &Path, abif: AbifFile, source_sha256: String) -> Result<Chromato
         source_name,
         source_sha256,
         channels,
-        base_locations,
+        locus_positions,
         vendor: VendorEvidence { primary, qualities },
     })
 }
