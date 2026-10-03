@@ -211,7 +211,6 @@ fn run_logged(
     report::publish(&output, &bytes)
 }
 
-
 fn validate_sample_id(sample_id: &str) -> Result<()> {
     let mut characters = sample_id.chars();
     let valid_first = characters
