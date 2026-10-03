@@ -5,7 +5,8 @@ use std::time::Instant;
 
 use crate::error::Result;
 use crate::logger::Logger;
-use crate::pipeline::{input, observation};
+use crate::pipeline::input;
+use crate::variant_analysis;
 use crate::report::{self, CompletedAnalysis};
 
 /// Runs one complete AB1-to-JSON analysis with one per-trace append-only log.
@@ -84,7 +85,7 @@ fn run_logged(
         ),
     )?;
 
-    let completed = observation::build(
+    let completed = variant_analysis::observe(
         &inputs.trace,
         &inputs.reference,
         &inputs.config,
