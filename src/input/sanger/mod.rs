@@ -1,8 +1,11 @@
-//! Sanger filesystem adapter for validated scientific inputs.
+//! Sanger input adapter for validated scientific inputs.
 //!
-//! This module owns source-path validation and loading of AB1 traces, FASTA
-//! references, and explicit DNA configuration. It does not derive result paths,
-//! validate publication targets, open operational logs, or serialize outputs.
+//! The adapter owns source-path validation plus source-format decoding for
+//! Sanger sequencing inputs. ABIF is the current container format; `.ab1` is a
+//! common sequencing sample filename/extension using that container.
+//!
+//! The adapter does not derive result paths, validate publication targets, open
+//! operational logs, or serialize outputs.
 
 use std::path::{Path, PathBuf};
 
@@ -10,7 +13,9 @@ use crate::config::{self, Config};
 use crate::error::{Error, Result};
 use crate::model::reference::Reference;
 use crate::model::trace::Chromatogram;
-use crate::{reference, trace};
+use crate::reference;
+
+pub(crate) mod abif;
 
 /// Validated paths and configuration prepared before decoding one analysis trace.
 pub(crate) struct PreparedAnalysisInputs {
@@ -68,7 +73,7 @@ pub(crate) fn load_analysis(prepared: PreparedAnalysisInputs) -> Result<Analysis
         trace_path,
         reference_path,
     } = prepared;
-    let trace = trace::load(&trace_path)?;
+    let trace = abif::load(&trace_path)?;
     let reference = reference::load(&reference_path, config.reference.topology)?;
     Ok(AnalysisInputs {
         config,
@@ -93,7 +98,7 @@ pub(crate) fn prepare_basecall(
 /// Decodes one prepared reference-free Sanger input set.
 pub(crate) fn load_basecall(prepared: PreparedBasecallInputs) -> Result<BasecallInputs> {
     let PreparedBasecallInputs { config, trace_path } = prepared;
-    let trace = trace::load(&trace_path)?;
+    let trace = abif::load(&trace_path)?;
     Ok(BasecallInputs { config, trace })
 }
 
@@ -115,7 +120,7 @@ pub(crate) fn load_sample(
     let config = load_config(config_path)?;
     let traces = trace_paths
         .iter()
-        .map(|path| trace::load(path))
+        .map(|path| abif::load(path))
         .collect::<Result<Vec<_>>>()?;
     let reference = reference::load(reference_path, config.reference.topology)?;
     Ok(SampleInputs {

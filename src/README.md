@@ -21,7 +21,6 @@ API documentation lives in rustdoc and source comments.
 - [report](report/README.md) — contract projection, serialization, publication.
 - [sample](sample/README.md) — multi-read evidence aggregation.
 - [signal_processing](signal_processing/README.md) — observation-only signal analysis.
-- [trace](trace/README.md) — bounded ABIF/AB1 decoding.
 - [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
 - [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
 

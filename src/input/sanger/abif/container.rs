@@ -1,7 +1,7 @@
 //! Strict ABIF directory parsing and exact tag lookup.
 
 use crate::error::{Error, Result};
-use crate::trace::reader::Reader;
+use crate::input::sanger::abif::reader::Reader;
 
 const DIRECTORY_ENTRY_SIZE: usize = 28;
 const ROOT_ENTRY_OFFSET: usize = 6;

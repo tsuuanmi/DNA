@@ -2,9 +2,10 @@
 
 Owns source-specific loading boundaries for external sequencing inputs.
 
-The current adapter is `sanger`, which validates and loads AB1 traces, FASTA
-references, and explicit DNA configuration into the existing validated internal
-models. It does not own CLI output paths, overwrite protection, log naming,
+The current adapter is [`sanger`](sanger/README.md), which validates and loads
+Sanger sequencing evidence, FASTA references, and explicit DNA configuration
+into validated internal models. The current Sanger source format is ABIF;
+`.ab1` is a common filename/extension rather than the scientific contract. It does not own CLI output paths, overwrite protection, log naming,
 serialization, or result publication.
 
 No generic input-adapter trait exists yet. A shared trait should be introduced

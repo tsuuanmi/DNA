@@ -4,26 +4,26 @@ use std::fs;
 use std::path::Path;
 
 use crate::checksum::hex_sha256;
-use crate::config::MAX_AB1_BYTES;
+use crate::config::MAX_ABIF_BYTES;
 use crate::error::{Error, Result};
+use crate::input::sanger::abif::container::{AbifEntry, AbifFile, parse};
+use crate::input::sanger::abif::reader::Reader;
 use crate::model::trace::{Chromatogram, VendorEvidence};
-use crate::trace::abif::{AbifEntry, AbifFile, parse};
-use crate::trace::reader::Reader;
 
 const TYPE_BYTE: u16 = 1;
 const TYPE_CHAR: u16 = 2;
 const TYPE_SHORT: u16 = 4;
 
-/// Reads and decodes one canonical analyzed ABIF/AB1 file.
+/// Reads and decodes one analyzed Sanger trace stored in an ABIF container.
 pub(crate) fn load(path: &Path) -> Result<Chromatogram> {
     let metadata = fs::metadata(path).map_err(|source| Error::Read {
         kind: "AB1",
         path: path.to_path_buf(),
         source,
     })?;
-    if metadata.len() == 0 || metadata.len() > MAX_AB1_BYTES as u64 {
+    if metadata.len() == 0 || metadata.len() > MAX_ABIF_BYTES as u64 {
         return Err(Error::Abif(format!(
-            "file size {} is outside 1..={MAX_AB1_BYTES} bytes",
+            "file size {} is outside 1..={MAX_ABIF_BYTES} bytes",
             metadata.len()
         )));
     }
@@ -32,9 +32,9 @@ pub(crate) fn load(path: &Path) -> Result<Chromatogram> {
         path: path.to_path_buf(),
         source,
     })?;
-    if bytes.is_empty() || bytes.len() > MAX_AB1_BYTES {
+    if bytes.is_empty() || bytes.len() > MAX_ABIF_BYTES {
         return Err(Error::Abif(format!(
-            "file size {} is outside 1..={MAX_AB1_BYTES} bytes",
+            "file size {} is outside 1..={MAX_ABIF_BYTES} bytes",
             bytes.len()
         )));
     }
