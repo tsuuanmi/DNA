@@ -151,7 +151,7 @@ fn push_segment(
 mod tests {
     use crate::model::alignment::{Orientation, ReferenceSegment};
     use crate::model::sample_evidence::{SampleReadAlignmentEvidence, SampleReadEvidence};
-    use crate::model::signal::TraceIntegrity;
+    use crate::model::signal::SangerIntegrity;
 
     use super::*;
 
@@ -159,13 +159,13 @@ mod tests {
         SampleReadEvidence {
             input_name: format!("{id}.ab1"),
             input_sha256: id.into(),
-            integrity: TraceIntegrity {
-                ploc_count: 20,
+            integrity: SangerIntegrity {
+                locus_count: 20,
                 vendor_primary_count: None,
                 vendor_quality_count: None,
-                minimum_ploc_spacing: Some(4),
-                median_ploc_spacing: Some(4.0),
-                maximum_ploc_spacing: Some(4),
+                minimum_locus_spacing: Some(4),
+                median_locus_spacing: Some(4.0),
+                maximum_locus_spacing: Some(4),
                 clipped_channel_samples: 0,
                 maximum_to_median_event_signal_ratio: Some(1.0),
             },
