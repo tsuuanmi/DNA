@@ -4,8 +4,8 @@
 pub const DEFAULT_CONFIG_PATH: &str = "config/dna.toml";
 /// Largest accepted strict TOML file.
 pub const MAX_CONFIG_BYTES: usize = 1024 * 1024;
-/// Largest accepted AB1 file.
-pub const MAX_AB1_BYTES: usize = 64 * 1024 * 1024;
+/// Largest accepted ABIF container for Sanger input.
+pub const MAX_ABIF_BYTES: usize = 64 * 1024 * 1024;
 /// Largest accepted FASTA source before sequence normalization.
 pub const MAX_REFERENCE_BYTES: usize = 4 * 1024 * 1024;
 /// Largest accepted direct-alignment reference.
