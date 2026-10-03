@@ -8,8 +8,8 @@ use crate::model::basecall_result::{
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
 use crate::model::result::{InputResult, IntervalResult};
-use crate::model::signal::DNAAnalysis;
 use crate::model::sanger::Chromatogram;
+use crate::model::signal::DNAAnalysis;
 use crate::report::signal;
 
 /// Inputs consumed to build one immutable basecall document.
