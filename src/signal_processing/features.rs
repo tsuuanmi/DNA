@@ -3,8 +3,8 @@
 use crate::config::DNAProcessingConfig;
 use crate::error::{Error, Result};
 use crate::model::basecalls::BaseCalls;
-use crate::model::signal::DNAWindow;
 use crate::model::sanger::Chromatogram;
+use crate::model::signal::DNAWindow;
 
 use super::statistics;
 
@@ -114,7 +114,9 @@ mod tests {
                 }),
                 primary_peak_evidence: Some(crate::model::basecalls::PrimaryPeakEvidence {
                     position_0based: locus_position,
-                    channel_heights: std::array::from_fn(|channel| channels[channel][locus_position]),
+                    channel_heights: std::array::from_fn(|channel| {
+                        channels[channel][locus_position]
+                    }),
                 }),
                 primary: primary.as_char(),
                 ambiguity: primary.as_char(),
@@ -128,7 +130,10 @@ mod tests {
                 source_name: "synthetic.ab1".into(),
                 source_sha256: String::new(),
                 channels,
-                locus_positions: records.iter().map(|call| call.locus_position_0based).collect(),
+                locus_positions: records
+                    .iter()
+                    .map(|call| call.locus_position_0based)
+                    .collect(),
                 vendor: VendorEvidence::default(),
             },
             BaseCalls {
