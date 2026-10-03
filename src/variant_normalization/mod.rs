@@ -67,11 +67,9 @@ pub fn normalize(
     let alternate_sequence = apply_edits(&reference.sequence, &source_edits)?;
 
     let normalized_edits = match policy {
-        NormalizationPolicy::MtDnaRightAligned => right_align_equivalent_indels(
-            &reference.sequence,
-            &alternate_sequence,
-            &source_edits,
-        )?,
+        NormalizationPolicy::MtDnaRightAligned => {
+            right_align_equivalent_indels(&reference.sequence, &alternate_sequence, &source_edits)?
+        }
     };
 
     if apply_edits(&reference.sequence, &normalized_edits)? != alternate_sequence {
