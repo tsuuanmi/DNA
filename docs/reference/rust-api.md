@@ -21,9 +21,12 @@ It is exposed as:
 dna::variant_analysis::analyze_sanger(...)
 ```
 
-The function validates and loads one AB1 trace, one single-record FASTA
-reference, and one explicit DNA configuration, then runs the same canonical
+The function validates and loads one Sanger sequencing trace encoded as ABIF,
+one single-record FASTA reference, and one explicit DNA configuration, then runs
+the same canonical
 read-processing, alignment, and variant-calling scientific path used by the CLI.
+
+Filename suffix is not part of the scientific input contract; `.ab1` is a common sequencing filename, while ABIF validity is determined from file content and required tags.
 
 It does not derive or validate a CLI result path, create `results/`, open an
 operational log, serialize JSON, or publish a file.
