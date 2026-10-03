@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10, PR-11, PR-12]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -519,6 +519,10 @@ Implementation is in progress through focused PRs.
 - [PR #12](https://github.com/tsuuanmi/DNA/pull/12) introduces the minimal
   internal `StageLog` capability so shared read/observation science no longer
   depends on the concrete file-backed operational logger.
+
+- [PR #15](https://github.com/tsuuanmi/DNA/pull/15) introduces the first public
+  capability-oriented Rust API: Sanger input to canonical typed Variant Analysis
+  results without CLI logging or JSON publication side effects.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
