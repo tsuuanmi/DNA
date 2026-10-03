@@ -4,6 +4,24 @@ Part of the canonical [DNA pipeline](pipeline.md).
 
 Within the source architecture, ABIF is a **format layer** under the Sanger input adapter (`input::sanger::abif`). Applied Biosystems Sanger sequencing sample files commonly use the `.ab1` extension, but decoding is determined by the ABIF container signature and required sequencing tags rather than the filename suffix.
 
+## Implementation sourcing
+
+ABIF is an external format, so ADR-0059 requires ecosystem reuse evaluation.
+The current first-party decoder is nevertheless retained deliberately.
+
+The container layout and sequencing tags are evaluated against the Applied
+Biosystems Genetic Analysis Data File Format specification. An available Rust
+candidate, `bio_files::ab1`, was also evaluated; its upstream source describes
+the implementation as directly adapted from Biopython and currently carries an
+unresolved `data_offset` handling TODO. That is not sufficient evidence to
+replace a parser on DNA's untrusted-input boundary.
+
+Any replacement must demonstrate, at minimum, equivalent behavior for bounded
+offset/count arithmetic, inline versus external payloads, reserved/padded
+allocations, duplicate tags, exact DATA/FWO_/PLOC/PBAS/PCON layout semantics,
+malformed/truncated files, and representative production traces. Differential
+agreement alone does not replace DNA's scientific and security validation.
+
 Parses the ABIF container and validates every directory entry, offset, element
 size, and element count before access. It extracts:
 
