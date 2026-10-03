@@ -124,6 +124,46 @@ fn right_aligns_homopolymer_insertion_without_changing_haplotype()
 }
 
 #[test]
+fn right_aligns_tandem_repeat_deletion() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = "CATATG";
+    write_reference(&reference_path, sequence)?;
+    let source = variant(1, "CAT", "C", VariantKind::Del);
+    let called = called(sequence, vec![source.clone()]);
+
+    let result = normalize(&reference_path, &called)?;
+
+    assert_eq!(result.source_variants, vec![source]);
+    assert_eq!(result.alternate_sequence, "CATG");
+    assert_eq!(
+        result.normalized_variants,
+        vec![variant(3, "TAT", "T", VariantKind::Del)]
+    );
+    Ok(())
+}
+
+#[test]
+fn right_aligns_tandem_repeat_insertion() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = "CATATG";
+    write_reference(&reference_path, sequence)?;
+    let source = variant(1, "C", "CAT", VariantKind::Ins);
+    let called = called(sequence, vec![source.clone()]);
+
+    let result = normalize(&reference_path, &called)?;
+
+    assert_eq!(result.source_variants, vec![source]);
+    assert_eq!(result.alternate_sequence, "CATATATG");
+    assert_eq!(
+        result.normalized_variants,
+        vec![variant(5, "T", "TAT", VariantKind::Ins)]
+    );
+    Ok(())
+}
+
+#[test]
 fn normalization_preserves_phase_across_nearby_edits() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");
