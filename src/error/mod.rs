@@ -51,9 +51,12 @@ pub enum Error {
     /// Pairwise alignment failed or was not uniquely interpretable.
     #[error("alignment failed: {0}")]
     Alignment(String),
-    /// Variant extraction or normalization failed.
+    /// Variant extraction or configured eligibility failed.
     #[error("variant calling failed: {0}")]
     Variant(String),
+    /// Post-calling variant representation normalization failed.
+    #[error("variant normalization failed: {0}")]
+    VariantNormalization(String),
     /// Sample-level read evidence is inconsistent or invalid.
     #[error("sample evidence failed: {0}")]
     Sample(String),

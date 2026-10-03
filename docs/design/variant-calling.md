@@ -44,25 +44,25 @@ evidence remain internal. Deletions carry real aligned flanks only and never
 fabricate deleted-base dna. The emitted reference allele is validated against
 the supplied reference.
 
-A future post-calling canonicalization capability defined by ADR-0060 may move
-or re-decompose sequence-equivalent events only after reconstructing and
+The implemented post-calling `variant_normalization` capability defined by
+ADR-0060 may move sequence-equivalent events only after reconstructing and
 preserving the complete represented haplotype. That capability is intentionally
 separate from this caller.
 
 ### Substep 6.3 — Configured eligibility
 
-A normalized candidate is retained only when its 1-based anchor `position` lies
+A called candidate is retained only when its 1-based anchor `position` lies
 inside at least one configured inclusive region. SNV supporting calls and every
 inserted-base supporting call must each have a highest A/C/G/T peak greater than
 or equal to `minimum_peak_height` and an uncalibrated relative score strictly
 greater than `relative_quality_threshold`. Insertion flanks are not evaluated.
 Deletions have no supporting trace base, so their flanks are not subjected to
-peak or quality thresholds; their normalized anchor must still be in a region.
-Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as a normalized observation but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
+peak or quality thresholds; their caller anchor must still be in a region.
+Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as an observed called difference but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
 
 Each removed candidate increments `excluded_variant_candidates` once, even when
 it fails more than one eligibility condition. The pure variant stage also returns
-a concise exclusion diagnostic containing kind, contig, normalized position when
+a concise exclusion diagnostic containing kind, contig, caller position when
 available, and all failed rules. Pipeline orchestration writes one WARN record per
 diagnostic without reference/alternate alleles. Sample aggregation logs aggregate
 counts of differential-locus observations and variant-associated calls that

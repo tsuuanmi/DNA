@@ -197,17 +197,18 @@ silently redefine DNA's internal biological result.
 This ADR defines the architectural direction; it does not claim all stages are
 implemented.
 
-Current production truth remains:
+Current production truth now includes:
 
-- Sanger variant calling is implemented in `src/variant_calling`;
-- Sanger alignment currently performs deterministic mtDNA right-most gap
-  placement under ADR-0047;
-- variant construction currently preserves that alignment-selected placement;
-- a separate post-calling variant-canonicalization module and mtDNA
-  nomenclature capability are not yet implemented in DNA.
+- Sanger variant calling in `src/variant_calling`;
+- deterministic Sanger alignment right-most gap placement under ADR-0047;
+- caller construction that preserves the alignment-selected placement;
+- a typed public `CalledVariantSet` projection from Variant Analysis;
+- an optional standalone `variant_normalization` capability with the initial
+  human-mtDNA 3'/right-most policy, source-variant preservation, and complete
+  haplotype-equivalence checks.
 
-Until those capabilities land with tests and validation, current SRS variant
-requirements remain authoritative production behavior.
+Target-specific mtDNA nomenclature remains unimplemented in DNA and must land as
+a separate capability with its own requirements, tests, and validation.
 
 ## Consequences
 

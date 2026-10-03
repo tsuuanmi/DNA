@@ -28,6 +28,7 @@ mod sample;
 mod signal_processing;
 pub mod variant_analysis;
 mod variant_calling;
+pub mod variant_normalization;
 
 #[cfg(feature = "fuzzing")]
 #[doc(hidden)]

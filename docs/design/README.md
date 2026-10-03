@@ -8,7 +8,8 @@ These documents describe **current mechanisms**: how DNA implements its scientif
 - [Signal processing](signal-processing/README.md): rolling SNR, locus evidence, trace-integrity observations, and interpretation limits.
 - [Quality control](quality-control.md): penalty, relative quality, best-section selection, and end trimming.
 - [Alignment](alignment.md): profile-aware Gotoh placement, traceback, orientation, and circular mapping.
-- [Variant calling](variant-calling.md): difference extraction, normalization, eligibility, and deterministic ordering.
+- [Variant calling](variant-calling.md): difference extraction, allele anchoring, eligibility, and deterministic ordering.
+- [Variant normalization](variant-normalization.md): optional haplotype-preserving post-calling representation movement.
 - [Sample evidence](sample-evidence/README.md): aggregation after independent read placement.
 
 Normative behavior lives in [requirements](../requirements/README.md), rationale in [decisions](../decisions/README.md), exact public/configuration shapes in [reference](../reference/README.md), and exploratory work in [research](../research/README.md).

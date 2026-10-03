@@ -7,6 +7,7 @@ These are current interpretation/validation boundaries, not future promises.
 - Mixed or secondary signal remains evidence; it is not automatically biological heteroplasmy.
 - Unresolved evidence remains unresolved rather than being forced into a definitive biological claim.
 - External-tool agreement is differential evidence, not a compatibility requirement or ground-truth substitute.
+- The standalone post-calling mtDNA normalizer currently rejects a source variant whose anchored REF allele itself spans the FASTA/rCRS end-to-start seam; it does not silently rotate or reinterpret that event.
 - Production readiness requires approved real-trace validation in addition to engineering test success.
 
 Canonical behavioral boundaries are defined by [requirements](../requirements/README.md), [design](../design/README.md), and [architecture invariants](../architecture/invariants/README.md).
