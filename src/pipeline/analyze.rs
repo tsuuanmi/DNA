@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
+use crate::input::sanger;
 use crate::logger::Logger;
 use crate::pipeline::input;
 use crate::report::{self, CompletedAnalysis};
@@ -55,9 +56,9 @@ fn run_logged(
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let prepared = input::prepare_analysis(trace, reference, config_path)?;
+    let prepared = sanger::prepare_analysis(trace, reference, config_path)?;
     let output = input::analysis_output(trace)?;
-    let inputs = input::load_analysis(prepared)?;
+    let inputs = sanger::load_analysis(prepared)?;
     logger.info(
         module_path!(),
         line!(),
