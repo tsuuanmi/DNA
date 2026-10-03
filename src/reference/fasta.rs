@@ -3,6 +3,8 @@
 use std::fs;
 use std::path::Path;
 
+use noodles_fasta as fasta;
+
 use crate::checksum::hex_sha256;
 use crate::config::{MAX_REFERENCE_BYTES, MAX_REFERENCE_LENGTH};
 use crate::error::{Error, Result};
@@ -21,6 +23,7 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
             metadata.len()
         )));
     }
+
     let bytes = fs::read(path).map_err(|source| Error::Read {
         kind: "reference",
         path: path.to_path_buf(),
@@ -32,40 +35,53 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
             bytes.len()
         )));
     }
-    let text = std::str::from_utf8(&bytes)
+
+    std::str::from_utf8(&bytes)
         .map_err(|error| Error::Fasta(format!("reference must be UTF-8: {error}")))?;
-    let mut lines = text.lines();
-    let header = lines
+
+    let mut reader = fasta::io::Reader::new(bytes.as_slice());
+    let mut records = reader.records();
+    let record = records
         .next()
+        .transpose()
+        .map_err(|error| Error::Fasta(format!("failed to parse FASTA record: {error}")))?
         .ok_or_else(|| Error::Fasta("reference is empty".into()))?;
-    let name = header
-        .strip_prefix('>')
-        .and_then(|value| value.split_whitespace().next())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| Error::Fasta("first line must contain a FASTA identifier".into()))?;
-    let mut sequence = String::new();
-    for line in lines {
-        if line.starts_with('>') {
-            return Err(Error::Fasta(
-                "reference must contain exactly one record".into(),
-            ));
-        }
-        for character in line.chars().filter(|character| !character.is_whitespace()) {
-            let base = character.to_ascii_uppercase();
-            if !matches!(base, 'A' | 'C' | 'G' | 'T' | 'N') {
-                return Err(Error::Fasta(format!(
-                    "unsupported reference base {character:?}"
-                )));
-            }
-            sequence.push(base);
-        }
+
+    if records.next().is_some() {
+        return Err(Error::Fasta(
+            "reference must contain exactly one record".into(),
+        ));
     }
+
+    let name = std::str::from_utf8(record.name())
+        .map_err(|error| Error::Fasta(format!("reference identifier must be UTF-8: {error}")))?
+        .trim();
+    if name.is_empty() {
+        return Err(Error::Fasta(
+            "first line must contain a FASTA identifier".into(),
+        ));
+    }
+
+    let raw_sequence = std::str::from_utf8(record.sequence().as_ref())
+        .map_err(|error| Error::Fasta(format!("reference sequence must be UTF-8: {error}")))?;
+    let mut sequence = String::new();
+    for character in raw_sequence.chars().filter(|character| !character.is_whitespace()) {
+        let base = character.to_ascii_uppercase();
+        if !matches!(base, 'A' | 'C' | 'G' | 'T' | 'N') {
+            return Err(Error::Fasta(format!(
+                "unsupported reference base {character:?}"
+            )));
+        }
+        sequence.push(base);
+    }
+
     if sequence.is_empty() || sequence.len() > MAX_REFERENCE_LENGTH {
         return Err(Error::Fasta(format!(
             "reference length {} is outside 1..={MAX_REFERENCE_LENGTH}",
             sequence.len()
         )));
     }
+
     let sequence_sha256 = hex_sha256(sequence.as_bytes());
     Ok(Reference {
         name: name.to_owned(),
