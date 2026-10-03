@@ -24,8 +24,8 @@ API documentation lives in rustdoc and source comments.
 - [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
 - [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
 
-File-only modules such as `checksum.rs`, `locus.rs`, and `logger.rs` use
-rustdoc/source comments. Do not create directories solely to attach README files.
+File-only modules such as `checksum.rs`, `locus.rs`, `logger.rs`, and
+`read_processing.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
 
 ## Dependency rule
 
@@ -38,6 +38,11 @@ Scientific stages that emit operational progress depend on the minimal internal
 `StageLog` capability rather than the concrete file-backed `Logger`. Log-path
 selection, terminal error records, and synchronization remain outer operation
 concerns.
+
+Reference-free read processing is a shared scientific core used by both
+basecall and Variant Analysis. Reference-guided observation ownership belongs to
+`variant_analysis`; `pipeline` consumes these capabilities rather than owning
+their implementations.
 
 Cross-cutting invariants are canonical in
 [docs/architecture/invariants](../docs/architecture/invariants/README.md).
