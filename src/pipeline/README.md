@@ -8,15 +8,15 @@ sample identifiers, and an explicit configuration path rather than CLI/`clap`
 argument structs or process environment. This keeps orchestration independent of
 the command-line frontend and prepares the same boundary for non-CLI callers.
 
-Key children own operation-specific input loading, CLI logging/publication,
-sample-read orchestration, and sample metrics. Shared reference-free read
+Key children own CLI/application filesystem naming, overwrite protection,
+logging/publication, sample-read orchestration, and sample metrics. Scientific
+Sanger source loading is owned by `input::sanger`; shared reference-free read
 processing lives in `read_processing.rs`; reference-guided read observation is
 owned by `variant_analysis`.
 
-For single-read analysis, scientific input loading is independent of the
-deterministic JSON publication target. The CLI operation validates its output
-destination separately, so an existing `results/*.json` file is not part of the
-scientific input contract.
+Scientific input adapters are independent of deterministic CLI publication
+targets. Pipeline validates output naming and overwrite protection separately,
+so `results/*` state is not part of the scientific input contract.
 
 Pipeline passes its file-backed logger through the internal `StageLog`
 capability to reusable scientific modules. It owns log construction, terminal
