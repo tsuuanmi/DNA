@@ -13,7 +13,8 @@ pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<B
     let mut calls = Vec::with_capacity(trace.call_count());
     let mut primary_sequence = String::with_capacity(trace.call_count());
 
-    for (index, (&locus_position, window)) in trace.locus_positions.iter().zip(windows).enumerate() {
+    for (index, (&locus_position, window)) in trace.locus_positions.iter().zip(windows).enumerate()
+    {
         let peaks = peak::peaks(trace, window, locus_position);
         if peaks
             .iter()
