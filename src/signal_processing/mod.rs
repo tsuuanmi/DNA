@@ -10,7 +10,7 @@ use crate::config::DNAProcessingConfig;
 use crate::error::Result;
 use crate::model::basecalls::BaseCalls;
 use crate::model::signal::DNAAnalysis;
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 
 /// Calculates rolling SNR features, basecall-independent locus evidence, and merged noisy regions.
 pub(crate) fn analyze(
