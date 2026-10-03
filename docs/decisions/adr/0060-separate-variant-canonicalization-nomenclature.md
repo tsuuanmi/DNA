@@ -84,6 +84,12 @@ Canonicalization may change event coordinates or decomposition only when the
 complete represented haplotype remains identical and source provenance remains
 recoverable.
 
+The canonicalization result MUST preserve enough immutable context for later
+nomenclature and audit, conceptually including the source edit set, reconstructed
+alternate haplotype, selected canonical edit set, and source-to-canonical
+provenance. Canonical movement must not destructively overwrite the source
+description.
+
 This is the production counterpart of the haplotype-first comparison principle
 in ADR-0057.
 
@@ -103,11 +109,16 @@ changing variant-calling semantics.
 ### 5. Nomenclature follows generic canonicalization
 
 Nomenclature is a target-specific representation layer applied after generic
-haplotype-preserving canonicalization.
+haplotype-preserving canonicalization. It consumes the canonicalization result,
+not merely a destructively rewritten final edit list, so target rules may inspect
+the preserved source description and reconstructed haplotype when scientifically
+required.
 
 For mtDNA, nomenclature may select validated representations for unstable or
 repeat-rich regions such as the current 309/315, 513-524, and 16189/16193
-families, provided the represented haplotype is unchanged.
+families, provided the represented haplotype is unchanged. A nomenclature rule
+may therefore supersede the generic right-aligned representation inside its
+explicit validated window while preserving the same alternate haplotype.
 
 Nomenclature MUST NOT reinterpret chromatogram signal, change evidence
 eligibility, manufacture phase, or alter the biological haplotype merely to
