@@ -92,12 +92,7 @@ pub fn analyze_sanger(
             end_0based_exclusive: segment.end_0based_exclusive,
         })
         .collect();
-    let variants = read
-        .variants
-        .reported
-        .iter()
-        .map(project_variant)
-        .collect();
+    let variants = read.variants.reported.iter().map(project_variant).collect();
 
     Ok(VariantAnalysisResult {
         input_sha256: read.input_sha256,
