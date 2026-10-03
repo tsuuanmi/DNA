@@ -6,9 +6,9 @@ use std::path::Path;
 use crate::checksum::hex_sha256;
 use crate::config::MAX_ABIF_BYTES;
 use crate::error::{Error, Result};
-use crate::model::trace::{Chromatogram, VendorEvidence};
 use crate::input::sanger::abif::container::{AbifEntry, AbifFile, parse};
 use crate::input::sanger::abif::reader::Reader;
+use crate::model::trace::{Chromatogram, VendorEvidence};
 
 const TYPE_BYTE: u16 = 1;
 const TYPE_CHAR: u16 = 2;
