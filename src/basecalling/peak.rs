@@ -11,8 +11,12 @@ pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>> {
     locus::windows(trace).map_err(Error::Basecalling)
 }
 
-/// Finds one positive local peak per channel or samples PLOC explicitly.
-pub(crate) fn peaks(trace: &Chromatogram, window: LocusWindow, locus_position: usize) -> [ChannelPeak; 4] {
+/// Finds one positive local peak per channel or samples the canonical locus explicitly.
+pub(crate) fn peaks(
+    trace: &Chromatogram,
+    window: LocusWindow,
+    locus_position: usize,
+) -> [ChannelPeak; 4] {
     std::array::from_fn(|channel_index| {
         let channel = &trace.channels[channel_index];
         let search_start = window.start.max(1);
@@ -27,7 +31,13 @@ pub(crate) fn peaks(trace: &Chromatogram, window: LocusWindow, locus_position: u
             }
         }
         let (position, height, source) = selected.map_or_else(
-            || (locus_position, channel[locus_position], PeakSource::LocusFallback),
+            || {
+                (
+                    locus_position,
+                    channel[locus_position],
+                    PeakSource::LocusFallback,
+                )
+            },
             |(position, height)| (position, height, PeakSource::LocalMaximum),
         );
         ChannelPeak {
