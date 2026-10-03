@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -528,6 +528,11 @@ Implementation is in progress through focused PRs.
   ownership out of the CLI-oriented pipeline: reference-free read processing is
   crate-internal shared science and reference-guided observation belongs to
   Variant Analysis.
+
+- [PR #18](https://github.com/tsuuanmi/DNA/pull/18) extracts source-specific
+  Sanger input loading from the operation pipeline so Variant Analysis and CLI
+  workflows consume the same adapter without coupling scientific inputs to
+  result-path or publication concerns.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
