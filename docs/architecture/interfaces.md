@@ -1,5 +1,7 @@
 # Interfaces and Boundaries
 
+DNA separates biological scope from software boundaries. Biological target is independent of sequencing modality and format: mtDNA, nuclear/genomic DNA, and targeted loci may reuse capabilities without making the platform mtDNA-specific. SNP/genotyping is an analysis use case rather than an input modality.
+
 DNA separates six interface classes:
 
 1. **Frontend/configuration boundary** — the CLI owns typed command arguments and
@@ -52,6 +54,8 @@ Exact syntax and serialized shapes are owned by
 [reference](../reference/README.md). Module responsibilities are colocated under
 [src](../../src/README.md). Cross-cutting rules that must hold across interfaces
 are indexed under [invariants](invariants/README.md).
+
+Commodity bioinformatics machinery may be supplied by maintained external libraries behind these boundaries. DNA-owned canonical contracts remain independent of dependency-specific representations; see [dependency policy](../engineering/dependencies.md) and [ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
 
 Architecture defines where responsibilities belong; it does not duplicate
 algorithm details from [design](../design/README.md).
