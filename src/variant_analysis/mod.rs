@@ -14,7 +14,7 @@ use crate::input::sanger;
 use crate::logger::StageLog;
 use crate::model::variant as internal_variant;
 
-/// Canonical result of one reference-guided variant analysis.
+/// Typed result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantAnalysisResult {
     /// SHA-256 identity of the analyzed source artifact.
@@ -43,7 +43,7 @@ pub struct ReferenceSegment {
     pub end_0based_exclusive: usize,
 }
 
-/// Supported normalized variant type.
+/// Supported called-variant type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VariantKind {
     Snv,
@@ -51,7 +51,7 @@ pub enum VariantKind {
     Del,
 }
 
-/// One normalized reportable primary-sequence difference.
+/// One reportable evidence-backed primary-sequence difference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Variant {
     pub contig: String,
@@ -59,6 +59,28 @@ pub struct Variant {
     pub reference: String,
     pub alternate: String,
     pub kind: VariantKind,
+}
+
+
+/// Cross-modality boundary for evidence-backed variants against one reference.
+///
+/// This type does not imply right/left alignment, nomenclature, VCF
+/// normalization, or another representation policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalledVariantSet {
+    pub reference: ReferenceIdentity,
+    pub variants: Vec<Variant>,
+}
+
+impl VariantAnalysisResult {
+    /// Projects this analysis result into the common called-variant boundary.
+    #[must_use]
+    pub fn called_variants(&self) -> CalledVariantSet {
+        CalledVariantSet {
+            reference: self.reference.clone(),
+            variants: self.variants.clone(),
+        }
+    }
 }
 
 /// Runs the current Sanger AB1 adapter through the canonical Variant Analysis
