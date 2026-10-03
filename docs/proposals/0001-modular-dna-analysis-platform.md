@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10, PR-11]
+implementation: [PR-9, PR-10, PR-11, PR-12]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -515,6 +515,10 @@ Implementation is in progress through focused PRs.
 - [PR #11](https://github.com/tsuuanmi/DNA/pull/11) separates single-read
   scientific input loading from JSON publication-path validation so reusable
   analysis is not coupled to an existing `results/*.json` target.
+
+- [PR #12](https://github.com/tsuuanmi/DNA/pull/12) introduces the minimal
+  internal `StageLog` capability so shared read/observation science no longer
+  depends on the concrete file-backed operational logger.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
