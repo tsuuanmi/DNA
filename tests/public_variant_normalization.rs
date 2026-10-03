@@ -173,7 +173,10 @@ fn rejects_reference_identity_mismatch() -> Result<(), Box<dyn std::error::Error
     let mut called = called(sequence, vec![variant(6, "G", "T", VariantKind::Snv)]);
     called.reference.sha256 = "wrong".into();
 
-    let error = normalize(&reference_path, &called).unwrap_err();
+    let error = match normalize(&reference_path, &called) {
+        Ok(_) => return Err("expected reference identity mismatch".into()),
+        Err(error) => error,
+    };
 
     assert!(error.to_string().contains("reference identity"));
     Ok(())
@@ -187,7 +190,10 @@ fn rejects_source_allele_that_disagrees_with_reference() -> Result<(), Box<dyn s
     write_reference(&reference_path, sequence)?;
     let called = called(sequence, vec![variant(2, "G", "T", VariantKind::Snv)]);
 
-    let error = normalize(&reference_path, &called).unwrap_err();
+    let error = match normalize(&reference_path, &called) {
+        Ok(_) => return Err("expected reference allele mismatch".into()),
+        Err(error) => error,
+    };
 
     assert!(error.to_string().contains("reference allele"));
     Ok(())
