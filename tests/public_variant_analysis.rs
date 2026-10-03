@@ -50,3 +50,25 @@ fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
 
     Ok(())
 }
+
+
+#[test]
+fn sanger_analysis_accepts_abif_filename_without_extension_coupling(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.abif");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+
+    write_abif(&trace, QUERY)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+
+    let result = variant_analysis::analyze_sanger(&trace, &reference, &config)?;
+
+    assert_eq!(result.reference.name, "synthetic");
+    assert!(result.variants.is_empty());
+    assert!(!result.input_sha256.is_empty());
+
+    Ok(())
+}
