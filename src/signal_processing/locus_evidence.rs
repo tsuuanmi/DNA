@@ -47,7 +47,8 @@ pub(super) fn calculate(
         let context_sample_end = locus_windows[context_end - 1].end;
         let (channel_baselines, channel_noise_sigmas) =
             local_statistics(trace, context_sample_start, context_sample_end)?;
-        let event_position = select_event_position(trace, locus_window, locus_position, channel_baselines)?;
+        let event_position =
+            select_event_position(trace, locus_window, locus_position, channel_baselines)?;
         let channel_heights =
             std::array::from_fn(|channel| trace.channels[channel][event_position]);
         let corrected_amplitudes = std::array::from_fn(|channel| {
@@ -350,7 +351,8 @@ mod tests {
     }
 
     #[test]
-    fn event_refinement_falls_back_to_locus_position_without_positive_local_maximum() -> Result<()> {
+    fn event_refinement_falls_back_to_locus_position_without_positive_local_maximum() -> Result<()>
+    {
         let trace = Chromatogram {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
