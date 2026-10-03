@@ -22,6 +22,7 @@ API documentation lives in rustdoc and source comments.
 - [signal_processing](signal_processing/README.md) — observation-only signal analysis.
 - [trace](trace/README.md) — bounded ABIF/AB1 decoding.
 - [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
+- [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
 
 File-only modules such as `checksum.rs`, `locus.rs`, and `logger.rs` use
 rustdoc/source comments. Do not create directories solely to attach README files.

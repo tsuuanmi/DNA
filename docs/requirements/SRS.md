@@ -2,13 +2,14 @@
 
 This document is the canonical index for DNA's normative Software Requirements Specification (SRS).
 
-DNA is a deterministic Rust CLI for reference-free base re-calling and research analysis of one Sanger ABIF/AB1 chromatogram against one short reference. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
+DNA is a deterministic Rust library and CLI for reference-free base re-calling and research analysis of Sanger ABIF/AB1 data against short references. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
 
 ## Requirement families
 
 | Namespace | Scope | Specification |
 |---|---|---|
 | `SRS-IN-*` | inputs and process boundary | [input.md](input.md) |
+| `SRS-API-*` | public Rust library boundary | [api.md](api.md) |
 | `SRS-CFG-*` | configuration | [configuration.md](configuration.md) |
 | `SRS-BC-*` | DNA-derived base re-calling | [basecalling.md](basecalling.md) |
 | `SRS-SIG-*` | observational signal processing | [signal-processing.md](signal-processing.md) |

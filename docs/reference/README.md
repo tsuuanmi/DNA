@@ -9,6 +9,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Analysis result](analysis/README.md): `dna.analysis/v7`.
 - [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v8`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
+- [Rust public API](rust-api.md): capability-oriented typed library contract.
 
 ## Machine-readable contracts
 
