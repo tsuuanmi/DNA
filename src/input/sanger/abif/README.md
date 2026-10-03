@@ -8,7 +8,7 @@ Responsibilities:
 - bounds-checked big-endian reads over untrusted bytes;
 - generic ABIF directory parsing and exact tag lookup;
 - Sanger sequencing tag validation and decoding;
-- projection into the canonical `model::trace::Chromatogram` evidence model.
+- projection into the canonical `model::sanger::Chromatogram` evidence model.
 
 The format layer does not own base re-calling, quality control, alignment,
 variant calling, CLI paths, logging, or result publication.
