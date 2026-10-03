@@ -2,7 +2,7 @@
 
 This document is the canonical index for DNA's normative Software Requirements Specification (SRS).
 
-DNA is a deterministic Rust library and CLI for reference-free base re-calling and research analysis of Sanger ABIF/AB1 data against short references. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
+DNA is a deterministic Rust library and CLI for DNA analysis. The current normative production requirements cover the implemented Sanger ABIF path against short references; future mtDNA, nuclear/genomic DNA, targeted/SNP, NGS, or downstream capabilities become normative only when their requirement families are added. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
 
 ## Requirement families
 
