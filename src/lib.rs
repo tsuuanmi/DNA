@@ -19,6 +19,7 @@ mod logger;
 pub mod model;
 mod pipeline;
 mod quality_control;
+mod read_processing;
 mod reference;
 mod report;
 mod sample;
