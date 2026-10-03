@@ -3,7 +3,7 @@
 use crate::model::result::{
     DNAQualityResult, IntervalResult, NoisyRegionResult, TraceIntegrityResult,
 };
-use crate::model::signal::{DNAAnalysis, TraceIntegrity};
+use crate::model::signal::{DNAAnalysis, SangerIntegrity};
 
 /// Projects merged noisy regions while omitting internal rolling windows.
 pub(super) fn project(signal: DNAAnalysis) -> DNAQualityResult {
@@ -30,14 +30,14 @@ pub(super) fn project(signal: DNAAnalysis) -> DNAQualityResult {
 }
 
 /// Projects immutable trace-integrity evidence for reuse by sample read summaries.
-pub(super) fn project_integrity(integrity: &TraceIntegrity) -> TraceIntegrityResult {
+pub(super) fn project_integrity(integrity: &SangerIntegrity) -> TraceIntegrityResult {
     TraceIntegrityResult {
-        ploc_count: integrity.ploc_count,
+        ploc_count: integrity.locus_count,
         vendor_primary_count: integrity.vendor_primary_count,
         vendor_quality_count: integrity.vendor_quality_count,
-        minimum_ploc_spacing: integrity.minimum_ploc_spacing,
-        median_ploc_spacing: integrity.median_ploc_spacing,
-        maximum_ploc_spacing: integrity.maximum_ploc_spacing,
+        minimum_ploc_spacing: integrity.minimum_locus_spacing,
+        median_ploc_spacing: integrity.median_locus_spacing,
+        maximum_ploc_spacing: integrity.maximum_locus_spacing,
         clipped_channel_samples: integrity.clipped_channel_samples,
         maximum_to_median_event_signal_ratio: integrity.maximum_to_median_event_signal_ratio,
     }

@@ -1,4 +1,4 @@
-//! Canonical Sanger chromatogram evidence after source-format decoding.
+//! Canonical Sanger sequencing evidence after source-format decoding.
 
 /// Optional calls and quality values stored by the ABI basecaller.
 #[derive(Debug, Clone, Default)]
@@ -13,7 +13,7 @@ pub struct Chromatogram {
     pub(crate) source_name: String,
     pub(crate) source_sha256: String,
     pub(crate) channels: [Vec<i32>; 4],
-    pub(crate) base_locations: Vec<usize>,
+    pub(crate) locus_positions: Vec<usize>,
     pub(crate) vendor: VendorEvidence,
 }
 
@@ -25,6 +25,6 @@ impl Chromatogram {
 
     /// Number of vendor-defined base loci.
     pub fn call_count(&self) -> usize {
-        self.base_locations.len()
+        self.locus_positions.len()
     }
 }

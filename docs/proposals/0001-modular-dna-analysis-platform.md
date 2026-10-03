@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -538,6 +538,11 @@ Implementation is in progress through focused PRs.
   boundary: ABIF parsing/decoding is owned by the Sanger input adapter, while the
   decoded `Chromatogram` remains canonical Sanger evidence independent of file
   extension and ABIF container internals.
+
+- [PR #20](https://github.com/tsuuanmi/DNA/pull/20) canonicalizes internal
+  Sanger domain vocabulary: ABIF `PLOC.2` is projected to generic locus
+  positions at the input boundary, while current versioned JSON contracts retain
+  their existing serialized `ploc_*` field names.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when

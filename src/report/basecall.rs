@@ -8,8 +8,8 @@ use crate::model::basecall_result::{
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
 use crate::model::result::{InputResult, IntervalResult};
+use crate::model::sanger::Chromatogram;
 use crate::model::signal::DNAAnalysis;
-use crate::model::trace::Chromatogram;
 use crate::report::signal;
 
 /// Inputs consumed to build one immutable basecall document.
@@ -65,7 +65,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
         .iter()
         .filter(|call| call.vendor_agrees == Some(false))
         .count();
-    let ploc_vendor_length_mismatches = signal_analysis.integrity.vendor_length_mismatch_count();
+    let locus_vendor_length_mismatches = signal_analysis.integrity.vendor_length_mismatch_count();
     let clipped_channel_samples = signal_analysis.integrity.clipped_channel_samples;
     let signal_quality = signal::project(signal_analysis);
 
@@ -92,7 +92,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
             unresolved_primary_calls,
             multi_channel_unresolved_calls,
             vendor_disagreements,
-            ploc_vendor_length_mismatches,
+            ploc_vendor_length_mismatches: locus_vendor_length_mismatches,
             clipped_channel_samples,
         },
     })

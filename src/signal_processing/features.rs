@@ -3,8 +3,8 @@
 use crate::config::DNAProcessingConfig;
 use crate::error::{Error, Result};
 use crate::model::basecalls::BaseCalls;
+use crate::model::sanger::Chromatogram;
 use crate::model::signal::DNAWindow;
-use crate::model::trace::Chromatogram;
 
 use super::statistics;
 
@@ -84,7 +84,7 @@ pub(super) fn calculate(
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
     use crate::model::nucleotide::Nucleotide;
-    use crate::model::trace::VendorEvidence;
+    use crate::model::sanger::VendorEvidence;
 
     use super::*;
 
@@ -93,28 +93,30 @@ mod tests {
         let mut channels: [Vec<i32>; 4] = std::array::from_fn(|_| vec![0; sample_count]);
         let mut records = Vec::with_capacity(count);
         for index in 0..count {
-            let ploc = 2 + index * 4;
+            let locus_position = 2 + index * 4;
             let primary_channel = index % 4;
             let primary = Nucleotide::ALL[primary_channel];
-            channels[primary_channel][ploc] = 1_000;
+            channels[primary_channel][locus_position] = 1_000;
             records.push(BaseCall {
                 index_0based: index,
-                ploc_0based: ploc,
-                window_start_0based: ploc - 2,
-                window_end_0based_exclusive: ploc + 2,
+                locus_position_0based: locus_position,
+                window_start_0based: locus_position - 2,
+                window_end_0based_exclusive: locus_position + 2,
                 peaks: std::array::from_fn(|channel| ChannelPeak {
                     base: Nucleotide::ALL[channel],
                     height: if channel == primary_channel { 1_000 } else { 0 },
-                    position_0based: ploc,
+                    position_0based: locus_position,
                     source: if channel == primary_channel {
                         PeakSource::LocalMaximum
                     } else {
-                        PeakSource::PlocFallback
+                        PeakSource::LocusFallback
                     },
                 }),
                 primary_peak_evidence: Some(crate::model::basecalls::PrimaryPeakEvidence {
-                    position_0based: ploc,
-                    channel_heights: std::array::from_fn(|channel| channels[channel][ploc]),
+                    position_0based: locus_position,
+                    channel_heights: std::array::from_fn(|channel| {
+                        channels[channel][locus_position]
+                    }),
                 }),
                 primary: primary.as_char(),
                 ambiguity: primary.as_char(),
@@ -128,7 +130,10 @@ mod tests {
                 source_name: "synthetic.ab1".into(),
                 source_sha256: String::new(),
                 channels,
-                base_locations: records.iter().map(|call| call.ploc_0based).collect(),
+                locus_positions: records
+                    .iter()
+                    .map(|call| call.locus_position_0based)
+                    .collect(),
                 vendor: VendorEvidence::default(),
             },
             BaseCalls {

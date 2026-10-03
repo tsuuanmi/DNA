@@ -1,17 +1,17 @@
-//! Basecall-independent signal evidence at each PLOC-defined locus.
+//! Basecall-independent signal evidence at each canonical Sanger locus.
 
 use crate::config::DNAProcessingConfig;
 use crate::error::{Error, Result};
 use crate::locus::{self, LocusWindow};
 use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 
 use super::statistics;
 
 /// Calculates one immutable signal-evidence record per vendor-defined locus.
 ///
 /// Event refinement, local statistics, and profile construction use analyzed
-/// channel evidence plus PLOC geometry directly. They do not consume basecall
+/// channel evidence plus canonical locus geometry directly. They do not consume basecall
 /// records, primary/ambiguity calls, selected basecall peaks, or qualifying
 /// channels.
 pub(super) fn calculate(
@@ -35,8 +35,8 @@ pub(super) fn calculate(
     }
 
     let mut evidence = Vec::with_capacity(locus_count);
-    for (locus_index, (&ploc, &locus_window)) in trace
-        .base_locations
+    for (locus_index, (&locus_position, &locus_window)) in trace
+        .locus_positions
         .iter()
         .zip(locus_windows.iter())
         .enumerate()
@@ -47,7 +47,8 @@ pub(super) fn calculate(
         let context_sample_end = locus_windows[context_end - 1].end;
         let (channel_baselines, channel_noise_sigmas) =
             local_statistics(trace, context_sample_start, context_sample_end)?;
-        let event_position = select_event_position(trace, locus_window, ploc, channel_baselines)?;
+        let event_position =
+            select_event_position(trace, locus_window, locus_position, channel_baselines)?;
         let channel_heights =
             std::array::from_fn(|channel| trace.channels[channel][event_position]);
         let corrected_amplitudes = std::array::from_fn(|channel| {
@@ -62,7 +63,7 @@ pub(super) fn calculate(
 
         let record = LocusEvidence {
             call_index_0based: locus_index,
-            ploc_0based: ploc,
+            locus_position_0based: locus_position,
             window_start_0based: locus_window.start,
             window_end_0based_exclusive: locus_window.end,
             context_call_start_0based: context_start,
@@ -85,8 +86,8 @@ pub(super) fn calculate(
 
 fn validate_evidence(evidence: &LocusEvidence, context_width: usize) -> Result<()> {
     let valid_coordinates = evidence.window_start_0based < evidence.window_end_0based_exclusive
-        && evidence.window_start_0based <= evidence.ploc_0based
-        && evidence.ploc_0based < evidence.window_end_0based_exclusive
+        && evidence.window_start_0based <= evidence.locus_position_0based
+        && evidence.locus_position_0based < evidence.window_end_0based_exclusive
         && evidence.window_start_0based <= evidence.event_position_0based
         && evidence.event_position_0based < evidence.window_end_0based_exclusive
         && evidence.context_call_start_0based <= evidence.call_index_0based
@@ -164,23 +165,23 @@ fn local_statistics(
 /// Refines the locus event without consulting a basecall verdict.
 ///
 /// Candidate events are positive local maxima of total non-negative
-/// baseline-corrected A/C/G/T amplitude. The nearest candidate to PLOC wins;
+/// baseline-corrected A/C/G/T amplitude. The nearest candidate to canonical locus wins;
 /// equal-distance candidates prefer greater total signal, then the lower sample
 /// coordinate. If the locus window has no positive total-signal local maximum,
-/// the validated PLOC sample is used directly.
+/// the validated canonical locus sample is used directly.
 fn select_event_position(
     trace: &Chromatogram,
     window: LocusWindow,
-    ploc: usize,
+    locus_position: usize,
     baselines: [f64; 4],
 ) -> Result<usize> {
     if window.start >= window.end
         || window.end > trace.sample_count()
-        || ploc < window.start
-        || ploc >= window.end
+        || locus_position < window.start
+        || locus_position >= window.end
     {
         return Err(Error::DNAProcessing(format!(
-            "invalid locus event window {}..{} at PLOC {ploc}",
+            "invalid locus event window {}..{} at canonical locus {locus_position}",
             window.start, window.end
         )));
     }
@@ -199,8 +200,8 @@ fn select_event_position(
         }
 
         let replace = best.is_none_or(|(best_position, best_total)| {
-            let distance = position.abs_diff(ploc);
-            let best_distance = best_position.abs_diff(ploc);
+            let distance = position.abs_diff(locus_position);
+            let best_distance = best_position.abs_diff(locus_position);
             distance < best_distance
                 || (distance == best_distance
                     && (current.total_cmp(&best_total).is_gt()
@@ -211,7 +212,7 @@ fn select_event_position(
         }
     }
 
-    Ok(best.map_or(ploc, |(position, _)| position))
+    Ok(best.map_or(locus_position, |(position, _)| position))
 }
 
 fn corrected_total(trace: &Chromatogram, position: usize, baselines: [f64; 4]) -> f64 {
@@ -232,7 +233,7 @@ fn context_start(locus_index: usize, locus_count: usize, window_size_bases: usiz
 #[cfg(test)]
 mod tests {
     use crate::config::DNAProcessingConfig;
-    use crate::model::trace::{Chromatogram, VendorEvidence};
+    use crate::model::sanger::{Chromatogram, VendorEvidence};
 
     use super::*;
 
@@ -253,7 +254,7 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels,
-            base_locations: vec![1, 3, 5, 7, 9],
+            locus_positions: vec![1, 3, 5, 7, 9],
             vendor: VendorEvidence::default(),
         }
     }
@@ -280,7 +281,7 @@ mod tests {
         assert_eq!(evidence.len(), 5);
         let locus = &evidence[2];
         assert_eq!(locus.call_index_0based, 2);
-        assert_eq!(locus.ploc_0based, 5);
+        assert_eq!(locus.locus_position_0based, 5);
         assert_eq!(locus.event_position_0based, 5);
         assert_eq!(locus.channel_heights, [0, 0, 100, 0]);
         assert_eq!(locus.corrected_amplitudes, [0.0, 0.0, 100.0, 0.0]);
@@ -316,12 +317,12 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels,
-            base_locations: vec![2, 10, 18, 26, 34],
+            locus_positions: vec![2, 10, 18, 26, 34],
             vendor: VendorEvidence::default(),
         };
 
         let evidence = calculate(&trace, &config(5))?;
-        assert_eq!(evidence[2].ploc_0based, 18);
+        assert_eq!(evidence[2].locus_position_0based, 18);
         assert_eq!(evidence[2].event_position_0based, 18);
         assert_eq!(evidence[2].channel_heights, [0, 0, 120, 0]);
         Ok(())
@@ -336,7 +337,7 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels,
-            base_locations: vec![2, 6, 10, 14, 18],
+            locus_positions: vec![2, 6, 10, 14, 18],
             vendor: VendorEvidence::default(),
         };
         let window = LocusWindow { start: 3, end: 9 };
@@ -350,12 +351,13 @@ mod tests {
     }
 
     #[test]
-    fn event_refinement_falls_back_to_ploc_without_positive_local_maximum() -> Result<()> {
+    fn event_refinement_falls_back_to_locus_position_without_positive_local_maximum() -> Result<()>
+    {
         let trace = Chromatogram {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
-            base_locations: vec![1, 3, 5, 7, 9],
+            locus_positions: vec![1, 3, 5, 7, 9],
             vendor: VendorEvidence::default(),
         };
 

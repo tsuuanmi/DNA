@@ -5,7 +5,7 @@ use crate::basecalling::peak;
 use crate::config::BasecallingConfig;
 use crate::error::{Error, Result};
 use crate::model::basecalls::{BaseCall, BaseCalls, PrimaryPeakEvidence};
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 
 /// Re-calls every vendor-defined locus from analyzed channel signals.
 pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<BaseCalls> {
@@ -13,8 +13,9 @@ pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<B
     let mut calls = Vec::with_capacity(trace.call_count());
     let mut primary_sequence = String::with_capacity(trace.call_count());
 
-    for (index, (&ploc, window)) in trace.base_locations.iter().zip(windows).enumerate() {
-        let peaks = peak::peaks(trace, window, ploc);
+    for (index, (&locus_position, window)) in trace.locus_positions.iter().zip(windows).enumerate()
+    {
+        let peaks = peak::peaks(trace, window, locus_position);
         if peaks
             .iter()
             .any(|peak| peak.position_0based < window.start || peak.position_0based >= window.end)
@@ -81,7 +82,7 @@ pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<B
         primary_sequence.push(primary);
         calls.push(BaseCall {
             index_0based: index,
-            ploc_0based: ploc,
+            locus_position_0based: locus_position,
             window_start_0based: window.start,
             window_end_0based_exclusive: window.end,
             peaks,
@@ -105,7 +106,7 @@ fn reaches_ratio(height: i32, top_height: i32, minimum_ratio: f64) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::trace::{Chromatogram, VendorEvidence};
+    use crate::model::sanger::{Chromatogram, VendorEvidence};
 
     use super::*;
 
@@ -113,12 +114,12 @@ mod tests {
         trace_at(channels, vec![2, 6])
     }
 
-    fn trace_at(channels: [Vec<i32>; 4], base_locations: Vec<usize>) -> Chromatogram {
+    fn trace_at(channels: [Vec<i32>; 4], locus_positions: Vec<usize>) -> Chromatogram {
         Chromatogram {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels,
-            base_locations,
+            locus_positions,
             vendor: VendorEvidence::default(),
         }
     }
@@ -314,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn ploc_fallback_primary_always_qualifies() -> Result<()> {
+    fn locus_fallback_primary_always_qualifies() -> Result<()> {
         let chromatogram = trace([(0..8).collect(), vec![0; 8], vec![0; 8], vec![0; 8]]);
         let calls = call(
             &chromatogram,
@@ -324,14 +325,14 @@ mod tests {
         )?;
         assert_eq!(calls.primary_sequence, "AA");
         assert!(calls.calls.iter().all(|call| {
-            call.peaks[0].source == crate::model::basecalls::PeakSource::PlocFallback
+            call.peaks[0].source == crate::model::basecalls::PeakSource::LocusFallback
                 && call.qualifying_channels.len() == 1
                 && call.qualifying_channels[0].as_char() == 'A'
                 && call.primary_peak_evidence.as_ref().is_some_and(|evidence| {
-                    evidence.position_0based == call.ploc_0based
+                    evidence.position_0based == call.locus_position_0based
                         && evidence.channel_heights
                             == std::array::from_fn(|channel| {
-                                chromatogram.channels[channel][call.ploc_0based]
+                                chromatogram.channels[channel][call.locus_position_0based]
                             })
                 })
         }));
@@ -339,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    fn ploc_fallback_secondary_must_be_colocated() -> Result<()> {
+    fn locus_fallback_secondary_must_be_colocated() -> Result<()> {
         let chromatogram = trace([
             vec![0, 100, 1, 0, 0, 100, 1, 0],
             vec![0, 1, 40, 41, 42, 43, 44, 45],
@@ -356,7 +357,7 @@ mod tests {
         assert_eq!(calls.calls[0].ambiguity, 'A');
         assert_eq!(
             calls.calls[0].peaks[1].source,
-            crate::model::basecalls::PeakSource::PlocFallback
+            crate::model::basecalls::PeakSource::LocusFallback
         );
         assert_eq!(calls.calls[0].qualifying_channels.len(), 1);
         Ok(())

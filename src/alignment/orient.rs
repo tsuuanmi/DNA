@@ -213,7 +213,7 @@ mod tests {
     use crate::model::locus_evidence::LocusEvidence;
     use crate::model::quality::CallQuality;
     use crate::model::reference::ReferenceTopology;
-    use crate::model::signal::TraceIntegrity;
+    use crate::model::signal::SangerIntegrity;
 
     use super::*;
 
@@ -289,7 +289,7 @@ mod tests {
                 };
                 LocusEvidence {
                     call_index_0based,
-                    ploc_0based: call_index_0based,
+                    locus_position_0based: call_index_0based,
                     window_start_0based: call_index_0based,
                     window_end_0based_exclusive: call_index_0based + 1,
                     context_call_start_0based: call_index_0based,
@@ -307,13 +307,13 @@ mod tests {
             })
             .collect();
         DNAAnalysis {
-            integrity: TraceIntegrity {
-                ploc_count: sequence.len(),
+            integrity: SangerIntegrity {
+                locus_count: sequence.len(),
                 vendor_primary_count: None,
                 vendor_quality_count: None,
-                minimum_ploc_spacing: None,
-                median_ploc_spacing: None,
-                maximum_ploc_spacing: None,
+                minimum_locus_spacing: None,
+                median_locus_spacing: None,
+                maximum_locus_spacing: None,
                 clipped_channel_samples: 0,
                 maximum_to_median_event_signal_ratio: None,
             },

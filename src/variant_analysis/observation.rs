@@ -8,7 +8,7 @@ use crate::error::Result;
 use crate::logger::StageLog;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 use crate::model::variant::VariantKind;
 use crate::read_processing::{self, ProcessedRead};
 use crate::variant_calling;
@@ -141,7 +141,7 @@ pub(crate) fn build<L: StageLog + ?Sized>(
     let warning_total = read_warnings.unresolved_primary_calls
         + read_warnings.multi_channel_unresolved_calls
         + read_warnings.vendor_disagreements
-        + read_warnings.ploc_vendor_length_mismatches
+        + read_warnings.locus_vendor_length_mismatches
         + read_warnings.clipped_channel_samples
         + excluded_variant_candidates
         + usize::from(reference_origin_wrap);
@@ -160,7 +160,7 @@ pub(crate) fn build<L: StageLog + ?Sized>(
                 read_warnings.unresolved_primary_calls,
                 read_warnings.multi_channel_unresolved_calls,
                 read_warnings.vendor_disagreements,
-                read_warnings.ploc_vendor_length_mismatches,
+                read_warnings.locus_vendor_length_mismatches,
                 read_warnings.clipped_channel_samples,
                 excluded_variant_candidates,
                 reference_origin_wrap

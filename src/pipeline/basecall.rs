@@ -81,7 +81,7 @@ fn run_logged(
     let warning_total = warnings.unresolved_primary_calls
         + warnings.multi_channel_unresolved_calls
         + warnings.vendor_disagreements
-        + warnings.ploc_vendor_length_mismatches
+        + warnings.locus_vendor_length_mismatches
         + warnings.clipped_channel_samples;
     if warning_total > 0 {
         logger.warn(
@@ -97,7 +97,7 @@ fn run_logged(
                 warnings.unresolved_primary_calls,
                 warnings.multi_channel_unresolved_calls,
                 warnings.vendor_disagreements,
-                warnings.ploc_vendor_length_mismatches,
+                warnings.locus_vendor_length_mismatches,
                 warnings.clipped_channel_samples
             ),
         )?;

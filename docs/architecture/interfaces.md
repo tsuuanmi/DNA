@@ -29,9 +29,10 @@ The current Sanger filesystem adapter owns validation and loading of Sanger
 sequencing traces, FASTA references, and explicit configuration into validated
 internal models. Its current format layer is `input::sanger::abif`; support is
 determined by the ABIF container and required sequencing tags rather than a
-filename suffix. It
-does not derive `results/*` paths, validate overwrite targets, select log paths,
-or publish outputs. Those remain outer operation/publication concerns.
+filename suffix. `PLOC.2` is decoded at that format boundary and projected to
+canonical Sanger `locus_positions`; downstream scientific modules do not depend
+on the ABIF tag name. It does not derive `results/*` paths, validate overwrite
+targets, select log paths, or publish outputs. Those remain outer operation/publication concerns.
 
 Operational stage logging crosses this boundary through a minimal internal
 `StageLog` capability. Shared reference-free read processing and

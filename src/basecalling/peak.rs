@@ -4,15 +4,19 @@ use crate::error::{Error, Result};
 use crate::locus::{self, LocusWindow};
 use crate::model::basecalls::{ChannelPeak, PeakSource};
 use crate::model::nucleotide::Nucleotide;
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 
 /// Builds the shared PLOC-defined windows and maps geometry failures to basecalling.
 pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>> {
     locus::windows(trace).map_err(Error::Basecalling)
 }
 
-/// Finds one positive local peak per channel or samples PLOC explicitly.
-pub(crate) fn peaks(trace: &Chromatogram, window: LocusWindow, ploc: usize) -> [ChannelPeak; 4] {
+/// Finds one positive local peak per channel or samples the canonical locus explicitly.
+pub(crate) fn peaks(
+    trace: &Chromatogram,
+    window: LocusWindow,
+    locus_position: usize,
+) -> [ChannelPeak; 4] {
     std::array::from_fn(|channel_index| {
         let channel = &trace.channels[channel_index];
         let search_start = window.start.max(1);
@@ -27,7 +31,13 @@ pub(crate) fn peaks(trace: &Chromatogram, window: LocusWindow, ploc: usize) -> [
             }
         }
         let (position, height, source) = selected.map_or_else(
-            || (ploc, channel[ploc], PeakSource::PlocFallback),
+            || {
+                (
+                    locus_position,
+                    channel[locus_position],
+                    PeakSource::LocusFallback,
+                )
+            },
             |(position, height)| (position, height, PeakSource::LocalMaximum),
         );
         ChannelPeak {
@@ -41,12 +51,12 @@ pub(crate) fn peaks(trace: &Chromatogram, window: LocusWindow, ploc: usize) -> [
 
 #[cfg(test)]
 mod tests {
-    use crate::model::trace::{Chromatogram, VendorEvidence};
+    use crate::model::sanger::{Chromatogram, VendorEvidence};
 
     use super::*;
 
     #[test]
-    fn selects_each_channel_independently_and_falls_back_to_ploc() {
+    fn selects_each_channel_independently_and_falls_back_to_locus_position() {
         let trace = Chromatogram {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
@@ -56,7 +66,7 @@ mod tests {
                 vec![0, 0, 1, 2, 30, 1, 0],
                 vec![0, 1, 2, 3, 4, 5, 6],
             ],
-            base_locations: vec![3, 5],
+            locus_positions: vec![3, 5],
             vendor: VendorEvidence::default(),
         };
         let selected = peaks(&trace, LocusWindow { start: 1, end: 6 }, 3);
@@ -64,6 +74,6 @@ mod tests {
         assert_eq!((selected[1].position_0based, selected[1].height), (3, 20));
         assert_eq!((selected[2].position_0based, selected[2].height), (4, 30));
         assert_eq!((selected[3].position_0based, selected[3].height), (3, 3));
-        assert_eq!(selected[3].source, PeakSource::PlocFallback);
+        assert_eq!(selected[3].source, PeakSource::LocusFallback);
     }
 }

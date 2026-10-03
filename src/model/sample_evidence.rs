@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::model::alignment::{Orientation, ReferenceSegment};
 use crate::model::locus_evidence::EvidenceProfile;
-use crate::model::signal::TraceIntegrity;
+use crate::model::signal::SangerIntegrity;
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
 
 /// Why a mapped read pair is not admitted as reliable overlap evidence.
@@ -89,7 +89,7 @@ pub(crate) struct SampleReadAlignmentEvidence {
 pub(crate) struct SampleReadEvidence {
     pub(crate) input_name: String,
     pub(crate) input_sha256: String,
-    pub(crate) integrity: TraceIntegrity,
+    pub(crate) integrity: SangerIntegrity,
     pub(crate) alignment: SampleReadAlignmentEvidence,
 }
 

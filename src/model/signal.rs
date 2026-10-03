@@ -4,24 +4,24 @@ use crate::model::locus_evidence::LocusEvidence;
 
 /// Observation-only structural and amplitude integrity evidence for one trace.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct TraceIntegrity {
-    pub(crate) ploc_count: usize,
+pub(crate) struct SangerIntegrity {
+    pub(crate) locus_count: usize,
     pub(crate) vendor_primary_count: Option<usize>,
     pub(crate) vendor_quality_count: Option<usize>,
-    pub(crate) minimum_ploc_spacing: Option<usize>,
-    pub(crate) median_ploc_spacing: Option<f64>,
-    pub(crate) maximum_ploc_spacing: Option<usize>,
+    pub(crate) minimum_locus_spacing: Option<usize>,
+    pub(crate) median_locus_spacing: Option<f64>,
+    pub(crate) maximum_locus_spacing: Option<usize>,
     pub(crate) clipped_channel_samples: usize,
     pub(crate) maximum_to_median_event_signal_ratio: Option<f64>,
 }
 
-impl TraceIntegrity {
-    /// Number of present vendor series whose length differs from the PLOC series.
+impl SangerIntegrity {
+    /// Number of present vendor series whose length differs from the canonical locus series.
     pub(crate) fn vendor_length_mismatch_count(&self) -> usize {
         [self.vendor_primary_count, self.vendor_quality_count]
             .into_iter()
             .flatten()
-            .filter(|&count| count != self.ploc_count)
+            .filter(|&count| count != self.locus_count)
             .count()
     }
 }
@@ -51,7 +51,7 @@ pub struct NoisyRegion {
 /// Complete observation-only signal analysis.
 #[derive(Debug, Clone)]
 pub struct DNAAnalysis {
-    pub(crate) integrity: TraceIntegrity,
+    pub(crate) integrity: SangerIntegrity,
     pub(crate) loci: Vec<LocusEvidence>,
     pub(crate) windows: Vec<DNAWindow>,
     pub(crate) noisy_regions: Vec<NoisyRegion>,

@@ -4,7 +4,7 @@ use crate::config::QualityControlConfig;
 use crate::error::{Error, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::{CallQuality, QualityControlResult};
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 use crate::quality_control::penalty;
 use crate::quality_control::quality;
 
@@ -91,7 +91,7 @@ pub(crate) fn analyze(
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
     use crate::model::nucleotide::Nucleotide;
-    use crate::model::trace::VendorEvidence;
+    use crate::model::sanger::VendorEvidence;
 
     use super::*;
 
@@ -102,16 +102,16 @@ mod tests {
             calls: locations
                 .iter()
                 .enumerate()
-                .map(|(index, &ploc)| BaseCall {
+                .map(|(index, &locus_position)| BaseCall {
                     index_0based: index,
-                    ploc_0based: ploc,
-                    window_start_0based: ploc.saturating_sub(1),
-                    window_end_0based_exclusive: ploc + 2,
+                    locus_position_0based: locus_position,
+                    window_start_0based: locus_position.saturating_sub(1),
+                    window_end_0based_exclusive: locus_position + 2,
                     peaks: std::array::from_fn(|channel| ChannelPeak {
                         base: Nucleotide::ALL[channel],
                         height: 1,
-                        position_0based: ploc,
-                        source: PeakSource::PlocFallback,
+                        position_0based: locus_position,
+                        source: PeakSource::LocusFallback,
                     }),
                     primary_peak_evidence: None,
                     primary: 'A',
@@ -126,7 +126,7 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 16]),
-            base_locations: locations.to_vec(),
+            locus_positions: locations.to_vec(),
             vendor: VendorEvidence {
                 primary: Some("AAAA".into()),
                 qualities: Some(vec![40; 4]),

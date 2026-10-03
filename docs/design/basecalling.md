@@ -2,8 +2,10 @@
 
 Part of the canonical [DNA pipeline](pipeline.md).
 
-Re-calls every vendor-defined locus from the channel signals. Vendor base
-strings are retained as evidence but never replace signal-derived re-calling.
+Re-calls every vendor-defined locus from the channel signals. ABIF `PLOC.2` is
+resolved by the Sanger input adapter into canonical locus positions before this
+stage. Vendor base strings are retained as evidence but never replace
+signal-derived re-calling.
 
 ### Substep 2.1 — Call windows
 
@@ -25,7 +27,7 @@ sample `v` at position `j` is a local maximum when
 `(v[j-1] <= v && v > v[j+1]) || (v[j-1] < v && v >= v[j+1])`. The highest such
 sample is the channel peak. If no positive local maximum exists, the channel
 value at the basecall position is used as a fallback. Each channel peak records
-its base, height, position, and source (`local_maximum` or `ploc_fallback`).
+its base, height, position, and source (`local_maximum` or `locus_fallback`).
 
 ### Substep 2.3 — Call decision
 

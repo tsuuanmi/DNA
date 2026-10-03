@@ -38,7 +38,7 @@ impl EvidenceProfile {
 #[derive(Debug, Clone)]
 pub(crate) struct LocusEvidence {
     pub(crate) call_index_0based: usize,
-    pub(crate) ploc_0based: usize,
+    pub(crate) locus_position_0based: usize,
     pub(crate) window_start_0based: usize,
     pub(crate) window_end_0based_exclusive: usize,
     pub(crate) context_call_start_0based: usize,

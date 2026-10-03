@@ -1,6 +1,6 @@
 # Basecalling
 
-Owns signal-derived primary and ambiguity calls at validated ABIF PLOC loci.
+Owns signal-derived primary and ambiguity calls at validated canonical Sanger loci.
 
 Entry point: `call` from `mod.rs`.
 

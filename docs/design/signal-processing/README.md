@@ -6,19 +6,19 @@ This is the canonical entry point for production signal-processing methods.
 
 DNA reads the analyzed ABIF `DATA.9`–`DATA.12` arrays in canonical A/C/G/T order. These are instrument-analyzed fluorescence channels, not raw detector channels. The current ABIF boundary does not retain a spectral matrix, mobility model, or raw-channel baseline metadata.
 
-The signal-processing stage is deliberately observational. It retains `dna.windowed_snr/v1` noisy-window behavior, derives internal basecall-independent `LocusEvidence` / `EvidenceProfile`, and derives concise whole-trace integrity evidence. Public JSON emits trace-integrity observations plus merged candidate-noisy regions; signal processing itself does not smooth channels, re-call bases, trim internal sequence, mutate an alignment, classify dye blobs, or remove a variant. Reference alignment may consume the immutable evidence profile under ADR-0029.
+The signal-processing stage is deliberately observational. It retains `dna.windowed_snr/v1` noisy-window behavior, derives internal basecall-independent `LocusEvidence` / `EvidenceProfile`, and derives concise whole-read Sanger integrity evidence. Public JSON emits Sanger-integrity observations plus merged candidate-noisy regions; signal processing itself does not smooth channels, re-call bases, trim internal sequence, mutate an alignment, classify dye blobs, or remove a variant. Reference alignment may consume the immutable evidence profile under ADR-0029.
 
 ## Coordinate domains
 
-- **Sample indexes** address A/C/G/T channel values and PLOC positions.
+- **Sample indexes** address A/C/G/T channel values and canonical Sanger locus positions.
 - **Call indexes** address base calls, quality records, and variant mappings.
 
-Both are 0-based. Window and region intervals are half-open. Shared PLOC geometry defines one midpoint-derived locus window per vendor locus. Basecalling and signal evidence consume that same geometry without one stage re-deriving the other's classification.
+Both are 0-based. Window and region intervals are half-open. Shared canonical locus geometry defines one midpoint-derived locus window per vendor locus. Basecalling and signal evidence consume that same geometry without one stage re-deriving the other's classification.
 
 ## Methods
 
 - [Windowed SNR](windowed-snr.md): rolling local signal-quality observations and candidate-noisy regions.
-- [Trace integrity](trace-integrity.md): PLOC/vendor cardinality, spacing, clipping, and whole-trace event-signal observations.
+- [Trace integrity](trace-integrity.md): canonical-locus/vendor cardinality, spacing, clipping, and whole-read event-signal observations.
 - [Locus evidence](locus-evidence.md): basecall-independent per-locus A/C/G/T evidence and normalized evidence profiles.
 
 ## Interpretation limits
