@@ -51,10 +51,9 @@ fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
     Ok(())
 }
 
-
 #[test]
-fn sanger_analysis_accepts_abif_filename_without_extension_coupling(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn sanger_analysis_accepts_abif_filename_without_extension_coupling()
+-> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace = directory.path().join("trace.abif");
     let reference = directory.path().join("reference.fa");
