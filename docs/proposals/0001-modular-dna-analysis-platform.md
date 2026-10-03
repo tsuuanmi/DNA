@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058, ADR-0059]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -601,6 +601,12 @@ Implementation is in progress through focused PRs.
   Sanger domain vocabulary: ABIF `PLOC.2` is projected to generic locus
   positions at the input boundary, while current versioned JSON contracts retain
   their existing serialized `ploc_*` field names.
+
+- [PR #21](https://github.com/tsuuanmi/DNA/pull/21) broadens the platform scope
+  beyond one Sanger/mtDNA context and formalizes reuse-first implementation:
+  biological target, sequencing modality, external format, and analysis
+  capability are separate dimensions; maintained ecosystem machinery is
+  preferred behind DNA-owned contracts.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
