@@ -41,6 +41,22 @@ typed result; no stage mutates shared state.
 | 6 | [Variant calling](variant-calling.md) |
 | sample aggregation | [Sample evidence aggregation](sample-evidence/README.md) |
 
+## Ownership boundaries
+
+The stage sequence is shared across multiple application surfaces, but ownership
+does not follow the CLI command tree:
+
+- crate-internal `read_processing` owns the shared reference-free
+  basecalling/signal/QC path used by basecall and Variant Analysis;
+- `variant_analysis` owns the reference-guided one-read observation path,
+  including alignment and variant calling;
+- `pipeline` owns CLI/sample orchestration, operational logging lifecycle,
+  report projection, and publication.
+
+This direction keeps reusable scientific capabilities independent of the
+command-line orchestration layer while preserving one authoritative scientific
+implementation.
+
 ## One-read observation boundary
 
 After selected alignment and variant calling, DNA materializes a `ReadObservation` that owns the input identity, base calls, basecall-independent locus/signal observations, quality-control result, selected alignment, and read-level variant result for exactly one trace.
