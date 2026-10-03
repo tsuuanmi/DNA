@@ -31,6 +31,12 @@ pub(crate) struct AnalysisInputs {
     pub(crate) reference: Reference,
 }
 
+/// Immutable scientific context reusable across independent Sanger traces.
+pub(crate) struct AnalysisContext {
+    pub(crate) config: Config,
+    pub(crate) reference: Reference,
+}
+
 /// Validated path and configuration prepared before decoding one basecall trace.
 pub(crate) struct PreparedBasecallInputs {
     config: Config,
@@ -80,6 +86,23 @@ pub(crate) fn load_analysis(prepared: PreparedAnalysisInputs) -> Result<Analysis
         trace,
         reference,
     })
+}
+
+/// Loads one reusable reference/configuration context for many Sanger traces.
+pub(crate) fn load_analysis_context(
+    reference_path: &Path,
+    config_path: &Path,
+) -> Result<AnalysisContext> {
+    require_regular_file(reference_path, "reference")?;
+    let config = load_config(config_path)?;
+    let reference = reference::load(reference_path, config.reference.topology)?;
+    Ok(AnalysisContext { config, reference })
+}
+
+/// Validates and decodes one Sanger trace without reloading shared analysis context.
+pub(crate) fn load_trace(trace_path: &Path) -> Result<Chromatogram> {
+    require_regular_file(trace_path, "AB1")?;
+    abif::load(trace_path)
 }
 
 /// Validates the source path and loads configuration for one basecall trace.
