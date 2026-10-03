@@ -85,7 +85,7 @@ fn run_logged(
         ),
     )?;
 
-    let completed = variant_analysis::observe(
+    let completed = variant_analysis::observation::build(
         &inputs.trace,
         &inputs.reference,
         &inputs.config,
