@@ -33,6 +33,11 @@ domain/config/error types rather than outward toward frontends. In particular,
 the CLI may call the pipeline boundary, but pipeline and scientific modules must
 not depend on CLI/`clap` argument types.
 
+Scientific stages that emit operational progress depend on the minimal internal
+`StageLog` capability rather than the concrete file-backed `Logger`. Log-path
+selection, terminal error records, and synchronization remain outer operation
+concerns.
+
 Cross-cutting invariants are canonical in
 [docs/architecture/invariants](../docs/architecture/invariants/README.md).
 

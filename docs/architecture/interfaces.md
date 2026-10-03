@@ -24,6 +24,12 @@ destination. Output-path derivation and overwrite protection remain an outer
 operation/publication concern, while decoded trace, reference, and configuration
 form the scientific input boundary.
 
+Operational stage logging crosses this boundary through a minimal internal
+`StageLog` capability. Scientific read/observation stages can emit
+informational and warning records without depending on the file-backed logger;
+log destination selection, terminal error logging, and synchronization stay in
+the outer operation layer.
+
 Exact syntax and serialized shapes are owned by
 [reference](../reference/README.md). Module responsibilities are colocated under
 [src](../../src/README.md). Cross-cutting rules that must hold across interfaces

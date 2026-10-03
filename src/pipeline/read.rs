@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::basecalling;
 use crate::config::Config;
 use crate::error::Result;
-use crate::logger::Logger;
+use crate::logger::StageLog;
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::DNAAnalysis;
@@ -31,10 +31,10 @@ pub(crate) struct ProcessedRead {
 }
 
 /// Runs and logs the scientific stages that require no reference.
-pub(crate) fn process(
+pub(crate) fn process<L: StageLog + ?Sized>(
     trace: &Chromatogram,
     config: &Config,
-    logger: &mut Logger,
+    logger: &mut L,
     stage: &mut &'static str,
 ) -> Result<ProcessedRead> {
     *stage = "basecalling";
