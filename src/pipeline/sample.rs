@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::input::sanger;
 use crate::logger::Logger;
 use crate::pipeline::path;
@@ -220,7 +220,7 @@ fn validate_sample_id(sample_id: &str) -> Result<()> {
     let valid_rest =
         characters.all(|value| value.is_ascii_alphanumeric() || matches!(value, '_' | '.' | '-'));
     if sample_id.len() > 128 || !valid_first || !valid_rest {
-        return Err(crate::error::Error::Sample(
+        return Err(Error::Sample(
             "sample id must be 1..=128 ASCII characters, start with an alphanumeric character, and contain only alphanumeric, '_', '.', or '-'".into(),
         ));
     }
