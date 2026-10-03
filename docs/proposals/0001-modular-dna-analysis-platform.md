@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058, ADR-0059, ADR-0060]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -251,9 +251,9 @@ alignment input -> canonical alignment
 VariantCaller:
 modality-specific interpreted evidence -> called variant set
 
-VariantCanonicalizer:
-called variants + reference + explicit policy -> canonicalization result
-(source edits + reconstructed haplotype + canonical edits + provenance)
+VariantNormalizer:
+called variants + reference + explicit policy -> normalization result
+(source variants + reconstructed haplotype + normalized variants)
 
 NomenclatureEngine:
 canonicalization result + target policy -> target canonical variants
@@ -649,6 +649,11 @@ Implementation is in progress through focused PRs.
   variant calling from future haplotype-preserving canonicalization and
   target-specific nomenclature, allowing future NGS callers to converge without
   depending on Sanger alignment topology.
+
+- [PR #26](https://github.com/tsuuanmi/DNA/pull/26) implements the first
+  cross-modality `CalledVariantSet` boundary plus optional
+  haplotype-preserving human-mtDNA 3'/right-most post-calling normalization
+  while preserving source variants and reconstructed alternate sequence.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
