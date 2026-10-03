@@ -348,7 +348,11 @@ A future high-level API may conceptually resemble:
 let called = dna::variant_analysis::analyze(input, reference, config)?;
 
 // Optional, selected by the workflow/target.
-let normalized = dna::variant_normalization::normalize(&called, normalization_config)?;
+let normalized = dna::variant_normalization::normalize(
+    reference_path,
+    &called,
+    dna::variant_normalization::NormalizationPolicy::MtDnaRightAligned,
+)?;
 let represented = dna::nomenclature::apply(&normalized, nomenclature_config)?;
 
 // Other consumers may use called or normalized variants directly.
@@ -605,7 +609,7 @@ Implementation is in progress through focused PRs.
   depends on the concrete file-backed operational logger.
 
 - [PR #15](https://github.com/tsuuanmi/DNA/pull/15) introduces the first public
-  capability-oriented Rust API: Sanger input to canonical typed Variant Analysis
+  capability-oriented Rust API: Sanger input to typed Variant Analysis
   results without CLI logging or JSON publication side effects.
 
 - [PR #17](https://github.com/tsuuanmi/DNA/pull/17) moves shared scientific
