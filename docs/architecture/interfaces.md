@@ -25,8 +25,11 @@ current command-line/process environment from becoming an inward dependency of
 orchestration or scientific modules and leaves the operation boundary usable by
 future non-CLI callers.
 
-The current Sanger filesystem adapter owns validation and loading of AB1 traces,
-FASTA references, and explicit configuration into validated internal models. It
+The current Sanger filesystem adapter owns validation and loading of Sanger
+sequencing traces, FASTA references, and explicit configuration into validated
+internal models. Its current format layer is `input::sanger::abif`; support is
+determined by the ABIF container and required sequencing tags rather than a
+filename suffix. It
 does not derive `results/*` paths, validate overwrite targets, select log paths,
 or publish outputs. Those remain outer operation/publication concerns.
 
