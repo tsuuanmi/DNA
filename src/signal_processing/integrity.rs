@@ -2,8 +2,8 @@
 
 use crate::error::{Error, Result};
 use crate::model::locus_evidence::LocusEvidence;
-use crate::model::signal::SangerIntegrity;
 use crate::model::sanger::Chromatogram;
+use crate::model::signal::SangerIntegrity;
 
 use super::statistics;
 
@@ -22,14 +22,15 @@ pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<San
         .windows(2)
         .map(|pair| pair[1] - pair[0])
         .collect::<Vec<_>>();
-    let (minimum_locus_spacing, median_locus_spacing, maximum_locus_spacing) = if spacings.is_empty() {
-        (None, None, None)
-    } else {
-        let minimum = spacings.iter().copied().min();
-        let maximum = spacings.iter().copied().max();
-        let median = Some(statistics::median_usize(&spacings)?);
-        (minimum, median, maximum)
-    };
+    let (minimum_locus_spacing, median_locus_spacing, maximum_locus_spacing) =
+        if spacings.is_empty() {
+            (None, None, None)
+        } else {
+            let minimum = spacings.iter().copied().min();
+            let maximum = spacings.iter().copied().max();
+            let median = Some(statistics::median_usize(&spacings)?);
+            (minimum, median, maximum)
+        };
 
     let clipped_channel_samples = trace
         .channels
