@@ -2,9 +2,11 @@
 
 Part of the canonical [DNA pipeline](pipeline.md).
 
-Extracts normalized primary-sequence differences from the selected alignment.
-Only differences in the primary sequence are considered; no allele-frequency,
-genotype, or heteroplasmy inference is performed.
+Extracts evidence-backed primary-sequence differences from the selected
+alignment and constructs validated anchored REF/ALT alleles. Only differences
+in the primary sequence are considered; no allele-frequency, genotype,
+heteroplasmy, post-calling haplotype canonicalization, or target nomenclature
+inference is performed.
 
 ### Substep 6.1 — Difference extraction
 
@@ -18,29 +20,34 @@ Differences whose allele contains a non-canonical base, or whose indel length
 exceeds `max_indel_length`, increment the excluded-candidate warning count rather
 than being reported.
 
-### Substep 6.2 — Normalization
+### Substep 6.2 — Allele construction and anchoring
 
-Reported variants are normalized:
+The caller converts each selected-alignment difference into a validated
+reference-oriented allele representation.
 
-- **linear references:** indels are left-normalized against the reference where
-  an equivalent placement exists (`linear_left`). When no aligned left flank
-  exists, the actual reference predecessor is derived from the event position; a
-  true linear origin insertion/deletion right-anchors to the next reference base.
-- **circular references:** indels are placed at the canonical rotation
-  (`circular_canonical`). Repeat normalization walks the whole circle, so the
-  resulting representation is anchor-independent.
+For indels, the current production implementation preserves the canonical gap
+placement selected by alignment under `SRS-ALN-012`; it does not independently
+left-shift, rotate, or right-shift the event through a repeat. When an aligned
+left flank is unavailable, the caller derives the real reference predecessor
+where possible. A true leading linear indel uses a real right anchor. Circular
+origin-spanning representation preserves the alignment-selected side of the
+rCRS seam.
 
 Internally each variant retains its contig, 1-based position, reference/alternate
-alleles, kind, normalization, and direct call mappings. Compact v7 emits only
-`position`, `reference`, `alternate`, `kind`, and `calls`. Every public call
-contains only its supporting/flanking `role`, reference-oriented called `base`,
+alleles, kind, and direct call mappings. Compact v7 emits only `position`,
+`reference`, `alternate`, `kind`, and `calls`. Every public call contains
+only its supporting/flanking `role`, reference-oriented called `base`,
 co-located reference-oriented A/C/G/T primary-event channel heights in `peaks`,
 and uncalibrated `quality`. Original call index, PLOC, mapped call position,
 trace-strand symbols, selected-peak positions/sources, penalties, and vendor
 evidence remain internal. Deletions carry real aligned flanks only and never
 fabricate deleted-base dna. The emitted reference allele is validated against
-the supplied reference. Normalization may move the allele representation without
-changing the underlying observed evidence.
+the supplied reference.
+
+A future post-calling canonicalization capability defined by ADR-0060 may move
+or re-decompose sequence-equivalent events only after reconstructing and
+preserving the complete represented haplotype. That capability is intentionally
+separate from this caller.
 
 ### Substep 6.3 — Configured eligibility
 
