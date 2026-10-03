@@ -12,10 +12,10 @@
 mod alignment;
 mod basecalling;
 mod checksum;
-mod input;
 pub mod cli;
 pub mod config;
 pub mod error;
+mod input;
 mod locus;
 mod logger;
 pub mod model;
