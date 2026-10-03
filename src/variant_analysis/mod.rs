@@ -4,13 +4,17 @@
 //! and JSON publication. Source-specific adapters normalize their output into
 //! the same canonical result contract.
 
+mod observation;
+
 use std::fmt;
 use std::path::Path;
 
 use crate::error::Result;
 use crate::logger::StageLog;
 use crate::model::variant as internal_variant;
-use crate::pipeline::{input, observation};
+use crate::pipeline::input;
+
+pub(crate) use observation::{CompletedObservation, build as observe};
 
 /// Canonical result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,7 +78,7 @@ pub fn analyze_sanger(
     };
     let mut log = SilentStageLog;
     let mut stage = "read_processing";
-    let completed = observation::build(
+    let completed = observe(
         &inputs.trace,
         &inputs.reference,
         &inputs.config,
