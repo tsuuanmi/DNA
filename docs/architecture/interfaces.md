@@ -1,15 +1,18 @@
 # Interfaces and Boundaries
 
-DNA separates four interface classes:
+DNA separates five interface classes:
 
 1. **Frontend/configuration boundary** — the CLI owns typed command arguments and
    resolves the current configuration path; parsed command values and the
    explicit configuration path are translated before entering operation
    orchestration.
-2. **Scientific module boundaries** — typed internal models passed between
+2. **Public Rust capability boundary** — typed reusable operations such as
+   Sanger Variant Analysis return canonical domain results without CLI
+   publication side effects.
+3. **Scientific module boundaries** — typed internal models passed between
    decoding, calling, signal, QC, alignment, variant, and sample stages.
-3. **Public result boundary** — closed versioned JSON contracts.
-4. **Filesystem/operational boundary** — atomic publication and append-only logs.
+4. **Public serialized result boundary** — closed versioned JSON contracts.
+5. **Filesystem/operational boundary** — atomic publication and append-only logs.
 
 The CLI is an outer adapter: pipeline entry points receive operation values such
 as paths and sample identifiers, not `clap` argument structs. Pipeline
@@ -29,6 +32,8 @@ Operational stage logging crosses this boundary through a minimal internal
 informational and warning records without depending on the file-backed logger;
 log destination selection, terminal error logging, and synchronization stay in
 the outer operation layer.
+
+The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns canonical typed variant evidence directly and does not open logs or publish JSON. Its exact contract is owned by [Rust public API](../reference/rust-api.md).
 
 Exact syntax and serialized shapes are owned by
 [reference](../reference/README.md). Module responsibilities are colocated under
