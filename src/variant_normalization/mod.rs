@@ -59,8 +59,7 @@ pub fn normalize(
     }
 
     let source_variants = called.variants.clone();
-    let source_edits =
-        variants_to_edits(&reference.name, &reference.sequence, &source_variants)?;
+    let source_edits = variants_to_edits(&reference.name, &reference.sequence, &source_variants)?;
     let alternate_sequence = apply_edits(&reference.sequence, &source_edits)?;
 
     let normalized_edits = match policy {
