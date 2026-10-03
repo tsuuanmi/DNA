@@ -31,15 +31,25 @@ modality-independent canonical-variant layer.
 
 ## Decision
 
-DNA separates three responsibilities:
+DNA separates three responsibilities and does not require every workflow to
+execute all three:
 
 ~~~text
-variant calling
-      ↓
-variant canonicalization
-      ↓
-target nomenclature
+variant calling / importing
+          |
+          v
+   called variants
+      /        \
+     v          v
+direct use   optional normalization/canonicalization
+                    |
+                    v
+             optional nomenclature
 ~~~
+
+The called-variant boundary is the first cross-modality convergence point.
+Normalization/canonicalization and nomenclature are explicitly selected
+capabilities, not mandatory hidden stages.
 
 ### 1. Variant calling owns evidence-supported biological differences
 
@@ -106,13 +116,18 @@ requirement for all future nuclear, NGS, VCF-interchange, or other workflows.
 A future target may select another explicit canonicalization policy without
 changing variant-calling semantics.
 
-### 5. Nomenclature follows generic canonicalization
+### 5. Nomenclature is an optional target-specific representation layer
 
-Nomenclature is a target-specific representation layer applied after generic
-haplotype-preserving canonicalization. It consumes the canonicalization result,
-not merely a destructively rewritten final edit list, so target rules may inspect
-the preserved source description and reconstructed haplotype when scientifically
-required.
+Nomenclature is not required for every workflow. A composition layer may omit
+it when the consumer needs biological calls rather than a named target-specific
+representation.
+
+When a nomenclature policy is composed after generic haplotype-preserving
+canonicalization, it consumes the canonicalization result rather than merely a
+destructively rewritten final edit list, so target rules may inspect the
+preserved source description and reconstructed haplotype when scientifically
+required. A policy MAY also accept an unnormalized representation context when
+its own contract explicitly defines and validates that path.
 
 For mtDNA, nomenclature may select validated representations for unstable or
 repeat-rich regions such as the current 309/315, 513-524, and 16189/16193
@@ -128,40 +143,41 @@ Any Sanger-specific artifact interpretation that can change the inferred
 biological sequence belongs before canonicalization, in the modality-specific
 evidence/read-interpretation path.
 
-### 6. Canonical variants are a convergence boundary
+### 6. Called variants are the convergence boundary
 
 The intended architecture is:
 
 ~~~text
-Sanger evidence
-    ↓
-Sanger interpretation / alignment
-    ↓
-Sanger variant caller ───────────────┐
-                                     │
-future NGS evidence                  │
-    ↓                                │
-NGS mapping / interpretation         ├──> called biological variants
-    ↓                                │              ↓
-NGS variant caller ──────────────────┘      canonicalization policy
-                                                   ↓
-                                            target nomenclature
-                                                   ↓
-                                            canonical variants
-                                                   ↓
-                              sample reconciliation / downstream analysis
+Sanger evidence --> Sanger caller --------------------+
+                                                      |
+future NGS evidence --> NGS caller -------------------+--> CalledVariantSet
+                                                      |        |       |
+VCF/BCF or future called source --> importer/adapter -+        |       |
+                                                               |       +--> direct downstream
+                                                               |
+                                                               +--> optional normalization
+                                                                        |
+                                                                        +--> optional nomenclature
 ~~~
 
-A future imported VCF/BCF source may adapt into the called-variant boundary
-without making VCF records DNA's canonical domain model.
+A future imported VCF/BCF source therefore bypasses raw calling and adapts into
+the called-variant boundary without making VCF records DNA's canonical domain
+model.
 
-### 7. Per-read canonicalization precedes sample reconciliation
+The input to a caller remains source-specific. DNA does not require a Sanger
+pairwise alignment and an NGS aligned-read collection to share one artificial
+universal raw-alignment type.
 
-Where multiple reads/traces describe one sample, sequence-equivalent per-read
-representations SHOULD converge before sample-level reconciliation.
+### 7. Workflows choose where representation convergence is required
 
-This prevents forward/reverse reads from appearing biologically discordant only
-because their raw alignment decomposition differs.
+Where multiple reads/traces describe one sample, a workflow SHOULD prevent
+sequence-equivalent representations from appearing biologically discordant.
+
+For the current mtDNA direction, applying the selected mtDNA normalization and
+nomenclature policy before representation-based sample reconciliation is one
+valid composition. A future sample algorithm may instead compare reconstructed
+haplotypes directly and therefore need less pre-reconciliation representation
+policy.
 
 True biological or evidence disagreement remains explicit and MUST NOT be hidden
 by normalization or nomenclature.
