@@ -3,8 +3,6 @@
 mod analyze;
 mod basecall;
 pub(crate) mod input;
-pub(crate) mod observation;
-mod read;
 mod sample;
 mod sample_metrics;
 mod sample_reads;
