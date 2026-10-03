@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058, ADR-0059, ADR-0060]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26, PR-27]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -658,6 +658,11 @@ Implementation is in progress through focused PRs.
   cross-modality `CalledVariantSet` boundary plus optional
   haplotype-preserving human-mtDNA 3'/right-most post-calling normalization
   while preserving source variants and reconstructed alternate sequence.
+
+- [PR #27](https://github.com/tsuuanmi/DNA/pull/27) adds a reusable
+  immutable Sanger analysis context so large validation/batch workloads can
+  prepare one shared reference/configuration once and safely parallelize
+  independent traces outside the scientific kernel.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
