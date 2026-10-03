@@ -1,136 +1,8 @@
-//! Path validation and operation-specific input loading.
+//! CLI/application path naming and publication-target validation.
 
 use std::path::{Path, PathBuf};
 
-use crate::config::{self, Config};
 use crate::error::{Error, Result};
-use crate::model::reference::Reference;
-use crate::model::trace::Chromatogram;
-use crate::{reference, trace};
-
-/// Validated paths and configuration prepared before decoding analysis inputs.
-pub(crate) struct PreparedAnalysisInputs {
-    config: Config,
-    trace_path: PathBuf,
-    reference_path: PathBuf,
-}
-
-/// Scientific inputs for one reference-guided analysis.
-pub(crate) struct AnalysisInputs {
-    pub(crate) config: Config,
-    pub(crate) trace: Chromatogram,
-    pub(crate) reference: Reference,
-}
-
-/// Inputs for one reference-free basecall operation.
-pub(crate) struct BasecallInputs {
-    pub(crate) config: Config,
-    pub(crate) trace: Chromatogram,
-    pub(crate) output: PathBuf,
-}
-
-/// Inputs for one multi-read sample evidence operation.
-pub(crate) struct SampleInputs {
-    pub(crate) config: Config,
-    pub(crate) traces: Vec<Chromatogram>,
-    pub(crate) reference: Reference,
-}
-
-/// Validates analysis source paths and loads the explicit configuration.
-pub(crate) fn prepare_analysis(
-    trace_path: &Path,
-    reference_path: &Path,
-    config_path: &Path,
-) -> Result<PreparedAnalysisInputs> {
-    require_regular_file(trace_path, "AB1")?;
-    require_regular_file(reference_path, "reference")?;
-    let config = load_config(config_path)?;
-    Ok(PreparedAnalysisInputs {
-        config,
-        trace_path: trace_path.to_path_buf(),
-        reference_path: reference_path.to_path_buf(),
-    })
-}
-
-/// Decodes prepared analysis inputs without inspecting any publication target.
-pub(crate) fn load_analysis(prepared: PreparedAnalysisInputs) -> Result<AnalysisInputs> {
-    let PreparedAnalysisInputs {
-        config,
-        trace_path,
-        reference_path,
-    } = prepared;
-    let trace = trace::load(&trace_path)?;
-    let reference = reference::load(&reference_path, config.reference.topology)?;
-    Ok(AnalysisInputs {
-        config,
-        trace,
-        reference,
-    })
-}
-
-/// Validates and loads one trace and one configuration without a reference.
-pub(crate) fn load_basecall(trace_path: &Path, config_path: &Path) -> Result<BasecallInputs> {
-    require_regular_file(trace_path, "AB1")?;
-    let config = load_config(config_path)?;
-    let output = basecall_output_path(trace_path)?;
-    validate_output(&output)?;
-    let trace = trace::load(trace_path)?;
-    Ok(BasecallInputs {
-        config,
-        trace,
-        output,
-    })
-}
-
-/// Validates and loads one or more sample traces against one shared reference.
-pub(crate) fn load_sample(
-    trace_paths: &[PathBuf],
-    reference_path: &Path,
-    config_path: &Path,
-) -> Result<SampleInputs> {
-    if trace_paths.is_empty() {
-        return Err(Error::Sample(
-            "sample analysis requires at least one AB1 trace".into(),
-        ));
-    }
-    for trace_path in trace_paths {
-        require_regular_file(trace_path, "AB1")?;
-    }
-    require_regular_file(reference_path, "reference")?;
-    let config = load_config(config_path)?;
-    let traces = trace_paths
-        .iter()
-        .map(|path| trace::load(path))
-        .collect::<Result<Vec<_>>>()?;
-    let reference = reference::load(reference_path, config.reference.topology)?;
-    Ok(SampleInputs {
-        config,
-        traces,
-        reference,
-    })
-}
-
-fn load_config(path: &Path) -> Result<Config> {
-    let config = config::load_path(path)?;
-    require_regular_file(&config.source_path, "configuration")?;
-    Ok(config)
-}
-
-fn require_regular_file(path: &Path, kind: &'static str) -> Result<()> {
-    let metadata = path.metadata().map_err(|source| Error::Read {
-        kind,
-        path: path.to_path_buf(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() == 0 {
-        return Err(Error::Path {
-            kind,
-            path: path.to_path_buf(),
-            reason: "path must be a non-empty regular file".into(),
-        });
-    }
-    Ok(())
-}
 
 fn validate_output(output: &Path) -> Result<()> {
     if output.exists() {
@@ -161,10 +33,14 @@ pub(crate) fn analysis_output(trace: &Path) -> Result<PathBuf> {
     Ok(output)
 }
 
-fn basecall_output_path(trace: &Path) -> Result<PathBuf> {
-    Ok(PathBuf::from("results").join(format!("{}.basecalls.json", trace_stem(trace)?)))
+/// Returns and validates the deterministic CLI publication path for basecalls.
+pub(crate) fn basecall_output(trace: &Path) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{}.basecalls.json", trace_stem(trace)?));
+    validate_output(&output)?;
+    Ok(output)
 }
 
+/// Returns and validates the deterministic CLI publication path for sample evidence.
 pub(crate) fn sample_output(sample_id: &str) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{sample_id}.sample.json"));
     validate_output(&output)?;
@@ -172,7 +48,7 @@ pub(crate) fn sample_output(sample_id: &str) -> Result<PathBuf> {
 }
 
 /// Returns the validated UTF-8 trace stem shared by result and log paths.
-pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
+pub(crate) fn trace_stem(trace: &Path) -> Result<&str> {
     trace
         .file_stem()
         .and_then(|value| value.to_str())
@@ -185,7 +61,7 @@ pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
 }
 
 /// Validates the sample identifier used for deterministic result/log names.
-pub(super) fn validate_sample_id(sample_id: &str) -> Result<()> {
+pub(crate) fn validate_sample_id(sample_id: &str) -> Result<()> {
     let mut characters = sample_id.chars();
     let valid_first = characters
         .next()
