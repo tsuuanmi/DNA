@@ -6,7 +6,6 @@ use crate::logger::Logger;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::trace::Chromatogram;
-
 use crate::variant_analysis;
 
 pub(crate) struct CompletedSampleReads {
