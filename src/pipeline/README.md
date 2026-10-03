@@ -17,6 +17,10 @@ deterministic JSON publication target. The CLI operation validates its output
 destination separately, so an existing `results/*.json` file is not part of the
 scientific input contract.
 
+Shared read and observation stages depend only on the internal `StageLog`
+capability for informational/warning records. They do not depend on file-backed
+logger construction, log paths, terminal error persistence, or synchronization.
+
 Pipeline code sequences stages and preserves typed failures; algorithm internals
 remain in their owning modules.
 
