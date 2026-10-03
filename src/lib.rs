@@ -26,7 +26,6 @@ mod reference;
 mod report;
 mod sample;
 mod signal_processing;
-mod trace;
 pub mod variant_analysis;
 mod variant_calling;
 
@@ -35,7 +34,7 @@ mod variant_calling;
 pub mod fuzzing {
     /// Exercises the bounds-checked ABIF directory parser without filesystem I/O.
     pub fn parse_abif(bytes: &[u8]) {
-        let _ = crate::trace::parse_abif(bytes.to_vec());
+        let _ = crate::input::sanger::abif::parse_container(bytes.to_vec());
     }
 }
 
