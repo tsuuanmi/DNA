@@ -1,22 +1,22 @@
-//! Shared PLOC-defined locus-window geometry.
+//! Shared canonical Sanger locus-window geometry.
 
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 
-/// Half-open sample window around one validated PLOC locus.
+/// Half-open sample window around one validated Sanger locus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct LocusWindow {
     pub(crate) start: usize,
     pub(crate) end: usize,
 }
 
-/// Builds symmetric neighboring-midpoint windows around every PLOC locus.
+/// Builds symmetric neighboring-midpoint windows around every Sanger locus.
 ///
 /// This geometry is shared by basecalling and signal-evidence extraction. The
 /// caller maps geometry failures into its own stage-specific error type.
 pub(crate) fn windows(trace: &Chromatogram) -> std::result::Result<Vec<LocusWindow>, String> {
-    let positions = &trace.base_locations;
+    let positions = &trace.locus_positions;
     if positions.len() < 2 {
-        return Err("at least two PLOC positions are required".into());
+        return Err("at least two locus positions are required".into());
     }
     let sample_count = trace.sample_count();
     let mut output = Vec::with_capacity(positions.len());
@@ -39,7 +39,7 @@ pub(crate) fn windows(trace: &Chromatogram) -> std::result::Result<Vec<LocusWind
         if start >= end || end > sample_count || positions[index] < start || positions[index] >= end
         {
             return Err(format!(
-                "invalid locus window {start}..{end} for PLOC {}",
+                "invalid locus window {start}..{end} for locus position {}",
                 positions[index]
             ));
         }
@@ -55,7 +55,7 @@ fn midpoint(left: usize, right: usize) -> std::result::Result<usize, String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::trace::{Chromatogram, VendorEvidence};
+    use crate::model::sanger::{Chromatogram, VendorEvidence};
 
     use super::*;
 
@@ -65,7 +65,7 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
-            base_locations: vec![2, 6, 10],
+            locus_positions: vec![2, 6, 10],
             vendor: VendorEvidence::default(),
         };
 
