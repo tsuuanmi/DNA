@@ -12,6 +12,11 @@ Key children separate input loading, shared read processing, reference-guided
 observation processing, sample-read processing, metrics, and result
 publication.
 
+For single-read analysis, scientific input loading is independent of the
+deterministic JSON publication target. The CLI operation validates its output
+destination separately, so an existing `results/*.json` file is not part of the
+scientific input contract.
+
 Pipeline code sequences stages and preserves typed failures; algorithm internals
 remain in their owning modules.
 

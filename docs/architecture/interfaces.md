@@ -19,6 +19,11 @@ current command-line/process environment from becoming an inward dependency of
 orchestration or scientific modules and leaves the operation boundary usable by
 future non-CLI callers.
 
+Single-read analysis input loading also does not own the JSON publication
+destination. Output-path derivation and overwrite protection remain an outer
+operation/publication concern, while decoded trace, reference, and configuration
+form the scientific input boundary.
+
 Exact syntax and serialized shapes are owned by
 [reference](../reference/README.md). Module responsibilities are colocated under
 [src](../../src/README.md). Cross-cutting rules that must hold across interfaces
