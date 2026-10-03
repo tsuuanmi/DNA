@@ -13,5 +13,5 @@ pub(crate) mod result;
 pub(crate) mod sample_evidence;
 pub(crate) mod sample_result;
 pub(crate) mod signal;
-pub(crate) mod trace;
+pub(crate) mod sanger;
 pub(crate) mod variant;
