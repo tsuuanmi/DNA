@@ -14,7 +14,11 @@ Software/build identity, local input/configuration paths, expanded configuration
 
 ## Read and signal-quality summary
 
-`read.call_count` is the number of decoded PLOC call loci. `read.trim.start` and `read.trim.end` delimit the retained calls as a 0-based half-open interval. No sequence string is emitted.
+The v7 serialized integrity object retains `ploc_*` field names because those
+names are part of the current closed JSON contract. Internally, `PLOC.2` is
+projected to canonical Sanger locus positions at the ABIF boundary.
+
+`read.call_count` is the number of canonical Sanger call loci decoded from `PLOC.2`. `read.trim.start` and `read.trim.end` delimit the retained calls as a 0-based half-open interval. No sequence string is emitted.
 
 `signal_quality.noisy_regions` contains only merged candidate-noisy regions. Each region has 0-based half-open `calls` and `samples` intervals plus `minimum_primary_snr`. Full-width stride-one windows are still calculated internally by `dna.windowed_snr/v1`, but v7 does not serialize them. The regions remain observational and do not alter trimming, alignment, warning counts, or variant eligibility.
 
@@ -22,14 +26,14 @@ Software/build identity, local input/configuration paths, expanded configuration
 
 `signal_quality.integrity` preserves concise evidence about the trace foundation:
 
-- PLOC count;
+- serialized `ploc_count`, representing canonical locus count;
 - optional PBAS/PCON counts;
-- minimum/median/maximum adjacent PLOC spacing when at least two loci exist;
+- serialized `*_ploc_spacing`, representing adjacent canonical locus spacing when at least two loci exist;
 - exact signed-16-bit clipped channel-sample count;
 - optional maximum-to-median corrected event-signal ratio.
 
 A PBAS/PCON length mismatch is non-fatal and does not create/remove calls:
-DNA still processes exactly the valid PLOC-defined loci. Exact clipping and
+DNA still processes exactly the valid canonical loci decoded from `PLOC.2`. Exact clipping and
 event-signal imbalance are observations only and do not change calls, trim,
 alignment, or variants. The ratio is not an artifact probability or dye-blob
 classification.
