@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::error::Result;
+use crate::input::sanger;
 use crate::logger::Logger;
 use crate::pipeline::input;
 use crate::report::{self, CompletedSampleEvidence};
@@ -65,7 +66,7 @@ fn run_logged(
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_sample(traces, reference, config_path)?;
+    let inputs = sanger::load_sample(traces, reference, config_path)?;
     let output = input::sample_output(sample_id)?;
     logger.info(
         module_path!(),
