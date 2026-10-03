@@ -10,9 +10,9 @@ use std::fmt;
 use std::path::Path;
 
 use crate::error::Result;
+use crate::input::sanger;
 use crate::logger::StageLog;
 use crate::model::variant as internal_variant;
-use crate::pipeline::input;
 
 /// Canonical result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,8 +68,8 @@ pub fn analyze_sanger(
     reference: &Path,
     config: &Path,
 ) -> Result<VariantAnalysisResult> {
-    let prepared = input::prepare_analysis(trace, reference, config)?;
-    let inputs = input::load_analysis(prepared)?;
+    let prepared = sanger::prepare_analysis(trace, reference, config)?;
+    let inputs = sanger::load_analysis(prepared)?;
     let reference_identity = ReferenceIdentity {
         name: inputs.reference.name.clone(),
         sha256: inputs.reference.sequence_sha256.clone(),
