@@ -255,10 +255,11 @@ VariantCaller:
 modality-specific interpreted evidence -> called variant set
 
 VariantCanonicalizer:
-called variants + reference + explicit policy -> haplotype-preserving canonical variants
+called variants + reference + explicit policy -> canonicalization result
+(source edits + reconstructed haplotype + canonical edits + provenance)
 
 NomenclatureEngine:
-canonical variants + target policy -> target nomenclature result
+canonicalization result + target policy -> target canonical variants
 
 HaplogroupClassifier:
 canonical sample/variant evidence -> canonical haplogroup result
