@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use crate::config::{self, Config};
 use crate::error::{Error, Result};
 use crate::model::reference::Reference;
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 use crate::reference;
 
 pub(crate) mod abif;
