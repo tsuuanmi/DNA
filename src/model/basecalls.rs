@@ -10,8 +10,8 @@ use crate::model::nucleotide::Nucleotide;
 pub enum PeakSource {
     /// A positive local maximum was found.
     LocalMaximum,
-    /// No positive local maximum existed; the PLOC sample was used.
-    PlocFallback,
+    /// No positive local maximum existed; the canonical locus sample was used.
+    LocusFallback,
 }
 
 /// Strongest evidence for one channel in one base window.
@@ -38,7 +38,7 @@ pub(crate) struct PrimaryPeakEvidence {
 #[derive(Debug, Clone)]
 pub struct BaseCall {
     pub(crate) index_0based: usize,
-    pub(crate) ploc_0based: usize,
+    pub(crate) locus_position_0based: usize,
     pub(crate) window_start_0based: usize,
     pub(crate) window_end_0based_exclusive: usize,
     pub(crate) peaks: [ChannelPeak; 4],
