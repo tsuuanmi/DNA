@@ -1,14 +1,14 @@
-//! Observation-only trace-integrity evidence derived from PLOC and analyzed channels.
+//! Observation-only Sanger integrity evidence derived from canonical loci and analyzed channels.
 
 use crate::error::{Error, Result};
 use crate::model::locus_evidence::LocusEvidence;
-use crate::model::signal::TraceIntegrity;
-use crate::model::trace::Chromatogram;
+use crate::model::signal::SangerIntegrity;
+use crate::model::sanger::Chromatogram;
 
 use super::statistics;
 
 /// Derives structural and signal-scale evidence without changing calls or alignment.
-pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<TraceIntegrity> {
+pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<SangerIntegrity> {
     if loci.len() != trace.call_count() {
         return Err(Error::DNAProcessing(format!(
             "trace integrity expected {} loci, found {}",
@@ -18,11 +18,11 @@ pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<Tra
     }
 
     let spacings = trace
-        .base_locations
+        .locus_positions
         .windows(2)
         .map(|pair| pair[1] - pair[0])
         .collect::<Vec<_>>();
-    let (minimum_ploc_spacing, median_ploc_spacing, maximum_ploc_spacing) = if spacings.is_empty() {
+    let (minimum_locus_spacing, median_locus_spacing, maximum_locus_spacing) = if spacings.is_empty() {
         (None, None, None)
     } else {
         let minimum = spacings.iter().copied().min();
@@ -54,13 +54,13 @@ pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<Tra
         (median > 0.0).then(|| statistics::round_metric(maximum / median))
     };
 
-    Ok(TraceIntegrity {
-        ploc_count: trace.call_count(),
+    Ok(SangerIntegrity {
+        locus_count: trace.call_count(),
         vendor_primary_count: trace.vendor.primary.as_ref().map(String::len),
         vendor_quality_count: trace.vendor.qualities.as_ref().map(Vec::len),
-        minimum_ploc_spacing,
-        median_ploc_spacing,
-        maximum_ploc_spacing,
+        minimum_locus_spacing,
+        median_locus_spacing,
+        maximum_locus_spacing,
         clipped_channel_samples,
         maximum_to_median_event_signal_ratio,
     })
@@ -69,14 +69,14 @@ pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<Tra
 #[cfg(test)]
 mod tests {
     use crate::model::locus_evidence::EvidenceProfile;
-    use crate::model::trace::VendorEvidence;
+    use crate::model::sanger::VendorEvidence;
 
     use super::*;
 
     fn locus(index: usize, total: f64) -> LocusEvidence {
         LocusEvidence {
             call_index_0based: index,
-            ploc_0based: index * 4 + 2,
+            locus_position_0based: index * 4 + 2,
             window_start_0based: index * 4,
             window_end_0based_exclusive: index * 4 + 4,
             context_call_start_0based: 0,
@@ -99,7 +99,7 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
-            base_locations: vec![2, 6, 10],
+            locus_positions: vec![2, 6, 10],
             vendor: VendorEvidence {
                 primary: Some("AAAA".into()),
                 qualities: Some(vec![40; 2]),
@@ -107,13 +107,13 @@ mod tests {
         };
 
         let integrity = assess(&trace, &[locus(0, 10.0), locus(1, 20.0), locus(2, 40.0)])?;
-        assert_eq!(integrity.ploc_count, 3);
+        assert_eq!(integrity.locus_count, 3);
         assert_eq!(integrity.vendor_primary_count, Some(4));
         assert_eq!(integrity.vendor_quality_count, Some(2));
         assert_eq!(integrity.vendor_length_mismatch_count(), 2);
-        assert_eq!(integrity.minimum_ploc_spacing, Some(4));
-        assert_eq!(integrity.median_ploc_spacing, Some(4.0));
-        assert_eq!(integrity.maximum_ploc_spacing, Some(4));
+        assert_eq!(integrity.minimum_locus_spacing, Some(4));
+        assert_eq!(integrity.median_locus_spacing, Some(4.0));
+        assert_eq!(integrity.maximum_locus_spacing, Some(4));
         assert_eq!(integrity.maximum_to_median_event_signal_ratio, Some(2.0));
         Ok(())
     }
@@ -127,7 +127,7 @@ mod tests {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),
             channels,
-            base_locations: vec![2, 6, 10],
+            locus_positions: vec![2, 6, 10],
             vendor: VendorEvidence::default(),
         };
 
