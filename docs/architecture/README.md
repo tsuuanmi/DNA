@@ -6,6 +6,7 @@ Architecture describes **current system structure**: stable boundaries, context,
 - [System context](context.md)
 - [Data flow](data-flow.md)
 - [Interfaces and boundaries](interfaces.md)
+- [Variant lifecycle](variant-lifecycle.md)
 - [System invariants](invariants/README.md)
 - [Decision history](../decisions/README.md)
 - [Source navigation](../../src/README.md)
