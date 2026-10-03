@@ -28,7 +28,7 @@ pub(crate) fn calculate(
         calls
             .calls
             .windows(2)
-            .map(|pair| pair[1].ploc_0based - pair[0].ploc_0based)
+            .map(|pair| pair[1].locus_position_0based - pair[0].locus_position_0based)
             .sum::<usize>() as f64
             / (count - 1) as f64
     } else {
@@ -45,7 +45,7 @@ pub(crate) fn calculate(
             .count();
         let mut distances = calls.calls[start..end]
             .windows(2)
-            .map(|pair| pair[1].ploc_0based - pair[0].ploc_0based);
+            .map(|pair| pair[1].locus_position_0based - pair[0].locus_position_0based);
         let first = distances.next();
         let spacing_penalty = if let Some(first) = first {
             let (minimum, maximum) = distances.fold((first, first), |(minimum, maximum), value| {
@@ -93,21 +93,21 @@ mod tests {
 
     use super::*;
 
-    fn calls(plocs: &[usize], ambiguities: &[char]) -> BaseCalls {
-        let calls = plocs
+    fn calls(locus_positions: &[usize], ambiguities: &[char]) -> BaseCalls {
+        let calls = locus_positions
             .iter()
             .zip(ambiguities)
             .enumerate()
-            .map(|(index, (&ploc, &ambiguity))| BaseCall {
+            .map(|(index, (&locus_position, &ambiguity))| BaseCall {
                 index_0based: index,
-                ploc_0based: ploc,
-                window_start_0based: ploc.saturating_sub(1),
-                window_end_0based_exclusive: ploc + 2,
+                locus_position_0based: locus_position,
+                window_start_0based: locus_position.saturating_sub(1),
+                window_end_0based_exclusive: locus_position + 2,
                 peaks: std::array::from_fn(|channel| ChannelPeak {
                     base: Nucleotide::ALL[channel],
                     height: 1,
-                    position_0based: ploc,
-                    source: PeakSource::PlocFallback,
+                    position_0based: locus_position,
+                    source: PeakSource::LocusFallback,
                 }),
                 primary_peak_evidence: None,
                 primary: 'A',
@@ -118,7 +118,7 @@ mod tests {
             .collect();
         BaseCalls {
             calls,
-            primary_sequence: "A".repeat(plocs.len()),
+            primary_sequence: "A".repeat(locus_positions.len()),
         }
     }
 
