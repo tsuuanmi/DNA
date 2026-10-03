@@ -16,11 +16,15 @@ observation seam. Variant Analysis does not own file-backed CLI logging, JSON
 projection, or result-file publication.
 
 Public result types belong to this capability boundary and must not expose
-private pipeline/report DTOs. New input modalities such as NGS should expose compatible called-variant
-semantics without teaching downstream consumers about source-specific
-implementation types. ADR-0060 defines the future post-calling
-canonicalization/nomenclature boundary; it is not yet part of this current
-public capability.
+private pipeline/report DTOs. `VariantAnalysisResult::called_variants()`
+projects the current Sanger result into the implemented `CalledVariantSet`
+cross-modality boundary. New input modalities such as NGS should expose
+compatible called-variant semantics without teaching downstream consumers about
+source-specific implementation types.
+
+Optional post-calling representation normalization is owned by
+`variant_normalization`. Target nomenclature remains a separate future
+capability under ADR-0060.
 
 See [Rust API contract](../../docs/reference/rust-api.md),
 [interface architecture](../../docs/architecture/interfaces.md), and
