@@ -1,7 +1,16 @@
 # ADR-0047: Canonical right-aligned mtDNA gap placement
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md)
 - **Date:** 2026-09-19
+
+## Superseded scope
+
+ADR-0060 supersedes only this ADR's earlier assumption that final canonical
+variant representation must always inherit the alignment-selected gap placement
+and that positional variant canonicalization has one authoritative home inside
+`alignment::canonical`. This ADR remains authoritative for deterministic Sanger
+alignment topology, score-optimal repeat-equivalent traceback canonicalization,
+and the rCRS origin seam.
 
 ## Context
 
