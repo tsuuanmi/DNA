@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::alignment;
 use crate::config::Config;
 use crate::error::Result;
-use crate::logger::Logger;
+use crate::logger::StageLog;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::trace::Chromatogram;
@@ -20,11 +20,11 @@ pub(crate) struct CompletedObservation {
 }
 
 /// Runs the shared read, alignment, and variant stages for one trace.
-pub(crate) fn build(
+pub(crate) fn build<L: StageLog + ?Sized>(
     trace: &Chromatogram,
     reference: &Reference,
     config: &Config,
-    logger: &mut Logger,
+    logger: &mut L,
     stage: &mut &'static str,
 ) -> Result<CompletedObservation> {
     let ProcessedRead {
