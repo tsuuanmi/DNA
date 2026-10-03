@@ -61,7 +61,6 @@ pub struct Variant {
     pub kind: VariantKind,
 }
 
-
 /// Cross-modality boundary for evidence-backed variants against one reference.
 ///
 /// This type does not imply right/left alignment, nomenclature, VCF
