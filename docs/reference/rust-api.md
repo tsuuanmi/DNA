@@ -85,11 +85,72 @@ pub enum VariantKind {
 }
 ```
 
-Variant positions are explicitly one-based. Variants are configuration-eligible, anchored primary-sequence differences
-produced by the current scientific path. Their current indel placement preserves
-the alignment-selected canonical topology. ADR-0060 defines a future separate
-post-calling haplotype-canonicalization and target-nomenclature boundary; that
-future layer is not part of this API yet.
+Variant positions are explicitly one-based. Variants are
+configuration-eligible, anchored primary-sequence differences produced by the
+current scientific path. Their caller representation preserves the
+alignment-selected topology.
+
+## CalledVariantSet
+
+`VariantAnalysisResult::called_variants()` projects one analysis result into
+the cross-modality called-variant boundary:
+
+```rust
+pub struct CalledVariantSet {
+    pub reference: ReferenceIdentity,
+    pub variants: Vec<Variant>,
+}
+```
+
+A `CalledVariantSet` means that the variants are evidence-backed calls against
+one identified reference. It does **not** mean that the variants have been
+right-aligned, left-aligned, VCF-normalized, HGVS-formatted, or passed through
+target nomenclature.
+
+## Variant Normalization
+
+Optional post-calling normalization is exposed as:
+
+```rust
+pub fn normalize(
+    reference_path: &Path,
+    called: &CalledVariantSet,
+    policy: NormalizationPolicy,
+) -> dna::error::Result<VariantNormalizationResult>
+```
+
+through:
+
+```rust
+dna::variant_normalization::normalize(...)
+```
+
+The initial policy is:
+
+```rust
+pub enum NormalizationPolicy {
+    MtDnaRightAligned,
+}
+```
+
+The result preserves both source and selected representations:
+
+```rust
+pub struct VariantNormalizationResult {
+    pub source_variants: Vec<Variant>,
+    pub alternate_sequence: String,
+    pub normalized_variants: Vec<Variant>,
+}
+```
+
+`MtDnaRightAligned` selects sequence-equivalent 3'/right-most insertion and
+deletion representations without rotating across the FASTA/rCRS coordinate
+seam. Every accepted movement must reconstruct exactly the same complete
+alternate sequence as the source calls.
+
+Normalization is optional and does not apply mtDNA special-region nomenclature,
+sample reconciliation, VCF/HGVS formatting, genotype interpretation, or
+clinical interpretation.
 
 ## Boundary rules
 
@@ -97,5 +158,7 @@ The Rust API returns stable typed data for the current Variant Analysis capabili
 this reference directory remain separate serialization/publication contracts;
 `dna.analysis/v7` is not the Rust API result model.
 
-The Sanger adapter name is source-specific by design. Future input modalities may provide additional adapters while converging on
-compatible called-variant semantics before later canonicalization/nomenclature.
+The Sanger adapter name is source-specific by design. Future input modalities
+may provide additional adapters while converging on compatible
+`CalledVariantSet` semantics. Optional normalization and target nomenclature
+remain separate capabilities rather than hidden stages of the source adapter.
