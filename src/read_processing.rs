@@ -8,8 +8,8 @@ use crate::error::Result;
 use crate::logger::StageLog;
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::quality::QualityControlResult;
-use crate::model::signal::DNAAnalysis;
 use crate::model::sanger::Chromatogram;
+use crate::model::signal::DNAAnalysis;
 use crate::quality_control;
 use crate::signal_processing;
 
