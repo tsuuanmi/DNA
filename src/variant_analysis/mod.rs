@@ -14,7 +14,6 @@ use crate::logger::StageLog;
 use crate::model::variant as internal_variant;
 use crate::pipeline::input;
 
-
 /// Canonical result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantAnalysisResult {
