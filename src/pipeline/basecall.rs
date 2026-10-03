@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use crate::error::Result;
 use crate::logger::Logger;
-use crate::pipeline::read::ProcessedRead;
-use crate::pipeline::{input, read};
+use crate::pipeline::input;
+use crate::read_processing::{self, ProcessedRead};
 use crate::report::{self, CompletedBasecall};
 
 /// Runs one complete AB1-to-basecalls JSON operation.
@@ -74,7 +74,7 @@ fn run_logged(
         signal,
         quality,
         warnings,
-    } = read::process(&inputs.trace, &inputs.config, logger, stage)?;
+    } = read_processing::process(&inputs.trace, &inputs.config, logger, stage)?;
     let warning_total = warnings.unresolved_primary_calls
         + warnings.multi_channel_unresolved_calls
         + warnings.vendor_disagreements

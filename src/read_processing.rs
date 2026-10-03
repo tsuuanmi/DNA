@@ -1,4 +1,4 @@
-//! Shared basecalling, signal analysis, quality control, and stage logging.
+//! Shared reference-free read processing for reusable scientific capabilities.
 
 use std::time::Instant;
 

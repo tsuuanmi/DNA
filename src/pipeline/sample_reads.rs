@@ -6,8 +6,7 @@ use crate::logger::Logger;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::trace::Chromatogram;
-
-use super::observation;
+use crate::variant_analysis;
 
 pub(crate) struct CompletedSampleReads {
     pub(crate) reads: Vec<ReadObservation>,
@@ -33,7 +32,8 @@ pub(crate) fn build(
                 index, trace.source_name, trace.source_sha256
             ),
         )?;
-        let completed = observation::build(trace, reference, config, logger, stage)?;
+        let completed =
+            variant_analysis::observation::build(trace, reference, config, logger, stage)?;
         warning_total += completed.warning_total;
         logger.info(
             module_path!(),

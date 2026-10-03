@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -523,6 +523,11 @@ Implementation is in progress through focused PRs.
 - [PR #15](https://github.com/tsuuanmi/DNA/pull/15) introduces the first public
   capability-oriented Rust API: Sanger input to canonical typed Variant Analysis
   results without CLI logging or JSON publication side effects.
+
+- [PR #17](https://github.com/tsuuanmi/DNA/pull/17) moves shared scientific
+  ownership out of the CLI-oriented pipeline: reference-free read processing is
+  crate-internal shared science and reference-guided observation belongs to
+  Variant Analysis.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when

@@ -5,8 +5,9 @@
 //!
 //! The source-module graph is routed from `src/README.md`. `lib.rs` remains
 //! the minimal dispatcher: it exposes stable CLI and error boundaries, translates
-//! parsed command arguments into pipeline inputs, and keeps configuration,
-//! decoding, scientific stages, and reporting behind the pipeline boundary.
+//! parsed command arguments into application inputs, and keeps configuration,
+//! scientific capabilities, orchestration, and reporting behind explicit module
+//! boundaries.
 
 mod alignment;
 mod basecalling;
@@ -19,6 +20,7 @@ mod logger;
 pub mod model;
 mod pipeline;
 mod quality_control;
+mod read_processing;
 mod reference;
 mod report;
 mod sample;

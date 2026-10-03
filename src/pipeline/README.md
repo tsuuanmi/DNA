@@ -8,21 +8,23 @@ sample identifiers, and an explicit configuration path rather than CLI/`clap`
 argument structs or process environment. This keeps orchestration independent of
 the command-line frontend and prepares the same boundary for non-CLI callers.
 
-Key children separate input loading, shared read processing, reference-guided
-observation processing, sample-read processing, metrics, and result
-publication.
+Key children own operation-specific input loading, CLI logging/publication,
+sample-read orchestration, and sample metrics. Shared reference-free read
+processing lives in `read_processing.rs`; reference-guided read observation is
+owned by `variant_analysis`.
 
 For single-read analysis, scientific input loading is independent of the
 deterministic JSON publication target. The CLI operation validates its output
 destination separately, so an existing `results/*.json` file is not part of the
 scientific input contract.
 
-Shared read and observation stages depend only on the internal `StageLog`
-capability for informational/warning records. They do not depend on file-backed
-logger construction, log paths, terminal error persistence, or synchronization.
+Pipeline passes its file-backed logger through the internal `StageLog`
+capability to reusable scientific modules. It owns log construction, terminal
+error persistence, synchronization, JSON projection, and publication, but not
+the shared scientific implementation.
 
-Pipeline code sequences stages and preserves typed failures; algorithm internals
-remain in their owning modules.
+Pipeline code composes capabilities and preserves typed failures; algorithm
+internals remain in their owning modules.
 
 See [pipeline method](../../docs/design/pipeline.md),
 [pipeline invariants](../../docs/architecture/invariants/pipeline.md), and

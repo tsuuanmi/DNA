@@ -4,13 +4,15 @@
 //! and JSON publication. Source-specific adapters normalize their output into
 //! the same canonical result contract.
 
+pub(crate) mod observation;
+
 use std::fmt;
 use std::path::Path;
 
 use crate::error::Result;
 use crate::logger::StageLog;
 use crate::model::variant as internal_variant;
-use crate::pipeline::{input, observation};
+use crate::pipeline::input;
 
 /// Canonical result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]

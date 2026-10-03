@@ -10,7 +10,7 @@ use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::trace::Chromatogram;
 use crate::model::variant::VariantKind;
-use crate::pipeline::read::{self, ProcessedRead};
+use crate::read_processing::{self, ProcessedRead};
 use crate::variant_calling;
 
 /// Completed one-read observation plus operational warning total.
@@ -32,7 +32,7 @@ pub(crate) fn build<L: StageLog + ?Sized>(
         signal,
         quality,
         warnings: read_warnings,
-    } = read::process(trace, config, logger, stage)?;
+    } = read_processing::process(trace, config, logger, stage)?;
 
     *stage = "alignment";
     let stage_started = Instant::now();

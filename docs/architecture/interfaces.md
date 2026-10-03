@@ -28,10 +28,16 @@ operation/publication concern, while decoded trace, reference, and configuration
 form the scientific input boundary.
 
 Operational stage logging crosses this boundary through a minimal internal
-`StageLog` capability. Scientific read/observation stages can emit
-informational and warning records without depending on the file-backed logger;
-log destination selection, terminal error logging, and synchronization stay in
-the outer operation layer.
+`StageLog` capability. Shared reference-free read processing and
+reference-guided Variant Analysis can emit informational and warning records
+without depending on the file-backed logger; log destination selection,
+terminal error logging, and synchronization stay in the outer operation layer.
+
+The production `pipeline` composes scientific capabilities but does not own
+their implementations. Reference-free read processing is crate-internal shared
+science; reference-guided one-read observation is owned by
+`variant_analysis` and is reused by CLI analysis, sample evidence, and the
+public Rust API.
 
 The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns canonical typed variant evidence directly and does not open logs or publish JSON. Its exact contract is owned by [Rust public API](../reference/rust-api.md).
 
