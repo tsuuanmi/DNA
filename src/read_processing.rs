@@ -9,7 +9,7 @@ use crate::logger::StageLog;
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::DNAAnalysis;
-use crate::model::trace::Chromatogram;
+use crate::model::sanger::Chromatogram;
 use crate::quality_control;
 use crate::signal_processing;
 
@@ -18,7 +18,7 @@ pub(crate) struct ReadWarnings {
     pub(crate) unresolved_primary_calls: usize,
     pub(crate) multi_channel_unresolved_calls: usize,
     pub(crate) vendor_disagreements: usize,
-    pub(crate) ploc_vendor_length_mismatches: usize,
+    pub(crate) locus_vendor_length_mismatches: usize,
     pub(crate) clipped_channel_samples: usize,
 }
 
@@ -62,7 +62,7 @@ pub(crate) fn process<L: StageLog + ?Sized>(
         .filter(|call| {
             call.peaks
                 .iter()
-                .any(|peak| peak.source == PeakSource::PlocFallback)
+                .any(|peak| peak.source == PeakSource::LocusFallback)
         })
         .count();
     let vendor_compared = calls
@@ -111,7 +111,7 @@ pub(crate) fn process<L: StageLog + ?Sized>(
         .iter()
         .filter(|locus| locus.profile.is_some())
         .count();
-    let ploc_vendor_length_mismatches = signal.integrity.vendor_length_mismatch_count();
+    let locus_vendor_length_mismatches = signal.integrity.vendor_length_mismatch_count();
     let clipped_channel_samples = signal.integrity.clipped_channel_samples;
     logger.info(
         module_path!(),
@@ -135,7 +135,7 @@ pub(crate) fn process<L: StageLog + ?Sized>(
             config.signal_processing.minimum_noisy_windows,
             config.signal_processing.minimum_primary_snr,
             maximum_secondary_snr,
-            ploc_vendor_length_mismatches,
+            locus_vendor_length_mismatches,
             clipped_channel_samples,
             signal.integrity.maximum_to_median_event_signal_ratio
         ),
@@ -215,7 +215,7 @@ pub(crate) fn process<L: StageLog + ?Sized>(
             unresolved_primary_calls: unresolved_primary,
             multi_channel_unresolved_calls: multi_channel_unresolved,
             vendor_disagreements,
-            ploc_vendor_length_mismatches,
+            locus_vendor_length_mismatches,
             clipped_channel_samples,
         },
     })
