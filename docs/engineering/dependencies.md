@@ -43,6 +43,22 @@ Current upstream documentation:
 - noodles: <https://docs.rs/noodles/latest/noodles/>
 - rust-htslib: <https://docs.rs/rust-htslib/latest/rust_htslib/>
 
+## Current implementation evaluations
+
+Evaluation is per DNA contract, not a permanent ranking of libraries.
+
+| Current need | Evaluation | Decision |
+|---|---|---|
+| reference FASTA parsing | `noodles-fasta` satisfies the record-parsing need behind DNA's single-reference validation contract; the production line is constrained by the repository MSRV | reuse `noodles-fasta` behind `Reference` |
+| Sanger evidence-profile alignment | `rust-bio` pairwise alignment was evaluated, but its current affine-gap convention and byte-pair substitution callback do not directly express DNA's required profile-weighted, fixed-point scoring contract; DNA additionally owns deterministic repeat placement and circular-placement semantics | retain the current custom Gotoh implementation |
+| Sanger ABIF decoding | the Applied Biosystems ABIF specification and available Rust implementations were reviewed; the evaluated `bio_files::ab1` implementation is Biopython-derived and currently documents unresolved offset handling, while DNA requires strict bounded untrusted-input parsing and an exact Sanger tag contract | retain the current bounded ABIF implementation; reevaluate only against equivalent contract and corpus evidence |
+| future FASTQ / BAM / CRAM / VCF / BCF | no current production consumer | do not add dependencies speculatively |
+
+A retained custom implementation is not exempt from reuse-first review. Its
+owning design must state the concrete semantic or operational gap, and the
+decision should be revisited when either DNA's contract or the ecosystem
+implementation materially changes.
+
 ## Adding a dependency
 
 Before adding or materially changing a dependency:
