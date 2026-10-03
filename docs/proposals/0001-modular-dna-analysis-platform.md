@@ -5,7 +5,7 @@ status: implementing
 owners: []
 created: 2026-10-03
 related-requirements: []
-related-decisions: [ADR-0058]
+related-decisions: [ADR-0058, ADR-0059]
 implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20]
 ---
 
@@ -18,11 +18,17 @@ stages are deliberately explicit: trace decoding, base calling, signal
 processing, quality control, alignment, variant calling, sample evidence, and
 reporting.
 
-The project is expected to grow beyond one fixed Sanger pipeline. Future use
-cases include:
+The project is expected to grow beyond one fixed Sanger pipeline and beyond one
+biological target. Future use cases include:
 
+- biological targets such as mitochondrial DNA, nuclear/genomic DNA, and
+  targeted loci or panels;
+- SNP/genotyping analysis as a variant-focused use case rather than a sequencing
+  modality;
 - multiple input modalities such as Sanger and NGS;
-- multiple alignment methods;
+- multiple external representations such as ABIF, FASTA/FASTQ, BAM/CRAM, and
+  VCF/BCF;
+- multiple alignment or mapping methods;
 - multiple variant-calling algorithms;
 - downstream DNA-analysis capabilities such as haplogroup and nomenclature;
 - alternative databases or knowledge sources used by those downstream
@@ -40,6 +46,10 @@ while preserving the evidence and provenance needed for scientific auditability.
 ## Goals
 
 - Make DNA usable as a Rust library through a deliberately versioned public API.
+- Keep the platform independent of one biological target: mtDNA is one current
+  application context, not the definition of the DNA platform.
+- Model biological target, sequencing modality, external format, and analysis
+  capability as separate architectural dimensions.
 - Treat raw-to-variant analysis as one high-level capability while preserving
   smaller internal scientific stages.
 - Allow input adapters, alignment methods, variant callers, and scientific data
@@ -55,6 +65,9 @@ while preserving the evidence and provenance needed for scientific auditability.
   interchangeable.
 - Allow today's single-crate implementation to evolve toward stronger crate
   boundaries only when those boundaries are justified.
+- Reuse maintained ecosystem parsers, algorithms, and HTS infrastructure when
+  they satisfy DNA-owned semantic contracts; custom implementations require a
+  concrete unmet requirement.
 
 ## Non-goals
 
@@ -96,35 +109,37 @@ turning that information into coupling between modules.
 
 ### Platform model
 
-The long-term system is an analysis platform centered on canonical DNA data:
+DNA separates four dimensions that must not be collapsed into one plugin axis:
 
 ```text
-External inputs
-    |
-    +-- Sanger
-    +-- NGS
-    +-- future formats
-    |
-    v
-Input adapters
-    |
-    v
-Canonical evidence
-    |
-    v
-Variant Analysis
-    |
-    v
-Canonical variant evidence
-    |
-    +----------------+-------------------+
-    |                |                   |
-    v                v                   v
-Haplogroup       Nomenclature       Future analysis
-    |                |                   |
-    v                v                   v
-Canonical results / artifacts
+biological target   mtDNA | nuclear/genomic DNA | targeted loci/panels
+sequencing modality Sanger | NGS | future modalities
+external format     ABIF | FASTA/FASTQ | BAM/CRAM | VCF/BCF | ...
+capability          basecall | align/map | variant | SNP/genotype | haplogroup | ...
 ```
+
+SNP is a variant class or analysis use case, not another sequencing modality.
+
+The long-term analysis platform preserves modality-specific evidence until a
+semantic boundary genuinely converges:
+
+```text
+Sanger formats --> Sanger evidence --> Sanger analysis --+
+                                                         |
+NGS formats ----> NGS evidence ----> NGS analysis -------+--> canonical variants
+                                                         |
+future source --> modality evidence --> analysis --------+
+                                                                |
+                                             +------------------+----------------+
+                                             |                  |                |
+                                             v                  v                v
+                                        haplogroup        nomenclature     SNP/targeted
+                                                                                analysis
+```
+
+Canonical variant evidence is a likely convergence point because its semantics
+can be shared while upstream Sanger chromatogram evidence and NGS
+read/alignment/depth evidence remain scientifically different.
 
 The platform is not defined by one linear pipeline. As capabilities grow, it may
 form a graph of analysis modules operating on canonical artifacts.
@@ -145,6 +160,34 @@ These terms have different meanings:
 A module does not need a plugin interface merely because it is modular.
 Abstractions are introduced when independent implementations, dependency
 isolation, testing seams, or configuration-driven selection make them useful.
+
+### Reuse-first implementation
+
+DNA owns biological semantics, canonical contracts, provenance, and scientific
+policy. Commodity bioinformatics machinery should come from maintained
+ecosystem implementations when they meet those contracts.
+
+The preferred implementation order is:
+
+```text
+reuse -> adapt -> extend -> custom implementation
+```
+
+In particular:
+
+- FASTA/FASTQ support should first evaluate `rust-bio` or `noodles`;
+- SAM/BAM/CRAM and VCF/BCF support must use maintained HTS implementations such
+  as `noodles` or `rust-htslib` rather than bespoke DNA parsers when those
+  libraries satisfy the required contract;
+- pairwise alignment and related sequence algorithms should evaluate
+  `rust-bio` before expanding DNA's custom algorithm surface.
+
+External library structures remain implementation details behind DNA-owned
+contracts. Dependencies are added only when a current production capability uses
+them; no package is added speculatively.
+
+This policy is recorded by
+[ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
 
 ### High-level variant analysis
 
@@ -222,13 +265,19 @@ Canonicalization does not mean flattening Sanger and NGS into an impoverished
 common representation.
 
 For example, Sanger may carry chromatogram peaks and locus evidence while NGS
-may carry read depth, per-base quality, mapping quality, and strand support.
-Shared contracts expose common semantics while retaining source-specific
-evidence where it remains scientifically meaningful.
+may carry reads, per-base quality, depth, mapping quality, CIGAR state, and
+strand support. These evidence models should remain different until a downstream
+operation needs semantics they genuinely share.
 
-A downstream component should request only the capability it needs. An aligner
-should not need to know that its sequence evidence came from AB1 or BAM/CRAM
-unless that distinction is scientifically part of the contract.
+The rule is:
+
+> Normalize external formats early. Normalize biological evidence only where the
+> biology actually converges.
+
+A downstream component should request only the smallest semantic contract it
+needs. Pairwise Sanger alignment, NGS read mapping, and canonical variant
+analysis may therefore use different input contracts rather than pretending to
+be one universal sequence-evidence interface.
 
 ### Independent algorithm selection
 
@@ -420,6 +469,13 @@ Rejected because public/external formats such as ABIF, BAM/CRAM, VCF, or JSON ar
 transport/storage concerns. Internal scientific contracts should express typed
 domain semantics directly.
 
+### Reimplement standard formats and generic algorithms by default
+
+Rejected. DNA should not spend its custom implementation surface on commodity
+FASTA/FASTQ, BAM/CRAM, VCF/BCF, indexing, pileup, or generic sequence machinery
+when maintained ecosystem implementations meet the required contract. DNA owns
+the semantic adapter and scientific policy instead.
+
 ## Validation plan
 
 Architecture implementation should be introduced incrementally.
@@ -497,6 +553,8 @@ The durable architectural choices around canonical contracts, dependency
 direction, public API ownership, replaceable implementations, provider
 boundaries, and provenance are recorded by
 [ADR-0058](../decisions/adr/0058-canonical-contracts-and-modular-analysis-composition.md).
+The reuse-first implementation policy is recorded by
+[ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
 
 Acceptance establishes architectural direction; it does not make unimplemented
 capabilities current production behavior.
