@@ -47,24 +47,46 @@ evidence rather than part of deterministic scientific result contracts.
 
 ## Platform direction
 
-Future modalities do not need to imitate Sanger evidence. They keep
-modality-specific evidence until a downstream semantic contract genuinely
-converges.
+Future modalities keep source-specific evidence until a biological difference
+has actually been called or imported. The common convergence point is
+`CalledVariantSet`, not a universal raw-alignment object.
 
 ```text
-Sanger evidence -------------------> Sanger analysis path ---+
-                                                             |
-NGS read/alignment evidence -------> NGS analysis path ------+--> canonical variants
-                                                             |
-other validated evidence ----------> future path ------------+
-                                                                    |
-                                                  +-----------------+----------------+
-                                                  v                 v                v
-                                             haplogroup        nomenclature    targeted/SNP analysis
+Sanger evidence --> Sanger caller --------------------+
+                                                      |
+NGS evidence ----> NGS caller ------------------------+--> CalledVariantSet
+                                                      |       /     |      \
+VCF/BCF --------> validated importer -----------------+      v      v       v
+                                                         direct  optional  optional
+                                                          use   normalize  nomenclature
+                                                                   |
+                                                                   +--> optional nomenclature
 ```
 
-This is architectural direction, not a claim that NGS or those downstream
-capabilities are currently implemented.
+The source-specific paths are intentionally different:
+
+| Source | Path to called variants |
+|---|---|
+| Sanger ABIF | chromatogram -> base calling/signal/QC -> selected pairwise alignment -> Sanger caller |
+| assembled/consensus FASTA | reference alignment -> sequence-difference caller |
+| FASTQ / NGS reads | read QC/preprocessing -> mapping -> NGS caller |
+| BAM / CRAM | validated aligned-read evidence -> NGS caller |
+| VCF / BCF | validated variant importer; raw calling is bypassed |
+
+These rows are architecture direction, not claims that all sources are currently
+implemented.
+
+For current human mtDNA, one optional normalization policy is
+haplotype-preserving 3'/right-most indel placement. Nomenclature is a separate
+optional target-specific representation layer. A workflow may consume called
+variants directly when it does not need either representation policy.
+
+Sanger alignment still has its own deterministic right-most traceback
+canonicalization for evidence placement and provenance. That alignment rule is
+separate from any post-calling normalization selected by another workflow.
+
+The detailed boundary is owned by
+[variant lifecycle](variant-lifecycle.md) and ADR-0060.
 
 Coordinate/strand semantics are canonical in
 [reference/coordinates](../reference/coordinates.md); pipeline invariants are

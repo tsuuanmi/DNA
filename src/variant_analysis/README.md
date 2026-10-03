@@ -1,7 +1,7 @@
 # Variant Analysis
 
 Owns the public high-level capability that converts supported sequencing input
-into canonical variant evidence.
+into typed evidence-backed variant results.
 
 The initial public entry point is Sanger AB1 via `analyze_sanger`. Sanger
 filesystem loading is owned by `input::sanger`; Variant Analysis consumes the
@@ -16,9 +16,11 @@ observation seam. Variant Analysis does not own file-backed CLI logging, JSON
 projection, or result-file publication.
 
 Public result types belong to this capability boundary and must not expose
-private pipeline/report DTOs. New input modalities such as NGS should adapt into
-the same canonical result semantics rather than teach downstream consumers about
-source-specific implementation types.
+private pipeline/report DTOs. New input modalities such as NGS should expose compatible called-variant
+semantics without teaching downstream consumers about source-specific
+implementation types. ADR-0060 defines the future post-calling
+canonicalization/nomenclature boundary; it is not yet part of this current
+public capability.
 
 See [Rust API contract](../../docs/reference/rust-api.md),
 [interface architecture](../../docs/architecture/interfaces.md), and

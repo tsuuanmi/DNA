@@ -5,8 +5,8 @@ status: implementing
 owners: []
 created: 2026-10-03
 related-requirements: []
-related-decisions: [ADR-0058, ADR-0059]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23]
+related-decisions: [ADR-0058, ADR-0059, ADR-0060]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -124,22 +124,29 @@ The long-term analysis platform preserves modality-specific evidence until a
 semantic boundary genuinely converges:
 
 ```text
-Sanger formats --> Sanger evidence --> Sanger analysis --+
-                                                         |
-NGS formats ----> NGS evidence ----> NGS analysis -------+--> canonical variants
-                                                         |
-future source --> modality evidence --> analysis --------+
-                                                                |
-                                             +------------------+----------------+
-                                             |                  |                |
-                                             v                  v                v
-                                        haplogroup        nomenclature     SNP/targeted
-                                                                                analysis
+Sanger formats --> Sanger evidence --> Sanger analysis --> Sanger caller --+
+                                                                           |
+NGS formats ----> NGS evidence ----> NGS analysis ----> NGS caller --------+--> called variants
+                                                                           |         |
+future source --> modality evidence --> source-specific caller/adapter -----+         v
+                                                                           canonicalization
+                                                                                  |
+                                                                                  v
+                                                                         target nomenclature
+                                                                                  |
+                                                                                  v
+                                                                          canonical variants
+                                                                           /      |       \
+                                                                          v       v        v
+                                                                     sample   haplogroup  SNP/
+                                                                   reconcile             targeted
 ```
 
-Canonical variant evidence is a likely convergence point because its semantics
-can be shared while upstream Sanger chromatogram evidence and NGS
-read/alignment/depth evidence remain scientifically different.
+Called biological variants are the first likely convergence point because
+upstream Sanger chromatogram evidence and future NGS read/alignment/depth
+evidence remain scientifically different. Normalization/canonicalization and
+target nomenclature are optional capabilities selected by the workflow rather
+than mandatory stages of every variant path.
 
 The platform is not defined by one linear pipeline. As capabilities grow, it may
 form a graph of analysis modules operating on canonical artifacts.
@@ -191,8 +198,8 @@ This policy is recorded by
 
 ### High-level variant analysis
 
-Raw sequencing data to canonical variant evidence is exposed as one high-level
-capability:
+Raw sequencing data to evidence-backed called variants is exposed as one
+high-level capability:
 
 ```text
 raw sequencing
@@ -211,16 +218,22 @@ raw sequencing
 +------------+------------+
              |
              v
-canonical variant evidence
+       called variants
+        /      |       \
+       v       v        v
+ direct use  optional  optional
+             normalize nomenclature
+                |
+                +----> optional nomenclature
 ```
 
 Internally these stages remain independently owned and testable. Public callers
-are not required to orchestrate every stage themselves.
+are not required to orchestrate every upstream read-processing stage themselves.
 
-The current alignment and variant-calling logic remain a scientific kernel
-inside this capability. Earlier signal/noise/base-calling stages and later
-analysis capabilities may evolve without redefining that kernel as the whole
-platform core.
+The current production Variant Analysis capability ends at the called-variant
+result. Post-calling normalization/canonicalization and target nomenclature are
+explicit optional downstream capabilities defined by ADR-0060 and must be
+implemented separately rather than hidden inside the caller.
 
 ### Canonical contracts
 
@@ -236,13 +249,17 @@ Aligner:
 alignment input -> canonical alignment
 
 VariantCaller:
-variant-calling input -> canonical variant set
+modality-specific interpreted evidence -> called variant set
+
+VariantCanonicalizer:
+called variants + reference + explicit policy -> canonicalization result
+(source edits + reconstructed haplotype + canonical edits + provenance)
+
+NomenclatureEngine:
+canonicalization result + target policy -> target canonical variants
 
 HaplogroupClassifier:
 canonical sample/variant evidence -> canonical haplogroup result
-
-NomenclatureEngine:
-canonical variant evidence -> canonical nomenclature result
 ```
 
 Concrete names and exact Rust shapes are intentionally deferred until
@@ -328,9 +345,14 @@ than internal implementation stages.
 A future high-level API may conceptually resemble:
 
 ```rust
-let analysis = dna::variant_analysis::analyze(input, reference, config)?;
-let haplogroup = dna::haplogroup::analyze(&analysis, haplogroup_config)?;
-let nomenclature = dna::nomenclature::analyze(&analysis, nomenclature_config)?;
+let called = dna::variant_analysis::analyze(input, reference, config)?;
+
+// Optional, selected by the workflow/target.
+let normalized = dna::variant_normalization::normalize(&called, normalization_config)?;
+let represented = dna::nomenclature::apply(&normalized, nomenclature_config)?;
+
+// Other consumers may use called or normalized variants directly.
+let haplogroup = dna::haplogroup::analyze(&normalized, haplogroup_config)?;
 ```
 
 This example is illustrative, not an accepted exact API.
@@ -504,12 +526,13 @@ Recommended rollout sequence:
 
 1. accept the architectural direction and public-contract principles;
 2. define the initial public Rust API without changing scientific behavior;
-3. make raw-to-variant analysis a high-level capability boundary;
-4. introduce canonical contracts at demonstrated replacement seams;
-5. add additional implementations such as NGS input, alternative alignment, or
+3. keep raw-to-called-variant analysis as a high-level capability boundary;
+4. introduce optional post-calling haplotype normalization/canonicalization as an explicit capability;
+5. introduce optional target-specific nomenclature as a separate representation capability;
+6. add additional implementations such as NGS input, alternative alignment, or
    alternative calling independently;
-6. add downstream analysis modules such as haplogroup and nomenclature;
-7. extract crates only when their dependency or lifecycle boundary is clear.
+7. add downstream analysis modules such as haplogroup and targeted/SNP analysis;
+8. extract crates only when their dependency or lifecycle boundary is clear.
 
 Each implementation PR should be independently revertible and must not require a
 big-bang migration.
@@ -555,6 +578,9 @@ boundaries, and provenance are recorded by
 [ADR-0058](../decisions/adr/0058-canonical-contracts-and-modular-analysis-composition.md).
 The reuse-first implementation policy is recorded by
 [ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
+The variant lifecycle boundary between calling, canonicalization, and
+nomenclature is recorded by
+[ADR-0060](../decisions/adr/0060-separate-variant-canonicalization-nomenclature.md).
 
 Acceptance establishes architectural direction; it does not make unimplemented
 capabilities current production behavior.
@@ -618,6 +644,11 @@ Implementation is in progress through focused PRs.
   aligner and bounded ABIF decoder remain first-party because evaluated
   ecosystem implementations do not currently satisfy their scientific or
   trust-boundary contracts.
+
+- [PR #25](https://github.com/tsuuanmi/DNA/pull/25) separates evidence-backed
+  variant calling from future haplotype-preserving canonicalization and
+  target-specific nomenclature, allowing future NGS callers to converge without
+  depending on Sanger alignment topology.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when

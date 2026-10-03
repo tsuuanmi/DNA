@@ -23,8 +23,8 @@ dna::variant_analysis::analyze_sanger(...)
 
 The function validates and loads one Sanger sequencing trace encoded as ABIF,
 one single-record FASTA reference, and one explicit DNA configuration, then runs
-the same canonical
-read-processing, alignment, and variant-calling scientific path used by the CLI.
+the same validated read-processing, alignment, and variant-calling scientific
+path used by the CLI.
 
 Filename suffix is not part of the scientific input contract; `.ab1` is a common sequencing filename, while ABIF validity is determined from file content and required tags.
 
@@ -85,15 +85,17 @@ pub enum VariantKind {
 }
 ```
 
-Variant positions are explicitly one-based. Variants are normalized,
-configuration-eligible primary-sequence differences produced by the current
-scientific path.
+Variant positions are explicitly one-based. Variants are configuration-eligible, anchored primary-sequence differences
+produced by the current scientific path. Their current indel placement preserves
+the alignment-selected canonical topology. ADR-0060 defines a future separate
+post-calling haplotype-canonicalization and target-nomenclature boundary; that
+future layer is not part of this API yet.
 
 ## Boundary rules
 
-The Rust API returns canonical typed data. The versioned JSON documents under
+The Rust API returns stable typed data for the current Variant Analysis capability. The versioned JSON documents under
 this reference directory remain separate serialization/publication contracts;
 `dna.analysis/v7` is not the Rust API result model.
 
-The Sanger adapter name is source-specific by design. Future input modalities
-may provide additional adapters while preserving the canonical output semantics.
+The Sanger adapter name is source-specific by design. Future input modalities may provide additional adapters while converging on
+compatible called-variant semantics before later canonicalization/nomenclature.

@@ -37,7 +37,7 @@
 | `signal_processing` | observation-only Sanger signal evidence | reference interpretation |
 | `quality_control` | relative quality/end trimming | variant filtering |
 | `alignment` | current profile-aware pairwise placement/orientation | variant extraction and input-format parsing |
-| `variant_calling` | differences, mapping, normalization, eligibility | genotype/clinical interpretation |
+| `variant_calling` | evidence-backed differences, mapping, allele anchoring, eligibility | target nomenclature, genotype/clinical interpretation |
 | `variant_analysis` | reference-guided one-read scientific composition and public Variant Analysis capability | CLI logging/JSON publication |
 | `sample` | multi-read evidence aggregation | input discovery/consensus |
 | `report` | contract projection, serialization, atomic publish | scientific decisions |
