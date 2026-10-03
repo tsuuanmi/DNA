@@ -3,13 +3,23 @@
 Owns the public high-level capability that converts supported sequencing input
 into typed evidence-backed variant results.
 
-The initial public entry point is Sanger AB1 via `analyze_sanger`. Sanger
-filesystem loading is owned by `input::sanger`; Variant Analysis consumes the
-validated trace/reference/configuration models and owns the reference-guided
-one-read observation path: shared read processing, alignment, variant calling,
-warning accounting, and assembly of the internal `ReadObservation`. Shared
-reference-free read processing is provided by the crate-internal
-`read_processing` module.
+The public Sanger boundary supports both one-shot `analyze_sanger` and a
+reusable immutable `SangerAnalyzer`. `SangerAnalyzer::load` validates and
+materializes one shared reference/configuration context once; each later
+`analyze(trace)` validates/decodes only that ABIF trace and reuses the same
+scientific context.
+
+Sanger filesystem loading is owned by `input::sanger`; Variant Analysis
+consumes the validated trace/reference/configuration models and owns the
+reference-guided one-read observation path: shared read processing, alignment,
+variant calling, warning accounting, and assembly of the internal
+`ReadObservation`. Shared reference-free read processing is provided by the
+crate-internal `read_processing` module.
+
+`SangerAnalyzer` owns no thread pool, operational logger, or result publisher.
+It is `Send + Sync` so outer validation/batch orchestration may share one
+prepared context across independent trace workers without introducing
+parallelism into the scientific kernel.
 
 CLI and sample pipelines consume this capability through a crate-private
 observation seam. Variant Analysis does not own file-backed CLI logging, JSON
