@@ -60,6 +60,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --locked --no-deps --all-features
       - name: Release build
+        if: github.event_name != 'pull_request'
         run: cargo build --locked --release
 
   dependency-policy:
@@ -75,8 +76,10 @@ jobs:
         with:
           command: check
       - name: Install cargo-audit
+        if: github.event_name != 'pull_request'
         run: cargo install cargo-audit --version 0.22.2 --locked
       - name: RustSec audit
+        if: github.event_name != 'pull_request'
         run: cargo audit
 
   dependency-review:
@@ -95,6 +98,7 @@ jobs:
 
   msrv:
     name: MSRV 1.88
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -186,7 +190,7 @@ jobs:
         shell: bash
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            jq -e 'all(.[]; .result == "success")' <<<"$NEEDS_JSON"
+            jq -e 'all(to_entries[]; .value.result == "success" or (.key == "msrv" and .value.result == "skipped"))' <<<"$NEEDS_JSON"
           else
             jq -e 'all(to_entries[]; .value.result == "success" or (.key == "dependency-review" and .value.result == "skipped"))' <<<"$NEEDS_JSON"
           fi
