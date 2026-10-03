@@ -112,7 +112,7 @@ mod tests {
     fn locus(index_0based: usize) -> LocusEvidence {
         LocusEvidence {
             call_index_0based: index_0based,
-            ploc_0based: index_0based * 10,
+            locus_position_0based: index_0based * 10,
             window_start_0based: index_0based * 10,
             window_end_0based_exclusive: index_0based * 10 + 1,
             context_call_start_0based: index_0based,
@@ -184,7 +184,7 @@ mod tests {
                 calls: (0..call_count)
                     .map(|index_0based| BaseCall {
                         index_0based,
-                        ploc_0based: index_0based * 10,
+                        locus_position_0based: index_0based * 10,
                         window_start_0based: index_0based * 10,
                         window_end_0based_exclusive: index_0based * 10 + 1,
                         peaks: Nucleotide::ALL.map(|base| ChannelPeak {
@@ -206,13 +206,13 @@ mod tests {
                 primary_sequence: "G".repeat(call_count),
             },
             signal: DNAAnalysis {
-                integrity: crate::model::signal::TraceIntegrity {
-                    ploc_count: call_count,
+                integrity: crate::model::signal::SangerIntegrity {
+                    locus_count: call_count,
                     vendor_primary_count: None,
                     vendor_quality_count: None,
-                    minimum_ploc_spacing: None,
-                    median_ploc_spacing: None,
-                    maximum_ploc_spacing: None,
+                    minimum_locus_spacing: None,
+                    median_locus_spacing: None,
+                    maximum_locus_spacing: None,
                     clipped_channel_samples: 0,
                     maximum_to_median_event_signal_ratio: None,
                 },
