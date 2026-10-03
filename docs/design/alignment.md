@@ -4,6 +4,27 @@ Part of the canonical [DNA pipeline](pipeline.md).
 
 Aligns the retained basecall-independent evidence-profile sequence to the reference with affine-gap Gotoh dynamic programming. The retained primary sequence stays attached to traceback coordinates for admission metrics and downstream primary-sequence variant extraction. Alignment is semi-global: the retained query is fully consumed while unaligned reference flanks are allowed.
 
+## Implementation sourcing
+
+The current Gotoh implementation is retained deliberately under ADR-0059 after
+evaluating maintained pairwise-alignment machinery, including `rust-bio`.
+
+The current `rust-bio` pairwise contract is not a drop-in implementation of
+DNA's method:
+
+- DNA substitution scoring depends on the `EvidenceProfile` at a specific query
+  locus, not only on the two aligned sequence bytes;
+- DNA requires a length-`k` gap to score as `open + k * extension`, whereas
+  current `rust-bio` uses `open + (k - 1) * extension`;
+- DNA must preserve its documented deterministic traceback ordering,
+  repeat-equivalent 3'/right-most canonicalization, distinct-placement
+  ambiguity, and circular one-reference-span rules.
+
+These are scientific-method semantics, not reasons to expose the implementation
+as a permanent platform primitive. If a maintained implementation can later
+express the same contract, replacement should occur behind the alignment
+boundary and requires separate scientific-equivalence validation.
+
 ### Substep 5.1 — Orientation candidates
 
 The retained query evidence is aligned in both orientations:

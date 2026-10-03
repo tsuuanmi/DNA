@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058, ADR-0059]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -607,6 +607,17 @@ Implementation is in progress through focused PRs.
   biological target, sequencing modality, external format, and analysis
   capability are separate dimensions; maintained ecosystem machinery is
   preferred behind DNA-owned contracts.
+
+- [PR #22](https://github.com/tsuuanmi/DNA/pull/22) applies reuse-first to the
+  current production path by delegating commodity FASTA record parsing to
+  `noodles-fasta` while retaining DNA-owned single-reference semantics and the
+  Rust 1.88 MSRV.
+
+- [PR #23](https://github.com/tsuuanmi/DNA/pull/23) records the complementary
+  reuse-first outcome for current custom machinery: the evidence-profile Gotoh
+  aligner and bounded ABIF decoder remain first-party because evaluated
+  ecosystem implementations do not currently satisfy their scientific or
+  trust-boundary contracts.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
