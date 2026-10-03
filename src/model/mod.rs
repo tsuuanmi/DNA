@@ -12,6 +12,6 @@ pub(crate) mod reference;
 pub(crate) mod result;
 pub(crate) mod sample_evidence;
 pub(crate) mod sample_result;
-pub(crate) mod signal;
 pub(crate) mod sanger;
+pub(crate) mod signal;
 pub(crate) mod variant;
