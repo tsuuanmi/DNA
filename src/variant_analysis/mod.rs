@@ -9,9 +9,12 @@ pub(crate) mod observation;
 use std::fmt;
 use std::path::Path;
 
+use crate::config::Config;
 use crate::error::Result;
 use crate::input::sanger;
 use crate::logger::StageLog;
+use crate::model::reference::Reference;
+use crate::model::sanger::Chromatogram;
 use crate::model::variant as internal_variant;
 
 /// Typed result of one reference-guided variant analysis.
@@ -82,6 +85,48 @@ impl VariantAnalysisResult {
     }
 }
 
+/// Immutable reference/configuration context reusable across independent Sanger traces.
+///
+/// This type owns no thread pool and performs no output publication. Callers may
+/// share it across worker threads and choose their own outer parallelism.
+#[derive(Debug, Clone)]
+pub struct SangerAnalyzer {
+    config: Config,
+    reference: Reference,
+    reference_identity: ReferenceIdentity,
+}
+
+impl SangerAnalyzer {
+    /// Loads and validates one shared reference and scientific configuration.
+    pub fn load(reference: &Path, config: &Path) -> Result<Self> {
+        let context = sanger::load_analysis_context(reference, config)?;
+        let reference_identity = reference_identity(&context.reference);
+        Ok(Self {
+            config: context.config,
+            reference: context.reference,
+            reference_identity,
+        })
+    }
+
+    /// Analyzes one ABIF trace using the already loaded reference/configuration.
+    pub fn analyze(&self, trace: &Path) -> Result<VariantAnalysisResult> {
+        let trace = sanger::load_trace(trace)?;
+        analyze_loaded(&trace, &self.reference, &self.config)
+    }
+
+    /// Returns the shared reference identity.
+    #[must_use]
+    pub const fn reference_identity(&self) -> &ReferenceIdentity {
+        &self.reference_identity
+    }
+
+    /// Returns the shared validated configuration identity.
+    #[must_use]
+    pub fn configuration_sha256(&self) -> &str {
+        &self.config.source_sha256
+    }
+}
+
 /// Runs the current Sanger AB1 adapter through the canonical Variant Analysis
 /// capability without CLI logging or JSON publication side effects.
 pub fn analyze_sanger(
@@ -91,19 +136,18 @@ pub fn analyze_sanger(
 ) -> Result<VariantAnalysisResult> {
     let prepared = sanger::prepare_analysis(trace, reference, config)?;
     let inputs = sanger::load_analysis(prepared)?;
-    let reference_identity = ReferenceIdentity {
-        name: inputs.reference.name.clone(),
-        sha256: inputs.reference.sequence_sha256.clone(),
-    };
+    analyze_loaded(&inputs.trace, &inputs.reference, &inputs.config)
+}
+
+fn analyze_loaded(
+    trace: &Chromatogram,
+    reference: &Reference,
+    config: &Config,
+) -> Result<VariantAnalysisResult> {
+    let identity = reference_identity(reference);
     let mut log = SilentStageLog;
     let mut stage = "read_processing";
-    let completed = observation::build(
-        &inputs.trace,
-        &inputs.reference,
-        &inputs.config,
-        &mut log,
-        &mut stage,
-    )?;
+    let completed = observation::build(trace, reference, config, &mut log, &mut stage)?;
 
     let read = completed.read;
     let reference_segments = read
@@ -119,11 +163,18 @@ pub fn analyze_sanger(
 
     Ok(VariantAnalysisResult {
         input_sha256: read.input_sha256,
-        reference: reference_identity,
+        reference: identity,
         configuration_sha256: read.configuration_sha256,
         reference_segments,
         variants,
     })
+}
+
+fn reference_identity(reference: &Reference) -> ReferenceIdentity {
+    ReferenceIdentity {
+        name: reference.name.clone(),
+        sha256: reference.sequence_sha256.clone(),
+    }
 }
 
 fn project_variant(variant: &internal_variant::Variant) -> Variant {
