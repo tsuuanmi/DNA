@@ -12,7 +12,7 @@ DNA separates six interface classes:
    `input::sanger` validate external sequencing/reference/configuration inputs
    and produce validated internal models without owning CLI output publication.
 3. **Public Rust capability boundary** — typed reusable operations such as
-   Sanger Variant Analysis return canonical domain results without CLI
+   Sanger Variant Analysis return stable typed called-variant results without CLI
    publication side effects.
 4. **Scientific module boundaries** — typed internal models passed between
    decoding, calling, signal, QC, alignment, variant, and sample stages.
@@ -48,7 +48,7 @@ science; reference-guided one-read observation is owned by
 `variant_analysis` and is reused by CLI analysis, sample evidence, and the
 public Rust API.
 
-The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns canonical typed variant evidence directly and does not open logs or publish JSON. Its exact contract is owned by [Rust public API](../reference/rust-api.md).
+The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns stable typed called-variant evidence directly and does not open logs or publish JSON. Optional post-calling normalization and nomenclature belong to separate capabilities; see [variant lifecycle](variant-lifecycle.md). Its exact current contract is owned by [Rust public API](../reference/rust-api.md).
 
 Exact syntax and serialized shapes are owned by
 [reference](../reference/README.md). Module responsibilities are colocated under
