@@ -32,7 +32,8 @@ pub(crate) fn build(
                 index, trace.source_name, trace.source_sha256
             ),
         )?;
-        let completed = variant_analysis::observation::build(trace, reference, config, logger, stage)?;
+        let completed =
+            variant_analysis::observation::build(trace, reference, config, logger, stage)?;
         warning_total += completed.warning_total;
         logger.info(
             module_path!(),
