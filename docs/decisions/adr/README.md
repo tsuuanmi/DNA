@@ -25,6 +25,7 @@ Use this map to find current rationale without treating the chronological ADR li
 |---|---|---|
 | biological claim boundary | ADR-0009, ADR-0019 | SRS + scientific-state invariants |
 | circular/reference placement | ADR-0010, ADR-0029, ADR-0047 | alignment SRS/method + alignment invariants |
+| variant calling / canonicalization / nomenclature | ADR-0047 → ADR-0057 → ADR-0060 | current variant SRS/method; platform direction in ADR-0060 |
 | signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
 | sample boundary and sparse evidence | ADR-0023, ADR-0025 | sample SRS/method + sample contract |
 | overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035 | sample SRS/method + sample contract |
@@ -84,8 +85,9 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0042](0042-profile-heterogeneity-decomposition.md) | Decompose nucleotide profile heterogeneity | Accepted |
 | [0043](0043-directional-profile-distance.md) | Measure directional nucleotide-profile distance | Accepted |
 | [0046](0046-nearest-locus-event.md) | Anchor nucleotide evidence to the nearest locus event | Accepted |
-| [0047](0047-canonical-right-aligned-mtdna-gaps.md) | Canonical right-aligned mtDNA gap placement | Accepted |
+| [0047](0047-canonical-right-aligned-mtdna-gaps.md) | Canonical right-aligned mtDNA gap placement | Superseded in part by ADR-0060 |
 | [0053](0053-public-differential-locus-signal-evidence.md) | Expose concise differential-locus signal evidence in sample output | Accepted |
 | [0057](0057-haplotype-correctness-and-variant-nomenclature.md) | Separate haplotype correctness from variant nomenclature | Accepted |
 | [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Accepted |
 | [0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md) | Reuse ecosystem machinery behind DNA-owned contracts | Accepted |
+| [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Accepted |
