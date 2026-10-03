@@ -2,7 +2,7 @@
 
 mod analyze;
 mod basecall;
-pub(crate) mod input;
+mod path;
 mod sample;
 mod sample_metrics;
 mod sample_reads;

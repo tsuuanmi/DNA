@@ -4,14 +4,15 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
+use crate::input::sanger;
 use crate::logger::Logger;
-use crate::pipeline::input;
+use crate::pipeline::path;
 use crate::read_processing::{self, ProcessedRead};
 use crate::report::{self, CompletedBasecall};
 
 /// Runs one complete AB1-to-basecalls JSON operation.
 pub(crate) fn run(trace: &Path, config_path: &Path) -> Result<()> {
-    let trace_stem = input::trace_stem(trace)?;
+    let trace_stem = path::trace_stem(trace)?;
     let mut logger = Logger::open(trace_stem)?;
     let started = Instant::now();
     logger.info(
@@ -46,7 +47,9 @@ fn run_logged(
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_basecall(trace, config_path)?;
+    let prepared = sanger::prepare_basecall(trace, config_path)?;
+    let output = path::basecall_output(trace)?;
+    let inputs = sanger::load_basecall(prepared)?;
     logger.info(
         module_path!(),
         line!(),
@@ -65,7 +68,7 @@ fn run_logged(
             inputs.trace.vendor.qualities.is_some(),
             inputs.config.source_path.display().to_string(),
             inputs.config.source_sha256,
-            inputs.output.display().to_string()
+            output.display().to_string()
         ),
     )?;
 
@@ -102,7 +105,6 @@ fn run_logged(
 
     *stage = "reporting";
     let stage_started = Instant::now();
-    let output = inputs.output.clone();
     let result = report::build_basecall(CompletedBasecall {
         config: inputs.config,
         trace: inputs.trace,

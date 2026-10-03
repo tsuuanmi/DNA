@@ -13,6 +13,7 @@ API documentation lives in rustdoc and source comments.
 - [cli](cli/README.md) — command-line syntax and typed arguments.
 - [config](config/README.md) — strict configuration loading and validation.
 - [error](error/README.md) — typed application failures.
+- [input](input/README.md) — source-specific sequencing input adapters.
 - [model](model/README.md) — validated domain vocabulary.
 - [pipeline](pipeline/README.md) — end-to-end operation orchestration.
 - [quality_control](quality_control/README.md) — relative quality and trimming.
@@ -39,10 +40,12 @@ Scientific stages that emit operational progress depend on the minimal internal
 selection, terminal error records, and synchronization remain outer operation
 concerns.
 
-Reference-free read processing is a shared scientific core used by both
-basecall and Variant Analysis. Reference-guided observation ownership belongs to
-`variant_analysis`; `pipeline` consumes these capabilities rather than owning
-their implementations.
+Source-specific filesystem loading belongs to `input`; the current Sanger
+adapter produces validated trace/reference/configuration models without knowing
+CLI publication paths. Reference-free read processing is a shared scientific
+core used by both basecall and Variant Analysis. Reference-guided observation
+ownership belongs to `variant_analysis`; `pipeline` consumes these
+capabilities rather than owning their implementations.
 
 Cross-cutting invariants are canonical in
 [docs/architecture/invariants](../docs/architecture/invariants/README.md).

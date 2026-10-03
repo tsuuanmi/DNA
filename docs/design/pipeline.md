@@ -46,12 +46,15 @@ typed result; no stage mutates shared state.
 The stage sequence is shared across multiple application surfaces, but ownership
 does not follow the CLI command tree:
 
+- `input::sanger` owns Sanger source validation/loading into validated
+  trace/reference/configuration models;
 - crate-internal `read_processing` owns the shared reference-free
   basecalling/signal/QC path used by basecall and Variant Analysis;
 - `variant_analysis` owns the reference-guided one-read observation path,
   including alignment and variant calling;
-- `pipeline` owns CLI/sample orchestration, operational logging lifecycle,
-  report projection, and publication.
+- `pipeline` owns CLI/sample orchestration, application filesystem naming and
+  overwrite checks, operational logging lifecycle, report projection, and
+  publication.
 
 This direction keeps reusable scientific capabilities independent of the
 command-line orchestration layer while preserving one authoritative scientific

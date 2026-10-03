@@ -1,18 +1,21 @@
 # Interfaces and Boundaries
 
-DNA separates five interface classes:
+DNA separates six interface classes:
 
 1. **Frontend/configuration boundary** — the CLI owns typed command arguments and
    resolves the current configuration path; parsed command values and the
    explicit configuration path are translated before entering operation
    orchestration.
-2. **Public Rust capability boundary** — typed reusable operations such as
+2. **Input adapter boundary** — source-specific loaders such as
+   `input::sanger` validate external sequencing/reference/configuration inputs
+   and produce validated internal models without owning CLI output publication.
+3. **Public Rust capability boundary** — typed reusable operations such as
    Sanger Variant Analysis return canonical domain results without CLI
    publication side effects.
-3. **Scientific module boundaries** — typed internal models passed between
+4. **Scientific module boundaries** — typed internal models passed between
    decoding, calling, signal, QC, alignment, variant, and sample stages.
-4. **Public serialized result boundary** — closed versioned JSON contracts.
-5. **Filesystem/operational boundary** — atomic publication and append-only logs.
+5. **Public serialized result boundary** — closed versioned JSON contracts.
+6. **Filesystem/operational boundary** — atomic publication and append-only logs.
 
 The CLI is an outer adapter: pipeline entry points receive operation values such
 as paths and sample identifiers, not `clap` argument structs. Pipeline
@@ -22,10 +25,10 @@ current command-line/process environment from becoming an inward dependency of
 orchestration or scientific modules and leaves the operation boundary usable by
 future non-CLI callers.
 
-Single-read analysis input loading also does not own the JSON publication
-destination. Output-path derivation and overwrite protection remain an outer
-operation/publication concern, while decoded trace, reference, and configuration
-form the scientific input boundary.
+The current Sanger filesystem adapter owns validation and loading of AB1 traces,
+FASTA references, and explicit configuration into validated internal models. It
+does not derive `results/*` paths, validate overwrite targets, select log paths,
+or publish outputs. Those remain outer operation/publication concerns.
 
 Operational stage logging crosses this boundary through a minimal internal
 `StageLog` capability. Shared reference-free read processing and

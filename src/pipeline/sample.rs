@@ -3,9 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
+use crate::input::sanger;
 use crate::logger::Logger;
-use crate::pipeline::input;
+use crate::pipeline::path;
 use crate::report::{self, CompletedSampleEvidence};
 use crate::sample as sample_science;
 
@@ -18,7 +19,7 @@ pub(crate) fn run(
     reference: &Path,
     config_path: &Path,
 ) -> Result<()> {
-    input::validate_sample_id(sample_id)?;
+    validate_sample_id(sample_id)?;
     let mut logger = Logger::open(sample_id)?;
     let started = Instant::now();
     logger.info(
@@ -65,8 +66,8 @@ fn run_logged(
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let inputs = input::load_sample(traces, reference, config_path)?;
-    let output = input::sample_output(sample_id)?;
+    let inputs = sanger::load_sample(traces, reference, config_path)?;
+    let output = path::sample_output(sample_id)?;
     logger.info(
         module_path!(),
         line!(),
@@ -208,4 +209,19 @@ fn run_logged(
     )?;
     logger.sync()?;
     report::publish(&output, &bytes)
+}
+
+fn validate_sample_id(sample_id: &str) -> Result<()> {
+    let mut characters = sample_id.chars();
+    let valid_first = characters
+        .next()
+        .is_some_and(|value| value.is_ascii_alphanumeric());
+    let valid_rest =
+        characters.all(|value| value.is_ascii_alphanumeric() || matches!(value, '_' | '.' | '-'));
+    if sample_id.len() > 128 || !valid_first || !valid_rest {
+        return Err(Error::Sample(
+            "sample id must be 1..=128 ASCII characters, start with an alphanumeric character, and contain only alphanumeric, '_', '.', or '-'".into(),
+        ));
+    }
+    Ok(())
 }

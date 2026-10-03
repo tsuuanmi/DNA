@@ -4,14 +4,15 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
+use crate::input::sanger;
 use crate::logger::Logger;
-use crate::pipeline::input;
+use crate::pipeline::path;
 use crate::report::{self, CompletedAnalysis};
 use crate::variant_analysis;
 
 /// Runs one complete AB1-to-JSON analysis with one per-trace append-only log.
 pub(crate) fn run(trace: &Path, reference: &Path, config_path: &Path) -> Result<()> {
-    let trace_stem = input::trace_stem(trace)?;
+    let trace_stem = path::trace_stem(trace)?;
     let mut logger = Logger::open(trace_stem)?;
     let analysis_started = Instant::now();
     logger.info(
@@ -55,9 +56,9 @@ fn run_logged(
 ) -> Result<()> {
     *stage = "input_loading";
     let stage_started = Instant::now();
-    let prepared = input::prepare_analysis(trace, reference, config_path)?;
-    let output = input::analysis_output(trace)?;
-    let inputs = input::load_analysis(prepared)?;
+    let prepared = sanger::prepare_analysis(trace, reference, config_path)?;
+    let output = path::analysis_output(trace)?;
+    let inputs = sanger::load_analysis(prepared)?;
     logger.info(
         module_path!(),
         line!(),

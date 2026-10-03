@@ -3,11 +3,13 @@
 Owns the public high-level capability that converts supported sequencing input
 into canonical variant evidence.
 
-The initial adapter is Sanger AB1 via `analyze_sanger`. This module owns the
-reference-guided one-read observation path: shared read processing, alignment,
-variant calling, warning accounting, and assembly of the internal
-`ReadObservation`. Shared reference-free read processing is provided by the
-crate-internal `read_processing` module.
+The initial public entry point is Sanger AB1 via `analyze_sanger`. Sanger
+filesystem loading is owned by `input::sanger`; Variant Analysis consumes the
+validated trace/reference/configuration models and owns the reference-guided
+one-read observation path: shared read processing, alignment, variant calling,
+warning accounting, and assembly of the internal `ReadObservation`. Shared
+reference-free read processing is provided by the crate-internal
+`read_processing` module.
 
 CLI and sample pipelines consume this capability through a crate-private
 observation seam. Variant Analysis does not own file-backed CLI logging, JSON
