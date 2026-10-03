@@ -4,18 +4,16 @@ on:
   push:
     tags:
       - "v*"
-  pull_request:
-    branches: ["main"]
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  cancel-in-progress: false
 
 permissions: {}
 
 env:
   RELEASE_TARGET: x86_64-unknown-linux-gnu
-  RELEASE_LABEL: ${{ github.event_name == 'push' && github.ref_name || format('pr-{0}', github.event.pull_request.number) }}
+  RELEASE_LABEL: ${{ github.ref_name }}
 
 jobs:
   package:
