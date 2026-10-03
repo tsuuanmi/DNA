@@ -12,12 +12,12 @@ to a filename extension.
 - bounds-checked ABIF directory parsing;
 - exact sequencing-tag lookup and validation;
 - decoding analyzed DATA channels into canonical A/C/G/T order;
-- PLOC-defined locus positions;
+- PLOC.2 decoding into canonical Sanger locus positions;
 - optional PBAS/PCON vendor evidence.
 
-The output is `model::trace::Chromatogram`, the canonical Sanger evidence model.
-ABIF directory entries and format-specific tag structures do not cross that
-boundary.
+The output is `model::sanger::Chromatogram`, the canonical Sanger evidence model.
+ABIF directory entries, tag names, and format-specific structures do not cross that
+boundary. In particular, `PLOC.2` is projected to canonical `locus_positions`.
 
 See [input requirements](../../../docs/requirements/input.md) and
 [ABIF decoding method](../../../docs/design/abif-decoding.md).
