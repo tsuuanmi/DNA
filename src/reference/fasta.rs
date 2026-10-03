@@ -65,7 +65,10 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
     let raw_sequence = std::str::from_utf8(record.sequence().as_ref())
         .map_err(|error| Error::Fasta(format!("reference sequence must be UTF-8: {error}")))?;
     let mut sequence = String::new();
-    for character in raw_sequence.chars().filter(|character| !character.is_whitespace()) {
+    for character in raw_sequence
+        .chars()
+        .filter(|character| !character.is_whitespace())
+    {
         let base = character.to_ascii_uppercase();
         if !matches!(base, 'A' | 'C' | 'G' | 'T' | 'N') {
             return Err(Error::Fasta(format!(
