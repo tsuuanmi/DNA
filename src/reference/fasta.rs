@@ -78,22 +78,80 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::path::PathBuf;
 
-    use tempfile::tempdir;
+    use tempfile::{TempDir, tempdir};
 
     use super::*;
 
-    #[test]
-    fn rejects_multiple_records() -> Result<()> {
+    fn write_reference(contents: &[u8]) -> Result<(TempDir, PathBuf)> {
         let directory = tempdir().map_err(|source| Error::Output {
             path: "temporary directory".into(),
             source,
         })?;
         let path = directory.path().join("ref.fa");
-        fs::write(&path, ">one\nACGT\n>two\nACGT\n").map_err(|source| Error::Output {
+        fs::write(&path, contents).map_err(|source| Error::Output {
             path: path.clone(),
             source,
         })?;
+        Ok((directory, path))
+    }
+
+    #[test]
+    fn loads_one_record_and_preserves_dna_reference_semantics() -> Result<()> {
+        let (_directory, path) =
+            write_reference(b">rCRS Homo sapiens mitochondrial reference\nacgt\nn\n")?;
+
+        let reference = load(&path, ReferenceTopology::Circular)?;
+
+        assert_eq!(reference.name, "rCRS");
+        assert_eq!(reference.sequence, "ACGTN");
+        assert_eq!(reference.topology, ReferenceTopology::Circular);
+        assert_eq!(reference.sequence_sha256, hex_sha256(b"ACGTN"));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_multiple_records() -> Result<()> {
+        let (_directory, path) = write_reference(b">one\nACGT\n>two\nACGT\n")?;
+        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_missing_identifier() -> Result<()> {
+        let (_directory, path) = write_reference(b">   \nACGT\n")?;
+        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_empty_sequence() -> Result<()> {
+        let (_directory, path) = write_reference(b">ref\n")?;
+        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unsupported_reference_base() -> Result<()> {
+        let (_directory, path) = write_reference(b">ref\nACGR\n")?;
+        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_reference_above_length_cap() -> Result<()> {
+        let sequence = "A".repeat(MAX_REFERENCE_LENGTH + 1);
+        let fasta = format!(">ref\n{sequence}\n");
+        let (_directory, path) = write_reference(fasta.as_bytes())?;
+
+        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_non_utf8_reference() -> Result<()> {
+        let (_directory, path) = write_reference(&[b'>', b'r', b'e', b'f', b'\n', 0xff, b'\n'])?;
         assert!(load(&path, ReferenceTopology::Linear).is_err());
         Ok(())
     }
