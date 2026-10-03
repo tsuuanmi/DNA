@@ -132,7 +132,9 @@ CalledVariant
 └── caller / method provenance
 ~~~
 
-The exact public Rust shape is intentionally deferred until implementation.
+The current exact Rust shape is owned by
+[Rust public API](../reference/rust-api.md); architecture owns only its semantic
+boundary.
 
 A `CalledVariantSet` is not required to be right-aligned, left-aligned,
 HGVS-formatted, VCF-normalized, or mtDNA-nomenclature-normalized.
