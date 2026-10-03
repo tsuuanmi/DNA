@@ -90,6 +90,43 @@ configuration-eligible, anchored primary-sequence differences produced by the
 current scientific path. Their caller representation preserves the
 alignment-selected topology.
 
+## Reusable Sanger Analysis Context
+
+For repeated analysis against one reference/configuration, callers may prepare
+the shared scientific context once:
+
+```rust
+let analyzer = dna::variant_analysis::SangerAnalyzer::load(
+    reference_path,
+    config_path,
+)?;
+
+let result_a = analyzer.analyze(trace_a)?;
+let result_b = analyzer.analyze(trace_b)?;
+```
+
+The public shape is:
+
+```rust
+pub struct SangerAnalyzer { /* private immutable state */ }
+
+impl SangerAnalyzer {
+    pub fn load(reference: &Path, config: &Path) -> dna::error::Result<Self>;
+    pub fn analyze(&self, trace: &Path) -> dna::error::Result<VariantAnalysisResult>;
+    pub fn reference_identity(&self) -> &ReferenceIdentity;
+    pub fn configuration_sha256(&self) -> &str;
+}
+```
+
+`SangerAnalyzer::load` validates and fully loads the reference and scientific
+configuration. Later `analyze` calls do not reread those files; they validate
+and decode only the requested ABIF trace.
+
+`SangerAnalyzer` is safe to share across threads, but it deliberately owns no
+thread pool or scheduling policy. An outer batch/validation layer may share one
+analyzer across workers while each trace runs through the same deterministic
+scientific kernel as `analyze_sanger`.
+
 ## CalledVariantSet
 
 `VariantAnalysisResult::called_variants()` projects one analysis result into
