@@ -44,19 +44,9 @@ pub(crate) struct Logger {
 /// and synchronization. Those remain responsibilities of the outer operation
 /// wrapper and its concrete file-backed `Logger`.
 pub(crate) trait StageLog {
-    fn info(
-        &mut self,
-        module: &str,
-        line: u32,
-        message: fmt::Arguments<'_>,
-    ) -> Result<()>;
+    fn info(&mut self, module: &str, line: u32, message: fmt::Arguments<'_>) -> Result<()>;
 
-    fn warn(
-        &mut self,
-        module: &str,
-        line: u32,
-        message: fmt::Arguments<'_>,
-    ) -> Result<()>;
+    fn warn(&mut self, module: &str, line: u32, message: fmt::Arguments<'_>) -> Result<()>;
 }
 
 impl StageLog for Logger {
