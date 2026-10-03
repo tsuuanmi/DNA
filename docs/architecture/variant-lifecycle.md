@@ -238,6 +238,12 @@ The current Sanger aligner also selects deterministic right-most
 repeat-equivalent traceback topology for evidence placement under ADR-0047, and
 the current variant builder preserves that selected placement.
 
-A standalone post-calling normalization capability and an mtDNA nomenclature
-capability are planned architecture under ADR-0060; they are not yet implemented
-production behavior.
+DNA now also exposes `VariantAnalysisResult::called_variants()` as the typed
+`CalledVariantSet` boundary and an optional standalone
+`variant_normalization` capability. The initial
+`MtDnaRightAligned` policy preserves source calls and the complete reconstructed
+haplotype while selecting sequence-equivalent 3'/right-most indel placement
+without crossing the FASTA/rCRS seam.
+
+An mtDNA nomenclature capability remains planned architecture under ADR-0060 and
+is not yet implemented production behavior.
