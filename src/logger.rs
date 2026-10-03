@@ -38,18 +38,26 @@ pub(crate) struct Logger {
     run_id: String,
 }
 
-
 /// Minimal operational logging capability required by scientific pipeline stages.
 ///
 /// This boundary intentionally excludes log-path selection, terminal error records,
 /// and synchronization. Those remain responsibilities of the outer operation
 /// wrapper and its concrete file-backed `Logger`.
 pub(crate) trait StageLog {
-    fn info(&mut self, module: &str, line: u32, message: fmt::Arguments<'_>) -> Result<()>;
+    fn info(
+        &mut self,
+        module: &str,
+        line: u32,
+        message: fmt::Arguments<'_>,
+    ) -> Result<()>;
 
-    fn warn(&mut self, module: &str, line: u32, message: fmt::Arguments<'_>) -> Result<()>;
+    fn warn(
+        &mut self,
+        module: &str,
+        line: u32,
+        message: fmt::Arguments<'_>,
+    ) -> Result<()>;
 }
-
 
 impl StageLog for Logger {
     fn info(&mut self, module: &str, line: u32, message: fmt::Arguments<'_>) -> Result<()> {
