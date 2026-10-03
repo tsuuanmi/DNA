@@ -1,8 +1,8 @@
 # DNA
 
-DNA is a deterministic Rust system for DNA ABIF/AB1 analysis.
+DNA is a deterministic Rust platform for DNA analysis. The current production implementation analyzes Sanger sequencing traces stored as ABIF, but the platform architecture is not restricted to Sanger or mitochondrial DNA.
 
-It reads analyzed A/C/G/T chromatogram channels, re-calls bases at validated ABIF PLOC loci, performs read-quality handling, aligns the retained read to a short reference in either orientation, and reports auditable primary-sequence differences through versioned JSON contracts.
+The current Sanger capability reads analyzed A/C/G/T chromatogram channels, projects ABIF locus metadata into canonical Sanger loci, re-calls bases from signal, performs read-quality handling, aligns the retained read to a reference, and reports auditable primary-sequence differences through typed Rust results and versioned JSON contracts.
 
 DNA is designed as scientific software rather than as a generic sequence-conversion utility. The goal is not maximum feature count. The goal is to make signal processing, biological interpretation, and software correctness explicit enough to inspect, test, validate, and evolve safely.
 
@@ -18,17 +18,20 @@ Rust is an architectural choice, not a branding choice. DNA uses Rust to move co
 
 The compiler cannot prove biological correctness. Real scientific claims still require independent data and validation.
 
+DNA's platform scope treats biological target, sequencing modality, file format, and analysis capability as separate dimensions. Mitochondrial DNA is one biological target; nuclear/genomic DNA and targeted loci are future targets. SNP analysis/genotyping is an analysis use case or variant class, not a sequencing modality.
+
 ## Current status
 
 The JSON-based pipeline is implemented with production-oriented engineering controls. A release is not called production-ready until the exact revision also satisfies the scientific validation and release-evidence contract in ADR-0018.
 
 Current supported behavior includes:
 
-- strict bounded ABIF/AB1 decoding;
+- strict bounded Sanger ABIF decoding;
 - canonical analyzed A/C/G/T channels using ABIF channel-order metadata;
-- signal-derived re-calling at validated `PLOC.2` loci;
+- projection of `PLOC.2` into canonical Sanger locus positions at the input boundary;
+- signal-derived re-calling at validated canonical Sanger loci;
 - explicit primary and ambiguity states;
-- observational trace-integrity and rolling signal-to-noise annotations;
+- observational Sanger-integrity and rolling signal-to-noise annotations;
 - deterministic read-quality scoring and end trimming;
 - forward/reverse profile-aware semi-global alignment to one short reference;
 - linear and circular reference handling;
@@ -42,9 +45,9 @@ Current supported behavior includes:
 The core confidence floor is deliberately simpler than the full current implementation:
 
 ```text
-AB1
+Sanger ABIF
  ↓
-validated chromatogram decode
+validated Sanger evidence decode
  ↓
 signal-derived base re-calling
  ↓
@@ -78,7 +81,7 @@ A single chromatogram does **not** establish genotype, quantitative heteroplasmy
 Important boundaries:
 
 - `PBAS.2` / `PCON.2` are optional vendor evidence; they do not determine DNA's final call;
-- `PLOC.2` is currently the locus authority for the re-calling method;
+- `PLOC.2` is interpreted only by the ABIF format layer and projected to canonical Sanger locus positions before downstream scientific stages;
 - rolling SNR and relative quality are not Phred-calibrated error probabilities;
 - secondary or mixed signal is an observation, not automatically heteroplasmy;
 - unresolved evidence remains unresolved;
