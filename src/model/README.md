@@ -7,7 +7,7 @@ filesystem access, CLI parsing, configuration loading, or algorithm orchestratio
 
 Important children cover alignment, basecalls, coordinates, locus evidence,
 nucleotides, quality, references, read observations, sample evidence/results,
-signal, traces, and variants.
+signal, canonical Sanger evidence, and variants.
 
 See [system architecture](../../docs/architecture/overview.md) and
 [system invariants](../../docs/architecture/invariants/README.md).
