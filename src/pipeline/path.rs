@@ -27,28 +27,28 @@ fn validate_output(output: &Path) -> Result<()> {
 }
 
 /// Returns and validates the deterministic CLI publication path for analysis.
-pub(crate) fn analysis_output(trace: &Path) -> Result<PathBuf> {
+pub(super) fn analysis_output(trace: &Path) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{}.json", trace_stem(trace)?));
     validate_output(&output)?;
     Ok(output)
 }
 
 /// Returns and validates the deterministic CLI publication path for basecalls.
-pub(crate) fn basecall_output(trace: &Path) -> Result<PathBuf> {
+pub(super) fn basecall_output(trace: &Path) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{}.basecalls.json", trace_stem(trace)?));
     validate_output(&output)?;
     Ok(output)
 }
 
 /// Returns and validates the deterministic CLI publication path for sample evidence.
-pub(crate) fn sample_output(sample_id: &str) -> Result<PathBuf> {
+pub(super) fn sample_output(sample_id: &str) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{sample_id}.sample.json"));
     validate_output(&output)?;
     Ok(output)
 }
 
 /// Returns the validated UTF-8 trace stem shared by result and log paths.
-pub(crate) fn trace_stem(trace: &Path) -> Result<&str> {
+pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
     trace
         .file_stem()
         .and_then(|value| value.to_str())
