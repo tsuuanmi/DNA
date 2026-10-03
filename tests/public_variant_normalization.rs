@@ -25,12 +25,7 @@ fn called(sequence: &str, variants: Vec<Variant>) -> CalledVariantSet {
     }
 }
 
-fn variant(
-    position_1based: usize,
-    reference: &str,
-    alternate: &str,
-    kind: VariantKind,
-) -> Variant {
+fn variant(position_1based: usize, reference: &str, alternate: &str, kind: VariantKind) -> Variant {
     Variant {
         contig: "synthetic".into(),
         position_1based,
@@ -129,8 +124,7 @@ fn right_aligns_homopolymer_insertion_without_changing_haplotype()
 }
 
 #[test]
-fn normalization_preserves_phase_across_nearby_edits()
--> Result<(), Box<dyn std::error::Error>> {
+fn normalization_preserves_phase_across_nearby_edits() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");
     let sequence = "CAAAAG";
@@ -153,8 +147,7 @@ fn normalization_preserves_phase_across_nearby_edits()
 }
 
 #[test]
-fn right_alignment_stops_at_the_mtdna_coordinate_seam()
--> Result<(), Box<dyn std::error::Error>> {
+fn right_alignment_stops_at_the_mtdna_coordinate_seam() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");
     let sequence = "AAAA";
@@ -187,8 +180,7 @@ fn rejects_reference_identity_mismatch() -> Result<(), Box<dyn std::error::Error
 }
 
 #[test]
-fn rejects_source_allele_that_disagrees_with_reference()
--> Result<(), Box<dyn std::error::Error>> {
+fn rejects_source_allele_that_disagrees_with_reference() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");
     let sequence = "CAAAAG";
