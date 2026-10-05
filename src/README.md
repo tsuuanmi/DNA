@@ -23,6 +23,8 @@ API documentation lives in rustdoc and source comments.
 - [signal_processing](signal_processing/README.md) — observation-only signal analysis.
 - [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
 - [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
+- [variant_nomenclature](variant_nomenclature/README.md) — optional target-nomenclature input boundary.
+- [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
 
 File-only modules such as `checksum.rs`, `locus.rs`, `logger.rs`, and
 `read_processing.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
