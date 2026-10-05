@@ -13,7 +13,7 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::model::reference::ReferenceTopology;
 use crate::reference;
-use crate::variant_analysis::{CalledVariantSet, Variant};
+use crate::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant};
 
 use edit::{apply_edits, variants_to_edits};
 use render::render_edits;
@@ -31,6 +31,8 @@ pub enum NormalizationPolicy {
 /// Source and normalized representations of one unchanged called haplotype.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantNormalizationResult {
+    /// Identity of the reference used to reconstruct and normalize this haplotype.
+    pub reference: ReferenceIdentity,
     /// Exact called variants supplied to normalization.
     pub source_variants: Vec<Variant>,
     /// Reconstructed alternate haplotype before representation movement.
@@ -78,6 +80,7 @@ pub fn normalize(
         render_edits(&reference.name, &reference.sequence, &normalized_edits)?;
 
     Ok(VariantNormalizationResult {
+        reference: called.reference.clone(),
         source_variants,
         alternate_sequence,
         normalized_variants,
