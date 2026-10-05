@@ -8,13 +8,13 @@ use crate::variant_analysis::{Variant, VariantKind};
 use super::normalization_error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SequenceEdit {
-    pub(super) start: usize,
-    pub(super) end: usize,
-    pub(super) alternate: String,
+pub(crate) struct SequenceEdit {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) alternate: String,
 }
 
-pub(super) fn variants_to_edits(
+pub(crate) fn variants_to_edits(
     contig: &str,
     reference: &str,
     variants: &[Variant],
@@ -25,7 +25,7 @@ pub(super) fn variants_to_edits(
         .collect()
 }
 
-pub(super) fn apply_edits(reference: &str, edits: &[SequenceEdit]) -> Result<String> {
+pub(crate) fn apply_edits(reference: &str, edits: &[SequenceEdit]) -> Result<String> {
     let mut ordered = edits.to_vec();
     sort_edits(&mut ordered);
 
@@ -58,7 +58,7 @@ pub(super) fn apply_edits(reference: &str, edits: &[SequenceEdit]) -> Result<Str
     Ok(output)
 }
 
-pub(super) fn sort_edits(edits: &mut [SequenceEdit]) {
+pub(crate) fn sort_edits(edits: &mut [SequenceEdit]) {
     edits.sort_by(|left, right| {
         (left.start, left.end, &left.alternate).cmp(&(right.start, right.end, &right.alternate))
     });
