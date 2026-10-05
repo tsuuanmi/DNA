@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 
+use crate::alignment::exact::{self, UpperBoundPlacement};
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
@@ -41,6 +42,29 @@ pub(crate) fn align_best(
             Some(reference.len()),
         ),
     };
+    let forward_proof = exact::classify(
+        &forward_query,
+        &forward_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    );
+    let reverse_proof = exact::classify(
+        &reverse_query,
+        &reverse_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    );
+    if let Some(selected) = select_proven_candidate(
+        forward_proof,
+        reverse_proof,
+        &forward_mapping,
+        &reverse_mapping,
+    )? {
+        return finish_alignment(&selected, reference, config);
+    }
+
     let forward = Candidate {
         orientation: Orientation::Forward,
         mapping: forward_mapping,
@@ -73,6 +97,46 @@ pub(crate) fn align_best(
             ));
         }
     };
+    finish_alignment(selected, reference, config)
+}
+
+fn select_proven_candidate(
+    forward: UpperBoundPlacement,
+    reverse: UpperBoundPlacement,
+    forward_mapping: &[usize],
+    reverse_mapping: &[usize],
+) -> Result<Option<Candidate>> {
+    use UpperBoundPlacement::{Ambiguous, Unattained, Unique, Unproven};
+
+    match (forward, reverse) {
+        (Unproven, _) | (_, Unproven) | (Unattained, Unattained) => Ok(None),
+        (Unique(raw), Unattained) => Ok(Some(Candidate {
+            orientation: Orientation::Forward,
+            mapping: forward_mapping.to_vec(),
+            placements: vec![raw],
+        })),
+        (Unattained, Unique(raw)) => Ok(Some(Candidate {
+            orientation: Orientation::Reverse,
+            mapping: reverse_mapping.to_vec(),
+            placements: vec![raw],
+        })),
+        (Ambiguous, Unattained) | (Unattained, Ambiguous) => Err(Error::Alignment(
+            "selected orientation has multiple equally scoring placements".into(),
+        )),
+        (Unique(_), Unique(_))
+        | (Unique(_), Ambiguous)
+        | (Ambiguous, Unique(_))
+        | (Ambiguous, Ambiguous) => Err(Error::Alignment(
+            "forward and reverse evidence-profile scores are tied".into(),
+        )),
+    }
+}
+
+fn finish_alignment(
+    selected: &Candidate,
+    reference: &Reference,
+    config: &AlignmentConfig,
+) -> Result<Alignment> {
     if selected.placements.len() != 1 {
         return Err(Error::Alignment(
             "selected orientation has multiple equally scoring placements".into(),
