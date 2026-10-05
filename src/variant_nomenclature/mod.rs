@@ -1,8 +1,9 @@
 //! Optional target-specific variant nomenclature boundary.
 //!
 //! Nomenclature is distinct from evidence-backed variant calling and generic
-//! sequence-equivalent normalization. This module currently exposes only the
-//! immutable context seam that future target policies may consume.
+//! sequence-equivalent normalization. The module exposes immutable context for
+//! target policies and currently implements the validated human-mtDNA HVS-II
+//! 309/315 representation under `mtdna`.
 
 use crate::error::Error;
 use crate::variant_analysis::{ReferenceIdentity, Variant};
