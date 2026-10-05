@@ -4,7 +4,7 @@
 
 These requirements are part of the canonical [DNA SRS](SRS.md).
 
-- **SRS-ALN-001:** DNA MUST evaluate retained forward and reverse-complement evidence-profile queries under the affine-gap semi-global Gotoh scoring contract, consuming the complete retained query and allowing free reference flanks. An implementation MAY bypass dynamic-programming evaluation only when it proves the same globally optimal score, orientation/placement ambiguity semantics, and traceback columns under SRS-ALN-013.
+- **SRS-ALN-001:** DNA MUST evaluate retained forward and reverse-complement evidence-profile queries under the affine-gap semi-global Gotoh scoring contract, consuming the complete retained query and allowing free reference flanks. An implementation MAY bypass dynamic-programming evaluation only when it proves the same globally optimal score, orientation/placement ambiguity semantics, and traceback columns under SRS-ALN-013 or SRS-ALN-014.
 - **SRS-ALN-002:** Canonical reference substitution scoring MUST use the retained `EvidenceProfile` mass for that reference base as a fixed-point expected match/mismatch score. A missing profile or non-canonical reference base MUST use the configured ambiguous score. A gap of length `k` MUST retain `open + k × extension` semantics in the same fixed-point score scale.
 - **SRS-ALN-003:** Traceback MUST use the documented deterministic state and gap-extension tie order. On equal scores the state preference is Match > Deletion > Insertion.
 - **SRS-ALN-004:** Circular references MUST align against a doubled sequence, consume at most one reference length, canonicalize modulo coordinates, and expose two segments when crossing origin.
