@@ -442,6 +442,40 @@ mod tests {
     }
 
     #[test]
+    fn upper_bound_orientation_tie_preserves_existing_error() {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "ACGT".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let error = align_best(&qc("ACGT"), &signal("ACGT"), &reference, &config())
+            .err()
+            .map(|error| error.to_string());
+        assert_eq!(
+            error.as_deref(),
+            Some("alignment failed: forward and reverse evidence-profile scores are tied")
+        );
+    }
+
+    #[test]
+    fn repeated_upper_bound_placement_preserves_existing_error() {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "AAAAA".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let error = align_best(&qc("AAA"), &signal("AAA"), &reference, &config())
+            .err()
+            .map(|error| error.to_string());
+        assert_eq!(
+            error.as_deref(),
+            Some("alignment failed: selected orientation has multiple equally scoring placements")
+        );
+    }
+
+    #[test]
     fn orientation_comparison_uses_profile_score_only() {
         let left = raw(100, 1, 9, 5);
         let right = raw(100, 10, 0, 0);
