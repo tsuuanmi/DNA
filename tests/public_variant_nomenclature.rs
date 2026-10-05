@@ -73,8 +73,8 @@ fn normalization_result_exposes_complete_read_only_nomenclature_context()
 }
 
 #[test]
-fn hv2_anchor_shift_is_represented_as_run_length_change()
--> Result<(), Box<dyn std::error::Error>> {
+fn hv2_anchor_shift_is_represented_as_run_length_change() -> Result<(), Box<dyn std::error::Error>>
+{
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");
     let sequence = hv2_reference();
@@ -135,8 +135,8 @@ fn hv2_multiple_c_insertions_keep_309_and_315_run_boundaries()
 }
 
 #[test]
-fn hv2_nomenclature_preserves_variants_outside_the_window()
--> Result<(), Box<dyn std::error::Error>> {
+fn hv2_nomenclature_preserves_variants_outside_the_window() -> Result<(), Box<dyn std::error::Error>>
+{
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");
     let sequence = hv2_reference();
