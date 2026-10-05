@@ -4,9 +4,7 @@
 //! capability may then choose another sequence-equivalent representation under
 //! an explicit policy while preserving the source calls and complete haplotype.
 
-mod edit;
 mod mtdna;
-mod render;
 
 use std::path::Path;
 
@@ -14,9 +12,7 @@ use crate::error::{Error, Result};
 use crate::model::reference::ReferenceTopology;
 use crate::reference;
 use crate::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant};
-
-pub(crate) use edit::{SequenceEdit, apply_edits, sort_edits, variants_to_edits};
-pub(crate) use render::render_edits;
+use crate::variant_representation::{apply_edits, render_edits, variants_to_edits};
 
 /// Explicit post-calling normalization policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,23 +57,29 @@ pub fn normalize(
     }
 
     let source_variants = called.variants.clone();
-    let source_edits = variants_to_edits(&reference.name, &reference.sequence, &source_variants)?;
-    let alternate_sequence = apply_edits(&reference.sequence, &source_edits)?;
+    let source_edits = variants_to_edits(&reference.name, &reference.sequence, &source_variants)
+        .map_err(normalization_error)?;
+    let alternate_sequence =
+        apply_edits(&reference.sequence, &source_edits).map_err(normalization_error)?;
 
     let normalized_edits = match policy {
         NormalizationPolicy::MtDnaRightAligned => {
-            mtdna::right_align(&reference.sequence, &alternate_sequence, &source_edits)?
+            mtdna::right_align(&reference.sequence, &alternate_sequence, &source_edits)
+                .map_err(normalization_error)?
         }
     };
 
-    if apply_edits(&reference.sequence, &normalized_edits)? != alternate_sequence {
+    if apply_edits(&reference.sequence, &normalized_edits).map_err(normalization_error)?
+        != alternate_sequence
+    {
         return Err(normalization_error(
             "normalized edits changed the reconstructed haplotype",
         ));
     }
 
     let normalized_variants =
-        render_edits(&reference.name, &reference.sequence, &normalized_edits)?;
+        render_edits(&reference.name, &reference.sequence, &normalized_edits)
+            .map_err(normalization_error)?;
 
     Ok(VariantNormalizationResult {
         reference: called.reference.clone(),
