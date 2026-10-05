@@ -4,6 +4,7 @@ use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
 use crate::model::locus_evidence::EvidenceProfile;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum UpperBoundPlacement {
     Unproven,
@@ -12,6 +13,7 @@ pub(crate) enum UpperBoundPlacement {
     Ambiguous,
 }
 
+#[allow(dead_code)]
 pub(crate) fn classify(
     _query: &str,
     _profiles: &[Option<EvidenceProfile>],
