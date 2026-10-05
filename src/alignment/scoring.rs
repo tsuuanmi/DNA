@@ -50,6 +50,40 @@ pub(crate) fn substitution(
         + (SCORE_SCALE - support) * i64::from(config.mismatch_score)
 }
 
+/// Precomputes substitution deltas for A/C/G/T plus one ambiguous-reference slot.
+///
+/// Gotoh reuses the same query-locus profile across an entire DP row, so doing
+/// the floating-point evidence quantization once per row avoids repeating it
+/// for every reference cell while preserving exactly the same fixed-point
+/// scoring contract as `substitution`.
+pub(crate) fn substitution_scores(
+    profile: Option<EvidenceProfile>,
+    config: &AlignmentConfig,
+) -> [i64; 5] {
+    let ambiguous = scaled(config.ambiguous_score);
+    let Some(profile) = profile else {
+        return [ambiguous; 5];
+    };
+    let mut scores = [ambiguous; 5];
+    for (index, score) in scores[..4].iter_mut().enumerate() {
+        let support = quantize_weight(profile.weights[index]);
+        *score = support * i64::from(config.match_score)
+            + (SCORE_SCALE - support) * i64::from(config.mismatch_score);
+    }
+    scores
+}
+
+/// Maps a reference byte to the corresponding precomputed substitution slot.
+pub(crate) const fn substitution_index(reference: u8) -> usize {
+    match reference {
+        b'A' => 0,
+        b'C' => 1,
+        b'G' => 2,
+        b'T' => 3,
+        _ => 4,
+    }
+}
+
 pub(crate) const fn scaled(delta: i32) -> i64 {
     delta as i64 * SCORE_SCALE
 }
@@ -139,6 +173,25 @@ mod tests {
             weights: [1.0, 0.0, 0.0, 0.0],
         };
         assert_eq!(substitution(Some(profile), b'N', &config()), 0);
+    }
+
+    #[test]
+    fn precomputed_substitution_scores_match_direct_scoring() {
+        let profiles = [
+            None,
+            Some(EvidenceProfile {
+                weights: [0.13, 0.27, 0.41, 0.19],
+            }),
+        ];
+        for profile in profiles {
+            let scores = substitution_scores(profile, &config());
+            for reference in [b'A', b'C', b'G', b'T', b'N'] {
+                assert_eq!(
+                    scores[substitution_index(reference)],
+                    substitution(profile, reference, &config())
+                );
+            }
+        }
     }
 
     #[test]
