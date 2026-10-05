@@ -205,10 +205,13 @@ Current production truth now includes:
 - a typed public `CalledVariantSet` projection from Variant Analysis;
 - an optional standalone `variant_normalization` capability with the initial
   human-mtDNA 3'/right-most policy, source-variant preservation, and complete
-  haplotype-equivalence checks.
+  haplotype-equivalence checks;
+- a separate public `variant_nomenclature` capability with the initial
+  human-mtDNA HVS-II 309/315 poly-C representation rule, preserving source,
+  normalized, and represented variants plus the complete alternate haplotype.
 
-Target-specific mtDNA nomenclature remains unimplemented in DNA and must land as
-a separate capability with its own requirements, tests, and validation.
+Additional target-specific windows such as HVS-III 513-524 and HVS-I
+16189/16193 remain unimplemented and require their own tests and validation.
 
 ## Consequences
 
