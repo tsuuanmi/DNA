@@ -779,9 +779,7 @@ mod tests {
         scenario: &str,
     ) -> crate::error::Result<Vec<RawAlignment>> {
         value.ok_or_else(|| {
-            crate::error::Error::Alignment(format!(
-                "expected exact seeded pruning for {scenario}"
-            ))
+            crate::error::Error::Alignment(format!("expected exact seeded pruning for {scenario}"))
         })
     }
 
