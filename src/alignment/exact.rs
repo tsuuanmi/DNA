@@ -289,6 +289,148 @@ mod tests {
         ));
     }
 
+    fn alignment_signature(
+        alignment: &RawAlignment,
+    ) -> (i64, usize, usize, Vec<(char, char, Option<usize>, Option<usize>)>) {
+        (
+            alignment.score,
+            alignment.start_reference,
+            alignment.end_reference,
+            alignment
+                .columns
+                .iter()
+                .map(|column| {
+                    (
+                        column.query_base,
+                        column.reference_base,
+                        column.query_index,
+                        column.reference_index,
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    fn assert_same_alignments(actual: &[RawAlignment], expected: &[RawAlignment]) {
+        let actual = actual.iter().map(alignment_signature).collect::<Vec<_>>();
+        let expected = expected.iter().map(alignment_signature).collect::<Vec<_>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn seeded_pruning_matches_gotoh_for_one_snv() -> crate::error::Result<()> {
+        let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
+        let mut query = reference_query.to_owned();
+        query.replace_range(10..11, "T");
+        let reference = format!("TTTT{reference_query}CCCC");
+        let query_profiles = profiles(&query);
+
+        let expected = crate::alignment::gotoh::align(
+            &query,
+            &query_profiles,
+            &reference,
+            &config(),
+            None,
+        )?;
+        let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
+            .expect("one-SNV alignment should be exactly prunable");
+
+        assert_same_alignments(&actual, &expected);
+        Ok(())
+    }
+
+    #[test]
+    fn seeded_pruning_matches_gotoh_for_one_insertion() -> crate::error::Result<()> {
+        let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
+        let query = format!("{}T{}", &reference_query[..12], &reference_query[12..]);
+        let reference = format!("TTTT{reference_query}CCCC");
+        let query_profiles = profiles(&query);
+
+        let expected = crate::alignment::gotoh::align(
+            &query,
+            &query_profiles,
+            &reference,
+            &config(),
+            None,
+        )?;
+        let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
+            .expect("one-insertion alignment should be exactly prunable");
+
+        assert_same_alignments(&actual, &expected);
+        Ok(())
+    }
+
+    #[test]
+    fn seeded_pruning_preserves_distinct_equal_placements() -> crate::error::Result<()> {
+        let motif = "ACGTCAGTACGATCGTACCTGAGTACGA";
+        let mut query = motif.to_owned();
+        query.replace_range(10..11, "T");
+        let reference = format!("GG{motif}TT{motif}CC");
+        let query_profiles = profiles(&query);
+
+        let expected = crate::alignment::gotoh::align(
+            &query,
+            &query_profiles,
+            &reference,
+            &config(),
+            None,
+        )?;
+        let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
+            .expect("repeated SNV alignment should be exactly prunable");
+
+        assert_eq!(expected.len(), 2);
+        assert_same_alignments(&actual, &expected);
+        Ok(())
+    }
+
+    #[test]
+    fn seeded_pruning_supports_circular_non_origin_windows() -> crate::error::Result<()> {
+        let reference = "ACGTCAGTACGATCGTACCTGAGTACGATTTTGGGGCCCCAAAATTTT";
+        let reference_query = &reference[8..36];
+        let mut query = reference_query.to_owned();
+        query.replace_range(10..11, "A");
+        let working_reference = format!("{reference}{reference}");
+        let query_profiles = profiles(&query);
+
+        let expected = crate::alignment::gotoh::align(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            Some(reference.len()),
+        )?;
+        let actual = align_pruned(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            Some(reference.len()),
+        )?
+        .expect("non-origin circular alignment should be exactly prunable");
+
+        assert_same_alignments(&actual, &expected);
+        Ok(())
+    }
+
+    #[test]
+    fn seeded_pruning_falls_back_for_circular_origin_crossing() -> crate::error::Result<()> {
+        let reference = "ACGTCAGTACGATCGTACCTGAGTACGA";
+        let mut query = format!("{}{}", &reference[18..], &reference[..18]);
+        query.replace_range(5..6, "A");
+        let working_reference = format!("{reference}{reference}");
+        let query_profiles = profiles(&query);
+
+        assert!(align_pruned(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            Some(reference.len()),
+        )?
+        .is_none());
+        Ok(())
+    }
+
     #[test]
     fn proves_unique_circular_origin_crossing_placement() {
         let reference = "ACGT";
