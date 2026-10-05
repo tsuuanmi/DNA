@@ -8,3 +8,5 @@ These invariants are part of the canonical [system invariant set](README.md).
 - **INV-ALN-004:** Alignment topology and serialized variant normalization are separate contracts. A representation-layer convention such as VCF left-normalization cannot silently redefine the authoritative alignment columns.
 
 - **INV-ALN-005:** An alignment acceleration may bypass dynamic programming only with a proof that preserves the authoritative profile-score optimum and the same orientation/placement ambiguity outcomes. Failure to establish that proof must fall back to full Gotoh rather than narrow the scientific search space heuristically.
+
+- **INV-ALN-006:** Score-bounded seeded pruning is complete with respect to its proven threshold: every placement that can tie or exceed that threshold must be represented by at least one certified seed window. A candidate locator may provide a lower bound, but it cannot by itself exclude any placement, orientation, repeat-equivalent optimum, or circular-seam case.

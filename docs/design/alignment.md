@@ -52,7 +52,32 @@ The fast path is used only when both orientations are provable:
 
 The proof refuses cases where profiles have tied best bases, a non-canonical score can share the maximum, query-gap extension could rival the substitution bound, the circular span is unsupported, score accumulation cannot be represented safely, or the ordinary Gotoh matrix would exceed its compiled cell cap. These cases therefore preserve the existing fallback/error behavior rather than becoming a new heuristic method.
 
-For a qualifying read this changes the placement search from `O(query × reference)` dynamic programming in each orientation to `O(query + reference)` profile-bound construction and substring localization.
+For a qualifying read this first tier changes the placement search from `O(query × reference)` dynamic programming in each orientation to `O(query + reference)` profile-bound construction and substring localization.
+
+#### Score-bounded seeded pruning
+
+Reads containing ordinary SNVs or short indels usually cannot attain the substitution upper bound, so DNA has a second proof tier before full-reference Gotoh.
+
+Let `U` be the same per-locus substitution upper bound and let `S` be the score of any valid alignment found in a small seed-derived reference window. Because that local alignment is also a valid alignment against the complete semi-global reference, `S` is a safe lower bound on the global optimum.
+
+DNA derives a positive score-loss floor `lambda` from the same scoring contract:
+
+- substituting a non-optimal reference base loses at least the difference between the best and second-best per-locus substitution score;
+- inserting one query locus loses at least the difference between that locus's best substitution score and one gap-extension score;
+- deleting one reference base loses at least one negated gap-extension score;
+- a gap open adds an additional negative penalty, so ignoring it cannot underestimate the loss floor.
+
+Therefore any alignment with score at least `S` contains at most
+
+```text
+E = floor((U - S) / lambda)
+```
+
+substitution/insertion/deletion edit units. DNA partitions the profile-optimal sequence into `E + 1` disjoint q-grams. By the q-gram/pigeonhole argument, an alignment with at most `E` edit units must preserve at least one complete seed exactly. DNA searches every occurrence of every certified seed and builds windows wide enough for the maximum `E`-base alignment drift on both sides. Gotoh then evaluates the unchanged evidence-profile scoring and traceback contract only inside the union of those windows.
+
+The pruned result is used only when the proof is complete and the certified window set is materially smaller than the reference. Excessive seed count, excessive seed hits, broad windows, unsupported arithmetic, or any circular candidate whose certified window can cross the origin seam returns to full-reference Gotoh. In particular, this tier does not use HV labels, expected amplicons, primer metadata, or a best-effort heuristic locator.
+
+A proven score in one orientation is also a valid threshold for the opposite orientation. If the same q-gram proof establishes that the opposite orientation has no placement able to reach that threshold, DNA can reject that orientation without allocating its full Gotoh matrix. Otherwise the ordinary orientation comparison remains unchanged.
 
 ### Substep 5.3 — Gotoh scoring
 
