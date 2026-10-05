@@ -37,7 +37,7 @@ pub(crate) fn apply_edits(reference: &str, edits: &[SequenceEdit]) -> Representa
             return Err("variant edit lies outside the supplied reference".into());
         }
         if edit.start < cursor {
-            return Err("called variant edits overlap on the reference".into());
+            return Err("variant edits overlap on the reference".into());
         }
         if edit.start == edit.end && !insertion_anchors.insert(edit.start) {
             return Err("multiple insertion edits share one reference boundary".into());
@@ -104,7 +104,7 @@ fn variant_to_edit(
         .ok_or_else(|| "called variant reference span overflow".to_owned())?;
     if allele_end > reference.len() {
         return Err(
-            "origin-spanning source variants are not normalized across the canonical seam".into(),
+            "origin-spanning variants are not represented across the canonical seam".into(),
         );
     }
     if reference.as_bytes().get(start..allele_end) != Some(variant.reference.as_bytes()) {
@@ -210,7 +210,7 @@ fn render_edit(
     if edit.alternate.is_empty() {
         let deleted = reference
             .get(edit.start..edit.end)
-            .ok_or_else(|| "normalized deletion lies outside the reference".to_owned())?;
+            .ok_or_else(|| "variant deletion lies outside the reference".to_owned())?;
         if edit.start > 0 {
             let anchor = reference_base(reference, edit.start - 1)?;
             return Ok(Variant {
@@ -242,7 +242,7 @@ fn render_edit(
         });
     }
 
-    Err("normalization produced an unsupported replacement edit".into())
+    Err("variant representation produced an unsupported replacement edit".into())
 }
 
 fn reference_base(reference: &str, index: usize) -> RepresentationResult<char> {
@@ -251,5 +251,5 @@ fn reference_base(reference: &str, index: usize) -> RepresentationResult<char> {
         .get(index)
         .copied()
         .map(char::from)
-        .ok_or_else(|| "normalization anchor lies outside the reference".to_owned())
+        .ok_or_else(|| "variant representation anchor lies outside the reference".to_owned())
 }
