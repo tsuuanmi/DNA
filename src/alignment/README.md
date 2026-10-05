@@ -5,13 +5,13 @@ and canonical repeat-equivalent gap placement.
 
 Entry point: `align_best` from `mod.rs`.
 
-Key children: `scoring.rs`, `gotoh.rs`, `traceback.rs`, `canonical.rs`,
+Key children: `scoring.rs`, `exact.rs`, `gotoh.rs`, `traceback.rs`, `canonical.rs`,
 and `orient.rs`.
 
 This module does not extract variants or mutate upstream signal evidence.
 
-The implementation is intentionally first-party after reuse evaluation rather
-than by default. Current `rust-bio` pairwise alignment does not directly satisfy
+The evidence-profile Gotoh implementation is intentionally first-party after reuse evaluation rather
+than by default. `exact.rs` is a proof-based preflight that can bypass DP only when the same optimum is mathematically established; it reuses `memchr` for maintained SIMD substring localization. Current `rust-bio` pairwise alignment does not directly satisfy
 DNA's required evidence-profile scoring and `open + k * extension` gap contract;
 DNA also requires deterministic repeat-equivalent placement, explicit placement
 ambiguity handling, and circular-reference span semantics. The owning method

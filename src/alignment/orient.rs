@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 
+use crate::alignment::exact::{self, UpperBoundPlacement};
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
@@ -30,10 +31,10 @@ pub(crate) fn align_best(
     let reverse_query = reverse_complement(&forward_query);
     let forward_profiles = retained_profiles(qc, signal)?;
     let reverse_profiles = reverse_profiles(&forward_profiles);
-    let forward_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive).collect();
+    let forward_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive).collect::<Vec<_>>();
     let reverse_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive)
         .rev()
-        .collect();
+        .collect::<Vec<_>>();
     let (working_reference, modulo_length) = match reference.topology {
         ReferenceTopology::Linear => (reference.sequence.clone(), None),
         ReferenceTopology::Circular => (
@@ -41,6 +42,29 @@ pub(crate) fn align_best(
             Some(reference.len()),
         ),
     };
+    let forward_proof = exact::classify(
+        &forward_query,
+        &forward_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    );
+    let reverse_proof = exact::classify(
+        &reverse_query,
+        &reverse_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    );
+    if let Some(selected) = select_proven_candidate(
+        forward_proof,
+        reverse_proof,
+        &forward_mapping,
+        &reverse_mapping,
+    )? {
+        return finish_alignment(&selected, reference, config);
+    }
+
     let forward = Candidate {
         orientation: Orientation::Forward,
         mapping: forward_mapping,
@@ -73,6 +97,46 @@ pub(crate) fn align_best(
             ));
         }
     };
+    finish_alignment(selected, reference, config)
+}
+
+fn select_proven_candidate(
+    forward: UpperBoundPlacement,
+    reverse: UpperBoundPlacement,
+    forward_mapping: &[usize],
+    reverse_mapping: &[usize],
+) -> Result<Option<Candidate>> {
+    use UpperBoundPlacement::{Ambiguous, Unattained, Unique, Unproven};
+
+    match (forward, reverse) {
+        (Unproven, _) | (_, Unproven) | (Unattained, Unattained) => Ok(None),
+        (Unique(raw), Unattained) => Ok(Some(Candidate {
+            orientation: Orientation::Forward,
+            mapping: forward_mapping.to_vec(),
+            placements: vec![raw],
+        })),
+        (Unattained, Unique(raw)) => Ok(Some(Candidate {
+            orientation: Orientation::Reverse,
+            mapping: reverse_mapping.to_vec(),
+            placements: vec![raw],
+        })),
+        (Ambiguous, Unattained) | (Unattained, Ambiguous) => Err(Error::Alignment(
+            "selected orientation has multiple equally scoring placements".into(),
+        )),
+        (Unique(_), Unique(_))
+        | (Unique(_), Ambiguous)
+        | (Ambiguous, Unique(_))
+        | (Ambiguous, Ambiguous) => Err(Error::Alignment(
+            "forward and reverse evidence-profile scores are tied".into(),
+        )),
+    }
+}
+
+fn finish_alignment(
+    selected: &Candidate,
+    reference: &Reference,
+    config: &AlignmentConfig,
+) -> Result<Alignment> {
     if selected.placements.len() != 1 {
         return Err(Error::Alignment(
             "selected orientation has multiple equally scoring placements".into(),
@@ -375,6 +439,40 @@ mod tests {
         assert_eq!(forward_deleted, Some(6));
         assert_eq!(reverse_deleted, forward_deleted);
         Ok(())
+    }
+
+    #[test]
+    fn upper_bound_orientation_tie_preserves_existing_error() {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "ACGT".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let error = align_best(&qc("ACGT"), &signal("ACGT"), &reference, &config())
+            .err()
+            .map(|error| error.to_string());
+        assert_eq!(
+            error.as_deref(),
+            Some("alignment failed: forward and reverse evidence-profile scores are tied")
+        );
+    }
+
+    #[test]
+    fn repeated_upper_bound_placement_preserves_existing_error() {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "AAAAA".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let error = align_best(&qc("AAA"), &signal("AAA"), &reference, &config())
+            .err()
+            .map(|error| error.to_string());
+        assert_eq!(
+            error.as_deref(),
+            Some("alignment failed: selected orientation has multiple equally scoring placements")
+        );
     }
 
     #[test]

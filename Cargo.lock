@@ -265,6 +265,7 @@ dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
+ "memchr",
  "noodles-fasta",
  "predicates",
  "serde",
