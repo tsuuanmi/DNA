@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 
 use crate::alignment::exact::{self, UpperBoundPlacement};
 use crate::alignment::gotoh;
+use crate::alignment::seeded::{self, SeededSearch};
 use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
 use crate::error::{Error, Result};
@@ -59,6 +60,29 @@ pub(crate) fn align_best(
     if let Some(selected) = select_proven_candidate(
         forward_proof,
         reverse_proof,
+        &forward_mapping,
+        &reverse_mapping,
+    )? {
+        return finish_alignment(&selected, reference, config);
+    }
+
+    let forward_seeded = seeded::search(
+        &forward_query,
+        &forward_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    );
+    let reverse_seeded = seeded::search(
+        &reverse_query,
+        &reverse_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    );
+    if let Some(selected) = select_seeded_candidate(
+        forward_seeded,
+        reverse_seeded,
         &forward_mapping,
         &reverse_mapping,
     )? {
@@ -129,6 +153,44 @@ fn select_proven_candidate(
         | (Ambiguous, Ambiguous) => Err(Error::Alignment(
             "forward and reverse evidence-profile scores are tied".into(),
         )),
+    }
+}
+
+fn select_seeded_candidate(
+    forward: Option<SeededSearch>,
+    reverse: Option<SeededSearch>,
+    forward_mapping: &[usize],
+    reverse_mapping: &[usize],
+) -> Result<Option<Candidate>> {
+    let (Some(forward), Some(reverse)) = (forward, reverse) else {
+        return Ok(None);
+    };
+    let threshold = match (forward.best_score(), reverse.best_score()) {
+        (Some(forward_score), Some(reverse_score)) => forward_score.max(reverse_score),
+        (Some(score), None) | (None, Some(score)) => score,
+        (None, None) => return Ok(None),
+    };
+    if !forward.complete_at(threshold) || !reverse.complete_at(threshold) {
+        return Ok(None);
+    }
+
+    let forward_reaches = forward.best_score() == Some(threshold);
+    let reverse_reaches = reverse.best_score() == Some(threshold);
+    match (forward_reaches, reverse_reaches) {
+        (true, true) => Err(Error::Alignment(
+            "forward and reverse evidence-profile scores are tied".into(),
+        )),
+        (true, false) => Ok(Some(Candidate {
+            orientation: Orientation::Forward,
+            mapping: forward_mapping.to_vec(),
+            placements: forward.into_placements(),
+        })),
+        (false, true) => Ok(Some(Candidate {
+            orientation: Orientation::Reverse,
+            mapping: reverse_mapping.to_vec(),
+            placements: reverse.into_placements(),
+        })),
+        (false, false) => Ok(None),
     }
 }
 
