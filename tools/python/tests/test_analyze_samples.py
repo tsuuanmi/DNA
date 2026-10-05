@@ -36,7 +36,11 @@ class AnalyzeSamplesTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def arguments(
-        self, *, limit: int = 1, no_build: bool = True, jobs: int | None = None
+        self,
+        *,
+        limit: int = 1,
+        no_build: bool = True,
+        jobs: int | None = None,
     ) -> list[str]:
         arguments = [
             "--manifest",
