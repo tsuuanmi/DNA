@@ -1,7 +1,9 @@
 //! Bounded semi-global Gotoh dynamic programming.
 
 use crate::alignment::canonical;
-use crate::alignment::scoring::{NEGATIVE_INFINITY, State, add, scaled, substitution};
+use crate::alignment::scoring::{
+    NEGATIVE_INFINITY, State, add, scaled, substitution_index, substitution_scores,
+};
 use crate::alignment::traceback::{RawAlignment, TracebackInput, decode};
 use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
 use crate::error::{Error, Result};
@@ -56,9 +58,7 @@ pub(crate) fn align(
     let open_and_extend = scaled(config.gap_open_score) + gap_extension;
 
     for row in 1..rows {
-        current_match.fill(NEGATIVE_INFINITY);
-        current_insertion.fill(NEGATIVE_INFINITY);
-        current_deletion.fill(NEGATIVE_INFINITY);
+        let row_substitution = substitution_scores(profiles[row - 1], config);
         let open = add(previous_match[0], open_and_extend);
         let extend = add(previous_insertion[0], gap_extension);
         if extend >= open {
@@ -80,7 +80,7 @@ pub(crate) fn align(
                 .ok_or_else(|| Error::Alignment("missing diagonal state".into()))?;
             current_match[column] = add(
                 best_diagonal,
-                substitution(profiles[row - 1], reference_bytes[column - 1], config),
+                row_substitution[substitution_index(reference_bytes[column - 1])],
             );
             trace[row * width + column] |= predecessor as u8;
 
