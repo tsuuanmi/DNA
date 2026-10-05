@@ -137,6 +137,7 @@ The result preserves both source and selected representations:
 
 ```rust
 pub struct VariantNormalizationResult {
+    pub reference: ReferenceIdentity,
     pub source_variants: Vec<Variant>,
     pub alternate_sequence: String,
     pub normalized_variants: Vec<Variant>,
@@ -151,6 +152,28 @@ alternate sequence as the source calls.
 Normalization is optional and does not apply mtDNA special-region nomenclature,
 sample reconciliation, VCF/HGVS formatting, genotype interpretation, or
 clinical interpretation.
+
+## Variant Nomenclature Seam
+
+DNA currently exposes only the immutable input seam for a future target-specific
+nomenclature capability:
+
+```rust
+pub struct NomenclatureInput<'a> {
+    pub reference: &'a ReferenceIdentity,
+    pub source_variants: &'a [Variant],
+    pub alternate_sequence: &'a str,
+    pub normalized_variants: &'a [Variant],
+}
+
+pub fn from_normalization(
+    normalized: &VariantNormalizationResult,
+) -> NomenclatureInput<'_>
+```
+
+This seam preserves the exact context a nomenclature policy may need without
+copying or rewriting it. No mtDNA special-region representation rule is
+implemented by this API yet.
 
 ## Boundary rules
 

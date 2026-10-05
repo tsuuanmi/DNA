@@ -14,3 +14,4 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-VN-008:** SNVs MUST remain positionally unchanged by the mtDNA right-alignment policy. Invalid alleles, reference mismatches, unsupported overlapping source edits, and unsupported replacement edits MUST return typed failures rather than be guessed or silently rewritten.
 - **SRS-VN-009:** Normalized variants MUST be emitted deterministically in reference/position/allele order.
 - **SRS-VN-010:** Variant normalization MUST NOT apply mtDNA nomenclature-window policy, HGVS formatting, VCF interchange normalization, sample reconciliation, genotype interpretation, or clinical interpretation.
+- **SRS-VN-011:** A normalization result intended for downstream representation policy MUST retain the exact reference identity alongside source variants, reconstructed alternate sequence, and normalized variants.
