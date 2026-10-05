@@ -57,8 +57,7 @@ mod tests {
 
     #[test]
     fn proves_unique_one_substitution_placement() {
-        let Some(proof) = classify("ACGT", &profiles("ACGT"), "TTACATGG", &config(), None)
-        else {
+        let Some(proof) = classify("ACGT", &profiles("ACGT"), "TTACATGG", &config(), None) else {
             panic!("one-substitution placement should be provable");
         };
 
@@ -73,8 +72,7 @@ mod tests {
 
     #[test]
     fn proves_all_equally_best_repeated_substitution_placements() {
-        let Some(proof) = classify("ACGT", &profiles("ACGT"), "ACATGGACAT", &config(), None)
-        else {
+        let Some(proof) = classify("ACGT", &profiles("ACGT"), "ACATGGACAT", &config(), None) else {
             panic!("repeated best placements should be completely enumerated");
         };
 
