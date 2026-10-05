@@ -35,8 +35,11 @@ pub fn apply_hv2_polyc(
         ));
     }
 
-    let normalized_edits =
-        variants_to_edits(&reference.name, &reference.sequence, input.normalized_variants)?;
+    let normalized_edits = variants_to_edits(
+        &reference.name,
+        &reference.sequence,
+        input.normalized_variants,
+    )?;
     if apply_edits(&reference.sequence, &normalized_edits)? != input.alternate_sequence {
         return Err(nomenclature_error(
             "normalized variants do not reproduce the supplied alternate haplotype",
@@ -113,9 +116,7 @@ fn represent_hv2_polyc(reference: &str, normalized: &[SequenceEdit]) -> Result<V
 }
 
 fn anchored_run_length_representation(alternate: &str) -> Option<Vec<SequenceEdit>> {
-    if alternate
-        .bytes()
-        .any(|base| !matches!(base, b'C' | b'T'))
+    if alternate.bytes().any(|base| !matches!(base, b'C' | b'T'))
         || alternate.bytes().filter(|base| *base == b'T').count() != 1
     {
         return None;
