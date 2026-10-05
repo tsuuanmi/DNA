@@ -398,7 +398,6 @@ class AnalyzeSamplesTests(unittest.TestCase):
         run_sample.assert_not_called()
         self.assertFalse((self.output_dir / "S1" / "S1.json").exists())
 
-
     def test_parallel_jobs_process_independent_samples_concurrently(self) -> None:
         self.manifest.write_text("S1\nS2\n", encoding="utf-8")
         for sample in ("S1", "S2"):
