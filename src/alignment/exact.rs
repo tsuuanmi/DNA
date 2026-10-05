@@ -120,7 +120,7 @@ pub(crate) fn align_pruned(
     else {
         return Ok(None);
     };
-    align_at_or_above_with_bound(
+    let result = align_at_or_above_with_bound(
         query,
         profiles,
         reference,
@@ -128,7 +128,8 @@ pub(crate) fn align_pruned(
         modulo_length,
         lower_bound,
         &bound,
-    )
+    )?;
+    Ok(result.filter(|placements| !placements.is_empty()))
 }
 
 /// Proves and evaluates every placement in one orientation that can reach `threshold`.
@@ -868,6 +869,48 @@ mod tests {
         )?;
 
         assert_same_alignments(&actual, &expected);
+        Ok(())
+    }
+
+    fn reverse_complement(sequence: &str) -> String {
+        sequence
+            .bytes()
+            .rev()
+            .map(|base| match base {
+                b'A' => 'T',
+                b'C' => 'G',
+                b'G' => 'C',
+                b'T' => 'A',
+                _ => 'N',
+            })
+            .collect()
+    }
+
+    #[test]
+    fn threshold_proof_can_exclude_opposite_orientation() -> crate::error::Result<()> {
+        let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
+        let mut query = reference_query.to_owned();
+        query.replace_range(10..11, "T");
+        let reference = format!("TTTT{reference_query}CCCC");
+        let query_profiles = profiles(&query);
+        let forward = require_pruned(
+            align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+            "forward threshold source",
+        )?;
+        let threshold = forward[0].score;
+
+        let reverse_query = reverse_complement(&query);
+        let reverse_profiles = profiles(&reverse_query);
+        let reverse = align_at_or_above(
+            &reverse_query,
+            &reverse_profiles,
+            &reference,
+            &config(),
+            None,
+            threshold,
+        )?;
+
+        assert!(reverse.is_some_and(|placements| placements.is_empty()));
         Ok(())
     }
 
