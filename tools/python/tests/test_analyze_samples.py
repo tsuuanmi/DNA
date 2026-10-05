@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -34,7 +35,13 @@ class AnalyzeSamplesTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def arguments(self, *, limit: int = 1, no_build: bool = True) -> list[str]:
+    def arguments(
+        self,
+        *,
+        limit: int = 1,
+        no_build: bool = True,
+        jobs: int | None = None,
+    ) -> list[str]:
         arguments = [
             "--manifest",
             str(self.manifest),
@@ -53,6 +60,8 @@ class AnalyzeSamplesTests(unittest.TestCase):
             "--limit",
             str(limit),
         ]
+        if jobs is not None:
+            arguments.extend(["--jobs", str(jobs)])
         if no_build:
             arguments.append("--no-build")
         return arguments
@@ -388,6 +397,67 @@ class AnalyzeSamplesTests(unittest.TestCase):
         self.assertEqual(status, 1)
         run_sample.assert_not_called()
         self.assertFalse((self.output_dir / "S1" / "S1.json").exists())
+
+    def test_parallel_jobs_process_independent_samples_concurrently(self) -> None:
+        self.manifest.write_text("S1\nS2\n", encoding="utf-8")
+        for sample in ("S1", "S2"):
+            (self.trace_dir / f"run_{sample}_a.ab1").write_bytes(b"trace")
+
+        started = threading.Barrier(2)
+        completed: list[str] = []
+        completed_lock = threading.Lock()
+
+        def concurrent_run(
+            _binary: Path,
+            trace: Path,
+            _reference: Path,
+            _config: Path,
+            destination: Path,
+        ) -> tuple[bool, str]:
+            started.wait(timeout=5)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text("trace", encoding="utf-8")
+            with completed_lock:
+                completed.append(trace.name)
+            return True, ""
+
+        def successful_sample(
+            _binary: Path,
+            sample: str,
+            _traces: list[Path],
+            _reference: Path,
+            _config: Path,
+            _log_dir: Path,
+            destination: Path,
+        ) -> tuple[bool, str]:
+            destination.write_text("sample", encoding="utf-8")
+            return True, ""
+
+        with (
+            patch.object(batch, "run_analysis", side_effect=concurrent_run),
+            patch.object(batch, "run_sample", side_effect=successful_sample),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            status = batch.main(self.arguments(limit=2, jobs=2))
+
+        self.assertEqual(status, 0)
+        self.assertCountEqual(completed, ["run_S1_a.ab1", "run_S2_a.ab1"])
+        for sample in ("S1", "S2"):
+            self.assertTrue((self.output_dir / sample / f"{sample}.json").is_file())
+
+    def test_jobs_must_be_positive_before_cleanup(self) -> None:
+        self.manifest.write_text("S1\n", encoding="utf-8")
+        (self.trace_dir / "run_S1_a.ab1").write_bytes(b"trace")
+        selected = self.output_dir / "S1"
+        selected.mkdir()
+        previous = selected / "old.json"
+        previous.write_text("old", encoding="utf-8")
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            status = batch.main(self.arguments(jobs=0))
+
+        self.assertEqual(status, 2)
+        self.assertTrue(previous.is_file())
 
     def test_existing_results_are_cleaned_and_every_trace_reruns(self) -> None:
         self.manifest.write_text("S1\n", encoding="utf-8")

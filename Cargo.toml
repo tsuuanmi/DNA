@@ -33,3 +33,9 @@ unsafe_code = "forbid"
 [lints.clippy]
 expect_used = "deny"
 unwrap_used = "deny"
+
+[profile.local]
+inherits = "dev"
+opt-level = 2
+debug = 1
+incremental = true

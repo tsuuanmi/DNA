@@ -9,11 +9,26 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 SAMPLE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 type Workload = dict[str, list[Path]]
+
+
+@dataclass(frozen=True)
+class SampleRunResult:
+    """Buffered deterministic outcome for one independently processed sample."""
+
+    stdout: tuple[str, ...]
+    stderr: tuple[str, ...]
+    trace_count: int
+    completed_count: int
+    failed_count: int
+    sample_completed_count: int
+    sample_failed_count: int
 
 
 def resolved(path: Path) -> Path:
@@ -198,6 +213,12 @@ def parser() -> argparse.ArgumentParser:
     )
     built.add_argument("--limit", type=int, default=89, help="number of sample IDs")
     built.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="number of samples to process concurrently (default: 1)",
+    )
+    built.add_argument(
         "--no-build",
         action="store_true",
         help="use the existing binary without running cargo build --release",
@@ -353,6 +374,77 @@ def run_sample(
         return publish_result(generated, destination)
 
 
+def run_sample_workload(
+    binary: Path,
+    sample: str,
+    traces: list[Path],
+    reference: Path,
+    config: Path,
+    output_dir: Path,
+    log_dir: Path,
+) -> SampleRunResult:
+    """Process one sample independently and buffer deterministic status output."""
+    stdout: list[str] = []
+    stderr: list[str] = []
+    completed_count = 0
+    failed_count = 0
+    sample_trace_failed = False
+
+    for trace in traces:
+        destination = output_dir / sample / f"{trace.stem}.json"
+        succeeded, detail = run_analysis(binary, trace, reference, config, destination)
+        if succeeded:
+            stdout.append(f"OK   {displayed(destination)}")
+            completed_count += 1
+        else:
+            stderr.append(f"FAIL {trace.name}: {detail}")
+            failed_count += 1
+            sample_trace_failed = True
+
+    if sample_trace_failed:
+        stderr.append(
+            f"SKIP {sample}: sample JSON not generated because a trace failed"
+        )
+        return SampleRunResult(
+            stdout=tuple(stdout),
+            stderr=tuple(stderr),
+            trace_count=len(traces),
+            completed_count=completed_count,
+            failed_count=failed_count,
+            sample_completed_count=0,
+            sample_failed_count=0,
+        )
+
+    sample_destination = output_dir / sample / f"{sample}.json"
+    succeeded, detail = run_sample(
+        binary,
+        sample,
+        traces,
+        reference,
+        config,
+        log_dir,
+        sample_destination,
+    )
+    if succeeded:
+        stdout.append(f"OK   {displayed(sample_destination)}")
+        sample_completed_count = 1
+        sample_failed_count = 0
+    else:
+        stderr.append(f"FAIL {sample}: {detail}")
+        sample_completed_count = 0
+        sample_failed_count = 1
+
+    return SampleRunResult(
+        stdout=tuple(stdout),
+        stderr=tuple(stderr),
+        trace_count=len(traces),
+        completed_count=completed_count,
+        failed_count=failed_count,
+        sample_completed_count=sample_completed_count,
+        sample_failed_count=sample_failed_count,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
@@ -365,6 +457,8 @@ def main(argv: list[str] | None = None) -> int:
         binary = resolved(args.binary)
         if not trace_dir.is_dir():
             raise ValueError(f"trace directory does not exist: {trace_dir}")
+        if args.jobs < 1:
+            raise ValueError("--jobs must be at least 1")
         selected = sample_ids(manifest, args.limit)
         workload = discover_workload(trace_dir, selected)
         protected = (manifest, reference, config, trace_dir, binary)
@@ -389,50 +483,55 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: cleanup failed: {error}", file=sys.stderr)
         return 2
 
+    workload_items = list(workload.items())
+    worker_count = min(args.jobs, len(workload_items))
+    if worker_count == 1:
+        results = [
+            run_sample_workload(
+                binary,
+                sample,
+                traces,
+                reference,
+                config,
+                output_dir,
+                log_dir,
+            )
+            for sample, traces in workload_items
+        ]
+    else:
+        with ThreadPoolExecutor(
+            max_workers=worker_count, thread_name_prefix="dna-batch"
+        ) as executor:
+            futures = [
+                executor.submit(
+                    run_sample_workload,
+                    binary,
+                    sample,
+                    traces,
+                    reference,
+                    config,
+                    output_dir,
+                    log_dir,
+                )
+                for sample, traces in workload_items
+            ]
+            results = [future.result() for future in futures]
+
     completed_count = 0
     failed_count = 0
     sample_completed_count = 0
     sample_failed_count = 0
     trace_count = 0
-    for sample, traces in workload.items():
-        sample_trace_failed = False
-        for trace in traces:
-            trace_count += 1
-            destination = output_dir / sample / f"{trace.stem}.json"
-            succeeded, detail = run_analysis(
-                binary, trace, reference, config, destination
-            )
-            if succeeded:
-                print(f"OK   {displayed(destination)}")
-                completed_count += 1
-            else:
-                print(f"FAIL {trace.name}: {detail}", file=sys.stderr)
-                failed_count += 1
-                sample_trace_failed = True
-
-        if sample_trace_failed:
-            print(
-                f"SKIP {sample}: sample JSON not generated because a trace failed",
-                file=sys.stderr,
-            )
-            continue
-
-        sample_destination = output_dir / sample / f"{sample}.json"
-        succeeded, detail = run_sample(
-            binary,
-            sample,
-            traces,
-            reference,
-            config,
-            log_dir,
-            sample_destination,
-        )
-        if succeeded:
-            print(f"OK   {displayed(sample_destination)}")
-            sample_completed_count += 1
-        else:
-            print(f"FAIL {sample}: {detail}", file=sys.stderr)
-            sample_failed_count += 1
+    for result in results:
+        for message in result.stdout:
+            print(message)
+        for message in result.stderr:
+            print(message, file=sys.stderr)
+        trace_count += result.trace_count
+        completed_count += result.completed_count
+        failed_count += result.failed_count
+        sample_completed_count += result.sample_completed_count
+        sample_failed_count += result.sample_failed_count
 
     print(
         "Summary: "
