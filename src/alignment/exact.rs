@@ -1,5 +1,7 @@
 //! Provably exact upper-bound alignment fast path.
 
+use memchr::memmem::Finder;
+
 use crate::alignment::scoring::{scaled, substitution_scores};
 use crate::alignment::traceback::{RawAlignment, RawColumn, metrics};
 use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
@@ -58,16 +60,24 @@ pub(crate) fn classify(
         return UpperBoundPlacement::Unproven;
     };
 
+    let haystack_end = limit + optimal_sequence.len() - 1;
+    let haystack = &reference.as_bytes()[..haystack_end];
+    let finder = Finder::new(&optimal_sequence);
+    let mut search_start = 0;
     let mut found = None;
-    for start in 0..limit {
-        let end = start + optimal_sequence.len();
-        if reference.as_bytes().get(start..end) != Some(optimal_sequence.as_slice()) {
-            continue;
+    while search_start < limit {
+        let Some(relative) = finder.find(&haystack[search_start..]) else {
+            break;
+        };
+        let start = search_start + relative;
+        if start >= limit {
+            break;
         }
         if found.is_some() {
             return UpperBoundPlacement::Ambiguous;
         }
         found = Some(start);
+        search_start = start + 1;
     }
 
     let Some(start_reference) = found else {
