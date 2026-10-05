@@ -153,10 +153,9 @@ Normalization is optional and does not apply mtDNA special-region nomenclature,
 sample reconciliation, VCF/HGVS formatting, genotype interpretation, or
 clinical interpretation.
 
-## Variant Nomenclature Seam
+## Variant Nomenclature
 
-DNA currently exposes only the immutable input seam for a future target-specific
-nomenclature capability:
+The immutable nomenclature input seam remains:
 
 ```rust
 pub struct NomenclatureInput<'a> {
@@ -171,9 +170,42 @@ pub fn from_normalization(
 ) -> NomenclatureInput<'_>
 ```
 
-This seam preserves the exact context a nomenclature policy may need without
-copying or rewriting it. No mtDNA special-region representation rule is
-implemented by this API yet.
+The first implemented target rule is the human-mtDNA HVS-II 309/315 poly-C
+representation:
+
+```rust
+pub fn apply_hv2_polyc(
+    reference_path: &Path,
+    input: NomenclatureInput<'_>,
+) -> dna::error::Result<VariantNomenclatureResult>
+```
+
+through:
+
+```rust
+dna::variant_nomenclature::mtdna::apply_hv2_polyc(...)
+```
+
+The result preserves every prior representation and adds the selected target
+representation:
+
+```rust
+pub struct VariantNomenclatureResult {
+    pub reference: ReferenceIdentity,
+    pub source_variants: Vec<Variant>,
+    pub alternate_sequence: String,
+    pub normalized_variants: Vec<Variant>,
+    pub represented_variants: Vec<Variant>,
+}
+```
+
+The HVS-II rule recognizes the validated rCRS 303-315 poly-C window around T310.
+Sequence-equivalent anchor movement is represented as C-run length change at the
+309 and 315 boundaries while the complete alternate haplotype remains identical.
+Decimal strings such as `309.1C` or `315.1C` remain an outer notation concern.
+
+HVS-III 513-524, HVS-I 16189/16193, Sanger artifact interpretation, sample
+reconciliation, and NGS-specific behavior are not implemented by this API.
 
 ## Boundary rules
 
