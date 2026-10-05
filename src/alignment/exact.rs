@@ -199,7 +199,10 @@ fn align_at_or_above_with_bound(
     if windows.is_empty() {
         return Ok(Some(Vec::new()));
     }
-    if !windows_are_economical(&windows, canonical_reference_length(reference, modulo_length)) {
+    if !windows_are_economical(
+        &windows,
+        canonical_reference_length(reference, modulo_length),
+    ) {
         return Ok(None);
     }
 
@@ -243,9 +246,7 @@ fn profile_bound(
         }
 
         upper_bound = upper_bound.checked_add(best_score)?;
-        edit_loss_floor = edit_loss_floor
-            .min(substitution_loss)
-            .min(insertion_loss);
+        edit_loss_floor = edit_loss_floor.min(substitution_loss).min(insertion_loss);
         optimal_sequence.push(CANONICAL_BASES[best_index]);
     }
 
@@ -471,9 +472,10 @@ fn best_placements_at_or_above(
 
     let mut unique = Vec::new();
     for alignment in placements {
-        if unique.iter().any(|existing: &RawAlignment| {
-            same_placement(existing, &alignment, modulo_length)
-        }) {
+        if unique
+            .iter()
+            .any(|existing: &RawAlignment| same_placement(existing, &alignment, modulo_length))
+        {
             continue;
         }
         unique.push(alignment);
@@ -484,11 +486,7 @@ fn best_placements_at_or_above(
     unique
 }
 
-fn same_placement(
-    left: &RawAlignment,
-    right: &RawAlignment,
-    modulo_length: Option<usize>,
-) -> bool {
+fn same_placement(left: &RawAlignment, right: &RawAlignment, modulo_length: Option<usize>) -> bool {
     let left_start = modulo_length
         .map(|length| left.start_reference % length)
         .unwrap_or(left.start_reference);
