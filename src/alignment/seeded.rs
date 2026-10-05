@@ -57,14 +57,8 @@ mod tests {
 
     #[test]
     fn proves_unique_one_substitution_placement() {
-        let proof = classify(
-            "ACGT",
-            &profiles("ACGT"),
-            "TTACATGG",
-            &config(),
-            None,
-        )
-        .expect("one-substitution placement should be provable");
+        let proof = classify("ACGT", &profiles("ACGT"), "TTACATGG", &config(), None)
+            .expect("one-substitution placement should be provable");
 
         assert_eq!(proof.score, 4 * SCORE_SCALE);
         assert_eq!(proof.placements.len(), 1);
@@ -77,14 +71,8 @@ mod tests {
 
     #[test]
     fn proves_all_equally_best_repeated_substitution_placements() {
-        let proof = classify(
-            "ACGT",
-            &profiles("ACGT"),
-            "ACATGGACAT",
-            &config(),
-            None,
-        )
-        .expect("repeated best placements should be completely enumerated");
+        let proof = classify("ACGT", &profiles("ACGT"), "ACATGGACAT", &config(), None)
+            .expect("repeated best placements should be completely enumerated");
 
         assert_eq!(proof.score, 4 * SCORE_SCALE);
         assert_eq!(
@@ -103,30 +91,12 @@ mod tests {
         weak_gap.gap_open_score = -1;
         weak_gap.gap_extension_score = -1;
 
-        assert!(
-            classify(
-                "ACGT",
-                &profiles("ACGT"),
-                "TTACATGG",
-                &weak_gap,
-                None,
-            )
-            .is_none()
-        );
+        assert!(classify("ACGT", &profiles("ACGT"), "TTACATGG", &weak_gap, None,).is_none());
     }
 
     #[test]
     fn refuses_candidate_outside_two_substitution_seed_bound() {
-        assert!(
-            classify(
-                "ACGTAC",
-                &profiles("ACGTAC"),
-                "TTATATTCGG",
-                &config(),
-                None,
-            )
-            .is_none()
-        );
+        assert!(classify("ACGTAC", &profiles("ACGTAC"), "TTATATTCGG", &config(), None,).is_none());
     }
 
     #[test]
