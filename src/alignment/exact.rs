@@ -291,7 +291,12 @@ mod tests {
 
     fn alignment_signature(
         alignment: &RawAlignment,
-    ) -> (i64, usize, usize, Vec<(char, char, Option<usize>, Option<usize>)>) {
+    ) -> (
+        i64,
+        usize,
+        usize,
+        Vec<(char, char, Option<usize>, Option<usize>)>,
+    ) {
         (
             alignment.score,
             alignment.start_reference,
@@ -325,13 +330,8 @@ mod tests {
         let reference = format!("TTTT{reference_query}CCCC");
         let query_profiles = profiles(&query);
 
-        let expected = crate::alignment::gotoh::align(
-            &query,
-            &query_profiles,
-            &reference,
-            &config(),
-            None,
-        )?;
+        let expected =
+            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
             .expect("one-SNV alignment should be exactly prunable");
 
@@ -346,13 +346,8 @@ mod tests {
         let reference = format!("TTTT{reference_query}CCCC");
         let query_profiles = profiles(&query);
 
-        let expected = crate::alignment::gotoh::align(
-            &query,
-            &query_profiles,
-            &reference,
-            &config(),
-            None,
-        )?;
+        let expected =
+            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
             .expect("one-insertion alignment should be exactly prunable");
 
@@ -368,13 +363,8 @@ mod tests {
         let reference = format!("GG{motif}TT{motif}CC");
         let query_profiles = profiles(&query);
 
-        let expected = crate::alignment::gotoh::align(
-            &query,
-            &query_profiles,
-            &reference,
-            &config(),
-            None,
-        )?;
+        let expected =
+            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
             .expect("repeated SNV alignment should be exactly prunable");
 
@@ -420,14 +410,16 @@ mod tests {
         let working_reference = format!("{reference}{reference}");
         let query_profiles = profiles(&query);
 
-        assert!(align_pruned(
-            &query,
-            &query_profiles,
-            &working_reference,
-            &config(),
-            Some(reference.len()),
-        )?
-        .is_none());
+        assert!(
+            align_pruned(
+                &query,
+                &query_profiles,
+                &working_reference,
+                &config(),
+                Some(reference.len()),
+            )?
+            .is_none()
+        );
         Ok(())
     }
 
