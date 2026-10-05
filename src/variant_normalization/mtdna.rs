@@ -1,14 +1,14 @@
 //! Human-mtDNA 3'/right-most sequence-equivalent indel placement.
 
-use crate::error::Result;
-
-use super::edit::{SequenceEdit, apply_edits, sort_edits};
+use crate::variant_representation::{
+    RepresentationResult, SequenceEdit, apply_edits, sort_edits,
+};
 
 pub(super) fn right_align(
     reference: &str,
     alternate_sequence: &str,
     source_edits: &[SequenceEdit],
-) -> Result<Vec<SequenceEdit>> {
+) -> RepresentationResult<Vec<SequenceEdit>> {
     let mut normalized = source_edits.to_vec();
 
     loop {
