@@ -24,10 +24,7 @@ pub(crate) fn variants_to_edits(
         .collect()
 }
 
-pub(crate) fn apply_edits(
-    reference: &str,
-    edits: &[SequenceEdit],
-) -> RepresentationResult<String> {
+pub(crate) fn apply_edits(reference: &str, edits: &[SequenceEdit]) -> RepresentationResult<String> {
     let mut ordered = edits.to_vec();
     sort_edits(&mut ordered);
 
