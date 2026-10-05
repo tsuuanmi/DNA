@@ -31,10 +31,11 @@ pub(crate) fn align_best(
     let reverse_query = reverse_complement(&forward_query);
     let forward_profiles = retained_profiles(qc, signal)?;
     let reverse_profiles = reverse_profiles(&forward_profiles);
-    let forward_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive).collect();
+    let forward_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive)
+        .collect::<Vec<_>>();
     let reverse_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive)
         .rev()
-        .collect();
+        .collect::<Vec<_>>();
     let (working_reference, modulo_length) = match reference.topology {
         ReferenceTopology::Linear => (reference.sequence.clone(), None),
         ReferenceTopology::Circular => (
