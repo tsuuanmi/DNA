@@ -15,8 +15,8 @@ use crate::model::reference::ReferenceTopology;
 use crate::reference;
 use crate::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant};
 
-use edit::{apply_edits, variants_to_edits};
-use render::render_edits;
+pub(crate) use edit::{SequenceEdit, apply_edits, variants_to_edits};
+pub(crate) use render::render_edits;
 
 /// Explicit post-calling normalization policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
