@@ -6,7 +6,7 @@ use crate::variant_analysis::{Variant, VariantKind};
 use super::edit::SequenceEdit;
 use super::normalization_error;
 
-pub(super) fn render_edits(
+pub(crate) fn render_edits(
     contig: &str,
     reference: &str,
     edits: &[SequenceEdit],
