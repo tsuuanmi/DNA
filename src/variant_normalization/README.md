@@ -9,7 +9,10 @@ the exact source variant representation, and may select another
 sequence-equivalent representation only when the reconstructed haplotype remains
 identical.
 
-Key children: `edit.rs` owns source-variant → minimal-edit conversion and complete haplotype reconstruction; `mtdna.rs` owns the human-mtDNA 3'/right-most policy; `render.rs` converts selected minimal edits back to anchored public variants.
+`mtdna.rs` owns the human-mtDNA 3'/right-most policy. Shared target-independent
+sequence-edit conversion, haplotype application, edit ordering, and anchored
+variant rendering live in crate-internal `variant_representation.rs` and are
+reused by both normalization and nomenclature.
 
 The initial implemented policy is human-mtDNA 3'/right-most indel placement with
 the FASTA coordinate boundaries treated as the fixed rCRS seam.
