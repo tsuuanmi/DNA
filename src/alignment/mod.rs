@@ -5,7 +5,6 @@ mod exact;
 mod gotoh;
 mod orient;
 mod scoring;
-#[cfg(test)]
 mod seeded;
 mod traceback;
 
