@@ -822,8 +822,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_preserves_rightmost_homopolymer_deletion()
-    -> crate::error::Result<()> {
+    fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> crate::error::Result<()> {
         let reference_query = "GCCAAAAGTTACGTCAGTACGATCGTAC";
         let query = reference_query.replacen("AAAA", "AAA", 1);
         let reference = format!("TTTT{reference_query}CCCC");
