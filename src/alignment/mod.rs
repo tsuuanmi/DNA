@@ -5,6 +5,7 @@ mod exact;
 mod gotoh;
 mod orient;
 mod scoring;
+mod seeded;
 mod traceback;
 
 pub(crate) use orient::align_best;
