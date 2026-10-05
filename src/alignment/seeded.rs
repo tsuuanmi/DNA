@@ -234,7 +234,7 @@ fn seed_ranges(length: usize) -> Option<[(usize, usize); SEED_COUNT]> {
     let base = length / SEED_COUNT;
     let remainder = length % SEED_COUNT;
     let mut ranges = [(0, 0); SEED_COUNT];
-    let mut start = 0;
+    let mut start = 0_usize;
     for (index, range) in ranges.iter_mut().enumerate() {
         let size = base + usize::from(index < remainder);
         let end = start.checked_add(size)?;
