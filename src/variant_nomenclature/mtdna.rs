@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::error::Result;
 use crate::model::reference::ReferenceTopology;
 use crate::reference;
-use crate::variant_normalization::{
+use crate::variant_representation::{
     SequenceEdit, apply_edits, render_edits, sort_edits, variants_to_edits,
 };
 
@@ -39,22 +39,28 @@ pub fn apply_hv2_polyc(
         &reference.name,
         &reference.sequence,
         input.normalized_variants,
-    )?;
-    if apply_edits(&reference.sequence, &normalized_edits)? != input.alternate_sequence {
+    )
+    .map_err(nomenclature_error)?;
+    if apply_edits(&reference.sequence, &normalized_edits).map_err(nomenclature_error)?
+        != input.alternate_sequence
+    {
         return Err(nomenclature_error(
             "normalized variants do not reproduce the supplied alternate haplotype",
         ));
     }
 
     let represented_edits = represent_hv2_polyc(&reference.sequence, &normalized_edits)?;
-    if apply_edits(&reference.sequence, &represented_edits)? != input.alternate_sequence {
+    if apply_edits(&reference.sequence, &represented_edits).map_err(nomenclature_error)?
+        != input.alternate_sequence
+    {
         return Err(nomenclature_error(
             "HV2 nomenclature changed the reconstructed haplotype",
         ));
     }
 
     let represented_variants =
-        render_edits(&reference.name, &reference.sequence, &represented_edits)?;
+        render_edits(&reference.name, &reference.sequence, &represented_edits)
+            .map_err(nomenclature_error)?;
 
     Ok(VariantNomenclatureResult {
         reference: input.reference.clone(),
@@ -95,12 +101,14 @@ fn represent_hv2_polyc(reference: &str, normalized: &[SequenceEdit]) -> Result<V
         return Ok(normalized.to_vec());
     }
 
-    let local_alternate = apply_edits(HV2_REFERENCE, &inside)?;
+    let local_alternate = apply_edits(HV2_REFERENCE, &inside).map_err(nomenclature_error)?;
     let Some(local_represented) = anchored_run_length_representation(&local_alternate) else {
         return Ok(normalized.to_vec());
     };
 
-    if apply_edits(HV2_REFERENCE, &local_represented)? != local_alternate {
+    if apply_edits(HV2_REFERENCE, &local_represented).map_err(nomenclature_error)?
+        != local_alternate
+    {
         return Err(nomenclature_error(
             "HV2 run-length representation changed the local haplotype",
         ));
