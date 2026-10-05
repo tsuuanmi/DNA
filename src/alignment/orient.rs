@@ -65,27 +65,100 @@ pub(crate) fn align_best(
         return finish_alignment(&selected, reference, config);
     }
 
-    let forward = Candidate {
-        orientation: Orientation::Forward,
-        mapping: forward_mapping,
-        placements: gotoh::align(
-            &forward_query,
-            &forward_profiles,
-            &working_reference,
-            config,
-            modulo_length,
-        )?,
-    };
-    let reverse = Candidate {
-        orientation: Orientation::Reverse,
-        mapping: reverse_mapping,
-        placements: gotoh::align(
+    let mut forward_fast = exact::align_pruned(
+        &forward_query,
+        &forward_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    )?;
+    let mut reverse_fast = exact::align_pruned(
+        &reverse_query,
+        &reverse_profiles,
+        &working_reference,
+        config,
+        modulo_length,
+    )?;
+
+    if reverse_fast.is_none()
+        && let Some(forward_placements) = forward_fast.as_ref()
+    {
+        let threshold = forward_placements[0].score;
+        if let Some(reverse_placements) = exact::align_at_or_above(
             &reverse_query,
             &reverse_profiles,
             &working_reference,
             config,
             modulo_length,
-        )?,
+            threshold,
+        )? {
+            if reverse_placements.is_empty() {
+                let selected = Candidate {
+                    orientation: Orientation::Forward,
+                    mapping: forward_mapping,
+                    placements: forward_fast
+                        .take()
+                        .ok_or_else(|| Error::Alignment("missing proven forward placement".into()))?,
+                };
+                return finish_alignment(&selected, reference, config);
+            }
+            reverse_fast = Some(reverse_placements);
+        }
+    }
+
+    if forward_fast.is_none()
+        && let Some(reverse_placements) = reverse_fast.as_ref()
+    {
+        let threshold = reverse_placements[0].score;
+        if let Some(forward_placements) = exact::align_at_or_above(
+            &forward_query,
+            &forward_profiles,
+            &working_reference,
+            config,
+            modulo_length,
+            threshold,
+        )? {
+            if forward_placements.is_empty() {
+                let selected = Candidate {
+                    orientation: Orientation::Reverse,
+                    mapping: reverse_mapping,
+                    placements: reverse_fast
+                        .take()
+                        .ok_or_else(|| Error::Alignment("missing proven reverse placement".into()))?,
+                };
+                return finish_alignment(&selected, reference, config);
+            }
+            forward_fast = Some(forward_placements);
+        }
+    }
+
+    let forward = Candidate {
+        orientation: Orientation::Forward,
+        mapping: forward_mapping,
+        placements: match forward_fast {
+            Some(placements) => placements,
+            None => gotoh::align(
+                &forward_query,
+                &forward_profiles,
+                &working_reference,
+                config,
+                modulo_length,
+            )?,
+        },
+    };
+    let reverse = Candidate {
+        orientation: Orientation::Reverse,
+        mapping: reverse_mapping,
+        placements: match reverse_fast {
+            Some(placements) => placements,
+            None => gotoh::align(
+                &reverse_query,
+                &reverse_profiles,
+                &working_reference,
+                config,
+                modulo_length,
+            )?,
+        },
     };
     let ordering = compare(&forward.placements[0], &reverse.placements[0]);
     let selected = match ordering {
