@@ -247,5 +247,9 @@ DNA now also exposes `VariantAnalysisResult::called_variants()` as the typed
 haplotype while selecting sequence-equivalent 3'/right-most indel placement
 without crossing the FASTA/rCRS seam.
 
-An mtDNA nomenclature capability remains planned architecture under ADR-0060 and
-is not yet implemented production behavior.
+DNA also exposes the immutable `variant_nomenclature` input seam from a
+`VariantNormalizationResult`, carrying reference identity, exact source calls,
+the reconstructed alternate haplotype, and normalized variants together.
+
+Target-specific mtDNA nomenclature rules remain planned architecture under
+ADR-0060 and are not yet implemented production behavior.
