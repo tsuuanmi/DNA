@@ -280,6 +280,16 @@ mod tests {
     }
 
     #[test]
+    fn over_limit_problem_falls_back_to_authoritative_gotoh() {
+        let query = "A".repeat(2_000);
+        let reference = "A".repeat(50_000);
+        assert!(matches!(
+            classify(&query, &profiles(&query), &reference, &config(), None),
+            UpperBoundPlacement::Unproven
+        ));
+    }
+
+    #[test]
     fn proves_unique_circular_origin_crossing_placement() {
         let reference = "ACGT";
         let working_reference = format!("{reference}{reference}");
