@@ -185,7 +185,7 @@ mod tests {
         ];
         for profile in profiles {
             let scores = substitution_scores(profile, &config());
-            for reference in [b'A', b'C', b'G', b'T', b'N'] {
+            for reference in *b"ACGTN" {
                 assert_eq!(
                     scores[substitution_index(reference)],
                     substitution(profile, reference, &config())
