@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-03
 related-requirements: []
 related-decisions: [ADR-0058, ADR-0059, ADR-0060]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26, PR-32]
+implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26, PR-32, PR-34]
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -663,6 +663,11 @@ Implementation is in progress through focused PRs.
   nomenclature seam over normalization results, retaining reference identity and
   exposing source variants, reconstructed haplotype, and normalized variants
   without implementing target-specific representation rules.
+
+- [PR #34](https://github.com/tsuuanmi/DNA/pull/34) implements the first
+  target-specific nomenclature rule for the human-mtDNA HVS-II 309/315 poly-C
+  window and extracts target-independent sequence-edit/render mechanics for
+  reuse by normalization and nomenclature.
 
 Each implementation PR must update current
 architecture/design/reference/source-local documentation in the same change when
