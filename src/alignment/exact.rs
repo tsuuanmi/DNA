@@ -293,7 +293,6 @@ fn seed_lower_bound(
                 margin,
                 reference,
                 modulo_length,
-                false,
             ) {
                 windows.push(window);
             }
@@ -341,7 +340,6 @@ fn certified_windows(
                 edit_budget,
                 reference,
                 modulo_length,
-                true,
             )?;
             windows.push(window);
         }
@@ -393,7 +391,6 @@ fn window_from_seed(
     drift: usize,
     reference: &str,
     modulo_length: Option<usize>,
-    seam_is_fallback: bool,
 ) -> Option<Window> {
     let canonical_length = canonical_reference_length(reference, modulo_length);
     let prefix = seed_start.checked_add(drift)?;
@@ -411,10 +408,7 @@ fn window_from_seed(
             .checked_add(seed_end - seed_start)?
             .checked_add(suffix)?
             > length;
-        if seam_is_fallback && (crosses_left || seed_crosses_seam || crosses_right) {
-            return None;
-        }
-        if !seam_is_fallback && (crosses_left || seed_crosses_seam || crosses_right) {
+        if crosses_left || seed_crosses_seam || crosses_right {
             return None;
         }
     }
@@ -751,14 +745,10 @@ mod tests {
         ));
     }
 
-    fn alignment_signature(
-        alignment: &RawAlignment,
-    ) -> (
-        i64,
-        usize,
-        usize,
-        Vec<(char, char, Option<usize>, Option<usize>)>,
-    ) {
+    type ColumnSignature = (char, char, Option<usize>, Option<usize>);
+    type AlignmentSignature = (i64, usize, usize, Vec<ColumnSignature>);
+
+    fn alignment_signature(alignment: &RawAlignment) -> AlignmentSignature {
         (
             alignment.score,
             alignment.start_reference,
@@ -784,6 +774,17 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    fn require_pruned(
+        value: Option<Vec<RawAlignment>>,
+        scenario: &str,
+    ) -> crate::error::Result<Vec<RawAlignment>> {
+        value.ok_or_else(|| {
+            crate::error::Error::Alignment(format!(
+                "expected exact seeded pruning for {scenario}"
+            ))
+        })
+    }
+
     #[test]
     fn seeded_pruning_matches_gotoh_for_one_snv() -> crate::error::Result<()> {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -794,8 +795,10 @@ mod tests {
 
         let expected =
             crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
-        let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
-            .expect("one-SNV alignment should be exactly prunable");
+        let actual = require_pruned(
+            align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+            "one-SNV alignment",
+        )?;
 
         assert_same_alignments(&actual, &expected);
         Ok(())
@@ -810,8 +813,10 @@ mod tests {
 
         let expected =
             crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
-        let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
-            .expect("one-insertion alignment should be exactly prunable");
+        let actual = require_pruned(
+            align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+            "one-insertion alignment",
+        )?;
 
         assert_same_alignments(&actual, &expected);
         Ok(())
@@ -827,8 +832,10 @@ mod tests {
 
         let expected =
             crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
-        let actual = align_pruned(&query, &query_profiles, &reference, &config(), None)?
-            .expect("repeated SNV alignment should be exactly prunable");
+        let actual = require_pruned(
+            align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+            "repeated SNV alignment",
+        )?;
 
         assert_eq!(expected.len(), 2);
         assert_same_alignments(&actual, &expected);
@@ -851,14 +858,16 @@ mod tests {
             &config(),
             Some(reference.len()),
         )?;
-        let actual = align_pruned(
-            &query,
-            &query_profiles,
-            &working_reference,
-            &config(),
-            Some(reference.len()),
-        )?
-        .expect("non-origin circular alignment should be exactly prunable");
+        let actual = require_pruned(
+            align_pruned(
+                &query,
+                &query_profiles,
+                &working_reference,
+                &config(),
+                Some(reference.len()),
+            )?,
+            "non-origin circular alignment",
+        )?;
 
         assert_same_alignments(&actual, &expected);
         Ok(())
