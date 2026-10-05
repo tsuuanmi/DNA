@@ -30,6 +30,7 @@ pub mod variant_analysis;
 mod variant_calling;
 pub mod variant_nomenclature;
 pub mod variant_normalization;
+mod variant_representation;
 
 #[cfg(feature = "fuzzing")]
 #[doc(hidden)]

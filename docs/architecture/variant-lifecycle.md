@@ -251,5 +251,10 @@ DNA also exposes the immutable `variant_nomenclature` input seam from a
 `VariantNormalizationResult`, carrying reference identity, exact source calls,
 the reconstructed alternate haplotype, and normalized variants together.
 
-Target-specific mtDNA nomenclature rules remain planned architecture under
-ADR-0060 and are not yet implemented production behavior.
+The first target-specific implementation is the human-mtDNA HVS-II 309/315
+poly-C rule. It converts sequence-equivalent movement of the T310 anchor into
+C-run length changes at the 309 and 315 boundaries and verifies that the
+complete represented haplotype is unchanged.
+
+HVS-III 513-524 and HVS-I 16189/16193 nomenclature remain planned under
+ADR-0060.

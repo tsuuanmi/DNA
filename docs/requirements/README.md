@@ -6,6 +6,7 @@ Start with [SRS.md](SRS.md). Requirement families remain split by stable domain 
 
 - [SRS index](SRS.md)
 - [Variant normalization](variant-normalization.md)
+- [Variant nomenclature](variant-nomenclature.md)
 - [Quality attributes](quality-attributes.md)
 - [System constraints](constraints.md)
 - [Validation acceptance criteria](../validation/acceptance-criteria.md)

@@ -57,6 +57,9 @@ pub enum Error {
     /// Post-calling variant representation normalization failed.
     #[error("variant normalization failed: {0}")]
     VariantNormalization(String),
+    /// Target-specific variant nomenclature representation failed.
+    #[error("variant nomenclature failed: {0}")]
+    VariantNomenclature(String),
     /// Sample-level read evidence is inconsistent or invalid.
     #[error("sample evidence failed: {0}")]
     Sample(String),
