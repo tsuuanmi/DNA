@@ -822,6 +822,31 @@ mod tests {
     }
 
     #[test]
+    fn seeded_pruning_preserves_rightmost_homopolymer_deletion()
+    -> crate::error::Result<()> {
+        let reference_query = "GCCAAAAGTTACGTCAGTACGATCGTAC";
+        let query = reference_query.replacen("AAAA", "AAA", 1);
+        let reference = format!("TTTT{reference_query}CCCC");
+        let query_profiles = profiles(&query);
+
+        let expected =
+            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
+        let actual = require_pruned(
+            align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+            "homopolymer deletion alignment",
+        )?;
+
+        assert_same_alignments(&actual, &expected);
+        let deleted = actual[0]
+            .columns
+            .iter()
+            .find(|column| column.query_base == '-')
+            .and_then(|column| column.reference_index);
+        assert_eq!(deleted, Some(10));
+        Ok(())
+    }
+
+    #[test]
     fn seeded_pruning_preserves_distinct_equal_placements() -> crate::error::Result<()> {
         let motif = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = motif.to_owned();
