@@ -77,9 +77,8 @@ pub fn normalize(
         ));
     }
 
-    let normalized_variants =
-        render_edits(&reference.name, &reference.sequence, &normalized_edits)
-            .map_err(normalization_error)?;
+    let normalized_variants = render_edits(&reference.name, &reference.sequence, &normalized_edits)
+        .map_err(normalization_error)?;
 
     Ok(VariantNormalizationResult {
         reference: called.reference.clone(),
