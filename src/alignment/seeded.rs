@@ -78,8 +78,7 @@ pub(crate) fn search(
         upper_bound = upper_bound.checked_add(best_score)?;
         minimum_substitution_deficit =
             minimum_substitution_deficit.min(best_score.checked_sub(second_best)?);
-        minimum_gap_deficit =
-            minimum_gap_deficit.min(best_score.checked_sub(open_and_extend)?);
+        minimum_gap_deficit = minimum_gap_deficit.min(best_score.checked_sub(open_and_extend)?);
         optimal_sequence.push(CANONICAL_BASES[best_index]);
         row_scores.push(scores);
     }
