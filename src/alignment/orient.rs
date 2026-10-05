@@ -96,9 +96,9 @@ pub(crate) fn align_best(
                 let selected = Candidate {
                     orientation: Orientation::Forward,
                     mapping: forward_mapping,
-                    placements: forward_fast
-                        .take()
-                        .ok_or_else(|| Error::Alignment("missing proven forward placement".into()))?,
+                    placements: forward_fast.take().ok_or_else(|| {
+                        Error::Alignment("missing proven forward placement".into())
+                    })?,
                 };
                 return finish_alignment(&selected, reference, config);
             }
@@ -122,9 +122,9 @@ pub(crate) fn align_best(
                 let selected = Candidate {
                     orientation: Orientation::Reverse,
                     mapping: reverse_mapping,
-                    placements: reverse_fast
-                        .take()
-                        .ok_or_else(|| Error::Alignment("missing proven reverse placement".into()))?,
+                    placements: reverse_fast.take().ok_or_else(|| {
+                        Error::Alignment("missing proven reverse placement".into())
+                    })?,
                 };
                 return finish_alignment(&selected, reference, config);
             }
