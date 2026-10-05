@@ -1,10 +1,12 @@
 //! Provably exact upper-bound alignment fast path.
 
-use crate::alignment::traceback::RawAlignment;
-use crate::config::AlignmentConfig;
+use crate::alignment::scoring::{scaled, substitution_scores};
+use crate::alignment::traceback::{RawAlignment, RawColumn, metrics};
+use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
 use crate::model::locus_evidence::EvidenceProfile;
 
-#[allow(dead_code)]
+const CANONICAL_BASES: &[u8; 4] = b"ACGT";
+
 #[derive(Debug)]
 pub(crate) enum UpperBoundPlacement {
     Unproven,
@@ -13,15 +15,144 @@ pub(crate) enum UpperBoundPlacement {
     Ambiguous,
 }
 
-#[allow(dead_code)]
+/// Classifies whether one orientation can attain its theoretical profile-score upper bound.
+///
+/// The proof is deliberately conservative. Every retained locus must have one strictly
+/// best canonical reference base, that substitution must beat extending a query gap, and
+/// the ordinary Gotoh problem must remain within the configured matrix cap. Under those
+/// conditions, the concatenated per-locus best bases define the only possible gapless
+/// sequence that can attain the upper bound. Exact occurrences of that sequence therefore
+/// identify every maximum-score placement for this orientation.
 pub(crate) fn classify(
-    _query: &str,
-    _profiles: &[Option<EvidenceProfile>],
-    _reference: &str,
-    _config: &AlignmentConfig,
-    _modulo_length: Option<usize>,
+    query: &str,
+    profiles: &[Option<EvidenceProfile>],
+    reference: &str,
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
 ) -> UpperBoundPlacement {
-    UpperBoundPlacement::Unproven
+    if !problem_is_provable(query, profiles, reference, config, modulo_length) {
+        return UpperBoundPlacement::Unproven;
+    }
+
+    let gap_extension = scaled(config.gap_extension_score);
+    let mut optimal_sequence = Vec::with_capacity(query.len());
+    let mut upper_bound = 0_i64;
+
+    for profile in profiles {
+        let scores = substitution_scores(*profile, config);
+        let Some((best_index, best_score)) = unique_canonical_maximum(scores) else {
+            return UpperBoundPlacement::Unproven;
+        };
+        if best_score <= gap_extension {
+            return UpperBoundPlacement::Unproven;
+        }
+        let Some(score) = upper_bound.checked_add(best_score) else {
+            return UpperBoundPlacement::Unproven;
+        };
+        upper_bound = score;
+        optimal_sequence.push(CANONICAL_BASES[best_index]);
+    }
+
+    let Some(limit) = occurrence_start_limit(reference, optimal_sequence.len(), modulo_length)
+    else {
+        return UpperBoundPlacement::Unproven;
+    };
+
+    let mut found = None;
+    for start in 0..limit {
+        let end = start + optimal_sequence.len();
+        if reference.as_bytes().get(start..end) != Some(optimal_sequence.as_slice()) {
+            continue;
+        }
+        if found.is_some() {
+            return UpperBoundPlacement::Ambiguous;
+        }
+        found = Some(start);
+    }
+
+    let Some(start_reference) = found else {
+        return UpperBoundPlacement::Unattained;
+    };
+    let columns = query
+        .bytes()
+        .zip(optimal_sequence)
+        .enumerate()
+        .map(|(index, (query_base, reference_base))| RawColumn {
+            query_base: char::from(query_base),
+            reference_base: char::from(reference_base),
+            query_index: Some(index),
+            reference_index: Some(start_reference + index),
+        })
+        .collect::<Vec<_>>();
+
+    UpperBoundPlacement::Unique(RawAlignment {
+        score: upper_bound,
+        start_reference,
+        end_reference: start_reference + query.len(),
+        metrics: metrics(&columns),
+        columns,
+    })
+}
+
+fn problem_is_provable(
+    query: &str,
+    profiles: &[Option<EvidenceProfile>],
+    reference: &str,
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
+) -> bool {
+    if query.is_empty()
+        || reference.is_empty()
+        || profiles.len() != query.len()
+        || config.gap_open_score >= 0
+        || config.gap_extension_score >= 0
+    {
+        return false;
+    }
+    if let Some(length) = modulo_length
+        && (length == 0 || query.len() > length)
+    {
+        return false;
+    }
+
+    let Some(rows) = query.len().checked_add(1) else {
+        return false;
+    };
+    let Some(width) = reference.len().checked_add(1) else {
+        return false;
+    };
+    rows.checked_mul(width)
+        .is_some_and(|cells| cells <= MAX_ALIGNMENT_CELLS)
+}
+
+fn unique_canonical_maximum(scores: [i64; 5]) -> Option<(usize, i64)> {
+    let best_score = *scores.iter().max()?;
+    let mut best = scores
+        .iter()
+        .enumerate()
+        .filter(|(_, score)| **score == best_score);
+    let (index, score) = best.next()?;
+    if best.next().is_some() || index >= CANONICAL_BASES.len() {
+        return None;
+    }
+    Some((index, *score))
+}
+
+fn occurrence_start_limit(
+    reference: &str,
+    query_length: usize,
+    modulo_length: Option<usize>,
+) -> Option<usize> {
+    match modulo_length {
+        Some(length) => {
+            let required = length.checked_add(query_length)?.checked_sub(1)?;
+            (reference.len() >= required).then_some(length)
+        }
+        None => reference
+            .len()
+            .checked_sub(query_length)
+            .and_then(|last_start| last_start.checked_add(1)),
+    }
 }
 
 #[cfg(test)]
