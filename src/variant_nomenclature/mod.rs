@@ -4,8 +4,11 @@
 //! sequence-equivalent normalization. This module currently exposes only the
 //! immutable context seam that future target policies may consume.
 
+use crate::error::Error;
 use crate::variant_analysis::{ReferenceIdentity, Variant};
 use crate::variant_normalization::VariantNormalizationResult;
+
+pub mod mtdna;
 
 /// Immutable context available to a target-specific nomenclature policy.
 ///
@@ -29,4 +32,18 @@ pub fn from_normalization(normalized: &VariantNormalizationResult) -> Nomenclatu
         alternate_sequence: &normalized.alternate_sequence,
         normalized_variants: &normalized.normalized_variants,
     }
+}
+
+/// Source, normalized, and target-represented views of one unchanged haplotype.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VariantNomenclatureResult {
+    pub reference: ReferenceIdentity,
+    pub source_variants: Vec<Variant>,
+    pub alternate_sequence: String,
+    pub normalized_variants: Vec<Variant>,
+    pub represented_variants: Vec<Variant>,
+}
+
+pub(super) fn nomenclature_error(message: impl Into<String>) -> Error {
+    Error::VariantNomenclature(message.into())
 }
