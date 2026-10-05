@@ -58,6 +58,8 @@ pub(crate) fn align(
     let open_and_extend = scaled(config.gap_open_score) + gap_extension;
 
     for row in 1..rows {
+        current_match[0] = NEGATIVE_INFINITY;
+        current_deletion[0] = NEGATIVE_INFINITY;
         let row_substitution = substitution_scores(profiles[row - 1], config);
         let open = add(previous_match[0], open_and_extend);
         let extend = add(previous_insertion[0], gap_extension);
