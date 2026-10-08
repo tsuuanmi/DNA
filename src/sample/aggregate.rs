@@ -84,7 +84,7 @@ mod tests {
     use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
     use crate::model::nucleotide::Nucleotide;
     use crate::model::quality::{CallQuality, QualityControlResult};
-    use crate::model::signal::{DNAAnalysis, NoisyRegion};
+    use crate::model::signal::{NoisyRegion, SignalAnalysis};
     use crate::model::variant::{
         ObservedVariant, Variant, VariantCallMapping, VariantCallRole, VariantCallingResult,
         VariantExclusionReason, VariantKind,
@@ -197,7 +197,7 @@ mod tests {
                     .collect(),
                 primary_sequence: "G".repeat(call_count),
             },
-            signal: DNAAnalysis {
+            signal: SignalAnalysis {
                 integrity: crate::model::signal::SangerIntegrity {
                     locus_count: call_count,
                     vendor_primary_count: None,

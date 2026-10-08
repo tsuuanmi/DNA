@@ -89,7 +89,7 @@ pub enum Error {
     /// The reference FASTA is invalid.
     #[error("invalid reference FASTA: {0}")]
     Fasta(FastaError),
-    /// Signal-derived base re-calling failed.
+    /// DNA-derived base re-calling failed.
     #[error("base re-calling failed: {0}")]
     Basecalling(BasecallingError),
     /// Observational signal-quality feature extraction failed.

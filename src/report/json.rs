@@ -94,7 +94,7 @@ pub(crate) fn serialize<T: serde::Serialize>(result: &T) -> Result<Vec<u8>> {
 
 fn warning_summary(
     calls: &BaseCalls,
-    signal: &crate::model::signal::DNAAnalysis,
+    signal: &crate::model::signal::SignalAnalysis,
     excluded_variant_candidates: usize,
 ) -> WarningSummaryResult {
     let unresolved_primary_calls = calls

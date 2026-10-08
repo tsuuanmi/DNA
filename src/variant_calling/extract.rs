@@ -3,12 +3,13 @@
 use crate::config::VariantCallingConfig;
 use crate::error::{Result, VariantError};
 use crate::model::alignment::{Alignment, AlignmentColumn};
+use crate::model::nucleotide::is_canonical;
 use crate::model::reference::Reference;
 use crate::model::variant::{
     ExcludedVariant, Variant, VariantCallMapping, VariantCallingResult, VariantExclusionReason,
     VariantKind,
 };
-use crate::variant_calling::{mapping, normalize};
+use crate::variant_calling::{anchor, mapping};
 
 /// Extracts normalized primary-sequence differences.
 pub(crate) fn call(
@@ -42,7 +43,7 @@ pub(crate) fn call(
             let next_flank = next_flank(&alignment.columns, index)?;
             let reasons = allele_exclusion_reasons(&deleted, config.max_indel_length);
             if reasons.is_empty() {
-                reported.push(normalize::deletion(
+                reported.push(anchor::deletion(
                     reference,
                     previous_reference,
                     first_deleted_reference,
@@ -77,7 +78,7 @@ pub(crate) fn call(
             let reasons = allele_exclusion_reasons(&inserted, config.max_indel_length);
             if reasons.is_empty() {
                 calls.extend(optional_pair(previous_flank, next_flank));
-                reported.push(normalize::insertion(
+                reported.push(anchor::insertion(
                     reference,
                     previous_reference,
                     next_reference,
@@ -102,7 +103,7 @@ pub(crate) fn call(
                         .ok_or(VariantError::Inconsistent(
                             "SNV column lacks a reference coordinate",
                         ))?;
-                reported.push(normalize::snv(
+                reported.push(anchor::snv(
                     reference,
                     reference_position,
                     column.query_base,
@@ -206,10 +207,6 @@ fn optional_pair(
     right: Option<VariantCallMapping>,
 ) -> Vec<VariantCallMapping> {
     left.into_iter().chain(right).collect()
-}
-
-const fn is_canonical(base: char) -> bool {
-    matches!(base, 'A' | 'C' | 'G' | 'T')
 }
 
 #[cfg(test)]

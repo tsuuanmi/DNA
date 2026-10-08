@@ -3,10 +3,11 @@
 Owns extraction, direct evidence mapping, allele anchoring, and configured
 eligibility of primary-sequence SNVs and supported small indels.
 
-Key children: `extract.rs`, `mapping.rs`, `normalize.rs`, and `filter.rs`.
-`normalize.rs` currently constructs/validates anchored REF/ALT alleles while
-preserving the alignment-selected event placement; it is not the future
-post-calling haplotype canonicalization or mtDNA nomenclature layer.
+Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, and `filter.rs`.
+`anchor.rs` constructs and validates anchored REF/ALT alleles while preserving
+the alignment-selected event placement; post-calling haplotype normalization
+and mtDNA nomenclature belong to `variant_normalization` and
+`variant_nomenclature`.
 
 This module does not infer genotype, heteroplasmy, phase, pathogenicity, or
 clinical significance.

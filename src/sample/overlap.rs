@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::config::SampleReconciliationConfig;
 use crate::error::{Result, SampleError};
+use crate::model::nucleotide::is_canonical;
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{OverlapExclusionReason, ReadOverlapEvidence};
 
@@ -135,10 +136,6 @@ fn assess_pair(
         eligible: exclusion_reasons.is_empty(),
         exclusion_reasons,
     }))
-}
-
-const fn is_canonical(base: char) -> bool {
-    matches!(base, 'A' | 'C' | 'G' | 'T')
 }
 
 #[cfg(test)]

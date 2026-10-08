@@ -12,7 +12,7 @@ use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::nucleotide::reverse_complement;
 use crate::model::quality::QualityControlResult;
 use crate::model::reference::{Reference, ReferenceTopology};
-use crate::model::signal::DNAAnalysis;
+use crate::model::signal::SignalAnalysis;
 
 struct Candidate {
     orientation: Orientation,
@@ -23,7 +23,7 @@ struct Candidate {
 /// Aligns both evidence-profile orientations and returns one unique selected result.
 pub(crate) fn align_best(
     qc: &QualityControlResult,
-    signal: &DNAAnalysis,
+    signal: &SignalAnalysis,
     reference: &Reference,
     config: &AlignmentConfig,
 ) -> Result<Alignment> {
@@ -253,7 +253,7 @@ fn finish_alignment(
 
 fn retained_profiles(
     qc: &QualityControlResult,
-    signal: &DNAAnalysis,
+    signal: &SignalAnalysis,
 ) -> Result<Vec<Option<EvidenceProfile>>> {
     if signal.loci.len() != qc.per_call.len() {
         return Err(AlignmentError::CallCountMismatch {
@@ -407,7 +407,7 @@ mod tests {
         }
     }
 
-    fn signal(sequence: &str) -> DNAAnalysis {
+    fn signal(sequence: &str) -> SignalAnalysis {
         let loci = sequence
             .bytes()
             .enumerate()
@@ -438,7 +438,7 @@ mod tests {
                 }
             })
             .collect();
-        DNAAnalysis {
+        SignalAnalysis {
             integrity: SangerIntegrity {
                 locus_count: sequence.len(),
                 vendor_primary_count: None,

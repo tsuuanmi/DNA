@@ -9,6 +9,7 @@ pub(crate) mod nucleotide;
 pub(crate) mod quality;
 pub(crate) mod read_observation;
 pub(crate) mod reference;
+pub(crate) mod reference_call;
 pub(crate) mod result;
 pub(crate) mod sample_evidence;
 pub(crate) mod sample_result;

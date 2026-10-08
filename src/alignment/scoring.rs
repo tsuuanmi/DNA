@@ -2,6 +2,7 @@
 
 use crate::config::AlignmentConfig;
 use crate::model::locus_evidence::EvidenceProfile;
+use crate::model::nucleotide::Nucleotide;
 
 pub(crate) const NEGATIVE_INFINITY: i64 = i64::MIN / 4;
 
@@ -39,7 +40,9 @@ pub(crate) fn substitution(
     reference: u8,
     config: &AlignmentConfig,
 ) -> i64 {
-    let Some(reference_index) = canonical_index(reference) else {
+    let Some(reference_index) =
+        Nucleotide::from_char(char::from(reference)).map(Nucleotide::channel_index)
+    else {
         return scaled(config.ambiguous_score);
     };
     let Some(profile) = profile else {
@@ -88,25 +91,11 @@ pub(crate) const fn scaled(delta: i32) -> i64 {
     delta as i64 * SCORE_SCALE
 }
 
-pub(crate) const fn is_canonical(base: u8) -> bool {
-    matches!(base, b'A' | b'C' | b'G' | b'T')
-}
-
 pub(crate) fn add(score: i64, delta: i64) -> i64 {
     if score <= NEGATIVE_INFINITY / 2 {
         NEGATIVE_INFINITY
     } else {
         score + delta
-    }
-}
-
-const fn canonical_index(base: u8) -> Option<usize> {
-    match base {
-        b'A' => Some(0),
-        b'C' => Some(1),
-        b'G' => Some(2),
-        b'T' => Some(3),
-        _ => None,
     }
 }
 

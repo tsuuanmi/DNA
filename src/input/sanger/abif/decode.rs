@@ -8,6 +8,7 @@ use crate::config::MAX_ABIF_BYTES;
 use crate::error::{AbifError, Error, Result, Tag};
 use crate::input::sanger::abif::container::{AbifEntry, AbifFile, parse};
 use crate::input::sanger::abif::reader::Reader;
+use crate::model::nucleotide::Nucleotide;
 use crate::model::sanger::{Chromatogram, VendorEvidence};
 
 const TYPE_BYTE: u16 = 1;
@@ -208,12 +209,6 @@ fn unsupported_layout(entry: &AbifEntry) -> AbifError {
     }
 }
 
-const fn channel_index(base: char) -> Option<usize> {
-    match base {
-        'A' => Some(0),
-        'C' => Some(1),
-        'G' => Some(2),
-        'T' => Some(3),
-        _ => None,
-    }
+fn channel_index(base: char) -> Option<usize> {
+    Nucleotide::from_char(base).map(Nucleotide::channel_index)
 }

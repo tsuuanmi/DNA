@@ -1,4 +1,4 @@
-//! Minimal indel representation preserving canonical alignment placement.
+//! Anchored REF/ALT allele construction that preserves canonical alignment placement.
 
 use crate::error::{Result, VariantError};
 use crate::model::coordinate::reference_one_based;
@@ -13,15 +13,9 @@ pub(crate) fn snv(
     calls: Vec<VariantCallMapping>,
 ) -> Result<Variant> {
     mapping::validate_snv(&calls, position)?;
-    let reference_base =
-        reference
-            .sequence
-            .as_bytes()
-            .get(position)
-            .copied()
-            .ok_or(VariantError::Inconsistent(
-                "SNV reference position is out of bounds",
-            ))?;
+    let reference_base = reference.base(position).ok_or(VariantError::Inconsistent(
+        "SNV reference position is out of bounds",
+    ))?;
     validated(
         reference,
         Variant {
@@ -176,9 +170,9 @@ fn validated(reference: &Reference, variant: Variant) -> Result<Variant> {
             ReferenceTopology::Linear => unwrapped,
             ReferenceTopology::Circular => unwrapped % reference.len(),
         };
-        let expected = reference.sequence.as_bytes().get(position).copied().ok_or(
-            VariantError::Inconsistent("variant reference span is out of bounds"),
-        )?;
+        let expected = reference.base(position).ok_or(VariantError::Inconsistent(
+            "variant reference span is out of bounds",
+        ))?;
         if observed != expected {
             return Err(VariantError::ReferenceAlleleMismatch {
                 position: position + 1,
@@ -191,10 +185,7 @@ fn validated(reference: &Reference, variant: Variant) -> Result<Variant> {
 
 fn reference_base(reference: &Reference, position: usize) -> Result<char> {
     Ok(reference
-        .sequence
-        .as_bytes()
-        .get(position)
-        .copied()
+        .base(position)
         .map(char::from)
         .ok_or(VariantError::Inconsistent(
             "indel anchor is outside the reference",

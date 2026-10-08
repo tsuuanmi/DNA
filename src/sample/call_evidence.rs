@@ -3,14 +3,14 @@
 use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
 use crate::model::read_observation::ReadObservation;
-use crate::model::sample_evidence::CallDNAEvidence;
+use crate::model::sample_evidence::CallSignalEvidence;
 
 /// Resolves one source call's quantitative signal evidence and projects A/C/G/T
 /// channels onto the selected reference strand.
 pub(super) fn for_call(
     read: &ReadObservation,
     call_index_0based: usize,
-) -> Result<CallDNAEvidence> {
+) -> Result<CallSignalEvidence> {
     let locus = read
         .signal
         .loci
@@ -30,7 +30,7 @@ pub(super) fn for_call(
             && call_index_0based < region.call_end_0based_exclusive
     });
 
-    Ok(CallDNAEvidence {
+    Ok(CallSignalEvidence {
         corrected_amplitudes: orientation.reference_signal_values(locus.corrected_amplitudes),
         snrs: orientation.reference_signal_values(locus.snrs),
         profile,

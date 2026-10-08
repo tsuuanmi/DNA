@@ -26,4 +26,9 @@ impl Reference {
     pub(crate) fn len(&self) -> usize {
         self.sequence.len()
     }
+
+    /// Returns the base byte at a 0-based index, if it lies inside the sequence.
+    pub(crate) fn base(&self, index: usize) -> Option<u8> {
+        self.sequence.as_bytes().get(index).copied()
+    }
 }

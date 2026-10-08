@@ -9,6 +9,6 @@ pub(crate) use defaults::{
 };
 pub(crate) use load::{load_path, resolve_path};
 pub(crate) use types::{
-    AlignmentConfig, BasecallingConfig, Config, DNAProcessingConfig, QualityControlConfig,
-    SampleReconciliationConfig, VariantCallingConfig,
+    AlignmentConfig, BasecallingConfig, Config, QualityControlConfig, SampleReconciliationConfig,
+    SignalProcessingConfig, VariantCallingConfig,
 };

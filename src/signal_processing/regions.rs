@@ -1,9 +1,9 @@
 //! Deterministic union of candidate-noisy rolling windows.
 
-use crate::model::signal::{DNAWindow, NoisyRegion};
+use crate::model::signal::{NoisyRegion, SignalWindow};
 
 /// Merges candidate-noisy runs that contain enough consecutive windows.
-pub(super) fn merge(windows: &[DNAWindow], minimum_noisy_windows: usize) -> Vec<NoisyRegion> {
+pub(super) fn merge(windows: &[SignalWindow], minimum_noisy_windows: usize) -> Vec<NoisyRegion> {
     let mut regions = Vec::new();
     let mut current = None;
     let mut run_length = 0;
@@ -73,8 +73,8 @@ fn append_if_supported(
 mod tests {
     use super::*;
 
-    fn window(start: usize, end: usize, noisy: bool) -> DNAWindow {
-        DNAWindow {
+    fn window(start: usize, end: usize, noisy: bool) -> SignalWindow {
+        SignalWindow {
             call_start_0based: start,
             call_end_0based_exclusive: end,
             sample_start_0based: start * 4,

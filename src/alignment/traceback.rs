@@ -1,8 +1,9 @@
 //! Traceback decoding and alignment metrics.
 
-use crate::alignment::scoring::{State, is_canonical};
+use crate::alignment::scoring::State;
 use crate::error::{AlignmentError, Result};
 use crate::model::alignment::AlignmentMetrics;
+use crate::model::nucleotide::is_canonical;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RawColumn {
@@ -19,6 +20,28 @@ pub(crate) struct RawAlignment {
     pub(crate) end_reference: usize,
     pub(crate) columns: Vec<RawColumn>,
     pub(crate) metrics: AlignmentMetrics,
+}
+
+impl RawAlignment {
+    /// Whether both alignments place the same aligned symbols at the same
+    /// start, comparing starts modulo `modulo_length` for circular references.
+    pub(crate) fn same_placement(&self, other: &Self, modulo_length: Option<usize>) -> bool {
+        let start = |alignment: &Self| {
+            modulo_length.map_or(alignment.start_reference, |length| {
+                alignment.start_reference % length
+            })
+        };
+        start(self) == start(other)
+            && self.columns.len() == other.columns.len()
+            && self
+                .columns
+                .iter()
+                .zip(&other.columns)
+                .all(|(left, right)| {
+                    left.query_base == right.query_base
+                        && left.reference_base == right.reference_base
+                })
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -121,7 +144,7 @@ pub(crate) fn metrics(columns: &[RawColumn]) -> AlignmentMetrics {
         if item.query_base == 'N' {
             unresolved_query_bases += 1;
         }
-        if is_canonical(item.query_base as u8) && is_canonical(item.reference_base as u8) {
+        if is_canonical(item.query_base) && is_canonical(item.reference_base) {
             callable_columns += 1;
             if item.query_base == item.reference_base {
                 exact_matches += 1;

@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 
-use crate::model::result::{DNAQualityResult, InputResult, IntervalResult};
+use crate::model::result::{InputResult, IntervalResult, SignalQualityResult};
 
 /// Successful reference-free basecall document.
 #[derive(Debug, Serialize)]
@@ -10,7 +10,7 @@ pub(crate) struct BasecallResult {
     pub(crate) schema_version: &'static str,
     pub(crate) provenance: BasecallProvenanceResult,
     pub(crate) read: BasecallReadResult,
-    pub(crate) signal_quality: DNAQualityResult,
+    pub(crate) signal_quality: SignalQualityResult,
     pub(crate) warnings: BasecallWarningSummaryResult,
 }
 

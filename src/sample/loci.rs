@@ -3,7 +3,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::{Result, SampleError};
-use crate::model::alignment::AlignmentColumn;
+use crate::model::alignment::{AlignmentColumn, Orientation};
+use crate::model::nucleotide::is_canonical;
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{
     LocusState, LocusSupportTopology, SampleLocusEvidence, SampleLocusObservation,
@@ -130,13 +131,13 @@ fn support_topology(
             .and_then(|signal| signal.profile)
             .is_some();
         match read.alignment.orientation {
-            crate::model::alignment::Orientation::Forward => {
+            Orientation::Forward => {
                 topology.forward_reads += 1;
                 if has_profile {
                     topology.profile_forward_reads += 1;
                 }
             }
-            crate::model::alignment::Orientation::Reverse => {
+            Orientation::Reverse => {
                 topology.reverse_reads += 1;
                 if has_profile {
                     topology.profile_reverse_reads += 1;
@@ -224,8 +225,4 @@ fn classify(column: &AlignmentColumn) -> LocusState {
     } else {
         LocusState::Alternate
     }
-}
-
-const fn is_canonical(base: char) -> bool {
-    matches!(base, 'A' | 'C' | 'G' | 'T')
 }

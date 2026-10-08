@@ -1,4 +1,4 @@
-//! Signal-derived base re-calling failures.
+//! DNA-derived base re-calling failures.
 
 use super::LocusWindowError;
 

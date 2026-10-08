@@ -148,23 +148,9 @@ pub(crate) fn align(
             continue;
         }
         bounded_best_score.get_or_insert(score);
-        let key_start =
-            modulo_length.map_or(raw.start_reference, |length| raw.start_reference % length);
-        let duplicate = placements.iter().any(|existing: &RawAlignment| {
-            let existing_start = modulo_length.map_or(existing.start_reference, |length| {
-                existing.start_reference % length
-            });
-            existing_start == key_start
-                && existing.columns.len() == raw.columns.len()
-                && existing
-                    .columns
-                    .iter()
-                    .zip(&raw.columns)
-                    .all(|(left, right)| {
-                        left.query_base == right.query_base
-                            && left.reference_base == right.reference_base
-                    })
-        });
+        let duplicate = placements
+            .iter()
+            .any(|existing: &RawAlignment| existing.same_placement(&raw, modulo_length));
         if !duplicate {
             placements.push(raw);
             if placements.len() == 2 {

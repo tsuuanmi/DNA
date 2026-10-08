@@ -2,9 +2,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::error::{CallEvidenceError, Result, SampleError};
+use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
 use crate::model::read_observation::ReadObservation;
+use crate::model::reference_call;
 use crate::model::sample_evidence::{
     VariantCallEvidence, VariantEvidence, VariantSupport, VariantSupportTopology,
 };
@@ -118,39 +119,18 @@ fn variant_calls(
         .iter()
         .map(|mapping| {
             let index = mapping.call_index_0based;
-            let call = read
-                .calls
-                .calls
-                .get(index)
-                .ok_or(SampleError::CallEvidence(CallEvidenceError::MissingCall {
-                    index,
-                }))?;
-            let quality = read
-                .quality
-                .per_call
-                .get(index)
-                .ok_or(SampleError::CallEvidence(
-                    CallEvidenceError::MissingQuality { index },
-                ))?;
-            if call.index_0based != index || quality.index_0based != index {
-                return Err(
-                    SampleError::CallEvidence(CallEvidenceError::IndexMismatch { index }).into(),
-                );
-            }
-            let primary = call
-                .primary_peak_evidence
-                .as_ref()
-                .ok_or(SampleError::CallEvidence(
-                    CallEvidenceError::MissingPeakEvidence { index },
-                ))?;
+            let evidence = reference_call::resolve(
+                &read.calls,
+                &read.quality,
+                read.alignment.orientation,
+                index,
+            )
+            .map_err(SampleError::CallEvidence)?;
             Ok(VariantCallEvidence {
                 role: mapping.role,
-                base: read.alignment.orientation.reference_base(call.primary),
-                peak_heights: read
-                    .alignment
-                    .orientation
-                    .reference_peak_heights(primary.channel_heights),
-                quality: quality.relative_quality_score,
+                base: evidence.base,
+                peak_heights: evidence.peak_heights,
+                quality: evidence.quality,
                 signal: call_evidence::for_call(read, index)?,
             })
         })

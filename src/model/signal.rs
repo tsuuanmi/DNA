@@ -26,9 +26,9 @@ impl SangerIntegrity {
     }
 }
 
-/// DNA-quality features for one rolling base-call window.
+/// Signal-quality features for one rolling base-call window.
 #[derive(Debug, Clone)]
-pub(crate) struct DNAWindow {
+pub(crate) struct SignalWindow {
     pub(crate) call_start_0based: usize,
     pub(crate) call_end_0based_exclusive: usize,
     pub(crate) sample_start_0based: usize,
@@ -50,14 +50,14 @@ pub(crate) struct NoisyRegion {
 
 /// Complete observation-only signal analysis.
 #[derive(Debug, Clone)]
-pub(crate) struct DNAAnalysis {
+pub(crate) struct SignalAnalysis {
     pub(crate) integrity: SangerIntegrity,
     pub(crate) loci: Vec<LocusEvidence>,
-    pub(crate) windows: Vec<DNAWindow>,
+    pub(crate) windows: Vec<SignalWindow>,
     pub(crate) noisy_regions: Vec<NoisyRegion>,
 }
 
-impl DNAAnalysis {
+impl SignalAnalysis {
     /// Number of rolling windows classified as candidate-noisy.
     pub(crate) fn noisy_window_count(&self) -> usize {
         self.windows

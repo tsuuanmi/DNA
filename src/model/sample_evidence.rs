@@ -95,7 +95,7 @@ pub(crate) struct SampleReadEvidence {
 
 /// Reference-oriented signal evidence associated with one source call.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CallDNAEvidence {
+pub(crate) struct CallSignalEvidence {
     pub(crate) corrected_amplitudes: [f64; 4],
     pub(crate) snrs: [f64; 4],
     pub(crate) profile: Option<EvidenceProfile>,
@@ -109,7 +109,7 @@ pub(crate) struct SampleLocusObservation {
     pub(crate) state: LocusState,
     pub(crate) base: Option<char>,
     pub(crate) quality: Option<u8>,
-    pub(crate) signal: Option<CallDNAEvidence>,
+    pub(crate) signal: Option<CallSignalEvidence>,
     pub(crate) nucleotide_contribution: NucleotideContribution,
 }
 
@@ -156,7 +156,7 @@ pub(crate) struct VariantCallEvidence {
     pub(crate) base: char,
     pub(crate) peak_heights: [i32; 4],
     pub(crate) quality: u8,
-    pub(crate) signal: CallDNAEvidence,
+    pub(crate) signal: CallSignalEvidence,
 }
 
 /// One read observing a normalized variant, with configured eligibility retained.

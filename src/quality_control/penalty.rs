@@ -2,6 +2,7 @@
 
 use crate::error::{QualityControlError, Result};
 use crate::model::basecalls::BaseCalls;
+use crate::model::nucleotide::is_canonical;
 
 /// Penalty vector and best contiguous section.
 #[derive(Debug)]
@@ -39,7 +40,7 @@ pub(crate) fn calculate(
         let end = start.saturating_add(window_size).min(count);
         let ambiguity = calls.calls[start..end]
             .iter()
-            .filter(|call| !matches!(call.ambiguity, 'A' | 'C' | 'G' | 'T'))
+            .filter(|call| !is_canonical(call.ambiguity))
             .count();
         let mut distances = calls.calls[start..end]
             .windows(2)

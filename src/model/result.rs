@@ -12,7 +12,7 @@ pub(crate) struct AnalysisResult {
     pub(crate) schema_version: &'static str,
     pub(crate) provenance: ProvenanceResult,
     pub(crate) read: ReadResult,
-    pub(crate) signal_quality: DNAQualityResult,
+    pub(crate) signal_quality: SignalQualityResult,
     pub(crate) alignment: AlignmentResult,
     pub(crate) variants: Vec<VariantResult>,
     pub(crate) warnings: WarningSummaryResult,
@@ -75,7 +75,7 @@ pub(crate) struct TraceIntegrityResult {
 
 /// Shared merged observation-only signal-quality and trace-integrity evidence.
 #[derive(Debug, Serialize)]
-pub(crate) struct DNAQualityResult {
+pub(crate) struct SignalQualityResult {
     pub(crate) integrity: TraceIntegrityResult,
     pub(crate) noisy_regions: Vec<NoisyRegionResult>,
 }

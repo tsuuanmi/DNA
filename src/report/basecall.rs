@@ -9,7 +9,7 @@ use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
 use crate::model::result::{InputResult, IntervalResult};
 use crate::model::sanger::Chromatogram;
-use crate::model::signal::DNAAnalysis;
+use crate::model::signal::SignalAnalysis;
 use crate::report::signal;
 
 /// Inputs consumed to build one immutable basecall document.
@@ -17,7 +17,7 @@ pub(crate) struct CompletedBasecall {
     pub(crate) config: Config,
     pub(crate) trace: Chromatogram,
     pub(crate) calls: BaseCalls,
-    pub(crate) signal: DNAAnalysis,
+    pub(crate) signal: SignalAnalysis,
     pub(crate) quality: QualityControlResult,
 }
 

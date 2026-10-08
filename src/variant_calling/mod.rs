@@ -1,9 +1,9 @@
 //! Normalized and configured-filtered primary-sequence SNVs and small indels.
 
+mod anchor;
 mod extract;
 mod filter;
 mod mapping;
-mod normalize;
 
 use crate::config::VariantCallingConfig;
 use crate::error::Result;
@@ -13,7 +13,7 @@ use crate::model::quality::QualityControlResult;
 use crate::model::reference::Reference;
 use crate::model::variant::VariantCallingResult;
 
-/// Extracts, normalizes, and filters primary-sequence differences.
+/// Extracts, anchors, and filters primary-sequence differences.
 pub(crate) fn call(
     alignment: &Alignment,
     reference: &Reference,

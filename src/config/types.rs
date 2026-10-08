@@ -16,7 +16,7 @@ const SCHEMA_VERSION: u32 = 5;
 pub(crate) struct Config {
     pub(crate) reference: ReferenceConfig,
     pub(crate) basecalling: BasecallingConfig,
-    pub(crate) signal_processing: DNAProcessingConfig,
+    pub(crate) signal_processing: SignalProcessingConfig,
     pub(crate) quality_control: QualityControlConfig,
     pub(crate) alignment: AlignmentConfig,
     pub(crate) sample_reconciliation: SampleReconciliationConfig,
@@ -39,7 +39,7 @@ pub(crate) struct BasecallingConfig {
 
 /// Observation-only rolling signal-quality settings.
 #[derive(Debug, Clone)]
-pub(crate) struct DNAProcessingConfig {
+pub(crate) struct SignalProcessingConfig {
     pub(crate) window_size_bases: usize,
     pub(crate) minimum_primary_snr: f64,
     pub(crate) minimum_noisy_windows: usize,
@@ -89,7 +89,7 @@ pub(super) struct RawConfig {
     schema_version: u32,
     reference: RawReferenceConfig,
     basecalling: RawBasecallingConfig,
-    signal_processing: RawDNAProcessingConfig,
+    signal_processing: RawSignalProcessingConfig,
     quality_control: RawQualityControlConfig,
     alignment: RawAlignmentConfig,
     sample_reconciliation: RawSampleReconciliationConfig,
@@ -110,7 +110,7 @@ struct RawBasecallingConfig {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawDNAProcessingConfig {
+struct RawSignalProcessingConfig {
     window_size_bases: usize,
     minimum_primary_snr: f64,
     minimum_noisy_windows: usize,
@@ -289,7 +289,7 @@ impl RawConfig {
             basecalling: BasecallingConfig {
                 secondary_peak_ratio: self.basecalling.secondary_peak_ratio,
             },
-            signal_processing: DNAProcessingConfig {
+            signal_processing: SignalProcessingConfig {
                 window_size_bases: self.signal_processing.window_size_bases,
                 minimum_primary_snr: self.signal_processing.minimum_primary_snr,
                 minimum_noisy_windows: self.signal_processing.minimum_noisy_windows,

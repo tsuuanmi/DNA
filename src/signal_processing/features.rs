@@ -1,10 +1,10 @@
 //! Rolling sample-domain baseline, noise, and peak-SNR features.
 
-use crate::config::DNAProcessingConfig;
+use crate::config::SignalProcessingConfig;
 use crate::error::{Result, SignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
-use crate::model::signal::DNAWindow;
+use crate::model::signal::SignalWindow;
 
 use super::statistics;
 
@@ -12,8 +12,8 @@ use super::statistics;
 pub(super) fn calculate(
     trace: &Chromatogram,
     calls: &BaseCalls,
-    config: &DNAProcessingConfig,
-) -> Result<Vec<DNAWindow>> {
+    config: &SignalProcessingConfig,
+) -> Result<Vec<SignalWindow>> {
     if calls.len() < config.window_size_bases {
         return Err(SignalError::TooFewCalls {
             calls: calls.len(),
@@ -71,7 +71,7 @@ pub(super) fn calculate(
 
         let minimum_primary_snr = statistics::round_metric(minimum_primary_snr);
         let maximum_secondary_snr = statistics::round_metric(maximum_secondary_snr);
-        windows.push(DNAWindow {
+        windows.push(SignalWindow {
             call_start_0based: call_start,
             call_end_0based_exclusive: call_end,
             sample_start_0based: sample_start,
@@ -154,7 +154,7 @@ mod tests {
         let windows = calculate(
             &trace,
             &calls,
-            &DNAProcessingConfig {
+            &SignalProcessingConfig {
                 window_size_bases: 5,
                 minimum_primary_snr: 1_000.0,
                 minimum_noisy_windows: 2,
@@ -181,7 +181,7 @@ mod tests {
             calculate(
                 &trace,
                 &calls,
-                &DNAProcessingConfig {
+                &SignalProcessingConfig {
                     window_size_bases: 5,
                     minimum_primary_snr: 3.0,
                     minimum_noisy_windows: 2,

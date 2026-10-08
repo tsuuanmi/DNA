@@ -8,7 +8,7 @@ use crate::error::Result;
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
-use crate::model::signal::DNAAnalysis;
+use crate::model::signal::SignalAnalysis;
 use crate::quality_control;
 use crate::signal_processing;
 
@@ -24,7 +24,7 @@ pub(crate) struct ReadWarnings {
 /// Scientific read products shared by reference-free and reference-guided paths.
 pub(crate) struct ProcessedRead {
     pub(crate) calls: BaseCalls,
-    pub(crate) signal: DNAAnalysis,
+    pub(crate) signal: SignalAnalysis,
     pub(crate) quality: QualityControlResult,
     pub(crate) warnings: ReadWarnings,
 }

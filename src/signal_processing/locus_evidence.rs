@@ -1,6 +1,6 @@
 //! Basecall-independent signal evidence at each canonical Sanger locus.
 
-use crate::config::DNAProcessingConfig;
+use crate::config::SignalProcessingConfig;
 use crate::error::{Result, SignalError};
 use crate::locus::{self, LocusWindow};
 use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
@@ -16,7 +16,7 @@ use super::statistics;
 /// channels.
 pub(super) fn calculate(
     trace: &Chromatogram,
-    config: &DNAProcessingConfig,
+    config: &SignalProcessingConfig,
 ) -> Result<Vec<LocusEvidence>> {
     let locus_count = trace.call_count();
     if locus_count < config.window_size_bases {
@@ -238,15 +238,15 @@ fn context_start(locus_index: usize, locus_count: usize, window_size_bases: usiz
 
 #[cfg(test)]
 mod tests {
-    use crate::config::DNAProcessingConfig;
+    use crate::config::SignalProcessingConfig;
     use crate::model::sanger::{Chromatogram, VendorEvidence};
 
     use super::*;
 
     type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-    fn config(window_size_bases: usize) -> DNAProcessingConfig {
-        DNAProcessingConfig {
+    fn config(window_size_bases: usize) -> SignalProcessingConfig {
+        SignalProcessingConfig {
             window_size_bases,
             minimum_primary_snr: 3.0,
             minimum_noisy_windows: 2,
