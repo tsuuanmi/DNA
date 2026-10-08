@@ -1,38 +1,43 @@
 //! Operational metrics derived from completed sample evidence.
 
+use std::fmt;
+
 use crate::model::sample_evidence::{NucleotideContribution, SampleEvidence};
 
+/// Aggregation metrics rendered as the `key=value` tail of the
+/// `sample_aggregation_completed` record.
 pub(super) struct SampleAggregationMetrics {
-    pub(super) profiled_locus_observations: usize,
-    pub(super) profiled_locus_forward_reads: usize,
-    pub(super) profiled_locus_reverse_reads: usize,
-    pub(super) profiled_variant_calls: usize,
-    pub(super) noisy_locus_observations: usize,
-    pub(super) noisy_variant_calls: usize,
-    pub(super) eligible_nucleotide_locus_observations: usize,
-    pub(super) missing_profile_locus_observations: usize,
-    pub(super) deletion_event_locus_observations: usize,
-    pub(super) nucleotide_support_loci: usize,
-    pub(super) bidirectional_nucleotide_support_loci: usize,
-    pub(super) unweighted_nucleotide_profile_mass: f64,
-    pub(super) profile_geometry_loci: usize,
-    pub(super) within_profile_impurity_sum: f64,
-    pub(super) between_profile_dispersion_sum: f64,
-    pub(super) total_profile_heterogeneity_sum: f64,
-    pub(super) forward_profile_geometry_loci: usize,
-    pub(super) reverse_profile_geometry_loci: usize,
-    pub(super) directional_profile_distance_loci: usize,
-    pub(super) directional_profile_distance_sum: f64,
-    pub(super) locus_positive_corrected_channels: usize,
-    pub(super) locus_positive_snr_channels: usize,
-    pub(super) variant_positive_corrected_channels: usize,
-    pub(super) variant_positive_snr_channels: usize,
-    pub(super) locus_forward_reads: usize,
-    pub(super) locus_reverse_reads: usize,
-    pub(super) locus_reference_reads: usize,
-    pub(super) locus_alternate_reads: usize,
-    pub(super) locus_unresolved_reads: usize,
-    pub(super) locus_deletion_reads: usize,
+    profiled_locus_observations: usize,
+    profiled_locus_forward_reads: usize,
+    profiled_locus_reverse_reads: usize,
+    profiled_variant_calls: usize,
+    noisy_locus_observations: usize,
+    noisy_variant_calls: usize,
+    eligible_nucleotide_locus_observations: usize,
+    missing_profile_locus_observations: usize,
+    deletion_event_locus_observations: usize,
+    nucleotide_support_loci: usize,
+    bidirectional_nucleotide_support_loci: usize,
+    unweighted_nucleotide_profile_mass: f64,
+    profile_geometry_loci: usize,
+    within_profile_impurity_sum: f64,
+    between_profile_dispersion_sum: f64,
+    total_profile_heterogeneity_sum: f64,
+    forward_profile_geometry_loci: usize,
+    reverse_profile_geometry_loci: usize,
+    directional_profile_distance_loci: usize,
+    directional_profile_distance_sum: f64,
+    locus_positive_corrected_channels: usize,
+    locus_positive_snr_channels: usize,
+    variant_positive_corrected_channels: usize,
+    variant_positive_snr_channels: usize,
+    locus_forward_reads: usize,
+    locus_reverse_reads: usize,
+    locus_reference_reads: usize,
+    locus_alternate_reads: usize,
+    locus_unresolved_reads: usize,
+    locus_deletion_reads: usize,
+    variants: usize,
 }
 
 pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
@@ -234,5 +239,61 @@ pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
             .iter()
             .map(|difference| difference.support_topology.deletion_reads)
             .sum(),
+        variants: evidence.variants.len(),
+    }
+}
+
+impl fmt::Display for SampleAggregationMetrics {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            concat!(
+                "profiled_locus_observations={} profiled_locus_forward_reads={} ",
+                "profiled_locus_reverse_reads={} noisy_locus_observations={} ",
+                "eligible_nucleotide_locus_observations={} missing_profile_locus_observations={} ",
+                "deletion_event_locus_observations={} nucleotide_support_loci={} ",
+                "bidirectional_nucleotide_support_loci={} unweighted_nucleotide_profile_mass={:.6} ",
+                "profile_geometry_loci={} within_profile_impurity_sum={:.6} ",
+                "between_profile_dispersion_sum={:.6} total_profile_heterogeneity_sum={:.6} ",
+                "forward_profile_geometry_loci={} reverse_profile_geometry_loci={} ",
+                "directional_profile_distance_loci={} directional_profile_distance_sum={:.6} ",
+                "locus_positive_corrected_channels={} locus_positive_snr_channels={} ",
+                "locus_forward_reads={} locus_reverse_reads={} locus_reference_reads={} ",
+                "locus_alternate_reads={} locus_unresolved_reads={} locus_deletion_reads={} variants={} ",
+                "profiled_variant_calls={} noisy_variant_calls={} variant_positive_corrected_channels={} ",
+                "variant_positive_snr_channels={}"
+            ),
+            self.profiled_locus_observations,
+            self.profiled_locus_forward_reads,
+            self.profiled_locus_reverse_reads,
+            self.noisy_locus_observations,
+            self.eligible_nucleotide_locus_observations,
+            self.missing_profile_locus_observations,
+            self.deletion_event_locus_observations,
+            self.nucleotide_support_loci,
+            self.bidirectional_nucleotide_support_loci,
+            self.unweighted_nucleotide_profile_mass,
+            self.profile_geometry_loci,
+            self.within_profile_impurity_sum,
+            self.between_profile_dispersion_sum,
+            self.total_profile_heterogeneity_sum,
+            self.forward_profile_geometry_loci,
+            self.reverse_profile_geometry_loci,
+            self.directional_profile_distance_loci,
+            self.directional_profile_distance_sum,
+            self.locus_positive_corrected_channels,
+            self.locus_positive_snr_channels,
+            self.locus_forward_reads,
+            self.locus_reverse_reads,
+            self.locus_reference_reads,
+            self.locus_alternate_reads,
+            self.locus_unresolved_reads,
+            self.locus_deletion_reads,
+            self.variants,
+            self.profiled_variant_calls,
+            self.noisy_variant_calls,
+            self.variant_positive_corrected_channels,
+            self.variant_positive_snr_channels
+        )
     }
 }

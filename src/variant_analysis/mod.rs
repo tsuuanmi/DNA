@@ -6,12 +6,10 @@
 
 pub(crate) mod observation;
 
-use std::fmt;
 use std::path::Path;
 
 use crate::error::Result;
 use crate::input::sanger;
-use crate::logger::StageLog;
 use crate::model::variant as internal_variant;
 
 /// Typed result of one reference-guided variant analysis.
@@ -117,15 +115,7 @@ pub fn analyze_sanger(
         name: inputs.reference.name.clone(),
         sha256: inputs.reference.sequence_sha256.clone(),
     };
-    let mut log = SilentStageLog;
-    let mut stage = "read_processing";
-    let completed = observation::build(
-        &inputs.trace,
-        &inputs.reference,
-        &inputs.config,
-        &mut log,
-        &mut stage,
-    )?;
+    let completed = observation::build(&inputs.trace, &inputs.reference, &inputs.config)?;
 
     let read = completed.read;
     let reference_segments = read
@@ -159,17 +149,5 @@ fn project_variant(variant: &internal_variant::Variant) -> Variant {
             internal_variant::VariantKind::Ins => VariantKind::Ins,
             internal_variant::VariantKind::Del => VariantKind::Del,
         },
-    }
-}
-
-struct SilentStageLog;
-
-impl StageLog for SilentStageLog {
-    fn info(&mut self, _module: &str, _line: u32, _message: fmt::Arguments<'_>) -> Result<()> {
-        Ok(())
-    }
-
-    fn warn(&mut self, _module: &str, _line: u32, _message: fmt::Arguments<'_>) -> Result<()> {
-        Ok(())
     }
 }

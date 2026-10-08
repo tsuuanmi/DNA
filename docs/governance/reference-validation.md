@@ -16,7 +16,7 @@ DNA compares behaviors only where the scientific preconditions match. Current DN
 | quality helpers/`trim.h` | `quality_control` | safe penalty and end-trim behavior; score named relative |
 | `alignment/gotoh.h` | `alignment` | bounded deterministic fixed-point profile-aware semi-global affine DP |
 | primary subset of `variant.h` | `variant_calling` | SNV/small-indel extraction, normalization, and configured eligibility |
-| `logger.rs` | `logger` | Apollo-style timestamp/level/source records written to per-trace files |
+| `operation_log.rs` | `operation_log` | Apollo-style timestamp/level/source records rendered from `tracing` events into per-operation files |
 | `report/json.h` | `report` | versioned, nested, schema-governed JSON |
 
 ## Differential evidence targets

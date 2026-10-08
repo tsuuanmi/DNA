@@ -5,96 +5,61 @@ use std::time::Instant;
 
 use crate::error::Result;
 use crate::input::sanger;
-use crate::logger::Logger;
+use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::report::{self, CompletedAnalysis};
 use crate::variant_analysis;
 
+use super::Operation;
+
 /// Runs one complete AB1-to-JSON analysis with one per-trace append-only log.
 pub(crate) fn run(trace: &Path, reference: &Path, config_path: &Path) -> Result<()> {
     let trace_stem = path::trace_stem(trace)?;
-    let mut logger = Logger::open(trace_stem)?;
-    let analysis_started = Instant::now();
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            "event=analysis_started version={} trace_path={:?} reference_path={:?}",
-            env!("CARGO_PKG_VERSION"),
-            trace.display().to_string(),
-            reference.display().to_string()
-        ),
-    )?;
-
-    let mut stage = "input_loading";
-    match run_logged(
-        trace,
-        reference,
-        config_path,
-        &mut logger,
-        &mut stage,
-        analysis_started,
-    ) {
-        Ok(()) => Ok(()),
-        Err(error) => Err(super::record_failure(
-            &mut logger,
-            "analysis_failed",
-            stage,
-            analysis_started,
-            error,
-        )),
-    }
+    Operation::begin(trace_stem, "analysis_failed", || {
+        tracing::info!(
+            event = "analysis_started",
+            version = env!("CARGO_PKG_VERSION"),
+            trace_path = ?trace.display().to_string(),
+            reference_path = ?reference.display().to_string(),
+        );
+    })?
+    .run(|log, started| analyze(trace, reference, config_path, log, started))
 }
 
-fn run_logged(
+fn analyze(
     trace: &Path,
     reference: &Path,
     config_path: &Path,
-    logger: &mut Logger,
-    stage: &mut &'static str,
+    log: &OperationLog,
     analysis_started: Instant,
 ) -> Result<()> {
-    *stage = "input_loading";
+    let _stage = tracing::info_span!("input_loading").entered();
     let stage_started = Instant::now();
     let prepared = sanger::prepare_analysis(trace, reference, config_path)?;
     let output = path::analysis_output(trace)?;
     let inputs = sanger::load_analysis(prepared)?;
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=inputs_loaded elapsed_ms={} trace_name={:?} trace_sha256={} ",
-                "samples={} call_loci={} vendor_primary={} vendor_quality={} ",
-                "reference_name={:?} reference_sha256={} topology={:?} reference_bases={} ",
-                "config_path={:?} config_sha256={} output_path={:?}"
-            ),
-            stage_started.elapsed().as_millis(),
-            inputs.trace.source_name,
-            inputs.trace.source_sha256,
-            inputs.trace.sample_count(),
-            inputs.trace.call_count(),
-            inputs.trace.vendor.primary.is_some(),
-            inputs.trace.vendor.qualities.is_some(),
-            inputs.reference.name,
-            inputs.reference.sequence_sha256,
-            inputs.reference.topology,
-            inputs.reference.len(),
-            inputs.config.source_path.display().to_string(),
-            inputs.config.source_sha256,
-            output.display().to_string()
-        ),
-    )?;
+    tracing::info!(
+        event = "inputs_loaded",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        trace_name = ?inputs.trace.source_name,
+        trace_sha256 = %inputs.trace.source_sha256,
+        samples = inputs.trace.sample_count(),
+        call_loci = inputs.trace.call_count(),
+        vendor_primary = inputs.trace.vendor.primary.is_some(),
+        vendor_quality = inputs.trace.vendor.qualities.is_some(),
+        reference_name = ?inputs.reference.name,
+        reference_sha256 = %inputs.reference.sequence_sha256,
+        topology = ?inputs.reference.topology,
+        reference_bases = inputs.reference.len(),
+        config_path = ?inputs.config.source_path.display().to_string(),
+        config_sha256 = %inputs.config.source_sha256,
+        output_path = ?output.display().to_string(),
+    );
 
-    let completed = variant_analysis::observation::build(
-        &inputs.trace,
-        &inputs.reference,
-        &inputs.config,
-        logger,
-        stage,
-    )?;
+    let completed =
+        variant_analysis::observation::build(&inputs.trace, &inputs.reference, &inputs.config)?;
 
-    *stage = "reporting";
+    let _stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let warning_total = completed.warning_total;
     let result = report::build_analysis(CompletedAnalysis {
@@ -105,24 +70,17 @@ fn run_logged(
     let schema_version = result.schema_version;
     let bytes = report::serialize(&result)?;
 
-    *stage = "result_publication";
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=result_ready_for_publication elapsed_ms={} total_elapsed_ms={} ",
-                "schema={} variants={} warnings={} output_path={:?} bytes={}"
-            ),
-            stage_started.elapsed().as_millis(),
-            analysis_started.elapsed().as_millis(),
-            schema_version,
-            result_variants,
-            warning_total,
-            output.display().to_string(),
-            bytes.len()
-        ),
-    )?;
-    logger.sync()?;
+    let _stage = tracing::info_span!("result_publication").entered();
+    tracing::info!(
+        event = "result_ready_for_publication",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        total_elapsed_ms = analysis_started.elapsed().as_millis(),
+        schema = schema_version,
+        variants = result_variants,
+        warnings = warning_total,
+        output_path = ?output.display().to_string(),
+        bytes = bytes.len(),
+    );
+    log.sync()?;
     report::publish(&output, &bytes)
 }

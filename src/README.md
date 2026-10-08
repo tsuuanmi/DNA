@@ -26,7 +26,7 @@ API documentation lives in rustdoc and source comments.
 - [variant_nomenclature](variant_nomenclature/README.md) — optional target-nomenclature input boundary.
 - [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
 
-File-only modules such as `checksum.rs`, `locus.rs`, `logger.rs`, and
+File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`, and
 `read_processing.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
 
 ## Dependency rule
@@ -36,10 +36,10 @@ domain/config/error types rather than outward toward frontends. In particular,
 the CLI may call the pipeline boundary, but pipeline and scientific modules must
 not depend on CLI/`clap` argument types.
 
-Scientific stages that emit operational progress depend on the minimal internal
-`StageLog` capability rather than the concrete file-backed `Logger`. Log-path
-selection, terminal error records, and synchronization remain outer operation
-concerns.
+Scientific stages report operational progress only through `tracing` events and
+per-stage spans; they never select a destination. `operation_log` renders those
+events into the per-operation file, and log-path selection, terminal error
+records, and synchronization remain outer operation concerns.
 
 Source-specific filesystem loading belongs to `input`; the current Sanger
 adapter produces validated trace/reference/configuration models without knowing

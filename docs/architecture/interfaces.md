@@ -36,11 +36,12 @@ canonical Sanger `locus_positions`; downstream scientific modules do not depend
 on the ABIF tag name. It does not derive `results/*` paths, validate overwrite
 targets, select log paths, or publish outputs. Those remain outer operation/publication concerns.
 
-Operational stage logging crosses this boundary through a minimal internal
-`StageLog` capability. Shared reference-free read processing and
-reference-guided Variant Analysis can emit informational and warning records
-without depending on the file-backed logger; log destination selection,
-terminal error logging, and synchronization stay in the outer operation layer.
+Operational stage logging crosses this boundary as `tracing` instrumentation
+([ADR-0061](../decisions/adr/0061-tracing-for-operational-logging.md)). Shared
+reference-free read processing and reference-guided Variant Analysis emit
+structured events and one span per stage without knowing any destination; log
+destination selection, record rendering, terminal error logging, and
+synchronization stay in the outer operation layer.
 
 The production `pipeline` composes scientific capabilities but does not own
 their implementations. Reference-free read processing is crate-internal shared

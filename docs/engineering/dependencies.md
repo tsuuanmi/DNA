@@ -51,6 +51,7 @@ Evaluation is per DNA contract, not a permanent ranking of libraries.
 |---|---|---|
 | reference FASTA parsing | `noodles-fasta` satisfies the record-parsing need behind DNA's single-reference validation contract; the production line is constrained by the repository MSRV | reuse `noodles-fasta` behind `Reference` |
 | Sanger evidence-profile alignment | `rust-bio` pairwise alignment was evaluated, but its current affine-gap convention and byte-pair substitution callback do not directly express DNA's required profile-weighted, fixed-point scoring contract; DNA additionally owns deterministic repeat placement and circular-placement semantics | retain the current custom Gotoh implementation |
+| operational logging | `tracing` with a `tracing-subscriber` registry expresses stage spans and structured events; a small DNA layer renders the SRS-OUT-008 record format | reuse `tracing` behind `operation_log` ([ADR-0061](../decisions/adr/0061-tracing-for-operational-logging.md)) |
 | Sanger ABIF decoding | the Applied Biosystems ABIF specification and available Rust implementations were reviewed; the evaluated `bio_files::ab1` implementation is Biopython-derived and currently documents unresolved offset handling, while DNA requires strict bounded untrusted-input parsing and an exact Sanger tag contract | retain the current bounded ABIF implementation; reevaluate only against equivalent contract and corpus evidence |
 | future FASTQ / BAM / CRAM / VCF / BCF | no current production consumer | do not add dependencies speculatively |
 

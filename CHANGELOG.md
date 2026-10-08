@@ -25,6 +25,10 @@ remain independently versioned and are never silently changed in place.
   `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
   `VariantKind`, `NormalizationPolicy`, `cli::Command`, and `error::Error` are
   `#[non_exhaustive]`.
+- Operational logging uses `tracing`: scientific stages emit structured events
+  and per-stage spans, and a DNA layer renders them in the unchanged
+  per-operation record format (ADR-0061). Library callers can observe stage
+  progress through their own `tracing` subscriber.
 - **Breaking (Rust API):** `dna::error::Error` stage variants now wrap typed,
   `#[non_exhaustive]` per-stage failure enums (`AbifError`, `FastaError`,
   `ConfigError`, `AlignmentError`, and so on) instead of `String` messages;

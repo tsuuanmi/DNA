@@ -18,10 +18,12 @@ Scientific input adapters are independent of deterministic CLI publication
 targets. Pipeline validates output naming and overwrite protection separately,
 so `results/*` state is not part of the scientific input contract.
 
-Pipeline passes its file-backed logger through the internal `StageLog`
-capability to reusable scientific modules. It owns log construction, terminal
-error persistence, synchronization, JSON projection, and publication, but not
-the shared scientific implementation.
+Each command runs as one `Operation`: it opens the operation's `OperationLog`,
+records the start event (failing fast if that write fails), runs the stages in
+the log's `tracing` scope, synchronizes the log before publishing, and on failure
+records the terminal event with the last-entered stage span. Pipeline owns log
+construction, terminal error persistence, synchronization, JSON projection, and
+publication, but not the shared scientific implementation.
 
 Pipeline code composes capabilities and preserves typed failures; algorithm
 internals remain in their owning modules.

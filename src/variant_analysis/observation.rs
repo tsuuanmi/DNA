@@ -5,7 +5,6 @@ use std::time::Instant;
 use crate::alignment;
 use crate::config::Config;
 use crate::error::Result;
-use crate::logger::StageLog;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
@@ -20,21 +19,19 @@ pub(crate) struct CompletedObservation {
 }
 
 /// Runs the shared read, alignment, and variant stages for one trace.
-pub(crate) fn build<L: StageLog + ?Sized>(
+pub(crate) fn build(
     trace: &Chromatogram,
     reference: &Reference,
     config: &Config,
-    logger: &mut L,
-    stage: &mut &'static str,
 ) -> Result<CompletedObservation> {
     let ProcessedRead {
         calls,
         signal,
         quality,
         warnings: read_warnings,
-    } = read_processing::process(trace, config, logger, stage)?;
+    } = read_processing::process(trace, config)?;
 
-    *stage = "alignment";
+    let _stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();
     let alignment = alignment::align_best(&quality, &signal, reference, &config.alignment)?;
     let reference_segments = alignment
@@ -43,32 +40,23 @@ pub(crate) fn build<L: StageLog + ?Sized>(
         .map(|segment| format!("{}..{}", segment.start_0based, segment.end_0based_exclusive))
         .collect::<Vec<_>>()
         .join(",");
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=alignment_completed elapsed_ms={} orientation={:?} profile_score_units={} ",
-                "exact_matches={} mismatches={} gap_opens={} callable_columns={} ",
-                "callable_identity={:.4} unresolved_query_bases={} segments={} ",
-                "segment_bounds={:?} wraps_origin={}"
-            ),
-            stage_started.elapsed().as_millis(),
-            alignment.orientation,
-            alignment.score,
-            alignment.metrics.exact_matches,
-            alignment.metrics.mismatches,
-            alignment.metrics.gap_opens,
-            alignment.metrics.callable_columns,
-            alignment.metrics.callable_identity,
-            alignment.metrics.unresolved_query_bases,
-            alignment.reference_segments.len(),
-            reference_segments,
-            alignment.wraps_origin
-        ),
-    )?;
+    tracing::info!(
+        event = "alignment_completed",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        orientation = ?alignment.orientation,
+        profile_score_units = alignment.score,
+        exact_matches = alignment.metrics.exact_matches,
+        mismatches = alignment.metrics.mismatches,
+        gap_opens = alignment.metrics.gap_opens,
+        callable_columns = alignment.metrics.callable_columns,
+        callable_identity = %format_args!("{:.4}", alignment.metrics.callable_identity),
+        unresolved_query_bases = alignment.metrics.unresolved_query_bases,
+        segments = alignment.reference_segments.len(),
+        segment_bounds = ?reference_segments,
+        wraps_origin = alignment.wraps_origin,
+    );
 
-    *stage = "variant_calling";
+    let _stage = tracing::info_span!("variant_calling").entered();
     let stage_started = Instant::now();
     let variants = variant_calling::call(
         &alignment,
@@ -92,27 +80,19 @@ pub(crate) fn build<L: StageLog + ?Sized>(
         .iter()
         .filter(|variant| variant.kind == VariantKind::Del)
         .count();
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=variant_calling_completed elapsed_ms={} reported={} snv={} insertion={} ",
-                "deletion={} excluded={} region_count={} minimum_peak_height={} ",
-                "relative_quality_threshold={} max_indel_length={}"
-            ),
-            stage_started.elapsed().as_millis(),
-            variants.reported.len(),
-            snvs,
-            insertions,
-            deletions,
-            variants.excluded_count(),
-            config.variant_calling.regions.len(),
-            config.variant_calling.minimum_peak_height,
-            config.variant_calling.relative_quality_threshold,
-            config.variant_calling.max_indel_length
-        ),
-    )?;
+    tracing::info!(
+        event = "variant_calling_completed",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        reported = variants.reported.len(),
+        snv = snvs,
+        insertion = insertions,
+        deletion = deletions,
+        excluded = variants.excluded_count(),
+        region_count = config.variant_calling.regions.len(),
+        minimum_peak_height = config.variant_calling.minimum_peak_height,
+        relative_quality_threshold = config.variant_calling.relative_quality_threshold,
+        max_indel_length = config.variant_calling.max_indel_length,
+    );
     for excluded in &variants.excluded {
         let position = excluded
             .position_1based
@@ -123,17 +103,13 @@ pub(crate) fn build<L: StageLog + ?Sized>(
             .map(|reason| reason.label())
             .collect::<Vec<_>>()
             .join(",");
-        logger.warn(
-            module_path!(),
-            line!(),
-            format_args!(
-                "event=variant_removed kind={} contig={:?} position={} reasons={}",
-                excluded.kind.label(),
-                excluded.contig,
-                position,
-                reasons
-            ),
-        )?;
+        tracing::warn!(
+            event = "variant_removed",
+            kind = excluded.kind.label(),
+            contig = ?excluded.contig,
+            position = %position,
+            reasons = %reasons,
+        );
     }
 
     let excluded_variant_candidates = variants.excluded_count();
@@ -146,26 +122,17 @@ pub(crate) fn build<L: StageLog + ?Sized>(
         + excluded_variant_candidates
         + usize::from(reference_origin_wrap);
     if warning_total > 0 {
-        logger.warn(
-            module_path!(),
-            line!(),
-            format_args!(
-                concat!(
-                    "event=warning_summary total={} unresolved_primary_calls={} ",
-                    "multi_channel_unresolved_calls={} vendor_disagreements={} ",
-                    "ploc_vendor_length_mismatches={} clipped_channel_samples={} ",
-                    "excluded_variant_candidates={} reference_origin_wrap={}"
-                ),
-                warning_total,
-                read_warnings.unresolved_primary_calls,
-                read_warnings.multi_channel_unresolved_calls,
-                read_warnings.vendor_disagreements,
-                read_warnings.locus_vendor_length_mismatches,
-                read_warnings.clipped_channel_samples,
-                excluded_variant_candidates,
-                reference_origin_wrap
-            ),
-        )?;
+        tracing::warn!(
+            event = "warning_summary",
+            total = warning_total,
+            unresolved_primary_calls = read_warnings.unresolved_primary_calls,
+            multi_channel_unresolved_calls = read_warnings.multi_channel_unresolved_calls,
+            vendor_disagreements = read_warnings.vendor_disagreements,
+            ploc_vendor_length_mismatches = read_warnings.locus_vendor_length_mismatches,
+            clipped_channel_samples = read_warnings.clipped_channel_samples,
+            excluded_variant_candidates,
+            reference_origin_wrap,
+        );
     }
 
     Ok(CompletedObservation {

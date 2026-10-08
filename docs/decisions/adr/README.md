@@ -36,6 +36,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | documentation governance | ADR-0006 → ADR-0022 | documentation governance + source-local README policy |
 | modular analysis/public API boundaries | ADR-0058 | proposal + architecture/design/reference as implemented |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
+| operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
@@ -91,3 +92,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Accepted |
 | [0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md) | Reuse ecosystem machinery behind DNA-owned contracts | Accepted |
 | [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Accepted |
+| [0061](0061-tracing-for-operational-logging.md) | Use `tracing` for operational logging | Accepted |

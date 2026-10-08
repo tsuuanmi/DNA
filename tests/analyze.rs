@@ -770,6 +770,34 @@ fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Every operation-log write fails (ENOSPC): the run fails fast on the first
+/// record with the log error and publishes no result.
+#[cfg(target_os = "linux")]
+#[test]
+fn unwritable_operation_log_fails_fast_without_publishing_a_result()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    let logs = directory.path().join("logs");
+    fs::create_dir(&logs)?;
+    std::os::unix::fs::symlink("/dev/full", logs.join("trace.log"))?;
+
+    run(&trace, &reference, &config, directory.path())
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::starts_with(
+            "error: failed to access log path logs/trace.log: No space left on device",
+        ))
+        .stderr(predicate::str::contains("additionally").not());
+    assert!(!analysis_output_path(directory.path(), &trace).exists());
+    Ok(())
+}
+
 fn assert_object_keys(value: &Value, expected: &[&str]) {
     let actual = value
         .as_object()

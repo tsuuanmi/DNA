@@ -5,7 +5,6 @@ use std::time::Instant;
 use crate::basecalling;
 use crate::config::Config;
 use crate::error::Result;
-use crate::logger::StageLog;
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
@@ -30,14 +29,10 @@ pub(crate) struct ProcessedRead {
     pub(crate) warnings: ReadWarnings,
 }
 
-/// Runs and logs the scientific stages that require no reference.
-pub(crate) fn process<L: StageLog + ?Sized>(
-    trace: &Chromatogram,
-    config: &Config,
-    logger: &mut L,
-    stage: &mut &'static str,
-) -> Result<ProcessedRead> {
-    *stage = "basecalling";
+/// Runs the scientific stages that require no reference, emitting one
+/// `tracing` stage span and completion event per stage.
+pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<ProcessedRead> {
+    let _stage = tracing::info_span!("basecalling").entered();
     let stage_started = Instant::now();
     let calls = basecalling::call(trace, &config.basecalling)?;
     let canonical_primary = calls
@@ -75,30 +70,21 @@ pub(crate) fn process<L: StageLog + ?Sized>(
         .iter()
         .filter(|call| call.vendor_agrees == Some(false))
         .count();
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=basecalling_completed elapsed_ms={} calls={} canonical_primary={} ",
-                "unresolved_primary={} two_channel_iupac={} multi_channel_unresolved={} ",
-                "calls_with_ploc_fallback={} vendor_compared={} vendor_disagreements={} ",
-                "secondary_peak_ratio={:.4}"
-            ),
-            stage_started.elapsed().as_millis(),
-            calls.len(),
-            canonical_primary,
-            unresolved_primary,
-            two_channel_iupac,
-            multi_channel_unresolved,
-            calls_with_fallback,
-            vendor_compared,
-            vendor_disagreements,
-            config.basecalling.secondary_peak_ratio
-        ),
-    )?;
+    tracing::info!(
+        event = "basecalling_completed",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        calls = calls.len(),
+        canonical_primary,
+        unresolved_primary,
+        two_channel_iupac,
+        multi_channel_unresolved,
+        calls_with_ploc_fallback = calls_with_fallback,
+        vendor_compared,
+        vendor_disagreements,
+        secondary_peak_ratio = %format_args!("{:.4}", config.basecalling.secondary_peak_ratio),
+    );
 
-    *stage = "signal_processing";
+    let _stage = tracing::info_span!("signal_processing").entered();
     let stage_started = Instant::now();
     let signal = signal_processing::analyze(trace, &calls, &config.signal_processing)?;
     let maximum_secondary_snr = signal
@@ -113,35 +99,25 @@ pub(crate) fn process<L: StageLog + ?Sized>(
         .count();
     let locus_vendor_length_mismatches = signal.integrity.vendor_length_mismatch_count();
     let clipped_channel_samples = signal.integrity.clipped_channel_samples;
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=signal_processing_completed elapsed_ms={} loci={} profiled_loci={} ",
-                "windows={} noisy_windows={} noisy_regions={} noisy_calls={} ",
-                "window_size_bases={} minimum_noisy_windows={} minimum_primary_snr={:.4} ",
-                "maximum_secondary_snr={:.4} ploc_vendor_length_mismatches={} ",
-                "clipped_channel_samples={} maximum_to_median_event_signal_ratio={:?}"
-            ),
-            stage_started.elapsed().as_millis(),
-            signal.loci.len(),
-            profiled_loci,
-            signal.windows.len(),
-            signal.noisy_window_count(),
-            signal.noisy_regions.len(),
-            signal.noisy_call_count(),
-            config.signal_processing.window_size_bases,
-            config.signal_processing.minimum_noisy_windows,
-            config.signal_processing.minimum_primary_snr,
-            maximum_secondary_snr,
-            locus_vendor_length_mismatches,
-            clipped_channel_samples,
-            signal.integrity.maximum_to_median_event_signal_ratio
-        ),
-    )?;
+    tracing::info!(
+        event = "signal_processing_completed",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        loci = signal.loci.len(),
+        profiled_loci,
+        windows = signal.windows.len(),
+        noisy_windows = signal.noisy_window_count(),
+        noisy_regions = signal.noisy_regions.len(),
+        noisy_calls = signal.noisy_call_count(),
+        window_size_bases = config.signal_processing.window_size_bases,
+        minimum_noisy_windows = config.signal_processing.minimum_noisy_windows,
+        minimum_primary_snr = %format_args!("{:.4}", config.signal_processing.minimum_primary_snr),
+        maximum_secondary_snr = %format_args!("{maximum_secondary_snr:.4}"),
+        ploc_vendor_length_mismatches = locus_vendor_length_mismatches,
+        clipped_channel_samples,
+        maximum_to_median_event_signal_ratio = ?signal.integrity.maximum_to_median_event_signal_ratio,
+    );
 
-    *stage = "quality_control";
+    let _stage = tracing::info_span!("quality_control").entered();
     let stage_started = Instant::now();
     let quality = quality_control::analyze(trace, &calls, &config.quality_control)?;
     let score_min = quality
@@ -182,30 +158,23 @@ pub(crate) fn process<L: StageLog + ?Sized>(
         .len()
         .saturating_sub(quality.trim_end_0based_exclusive);
     let retained_fraction = quality.retained_sequence.len() as f64 / calls.len() as f64;
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=quality_control_completed elapsed_ms={} trim={}..{} retained={} ",
-                "trimmed_left={} trimmed_right={} retained_fraction={:.4} ",
-                "relative_score_min={} relative_score_mean={:.2} relative_score_max={} ",
-                "max_penalty={} vendor_quality_applicable={}"
-            ),
-            stage_started.elapsed().as_millis(),
-            quality.trim_start_0based,
-            quality.trim_end_0based_exclusive,
-            quality.retained_sequence.len(),
-            trimmed_left,
-            trimmed_right,
-            retained_fraction,
-            score_min,
-            score_mean,
-            score_max,
-            max_penalty,
-            vendor_quality_applicable
+    tracing::info!(
+        event = "quality_control_completed",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        trim = %format_args!(
+            "{}..{}",
+            quality.trim_start_0based, quality.trim_end_0based_exclusive
         ),
-    )?;
+        retained = quality.retained_sequence.len(),
+        trimmed_left,
+        trimmed_right,
+        retained_fraction = %format_args!("{retained_fraction:.4}"),
+        relative_score_min = score_min,
+        relative_score_mean = %format_args!("{score_mean:.2}"),
+        relative_score_max = score_max,
+        max_penalty,
+        vendor_quality_applicable,
+    );
 
     Ok(ProcessedRead {
         calls,
