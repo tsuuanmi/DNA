@@ -63,8 +63,7 @@ impl Logger {
     /// Opens `logs/<operation-stem>.log`, honoring `DNA_LOG_DIR` when set.
     pub(crate) fn open(operation_stem: &str) -> Result<Self> {
         let directory = env::var_os("DNA_LOG_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_LOG_DIRECTORY));
+            .map_or_else(|| PathBuf::from(DEFAULT_LOG_DIRECTORY), PathBuf::from);
         if directory.as_os_str().is_empty() {
             return Err(Error::Path {
                 kind: "log directory",

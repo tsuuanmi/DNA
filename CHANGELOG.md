@@ -10,13 +10,23 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
-- Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene, required pre-tag release-package smoke testing, and an explicit Ubuntu 24.04 runner baseline.
+- Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and an explicit Ubuntu 24.04 runner baseline.
+- Crate-wide Rust lint policy in `Cargo.toml` (`missing_docs`, `unreachable_pub`,
+  Clippy `pedantic`) and a tuned release profile (thin LTO, one codegen unit,
+  `panic = "abort"`).
 - Rust/Python source-boundary enforcement.
 - Dependency policy, dependency review, CodeQL, OpenSSF Scorecard, fuzzing,
   self-contained explicit-target auditable release bundles with post-strip metadata verification, release SBOMs, and artifact attestations.
 
 ### Changed
 
+- **Breaking (Rust API):** the empty public `dna::config` and `dna::model`
+  modules are now private; library-produced results (`VariantAnalysisResult`,
+  `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
+  `VariantKind`, `NormalizationPolicy`, `cli::Command`, and `error::Error` are
+  `#[non_exhaustive]`.
+- CI documentation now matches the workflows: CodeQL, fuzzing, MSRV, release
+  build, and RustSec audit run on `main` and on schedules, not on pull requests.
 - Corrected the minimum supported Rust version to match language features used
   by the codebase.
 

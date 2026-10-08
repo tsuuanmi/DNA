@@ -36,7 +36,7 @@ pub(crate) fn insertion(
     reference: &Reference,
     previous_reference: Option<usize>,
     next_reference: Option<usize>,
-    inserted: String,
+    inserted: &str,
     calls: Vec<VariantCallMapping>,
 ) -> Result<Variant> {
     if inserted.is_empty() {
@@ -45,7 +45,7 @@ pub(crate) fn insertion(
     mapping::validate_insertion(&calls)?;
     let anchor = observed_anchor(reference, previous_reference, next_reference)?;
     if let Some(anchor) = anchor {
-        return build_insertion(reference, anchor, &inserted, calls);
+        return build_insertion(reference, anchor, inserted, calls);
     }
 
     let right_anchor = next_reference
@@ -69,7 +69,7 @@ pub(crate) fn deletion(
     previous_reference: Option<usize>,
     first_deleted_reference: usize,
     next_reference: Option<usize>,
-    deleted: String,
+    deleted: &str,
     calls: Vec<VariantCallMapping>,
 ) -> Result<Variant> {
     if deleted.is_empty() {
@@ -78,7 +78,7 @@ pub(crate) fn deletion(
     mapping::validate_deletion(&calls)?;
     let anchor = observed_anchor(reference, previous_reference, Some(first_deleted_reference))?;
     if let Some(anchor) = anchor {
-        return build_deletion(reference, anchor, &deleted, calls);
+        return build_deletion(reference, anchor, deleted, calls);
     }
 
     let right_anchor = next_reference
@@ -232,7 +232,7 @@ mod tests {
             &reference("CAAAAG", ReferenceTopology::Linear),
             Some(4),
             Some(5),
-            "A".into(),
+            "A",
             inserted_calls(),
         )?;
         assert_eq!(variant.position_1based, 5);
@@ -260,7 +260,7 @@ mod tests {
             Some(4),
             5,
             Some(6),
-            "A".into(),
+            "A",
             calls.clone(),
         )?;
         assert_eq!(variant.position_1based, 5);
@@ -277,7 +277,7 @@ mod tests {
             Some(3),
             0,
             Some(1),
-            "A".into(),
+            "A",
             deletion_flanks(),
         )?;
         assert_eq!(variant.position_1based, 4);
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     fn circular_insertion_preserves_observed_seam_anchor() -> Result<()> {
         let reference = reference("AACAA", ReferenceTopology::Circular);
-        let variant = insertion(&reference, Some(4), Some(0), "A".into(), inserted_calls())?;
+        let variant = insertion(&reference, Some(4), Some(0), "A", inserted_calls())?;
         assert_eq!(variant.position_1based, 5);
         assert_eq!(variant.reference, "A");
         assert_eq!(variant.alternate, "AA");
@@ -303,7 +303,7 @@ mod tests {
             Some(1),
             2,
             Some(3),
-            "A".into(),
+            "A",
             deletion_flanks(),
         );
         assert!(matches!(result, Err(Error::Variant(message)) if message.contains("disagrees")));
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn derives_internal_linear_predecessor_without_an_aligned_left_flank() -> Result<()> {
         let reference = reference("TTCG", ReferenceTopology::Linear);
-        let variant = deletion(&reference, None, 2, Some(3), "C".into(), deletion_flanks())?;
+        let variant = deletion(&reference, None, 2, Some(3), "C", deletion_flanks())?;
         assert_eq!(variant.position_1based, 2);
         assert_eq!(variant.reference, "TC");
         assert_eq!(variant.alternate, "T");
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn derives_non_origin_circular_predecessor_without_an_aligned_left_flank() -> Result<()> {
         let reference = reference("ACGT", ReferenceTopology::Circular);
-        let variant = deletion(&reference, None, 2, Some(3), "G".into(), deletion_flanks())?;
+        let variant = deletion(&reference, None, 2, Some(3), "G", deletion_flanks())?;
         assert_eq!(variant.position_1based, 2);
         assert_eq!(variant.reference, "CG");
         assert_eq!(variant.alternate, "C");

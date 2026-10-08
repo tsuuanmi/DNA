@@ -458,9 +458,9 @@ fn best_placements_at_or_above(
     placements.retain(|alignment| alignment.score == best_score);
     placements.sort_unstable_by_key(|alignment| {
         (
-            modulo_length
-                .map(|length| alignment.start_reference % length)
-                .unwrap_or(alignment.start_reference),
+            modulo_length.map_or(alignment.start_reference, |length| {
+                alignment.start_reference % length
+            }),
             alignment.end_reference,
         )
     });
@@ -482,12 +482,11 @@ fn best_placements_at_or_above(
 }
 
 fn same_placement(left: &RawAlignment, right: &RawAlignment, modulo_length: Option<usize>) -> bool {
-    let left_start = modulo_length
-        .map(|length| left.start_reference % length)
-        .unwrap_or(left.start_reference);
-    let right_start = modulo_length
-        .map(|length| right.start_reference % length)
-        .unwrap_or(right.start_reference);
+    let left_start =
+        modulo_length.map_or(left.start_reference, |length| left.start_reference % length);
+    let right_start = modulo_length.map_or(right.start_reference, |length| {
+        right.start_reference % length
+    });
     left_start == right_start
         && left.columns.len() == right.columns.len()
         && left
@@ -778,22 +777,21 @@ mod tests {
     fn require_pruned(
         value: Option<Vec<RawAlignment>>,
         scenario: &str,
-    ) -> crate::error::Result<Vec<RawAlignment>> {
+    ) -> Result<Vec<RawAlignment>> {
         value.ok_or_else(|| {
             crate::error::Error::Alignment(format!("expected exact seeded pruning for {scenario}"))
         })
     }
 
     #[test]
-    fn seeded_pruning_matches_gotoh_for_one_snv() -> crate::error::Result<()> {
+    fn seeded_pruning_matches_gotoh_for_one_snv() -> Result<()> {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = reference_query.to_owned();
         query.replace_range(10..11, "T");
         let reference = format!("TTTT{reference_query}CCCC");
         let query_profiles = profiles(&query);
 
-        let expected =
-            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
+        let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = require_pruned(
             align_pruned(&query, &query_profiles, &reference, &config(), None)?,
             "one-SNV alignment",
@@ -804,14 +802,13 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_matches_gotoh_for_one_insertion() -> crate::error::Result<()> {
+    fn seeded_pruning_matches_gotoh_for_one_insertion() -> Result<()> {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let query = format!("{}T{}", &reference_query[..12], &reference_query[12..]);
         let reference = format!("TTTT{reference_query}CCCC");
         let query_profiles = profiles(&query);
 
-        let expected =
-            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
+        let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = require_pruned(
             align_pruned(&query, &query_profiles, &reference, &config(), None)?,
             "one-insertion alignment",
@@ -822,14 +819,13 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> crate::error::Result<()> {
+    fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> Result<()> {
         let reference_query = "GCCAAAAGTTACGTCAGTACGATCGTAC";
         let query = reference_query.replacen("AAAA", "AAA", 1);
         let reference = format!("TTTT{reference_query}CCCC");
         let query_profiles = profiles(&query);
 
-        let expected =
-            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
+        let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = require_pruned(
             align_pruned(&query, &query_profiles, &reference, &config(), None)?,
             "homopolymer deletion alignment",
@@ -846,15 +842,14 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_preserves_distinct_equal_placements() -> crate::error::Result<()> {
+    fn seeded_pruning_preserves_distinct_equal_placements() -> Result<()> {
         let motif = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = motif.to_owned();
         query.replace_range(10..11, "T");
         let reference = format!("GG{motif}TT{motif}CC");
         let query_profiles = profiles(&query);
 
-        let expected =
-            crate::alignment::gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
+        let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
         let actual = require_pruned(
             align_pruned(&query, &query_profiles, &reference, &config(), None)?,
             "repeated SNV alignment",
@@ -866,7 +861,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_supports_circular_non_origin_windows() -> crate::error::Result<()> {
+    fn seeded_pruning_supports_circular_non_origin_windows() -> Result<()> {
         let reference = "ACGTCAGTACGATCGTACCTGAGTACGATTTTGGGGCCCCAAAATTTT";
         let reference_query = &reference[8..36];
         let mut query = reference_query.to_owned();
@@ -874,7 +869,7 @@ mod tests {
         let working_reference = format!("{reference}{reference}");
         let query_profiles = profiles(&query);
 
-        let expected = crate::alignment::gotoh::align(
+        let expected = gotoh::align(
             &query,
             &query_profiles,
             &working_reference,
@@ -911,7 +906,7 @@ mod tests {
     }
 
     #[test]
-    fn threshold_proof_can_exclude_opposite_orientation() -> crate::error::Result<()> {
+    fn threshold_proof_can_exclude_opposite_orientation() -> Result<()> {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = reference_query.to_owned();
         query.replace_range(10..11, "T");
@@ -939,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_falls_back_for_circular_origin_crossing() -> crate::error::Result<()> {
+    fn seeded_pruning_falls_back_for_circular_origin_crossing() -> Result<()> {
         let reference = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = format!("{}{}", &reference[18..], &reference[..18]);
         query.replace_range(5..6, "A");

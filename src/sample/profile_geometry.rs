@@ -33,7 +33,7 @@ pub(super) fn heterogeneity(
     Some(ProfileHeterogeneity {
         within_profile_impurity,
         between_profile_dispersion,
-        total_profile_heterogeneity,
+        total: total_profile_heterogeneity,
     })
 }
 
@@ -67,7 +67,7 @@ mod tests {
             .ok_or("replicated mixture geometry is missing")?;
         assert_eq!(replicated.within_profile_impurity, 0.5);
         assert_eq!(replicated.between_profile_dispersion, 0.0);
-        assert_eq!(replicated.total_profile_heterogeneity, 0.5);
+        assert_eq!(replicated.total, 0.5);
 
         let pure_a = profile([1.0, 0.0, 0.0, 0.0]);
         let pure_g = profile([0.0, 0.0, 1.0, 0.0]);
@@ -75,7 +75,7 @@ mod tests {
             .ok_or("inter-read disagreement geometry is missing")?;
         assert_eq!(disagreement.within_profile_impurity, 0.0);
         assert_eq!(disagreement.between_profile_dispersion, 0.5);
-        assert_eq!(disagreement.total_profile_heterogeneity, 0.5);
+        assert_eq!(disagreement.total, 0.5);
         Ok(())
     }
 

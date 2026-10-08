@@ -129,12 +129,12 @@ fn geometry_is_valid(geometry: Option<ProfileHeterogeneity>) -> bool {
         [
             geometry.within_profile_impurity,
             geometry.between_profile_dispersion,
-            geometry.total_profile_heterogeneity,
+            geometry.total,
         ]
         .into_iter()
         .all(|value| value.is_finite() && (0.0..=0.75 + EPSILON).contains(&value))
             && (geometry.within_profile_impurity + geometry.between_profile_dispersion
-                - geometry.total_profile_heterogeneity)
+                - geometry.total)
                 .abs()
                 <= EPSILON
     })

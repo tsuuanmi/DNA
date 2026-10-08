@@ -22,3 +22,7 @@ notation rendering, sample reconciliation, or NGS behavior.
 
 Nomenclature must never reinterpret sequencing signal, change caller
 eligibility, manufacture phase, or change the represented biological haplotype.
+
+See [variant lifecycle](../../docs/architecture/variant-lifecycle.md),
+[ADR-0060](../../docs/decisions/adr/0060-separate-variant-canonicalization-nomenclature.md),
+and the [variant-nomenclature design](../../docs/design/variant-nomenclature.md).

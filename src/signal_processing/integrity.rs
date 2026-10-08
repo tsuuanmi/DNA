@@ -74,7 +74,8 @@ mod tests {
 
     use super::*;
 
-    fn locus(index: usize, total: f64) -> LocusEvidence {
+    fn locus(index: usize, height: i32) -> LocusEvidence {
+        let total = f64::from(height);
         LocusEvidence {
             call_index_0based: index,
             locus_position_0based: index * 4 + 2,
@@ -85,7 +86,7 @@ mod tests {
             context_sample_start_0based: 0,
             context_sample_end_0based_exclusive: 12,
             event_position_0based: index * 4 + 2,
-            channel_heights: [total as i32, 0, 0, 0],
+            channel_heights: [height, 0, 0, 0],
             channel_baselines: [0.0; 4],
             channel_noise_sigmas: [1.0; 4],
             corrected_amplitudes: [total, 0.0, 0.0, 0.0],
@@ -107,7 +108,7 @@ mod tests {
             },
         };
 
-        let integrity = assess(&trace, &[locus(0, 10.0), locus(1, 20.0), locus(2, 40.0)])?;
+        let integrity = assess(&trace, &[locus(0, 10), locus(1, 20), locus(2, 40)])?;
         assert_eq!(integrity.locus_count, 3);
         assert_eq!(integrity.vendor_primary_count, Some(4));
         assert_eq!(integrity.vendor_quality_count, Some(2));
@@ -132,7 +133,7 @@ mod tests {
             vendor: VendorEvidence::default(),
         };
 
-        let integrity = assess(&trace, &[locus(0, 10.0), locus(1, 10.0), locus(2, 1000.0)])?;
+        let integrity = assess(&trace, &[locus(0, 10), locus(1, 10), locus(2, 1000)])?;
         assert_eq!(integrity.clipped_channel_samples, 2);
         assert_eq!(integrity.maximum_to_median_event_signal_ratio, Some(100.0));
         Ok(())

@@ -1,6 +1,11 @@
 //! Deterministic relative quality-score conversion.
 
 /// Converts non-negative penalties into an uncalibrated bounded score.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the floored score lies in [0, maximum] because the fraction is clamped to [0, 1]"
+)]
 pub(crate) fn relative_scores(penalties: &[i32], maximum: u8) -> Vec<u8> {
     let max_penalty = penalties.iter().copied().max().unwrap_or(0);
     if max_penalty <= 0 {

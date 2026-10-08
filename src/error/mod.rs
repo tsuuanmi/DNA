@@ -7,26 +7,35 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A failure in a validated analysis stage.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// A required path is absent, invalid, or has the wrong filesystem type.
     #[error("invalid {kind} path {path}: {reason}")]
     Path {
+        /// Role of the path, for example `"AB1"` or `"output"`.
         kind: &'static str,
+        /// The rejected path.
         path: PathBuf,
+        /// Why the path was rejected.
         reason: String,
     },
     /// A file could not be read.
     #[error("failed to read {kind} file {path}: {source}")]
     Read {
+        /// Role of the file, for example `"AB1"` or `"configuration"`.
         kind: &'static str,
+        /// The unreadable file.
         path: PathBuf,
+        /// Underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
     /// Configuration bytes were not valid TOML.
     #[error("invalid configuration {path}: {source}")]
     ConfigParse {
+        /// The configuration file.
         path: PathBuf,
+        /// Underlying TOML parse failure.
         #[source]
         source: toml::de::Error,
     },
@@ -72,20 +81,26 @@ pub enum Error {
     /// An operation failed and its terminal error record also could not be persisted.
     #[error("{operation}; additionally failed to persist the operation error log: {logging}")]
     OperationAndLog {
+        /// The original operation failure.
         operation: Box<Error>,
+        /// The failure to record it in the operation log.
         logging: Box<Error>,
     },
     /// A log directory or append-only log file operation failed.
     #[error("failed to access log path {path}: {source}")]
     Log {
+        /// The log directory or file.
         path: PathBuf,
+        /// Underlying I/O failure.
         #[source]
         source: std::io::Error,
     },
     /// An output file operation failed.
     #[error("failed to publish output {path}: {source}")]
     Output {
+        /// The output or temporary file.
         path: PathBuf,
+        /// Underlying I/O failure.
         #[source]
         source: std::io::Error,
     },

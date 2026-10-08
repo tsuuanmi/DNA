@@ -1,3 +1,5 @@
+//! CLI contract for single-read reference analysis: JSON output, logs, and failures.
+
 mod support;
 
 use std::collections::BTreeSet;
@@ -35,7 +37,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
         write_abif(&trace, QUERY)?;
         write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
         write_config(&config, "linear")?;
-        run(&trace, &reference, &config, directory)?
+        run(&trace, &reference, &config, directory)
             .success()
             .stdout(predicate::str::is_empty())
             .stderr(predicate::str::is_empty());
@@ -167,7 +169,7 @@ fn reorders_noncanonical_fwo_channels() -> Result<(), Box<dyn std::error::Error>
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["read"]["call_count"], QUERY.len());
     assert_eq!(value["alignment"]["identity"], 1.0);
@@ -185,7 +187,7 @@ fn ignores_unused_p2ba_content() -> Result<(), Box<dyn std::error::Error>> {
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     Ok(())
 }
 
@@ -201,7 +203,7 @@ fn rejects_non_increasing_ploc_without_output() -> Result<(), Box<dyn std::error
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?
+    run(&trace, &reference, &config, directory.path())
         .failure()
         .stderr(predicate::str::contains("strictly increasing"));
     assert!(!analysis_output_path(directory.path(), &trace).exists());
@@ -220,7 +222,7 @@ fn rejects_out_of_range_ploc_without_output() -> Result<(), Box<dyn std::error::
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?
+    run(&trace, &reference, &config, directory.path())
         .failure()
         .stderr(predicate::str::contains("outside channel samples"));
     assert!(!analysis_output_path(directory.path(), &trace).exists());
@@ -238,7 +240,7 @@ fn preserves_vendor_length_mismatch_as_integrity_evidence() -> Result<(), Box<dy
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["read"]["call_count"], QUERY.len());
     assert_eq!(
@@ -266,7 +268,7 @@ fn reports_exact_signal_clipping_without_reclassifying_the_read()
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(
         value["signal_quality"]["integrity"]["clipped_channel_samples"],
@@ -295,7 +297,7 @@ fn processes_only_valid_ploc_loci_when_vendor_series_are_longer()
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["read"]["call_count"], QUERY.len() - 1);
     assert_eq!(
@@ -333,7 +335,7 @@ fn reports_snv_with_peaks_and_quality() -> Result<(), Box<dyn std::error::Error>
     )?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     let variants = value["variants"]
         .as_array()
@@ -347,7 +349,7 @@ fn reports_snv_with_peaks_and_quality() -> Result<(), Box<dyn std::error::Error>
     assert_eq!(variant["kind"], "SNV");
     assert_eq!(variant["position"], 15);
     let call = &variant["calls"][0];
-    assert_call_evidence(call)?;
+    assert_call_evidence(call);
     assert_eq!(call["role"], "supporting");
     assert_eq!(call["base"], variant["alternate"]);
     assert!(call["quality"].is_number());
@@ -385,7 +387,7 @@ fn excludes_mixed_supporting_snv_without_erasing_the_observation()
         config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
     )?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["variants"].as_array().map(Vec::len), Some(0));
     assert_eq!(value["warnings"]["excluded_variant_candidates"], 1);
@@ -420,7 +422,7 @@ fn annotates_noisy_region_without_filtering_supported_snv() -> Result<(), Box<dy
                 &format!("minimum_primary_snr={threshold}"),
             ),
         )?;
-        run(&trace, &reference, &config, directory.path())?.success();
+        run(&trace, &reference, &config, directory.path()).success();
         results.push(read_result(directory.path(), &trace)?);
     }
 
@@ -467,7 +469,7 @@ fn reports_extracted_snv_at_peak_floor() -> Result<(), Box<dyn std::error::Error
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["variants"].as_array().map(Vec::len), Some(1));
     assert_eq!(value["variants"][0]["kind"], "SNV");
@@ -489,7 +491,7 @@ fn filters_extracted_snv_below_peak_floor() -> Result<(), Box<dyn std::error::Er
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["variants"].as_array().map(Vec::len), Some(0));
     assert_eq!(value["warnings"]["excluded_variant_candidates"], 1);
@@ -525,7 +527,7 @@ fn filters_by_normalized_anchor_region() -> Result<(), Box<dyn std::error::Error
         fs::read_to_string(&config)?.replace("regions=[[1, 50000]]", "regions=[[16, 16]]");
     fs::write(&config, restricted)?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["variants"].as_array().map(Vec::len), Some(0));
     assert_eq!(value["warnings"]["excluded_variant_candidates"], 1);
@@ -548,7 +550,7 @@ fn maps_reverse_snv_to_original_call_and_ploc() -> Result<(), Box<dyn std::error
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["alignment"]["orientation"], "reverse");
     let variant = &value["variants"][0];
@@ -556,7 +558,7 @@ fn maps_reverse_snv_to_original_call_and_ploc() -> Result<(), Box<dyn std::error
     assert_eq!(variant["reference"], "G");
     assert_eq!(variant["alternate"], "T");
     let call = &variant["calls"][0];
-    assert_call_evidence(call)?;
+    assert_call_evidence(call);
     assert_eq!(call["base"], "T");
     assert_eq!(call["peaks"]["T"], 1000);
     Ok(())
@@ -576,7 +578,7 @@ fn reports_insertion_support_and_flanks() -> Result<(), Box<dyn std::error::Erro
     write_reference(&reference, &format!("TTTT{reference_query}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     let variant = &value["variants"][0];
     assert_eq!(variant["kind"], "INS");
@@ -590,7 +592,7 @@ fn reports_insertion_support_and_flanks() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(calls[1]["role"], "flanking");
     assert_eq!(calls[2]["role"], "flanking");
     for call in calls {
-        assert_call_evidence(call)?;
+        assert_call_evidence(call);
     }
     Ok(())
 }
@@ -609,7 +611,7 @@ fn filters_multibase_insertion_when_any_inserted_peak_is_low()
     write_reference(&reference, &format!("TTTT{reference_query}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["variants"].as_array().map(Vec::len), Some(0));
     assert_eq!(value["warnings"]["excluded_variant_candidates"], 1);
@@ -630,7 +632,7 @@ fn reports_deletion_with_flanks_only() -> Result<(), Box<dyn std::error::Error>>
     write_reference(&reference, &format!("TTTT{reference_query}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     let variant = &value["variants"][0];
     assert_eq!(variant["kind"], "DEL");
@@ -641,7 +643,7 @@ fn reports_deletion_with_flanks_only() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(calls.len(), 2);
     assert!(calls.iter().all(|item| item["role"] == "flanking"));
     for call in calls {
-        assert_call_evidence(call)?;
+        assert_call_evidence(call);
     }
     Ok(())
 }
@@ -657,7 +659,7 @@ fn represents_circular_origin_wrap() -> Result<(), Box<dyn std::error::Error>> {
     write_reference(&reference, QUERY)?;
     write_config(&config, "circular")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["alignment"]["wraps_origin"], true);
     assert_eq!(
@@ -686,7 +688,7 @@ fn maps_circular_origin_snv_to_original_call_and_ploc() -> Result<(), Box<dyn st
     write_reference(&reference, QUERY)?;
     write_config(&config, "circular")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     assert_eq!(value["alignment"]["wraps_origin"], true);
     let variant = &value["variants"][0];
@@ -694,7 +696,7 @@ fn maps_circular_origin_snv_to_original_call_and_ploc() -> Result<(), Box<dyn st
     assert_eq!(variant["reference"], "G");
     assert_eq!(variant["alternate"], "A");
     let call = &variant["calls"][0];
-    assert_call_evidence(call)?;
+    assert_call_evidence(call);
     assert_eq!(call["base"], "A");
     Ok(())
 }
@@ -713,10 +715,10 @@ fn accepts_iupac_vendor_calls_and_char_pcon() -> Result<(), Box<dyn std::error::
     write_reference(&reference, &format!("TTTT{reference_query}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?.success();
+    run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
     let call = &value["variants"][0]["calls"][0];
-    assert_call_evidence(call)?;
+    assert_call_evidence(call);
     assert!(call["quality"].is_number());
     assert!(call.get("relative_quality").is_none());
     Ok(())
@@ -732,7 +734,7 @@ fn malformed_abif_leaves_no_output() -> Result<(), Box<dyn std::error::Error>> {
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
-    run(&trace, &reference, &config, directory.path())?
+    run(&trace, &reference, &config, directory.path())
         .failure()
         .stderr(predicate::str::contains("invalid ABIF input"));
     assert!(!analysis_output_path(directory.path(), &trace).exists());
@@ -756,7 +758,7 @@ fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Err
     fs::create_dir_all(output.parent().ok_or("output has no parent")?)?;
     fs::write(&output, b"owned")?;
 
-    run(&trace, &reference, &config, directory.path())?
+    run(&trace, &reference, &config, directory.path())
         .failure()
         .stderr(predicate::str::contains("target already exists"));
     assert_eq!(fs::read(output)?, b"owned");
@@ -797,11 +799,10 @@ fn reverse_complement(sequence: &str) -> String {
         .collect()
 }
 
-fn assert_call_evidence(call: &Value) -> Result<(), Box<dyn std::error::Error>> {
+fn assert_call_evidence(call: &Value) {
     assert_object_keys(call, &["role", "base", "peaks", "quality"]);
     assert_object_keys(&call["peaks"], &["A", "C", "G", "T"]);
     assert!(call["quality"].is_number());
-    Ok(())
 }
 
 fn run(
@@ -809,14 +810,14 @@ fn run(
     reference: &Path,
     config: &Path,
     workdir: &Path,
-) -> Result<assert_cmd::assert::Assert, Box<dyn std::error::Error>> {
+) -> assert_cmd::assert::Assert {
     let mut command = Command::new(dna_binary());
-    Ok(command
+    command
         .current_dir(workdir)
         .env("DNA_CONFIG", config)
         .arg("analyze")
         .arg(trace)
         .arg("--reference")
         .arg(reference)
-        .assert())
+        .assert()
 }

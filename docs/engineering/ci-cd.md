@@ -8,6 +8,11 @@ All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependa
 
 ## Pull-request lane
 
+Pull requests run only the fast gates needed to merge safely. Slower checks that
+cannot regress through an ordinary source change (release build, RustSec audit,
+MSRV, CodeQL, fuzzing, release packaging) run on `main`, on a schedule, or on
+tags, as stated in each section below.
+
 ### GitHub Actions policy
 
 Workflow changes are checked three ways:
@@ -18,7 +23,6 @@ Workflow changes are checked three ways:
 
 ### Rust quality
 
-
 The release toolchain is pinned by `rust-toolchain.toml`. Every pull request runs:
 
 ```bash
@@ -28,14 +32,15 @@ cargo check --locked --all-targets --all-features
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
-cargo build --locked --release
 ```
+
+Pushes to `main` additionally run `cargo build --locked --release`.
 
 `cargo shear --deny-warnings` rejects unused/misplaced dependencies and unlinked Rust source files. `--locked` prevents CI from silently changing dependency resolution. Rustdoc warnings are release-blocking alongside compiler and Clippy warnings.
 
 ### Minimum supported Rust version
 
-`Cargo.toml` declares the MSRV. CI independently installs that exact compiler and verifies:
+`Cargo.toml` declares the MSRV. On pushes to `main`, CI independently installs that exact compiler and verifies:
 
 ```bash
 cargo +1.88.0 check --locked --all-targets
@@ -48,20 +53,20 @@ The MSRV and release toolchain are intentionally separate: the former is a compa
 Dependency verification has three layers:
 
 1. `cargo-deny` checks advisories, yanked crates, licenses, trusted sources, wildcard requirements, banned/replacement crates, and duplicate-version policy.
-2. pinned `cargo-audit 0.22.2` independently checks the committed `Cargo.lock` against RustSec.
+2. pinned `cargo-audit 0.22.2` independently checks the committed `Cargo.lock` against RustSec on pushes to `main`.
 3. GitHub dependency review rejects pull requests that introduce dependencies with moderate-or-higher known vulnerabilities.
 
 `deny.toml` is the authoritative source/license/bans policy. Exceptions must include a concrete reason and review date rather than silently weakening the global policy.
 
 ### Static security analysis
 
-CodeQL analyzes Rust on pull requests, `main`, and a weekly schedule with the `security-extended` query suite. Results are published to GitHub code scanning.
+CodeQL analyzes Rust on pushes to `main` and on a weekly schedule with the `security-extended` query suite. Results are published to GitHub code scanning.
 
 ### Adversarial parser validation
 
 The `ABIF fuzz smoke` job exercises the bounds-checked ABIF directory parser with `cargo-fuzz`:
 
-- 30-second campaigns on pull requests and `main`;
+- 30-second campaigns on pushes to `main`;
 - longer scheduled campaigns;
 - pinned nightly toolchain and cargo-fuzz version;
 - retained minimized regressions when a defect is found.
@@ -90,17 +95,12 @@ The Rust source-policy gate complements compiler/Clippy checks by rejecting expl
 
 The `CI success` job waits for every mandatory job in `.github/workflows/ci.yml` and fails unless all applicable gates succeeded. Branch rules should require this aggregate check instead of duplicating every internal job name, reducing protection drift as CI evolves.
 
-### Release packaging smoke
+### Release packaging
 
-Pull requests that change release-relevant Rust, workflow, configuration, or reference files run the `Release package` job from `.github/workflows/release.yml`. It exercises the actual delivery path before a tag exists:
-
-- builds the explicit supported target with `cargo-auditable`;
-- strips while preserving `.dep-v0`, then audits the packaged binary;
-- verifies the bundled authoritative configuration and rCRS reference;
-- generates the SPDX SBOM;
-- creates and verifies the release archive and checksums.
-
-Because `Release package` is a required branch check, its workflow must run on every pull request; workflow-level path filters would leave the required check pending when skipped. The pull-request smoke job has only `contents: read`. OIDC, attestation, and release-write permissions exist only in downstream tag-only jobs that do not compile source code.
+`.github/workflows/release.yml` runs only for `v*` tags; see the
+[release / delivery lane](#release--delivery-lane). Its packaging job has only
+`contents: read`. OIDC, attestation, and release-write permissions exist only in
+downstream jobs that do not compile source code.
 
 ## Scheduled security posture
 

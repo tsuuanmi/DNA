@@ -10,7 +10,7 @@ use crate::model::reference::ReferenceTopology;
 
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
-pub struct Config {
+pub(crate) struct Config {
     pub(crate) reference: ReferenceConfig,
     pub(crate) basecalling: BasecallingConfig,
     pub(crate) signal_processing: DNAProcessingConfig,
@@ -24,19 +24,19 @@ pub struct Config {
 
 /// Reference interpretation settings.
 #[derive(Debug, Clone)]
-pub struct ReferenceConfig {
+pub(crate) struct ReferenceConfig {
     pub(crate) topology: ReferenceTopology,
 }
 
 /// DNA re-calling settings.
 #[derive(Debug, Clone)]
-pub struct BasecallingConfig {
+pub(crate) struct BasecallingConfig {
     pub(crate) secondary_peak_ratio: f64,
 }
 
 /// Observation-only rolling signal-quality settings.
 #[derive(Debug, Clone)]
-pub struct DNAProcessingConfig {
+pub(crate) struct DNAProcessingConfig {
     pub(crate) window_size_bases: usize,
     pub(crate) minimum_primary_snr: f64,
     pub(crate) minimum_noisy_windows: usize,
@@ -44,7 +44,7 @@ pub struct DNAProcessingConfig {
 
 /// Relative score and trimming settings.
 #[derive(Debug, Clone)]
-pub struct QualityControlConfig {
+pub(crate) struct QualityControlConfig {
     pub(crate) trim_window_size: usize,
     pub(crate) best_section_fraction: f64,
     pub(crate) max_relative_quality_score: u8,
@@ -54,7 +54,7 @@ pub struct QualityControlConfig {
 
 /// Pairwise alignment settings.
 #[derive(Debug, Clone)]
-pub struct AlignmentConfig {
+pub(crate) struct AlignmentConfig {
     pub(crate) match_score: i32,
     pub(crate) mismatch_score: i32,
     pub(crate) ambiguous_score: i32,
@@ -66,14 +66,14 @@ pub struct AlignmentConfig {
 
 /// Cross-read overlap admission settings used before sample consensus.
 #[derive(Debug, Clone)]
-pub struct SampleReconciliationConfig {
+pub(crate) struct SampleReconciliationConfig {
     pub(crate) minimum_comparable_bases: usize,
     pub(crate) minimum_overlap_agreement: f64,
 }
 
 /// Primary-difference calling settings.
 #[derive(Debug, Clone)]
-pub struct VariantCallingConfig {
+pub(crate) struct VariantCallingConfig {
     pub(crate) max_indel_length: usize,
     pub(crate) minimum_peak_height: i32,
     pub(crate) relative_quality_threshold: u8,

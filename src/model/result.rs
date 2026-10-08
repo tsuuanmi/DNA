@@ -8,7 +8,7 @@ use crate::model::variant::{VariantCallRole, VariantKind};
 
 /// Successful compact analysis document.
 #[derive(Debug, Serialize)]
-pub struct AnalysisResult {
+pub(crate) struct AnalysisResult {
     pub(crate) schema_version: &'static str,
     pub(crate) provenance: ProvenanceResult,
     pub(crate) read: ReadResult,
@@ -20,7 +20,7 @@ pub struct AnalysisResult {
 
 /// Deterministic input identities retained for an analysis.
 #[derive(Debug, Serialize)]
-pub struct ProvenanceResult {
+pub(crate) struct ProvenanceResult {
     pub(crate) input: InputResult,
     pub(crate) reference: ReferenceResult,
     pub(crate) configuration_sha256: String,
@@ -28,13 +28,13 @@ pub struct ProvenanceResult {
 
 /// Input trace identity without an identifying filename or decoded bulk data.
 #[derive(Debug, Serialize)]
-pub struct InputResult {
+pub(crate) struct InputResult {
     pub(crate) sha256: String,
 }
 
 /// Reference identity used by the selected alignment.
 #[derive(Debug, Serialize)]
-pub struct ReferenceResult {
+pub(crate) struct ReferenceResult {
     pub(crate) name: String,
     pub(crate) topology: ReferenceTopology,
     pub(crate) sha256: String,
@@ -42,21 +42,21 @@ pub struct ReferenceResult {
 
 /// Call count and retained interval without complete sequence strings.
 #[derive(Debug, Serialize)]
-pub struct ReadResult {
+pub(crate) struct ReadResult {
     pub(crate) call_count: usize,
     pub(crate) trim: IntervalResult,
 }
 
 /// A shared 0-based half-open result interval.
 #[derive(Debug, Serialize)]
-pub struct IntervalResult {
+pub(crate) struct IntervalResult {
     pub(crate) start: usize,
     pub(crate) end: usize,
 }
 
 /// Compact observation-only integrity evidence shared by read result contracts.
 #[derive(Debug, Clone, Serialize)]
-pub struct TraceIntegrityResult {
+pub(crate) struct TraceIntegrityResult {
     pub(crate) ploc_count: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) vendor_primary_count: Option<usize>,
@@ -75,14 +75,14 @@ pub struct TraceIntegrityResult {
 
 /// Shared merged observation-only signal-quality and trace-integrity evidence.
 #[derive(Debug, Serialize)]
-pub struct DNAQualityResult {
+pub(crate) struct DNAQualityResult {
     pub(crate) integrity: TraceIntegrityResult,
     pub(crate) noisy_regions: Vec<NoisyRegionResult>,
 }
 
 /// A union of overlapping or adjacent candidate-noisy windows.
 #[derive(Debug, Serialize)]
-pub struct NoisyRegionResult {
+pub(crate) struct NoisyRegionResult {
     pub(crate) calls: IntervalResult,
     pub(crate) samples: IntervalResult,
     pub(crate) minimum_primary_snr: f64,
@@ -90,7 +90,7 @@ pub struct NoisyRegionResult {
 
 /// Concise summary of the selected alignment.
 #[derive(Debug, Serialize)]
-pub struct AlignmentResult {
+pub(crate) struct AlignmentResult {
     pub(crate) orientation: Orientation,
     pub(crate) callable_bases: usize,
     pub(crate) identity: f64,
@@ -102,7 +102,7 @@ pub struct AlignmentResult {
 
 /// Compact normalized variant with mapped trace calls.
 #[derive(Debug, Serialize)]
-pub struct VariantResult {
+pub(crate) struct VariantResult {
     pub(crate) position: usize,
     pub(crate) reference: String,
     pub(crate) alternate: String,
@@ -112,7 +112,7 @@ pub struct VariantResult {
 
 /// Co-located reference-oriented A/C/G/T channel heights.
 #[derive(Debug, Clone, Copy, Serialize)]
-pub struct PeakHeightsResult {
+pub(crate) struct PeakHeightsResult {
     #[serde(rename = "A")]
     pub(crate) a: i32,
     #[serde(rename = "C")]
@@ -136,7 +136,7 @@ impl From<[i32; 4]> for PeakHeightsResult {
 
 /// Reviewer-facing signal evidence for one variant-associated call.
 #[derive(Debug, Serialize)]
-pub struct VariantCallResult {
+pub(crate) struct VariantCallResult {
     pub(crate) role: VariantCallRole,
     pub(crate) base: char,
     pub(crate) peaks: PeakHeightsResult,
@@ -146,7 +146,7 @@ pub struct VariantCallResult {
 
 /// Public non-fatal analysis counts.
 #[derive(Debug, Serialize)]
-pub struct WarningSummaryResult {
+pub(crate) struct WarningSummaryResult {
     pub(crate) unresolved_primary_calls: usize,
     pub(crate) multi_channel_unresolved_calls: usize,
     pub(crate) ploc_vendor_length_mismatches: usize,

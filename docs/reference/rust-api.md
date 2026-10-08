@@ -3,6 +3,25 @@
 This document defines the current stable Rust library boundary exposed by the
 `dna` crate.
 
+## Crate surface
+
+The public modules are `cli`, `error`, `variant_analysis`,
+`variant_normalization`, and `variant_nomenclature`, plus the CLI dispatcher
+`dna::run(cli::Cli) -> dna::error::Result<()>`. All other modules, including
+configuration, internal models, scientific stages, and reporting, are private
+implementation detail.
+
+Types follow one evolution rule:
+
+- results that only the library produces (`VariantAnalysisResult`,
+  `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
+  `VariantKind`, `NormalizationPolicy`, `cli::Command`, and `error::Error` are
+  `#[non_exhaustive]`, so fields and variants can be added without a breaking
+  change; callers read their fields and match enums with a wildcard arm;
+- input types that callers construct (`CalledVariantSet`, `Variant`,
+  `ReferenceIdentity`, `ReferenceSegment`, `NomenclatureInput`) keep exhaustive
+  public fields.
+
 ## Variant Analysis
 
 The first capability-oriented API is the Sanger adapter:
@@ -34,6 +53,7 @@ operational log, serialize JSON, or publish a file.
 ### VariantAnalysisResult
 
 ```rust
+#[non_exhaustive]
 pub struct VariantAnalysisResult {
     pub input_sha256: String,
     pub reference: ReferenceIdentity,
@@ -78,6 +98,7 @@ pub struct Variant {
     pub kind: VariantKind,
 }
 
+#[non_exhaustive]
 pub enum VariantKind {
     Snv,
     Ins,
@@ -128,6 +149,7 @@ dna::variant_normalization::normalize(...)
 The initial policy is:
 
 ```rust
+#[non_exhaustive]
 pub enum NormalizationPolicy {
     MtDnaRightAligned,
 }
@@ -136,6 +158,7 @@ pub enum NormalizationPolicy {
 The result preserves both source and selected representations:
 
 ```rust
+#[non_exhaustive]
 pub struct VariantNormalizationResult {
     pub reference: ReferenceIdentity,
     pub source_variants: Vec<Variant>,
@@ -190,6 +213,7 @@ The result preserves every prior representation and adds the selected target
 representation:
 
 ```rust
+#[non_exhaustive]
 pub struct VariantNomenclatureResult {
     pub reference: ReferenceIdentity,
     pub source_variants: Vec<Variant>,

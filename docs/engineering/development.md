@@ -5,7 +5,7 @@
 Create the locked Python tooling environment:
 
 ```bash
-uv sync --locked
+uv sync --project tools/python --locked
 ```
 
 Rust dependencies are locked by `Cargo.lock`. Use the repository toolchain and configuration rather than ad-hoc local substitutions.

@@ -36,12 +36,14 @@ When a second independent maintainer is available, raise the policy to:
 - Code Owner review for high-risk surfaces;
 - dismiss stale approvals after material new pushes.
 
-Required pull-request status checks:
+Required pull-request status check:
 
-- `CI success` — aggregate gate for workflow security, Rust quality, dependency policy/review, MSRV, and repository/Python policy;
-- `CodeQL Rust`;
-- `ABIF fuzz smoke`;
-- `Release package`.
+- `CI success` — aggregate gate for workflow security, Rust quality, dependency policy/review, and repository/Python policy.
+
+`CodeQL Rust`, `ABIF fuzz smoke`, the MSRV check, the release build, and the
+RustSec audit run on pushes to `main` and on schedules rather than on pull
+requests (see [CI/CD](../engineering/ci-cd.md)); a failure there blocks the next
+release until fixed. `Release package` runs only on `v*` tags.
 
 The aggregate job must remain dependent on every mandatory job in `.github/workflows/ci.yml`; adding a new mandatory CI job requires adding it to `CI success` in the same change.
 

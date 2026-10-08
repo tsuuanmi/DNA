@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub fn write_abif(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn write_abif(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error::Error>> {
     write_abif_fixture(
         path,
         sequence,
@@ -16,7 +16,7 @@ pub fn write_abif(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error:
     )
 }
 
-pub fn write_abif_with_peak_heights(
+pub(crate) fn write_abif_with_peak_heights(
     path: &Path,
     sequence: &str,
     peak_heights: Vec<i16>,
@@ -33,7 +33,7 @@ pub fn write_abif_with_peak_heights(
     )
 }
 
-pub fn write_abif_with_vendor(
+pub(crate) fn write_abif_with_vendor(
     path: &Path,
     sequence: &str,
     vendor_primary: &str,
@@ -54,7 +54,7 @@ pub fn write_abif_with_vendor(
     )
 }
 
-pub fn write_abif_with_channel_order(
+pub(crate) fn write_abif_with_channel_order(
     path: &Path,
     sequence: &str,
     channel_order: [u8; 4],
@@ -71,7 +71,7 @@ pub fn write_abif_with_channel_order(
     )
 }
 
-pub fn write_abif_with_ploc(
+pub(crate) fn write_abif_with_ploc(
     path: &Path,
     sequence: &str,
     ploc: Vec<usize>,
@@ -88,7 +88,7 @@ pub fn write_abif_with_ploc(
     )
 }
 
-pub fn write_abif_with_unused_p2ba(
+pub(crate) fn write_abif_with_unused_p2ba(
     path: &Path,
     sequence: &str,
     p2ba: Vec<u8>,
@@ -105,7 +105,7 @@ pub fn write_abif_with_unused_p2ba(
     )
 }
 
-pub fn write_abif_with_short_pbas(
+pub(crate) fn write_abif_with_short_pbas(
     path: &Path,
     sequence: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -138,7 +138,7 @@ fn write_abif_fixture(
     )
 }
 
-pub fn write_abif_with_secondary_signal(
+pub(crate) fn write_abif_with_secondary_signal(
     path: &Path,
     sequence: &str,
     call_index: usize,
@@ -159,7 +159,7 @@ pub fn write_abif_with_secondary_signal(
     )
 }
 
-pub fn write_abif_with_background_noise(
+pub(crate) fn write_abif_with_background_noise(
     path: &Path,
     sequence: &str,
     noisy_calls: std::ops::Range<usize>,
@@ -246,7 +246,13 @@ fn write_abif_fixture_options(
         for value in channel {
             payload.extend_from_slice(&value.to_be_bytes());
         }
-        records.push(Record::new(*b"DATA", 9 + index as u32, 4, 2, payload));
+        records.push(Record::new(
+            *b"DATA",
+            9 + u32::try_from(index)?,
+            4,
+            2,
+            payload,
+        ));
     }
     records.push(Record::new(*b"FWO_", 1, 2, 1, channel_order.to_vec()));
     let ploc_locations = ploc_override.unwrap_or(signal_locations);
@@ -324,12 +330,15 @@ fn channel_index(base: u8) -> Result<usize, Box<dyn std::error::Error>> {
     }
 }
 
-pub fn write_reference(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn write_reference(
+    path: &Path,
+    sequence: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     fs::write(path, format!(">synthetic\n{sequence}\n"))?;
     Ok(())
 }
 
-pub fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         path,
         format!(
@@ -339,13 +348,13 @@ pub fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-pub fn analysis_output_path(workdir: &Path, trace: &Path) -> PathBuf {
+pub(crate) fn analysis_output_path(workdir: &Path, trace: &Path) -> PathBuf {
     workdir
         .join("results")
         .join(format!("{}.json", trace_stem(trace)))
 }
 
-pub fn basecall_output_path(workdir: &Path, trace: &Path) -> PathBuf {
+pub(crate) fn basecall_output_path(workdir: &Path, trace: &Path) -> PathBuf {
     workdir
         .join("results")
         .join(format!("{}.basecalls.json", trace_stem(trace)))

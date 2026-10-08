@@ -16,6 +16,7 @@ use crate::variant_representation::{apply_edits, render_edits, variants_to_edits
 
 /// Explicit post-calling normalization policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum NormalizationPolicy {
     /// Human-mtDNA 3'/right-most sequence-equivalent indel placement.
     ///
@@ -26,6 +27,7 @@ pub enum NormalizationPolicy {
 
 /// Source and normalized representations of one unchanged called haplotype.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct VariantNormalizationResult {
     /// Identity of the reference used to reconstruct and normalize this haplotype.
     pub reference: ReferenceIdentity,
@@ -42,6 +44,12 @@ pub struct VariantNormalizationResult {
 /// The supplied reference must have the same name and sequence identity carried
 /// by the called-variant set. Normalization never changes the reconstructed
 /// haplotype and preserves the original source variants in the result.
+///
+/// # Errors
+///
+/// Returns [`Error`] when the reference cannot be loaded,
+/// does not match the called-variant reference identity, or a called variant
+/// is inconsistent with the reference sequence.
 pub fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,

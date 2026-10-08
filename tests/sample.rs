@@ -1,3 +1,5 @@
+//! CLI contract for multi-read sample evidence aggregation.
+
 mod support;
 
 use std::fs;
@@ -44,7 +46,7 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
         } else {
             [&forward, &reverse]
         };
-        run(&traces, &reference, &config, directory)?
+        run(&traces, &reference, &config, directory)
             .success()
             .stdout(predicate::str::is_empty())
             .stderr(predicate::str::is_empty());
@@ -289,7 +291,7 @@ fn run(
     reference: &Path,
     config: &Path,
     workdir: &Path,
-) -> Result<assert_cmd::assert::Assert, Box<dyn std::error::Error>> {
+) -> assert_cmd::assert::Assert {
     let mut command = Command::new(dna_binary());
     command
         .current_dir(workdir)
@@ -299,7 +301,7 @@ fn run(
     for trace in traces {
         command.arg(trace);
     }
-    Ok(command.arg("--reference").arg(reference).assert())
+    command.arg("--reference").arg(reference).assert()
 }
 
 fn sample_output_path(workdir: &Path) -> PathBuf {

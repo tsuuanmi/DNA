@@ -118,7 +118,7 @@ pub(crate) struct SampleLocusObservation {
 pub(crate) struct ProfileHeterogeneity {
     pub(crate) within_profile_impurity: f64,
     pub(crate) between_profile_dispersion: f64,
-    pub(crate) total_profile_heterogeneity: f64,
+    pub(crate) total: f64,
 }
 
 /// Unweighted eligible nucleotide-profile support retained at one differential locus.

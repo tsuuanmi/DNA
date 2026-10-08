@@ -50,7 +50,7 @@ pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
                 acc.0 + 1,
                 acc.1 + geometry.within_profile_impurity,
                 acc.2 + geometry.between_profile_dispersion,
-                acc.3 + geometry.total_profile_heterogeneity,
+                acc.3 + geometry.total,
             )
         });
     let forward_profile_geometry_loci = evidence

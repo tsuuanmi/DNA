@@ -5,7 +5,7 @@ use serde::Serialize;
 /// Supported primary-difference type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum VariantKind {
+pub(crate) enum VariantKind {
     /// Single-nucleotide substitution.
     Snv,
     /// Insertion relative to the reference.
@@ -28,7 +28,7 @@ impl VariantKind {
 /// How an original trace call relates to a reported difference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum VariantCallRole {
+pub(crate) enum VariantCallRole {
     /// A query call directly contributes an observed alternate base.
     Supporting,
     /// A reference-aligned query call bounds an indel.
@@ -37,7 +37,7 @@ pub enum VariantCallRole {
 
 /// Mapping from a variant-associated call to the selected alignment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VariantCallMapping {
+pub(crate) struct VariantCallMapping {
     pub(crate) role: VariantCallRole,
     pub(crate) call_index_0based: usize,
     /// Absent only for inserted query calls, which have no reference base.
@@ -46,7 +46,7 @@ pub struct VariantCallMapping {
 
 /// One normalized reportable primary-sequence difference.
 #[derive(Debug, Clone)]
-pub struct Variant {
+pub(crate) struct Variant {
     pub(crate) contig: String,
     pub(crate) position_1based: usize,
     pub(crate) reference: String,
@@ -58,7 +58,7 @@ pub struct Variant {
 /// Stable reason a primary-difference candidate was not reportable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum VariantExclusionReason {
+pub(crate) enum VariantExclusionReason {
     /// At least one changed base was not canonical A/C/G/T.
     NonCanonicalAllele,
     /// An insertion or deletion exceeded the configured length cap.
@@ -90,7 +90,7 @@ impl VariantExclusionReason {
 
 /// Concise diagnostic for one excluded candidate, intentionally without alleles.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExcludedVariant {
+pub(crate) struct ExcludedVariant {
     pub(crate) contig: String,
     pub(crate) position_1based: Option<usize>,
     pub(crate) kind: VariantKind,
@@ -99,7 +99,7 @@ pub struct ExcludedVariant {
 
 /// One normalized canonical variant observed before configured eligibility filtering.
 #[derive(Debug, Clone)]
-pub struct ObservedVariant {
+pub(crate) struct ObservedVariant {
     pub(crate) variant: Variant,
     pub(crate) exclusion_reasons: Vec<VariantExclusionReason>,
 }
@@ -113,7 +113,7 @@ impl ObservedVariant {
 
 /// Variant stage output.
 #[derive(Debug, Clone)]
-pub struct VariantCallingResult {
+pub(crate) struct VariantCallingResult {
     pub(crate) reported: Vec<Variant>,
     pub(crate) observed: Vec<ObservedVariant>,
     pub(crate) excluded: Vec<ExcludedVariant>,

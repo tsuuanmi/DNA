@@ -146,13 +146,12 @@ pub(crate) fn align(
             continue;
         }
         bounded_best_score.get_or_insert(score);
-        let key_start = modulo_length
-            .map(|length| raw.start_reference % length)
-            .unwrap_or(raw.start_reference);
+        let key_start =
+            modulo_length.map_or(raw.start_reference, |length| raw.start_reference % length);
         let duplicate = placements.iter().any(|existing: &RawAlignment| {
-            let existing_start = modulo_length
-                .map(|length| existing.start_reference % length)
-                .unwrap_or(existing.start_reference);
+            let existing_start = modulo_length.map_or(existing.start_reference, |length| {
+                existing.start_reference % length
+            });
             existing_start == key_start
                 && existing.columns.len() == raw.columns.len()
                 && existing

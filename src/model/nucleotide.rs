@@ -2,7 +2,7 @@
 
 /// A canonical DNA base.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Nucleotide {
+pub(crate) enum Nucleotide {
     /// Adenine.
     A,
     /// Cytosine.
@@ -15,10 +15,10 @@ pub enum Nucleotide {
 
 impl Nucleotide {
     /// Canonical channel order used throughout DNA.
-    pub const ALL: [Self; 4] = [Self::A, Self::C, Self::G, Self::T];
+    pub(crate) const ALL: [Self; 4] = [Self::A, Self::C, Self::G, Self::T];
 
     /// Returns the uppercase nucleotide character.
-    pub const fn as_char(self) -> char {
+    pub(crate) const fn as_char(self) -> char {
         match self {
             Self::A => 'A',
             Self::C => 'C',
@@ -28,7 +28,7 @@ impl Nucleotide {
     }
 
     /// Returns the canonical A/C/G/T channel index.
-    pub const fn channel_index(self) -> usize {
+    pub(crate) const fn channel_index(self) -> usize {
         match self {
             Self::A => 0,
             Self::C => 1,
@@ -39,7 +39,7 @@ impl Nucleotide {
 }
 
 /// Complements an uppercase IUPAC DNA character.
-pub const fn complement_iupac(value: char) -> char {
+pub(crate) const fn complement_iupac(value: char) -> char {
     match value {
         'A' => 'T',
         'C' => 'G',
@@ -60,6 +60,6 @@ pub const fn complement_iupac(value: char) -> char {
 }
 
 /// Reverse-complements an uppercase DNA/IUPAC sequence.
-pub fn reverse_complement(sequence: &str) -> String {
+pub(crate) fn reverse_complement(sequence: &str) -> String {
     sequence.chars().rev().map(complement_iupac).collect()
 }

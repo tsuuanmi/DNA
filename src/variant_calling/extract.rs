@@ -44,7 +44,7 @@ pub(crate) fn call(
                     previous_reference,
                     first_deleted_reference,
                     next_reference,
-                    deleted,
+                    &deleted,
                     mapping::sort_dedup(optional_pair(previous_flank, next_flank)),
                 )?);
             } else {
@@ -78,7 +78,7 @@ pub(crate) fn call(
                     reference,
                     previous_reference,
                     next_reference,
-                    inserted,
+                    &inserted,
                     mapping::sort_dedup(calls),
                 )?);
             } else {

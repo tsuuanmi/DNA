@@ -109,7 +109,7 @@ decision for this documentation system.
 
 ## CI enforcement
 
-`scripts/validate_docs_structure.py` enforces:
+`tools/python/scripts/validate_docs_structure.py` enforces:
 
 - one README per documentation folder;
 - one README per source directory;

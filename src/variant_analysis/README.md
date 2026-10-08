@@ -23,8 +23,8 @@ compatible called-variant semantics without teaching downstream consumers about
 source-specific implementation types.
 
 Optional post-calling representation normalization is owned by
-`variant_normalization`. Target nomenclature remains a separate future
-capability under ADR-0060.
+`variant_normalization`, and target nomenclature by `variant_nomenclature`,
+as separate capabilities under ADR-0060.
 
 See [Rust API contract](../../docs/reference/rust-api.md),
 [interface architecture](../../docs/architecture/interfaces.md), and

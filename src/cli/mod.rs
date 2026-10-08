@@ -19,6 +19,7 @@ pub struct Cli {
 
 /// Supported top-level commands.
 #[derive(Debug, Subcommand)]
+#[non_exhaustive]
 pub enum Command {
     /// Analyze one AB1 trace against a reference FASTA.
     Analyze(AnalyzeArgs),

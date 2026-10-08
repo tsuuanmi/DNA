@@ -40,11 +40,11 @@ pub(crate) fn load(path: &Path) -> Result<Chromatogram> {
     }
     let source_sha256 = hex_sha256(&bytes);
     let abif = parse(bytes)?;
-    decode(path, abif, source_sha256)
+    decode(path, &abif, source_sha256)
 }
 
-fn decode(path: &Path, abif: AbifFile, source_sha256: String) -> Result<Chromatogram> {
-    let order_entry = abif.required(b"FWO_", 1)?;
+fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromatogram> {
+    let order_entry = abif.required(*b"FWO_", 1)?;
     require_layout(order_entry, TYPE_CHAR, 1)?;
     let order_bytes = abif.payload(order_entry)?;
     if order_bytes.len() != 4 {
@@ -65,9 +65,9 @@ fn decode(path: &Path, abif: AbifFile, source_sha256: String) -> Result<Chromato
 
     let mut raw_channels: [Vec<i32>; 4] = std::array::from_fn(|_| Vec::new());
     for (index, number) in (9_u32..=12).enumerate() {
-        let entry = abif.required(b"DATA", number)?;
+        let entry = abif.required(*b"DATA", number)?;
         require_layout(entry, TYPE_SHORT, 2)?;
-        raw_channels[index] = decode_i16(&abif, entry)?;
+        raw_channels[index] = decode_i16(abif, entry)?;
     }
     let sample_count = raw_channels[0].len();
     if sample_count == 0
@@ -86,9 +86,9 @@ fn decode(path: &Path, abif: AbifFile, source_sha256: String) -> Result<Chromato
         channels[target_index] = std::mem::take(&mut raw_channels[source_index]);
     }
 
-    let ploc_entry = abif.required(b"PLOC", 2)?;
+    let ploc_entry = abif.required(*b"PLOC", 2)?;
     require_layout(ploc_entry, TYPE_SHORT, 2)?;
-    let locus_positions: Vec<usize> = decode_i16(&abif, ploc_entry)?
+    let locus_positions: Vec<usize> = decode_i16(abif, ploc_entry)?
         .into_iter()
         .map(|value| {
             usize::try_from(value)
@@ -114,8 +114,8 @@ fn decode(path: &Path, abif: AbifFile, source_sha256: String) -> Result<Chromato
         ));
     }
 
-    let primary = decode_optional_string(&abif, b"PBAS", 2)?;
-    let qualities = decode_optional_bytes(&abif, b"PCON", 2)?;
+    let primary = decode_optional_string(abif, *b"PBAS", 2)?;
+    let qualities = decode_optional_bytes(abif, *b"PCON", 2)?;
     let source_name = path
         .file_name()
         .and_then(|name| name.to_str())
@@ -152,7 +152,7 @@ fn decode_i16(abif: &AbifFile, entry: &AbifEntry) -> Result<Vec<i32>> {
         .collect()
 }
 
-fn decode_optional_string(abif: &AbifFile, tag: &[u8; 4], number: u32) -> Result<Option<String>> {
+fn decode_optional_string(abif: &AbifFile, tag: [u8; 4], number: u32) -> Result<Option<String>> {
     let Some(entry) = abif.optional(tag, number)? else {
         return Ok(None);
     };
@@ -191,7 +191,7 @@ fn decode_optional_string(abif: &AbifFile, tag: &[u8; 4], number: u32) -> Result
     Ok(Some(text.to_owned()))
 }
 
-fn decode_optional_bytes(abif: &AbifFile, tag: &[u8; 4], number: u32) -> Result<Option<Vec<u8>>> {
+fn decode_optional_bytes(abif: &AbifFile, tag: [u8; 4], number: u32) -> Result<Option<Vec<u8>>> {
     let Some(entry) = abif.optional(tag, number)? else {
         return Ok(None);
     };

@@ -387,7 +387,7 @@ mod tests {
             .ok_or_else(|| Error::Sample("total profile heterogeneity is missing".into()))?;
         assert!((heterogeneity.within_profile_impurity - 0.7).abs() < 1e-12);
         assert!((heterogeneity.between_profile_dispersion - 0.05).abs() < 1e-12);
-        assert!((heterogeneity.total_profile_heterogeneity - 0.75).abs() < 1e-12);
+        assert!((heterogeneity.total - 0.75).abs() < 1e-12);
         assert_eq!(
             nucleotide_support
                 .forward_heterogeneity
@@ -690,7 +690,7 @@ mod tests {
             .ok_or_else(|| Error::Sample("single-read profile heterogeneity is missing".into()))?;
         assert!((heterogeneity.within_profile_impurity - 0.7).abs() < 1e-12);
         assert_eq!(heterogeneity.between_profile_dispersion, 0.0);
-        assert!((heterogeneity.total_profile_heterogeneity - 0.7).abs() < 1e-12);
+        assert!((heterogeneity.total - 0.7).abs() < 1e-12);
         assert!(
             evidence.locus_differences[0]
                 .nucleotide_support

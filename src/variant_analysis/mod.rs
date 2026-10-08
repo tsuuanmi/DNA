@@ -16,6 +16,7 @@ use crate::model::variant as internal_variant;
 
 /// Typed result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct VariantAnalysisResult {
     /// SHA-256 identity of the analyzed source artifact.
     pub input_sha256: String,
@@ -32,32 +33,45 @@ pub struct VariantAnalysisResult {
 /// Stable reference identity carried by analysis results.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceIdentity {
+    /// FASTA record identifier of the reference.
     pub name: String,
+    /// SHA-256 of the normalized reference sequence.
     pub sha256: String,
 }
 
 /// Zero-based, half-open covered interval on the reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceSegment {
+    /// First covered reference index (0-based, inclusive).
     pub start_0based: usize,
+    /// End of the covered interval (0-based, exclusive).
     pub end_0based_exclusive: usize,
 }
 
 /// Supported called-variant type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum VariantKind {
+    /// Single-nucleotide substitution.
     Snv,
+    /// Anchored insertion of one or more bases.
     Ins,
+    /// Anchored deletion of one or more bases.
     Del,
 }
 
 /// One reportable evidence-backed primary-sequence difference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Variant {
+    /// Reference record identifier the variant is placed on.
     pub contig: String,
+    /// 1-based position of the first reference allele base.
     pub position_1based: usize,
+    /// Reference allele, including the anchor base for indels.
     pub reference: String,
+    /// Alternate allele, including the anchor base for indels.
     pub alternate: String,
+    /// Variant type.
     pub kind: VariantKind,
 }
 
@@ -67,7 +81,9 @@ pub struct Variant {
 /// normalization, or another representation policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalledVariantSet {
+    /// Reference every variant in the set is placed on.
     pub reference: ReferenceIdentity,
+    /// Evidence-backed called variants.
     pub variants: Vec<Variant>,
 }
 
@@ -84,6 +100,12 @@ impl VariantAnalysisResult {
 
 /// Runs the current Sanger AB1 adapter through the canonical Variant Analysis
 /// capability without CLI logging or JSON publication side effects.
+///
+/// # Errors
+///
+/// Returns [`Error`](crate::error::Error) when an input or configuration file is
+/// unreadable or invalid, or when a scientific stage cannot produce a uniquely
+/// interpretable result (for example an unaligned or low-identity read).
 pub fn analyze_sanger(
     trace: &Path,
     reference: &Path,

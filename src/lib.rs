@@ -1,6 +1,3 @@
-#![forbid(unsafe_code)]
-#![deny(deprecated)]
-
 //! Library boundary for DNA operations.
 //!
 //! The source-module graph is routed from `src/README.md`. `lib.rs` remains
@@ -13,12 +10,12 @@ mod alignment;
 mod basecalling;
 mod checksum;
 pub mod cli;
-pub mod config;
+mod config;
 pub mod error;
 mod input;
 mod locus;
 mod logger;
-pub mod model;
+mod model;
 mod pipeline;
 mod quality_control;
 mod read_processing;
@@ -45,6 +42,11 @@ use cli::{Cli, Command};
 use error::Result;
 
 /// Dispatches a parsed command through the application boundary.
+///
+/// # Errors
+///
+/// Returns [`Error`](error::Error) when the operation fails; the failure is also
+/// recorded in the operation log unless the log itself cannot be written.
 pub fn run(cli: Cli) -> Result<()> {
     let config_path = config::resolve_path();
     match cli.command {

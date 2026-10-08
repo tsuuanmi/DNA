@@ -28,26 +28,26 @@ pub(crate) struct AbifFile {
 
 impl AbifFile {
     /// Returns the unique requested entry.
-    pub(crate) fn required(&self, tag: &[u8; 4], number: u32) -> Result<&AbifEntry> {
+    pub(crate) fn required(&self, tag: [u8; 4], number: u32) -> Result<&AbifEntry> {
         self.optional(tag, number)?.ok_or_else(|| {
             Error::Abif(format!(
                 "missing required tag {}.{number}",
-                String::from_utf8_lossy(tag)
+                String::from_utf8_lossy(&tag)
             ))
         })
     }
 
     /// Returns an optional unique entry and rejects duplicates.
-    pub(crate) fn optional(&self, tag: &[u8; 4], number: u32) -> Result<Option<&AbifEntry>> {
+    pub(crate) fn optional(&self, tag: [u8; 4], number: u32) -> Result<Option<&AbifEntry>> {
         let mut matches = self
             .entries
             .iter()
-            .filter(|entry| &entry.tag == tag && entry.number == number);
+            .filter(|entry| entry.tag == tag && entry.number == number);
         let first = matches.next();
         if matches.next().is_some() {
             return Err(Error::Abif(format!(
                 "duplicate tag {}.{number}",
-                String::from_utf8_lossy(tag)
+                String::from_utf8_lossy(&tag)
             )));
         }
         Ok(first)
@@ -182,7 +182,7 @@ mod tests {
         );
 
         let abif = parse(bytes)?;
-        let entry = abif.required(b"FWO_", 1)?;
+        let entry = abif.required(*b"FWO_", 1)?;
         assert_eq!(abif.payload(entry)?, b"ACGT");
         Ok(())
     }
@@ -207,7 +207,7 @@ mod tests {
         bytes[payload_offset..payload_offset + 8].copy_from_slice(b"ACGTpad!");
 
         let abif = parse(bytes)?;
-        let entry = abif.required(b"TEST", 1)?;
+        let entry = abif.required(*b"TEST", 1)?;
         assert_eq!(abif.payload(entry)?, b"ACGT");
         Ok(())
     }

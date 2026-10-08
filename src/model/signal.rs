@@ -28,7 +28,7 @@ impl SangerIntegrity {
 
 /// DNA-quality features for one rolling base-call window.
 #[derive(Debug, Clone)]
-pub struct DNAWindow {
+pub(crate) struct DNAWindow {
     pub(crate) call_start_0based: usize,
     pub(crate) call_end_0based_exclusive: usize,
     pub(crate) sample_start_0based: usize,
@@ -40,7 +40,7 @@ pub struct DNAWindow {
 
 /// Union of overlapping or adjacent candidate-noisy windows.
 #[derive(Debug, Clone)]
-pub struct NoisyRegion {
+pub(crate) struct NoisyRegion {
     pub(crate) call_start_0based: usize,
     pub(crate) call_end_0based_exclusive: usize,
     pub(crate) sample_start_0based: usize,
@@ -50,7 +50,7 @@ pub struct NoisyRegion {
 
 /// Complete observation-only signal analysis.
 #[derive(Debug, Clone)]
-pub struct DNAAnalysis {
+pub(crate) struct DNAAnalysis {
     pub(crate) integrity: SangerIntegrity,
     pub(crate) loci: Vec<LocusEvidence>,
     pub(crate) windows: Vec<DNAWindow>,

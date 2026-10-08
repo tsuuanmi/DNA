@@ -23,6 +23,12 @@ const HV2_RIGHT_RUN_LENGTH: usize = 5;
 /// T310 anchor inside the rCRS C-runs and expresses that haplotype as run-length
 /// changes at the 309 and 315 boundaries. Other normalized variants are retained
 /// unchanged.
+///
+/// # Errors
+///
+/// Returns [`Error`](crate::error::Error) when the reference cannot be loaded,
+/// does not match the input reference identity, or the input variants do not
+/// reconstruct the supplied haplotype.
 pub fn apply_hv2_polyc(
     reference_path: &Path,
     input: NomenclatureInput<'_>,

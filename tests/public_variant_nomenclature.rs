@@ -1,3 +1,5 @@
+//! Public `variant_nomenclature` capability and the mtDNA HV2 poly-C rule.
+
 mod support;
 
 use std::path::Path;

@@ -11,9 +11,7 @@ use crate::error::{Error, Result};
 
 /// Resolves the authoritative configuration path without performing I/O.
 pub(crate) fn resolve_path() -> PathBuf {
-    env::var_os("DNA_CONFIG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH))
+    env::var_os("DNA_CONFIG").map_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH), PathBuf::from)
 }
 
 /// Loads and validates one explicit configuration file.

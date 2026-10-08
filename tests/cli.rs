@@ -1,3 +1,5 @@
+//! CLI argument parsing, help, and top-level failure reporting.
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use tempfile::tempdir;

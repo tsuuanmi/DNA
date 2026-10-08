@@ -21,6 +21,7 @@ pub(crate) struct RawAlignment {
     pub(crate) metrics: AlignmentMetrics,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct TracebackInput<'a> {
     pub(crate) query: &'a [u8],
     pub(crate) reference: &'a [u8],

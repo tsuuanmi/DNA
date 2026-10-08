@@ -5,7 +5,7 @@ use serde::Serialize;
 /// Query orientation relative to the supplied reference strand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Orientation {
+pub(crate) enum Orientation {
     /// Native retained query matches the reference strand.
     Forward,
     /// Reverse-complemented retained query matches the reference strand.
@@ -46,14 +46,14 @@ impl Orientation {
 
 /// One half-open segment on the original reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReferenceSegment {
+pub(crate) struct ReferenceSegment {
     pub(crate) start_0based: usize,
     pub(crate) end_0based_exclusive: usize,
 }
 
 /// Alignment quality metrics.
 #[derive(Debug, Clone, Serialize)]
-pub struct AlignmentMetrics {
+pub(crate) struct AlignmentMetrics {
     pub(crate) exact_matches: usize,
     pub(crate) mismatches: usize,
     pub(crate) gap_opens: usize,
@@ -64,7 +64,7 @@ pub struct AlignmentMetrics {
 
 /// One column of the selected alignment.
 #[derive(Debug, Clone)]
-pub struct AlignmentColumn {
+pub(crate) struct AlignmentColumn {
     pub(crate) query_base: char,
     pub(crate) reference_base: char,
     pub(crate) original_call_index_0based: Option<usize>,
@@ -73,7 +73,7 @@ pub struct AlignmentColumn {
 
 /// Selected alignment and both orientation summaries.
 #[derive(Debug, Clone)]
-pub struct Alignment {
+pub(crate) struct Alignment {
     pub(crate) orientation: Orientation,
     pub(crate) score: i64,
     pub(crate) reference_segments: Vec<ReferenceSegment>,

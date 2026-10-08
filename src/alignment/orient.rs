@@ -196,10 +196,7 @@ fn select_proven_candidate(
         (Ambiguous, Unattained) | (Unattained, Ambiguous) => Err(Error::Alignment(
             "selected orientation has multiple equally scoring placements".into(),
         )),
-        (Unique(_), Unique(_))
-        | (Unique(_), Ambiguous)
-        | (Ambiguous, Unique(_))
-        | (Ambiguous, Ambiguous) => Err(Error::Alignment(
+        (Unique(_) | Ambiguous, Unique(_) | Ambiguous) => Err(Error::Alignment(
             "forward and reverse evidence-profile scores are tied".into(),
         )),
     }

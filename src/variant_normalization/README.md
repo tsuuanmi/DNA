@@ -23,4 +23,4 @@ VCF/HGVS serialization conventions.
 
 See [variant lifecycle](../../docs/architecture/variant-lifecycle.md),
 [ADR-0060](../../docs/decisions/adr/0060-separate-variant-canonicalization-nomenclature.md),
-and the forthcoming/current variant-normalization method documentation.
+and the [variant-normalization design](../../docs/design/variant-normalization.md).

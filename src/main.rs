@@ -1,6 +1,3 @@
-#![forbid(unsafe_code)]
-#![deny(deprecated)]
-
 //! Operating-system boundary for the DNA binary.
 //!
 //! This file remains single-purpose: parse one command, call the library, print

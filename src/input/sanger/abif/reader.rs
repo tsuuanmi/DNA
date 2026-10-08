@@ -54,7 +54,7 @@ mod tests {
         let reader = Reader::new(&[0xFF, 0xFE, 0x01, 0x02, 0x03, 0x04]);
         assert_eq!(reader.i16(0)?, -2);
         assert_eq!(reader.u16(2)?, 0x0102);
-        assert_eq!(reader.u32(2)?, 0x01020304);
+        assert_eq!(reader.u32(2)?, 0x0102_0304);
         Ok(())
     }
 

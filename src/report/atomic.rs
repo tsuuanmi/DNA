@@ -83,7 +83,7 @@ fn create_temporary(path: &Path) -> Result<(PathBuf, File)> {
             .open(&temporary_path)
         {
             Ok(file) => return Ok((temporary_path, file)),
-            Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(source) => {
                 return Err(Error::Output {
                     path: temporary_path,

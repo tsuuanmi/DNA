@@ -51,8 +51,7 @@ pub(crate) fn calculate(
             let (minimum, maximum) = distances.fold((first, first), |(minimum, maximum), value| {
                 (minimum.min(value), maximum.max(value))
             });
-            (((maximum as f64 - mean_spacing).abs() + (minimum as f64 - mean_spacing).abs()) / 2.0)
-                .floor() as i32
+            spacing_penalty(minimum, maximum, mean_spacing)
         } else {
             0
         };
@@ -61,9 +60,7 @@ pub(crate) fn calculate(
         penalties.push(ambiguity.saturating_add(spacing_penalty));
     }
 
-    let best_length = ((count as f64 * best_fraction).floor() as usize)
-        .max(1)
-        .min(count);
+    let best_length = best_section_length(count, best_fraction);
     let mut current: i64 = penalties[..best_length]
         .iter()
         .map(|value| i64::from(*value))
@@ -84,6 +81,31 @@ pub(crate) fn calculate(
         best_end: best_start + best_length,
         best_average: best_sum as f64 / best_length as f64,
     })
+}
+
+/// Floors the mean deviation of the extreme local peak spacings from the trace mean.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "spacings are bounded by the ABIF sample count, far below i32::MAX"
+)]
+fn spacing_penalty(minimum: usize, maximum: usize, mean_spacing: f64) -> i32 {
+    f64::midpoint(
+        (maximum as f64 - mean_spacing).abs(),
+        (minimum as f64 - mean_spacing).abs(),
+    )
+    .floor() as i32
+}
+
+/// Length of the best section: the validated fraction of all calls, at least one.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the configured fraction lies in (0, 1], so the floored product lies in [0, count]"
+)]
+fn best_section_length(count: usize, best_fraction: f64) -> usize {
+    ((count as f64 * best_fraction).floor() as usize)
+        .max(1)
+        .min(count)
 }
 
 #[cfg(test)]

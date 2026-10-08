@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::variant_analysis::{Variant, VariantKind};
 
-pub(crate) type RepresentationResult<T> = std::result::Result<T, String>;
+pub(crate) type RepresentationResult<T> = Result<T, String>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SequenceEdit {

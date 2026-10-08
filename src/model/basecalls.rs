@@ -7,7 +7,7 @@ use crate::model::nucleotide::Nucleotide;
 /// How a channel value was selected inside a call window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PeakSource {
+pub(crate) enum PeakSource {
     /// A positive local maximum was found.
     LocalMaximum,
     /// No positive local maximum existed; the canonical locus sample was used.
@@ -16,7 +16,7 @@ pub enum PeakSource {
 
 /// Strongest evidence for one channel in one base window.
 #[derive(Debug, Clone, Copy)]
-pub struct ChannelPeak {
+pub(crate) struct ChannelPeak {
     pub(crate) base: Nucleotide,
     pub(crate) height: i32,
     pub(crate) position_0based: usize,
@@ -36,7 +36,7 @@ pub(crate) struct PrimaryPeakEvidence {
 
 /// One signal-derived base call.
 #[derive(Debug, Clone)]
-pub struct BaseCall {
+pub(crate) struct BaseCall {
     pub(crate) index_0based: usize,
     pub(crate) locus_position_0based: usize,
     pub(crate) window_start_0based: usize,
@@ -51,19 +51,19 @@ pub struct BaseCall {
 
 /// Ordered calls and the primary sequence consumed by downstream stages.
 #[derive(Debug, Clone)]
-pub struct BaseCalls {
+pub(crate) struct BaseCalls {
     pub(crate) calls: Vec<BaseCall>,
     pub(crate) primary_sequence: String,
 }
 
 impl BaseCalls {
     /// Number of call loci.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.calls.len()
     }
 
     /// Whether no calls were produced.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.calls.is_empty()
     }
 }

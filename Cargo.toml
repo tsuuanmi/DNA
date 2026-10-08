@@ -29,11 +29,30 @@ predicates = "3"
 tempfile = "3"
 
 [lints.rust]
+deprecated = "deny"
+missing_docs = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
 unsafe_code = "forbid"
+unused_qualifications = "warn"
 
 [lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Counts and lengths are bounded by the input limits in `src/config/defaults.rs`,
+# far below the 2^52 integers an `f64` represents exactly.
+cast_precision_loss = "allow"
+# Outputs are byte-deterministic, so tests assert exact floating-point values.
+float_cmp = "allow"
+# Stage functions mirror one documented stage record each; size is reviewed per change.
+too_many_lines = "allow"
 expect_used = "deny"
 unwrap_used = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = "debuginfo"
 
 [profile.local]
 inherits = "dev"

@@ -13,7 +13,7 @@ pub(crate) struct LocusWindow {
 ///
 /// This geometry is shared by basecalling and signal-evidence extraction. The
 /// caller maps geometry failures into its own stage-specific error type.
-pub(crate) fn windows(trace: &Chromatogram) -> std::result::Result<Vec<LocusWindow>, String> {
+pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>, String> {
     let positions = &trace.locus_positions;
     if positions.len() < 2 {
         return Err("at least two locus positions are required".into());
@@ -48,7 +48,7 @@ pub(crate) fn windows(trace: &Chromatogram) -> std::result::Result<Vec<LocusWind
     Ok(output)
 }
 
-fn midpoint(left: usize, right: usize) -> std::result::Result<usize, String> {
+fn midpoint(left: usize, right: usize) -> Result<usize, String> {
     left.checked_add((right - left) / 2)
         .ok_or_else(|| "locus-window midpoint overflow".into())
 }
@@ -60,7 +60,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builds_neighbor_midpoint_windows() -> std::result::Result<(), String> {
+    fn builds_neighbor_midpoint_windows() -> Result<(), String> {
         let trace = Chromatogram {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),

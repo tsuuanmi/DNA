@@ -114,6 +114,10 @@ const fn canonical_index(base: u8) -> Option<usize> {
 ///
 /// Rust round semantics use ties away from zero. Evidence weights are
 /// non-negative, so exact half-unit ties round upward.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the rounded value is clamped to [0, SCORE_SCALE] before conversion"
+)]
 fn quantize_weight(weight: f64) -> i64 {
     (weight * SCORE_SCALE as f64)
         .round()
