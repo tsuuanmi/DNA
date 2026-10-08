@@ -10,6 +10,11 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Read callability (ADR-0062, SRS-VAR-013): variants with a call near either
+  read end or right after a long homopolymer are ineligible with reasons
+  `read_end` / `post_homopolymer`. **Breaking:** configuration schema 6 adds
+  `variant_calling.read_end_margin`, `homopolymer_min_length`, and
+  `post_homopolymer_window`.
 - `dna.sample_evidence/v9`: against the rCRS, an optional `notation` view
   publishes each read's eligible calls after human-mtDNA right alignment and the
   control-region policy (HVS-II, HVS-III, HVS-I windows), rendered per base (`73G`, `249DEL`, `309.1C`) with

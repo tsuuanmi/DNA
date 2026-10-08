@@ -248,7 +248,9 @@
         "outside_configured_region",
         "peak_below_minimum",
         "relative_quality_not_above_threshold",
-        "mixed_supporting_dna"
+        "mixed_supporting_dna",
+        "read_end",
+        "post_homopolymer"
       ]
     },
     "variantCall": {

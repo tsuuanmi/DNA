@@ -417,7 +417,7 @@ pub fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::erro
     fs::write(
         path,
         format!(
-            "schema_version=5\n[reference]\ntopology='{topology}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nregions=[[1, 50000]]\n"
+            "schema_version=6\n[reference]\ntopology='{topology}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nregions=[[1, 50000]]\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
         ),
     )?;
     Ok(())

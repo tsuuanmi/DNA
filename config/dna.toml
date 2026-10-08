@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 5
+schema_version = 6
 
 [reference]
 # rCRS is a circular mitochondrial reference.
@@ -47,3 +47,10 @@ minimum_peak_height = 150
 relative_quality_threshold = 30
 # Inclusive 1-based normalized variant anchor ranges (HV1, HV2, HV3).
 regions = [[16024, 16365], [73, 340], [438, 576]]
+# Read callability (ADR-0062): calls this close to either end of a read's
+# retained interval cannot support a variant.
+read_end_margin = 8
+# A run of at least this many identical primary calls shifts phase; this many
+# calls, starting with the run's last call, cannot support a variant (0 disables).
+homopolymer_min_length = 8
+post_homopolymer_window = 7

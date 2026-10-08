@@ -771,6 +771,50 @@ fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Read callability (ADR-0062): an SNV in the calls right after a long
+/// homopolymer is reported only while the post-homopolymer rule is disabled.
+#[test]
+fn removes_a_variant_called_right_after_a_long_homopolymer()
+-> Result<(), Box<dyn std::error::Error>> {
+    let read = format!("ACGTAG{}TACGTAGCTAGCATG", "C".repeat(8));
+    let mut reference_read = read.clone();
+    reference_read.replace_range(14..15, "G");
+    for (window, reported) in [(0, 1), (3, 0)] {
+        let directory = tempdir()?;
+        let trace = directory.path().join("trace.ab1");
+        let reference = directory.path().join("reference.fa");
+        let config = directory.path().join("dna.toml");
+        write_abif(&trace, &read)?;
+        write_reference(&reference, &format!("TTTT{reference_read}CCCC"))?;
+        write_config(&config, "linear")?;
+        let config_text = fs::read_to_string(&config)?;
+        fs::write(
+            &config,
+            config_text.replace(
+                "post_homopolymer_window=0",
+                &format!("post_homopolymer_window={window}"),
+            ),
+        )?;
+
+        run(&trace, &reference, &config, directory.path()).success();
+
+        let value = read_result(directory.path(), &trace)?;
+        assert_eq!(
+            value["variants"].as_array().map(Vec::len),
+            Some(reported),
+            "window {window}"
+        );
+        let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+        assert_eq!(
+            log.contains("event=variant_removed kind=SNV"),
+            reported == 0,
+            "window {window}"
+        );
+        assert_eq!(log.contains("reasons=post_homopolymer"), reported == 0);
+    }
+    Ok(())
+}
+
 /// Regression: an indel flank whose two strongest channels tie is an unresolved
 /// `N` with no primary event; it is omitted from public calls instead of
 /// aborting the analysis.

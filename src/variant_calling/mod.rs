@@ -1,6 +1,7 @@
 //! Normalized and configured-filtered primary-sequence SNVs and small indels.
 
 mod anchor;
+mod callability;
 mod extract;
 mod filter;
 mod mapping;

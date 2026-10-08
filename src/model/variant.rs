@@ -72,6 +72,10 @@ pub(crate) enum VariantExclusionReason {
     /// An SNV supporting call retained more than one co-localized qualifying channel.
     #[serde(rename = "mixed_supporting_dna")]
     MixedSupportingDNA,
+    /// A mapped call lies within the read-end margin of the retained interval.
+    ReadEnd,
+    /// A mapped call lies in the window that starts at the end of a long homopolymer.
+    PostHomopolymer,
 }
 
 impl VariantExclusionReason {
@@ -84,6 +88,8 @@ impl VariantExclusionReason {
             Self::PeakBelowMinimum => "peak_below_minimum",
             Self::RelativeQualityNotAboveThreshold => "relative_quality_not_above_threshold",
             Self::MixedSupportingDNA => "mixed_supporting_dna",
+            Self::ReadEnd => "read_end",
+            Self::PostHomopolymer => "post_homopolymer",
         }
     }
 }

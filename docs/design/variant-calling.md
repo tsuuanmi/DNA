@@ -60,6 +60,14 @@ or equal to `minimum_peak_height` and an uncalibrated relative score strictly
 greater than `relative_quality_threshold`. Insertion flanks are not evaluated.
 Deletions have no supporting trace base, so their flanks are not subjected to
 peak or quality thresholds; their caller anchor must still be in a region.
+Read callability (ADR-0062, SRS-VAR-013) then marks a variant ineligible when
+any of its mapped calls is untrusted for its read: within `read_end_margin`
+calls of either end of the retained interval (`read_end`), or within the
+`post_homopolymer_window` calls that start at the last call of a run of at least
+`homopolymer_min_length` identical canonical primary calls in trace order
+(`post_homopolymer`). Trace order is the sequencing direction for both strands,
+so forward and reverse reads are handled alike without primer knowledge.
+
 Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as an observed called difference but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
 
 Each removed candidate increments `excluded_variant_candidates` once, even when

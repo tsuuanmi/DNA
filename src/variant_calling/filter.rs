@@ -1,5 +1,6 @@
 //! Configured biological-region and supporting-signal eligibility filters.
 
+use super::callability::ReadCallability;
 use crate::config::VariantCallingConfig;
 use crate::error::{Result, VariantError};
 use crate::model::basecalls::BaseCalls;
@@ -19,6 +20,7 @@ pub(super) fn apply(
     let mut reported = Vec::with_capacity(extracted.reported.len());
     let mut observed = Vec::with_capacity(extracted.reported.len());
     let mut excluded = extracted.excluded;
+    let callability = ReadCallability::new(calls, quality, config);
     for variant in extracted.reported {
         let mut reasons = Vec::new();
         if !in_configured_region(variant.position_1based, &config.regions) {
@@ -27,6 +29,7 @@ pub(super) fn apply(
         reasons.extend(supporting_evidence_reasons(
             &variant, calls, quality, config,
         )?);
+        reasons.extend(callability.reasons(&variant.calls));
         observed.push(ObservedVariant {
             variant: variant.clone(),
             exclusion_reasons: reasons.clone(),
@@ -150,6 +153,9 @@ mod tests {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
             regions,
+            read_end_margin: 0,
+            homopolymer_min_length: 8,
+            post_homopolymer_window: 0,
         }
     }
 
@@ -433,5 +439,42 @@ mod tests {
             apply(extracted, &calls, &quality, &config(vec![[1, 1]])),
             Err(Error::Variant(VariantError::MissingCall { index: 2 }))
         ));
+    }
+
+    #[test]
+    fn marks_a_variant_supported_at_the_read_end_ineligible() -> Result<()> {
+        let (calls, quality) = evidence(&[150; 6], &[31; 6]);
+        let mut read_end = config(vec![[1, 100]]);
+        read_end.read_end_margin = 2;
+        let extracted = VariantCallingResult {
+            reported: vec![
+                variant(
+                    VariantKind::Snv,
+                    5,
+                    vec![mapping(VariantCallRole::Supporting, 1)],
+                ),
+                variant(
+                    VariantKind::Snv,
+                    6,
+                    vec![mapping(VariantCallRole::Supporting, 2)],
+                ),
+            ],
+            observed: Vec::new(),
+            excluded: Vec::new(),
+        };
+
+        let result = apply(extracted, &calls, &quality, &read_end)?;
+
+        assert_eq!(result.reported.len(), 1);
+        assert_eq!(result.reported[0].position_1based, 6);
+        assert_eq!(
+            result.observed[0].exclusion_reasons,
+            [VariantExclusionReason::ReadEnd]
+        );
+        assert_eq!(
+            result.excluded[0].reasons,
+            [VariantExclusionReason::ReadEnd]
+        );
+        Ok(())
     }
 }

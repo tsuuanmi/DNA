@@ -250,6 +250,9 @@ mod tests {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
             regions: vec![[1, 50_000]],
+            read_end_margin: 0,
+            homopolymer_min_length: 8,
+            post_homopolymer_window: 0,
         }
     }
 

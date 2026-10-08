@@ -3,7 +3,10 @@
 Owns extraction, direct evidence mapping, allele anchoring, and configured
 eligibility of primary-sequence SNVs and supported small indels.
 
-Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, and `filter.rs`.
+Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `callability.rs`, and
+`filter.rs`. `callability.rs` derives the calls of a read that cannot support a
+variant (read ends and post-homopolymer windows, ADR-0062) from the read's own
+calls in sequencing order.
 `anchor.rs` constructs and validates anchored REF/ALT alleles while preserving
 the alignment-selected event placement; post-calling haplotype normalization
 and mtDNA nomenclature belong to `variant_normalization` and
