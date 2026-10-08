@@ -4,6 +4,7 @@ use crate::error::CallEvidenceError;
 use crate::model::alignment::Orientation;
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
+use crate::model::variant::{VariantCallMapping, VariantCallRole};
 
 /// One mapped call's primary base, primary-event peak heights, and relative
 /// quality, expressed on the reference strand.
@@ -14,9 +15,43 @@ pub(crate) struct ReferenceCallEvidence {
     pub(crate) quality: u8,
 }
 
+/// One variant call mapping that carries public reference-strand evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PublicCall {
+    pub(crate) mapping: VariantCallMapping,
+    pub(crate) evidence: ReferenceCallEvidence,
+}
+
+/// Resolves the public call evidence of one variant.
+///
+/// A flanking call without a primary event (an unresolved call whose strongest
+/// channels tie or carry no signal) has no single event to report, so it is
+/// omitted rather than fabricated. Supporting calls are canonical by
+/// construction and must resolve, and at least one call must remain.
+pub(crate) fn resolve_public_calls(
+    calls: &BaseCalls,
+    quality: &QualityControlResult,
+    orientation: Orientation,
+    mappings: &[VariantCallMapping],
+) -> Result<Vec<PublicCall>, CallEvidenceError> {
+    let mut public = Vec::with_capacity(mappings.len());
+    for &mapping in mappings {
+        match resolve(calls, quality, orientation, mapping.call_index_0based) {
+            Ok(evidence) => public.push(PublicCall { mapping, evidence }),
+            Err(CallEvidenceError::MissingPeakEvidence { .. })
+                if mapping.role == VariantCallRole::Flanking => {}
+            Err(error) => return Err(error),
+        }
+    }
+    if public.is_empty() {
+        return Err(CallEvidenceError::NoResolvedCalls);
+    }
+    Ok(public)
+}
+
 /// Resolves call `index` against its call and quality records, requires
 /// primary-event peak evidence, and projects it onto the reference strand.
-pub(crate) fn resolve(
+fn resolve(
     calls: &BaseCalls,
     quality: &QualityControlResult,
     orientation: Orientation,
@@ -49,6 +84,7 @@ mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource, PrimaryPeakEvidence};
     use crate::model::nucleotide::Nucleotide;
     use crate::model::quality::CallQuality;
+    use crate::model::variant::VariantCallRole;
 
     use super::*;
 
@@ -125,6 +161,67 @@ mod tests {
                 peak_heights: [40, 30, 20, 10],
                 quality: 40,
             })
+        );
+    }
+
+    fn mapping(role: VariantCallRole, index: usize) -> VariantCallMapping {
+        VariantCallMapping {
+            role,
+            call_index_0based: index,
+            reference_position_0based: Some(index),
+        }
+    }
+
+    #[test]
+    fn omits_unresolved_flanks_from_public_calls() {
+        let (calls, quality) = records(
+            vec![call(0, 'N', None), call(1, 'G', Some([0, 0, 9, 1]))],
+            &[0, 1],
+        );
+        let mappings = [
+            mapping(VariantCallRole::Flanking, 0),
+            mapping(VariantCallRole::Flanking, 1),
+        ];
+
+        let resolved = resolve_public_calls(&calls, &quality, Orientation::Forward, &mappings);
+
+        assert_eq!(
+            resolved,
+            Ok(vec![PublicCall {
+                mapping: mappings[1],
+                evidence: ReferenceCallEvidence {
+                    base: 'G',
+                    peak_heights: [0, 0, 9, 1],
+                    quality: 40,
+                },
+            }])
+        );
+    }
+
+    #[test]
+    fn requires_evidence_for_supporting_calls_and_at_least_one_public_call() {
+        let (calls, quality) = records(vec![call(0, 'N', None), call(1, 'N', None)], &[0, 1]);
+
+        assert_eq!(
+            resolve_public_calls(
+                &calls,
+                &quality,
+                Orientation::Forward,
+                &[mapping(VariantCallRole::Supporting, 0)],
+            ),
+            Err(CallEvidenceError::MissingPeakEvidence { index: 0 })
+        );
+        assert_eq!(
+            resolve_public_calls(
+                &calls,
+                &quality,
+                Orientation::Forward,
+                &[
+                    mapping(VariantCallRole::Flanking, 0),
+                    mapping(VariantCallRole::Flanking, 1),
+                ],
+            ),
+            Err(CallEvidenceError::NoResolvedCalls)
         );
     }
 

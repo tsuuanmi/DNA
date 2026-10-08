@@ -115,24 +115,22 @@ fn variant_calls(
     read: &ReadObservation,
     mappings: &[VariantCallMapping],
 ) -> Result<Vec<VariantCallEvidence>> {
-    mappings
-        .iter()
-        .map(|mapping| {
-            let index = mapping.call_index_0based;
-            let evidence = reference_call::resolve(
-                &read.calls,
-                &read.quality,
-                read.alignment.orientation,
-                index,
-            )
-            .map_err(SampleError::CallEvidence)?;
-            Ok(VariantCallEvidence {
-                role: mapping.role,
-                base: evidence.base,
-                peak_heights: evidence.peak_heights,
-                quality: evidence.quality,
-                signal: call_evidence::for_call(read, index)?,
-            })
+    reference_call::resolve_public_calls(
+        &read.calls,
+        &read.quality,
+        read.alignment.orientation,
+        mappings,
+    )
+    .map_err(SampleError::CallEvidence)?
+    .into_iter()
+    .map(|call| {
+        Ok(VariantCallEvidence {
+            role: call.mapping.role,
+            base: call.evidence.base,
+            peak_heights: call.evidence.peak_heights,
+            quality: call.evidence.quality,
+            signal: call_evidence::for_call(read, call.mapping.call_index_0based)?,
         })
-        .collect()
+    })
+    .collect()
 }

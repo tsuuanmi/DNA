@@ -770,6 +770,48 @@ fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Regression: an indel flank whose two strongest channels tie is an unresolved
+/// `N` with no primary event; it is omitted from public calls instead of
+/// aborting the analysis.
+#[test]
+fn omits_unresolved_indel_flank_without_failing() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif_with_secondary_signal(&trace, QUERY, 13, b'A', 1000)?;
+    write_reference(
+        &reference,
+        &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
+    )?;
+    write_config(&config, "linear")?;
+    let config_text = fs::read_to_string(&config)?;
+    fs::write(
+        &config,
+        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
+    )?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+
+    let value = read_result(directory.path(), &trace)?;
+    let variants = value["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0]["kind"], "DEL");
+    let calls = variants[0]["calls"]
+        .as_array()
+        .ok_or("calls must be an array")?;
+    assert_eq!(calls.len(), 1, "the unresolved flank is omitted");
+    assert_eq!(calls[0]["role"], "flanking");
+    assert!(matches!(
+        calls[0]["base"].as_str(),
+        Some("A" | "C" | "G" | "T")
+    ));
+    assert_call_evidence(&calls[0]);
+    Ok(())
+}
+
 /// Every operation-log write fails (ENOSPC): the run fails fast on the first
 /// record with the log error and publishes no result.
 #[cfg(target_os = "linux")]

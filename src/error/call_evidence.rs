@@ -28,4 +28,7 @@ pub enum CallEvidenceError {
         /// Call index (0-based).
         index: usize,
     },
+    /// No call of the variant carries primary-event peak evidence.
+    #[error("variant has no call with primary-event peak evidence")]
+    NoResolvedCalls,
 }

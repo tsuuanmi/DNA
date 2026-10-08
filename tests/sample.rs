@@ -286,6 +286,56 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
     Ok(())
 }
 
+/// Regression: a sample read whose indel flank is an unresolved tied call still
+/// yields sample evidence; the unresolved flank is omitted from public calls.
+#[test]
+fn omits_unresolved_indel_flank_from_sample_evidence() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let trace = directory.path().join("tied-flank.ab1");
+    write_reference(
+        &reference,
+        &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
+    )?;
+    write_config(&config, "linear")?;
+    let config_text = fs::read_to_string(&config)?;
+    fs::write(
+        &config,
+        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
+    )?;
+    write_abif_with_secondary_signal(&trace, QUERY, 13, b'A', 1000)?;
+
+    let mut command = Command::new(dna_binary());
+    command
+        .current_dir(directory.path())
+        .env("DNA_CONFIG", &config)
+        .arg("sample")
+        .arg(SAMPLE_ID)
+        .arg(&trace)
+        .arg("--reference")
+        .arg(&reference)
+        .assert()
+        .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let variants = value["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0]["kind"], "DEL");
+    let calls = variants[0]["support"][0]["calls"]
+        .as_array()
+        .ok_or("support calls must be an array")?;
+    assert_eq!(calls.len(), 1, "the unresolved flank is omitted");
+    assert_eq!(calls[0]["role"], "flanking");
+    assert!(matches!(
+        calls[0]["base"].as_str(),
+        Some("A" | "C" | "G" | "T")
+    ));
+    Ok(())
+}
+
 fn run(
     traces: &[&PathBuf; 2],
     reference: &Path,

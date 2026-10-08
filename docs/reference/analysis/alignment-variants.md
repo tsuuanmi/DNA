@@ -26,7 +26,9 @@ traceability:
 - `role`: `supporting` or `flanking`;
 - `base`: called base projected onto the reference strand;
 - `peaks`: raw analyzed A/C/G/T channel heights sampled together at the unique
-  primary-event coordinate and projected to reference orientation;
+  primary-event coordinate and projected to reference orientation. A flanking
+  call with no unique primary event (tied or absent signal) is omitted from
+  `calls`;
 - `quality`: the existing uncalibrated relative score under a concise public
   field name.
 

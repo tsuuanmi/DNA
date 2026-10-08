@@ -42,6 +42,13 @@ remain independently versioned and are never silently changed in place.
 - Corrected the minimum supported Rust version to match language features used
   by the codebase.
 
+### Fixed
+
+- An indel whose flanking call is unresolved (its strongest channels tie, so it
+  has no primary event) no longer aborts `analyze` or a whole `sample`
+  operation; the unresolved flank is omitted from public calls, as SRS-VAR-006
+  now states.
+
 ## [0.1.0] - Unreleased
 
 Initial pre-production development baseline.

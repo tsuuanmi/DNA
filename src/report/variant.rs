@@ -6,7 +6,7 @@ use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
 use crate::model::reference_call;
 use crate::model::result::{PeakHeightsResult, VariantCallResult, VariantResult};
-use crate::model::variant::{Variant, VariantCallMapping};
+use crate::model::variant::Variant;
 
 /// Projects normalized variants and joins their original calls to essential evidence.
 pub(super) fn project(
@@ -27,32 +27,22 @@ fn project_variant(
     quality: &QualityControlResult,
     orientation: Orientation,
 ) -> Result<VariantResult> {
-    let projected_calls = variant
-        .calls
-        .into_iter()
-        .map(|mapping| project_call(mapping, calls, quality, orientation))
-        .collect::<Result<Vec<_>>>()?;
+    let projected_calls =
+        reference_call::resolve_public_calls(calls, quality, orientation, &variant.calls)
+            .map_err(ReportError::CallEvidence)?
+            .into_iter()
+            .map(|call| VariantCallResult {
+                role: call.mapping.role,
+                base: call.evidence.base,
+                peaks: PeakHeightsResult::from(call.evidence.peak_heights),
+                quality: call.evidence.quality,
+            })
+            .collect();
     Ok(VariantResult {
         position: variant.position_1based,
         reference: variant.reference,
         alternate: variant.alternate,
         kind: variant.kind,
         calls: projected_calls,
-    })
-}
-
-fn project_call(
-    mapping: VariantCallMapping,
-    calls: &BaseCalls,
-    quality: &QualityControlResult,
-    orientation: Orientation,
-) -> Result<VariantCallResult> {
-    let evidence = reference_call::resolve(calls, quality, orientation, mapping.call_index_0based)
-        .map_err(ReportError::CallEvidence)?;
-    Ok(VariantCallResult {
-        role: mapping.role,
-        base: evidence.base,
-        peaks: PeakHeightsResult::from(evidence.peak_heights),
-        quality: evidence.quality,
     })
 }
