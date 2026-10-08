@@ -9,7 +9,9 @@ argument structs or process environment. This keeps orchestration independent of
 the command-line frontend and prepares the same boundary for non-CLI callers.
 
 Key children own CLI/application filesystem naming, overwrite protection,
-logging/publication, sample-read orchestration, and sample metrics. Scientific
+logging/publication, sample-read orchestration, sample metrics, and per-read
+human-mtDNA representation for sample notation (`sample_notation.rs`, which
+composes `variant_normalization` and `variant_nomenclature` against the rCRS). Scientific
 Sanger source loading is owned by `input::sanger`; shared reference-free read
 processing lives in `read_processing.rs`; reference-guided read observation is
 owned by `variant_analysis`.

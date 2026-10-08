@@ -213,6 +213,12 @@ Current production truth now includes:
 Additional target-specific windows such as HVS-III 513-524 and HVS-I
 16189/16193 remain unimplemented and require their own tests and validation.
 
+**Revision (2026-10-08):** the `sample` workflow now composes normalization and
+the HVS-II rule per read against the rCRS, as §7 permits, and publishes
+per-base notation from the outer report layer, as §8 requires
+(`dna.sample_evidence/v9`, SRS-NOM-010 to SRS-NOM-012). Analysis output and the
+public API are unchanged.
+
 ## Consequences
 
 - DNA's variant caller remains a real scientific module rather than a thin

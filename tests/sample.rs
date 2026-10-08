@@ -21,7 +21,7 @@ fn dna_binary() -> String {
 }
 
 #[test]
-fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::error::Error>> {
+fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::error::Error>> {
     let first = tempdir()?;
     let second = tempdir()?;
 
@@ -68,7 +68,7 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
     assert_eq!(first_bytes, second_bytes);
 
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v8");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v9");
     assert_eq!(value["sample_id"], SAMPLE_ID);
     assert_object_keys(
         &value,
@@ -248,7 +248,7 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
         .success();
 
     let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v8");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v9");
     assert_eq!(value["overlaps"], serde_json::json!([]));
     let coverage = value["coverage"]
         .as_array()
@@ -283,6 +283,46 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
     assert_eq!(call["base"], "T");
     assert_eq!(call["peaks"]["T"], 1000);
     assert_eq!(call["peaks"]["C"], 400);
+    Ok(())
+}
+
+/// Against the rCRS, each read's calls are right-aligned and given the HVS-II
+/// representation, then published as per-base notation with supporting reads.
+#[test]
+fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let config = directory.path().join("dna.toml");
+    let trace = directory.path().join("hv2-read.ab1");
+    let rcrs =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("references/rCRS.fasta"))?
+            .lines()
+            .filter(|line| !line.starts_with('>'))
+            .collect::<String>();
+    let read = format!("{}C{}", &rcrs[270..304], &rcrs[304..350]);
+    write_config(&config, "circular")?;
+    write_abif(&trace, &read)?;
+
+    let mut command = Command::new(dna_binary());
+    command
+        .current_dir(directory.path())
+        .env("DNA_CONFIG", &config)
+        .arg("sample")
+        .arg(SAMPLE_ID)
+        .arg(&trace)
+        .arg("--reference")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("references/rCRS.fasta"))
+        .assert()
+        .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v9");
+    assert_eq!(
+        value["notation"],
+        serde_json::json!({
+            "policy": "rcrs_right_aligned_hvs2",
+            "calls": [{"call": "309.1C", "reads": ["hv2-read"]}],
+        })
+    );
     Ok(())
 }
 

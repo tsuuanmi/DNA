@@ -1,6 +1,6 @@
 //! Projection of compact sample scientific evidence into the public JSON contract.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::error::{ReportError, Result};
@@ -10,24 +10,38 @@ use crate::model::sample_evidence::SampleEvidence;
 use crate::model::sample_result::{
     SampleCoverageResult, SampleEvidenceProfileResult, SampleEvidenceResult,
     SampleLocusDifferenceObservationResult, SampleLocusDifferenceResult,
-    SampleLocusSupportTopologyResult, SampleOverlapResult, SampleProvenanceResult,
-    SampleReadResult, SampleVariantCallResult, SampleVariantResult, SampleVariantSupportResult,
-    SampleVariantSupportTopologyResult,
+    SampleLocusSupportTopologyResult, SampleNotationCallResult, SampleNotationResult,
+    SampleOverlapResult, SampleProvenanceResult, SampleReadResult, SampleVariantCallResult,
+    SampleVariantResult, SampleVariantSupportResult, SampleVariantSupportTopologyResult,
 };
+use crate::report::notation::{self, NotationCall};
+use crate::variant_analysis::Variant;
+
+/// Notation policy label: rCRS right alignment plus the HVS-II 309/315 rule.
+const NOTATION_POLICY: &str = "rcrs_right_aligned_hvs2";
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {
     pub(crate) sample_id: String,
     pub(crate) reference: Reference,
     pub(crate) evidence: SampleEvidence,
+    /// Per-read represented calls, present only against the rCRS.
+    pub(crate) notation: Option<Vec<ReadRepresentation>>,
 }
 
-/// Builds `dna.sample_evidence/v8` without filesystem side effects.
+/// One read's eligible calls in human-mtDNA representation.
+pub(crate) struct ReadRepresentation {
+    pub(crate) input_sha256: String,
+    pub(crate) variants: Vec<Variant>,
+}
+
+/// Builds `dna.sample_evidence/v9` without filesystem side effects.
 pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidenceResult> {
     let CompletedSampleEvidence {
         sample_id,
         reference,
         evidence,
+        notation,
     } = completed;
     if evidence.reference_sha256 != reference.sequence_sha256 {
         return Err(ReportError::Inconsistent(
@@ -37,6 +51,11 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
     }
 
     let read_names = reviewer_read_names(&evidence)?;
+    let notation = notation
+        .map(|representations| {
+            project_notation(&reference, &evidence, &read_names, representations)
+        })
+        .transpose()?;
     let reads = evidence
         .reads
         .into_iter()
@@ -188,7 +207,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         .collect::<Result<Vec<_>>>()?;
 
     Ok(SampleEvidenceResult {
-        schema_version: "dna.sample_evidence/v8",
+        schema_version: "dna.sample_evidence/v9",
         sample_id,
         provenance: SampleProvenanceResult {
             reference: ReferenceResult {
@@ -203,6 +222,55 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         overlaps,
         locus_differences,
         variants,
+        notation,
+    })
+}
+
+/// Renders each read's represented calls and lists, per distinct call, the reads
+/// containing it in deterministic read order. This is not a consensus: reads
+/// that disagree contribute different calls, and coverage stays in `coverage`.
+fn project_notation(
+    reference: &Reference,
+    evidence: &SampleEvidence,
+    read_names: &[String],
+    representations: Vec<ReadRepresentation>,
+) -> Result<SampleNotationResult> {
+    let mut calls: BTreeMap<NotationCall, Vec<usize>> = BTreeMap::new();
+    for representation in representations {
+        let read_index = evidence
+            .reads
+            .iter()
+            .position(|read| read.input_sha256 == representation.input_sha256)
+            .ok_or(ReportError::Inconsistent(
+                "notation references a read missing from sample evidence",
+            ))?;
+        for call in notation::render(
+            &reference.name,
+            &reference.sequence,
+            &representation.variants,
+        )
+        .map_err(ReportError::Representation)?
+        {
+            calls.entry(call).or_default().push(read_index);
+        }
+    }
+    let calls = calls
+        .into_iter()
+        .map(|(call, mut reads)| {
+            reads.sort_unstable();
+            reads.dedup();
+            Ok(SampleNotationCallResult {
+                call: call.text,
+                reads: reads
+                    .into_iter()
+                    .map(|index| read_name(read_names, index).map(str::to_owned))
+                    .collect::<Result<_>>()?,
+            })
+        })
+        .collect::<Result<_>>()?;
+    Ok(SampleNotationResult {
+        policy: NOTATION_POLICY,
+        calls,
     })
 }
 

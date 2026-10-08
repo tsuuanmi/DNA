@@ -138,7 +138,8 @@ pub fn analyze_sanger(
     })
 }
 
-fn project_variant(variant: &internal_variant::Variant) -> Variant {
+/// Projects an internal called variant into the public variant boundary.
+pub(crate) fn project_variant(variant: &internal_variant::Variant) -> Variant {
     Variant {
         contig: variant.contig.clone(),
         position_1based: variant.position_1based,

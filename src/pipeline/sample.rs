@@ -10,7 +10,7 @@ use crate::pipeline::path;
 use crate::report::{self, CompletedSampleEvidence};
 use crate::sample as sample_science;
 
-use super::{Operation, sample_metrics, sample_reads};
+use super::{Operation, sample_metrics, sample_notation, sample_reads};
 
 /// Runs one sample-evidence operation with one sample-level append-only log.
 pub(crate) fn run(
@@ -83,12 +83,17 @@ fn sample(
     );
 
     drop(stage);
+    let stage = tracing::info_span!("nomenclature").entered();
+    let notation = sample_notation::represent(&reads, &inputs.reference)?;
+
+    drop(stage);
     let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let result = report::build_sample(CompletedSampleEvidence {
         sample_id: sample_id.to_owned(),
         reference: inputs.reference,
         evidence,
+        notation,
     })?;
     let reads = result.reads.len();
     let coverage_segments = result.coverage.len();

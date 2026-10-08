@@ -1,5 +1,5 @@
 {
-  "schema_version": "dna.sample_evidence/v8",
+  "schema_version": "dna.sample_evidence/v9",
   "sample_id": "sample-001",
   "provenance": {
     "reference": {
@@ -288,5 +288,22 @@
         "eligible_reverse_reads": 0
       }
     }
-  ]
+  ],
+  "notation": {
+    "policy": "rcrs_right_aligned_hvs2",
+    "calls": [
+      {
+        "call": "150T",
+        "reads": [
+          "read-a"
+        ]
+      },
+      {
+        "call": "199C",
+        "reads": [
+          "read-a"
+        ]
+      }
+    ]
+  }
 }

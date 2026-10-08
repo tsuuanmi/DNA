@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:signal:schema:sample-evidence:v8",
-  "title": "DNA sample evidence v8",
+  "$id": "urn:signal:schema:sample-evidence:v9",
+  "title": "DNA sample evidence v9",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,7 +16,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "dna.sample_evidence/v8"
+      "const": "dna.sample_evidence/v9"
     },
     "sample_id": {
       "type": "string",
@@ -61,6 +61,9 @@
       "items": {
         "$ref": "#/$defs/coverage"
       }
+    },
+    "notation": {
+      "$ref": "#/$defs/notation"
     }
   },
   "$defs": {
@@ -869,6 +872,49 @@
         "profile_reverse_reads": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "notation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "calls"
+      ],
+      "properties": {
+        "policy": {
+          "const": "rcrs_right_aligned_hvs2"
+        },
+        "calls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/notationCall"
+          }
+        }
+      }
+    },
+    "notationCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call",
+        "reads"
+      ],
+      "properties": {
+        "call": {
+          "type": "string",
+          "pattern": "^(?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGT]|[1-9][0-9]*(?:[ACGT]|DEL))$"
+        },
+        "reads": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     }

@@ -3,8 +3,9 @@
 Owns projection of completed scientific state into versioned public contracts,
 deterministic JSON serialization, and atomic no-overwrite publication.
 
-Key children separate analysis, basecall, sample, signal, variant, serialization,
-and atomic publication concerns.
+Key children separate analysis, basecall, sample, signal, variant, per-base
+mtDNA notation rendering (`notation.rs`), serialization, and atomic publication
+concerns.
 
 Scientific decisions remain upstream.
 

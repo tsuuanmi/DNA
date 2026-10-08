@@ -4,7 +4,7 @@ DNA versions externally meaningful contracts explicitly.
 
 ## Public JSON contracts
 
-Closed schemas such as `dna.analysis/v7`, `dna.basecalls/v2`, and `dna.sample_evidence/v8` are immutable by version. Incompatible shape or semantic changes require a new contract version.
+Closed schemas such as `dna.analysis/v7`, `dna.basecalls/v2`, and `dna.sample_evidence/v9` are immutable by version. Incompatible shape or semantic changes require a new contract version.
 
 ## Configuration
 

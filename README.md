@@ -141,7 +141,7 @@ Current public result contracts are:
 
 - `dna.basecalls/v2` — reference-free primary/ambiguity/retained read result;
 - `dna.analysis/v7` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
-- `dna.sample_evidence/v8` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
+- `dna.sample_evidence/v9` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 

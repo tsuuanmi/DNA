@@ -5,6 +5,7 @@ mod basecall;
 mod path;
 mod sample;
 mod sample_metrics;
+mod sample_notation;
 mod sample_reads;
 
 use std::path::{Path, PathBuf};

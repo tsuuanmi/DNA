@@ -10,6 +10,10 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- `dna.sample_evidence/v9`: against the rCRS, an optional `notation` view
+  publishes each read's eligible calls after human-mtDNA right alignment and the
+  HVS-II 309/315 rule, rendered per base (`73G`, `249DEL`, `309.1C`) with
+  supporting reads (SRS-NOM-010 to SRS-NOM-012). All v8 fields are unchanged.
 - Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and an explicit Ubuntu 24.04 runner baseline.
 - Declare the crate proprietary (`license = "LicenseRef-Proprietary"`) so SBOMs
   and audits record its ownership.

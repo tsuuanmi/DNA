@@ -17,8 +17,8 @@ ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v7.schema.json"
 ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v7.example.json"
 BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v2.schema.json"
 BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v2.example.json"
-SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v8.schema.json"
-SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v8.example.json"
+SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v9.schema.json"
+SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v9.example.json"
 
 
 def load_json(path: Path) -> Any:
@@ -357,7 +357,18 @@ def rejected_sample_shapes(
     zero_comparable_with_agreement["overlaps"][0]["conflicts"] = 0
 
     old_sample_schema = copy.deepcopy(example)
-    old_sample_schema["schema_version"] = "dna.sample_evidence/v7"
+    old_sample_schema["schema_version"] = "dna.sample_evidence/v8"
+
+    unresolved_notation_call = copy.deepcopy(example)
+    unresolved_notation_call["notation"]["calls"][0]["call"] = "150N"
+    zero_insertion_ordinal = copy.deepcopy(example)
+    zero_insertion_ordinal["notation"]["calls"][0]["call"] = "309.0C"
+    notation_call_without_reads = copy.deepcopy(example)
+    notation_call_without_reads["notation"]["calls"][0]["reads"] = []
+    unknown_notation_policy = copy.deepcopy(example)
+    unknown_notation_policy["notation"]["policy"] = "left_aligned"
+    extra_notation_field = copy.deepcopy(example)
+    extra_notation_field["notation"]["consensus"] = []
 
     missing_locus_support_topology = copy.deepcopy(example)
     missing_locus_support_topology["locus_differences"][0].pop("support_topology")
@@ -448,6 +459,11 @@ def rejected_sample_shapes(
         ("overlap with comparable bases but no agreement", missing_overlap_agreement),
         ("zero-comparable overlap with agreement", zero_comparable_with_agreement),
         ("sample evidence using old schema version", old_sample_schema),
+        ("sample notation with an unresolved call base", unresolved_notation_call),
+        ("sample notation with a zero insertion ordinal", zero_insertion_ordinal),
+        ("sample notation call without supporting reads", notation_call_without_reads),
+        ("sample notation with an unknown policy", unknown_notation_policy),
+        ("sample notation with an extra field", extra_notation_field),
         ("sample locus without support topology", missing_locus_support_topology),
         ("sample called locus without noisy context", missing_locus_noisy_context),
         ("sample locus profile with out-of-range channel", out_of_range_profile),

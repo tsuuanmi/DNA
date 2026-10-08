@@ -17,8 +17,9 @@ Target-independent edit/application/render mechanics live in the crate-internal
 Its failure vocabulary, `NomenclatureError`, lives in `error`.
 
 It does **not** currently implement the 513-524 HVS-III AC repeat, HVS-I
-16189/16193 policy, Sanger-specific repeat artifact interpretation, decimal
-notation rendering, sample reconciliation, or NGS behavior.
+16189/16193 policy, Sanger-specific repeat artifact interpretation, sample
+reconciliation, or NGS behavior. Decimal notation rendering lives in
+`report::notation`, and the `sample` workflow composes this rule per read.
 
 Nomenclature must never reinterpret sequencing signal, change caller
 eligibility, manufacture phase, or change the represented biological haplotype.

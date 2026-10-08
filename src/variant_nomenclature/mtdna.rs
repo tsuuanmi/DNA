@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::error::{NomenclatureError, Result};
-use crate::model::reference::ReferenceTopology;
+use crate::model::reference::{Reference, ReferenceTopology};
 use crate::reference;
 use crate::variant_representation::{
     SequenceEdit, apply_edits, render_edits, sort_edits, variants_to_edits,
@@ -11,11 +11,21 @@ use crate::variant_representation::{
 
 use super::{NomenclatureInput, VariantNomenclatureResult};
 
+/// SHA-256 of the normalized rCRS (`NC_012920.1`) sequence, the only reference
+/// the human-mtDNA policies are validated against.
+const RCRS_SEQUENCE_SHA256: &str =
+    "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66";
+
 const HV2_START_0BASED: usize = 302;
 const HV2_END_0BASED_EXCLUSIVE: usize = 315;
 const HV2_REFERENCE: &str = "CCCCCCCTCCCCC";
 const HV2_ANCHOR_INDEX: usize = 7;
 const HV2_RIGHT_RUN_LENGTH: usize = 5;
+
+/// Whether `reference` is the rCRS sequence the human-mtDNA policies target.
+pub(crate) fn is_rcrs(reference: &Reference) -> bool {
+    reference.sequence_sha256 == RCRS_SEQUENCE_SHA256
+}
 
 /// Applies the validated human-mtDNA HVS-II 309/315 poly-C representation.
 ///
@@ -34,6 +44,15 @@ pub fn apply_hv2_polyc(
     input: NomenclatureInput<'_>,
 ) -> Result<VariantNomenclatureResult> {
     let reference = reference::load(reference_path, ReferenceTopology::Circular)?;
+    hv2_polyc_with(&reference, input)
+}
+
+/// Applies the HVS-II rule against an already loaded reference; see
+/// [`apply_hv2_polyc`].
+pub(crate) fn hv2_polyc_with(
+    reference: &Reference,
+    input: NomenclatureInput<'_>,
+) -> Result<VariantNomenclatureResult> {
     if input.reference.name != reference.name || input.reference.sha256 != reference.sequence_sha256
     {
         return Err(NomenclatureError::ReferenceIdentityMismatch.into());

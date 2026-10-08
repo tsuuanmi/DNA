@@ -9,7 +9,7 @@ mod mtdna;
 use std::path::Path;
 
 use crate::error::{NormalizationError, Result};
-use crate::model::reference::ReferenceTopology;
+use crate::model::reference::{Reference, ReferenceTopology};
 use crate::reference;
 use crate::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant};
 use crate::variant_representation::{apply_edits, render_edits, variants_to_edits};
@@ -56,6 +56,15 @@ pub fn normalize(
     policy: NormalizationPolicy,
 ) -> Result<VariantNormalizationResult> {
     let reference = reference::load(reference_path, ReferenceTopology::Circular)?;
+    normalize_with(&reference, called, policy)
+}
+
+/// Normalizes against an already loaded reference; see [`normalize`].
+pub(crate) fn normalize_with(
+    reference: &Reference,
+    called: &CalledVariantSet,
+    policy: NormalizationPolicy,
+) -> Result<VariantNormalizationResult> {
     if called.reference.name != reference.name
         || called.reference.sha256 != reference.sequence_sha256
     {

@@ -1,4 +1,4 @@
-//! Serializable `dna.sample_evidence/v8` contract.
+//! Serializable `dna.sample_evidence/v9` contract.
 
 use serde::Serialize;
 
@@ -19,6 +19,22 @@ pub(crate) struct SampleEvidenceResult {
     pub(crate) overlaps: Vec<SampleOverlapResult>,
     pub(crate) locus_differences: Vec<SampleLocusDifferenceResult>,
     pub(crate) variants: Vec<SampleVariantResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) notation: Option<SampleNotationResult>,
+}
+
+/// Per-base human-mtDNA notation of each read's eligible calls (rCRS only).
+#[derive(Debug, Serialize)]
+pub(crate) struct SampleNotationResult {
+    pub(crate) policy: &'static str,
+    pub(crate) calls: Vec<SampleNotationCallResult>,
+}
+
+/// One rendered call and the reads whose represented calls contain it.
+#[derive(Debug, Serialize)]
+pub(crate) struct SampleNotationCallResult {
+    pub(crate) call: String,
+    pub(crate) reads: Vec<String>,
 }
 
 /// Scientific identities shared by every sample read.

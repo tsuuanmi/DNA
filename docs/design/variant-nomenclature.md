@@ -79,6 +79,28 @@ owned by the crate-internal `variant_representation` module.
 `variant_normalization` and `variant_nomenclature` both reuse those mechanics
 while owning separate policy and error boundaries.
 
+## Sample workflow composition and notation
+
+The `sample` command composes this rule per read when the reference is the
+rCRS (SRS-NOM-010). Each read's eligible variants are right-aligned by
+`variant_normalization` and then passed through the HVS-II rule, so that the
+HV2F and HV3R descriptions of one poly-C haplotype converge before they are
+compared. Composition lives in `pipeline::sample_notation`, following ADR-0060
+§7. An edit that straddles the validated window keeps its right-aligned form,
+because SRS-NOM-007 forbids partially rewriting it.
+
+Rendering into per-base decimal notation is mechanical serialization
+(ADR-0060 §8) and lives in `report::notation` (SRS-NOM-011); the report groups
+identical calls with their supporting reads (SRS-NOM-012). The same chain
+(Tracy alignment → right alignment → mtDNA policy → per-base rendering) is the
+approach of the legacy `mtdna_raw` pipeline.
+
+On the 54-sample reviewed Sequencher test set (44 samples with output), the
+published notation reaches precision 0.885 / recall 0.979 and matches 21
+samples exactly, against 0.73 / 0.86 and no exact matches for raw
+alignment-placed calls. Most remaining disagreements are HV2F poly-C phase
+artifacts and HVS-I 16189/16193 forms, both still non-goals below.
+
 ## Scientific basis
 
 This policy follows the forensic mtDNA convention that insertion notation is
@@ -96,8 +118,7 @@ This implementation does not yet cover:
 
 - HVS-III 513-524 AC-repeat nomenclature;
 - HVS-I 16189/16193 poly-C nomenclature;
-- Sanger-specific repeat artifact interpretation;
-- decimal-string rendering;
-- sample reconciliation;
+- Sanger-specific repeat artifact interpretation and primer callable ranges;
+- sample reconciliation or consensus beyond listing supporting reads;
 - VCF/HGVS formatting;
 - NGS-specific behavior.

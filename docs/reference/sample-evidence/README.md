@@ -2,10 +2,10 @@
 
 `signal sample <sample-id> <trace.ab1>... --reference <reference.fasta>`
 writes one deterministic `results/<sample-id>.sample.json` document identified as
-`dna.sample_evidence/v8`. The authoritative schema is
-[`schemas/sample-evidence-v8.schema.json`](../schemas/sample-evidence-v8.schema.json)
+`dna.sample_evidence/v9`. The authoritative schema is
+[`schemas/sample-evidence-v9.schema.json`](../schemas/sample-evidence-v9.schema.json)
 and the example is
-[`examples/sample-evidence-v8.example.json`](../examples/sample-evidence-v8.example.json).
+[`examples/sample-evidence-v9.example.json`](../examples/sample-evidence-v9.example.json).
 
 The sample identifier and read names are reviewer-facing provenance. They never
 constrain scientific placement, orientation, overlap discovery, or variant
@@ -16,6 +16,7 @@ reconciliation.
 - [Reads and coverage](reads-coverage.md)
 - [Overlaps and differential loci](overlaps-loci.md)
 - [Variants and differential-locus signal evidence](variants-signal.md)
+- [Human-mtDNA notation](notation.md)
 
 ## Why the evidence layers are separate
 
@@ -44,18 +45,19 @@ None of these arrays is a consensus result.
 
 ## Contract boundary
 
-v8 remains compact and difference-focused. It does not serialize per-base
+v9 remains compact and difference-focused. It does not serialize per-base
 evidence for loci where every covering read agrees with the reference. Pairwise
 overlap records summarize only admission-relevant counts rather than dense
 per-coordinate comparisons. The scientific pipeline still processes each read
 independently before sample aggregation.
 
-The current implementation emits v8 only. Earlier sample-evidence contracts are
-not emitted as aliases or compatibility output.
+v9 adds the optional `notation` view; every v8 field is unchanged. The current
+implementation emits v9 only. Earlier sample-evidence contracts are not emitted
+as aliases or compatibility output.
 
 ## Non-goals
 
-The v8 contract contains no consensus sequence, sample-level adjudicated variant
+The v9 contract contains no consensus sequence, sample-level adjudicated variant
 verdict, majority-vote result, genotype, heteroplasmy estimate, haplogroup
 interpretation, F/R pair object, primer/HV placement rule, or filename-derived
 placement. `overlaps[]` is an evidence/admission graph, not a pair-first merge
