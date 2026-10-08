@@ -14,10 +14,11 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use serde::Deserialize;
+
 use crate::checksum::hex_sha256;
 use crate::error::{Error, ProfileError, Result};
 use crate::model::reference::{Reference, ReferenceTopology};
-use crate::variant_normalization::NormalizationPolicy;
 
 pub(crate) use window::{Anchor, NomenclatureWindow, WindowRule};
 
@@ -27,7 +28,7 @@ const MAX_PROFILE_BYTES: usize = 1024 * 1024;
 /// A validated target profile.
 ///
 /// Load one with [`Profile::load`]; pass it to profile-driven capabilities such
-/// as [`variant_nomenclature::apply`](crate::variant_nomenclature::apply).
+/// as `variant_nomenclature::apply`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
     pub(crate) identity: ProfileIdentity,
@@ -46,7 +47,7 @@ pub struct Profile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Notation {
     /// Indel placement applied before the nomenclature windows.
-    pub(crate) normalization: NormalizationPolicy,
+    pub(crate) indel_placement: IndelPlacement,
     pub(crate) style: NotationStyle,
 }
 
@@ -57,6 +58,14 @@ pub struct ProfileIdentity {
     pub id: String,
     /// SHA-256 of the profile file bytes.
     pub sha256: String,
+}
+
+/// Where sequence-equivalent indels are placed before nomenclature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum IndelPlacement {
+    /// 3'/right-most placement, never across the FASTA coordinate seam.
+    Right,
 }
 
 /// How represented variants are serialized for reviewers.
@@ -165,7 +174,7 @@ pub(crate) mod tests {
         assert_eq!(
             profile.notation,
             Some(Notation {
-                normalization: NormalizationPolicy::RightAligned,
+                indel_placement: IndelPlacement::Right,
                 style: NotationStyle::PerBaseDecimal,
             })
         );

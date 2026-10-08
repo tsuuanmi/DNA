@@ -5,12 +5,11 @@ use std::collections::BTreeSet;
 use serde::Deserialize;
 
 use super::window::{Anchor, NomenclatureWindow, WindowRule};
-use super::{Notation, NotationStyle, Profile, ProfileIdentity};
+use super::{IndelPlacement, Notation, NotationStyle, Profile, ProfileIdentity};
 use crate::config::MAX_REFERENCE_LENGTH;
 use crate::error::{ProfileError, Result};
 use crate::model::nucleotide::{Nucleotide, is_canonical};
 use crate::model::reference::ReferenceTopology;
-use crate::variant_normalization::NormalizationPolicy;
 
 /// Profile schema version this build accepts.
 const SCHEMA_VERSION: u32 = 1;
@@ -45,13 +44,7 @@ struct RawVariantCalling {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawNormalization {
-    indel_placement: RawIndelPlacement,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum RawIndelPlacement {
-    Right,
+    indel_placement: IndelPlacement,
 }
 
 #[derive(Debug, Deserialize)]
@@ -152,9 +145,7 @@ impl RawProfile {
         validate_regions(&self.variant_calling.regions)?;
         let notation = match (self.normalization, self.notation) {
             (Some(normalization), Some(notation)) => Some(Notation {
-                normalization: match normalization.indel_placement {
-                    RawIndelPlacement::Right => NormalizationPolicy::RightAligned,
-                },
+                indel_placement: normalization.indel_placement,
                 style: match notation.style {
                     RawNotationStyle::PerBaseDecimal => NotationStyle::PerBaseDecimal,
                 },

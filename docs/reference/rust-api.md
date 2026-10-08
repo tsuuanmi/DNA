@@ -5,7 +5,7 @@ This document defines the current stable Rust library boundary exposed by the
 
 ## Crate surface
 
-The public modules are `cli`, `error`, `profile`, `variant_analysis`,
+The public modules are `cli`, `error`, `profile`, `variant`, `variant_analysis`,
 `variant_normalization`, and `variant_nomenclature`, plus the CLI dispatcher
 `dna::run(cli::Cli) -> dna::error::Result<()>`. All other modules, including
 configuration, internal models, scientific stages, and reporting, are private
@@ -88,6 +88,12 @@ pub struct VariantAnalysisResult {
 `input_sha256`, `reference.sha256`, `configuration_sha256`, and `profile`
 identify the exact source artifact, reference sequence, validated configuration
 content, and target profile used for the result.
+
+The canonical contract types `ReferenceIdentity`, `Variant`, `VariantKind`, and
+`CalledVariantSet` live in the core module `dna::variant` (ADR-0064), so
+normalization, nomenclature, and future modalities share them without depending
+on the Sanger capability. `VariantAnalysisResult` and `ReferenceSegment` live in
+`dna::variant_analysis`.
 
 ### ReferenceIdentity
 

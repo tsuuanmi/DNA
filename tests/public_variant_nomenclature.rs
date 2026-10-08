@@ -9,7 +9,7 @@ use tempfile::tempdir;
 
 use dna::error::{Error, ProfileError};
 use dna::profile::Profile;
-use dna::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
+use dna::variant::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
 use dna::variant_nomenclature;
 use dna::variant_normalization::{self, NormalizationPolicy, VariantNormalizationResult};
 use support::{human_mtdna_profile, write_reference};

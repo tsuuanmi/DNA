@@ -11,7 +11,7 @@ use crate::model::reference::Reference;
 use crate::model::variant::Variant as CalledVariant;
 use crate::profile::{Notation, Profile};
 use crate::report::{ReadRepresentation, SampleNotation};
-use crate::variant_analysis::{self, CalledVariantSet, ReferenceIdentity, Variant};
+use crate::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 use crate::variant_nomenclature::{self, from_normalization};
 use crate::variant_normalization::{NormalizationPolicy, normalize_with};
 
@@ -23,12 +23,13 @@ pub(crate) fn represent(
     profile: &Profile,
 ) -> Result<Option<SampleNotation>> {
     let Some(Notation {
-        normalization: policy,
+        indel_placement,
         style,
     }) = profile.notation
     else {
         return Ok(None);
     };
+    let policy = NormalizationPolicy::for_placement(indel_placement);
     let reads = reads
         .iter()
         .map(|read| {
@@ -55,10 +56,7 @@ fn represent_read(
             name: reference.name.clone(),
             sha256: reference.sequence_sha256.clone(),
         },
-        variants: reported
-            .iter()
-            .map(variant_analysis::project_variant)
-            .collect(),
+        variants: reported.iter().map(Variant::from).collect(),
     };
     let normalized = normalize_with(reference, &called, policy)?;
     match variant_nomenclature::apply_with(reference, profile, from_normalization(&normalized)) {
@@ -79,7 +77,7 @@ mod tests {
     use crate::model::variant::{Variant as CalledVariant, VariantKind};
     use crate::profile::tests::human_mtdna;
     use crate::reference;
-    use crate::variant_analysis;
+    use crate::variant;
 
     use super::*;
 
@@ -115,9 +113,9 @@ mod tests {
             reference: reference.into(),
             alternate: alternate.into(),
             kind: match reference.len().cmp(&alternate.len()) {
-                Ordering::Less => variant_analysis::VariantKind::Ins,
-                Ordering::Greater => variant_analysis::VariantKind::Del,
-                Ordering::Equal => variant_analysis::VariantKind::Snv,
+                Ordering::Less => variant::VariantKind::Ins,
+                Ordering::Greater => variant::VariantKind::Del,
+                Ordering::Equal => variant::VariantKind::Snv,
             },
         }
     }

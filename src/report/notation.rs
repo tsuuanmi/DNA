@@ -7,7 +7,7 @@
 //! `309.2C`); an insertion before the first base uses anchor `0`.
 
 use crate::error::RepresentationError;
-use crate::variant_analysis::Variant;
+use crate::variant::Variant;
 use crate::variant_representation::{sort_edits, variants_to_edits};
 
 /// One rendered per-base call with its reference-order sort key.
@@ -61,7 +61,7 @@ pub(super) fn render(
 
 #[cfg(test)]
 mod tests {
-    use crate::variant_analysis::{Variant, VariantKind};
+    use crate::variant::{Variant, VariantKind};
 
     use super::*;
 

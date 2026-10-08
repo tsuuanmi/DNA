@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::error::RepresentationError;
 use crate::model::reference::base_at;
-use crate::variant_analysis::{Variant, VariantKind};
+use crate::variant::{Variant, VariantKind};
 
 pub(crate) type RepresentationResult<T> = Result<T, RepresentationError>;
 

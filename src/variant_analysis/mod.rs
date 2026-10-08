@@ -10,8 +10,8 @@ use std::path::Path;
 
 use crate::error::Result;
 use crate::input::sanger;
-use crate::model::variant as internal_variant;
 use crate::profile::ProfileIdentity;
+use crate::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 
 /// Typed result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,15 +31,6 @@ pub struct VariantAnalysisResult {
     pub variants: Vec<Variant>,
 }
 
-/// Stable reference identity carried by analysis results.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReferenceIdentity {
-    /// FASTA record identifier of the reference.
-    pub name: String,
-    /// SHA-256 of the normalized reference sequence.
-    pub sha256: String,
-}
-
 /// Zero-based, half-open covered interval on the reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceSegment {
@@ -47,45 +38,6 @@ pub struct ReferenceSegment {
     pub start_0based: usize,
     /// End of the covered interval (0-based, exclusive).
     pub end_0based_exclusive: usize,
-}
-
-/// Supported called-variant type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[non_exhaustive]
-pub enum VariantKind {
-    /// Single-nucleotide substitution.
-    Snv,
-    /// Anchored insertion of one or more bases.
-    Ins,
-    /// Anchored deletion of one or more bases.
-    Del,
-}
-
-/// One reportable evidence-backed primary-sequence difference.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Variant {
-    /// Reference record identifier the variant is placed on.
-    pub contig: String,
-    /// 1-based position of the first reference allele base.
-    pub position_1based: usize,
-    /// Reference allele, including the anchor base for indels.
-    pub reference: String,
-    /// Alternate allele, including the anchor base for indels.
-    pub alternate: String,
-    /// Variant type.
-    pub kind: VariantKind,
-}
-
-/// Cross-modality boundary for evidence-backed variants against one reference.
-///
-/// This type does not imply right/left alignment, nomenclature, VCF
-/// normalization, or another representation policy.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CalledVariantSet {
-    /// Reference every variant in the set is placed on.
-    pub reference: ReferenceIdentity,
-    /// Evidence-backed called variants.
-    pub variants: Vec<Variant>,
 }
 
 impl VariantAnalysisResult {
@@ -135,7 +87,7 @@ pub fn analyze_sanger(
             end_0based_exclusive: segment.end_0based_exclusive,
         })
         .collect();
-    let variants = read.variants.reported.iter().map(project_variant).collect();
+    let variants = read.variants.reported.iter().map(Variant::from).collect();
 
     Ok(VariantAnalysisResult {
         input_sha256: read.input_sha256,
@@ -145,19 +97,4 @@ pub fn analyze_sanger(
         reference_segments,
         variants,
     })
-}
-
-/// Projects an internal called variant into the public variant boundary.
-pub(crate) fn project_variant(variant: &internal_variant::Variant) -> Variant {
-    Variant {
-        contig: variant.contig.clone(),
-        position_1based: variant.position_1based,
-        reference: variant.reference.clone(),
-        alternate: variant.alternate.clone(),
-        kind: match variant.kind {
-            internal_variant::VariantKind::Snv => VariantKind::Snv,
-            internal_variant::VariantKind::Ins => VariantKind::Ins,
-            internal_variant::VariantKind::Del => VariantKind::Del,
-        },
-    }
 }

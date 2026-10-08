@@ -23,15 +23,21 @@ API documentation lives in rustdoc and source comments.
 - [sample](sample/README.md) — multi-read evidence aggregation.
 - [signal_processing](signal_processing/README.md) — observation-only signal analysis.
 - [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
+- `variant.rs` — public canonical called-variant contracts (`dna::variant`).
 - [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
 - [variant_nomenclature](variant_nomenclature/README.md) — optional profile-driven target nomenclature.
 - [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
 
-File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`, and
-`read_processing.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
+File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`,
+`read_processing.rs`, and `variant.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
 
 ## Dependency rule
 
+Every top-level module belongs to one layer of
+[ADR-0064](../docs/decisions/adr/0064-crate-ready-module-layering.md) — core,
+target data, science, adapters/capabilities, delivery — and may depend only on
+the same or a lower layer, without cycles;
+`tools/python/scripts/validate_module_layers.py` enforces this in CI.
 Dependencies point inward toward operation/scientific boundaries and shared
 domain/config/error types rather than outward toward frontends. In particular,
 the CLI may call the pipeline boundary, but pipeline and scientific modules must

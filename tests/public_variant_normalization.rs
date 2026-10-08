@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
 use dna::error::{Error, NormalizationError, RepresentationError};
-use dna::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
+use dna::variant::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
 use dna::variant_normalization::{self, NormalizationPolicy};
 use support::write_reference;
 

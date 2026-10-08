@@ -17,7 +17,7 @@ use crate::model::sample_result::{
 use crate::profile::{NotationStyle, ProfileIdentity};
 use crate::report::json::project_profile;
 use crate::report::notation::{self, NotationCall};
-use crate::variant_analysis::Variant;
+use crate::variant::Variant;
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {

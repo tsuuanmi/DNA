@@ -6,7 +6,8 @@ use std::fs;
 
 use tempfile::tempdir;
 
-use dna::variant_analysis::{self, VariantKind};
+use dna::variant::VariantKind;
+use dna::variant_analysis;
 use support::{write_abif, write_config, write_reference};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";

@@ -24,6 +24,7 @@ mod reference;
 mod report;
 mod sample;
 mod signal_processing;
+pub mod variant;
 pub mod variant_analysis;
 mod variant_calling;
 pub mod variant_nomenclature;

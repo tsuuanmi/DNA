@@ -17,9 +17,11 @@ checks the reference against it; `variant_calling` receives its regions;
 `variant_nomenclature` runs its windows; `pipeline::sample_notation` follows its
 normalization and notation choices; `report` records its identity.
 
-This module depends only on `model`, `error`, `checksum`, the reference-length cap in
-`config`, and the `NormalizationPolicy` vocabulary. It does not run any rule,
-load references, or read the scientific configuration.
+This module is in the target-data layer (ADR-0064): it depends only on `model`,
+`error`, `checksum`, and the reference-length cap in `config`. It names its own
+vocabulary (`IndelPlacement`, `NotationStyle`); `variant_normalization` maps
+the placement to its `NormalizationPolicy`. It does not run any rule, load
+references, or read the scientific configuration.
 
 See [profile requirements](../../docs/requirements/profiles.md),
 [profile reference](../../docs/reference/profiles.md), and

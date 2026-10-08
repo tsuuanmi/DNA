@@ -10,8 +10,9 @@ use std::path::Path;
 
 use crate::error::{NormalizationError, Result};
 use crate::model::reference::{Reference, ReferenceTopology};
+use crate::profile::IndelPlacement;
 use crate::reference;
-use crate::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant};
+use crate::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 use crate::variant_representation::{apply_edits, render_edits, variants_to_edits};
 
 /// Explicit post-calling normalization policy.
@@ -23,6 +24,15 @@ pub enum NormalizationPolicy {
     /// The FASTA boundaries define a fixed coordinate seam; equivalent events
     /// are never rotated across the end/start boundary of a circular reference.
     RightAligned,
+}
+
+impl NormalizationPolicy {
+    /// The policy implementing a target profile's indel placement.
+    pub(crate) fn for_placement(placement: IndelPlacement) -> Self {
+        match placement {
+            IndelPlacement::Right => Self::RightAligned,
+        }
+    }
 }
 
 /// Source and normalized representations of one unchanged called haplotype.

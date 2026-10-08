@@ -16,9 +16,10 @@ observation seam. Variant Analysis does not own file-backed CLI logging, JSON
 projection, or result-file publication.
 
 Public result types belong to this capability boundary and must not expose
-private pipeline/report DTOs. `VariantAnalysisResult::called_variants()`
-projects the current Sanger result into the implemented `CalledVariantSet`
-cross-modality boundary. New input modalities such as NGS should expose
+private pipeline/report DTOs. The canonical called-variant contracts
+(`Variant`, `VariantKind`, `ReferenceIdentity`, `CalledVariantSet`) live in the
+core `dna::variant` module (ADR-0064); `VariantAnalysisResult::called_variants()`
+projects the current Sanger result into that cross-modality boundary. New input modalities such as NGS should expose
 compatible called-variant semantics without teaching downstream consumers about
 source-specific implementation types.
 

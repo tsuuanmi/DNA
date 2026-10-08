@@ -14,7 +14,7 @@ use crate::error::{NomenclatureError, Result};
 use crate::model::reference::Reference;
 use crate::profile::Profile;
 use crate::reference;
-use crate::variant_analysis::{ReferenceIdentity, Variant};
+use crate::variant::{ReferenceIdentity, Variant};
 use crate::variant_normalization::VariantNormalizationResult;
 use crate::variant_representation::{apply_edits, render_edits, variants_to_edits};
 

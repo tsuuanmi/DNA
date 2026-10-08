@@ -50,6 +50,11 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- **Breaking (Rust API):** the canonical called-variant contracts move from
+  `dna::variant_analysis` to the core module `dna::variant` (`Variant`,
+  `VariantKind`, `ReferenceIdentity`, `CalledVariantSet`). Modules now form
+  five acyclic layers (ADR-0064), enforced in CI by
+  `validate_module_layers.py`, so a later crate split needs no contract redesign.
 - **Breaking (Rust API):** `variant_nomenclature::mtdna::apply_hv2_polyc` is
   replaced by `apply_control_region`, which adds HVS-II `311T 315.1C`,
   `310C 315DEL` and EMPOP `315.1C`, HVS-III `513A 523DEL 524DEL`, and HVS-I

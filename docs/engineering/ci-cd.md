@@ -81,6 +81,7 @@ The repository-policy job:
 
 - rejects files under `src/` other than Rust source and source-local `README.md` documentation;
 - validates the explicit Rust source policy;
+- validates the module layering of ADR-0064 (no upward dependency, no cycle);
 - runs Ruff formatting and lint checks;
 - runs basedpyright;
 - runs Python tooling tests;

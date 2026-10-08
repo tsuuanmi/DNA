@@ -96,3 +96,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0061](0061-tracing-for-operational-logging.md) | Use `tracing` for operational logging | Accepted |
 | [0062](0062-read-callability.md) | Read callability from the read's own calls | Accepted |
 | [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |
+| [0064](0064-crate-ready-module-layering.md) | Crate-ready module layering | Accepted |
