@@ -12,7 +12,7 @@ remain independently versioned and are never silently changed in place.
 
 - `dna.sample_evidence/v9`: against the rCRS, an optional `notation` view
   publishes each read's eligible calls after human-mtDNA right alignment and the
-  HVS-II 309/315 rule, rendered per base (`73G`, `249DEL`, `309.1C`) with
+  control-region policy (HVS-II, HVS-III, HVS-I windows), rendered per base (`73G`, `249DEL`, `309.1C`) with
   supporting reads (SRS-NOM-010 to SRS-NOM-012). All v8 fields are unchanged.
 - Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and an explicit Ubuntu 24.04 runner baseline.
 - Declare the crate proprietary (`license = "LicenseRef-Proprietary"`) so SBOMs
@@ -25,6 +25,11 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- **Breaking (Rust API):** `variant_nomenclature::mtdna::apply_hv2_polyc` is
+  replaced by `apply_control_region`, which adds HVS-II `311T 315.1C`,
+  `310C 315DEL` and EMPOP `315.1C`, HVS-III `513A 523DEL 524DEL`, and HVS-I
+  `16183C 16184A 16189C` / `16189C 16193DEL` (SRS-NOM-013 to SRS-NOM-015).
+  `NomenclatureError` window failures name their window.
 - **Breaking (Rust API):** the empty public `dna::config` and `dna::model`
   modules are now private; library-produced results (`VariantAnalysisResult`,
   `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums

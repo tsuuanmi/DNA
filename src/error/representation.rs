@@ -77,18 +77,27 @@ pub enum NomenclatureError {
     /// Normalized variants do not reconstruct the supplied alternate haplotype.
     #[error("normalized variants do not reproduce the supplied alternate haplotype")]
     InconsistentInput,
-    /// The rule would change the reconstructed haplotype.
-    #[error("HV2 nomenclature changed the reconstructed haplotype")]
+    /// The policy would change the reconstructed haplotype.
+    #[error("mtDNA nomenclature changed the reconstructed haplotype")]
     HaplotypeChanged,
-    /// The reference does not carry the validated rCRS HV2 motif.
-    #[error("HV2 303-315 reference window does not match the validated rCRS motif")]
-    ReferenceMotifMismatch,
-    /// An edit straddles the HV2 window boundary.
-    #[error("variant edit crosses the validated HV2 nomenclature window")]
-    WindowCrossing,
-    /// The run-length representation would change the local haplotype.
-    #[error("HV2 run-length representation changed the local haplotype")]
-    LocalHaplotypeChanged,
+    /// The reference does not carry a validated rCRS window motif.
+    #[error("{window} reference window does not match the validated rCRS motif")]
+    ReferenceMotifMismatch {
+        /// Window name, for example `"HVS-II"`.
+        window: &'static str,
+    },
+    /// An edit straddles a window boundary.
+    #[error("variant edit crosses the validated {window} nomenclature window")]
+    WindowCrossing {
+        /// Window name, for example `"HVS-II"`.
+        window: &'static str,
+    },
+    /// A window rule would change the local haplotype.
+    #[error("{window} representation changed the local haplotype")]
+    LocalHaplotypeChanged {
+        /// Window name, for example `"HVS-II"`.
+        window: &'static str,
+    },
     /// Variants could not be represented as sequence edits.
     #[error("{0}")]
     Representation(RepresentationError),

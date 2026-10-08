@@ -319,7 +319,7 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
     assert_eq!(
         value["notation"],
         serde_json::json!({
-            "policy": "rcrs_right_aligned_hvs2",
+            "policy": "rcrs_right_aligned_control_region",
             "calls": [{"call": "309.1C", "reads": ["hv2-read"]}],
         })
     );

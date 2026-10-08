@@ -7,19 +7,20 @@ The public `NomenclatureInput` view over `VariantNormalizationResult` carries
 reference identity, exact source variants, reconstructed alternate haplotype,
 and normalized variants without copying or rewriting them.
 
-Current production behavior implements one deliberately narrow human-mtDNA rule:
-`mtdna::apply_hv2_polyc` canonicalizes the rCRS 303-315 HVS-II poly-C window
-around T310 into run-length changes at the 309 and 315 boundaries while proving
-that the complete alternate haplotype is unchanged.
+Current production behavior implements the human-mtDNA control-region policy,
+`mtdna::apply_control_region`: declarative rCRS windows (HVS-II 303-315 and
+HVS-I 16181-16193 poly-C, HVS-III 513-524 AC repeat), each with ordered
+representation rules, while proving that the complete alternate haplotype is
+unchanged.
 
 Target-independent edit/application/render mechanics live in the crate-internal
 `variant_representation` module; this module owns only nomenclature policy.
 Its failure vocabulary, `NomenclatureError`, lives in `error`.
 
-It does **not** currently implement the 513-524 HVS-III AC repeat, HVS-I
-16189/16193 policy, Sanger-specific repeat artifact interpretation, sample
-reconciliation, or NGS behavior. Decimal notation rendering lives in
-`report::notation`, and the `sample` workflow composes this rule per read.
+It does **not** implement Sanger-specific repeat artifact interpretation,
+primer callable ranges, sample reconciliation, or NGS behavior. Decimal
+notation rendering lives in `report::notation`, and the `sample` workflow
+composes this policy per read.
 
 Nomenclature must never reinterpret sequencing signal, change caller
 eligibility, manufacture phase, or change the represented biological haplotype.

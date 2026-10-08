@@ -52,22 +52,37 @@ as `309.1C`, `309.2C`, and `315.1C`.
 
 ## Algorithm
 
-`variant_nomenclature::mtdna::apply_hv2_polyc`:
+`variant_nomenclature::mtdna::apply_control_region`:
 
 1. loads and validates the supplied reference identity;
 2. reconstructs the complete alternate sequence from normalized variants;
 3. verifies it equals the alternate sequence retained by normalization;
-4. isolates edits wholly contained in the HVS-II 303-315 window;
+4. for each declarative window inside the reference (HVS-II 303-315, HVS-III
+   513-524, HVS-I 16181-16193), requires the validated rCRS motif and isolates
+   the edits wholly contained in it;
 5. reconstructs the local alternate window;
-6. when that window contains only C bases around exactly one T anchor, derives
-   left- and right-run length deltas relative to rCRS;
-7. replaces only the local decomposition with run-length edits at the 309 and
-   315 boundaries;
-8. preserves all variants outside the window;
-9. reconstructs the complete represented haplotype and requires byte-for-byte
+6. tries the window's rules in order and takes the first candidate that
+   reconstructs exactly that local haplotype; with no candidate, the normalized
+   edits stay;
+7. preserves all variants outside the windows;
+8. reconstructs the complete represented haplotype and requires byte-for-byte
    equality with the normalization result before returning.
 
-An edit crossing the window boundary fails closed rather than being partly
+The rules are:
+
+| Window | Structure | Rules, in order |
+| --- | --- | --- |
+| HVS-II | C runs around T310 | run lengths at 309/315; duplicated anchor `311T 315.1C`; anchor deletion `310C 315DEL`; one-base gain ending in C as substitutions + EMPOP `315.1C` |
+| HVS-III | `AC` tandem repeat | one-motif loss as substitutions + `523DEL 524DEL` |
+| HVS-I | C runs around T16189 | phylogenetic `16183C 16184A 16189C`; anchor deletion `16189C 16193DEL` |
+
+These are ports of the `mtdna_raw` profiles. Its "preserve interpreted
+substitutions" rule is the same as keeping the normalized form here, so it has
+no separate implementation. Its EMPOP terminal rule also accepts multi-base
+gains through a full edit-script derivation; DNA accepts only the validated
+one-base gain and otherwise keeps the normalized form.
+
+An edit crossing a window boundary fails closed rather than being partly
 rewritten.
 
 ## Shared mechanics
@@ -83,7 +98,7 @@ while owning separate policy and error boundaries.
 
 The `sample` command composes this rule per read when the reference is the
 rCRS (SRS-NOM-010). Each read's eligible variants are right-aligned by
-`variant_normalization` and then passed through the HVS-II rule, so that the
+`variant_normalization` and then passed through the control-region policy, so that the
 HV2F and HV3R descriptions of one poly-C haplotype converge before they are
 compared. Composition lives in `pipeline::sample_notation`, following ADR-0060
 §7. An edit that straddles the validated window keeps its right-aligned form,
@@ -116,8 +131,6 @@ standardization literature for rCRS-based mtDNA notation.
 
 This implementation does not yet cover:
 
-- HVS-III 513-524 AC-repeat nomenclature;
-- HVS-I 16189/16193 poly-C nomenclature;
 - Sanger-specific repeat artifact interpretation and primer callable ranges;
 - sample reconciliation or consensus beyond listing supporting reads;
 - VCF/HGVS formatting;

@@ -1,9 +1,9 @@
 //! Per-read human-mtDNA representation for the sample notation view.
 //!
 //! ADR-0060 composes representation per read before sample reconciliation:
-//! each read's eligible calls are right-aligned and then given the HVS-II
-//! 309/315 representation, so sequence-equivalent descriptions from different
-//! reads converge on one notation.
+//! each read's eligible calls are right-aligned and then given the
+//! control-region representation, so sequence-equivalent descriptions from
+//! different reads converge on one notation.
 
 use crate::error::{Error, NomenclatureError, Result};
 use crate::model::read_observation::ReadObservation;
@@ -12,7 +12,7 @@ use crate::model::variant::Variant as CalledVariant;
 use crate::report::ReadRepresentation;
 use crate::variant_analysis::{self, CalledVariantSet, ReferenceIdentity, Variant};
 use crate::variant_nomenclature::from_normalization;
-use crate::variant_nomenclature::mtdna::{hv2_polyc_with, is_rcrs};
+use crate::variant_nomenclature::mtdna::{control_region_with, is_rcrs};
 use crate::variant_normalization::{NormalizationPolicy, normalize_with};
 
 /// Represents every read's eligible calls, or `None` when the reference is not
@@ -36,8 +36,8 @@ pub(crate) fn represent(
         .map(Some)
 }
 
-/// Right-aligns one read's calls, then applies the HVS-II rule. An edit that
-/// straddles the validated HVS-II window cannot take that representation
+/// Right-aligns one read's calls, then applies the control-region policy. An edit that
+/// straddles a validated window cannot take that representation
 /// (SRS-NOM-007), so the read keeps its right-aligned form.
 fn represent_read(reference: &Reference, reported: &[CalledVariant]) -> Result<Vec<Variant>> {
     let called = CalledVariantSet {
@@ -51,9 +51,9 @@ fn represent_read(reference: &Reference, reported: &[CalledVariant]) -> Result<V
             .collect(),
     };
     let normalized = normalize_with(reference, &called, NormalizationPolicy::MtDnaRightAligned)?;
-    match hv2_polyc_with(reference, from_normalization(&normalized)) {
+    match control_region_with(reference, from_normalization(&normalized)) {
         Ok(represented) => Ok(represented.represented_variants),
-        Err(Error::VariantNomenclature(NomenclatureError::WindowCrossing)) => {
+        Err(Error::VariantNomenclature(NomenclatureError::WindowCrossing { .. })) => {
             Ok(normalized.normalized_variants)
         }
         Err(error) => Err(error),
@@ -135,9 +135,9 @@ mod tests {
             NormalizationPolicy::MtDnaRightAligned,
         )?;
         assert!(matches!(
-            hv2_polyc_with(&reference, from_normalization(&normalized)),
+            control_region_with(&reference, from_normalization(&normalized)),
             Err(Error::VariantNomenclature(
-                NomenclatureError::WindowCrossing
+                NomenclatureError::WindowCrossing { window: "HVS-II" }
             ))
         ));
 

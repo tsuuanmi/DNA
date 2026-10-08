@@ -17,8 +17,8 @@ use crate::model::sample_result::{
 use crate::report::notation::{self, NotationCall};
 use crate::variant_analysis::Variant;
 
-/// Notation policy label: rCRS right alignment plus the HVS-II 309/315 rule.
-const NOTATION_POLICY: &str = "rcrs_right_aligned_hvs2";
+/// Notation policy label: rCRS right alignment plus the control-region policy.
+const NOTATION_POLICY: &str = "rcrs_right_aligned_control_region";
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {

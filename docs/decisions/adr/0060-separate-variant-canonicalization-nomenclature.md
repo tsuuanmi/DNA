@@ -210,14 +210,19 @@ Current production truth now includes:
   human-mtDNA HVS-II 309/315 poly-C representation rule, preserving source,
   normalized, and represented variants plus the complete alternate haplotype.
 
-Additional target-specific windows such as HVS-III 513-524 and HVS-I
-16189/16193 remain unimplemented and require their own tests and validation.
+The HVS-III 513-524 and HVS-I 16181-16193 windows are implemented alongside
+HVS-II as one declarative control-region policy (see the second revision below).
 
 **Revision (2026-10-08):** the `sample` workflow now composes normalization and
 the HVS-II rule per read against the rCRS, as §7 permits, and publishes
 per-base notation from the outer report layer, as §8 requires
 (`dna.sample_evidence/v9`, SRS-NOM-010 to SRS-NOM-012). Analysis output and the
 public API are unchanged.
+
+**Revision (2026-10-08, second):** the nomenclature policy is now the
+declarative control-region policy (HVS-II, HVS-III, HVS-I windows with ordered,
+haplotype-verified rules, SRS-NOM-013 to SRS-NOM-015), exposed as
+`mtdna::apply_control_region`; the sample notation uses it.
 
 ## Consequences
 

@@ -884,7 +884,7 @@
       ],
       "properties": {
         "policy": {
-          "const": "rcrs_right_aligned_hvs2"
+          "const": "rcrs_right_aligned_control_region"
         },
         "calls": {
           "type": "array",

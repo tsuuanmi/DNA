@@ -1,4 +1,4 @@
-//! Public `variant_nomenclature` capability and the mtDNA HV2 poly-C rule.
+//! Public `variant_nomenclature` capability and the mtDNA control-region policy.
 
 pub mod support;
 
@@ -93,7 +93,7 @@ fn hv2_anchor_shift_is_represented_as_run_length_change() -> Result<(), Box<dyn 
     assert_eq!(normalized.normalized_variants, called.variants);
 
     let input = variant_nomenclature::from_normalization(&normalized);
-    let result = variant_nomenclature::mtdna::apply_hv2_polyc(&reference_path, input)?;
+    let result = variant_nomenclature::mtdna::apply_control_region(&reference_path, input)?;
 
     assert_eq!(
         result.represented_variants,
@@ -123,7 +123,7 @@ fn hv2_multiple_c_insertions_keep_309_and_315_run_boundaries()
     );
     let normalized = normalize(&reference_path, &called)?;
     let input = variant_nomenclature::from_normalization(&normalized);
-    let result = variant_nomenclature::mtdna::apply_hv2_polyc(&reference_path, input)?;
+    let result = variant_nomenclature::mtdna::apply_control_region(&reference_path, input)?;
 
     assert_eq!(
         result.represented_variants,
@@ -154,7 +154,7 @@ fn hv2_nomenclature_preserves_variants_outside_the_window() -> Result<(), Box<dy
     );
     let normalized = normalize(&reference_path, &called)?;
     let input = variant_nomenclature::from_normalization(&normalized);
-    let result = variant_nomenclature::mtdna::apply_hv2_polyc(&reference_path, input)?;
+    let result = variant_nomenclature::mtdna::apply_control_region(&reference_path, input)?;
 
     assert_eq!(
         result.represented_variants,
@@ -162,6 +162,54 @@ fn hv2_nomenclature_preserves_variants_outside_the_window() -> Result<(), Box<dy
             variant(200, "A", "G", VariantKind::Snv),
             variant(308, "CC", "C", VariantKind::Del),
             variant(315, "C", "CC", VariantKind::Ins),
+        ]
+    );
+    assert_eq!(result.alternate_sequence, normalized.alternate_sequence);
+    Ok(())
+}
+
+#[test]
+fn control_region_names_hvs3_and_hvs1_forms_on_the_rcrs() -> Result<(), Box<dyn std::error::Error>>
+{
+    let reference_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("references/rCRS.fasta");
+    let rcrs: String = std::fs::read_to_string(&reference_path)?
+        .lines()
+        .filter(|line| !line.starts_with('>'))
+        .collect();
+    let at = |position: usize, length: usize| rcrs[position - 1..position - 1 + length].to_owned();
+    let rcrs_variant = |position: usize, reference: String, alternate: String, kind| Variant {
+        contig: "rCRS".into(),
+        position_1based: position,
+        reference,
+        alternate,
+        kind,
+    };
+    let called = CalledVariantSet {
+        reference: ReferenceIdentity {
+            name: "rCRS".into(),
+            sha256: sha256(&rcrs),
+        },
+        variants: vec![
+            // HVS-III: GC lost at 513-514.
+            rcrs_variant(512, at(512, 3), at(512, 1), VariantKind::Del),
+            // HVS-I: anchor T16189 lost.
+            rcrs_variant(16188, at(16188, 2), at(16188, 1), VariantKind::Del),
+        ],
+    };
+
+    let normalized = normalize(&reference_path, &called)?;
+    let result = variant_nomenclature::mtdna::apply_control_region(
+        &reference_path,
+        variant_nomenclature::from_normalization(&normalized),
+    )?;
+
+    assert_eq!(
+        result.represented_variants,
+        [
+            rcrs_variant(513, "G".into(), "A".into(), VariantKind::Snv),
+            rcrs_variant(522, at(522, 3), at(522, 1), VariantKind::Del),
+            rcrs_variant(16189, "T".into(), "C".into(), VariantKind::Snv),
+            rcrs_variant(16192, at(16192, 2), at(16192, 1), VariantKind::Del),
         ]
     );
     assert_eq!(result.alternate_sequence, normalized.alternate_sequence);

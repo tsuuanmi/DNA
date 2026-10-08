@@ -290,7 +290,7 @@
     }
   ],
   "notation": {
-    "policy": "rcrs_right_aligned_hvs2",
+    "policy": "rcrs_right_aligned_control_region",
     "calls": [
       {
         "call": "150T",

@@ -193,11 +193,11 @@ pub fn from_normalization(
 ) -> NomenclatureInput<'_>
 ```
 
-The first implemented target rule is the human-mtDNA HVS-II 309/315 poly-C
+The implemented target policy is the human-mtDNA control-region
 representation:
 
 ```rust
-pub fn apply_hv2_polyc(
+pub fn apply_control_region(
     reference_path: &Path,
     input: NomenclatureInput<'_>,
 ) -> dna::error::Result<VariantNomenclatureResult>
@@ -206,7 +206,7 @@ pub fn apply_hv2_polyc(
 through:
 
 ```rust
-dna::variant_nomenclature::mtdna::apply_hv2_polyc(...)
+dna::variant_nomenclature::mtdna::apply_control_region(...)
 ```
 
 The result preserves every prior representation and adds the selected target
@@ -223,13 +223,21 @@ pub struct VariantNomenclatureResult {
 }
 ```
 
-The HVS-II rule recognizes the validated rCRS 303-315 poly-C window around T310.
-Sequence-equivalent anchor movement is represented as C-run length change at the
-309 and 315 boundaries while the complete alternate haplotype remains identical.
-Decimal strings such as `309.1C` or `315.1C` remain an outer notation concern.
+The policy recognizes three validated rCRS windows and, within each, uses the
+first rule whose candidate reconstructs the identical window haplotype
+(SRS-NOM-004 to SRS-NOM-015):
 
-HVS-III 513-524, HVS-I 16189/16193, Sanger artifact interpretation, sample
-reconciliation, and NGS-specific behavior are not implemented by this API.
+| Window | Forms |
+| --- | --- |
+| HVS-II 303-315 poly-C around T310 | C-run lengths at 309/315 (`309.1C`, `315.1C`), `311T 315.1C`, `310C 315DEL`, EMPOP terminal `315.1C` |
+| HVS-III 513-524 AC repeat | one-motif loss as `523DEL 524DEL` plus substitutions, e.g. `513A` |
+| HVS-I 16181-16193 poly-C around T16189 | `16183C 16184A 16189C`, `16189C 16193DEL` |
+
+Variants outside the windows and window haplotypes no rule represents keep
+their normalized form; an edit crossing a window boundary fails explicitly.
+Decimal strings such as `309.1C` remain an outer notation concern. Sanger
+artifact interpretation, sample reconciliation, and NGS-specific behavior are
+not implemented by this API.
 
 ## Errors
 

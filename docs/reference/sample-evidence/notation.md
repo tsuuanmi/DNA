@@ -8,7 +8,7 @@ omitted.
 
 ```json
 "notation": {
-  "policy": "rcrs_right_aligned_hvs2",
+  "policy": "rcrs_right_aligned_control_region",
   "calls": [
     {"call": "73G", "reads": ["A12_HV2F_03"]},
     {"call": "249DEL", "reads": ["A12_HV2F_03", "A12_HV3R_03"]},
@@ -24,9 +24,11 @@ omitted.
    `variants[].support[]`) are taken on their own.
 2. They are right-aligned under the human-mtDNA policy, without crossing the
    rCRS origin seam.
-3. The HVS-II 309/315 poly-C rule then expresses movement of the T310 anchor as
-   C-run length changes. A read with an edit that straddles the validated
-   303-315 window keeps its right-aligned form instead.
+3. The control-region policy then names the HVS-II 303-315 and HVS-I
+   16181-16193 poly-C windows and the HVS-III 513-524 AC repeat in forensic
+   form (`309.1C 315.1C`, `310C 315DEL`, `513A 523DEL 524DEL`,
+   `16183C 16184A 16189C`). A read with an edit that straddles a window keeps
+   its right-aligned form instead.
 4. The represented variants are rendered one call per changed base:
    - substitution: `<position><base>`, for example `73G`;
    - deletion: `<position>DEL` for each deleted base, for example `523DEL 524DEL`;
@@ -44,5 +46,5 @@ reporting a call is not listed, and reads that disagree contribute different
 calls. Use `coverage` and `locus_differences` to judge support and
 disagreement. Ineligible observations never appear in `notation`.
 
-The HVS-III 513-524 and HVS-I 16189/16193 representation families, Sanger
-repeat-artifact interpretation, and primer callable ranges are not applied.
+Sanger repeat-artifact interpretation and primer callable ranges are not
+applied.
