@@ -16,7 +16,7 @@ repository rules enforced by CI.
 | [research](../research/README.md) | exploratory scientific/engineering evidence |
 | [validation](../validation/README.md) | acceptance, datasets/evidence, limitations, benchmarks, and traceability |
 | [engineering](../engineering/README.md) | development, testing, CI/CD, release, dependencies, and code quality |
-| [operations](../operations/README.md) | readiness, observability, batch runbook, and investigation playbook |
+| [operations](../operations/README.md) | readiness, observability, and investigation playbook |
 | [security](../security/README.md) | local-CLI trust boundaries, threat model, and supply-chain policy |
 | [reference](../reference/README.md) | JSON schemas, result/configuration semantics, coordinates, examples, glossary |
 | [governance](README.md) | documentation/data/versioning/ownership/lifecycle policy |

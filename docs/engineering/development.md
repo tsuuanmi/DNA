@@ -27,20 +27,9 @@ much faster than an unoptimized dev binary without paying the full rebuild cost
 of the release profile. Release validation still uses the repository's required
 release build and CI gates.
 
-For repeated batch experiments, build once and reuse the executable:
-
-```bash
-cargo build --profile local
-uv run --project tools/python python tools/python/scripts/analyze_samples.py \
-  --binary target/local/dna --no-build --jobs 4 <other-arguments>
-```
-
-The batch runner parallelizes at the sample boundary. Each worker still processes
-the traces within one sample in their deterministic order, while independent
-samples can keep multiple Rust processes busy. Start with a modest `--jobs`
-value appropriate for local CPU and memory; `--jobs 1` is the deterministic
-serial default. Build, input preflight, destructive cleanup, and final summary
-remain outside the worker pool.
+For repeated local experiments, build once with `cargo build --profile local`
+and run `target/local/dna` directly. Running DNA over a corpus is orchestrated by
+downstream pipelines, not by tooling in this repository (ADR-0066).
 
 ## Required checks
 

@@ -53,7 +53,6 @@ docs/
 ├── validation/
 ├── engineering/
 ├── operations/
-│   ├── runbooks/
 │   └── playbooks/
 ├── security/
 ├── reference/

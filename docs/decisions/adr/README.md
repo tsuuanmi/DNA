@@ -98,3 +98,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |
 | [0064](0064-crate-ready-module-layering.md) | Crate-ready module layering | Accepted |
 | [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Accepted |
+| [0066](0066-python-limited-to-repository-tooling.md) | Python in DNA is limited to repository tooling | Accepted |

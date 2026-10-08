@@ -121,19 +121,9 @@ analyze  -> results/<trace-stem>.json
 sample   -> results/<sample-id>.sample.json
 ```
 
-Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample. The batch runner persists only the sample log while keeping per-trace JSON results.
+Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample.
 
-The external Python batch runner `tools/python/scripts/analyze_samples.py` keeps per-trace results and the aggregate together. Python is companion tooling for research, validation, and testing; the production runtime remains Rust-only:
-
-```text
-results/<sample-id>/
-├── <trace-stem>.json
-├── ...
-└── <sample-id>.json
-```
-
-The final `<sample-id>.json` is generated only when every selected trace for that
-sample succeeds.
+Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066).
 
 ## Output contracts
 
@@ -179,7 +169,7 @@ Key entry points:
 
 ## Development
 
-The repository root is a Rust project. Executable source under `src/` is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for research, validation, orchestration, and test tooling.
+The repository root is a Rust project. Executable source under `src/` is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for repository checks, tests, measurement, and research (ADR-0066); it never produces DNA results.
 
 The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 

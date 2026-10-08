@@ -2,10 +2,14 @@
 
 DNA's production core and runtime are Rust. This directory contains Python only for repository support work:
 
-- research and exploratory analysis;
-- validation and contract checks;
-- batch/corpus orchestration;
+- repository checks and CI validators (source policy, module layering,
+  workflows, documentation structure, result schemas);
+- measurement and validation helpers that produce evidence about a DNA build;
+- research and exploratory analysis that no production path depends on;
 - tests for the Python tooling itself.
+
+Orchestrating DNA runs, converting results, and comparing them with other
+sources belong to downstream pipelines, not here (ADR-0065, ADR-0066).
 
 Python code here must not become a runtime dependency of the `dna` binary or be placed under the Rust production `src/` tree.
 

@@ -35,8 +35,8 @@ requirements, adapters, validation, and public contracts are implemented.
 - one versioned command-specific JSON result per successful core invocation;
 - typed Rust results for public library capabilities;
 - separate append-only operational logs;
-- batch orchestration may group per-trace and aggregate outputs without changing
-  core scientific semantics.
+- downstream pipelines orchestrate runs and group, convert, and compare outputs
+  (ADR-0065, ADR-0066); DNA itself does none of that.
 
 ## Trust boundary
 

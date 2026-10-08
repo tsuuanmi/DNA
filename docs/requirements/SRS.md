@@ -21,7 +21,6 @@ DNA is a deterministic Rust library and CLI for DNA analysis. The current normat
 | `SRS-VN-*` | optional post-calling variant normalization | [variant-normalization.md](variant-normalization.md) |
 | `SRS-NOM-*` | optional target-specific variant nomenclature | [variant-nomenclature.md](variant-nomenclature.md) |
 | `SRS-OUT-*` | result publication and operational logging | [output.md](output.md) |
-| `SRS-BAT-*` | external batch orchestration | [batch.md](batch.md) |
 | `SRS-COMPAT-*` | external-reference comparison constraints | [constraints.md](constraints.md) |
 | `SRS-NFR-*` | non-functional quality attributes | [quality-attributes.md](quality-attributes.md) |
 | `SRS-VAL-*` | validation acceptance criteria | [validation/acceptance criteria](../validation/acceptance-criteria.md) |

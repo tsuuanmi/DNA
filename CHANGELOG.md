@@ -50,6 +50,10 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- **Removed:** the Python batch runner `tools/python/scripts/analyze_samples.py`,
+  its `SRS-BAT-*` requirements, and the batch runbook. Python in DNA is limited
+  to repository checks, tests, measurement, and research (ADR-0066); running
+  DNA over a corpus is the job of downstream pipelines.
 - Result comparison with external call sets, reviewer truth, or other tools is
   out of DNA's scope (ADR-0065, SRS-COMPAT-003): downstream pipelines convert
   DNA's published results into their canonical sample representation and
