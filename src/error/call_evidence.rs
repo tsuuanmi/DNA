@@ -22,13 +22,19 @@ pub enum CallEvidenceError {
         /// Call index (0-based).
         index: usize,
     },
+    /// The call's primary base is unresolved (not A/C/G/T).
+    #[error("variant call index {index} has an unresolved primary base")]
+    UnresolvedCall {
+        /// Call index (0-based).
+        index: usize,
+    },
     /// The call has no primary-event peak evidence.
     #[error("variant call index {index} lacks primary-event peak evidence")]
     MissingPeakEvidence {
         /// Call index (0-based).
         index: usize,
     },
-    /// No call of the variant carries primary-event peak evidence.
-    #[error("variant has no call with primary-event peak evidence")]
+    /// No call of the variant is resolved.
+    #[error("variant has no resolved call")]
     NoResolvedCalls,
 }

@@ -44,10 +44,12 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
-- An indel whose flanking call is unresolved (its strongest channels tie, so it
-  has no primary event) no longer aborts `analyze` or a whole `sample`
-  operation; the unresolved flank is omitted from public calls, as SRS-VAR-006
-  now states.
+- An indel flanking call whose primary base is unresolved (`N`) is omitted from
+  public calls (SRS-VAR-006). Previously a tied flank aborted `analyze` or a
+  whole `sample` operation, and a mixed-signal flank was published with the
+  schema-invalid base `N`.
+- PLOC loci one sample apart, which SRS-IN-003 accepts, no longer fail
+  basecalling with an empty locus window.
 
 ## [0.1.0] - Unreleased
 

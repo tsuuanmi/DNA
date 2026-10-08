@@ -71,8 +71,8 @@ with the strongest channel without mentally reverse-complementing the trace.
 Supporting calls carry the observed alternate or inserted base evidence. Indels
 can also carry flanking calls because a deletion has no signal at the deleted
 reference base and an insertion is bounded by aligned reference bases. A flank
-whose strongest channels tie or carry no signal has no primary event, so it is
-omitted rather than given fabricated peaks.
+whose primary base is unresolved (`N`) is omitted rather than published or
+given fabricated peaks.
 
 An eligible support has an empty exclusion list. An ineligible support retains one
 or more reasons such as `outside_configured_region`, `peak_below_minimum`,

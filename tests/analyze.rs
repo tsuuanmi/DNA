@@ -14,8 +14,9 @@ use tempfile::tempdir;
 use support::{
     analysis_output_path, write_abif, write_abif_with_background_noise,
     write_abif_with_channel_order, write_abif_with_peak_heights, write_abif_with_ploc,
-    write_abif_with_secondary_signal, write_abif_with_short_pbas, write_abif_with_unused_p2ba,
-    write_abif_with_vendor, write_config, write_reference,
+    write_abif_with_secondary_signal, write_abif_with_secondary_signals,
+    write_abif_with_short_pbas, write_abif_with_unused_p2ba, write_abif_with_vendor, write_config,
+    write_reference,
 };
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -809,6 +810,50 @@ fn omits_unresolved_indel_flank_without_failing() -> Result<(), Box<dyn std::err
         Some("A" | "C" | "G" | "T")
     ));
     assert_call_evidence(&calls[0]);
+    Ok(())
+}
+
+/// Regression: a flank whose four channels all qualify is called `N` despite a
+/// primary event; the result schema allows only A/C/G/T call bases, so the
+/// unresolved flank is omitted rather than published.
+#[test]
+fn omits_mixed_signal_indel_flank_called_n() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif_with_secondary_signals(
+        &trace,
+        QUERY,
+        &[(13, b'A', 900), (13, b'G', 900), (13, b'T', 900)],
+    )?;
+    write_reference(
+        &reference,
+        &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
+    )?;
+    write_config(&config, "linear")?;
+    let config_text = fs::read_to_string(&config)?;
+    fs::write(
+        &config,
+        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
+    )?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+
+    let value = read_result(directory.path(), &trace)?;
+    let variants = value["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1);
+    let calls = variants[0]["calls"]
+        .as_array()
+        .ok_or("calls must be an array")?;
+    assert_eq!(calls.len(), 1, "the unresolved flank is omitted");
+    assert!(
+        calls
+            .iter()
+            .all(|call| matches!(call["base"].as_str(), Some("A" | "C" | "G" | "T")))
+    );
     Ok(())
 }
 

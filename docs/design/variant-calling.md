@@ -41,9 +41,9 @@ co-located reference-oriented A/C/G/T primary-event channel heights in `peaks`,
 and uncalibrated `quality`. Original call index, PLOC, mapped call position,
 trace-strand symbols, selected-peak positions/sources, penalties, and vendor
 evidence remain internal. Deletions carry real aligned flanks only and never
-fabricate deleted-base dna. A flanking call whose strongest channels tie or
-carry no signal is an unresolved `N` with no primary event, so it is omitted
-from the public calls instead of receiving fabricated heights. The emitted reference allele is validated against
+fabricate deleted-base dna. A flanking call whose primary base is unresolved
+(`N`: its strongest channels tie, carry no signal, or all qualify) is omitted
+from the public calls, which admit only A/C/G/T bases. The emitted reference allele is validated against
 the supplied reference.
 
 The implemented post-calling `variant_normalization` capability defined by

@@ -140,7 +140,7 @@ fn write_abif_fixture(
         p2ba,
         peak_heights,
         None,
-        None,
+        &[],
     )
 }
 
@@ -150,6 +150,15 @@ pub(crate) fn write_abif_with_secondary_signal(
     call_index: usize,
     secondary_base: u8,
     height: i16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write_abif_with_secondary_signals(path, sequence, &[(call_index, secondary_base, height)])
+}
+
+/// Adds co-located secondary peaks as `(call index, base, height)` triples.
+pub(crate) fn write_abif_with_secondary_signals(
+    path: &Path,
+    sequence: &str,
+    secondary_signals: &[(usize, u8, i16)],
 ) -> Result<(), Box<dyn std::error::Error>> {
     write_abif_fixture_options(
         path,
@@ -161,7 +170,7 @@ pub(crate) fn write_abif_with_secondary_signal(
         None,
         None,
         None,
-        Some((call_index, secondary_base, height)),
+        secondary_signals,
     )
 }
 
@@ -181,7 +190,7 @@ pub(crate) fn write_abif_with_background_noise(
         None,
         None,
         Some((noisy_calls, amplitude)),
-        None,
+        &[],
     )
 }
 
@@ -199,7 +208,7 @@ fn write_abif_fixture_options(
     p2ba: Option<Vec<u8>>,
     peak_heights: Option<Vec<i16>>,
     background_noise: Option<(std::ops::Range<usize>, i16)>,
-    secondary_signal: Option<(usize, u8, i16)>,
+    secondary_signals: &[(usize, u8, i16)],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spacing = 4_usize;
     let signal_locations: Vec<usize> = (0..sequence.len())
@@ -234,7 +243,7 @@ fn write_abif_fixture_options(
         let channel = channel_index(base)?;
         channels[channel][signal_locations[index]] = peak_heights[index];
     }
-    if let Some((call_index, secondary_base, height)) = secondary_signal {
+    for &(call_index, secondary_base, height) in secondary_signals {
         let position = *signal_locations
             .get(call_index)
             .ok_or("synthetic secondary-signal call index is out of range")?;

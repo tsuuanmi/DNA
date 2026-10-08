@@ -3,6 +3,7 @@
 use crate::error::CallEvidenceError;
 use crate::model::alignment::Orientation;
 use crate::model::basecalls::BaseCalls;
+use crate::model::nucleotide::is_canonical;
 use crate::model::quality::QualityControlResult;
 use crate::model::variant::{VariantCallMapping, VariantCallRole};
 
@@ -24,8 +25,8 @@ pub(crate) struct PublicCall {
 
 /// Resolves the public call evidence of one variant.
 ///
-/// A flanking call without a primary event (an unresolved call whose strongest
-/// channels tie or carry no signal) has no single event to report, so it is
+/// A flanking call whose primary base is unresolved (`N`: its strongest channels
+/// tie, carry no signal, or all qualify) has no called base to report, so it is
 /// omitted rather than fabricated. Supporting calls are canonical by
 /// construction and must resolve, and at least one call must remain.
 pub(crate) fn resolve_public_calls(
@@ -38,7 +39,7 @@ pub(crate) fn resolve_public_calls(
     for &mapping in mappings {
         match resolve(calls, quality, orientation, mapping.call_index_0based) {
             Ok(evidence) => public.push(PublicCall { mapping, evidence }),
-            Err(CallEvidenceError::MissingPeakEvidence { .. })
+            Err(CallEvidenceError::UnresolvedCall { .. })
                 if mapping.role == VariantCallRole::Flanking => {}
             Err(error) => return Err(error),
         }
@@ -49,8 +50,9 @@ pub(crate) fn resolve_public_calls(
     Ok(public)
 }
 
-/// Resolves call `index` against its call and quality records, requires
-/// primary-event peak evidence, and projects it onto the reference strand.
+/// Resolves call `index` against its call and quality records, requires a
+/// canonical primary base with primary-event peak evidence, and projects it
+/// onto the reference strand.
 fn resolve(
     calls: &BaseCalls,
     quality: &QualityControlResult,
@@ -67,6 +69,9 @@ fn resolve(
         .ok_or(CallEvidenceError::MissingQuality { index })?;
     if call.index_0based != index || score.index_0based != index {
         return Err(CallEvidenceError::IndexMismatch { index });
+    }
+    if !is_canonical(call.primary) {
+        return Err(CallEvidenceError::UnresolvedCall { index });
     }
     let primary = call
         .primary_peak_evidence
@@ -174,13 +179,16 @@ mod tests {
 
     #[test]
     fn omits_unresolved_flanks_from_public_calls() {
+        let tied = call(0, 'N', None);
+        let mixed = call(2, 'N', Some([287, 171, 150, 280]));
         let (calls, quality) = records(
-            vec![call(0, 'N', None), call(1, 'G', Some([0, 0, 9, 1]))],
-            &[0, 1],
+            vec![tied, call(1, 'G', Some([0, 0, 9, 1])), mixed],
+            &[0, 1, 2],
         );
         let mappings = [
             mapping(VariantCallRole::Flanking, 0),
             mapping(VariantCallRole::Flanking, 1),
+            mapping(VariantCallRole::Flanking, 2),
         ];
 
         let resolved = resolve_public_calls(&calls, &quality, Orientation::Forward, &mappings);
@@ -209,7 +217,7 @@ mod tests {
                 Orientation::Forward,
                 &[mapping(VariantCallRole::Supporting, 0)],
             ),
-            Err(CallEvidenceError::MissingPeakEvidence { index: 0 })
+            Err(CallEvidenceError::UnresolvedCall { index: 0 })
         );
         assert_eq!(
             resolve_public_calls(
@@ -246,6 +254,12 @@ mod tests {
         );
 
         let (calls, quality) = records(vec![call(0, 'N', None)], &[0]);
+        assert_eq!(
+            resolve(&calls, &quality, Orientation::Forward, 0),
+            Err(CallEvidenceError::UnresolvedCall { index: 0 })
+        );
+
+        let (calls, quality) = records(vec![call(0, 'A', None)], &[0]);
         assert_eq!(
             resolve(&calls, &quality, Orientation::Forward, 0),
             Err(CallEvidenceError::MissingPeakEvidence { index: 0 })

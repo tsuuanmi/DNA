@@ -50,8 +50,11 @@ pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>, LocusWin
     Ok(output)
 }
 
+/// Boundary between the windows of two neighboring loci: their midpoint, but
+/// always strictly after `left` so that loci one sample apart each keep a
+/// non-empty window containing themselves.
 fn midpoint(left: usize, right: usize) -> Result<usize, LocusWindowError> {
-    left.checked_add((right - left) / 2)
+    left.checked_add(((right - left) / 2).max(1))
         .ok_or(LocusWindowError::MidpointOverflow)
 }
 
@@ -72,6 +75,28 @@ mod tests {
         };
 
         assert_eq!(windows(&trace), Err(LocusWindowError::TooFewLoci));
+    }
+
+    #[test]
+    fn keeps_each_locus_inside_its_window_when_loci_are_one_sample_apart()
+    -> Result<(), LocusWindowError> {
+        let trace = Chromatogram {
+            source_name: "synthetic.ab1".into(),
+            source_sha256: String::new(),
+            channels: std::array::from_fn(|_| vec![0; 14]),
+            locus_positions: vec![2, 3, 10],
+            vendor: VendorEvidence::default(),
+        };
+
+        assert_eq!(
+            windows(&trace)?,
+            vec![
+                LocusWindow { start: 2, end: 3 },
+                LocusWindow { start: 3, end: 6 },
+                LocusWindow { start: 6, end: 14 },
+            ]
+        );
+        Ok(())
     }
 
     #[test]
