@@ -242,19 +242,17 @@ the current variant builder preserves that selected placement.
 
 DNA now also exposes `VariantAnalysisResult::called_variants()` as the typed
 `CalledVariantSet` boundary and an optional standalone
-`variant_normalization` capability. The initial
-`MtDnaRightAligned` policy preserves source calls and the complete reconstructed
-haplotype while selecting sequence-equivalent 3'/right-most indel placement
-without crossing the FASTA/rCRS seam.
+`variant_normalization` capability. The `RightAligned` policy preserves source
+calls and the complete reconstructed haplotype while selecting
+sequence-equivalent 3'/right-most indel placement without crossing the FASTA
+seam.
 
 DNA also exposes the immutable `variant_nomenclature` input seam from a
 `VariantNormalizationResult`, carrying reference identity, exact source calls,
 the reconstructed alternate haplotype, and normalized variants together.
 
-The first target-specific implementation is the human-mtDNA HVS-II 309/315
-poly-C rule. It converts sequence-equivalent movement of the T310 anchor into
-C-run length changes at the 309 and 315 boundaries and verifies that the
-complete represented haplotype is unchanged.
-
-HVS-III 513-524 and HVS-I 16189/16193 nomenclature remain planned under
-ADR-0060.
+Target-specific nomenclature is data: a target profile (ADR-0063) declares
+reference windows with ordered rules, and the generic engine applies the first
+rule that reproduces each window haplotype, verifying that the complete
+represented haplotype is unchanged. The shipped human-mtDNA profile declares the
+HVS-II 303-315, HVS-III 513-524, and HVS-I 16181-16193 windows.

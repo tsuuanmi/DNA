@@ -25,7 +25,8 @@
 | Module | Owns | Excludes |
 |---|---|---|
 | `cli` | command syntax | I/O and algorithms |
-| `config` | strict parsing, validation, caps | per-value environment overrides |
+| `config` | strict parsing, validation, caps; names the target profile | per-value environment overrides, target knowledge |
+| `profile` | target profiles: reference identity/topology, regions, nomenclature windows, notation | running rules, loading references |
 | `error` | typed cross-stage failures | logging and recovery policy |
 | `operation_log` | append-only operational records rendered from `tracing` events | scientific decisions |
 | `checksum` | stable SHA-256 byte identity | file I/O and policy |
@@ -53,7 +54,7 @@ contracts. See [dependency policy](../engineering/dependencies.md) and
 
 ## Resource bounds
 
-Config/FASTA source files, ABIF input, normalized reference length, changed indel
+Config/profile/FASTA source files, ABIF input, normalized reference length, changed indel
 length, and alignment cells are explicitly bounded. Exact current limits and
 requirements are owned by [requirements](../requirements/README.md) and
 [configuration reference](../reference/configuration.md).

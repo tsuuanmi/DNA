@@ -24,7 +24,7 @@ modality.
 
 - Sanger sequencing traces encoded as ABIF (commonly named `.ab1`);
 - one short FASTA reference for reference-guided operations;
-- strict TOML configuration;
+- strict TOML configuration and the target profile it names;
 - explicit sample identifiers and trace paths for sample aggregation.
 
 Future formats or modalities are not production behavior until their own

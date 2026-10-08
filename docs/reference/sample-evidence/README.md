@@ -16,7 +16,7 @@ reconciliation.
 - [Reads and coverage](reads-coverage.md)
 - [Overlaps and differential loci](overlaps-loci.md)
 - [Variants and differential-locus signal evidence](variants-signal.md)
-- [Human-mtDNA notation](notation.md)
+- [Notation](notation.md)
 
 ## Why the evidence layers are separate
 
@@ -51,7 +51,10 @@ overlap records summarize only admission-relevant counts rather than dense
 per-coordinate comparisons. The scientific pipeline still processes each read
 independently before sample aggregation.
 
-v9 adds the optional `notation` view; every v8 field is unchanged. The current
+v9 adds the optional `notation` view and the target-profile identity in
+`provenance.profile` (the [profile](../profiles.md) `id` and file `sha256`,
+beside the reference identity and `configuration_sha256`); every other v8 field
+is unchanged. The current
 implementation emits v9 only. Earlier sample-evidence contracts are not emitted
 as aliases or compatibility output.
 

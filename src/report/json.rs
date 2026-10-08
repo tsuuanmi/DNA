@@ -5,20 +5,26 @@ use crate::model::basecalls::BaseCalls;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::result::{
-    AlignmentResult, AnalysisResult, InputResult, IntervalResult, ProvenanceResult, ReadResult,
-    ReferenceResult, WarningSummaryResult,
+    AlignmentResult, AnalysisResult, InputResult, IntervalResult, ProfileResult, ProvenanceResult,
+    ReadResult, ReferenceResult, WarningSummaryResult,
 };
+use crate::profile::ProfileIdentity;
 use crate::report::{signal, variant};
 
 /// Inputs consumed to build the immutable analysis document.
 pub(crate) struct CompletedAnalysis {
     pub(crate) reference: Reference,
+    pub(crate) profile: ProfileIdentity,
     pub(crate) read: ReadObservation,
 }
 
-/// Builds the compact v7 document without filesystem side effects.
+/// Builds the compact v8 document without filesystem side effects.
 pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisResult> {
-    let CompletedAnalysis { reference, read } = completed;
+    let CompletedAnalysis {
+        reference,
+        profile,
+        read,
+    } = completed;
     let ReadObservation {
         input_name: _,
         input_sha256,
@@ -50,7 +56,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         .collect();
 
     Ok(AnalysisResult {
-        schema_version: "dna.analysis/v7",
+        schema_version: "dna.analysis/v8",
         provenance: ProvenanceResult {
             input: InputResult {
                 sha256: input_sha256,
@@ -61,6 +67,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
                 sha256: reference.sequence_sha256,
             },
             configuration_sha256,
+            profile: project_profile(profile),
         },
         read: ReadResult {
             call_count: calls.len(),
@@ -82,6 +89,14 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         variants: variant_results,
         warnings,
     })
+}
+
+/// Projects the profile identity recorded in result provenance.
+pub(crate) fn project_profile(profile: ProfileIdentity) -> ProfileResult {
+    ProfileResult {
+        id: profile.id,
+        sha256: profile.sha256,
+    }
 }
 
 /// Serializes any typed result with a trailing newline for stable text files.

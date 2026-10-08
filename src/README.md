@@ -16,6 +16,7 @@ API documentation lives in rustdoc and source comments.
 - [input](input/README.md) — source-specific sequencing input adapters.
 - [model](model/README.md) — validated domain vocabulary.
 - [pipeline](pipeline/README.md) — end-to-end operation orchestration.
+- [profile](profile/README.md) — target profiles: reference identity, regions, representation chain.
 - [quality_control](quality_control/README.md) — relative quality and trimming.
 - [reference](reference/README.md) — FASTA loading and identity.
 - [report](report/README.md) — contract projection, serialization, publication.
@@ -23,7 +24,7 @@ API documentation lives in rustdoc and source comments.
 - [signal_processing](signal_processing/README.md) — observation-only signal analysis.
 - [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
 - [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
-- [variant_nomenclature](variant_nomenclature/README.md) — optional target-nomenclature input boundary.
+- [variant_nomenclature](variant_nomenclature/README.md) — optional profile-driven target nomenclature.
 - [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
 
 File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`, and

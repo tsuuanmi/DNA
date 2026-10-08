@@ -9,6 +9,7 @@ use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
 use crate::model::variant::VariantKind;
+use crate::profile::Profile;
 use crate::read_processing::{self, ProcessedRead};
 use crate::variant_calling;
 
@@ -23,6 +24,7 @@ pub(crate) fn build(
     trace: &Chromatogram,
     reference: &Reference,
     config: &Config,
+    profile: &Profile,
 ) -> Result<CompletedObservation> {
     let ProcessedRead {
         calls,
@@ -64,6 +66,7 @@ pub(crate) fn build(
         &calls,
         &quality,
         &config.variant_calling,
+        &profile.regions,
     )?;
     let snvs = variants
         .reported
@@ -88,7 +91,7 @@ pub(crate) fn build(
         insertion = insertions,
         deletion = deletions,
         excluded = variants.excluded_count(),
-        region_count = config.variant_calling.regions.len(),
+        region_count = profile.regions.len(),
         minimum_peak_height = config.variant_calling.minimum_peak_height,
         relative_quality_threshold = config.variant_calling.relative_quality_threshold,
         max_indel_length = config.variant_calling.max_indel_length,

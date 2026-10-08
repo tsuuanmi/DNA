@@ -7,7 +7,11 @@
       "topology": "circular",
       "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
     },
-    "configuration_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    "configuration_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
+    }
   },
   "reads": [
     {
@@ -290,7 +294,7 @@
     }
   ],
   "notation": {
-    "policy": "rcrs_right_aligned_control_region",
+    "style": "per_base_decimal",
     "calls": [
       {
         "call": "150T",

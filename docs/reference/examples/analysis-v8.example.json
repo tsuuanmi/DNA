@@ -1,5 +1,5 @@
 {
-  "schema_version": "dna.analysis/v7",
+  "schema_version": "dna.analysis/v8",
   "provenance": {
     "input": {
       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -9,7 +9,11 @@
       "topology": "linear",
       "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
-    "configuration_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    "configuration_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
+    }
   },
   "read": {
     "call_count": 28,

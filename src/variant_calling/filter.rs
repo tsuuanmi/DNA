@@ -1,4 +1,4 @@
-//! Configured biological-region and supporting-signal eligibility filters.
+//! Profile-region and configured supporting-signal eligibility filters.
 
 use super::callability::ReadCallability;
 use crate::config::VariantCallingConfig;
@@ -10,12 +10,13 @@ use crate::model::variant::{
     VariantCallingResult, VariantExclusionReason, VariantKind,
 };
 
-/// Removes normalized candidates outside configured regions or below supporting evidence floors.
+/// Removes normalized candidates outside the profile regions or below supporting evidence floors.
 pub(super) fn apply(
     extracted: VariantCallingResult,
     calls: &BaseCalls,
     quality: &QualityControlResult,
     config: &VariantCallingConfig,
+    regions: &[[usize; 2]],
 ) -> Result<VariantCallingResult> {
     let mut reported = Vec::with_capacity(extracted.reported.len());
     let mut observed = Vec::with_capacity(extracted.reported.len());
@@ -23,7 +24,7 @@ pub(super) fn apply(
     let callability = ReadCallability::new(calls, quality, config);
     for variant in extracted.reported {
         let mut reasons = Vec::new();
-        if !in_configured_region(variant.position_1based, &config.regions) {
+        if !in_region(variant.position_1based, regions) {
             reasons.push(VariantExclusionReason::OutsideConfiguredRegion);
         }
         reasons.extend(supporting_evidence_reasons(
@@ -52,7 +53,7 @@ pub(super) fn apply(
     })
 }
 
-fn in_configured_region(position_1based: usize, regions: &[[usize; 2]]) -> bool {
+fn in_region(position_1based: usize, regions: &[[usize; 2]]) -> bool {
     regions
         .iter()
         .any(|[start, end]| *start <= position_1based && position_1based <= *end)
@@ -147,12 +148,11 @@ mod tests {
 
     use super::*;
 
-    fn config(regions: Vec<[usize; 2]>) -> VariantCallingConfig {
+    fn config() -> VariantCallingConfig {
         VariantCallingConfig {
             max_indel_length: 50,
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
-            regions,
             read_end_margin: 0,
             homopolymer_min_length: 8,
             post_homopolymer_window: 0,
@@ -263,7 +263,7 @@ mod tests {
             excluded: vec![prior_exclusion()],
         };
 
-        let result = apply(extracted, &calls, &quality, &config(vec![[10, 20]]))?;
+        let result = apply(extracted, &calls, &quality, &config(), &[[10, 20]])?;
 
         assert_eq!(result.reported.len(), 2);
         assert_eq!(result.reported[0].position_1based, 10);
@@ -298,7 +298,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(vec![[1, 3]]))?;
+        let result = apply(extracted, &calls, &quality, &config(), &[[1, 3]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].position_1based, 3);
@@ -348,7 +348,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(vec![[1, 2]]))?;
+        let result = apply(extracted, &calls, &quality, &config(), &[[1, 2]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].kind, VariantKind::Ins);
@@ -391,7 +391,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(vec![[1, 2]]))?;
+        let result = apply(extracted, &calls, &quality, &config(), &[[1, 2]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].position_1based, 2);
@@ -415,7 +415,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(vec![[5, 5]]))?;
+        let result = apply(extracted, &calls, &quality, &config(), &[[5, 5]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.excluded_count(), 0);
@@ -436,7 +436,7 @@ mod tests {
         };
 
         assert!(matches!(
-            apply(extracted, &calls, &quality, &config(vec![[1, 1]])),
+            apply(extracted, &calls, &quality, &config(), &[[1, 1]]),
             Err(Error::Variant(VariantError::MissingCall { index: 2 }))
         ));
     }
@@ -444,7 +444,7 @@ mod tests {
     #[test]
     fn marks_a_variant_supported_at_the_read_end_ineligible() -> Result<()> {
         let (calls, quality) = evidence(&[150; 6], &[31; 6]);
-        let mut read_end = config(vec![[1, 100]]);
+        let mut read_end = config();
         read_end.read_end_margin = 2;
         let extracted = VariantCallingResult {
             reported: vec![
@@ -463,7 +463,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &read_end)?;
+        let result = apply(extracted, &calls, &quality, &read_end, &[[1, 100]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].position_1based, 6);

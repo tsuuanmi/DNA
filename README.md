@@ -111,7 +111,7 @@ cargo run --release -- sample AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
 ```
 
-DNA reads `DNA_CONFIG` or `config/dna.toml`.
+DNA reads `DNA_CONFIG` or `config/dna.toml` and, for reference-guided commands, the [target profile](docs/reference/profiles.md) it names (`config/profiles/human-mtdna-rcrs.toml` by default).
 
 Successful core commands publish exactly one command-specific JSON result without overwriting an existing result:
 
@@ -140,7 +140,7 @@ sample succeeds.
 Current public result contracts are:
 
 - `dna.basecalls/v2` — reference-free primary/ambiguity/retained read result;
-- `dna.analysis/v7` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
+- `dna.analysis/v8` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
 - `dna.sample_evidence/v9` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
@@ -212,7 +212,7 @@ uv run python scripts/validate_docs_structure.py
 
 CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency/source hygiene, dependency policy/review, RustSec, CodeQL, schemas/reference data, an ABIF fuzz smoke campaign, and a release-package smoke. Mandatory CI jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
-Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
+Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config, target profiles, and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
 
 Longer scientific validation—approved real-AB1 ground-truth comparison, extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
 

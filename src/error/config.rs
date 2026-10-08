@@ -54,12 +54,4 @@ pub enum ConfigError {
         /// Largest representable peak height.
         maximum: i32,
     },
-    /// A `variant_calling.regions` entry is empty, reversed, or out of range.
-    #[error("variant_calling.regions[{index}] must satisfy 1 <= start <= end <= {maximum}")]
-    RegionOutOfBounds {
-        /// Region index in the configured list.
-        index: usize,
-        /// Largest supported reference coordinate.
-        maximum: usize,
-    },
 }

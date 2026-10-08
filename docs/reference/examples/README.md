@@ -2,7 +2,7 @@
 
 This directory contains synthetic, non-identifying examples for the current public result contracts.
 
-- [analysis-v7.example.json](analysis-v7.example.json)
+- [analysis-v8.example.json](analysis-v8.example.json)
 - [basecalls-v2.example.json](basecalls-v2.example.json)
 - [sample-evidence-v9.example.json](sample-evidence-v9.example.json)
 

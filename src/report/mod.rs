@@ -11,4 +11,6 @@ mod variant;
 pub(crate) use atomic::publish;
 pub(crate) use basecall::{CompletedBasecall, build as build_basecall};
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
-pub(crate) use sample::{CompletedSampleEvidence, ReadRepresentation, build as build_sample};
+pub(crate) use sample::{
+    CompletedSampleEvidence, ReadRepresentation, SampleNotation, build as build_sample,
+};

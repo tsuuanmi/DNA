@@ -10,15 +10,33 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Target profiles (ADR-0063, SRS-PRF-001 to SRS-PRF-007): target knowledge —
+  reference identity and topology, reportable regions, indel placement,
+  nomenclature windows and their rules, notation style — moves out of code and
+  configuration into strict versioned TOML profiles. The shipped profile is
+  `config/profiles/human-mtdna-rcrs.toml`; a profile that pins a reference fails
+  closed on another sequence. Scientific output for human mtDNA is unchanged.
+  **Breaking:** configuration schema 6 gains a root `profile` key and loses
+  `[reference]` and `variant_calling.regions`; `dna.analysis/v8` and
+  `dna.sample_evidence/v9` record `provenance.profile` (`id`, file `sha256`);
+  sample `notation.policy` becomes `notation.style = "per_base_decimal"`.
+  **Breaking (Rust API):** new `dna::profile::{Profile, ProfileIdentity}`;
+  `variant_nomenclature::mtdna::apply_control_region` is replaced by
+  `variant_nomenclature::apply(reference, &profile, input)`;
+  `NormalizationPolicy::MtDnaRightAligned` is renamed `RightAligned`;
+  `VariantAnalysisResult` gains `profile`; `Error` gains `Profile` and
+  `ProfileParse`; `ConfigError::RegionOutOfBounds` moves to `ProfileError`;
+  `NomenclatureError` window names are `String`s.
 - Read callability (ADR-0062, SRS-VAR-013): variants with a call near either
   read end or right after a long homopolymer are ineligible with reasons
   `read_end` / `post_homopolymer`. **Breaking:** configuration schema 6 adds
   `variant_calling.read_end_margin`, `homopolymer_min_length`, and
   `post_homopolymer_window`.
-- `dna.sample_evidence/v9`: against the rCRS, an optional `notation` view
-  publishes each read's eligible calls after human-mtDNA right alignment and the
-  control-region policy (HVS-II, HVS-III, HVS-I windows), rendered per base (`73G`, `249DEL`, `309.1C`) with
-  supporting reads (SRS-NOM-010 to SRS-NOM-012). All v8 fields are unchanged.
+- `dna.sample_evidence/v9`: when the target profile declares notation, an
+  optional `notation` view publishes each read's eligible calls after the
+  profile's right alignment and nomenclature windows (HVS-II, HVS-III, HVS-I for
+  human mtDNA), rendered per base (`73G`, `249DEL`, `309.1C`) with supporting
+  reads (SRS-NOM-010 to SRS-NOM-012). All other v8 fields are unchanged.
 - Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and an explicit Ubuntu 24.04 runner baseline.
 - Declare the crate proprietary (`license = "LicenseRef-Proprietary"`) so SBOMs
   and audits record its ownership.

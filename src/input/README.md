@@ -3,8 +3,9 @@
 Owns source-specific loading boundaries for external sequencing inputs.
 
 The current adapter is [`sanger`](sanger/README.md), which validates and loads
-Sanger sequencing evidence, FASTA references, and explicit DNA configuration
-into validated internal models. The current Sanger source format is ABIF;
+Sanger sequencing evidence, FASTA references, explicit DNA configuration, and
+the target profile it names into validated internal models; a reference that is
+not the profile's pinned sequence fails here. The current Sanger source format is ABIF;
 `.ab1` is a common filename/extension rather than the scientific contract. It does not own CLI output paths, overwrite protection, log naming,
 serialization, or result publication.
 

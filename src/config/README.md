@@ -12,6 +12,10 @@ receive that path explicitly and never inspect process environment themselves.
 The path itself is not scientific identity; reproducibility continues to use the
 validated configuration content checksum recorded in result provenance.
 
+The configuration holds method parameters only. Its root `profile` key names the
+target profile, resolved against the configuration file's directory; loading
+and validating that profile belongs to `profile`.
+
 This module does not provide per-setting environment fallbacks or silently clamp
 invalid values.
 

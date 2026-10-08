@@ -40,11 +40,7 @@ fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
 ) -> Result<variant_normalization::VariantNormalizationResult, Error> {
-    variant_normalization::normalize(
-        reference_path,
-        called,
-        NormalizationPolicy::MtDnaRightAligned,
-    )
+    variant_normalization::normalize(reference_path, called, NormalizationPolicy::RightAligned)
 }
 
 #[test]

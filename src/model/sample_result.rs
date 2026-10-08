@@ -3,7 +3,7 @@
 use serde::Serialize;
 
 use crate::model::result::{
-    AlignmentResult, PeakHeightsResult, ReferenceResult, TraceIntegrityResult,
+    AlignmentResult, PeakHeightsResult, ProfileResult, ReferenceResult, TraceIntegrityResult,
 };
 use crate::model::sample_evidence::{LocusState, OverlapExclusionReason};
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
@@ -23,10 +23,10 @@ pub(crate) struct SampleEvidenceResult {
     pub(crate) notation: Option<SampleNotationResult>,
 }
 
-/// Per-base human-mtDNA notation of each read's eligible calls (rCRS only).
+/// Profile notation of each read's eligible calls (profiles declaring notation only).
 #[derive(Debug, Serialize)]
 pub(crate) struct SampleNotationResult {
-    pub(crate) policy: &'static str,
+    pub(crate) style: &'static str,
     pub(crate) calls: Vec<SampleNotationCallResult>,
 }
 
@@ -42,6 +42,7 @@ pub(crate) struct SampleNotationCallResult {
 pub(crate) struct SampleProvenanceResult {
     pub(crate) reference: ReferenceResult,
     pub(crate) configuration_sha256: String,
+    pub(crate) profile: ProfileResult,
 }
 
 /// One independently processed sample read with reviewer-facing provenance.

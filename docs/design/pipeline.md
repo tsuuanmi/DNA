@@ -10,7 +10,7 @@ AB1 + TOML ──► decode ──► basecalling ──► signal_processing �
 FASTA reference ─────────────────────────────────────────────────────┴─► alignment ─► variant_calling
                                                                                               │
                                                                                        ReadObservation
-                                                                                         ├─► analysis/v7
+                                                                                         ├─► analysis/v8
                                                                                          └─► sample aggregation
 ```
 
@@ -68,7 +68,7 @@ The read has already located itself at this boundary. Its orientation and covere
 
 ## Output boundary
 
-Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v2`, `dna.analysis/v7`, and `dna.sample_evidence/v9`, including schemas, examples, coordinate semantics, and publication-visible fields.
+Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v2`, `dna.analysis/v8`, and `dna.sample_evidence/v9`, including schemas, examples, coordinate semantics, and publication-visible fields.
 
 ## Interpretation boundary
 

@@ -408,19 +408,52 @@ pub fn write_reference(path: &Path, sequence: &str) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
-/// Writes the strict test configuration with the given reference topology.
+/// Writes a valid strict configuration plus a synthetic target profile of the
+/// given reference topology, reporting every position, next to it.
 ///
 /// # Errors
 ///
-/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+/// Returns an error when either file cannot be written.
 pub fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let profile = path.with_extension("profile.toml");
+    fs::write(
+        &profile,
+        format!(
+            "schema_version=1\nid='synthetic-{topology}'\n[reference]\ntopology='{topology}'\n[variant_calling]\nregions=[[1, 50000]]\n"
+        ),
+    )?;
+    // Relative to the configuration directory, so the configuration bytes and
+    // their recorded SHA-256 do not depend on the temporary directory.
+    let relative = profile
+        .file_name()
+        .ok_or("configuration path has no file name")?;
+    write_config_with_profile(path, Path::new(relative))
+}
+
+/// Writes a valid strict configuration that references `profile`, resolved
+/// against the configuration directory when relative.
+///
+/// # Errors
+///
+/// Returns an error when the file cannot be written or `profile` is not UTF-8.
+pub fn write_config_with_profile(
+    path: &Path,
+    profile: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let profile = profile.to_str().ok_or("profile path must be UTF-8")?;
     fs::write(
         path,
         format!(
-            "schema_version=6\n[reference]\ntopology='{topology}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nregions=[[1, 50000]]\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
+            "schema_version=6\nprofile='{profile}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
         ),
     )?;
     Ok(())
+}
+
+/// Path of the shipped human-mtDNA target profile.
+#[must_use]
+pub fn human_mtdna_profile() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("config/profiles/human-mtdna-rcrs.toml")
 }
 
 /// Path of the analysis result the CLI publishes for `trace` under `workdir`.

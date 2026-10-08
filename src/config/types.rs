@@ -1,12 +1,11 @@
 //! Typed and validated configuration records.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::config::defaults::{MAX_INDEL_LENGTH, MAX_PEAK_HEIGHT, MAX_REFERENCE_LENGTH};
+use crate::config::defaults::{MAX_INDEL_LENGTH, MAX_PEAK_HEIGHT};
 use crate::error::{ConfigError, Result};
-use crate::model::reference::ReferenceTopology;
 
 /// Configuration schema version this build accepts.
 const SCHEMA_VERSION: u32 = 6;
@@ -14,7 +13,8 @@ const SCHEMA_VERSION: u32 = 6;
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    pub(crate) reference: ReferenceConfig,
+    /// Target profile path, resolved against the configuration file's directory.
+    pub(crate) profile_path: PathBuf,
     pub(crate) basecalling: BasecallingConfig,
     pub(crate) signal_processing: SignalProcessingConfig,
     pub(crate) quality_control: QualityControlConfig,
@@ -23,12 +23,6 @@ pub(crate) struct Config {
     pub(crate) variant_calling: VariantCallingConfig,
     pub(crate) source_path: PathBuf,
     pub(crate) source_sha256: String,
-}
-
-/// Reference interpretation settings.
-#[derive(Debug, Clone)]
-pub(crate) struct ReferenceConfig {
-    pub(crate) topology: ReferenceTopology,
 }
 
 /// DNA re-calling settings.
@@ -80,7 +74,6 @@ pub(crate) struct VariantCallingConfig {
     pub(crate) max_indel_length: usize,
     pub(crate) minimum_peak_height: i32,
     pub(crate) relative_quality_threshold: u8,
-    pub(crate) regions: Vec<[usize; 2]>,
     /// Calls this close to either end of the retained interval cannot support a variant.
     pub(crate) read_end_margin: usize,
     /// Shortest run of identical primary calls treated as a phase-shifting homopolymer.
@@ -93,19 +86,13 @@ pub(crate) struct VariantCallingConfig {
 #[serde(deny_unknown_fields)]
 pub(super) struct RawConfig {
     schema_version: u32,
-    reference: RawReferenceConfig,
+    profile: PathBuf,
     basecalling: RawBasecallingConfig,
     signal_processing: RawSignalProcessingConfig,
     quality_control: RawQualityControlConfig,
     alignment: RawAlignmentConfig,
     sample_reconciliation: RawSampleReconciliationConfig,
     variant_calling: RawVariantCallingConfig,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawReferenceConfig {
-    topology: ReferenceTopology,
 }
 
 #[derive(Debug, Deserialize)]
@@ -157,7 +144,6 @@ struct RawVariantCallingConfig {
     max_indel_length: usize,
     minimum_peak_height: i32,
     relative_quality_threshold: u8,
-    regions: Vec<[usize; 2]>,
     read_end_margin: usize,
     homopolymer_min_length: usize,
     post_homopolymer_window: usize,
@@ -275,11 +261,8 @@ impl RawConfig {
                 "variant_calling.relative_quality_threshold must be less than quality_control.max_relative_quality_score",
             ).into());
         }
-        if self.variant_calling.regions.is_empty() {
-            return Err(ConfigError::Constraint(
-                "variant_calling.regions must contain at least one inclusive range",
-            )
-            .into());
+        if self.profile.as_os_str().is_empty() {
+            return Err(ConfigError::Constraint("profile must name a target profile file").into());
         }
         if self.variant_calling.homopolymer_min_length < 2 {
             return Err(ConfigError::Constraint(
@@ -287,20 +270,12 @@ impl RawConfig {
             )
             .into());
         }
-        for (index, region) in self.variant_calling.regions.iter().enumerate() {
-            let [start, end] = *region;
-            if start == 0 || start > end || end > MAX_REFERENCE_LENGTH {
-                return Err(ConfigError::RegionOutOfBounds {
-                    index,
-                    maximum: MAX_REFERENCE_LENGTH,
-                }
-                .into());
-            }
-        }
+        let profile_path = source_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(&self.profile);
         Ok(Config {
-            reference: ReferenceConfig {
-                topology: self.reference.topology,
-            },
+            profile_path,
             basecalling: BasecallingConfig {
                 secondary_peak_ratio: self.basecalling.secondary_peak_ratio,
             },
@@ -333,7 +308,6 @@ impl RawConfig {
                 max_indel_length: self.variant_calling.max_indel_length,
                 minimum_peak_height: self.variant_calling.minimum_peak_height,
                 relative_quality_threshold: self.variant_calling.relative_quality_threshold,
-                regions: self.variant_calling.regions,
                 read_end_margin: self.variant_calling.read_end_margin,
                 homopolymer_min_length: self.variant_calling.homopolymer_min_length,
                 post_homopolymer_window: self.variant_calling.post_homopolymer_window,
@@ -373,7 +347,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=6\n[reference]\ntopology='circular'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nregions=[[16024,16365],[73,340],[438,576]]\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
+    const VALID: &str = "schema_version=6\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -393,13 +367,6 @@ mod tests {
             validate_raw(&VALID.replace("secondary_peak_ratio=0.33", "secondary_peak_ratio=1.5"))?,
             Err(Error::Config(ConfigError::NotFiniteInRange {
                 key: "basecalling.secondary_peak_ratio",
-                ..
-            }))
-        ));
-        assert!(matches!(
-            validate_raw(&VALID.replace("[73,340]", "[340,73]"))?,
-            Err(Error::Config(ConfigError::RegionOutOfBounds {
-                index: 1,
                 ..
             }))
         ));
@@ -423,9 +390,29 @@ mod tests {
         assert_eq!(config.sample_reconciliation.minimum_overlap_agreement, 0.5);
         assert_eq!(config.variant_calling.minimum_peak_height, 150);
         assert_eq!(config.variant_calling.relative_quality_threshold, 30);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_the_profile_against_the_configuration_directory()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let raw: RawConfig = toml::from_str(VALID)?;
+        let config = raw.validate(PathBuf::from("deploy/config/dna.toml"), String::new())?;
         assert_eq!(
-            config.variant_calling.regions,
-            vec![[16024, 16365], [73, 340], [438, 576]]
+            config.profile_path,
+            PathBuf::from("deploy/config/profiles/target.toml")
+        );
+        assert_eq!(
+            validate(&VALID.replace("'profiles/target.toml'", "'/opt/target.toml'"))?.profile_path,
+            PathBuf::from("/opt/target.toml")
+        );
+        assert!(matches!(
+            validate_raw(&VALID.replace("'profiles/target.toml'", "''"))?,
+            Err(Error::Config(ConfigError::Constraint(rule))) if rule.starts_with("profile")
+        ));
+        assert!(
+            toml::from_str::<RawConfig>(&VALID.replace("profile='profiles/target.toml'\n", ""))
+                .is_err()
         );
         Ok(())
     }
@@ -494,26 +481,13 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_filter_thresholds_and_regions() {
+    fn rejects_invalid_filter_thresholds() {
         for invalid in [
             VALID.replace("minimum_peak_height=150", "minimum_peak_height=0"),
             VALID.replace("minimum_peak_height=150", "minimum_peak_height=32768"),
             VALID.replace(
                 "relative_quality_threshold=30",
                 "relative_quality_threshold=60",
-            ),
-            VALID.replace("regions=[[16024,16365],[73,340],[438,576]]", "regions=[]"),
-            VALID.replace(
-                "regions=[[16024,16365],[73,340],[438,576]]",
-                "regions=[[0,1]]",
-            ),
-            VALID.replace(
-                "regions=[[16024,16365],[73,340],[438,576]]",
-                "regions=[[2,1]]",
-            ),
-            VALID.replace(
-                "regions=[[16024,16365],[73,340],[438,576]]",
-                "regions=[[1,50001]]",
             ),
         ] {
             assert!(
@@ -522,11 +496,11 @@ mod tests {
             );
         }
         assert!(
-            toml::from_str::<RawConfig>(&VALID.replace(
-                "regions=[[16024,16365],[73,340],[438,576]]",
-                "regions=[[1]]"
-            ))
-            .is_err()
+            toml::from_str::<RawConfig>(
+                &VALID.replace("read_end_margin=10", "read_end_margin=10\nregions=[[1,10]]")
+            )
+            .is_err(),
+            "regions belong to the target profile"
         );
     }
 }

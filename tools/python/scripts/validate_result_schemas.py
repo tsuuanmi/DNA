@@ -13,8 +13,8 @@ from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "docs" / "reference"
-ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v7.schema.json"
-ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v7.example.json"
+ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v8.schema.json"
+ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v8.example.json"
 BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v2.schema.json"
 BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v2.example.json"
 SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v9.schema.json"
@@ -99,7 +99,11 @@ def rejected_analysis_shapes(
     removed_software_version = copy.deepcopy(example)
     removed_software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.analysis/v6"
+    old_schema["schema_version"] = "dna.analysis/v7"
+    missing_profile = copy.deepcopy(example)
+    missing_profile["provenance"].pop("profile")
+    invalid_profile_id = copy.deepcopy(example)
+    invalid_profile_id["provenance"]["profile"]["id"] = "Human mtDNA"
     missing_integrity = copy.deepcopy(example)
     missing_integrity["signal_quality"].pop("integrity")
     invalid_integrity_ratio = copy.deepcopy(example)
@@ -123,6 +127,8 @@ def rejected_analysis_shapes(
         ("document with removed sequence section", removed_section),
         ("analysis provenance with removed software version", removed_software_version),
         ("analysis using old schema version", old_schema),
+        ("analysis without profile identity", missing_profile),
+        ("analysis with an invalid profile id", invalid_profile_id),
         ("analysis without trace integrity", missing_integrity),
         ("analysis with invalid event-signal ratio", invalid_integrity_ratio),
         (
@@ -365,8 +371,12 @@ def rejected_sample_shapes(
     zero_insertion_ordinal["notation"]["calls"][0]["call"] = "309.0C"
     notation_call_without_reads = copy.deepcopy(example)
     notation_call_without_reads["notation"]["calls"][0]["reads"] = []
-    unknown_notation_policy = copy.deepcopy(example)
-    unknown_notation_policy["notation"]["policy"] = "left_aligned"
+    unknown_notation_style = copy.deepcopy(example)
+    unknown_notation_style["notation"]["style"] = "hgvs"
+    legacy_notation_policy = copy.deepcopy(example)
+    legacy_notation_policy["notation"]["policy"] = "rcrs_right_aligned_control_region"
+    sample_without_profile = copy.deepcopy(example)
+    sample_without_profile["provenance"].pop("profile")
     extra_notation_field = copy.deepcopy(example)
     extra_notation_field["notation"]["consensus"] = []
 
@@ -462,7 +472,9 @@ def rejected_sample_shapes(
         ("sample notation with an unresolved call base", unresolved_notation_call),
         ("sample notation with a zero insertion ordinal", zero_insertion_ordinal),
         ("sample notation call without supporting reads", notation_call_without_reads),
-        ("sample notation with an unknown policy", unknown_notation_policy),
+        ("sample notation with an unknown style", unknown_notation_style),
+        ("sample notation with the removed policy field", legacy_notation_policy),
+        ("sample evidence without profile identity", sample_without_profile),
         ("sample notation with an extra field", extra_notation_field),
         ("sample locus without support topology", missing_locus_support_topology),
         ("sample called locus without noisy context", missing_locus_noisy_context),

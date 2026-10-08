@@ -5,6 +5,7 @@ use crate::error::Result;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
+use crate::profile::Profile;
 use crate::variant_analysis;
 
 pub(crate) struct CompletedSampleReads {
@@ -16,6 +17,7 @@ pub(crate) fn build(
     traces: &[Chromatogram],
     reference: &Reference,
     config: &Config,
+    profile: &Profile,
 ) -> Result<CompletedSampleReads> {
     let mut reads = Vec::with_capacity(traces.len());
     let mut warning_total = 0usize;
@@ -27,7 +29,7 @@ pub(crate) fn build(
             trace_name = ?trace.source_name,
             trace_sha256 = %trace.source_sha256,
         );
-        let completed = variant_analysis::observation::build(trace, reference, config)?;
+        let completed = variant_analysis::observation::build(trace, reference, config, profile)?;
         warning_total += completed.warning_total;
         tracing::info!(
             event = "sample_read_completed",

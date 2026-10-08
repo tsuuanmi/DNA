@@ -15,6 +15,7 @@ mod call_evidence;
 mod config;
 mod fasta;
 mod locus;
+mod profile;
 mod quality_control;
 mod report;
 mod representation;
@@ -31,6 +32,7 @@ pub use call_evidence::CallEvidenceError;
 pub use config::ConfigError;
 pub use fasta::FastaError;
 pub use locus::LocusWindowError;
+pub use profile::ProfileError;
 pub use quality_control::QualityControlError;
 pub use report::ReportError;
 pub use representation::{NomenclatureError, NormalizationError, RepresentationError};
@@ -84,6 +86,18 @@ pub enum Error {
     /// A configuration value violates the scientific contract.
     #[error("invalid configuration value: {0}")]
     Config(ConfigError),
+    /// Target-profile bytes were not valid TOML.
+    #[error("invalid target profile {path}: {source}")]
+    ProfileParse {
+        /// The profile file.
+        path: PathBuf,
+        /// Underlying TOML parse failure.
+        #[source]
+        source: ForeignError,
+    },
+    /// A target profile is invalid or does not apply to the supplied reference.
+    #[error("invalid target profile: {0}")]
+    Profile(ProfileError),
     /// The ABIF container or one of its required records is invalid.
     #[error("invalid ABIF input: {0}")]
     Abif(AbifError),
@@ -163,6 +177,7 @@ macro_rules! stage_failures {
 
 stage_failures!(
     Config(ConfigError),
+    Profile(ProfileError),
     Abif(AbifError),
     Fasta(FastaError),
     Basecalling(BasecallingError),

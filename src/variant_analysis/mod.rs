@@ -11,6 +11,7 @@ use std::path::Path;
 use crate::error::Result;
 use crate::input::sanger;
 use crate::model::variant as internal_variant;
+use crate::profile::ProfileIdentity;
 
 /// Typed result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +23,8 @@ pub struct VariantAnalysisResult {
     pub reference: ReferenceIdentity,
     /// SHA-256 identity of the validated scientific configuration.
     pub configuration_sha256: String,
+    /// Identity of the target profile the configuration references.
+    pub profile: ProfileIdentity,
     /// Reference intervals covered by the selected alignment.
     pub reference_segments: Vec<ReferenceSegment>,
     /// Normalized reportable primary-sequence differences.
@@ -115,7 +118,12 @@ pub fn analyze_sanger(
         name: inputs.reference.name.clone(),
         sha256: inputs.reference.sequence_sha256.clone(),
     };
-    let completed = observation::build(&inputs.trace, &inputs.reference, &inputs.config)?;
+    let completed = observation::build(
+        &inputs.trace,
+        &inputs.reference,
+        &inputs.config,
+        &inputs.profile,
+    )?;
 
     let read = completed.read;
     let reference_segments = read
@@ -133,6 +141,7 @@ pub fn analyze_sanger(
         input_sha256: read.input_sha256,
         reference: reference_identity,
         configuration_sha256: read.configuration_sha256,
+        profile: inputs.profile.identity().clone(),
         reference_segments,
         variants,
     })

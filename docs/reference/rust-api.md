@@ -5,7 +5,7 @@ This document defines the current stable Rust library boundary exposed by the
 
 ## Crate surface
 
-The public modules are `cli`, `error`, `variant_analysis`,
+The public modules are `cli`, `error`, `profile`, `variant_analysis`,
 `variant_normalization`, and `variant_nomenclature`, plus the CLI dispatcher
 `dna::run(cli::Cli) -> dna::error::Result<()>`. All other modules, including
 configuration, internal models, scientific stages, and reporting, are private
@@ -19,8 +19,28 @@ Types follow one evolution rule:
   `#[non_exhaustive]`, so fields and variants can be added without a breaking
   change; callers read their fields and match enums with a wildcard arm;
 - input types that callers construct (`CalledVariantSet`, `Variant`,
-  `ReferenceIdentity`, `ReferenceSegment`, `NomenclatureInput`) keep exhaustive
-  public fields.
+  `ReferenceIdentity`, `ReferenceSegment`, `NomenclatureInput`) and the
+  identity record `ProfileIdentity` keep exhaustive public fields;
+- `Profile` is opaque: it is built only by `Profile::load`, which validates it.
+
+## Target profiles
+
+```rust
+impl Profile {
+    pub fn load(path: &Path) -> dna::error::Result<Profile>;
+    pub fn identity(&self) -> &ProfileIdentity;
+}
+
+pub struct ProfileIdentity {
+    pub id: String,
+    pub sha256: String,
+}
+```
+
+`dna::profile::Profile::load` reads and validates one [target profile](profiles.md);
+`identity()` returns the declared `id` and the SHA-256 of the file bytes. The
+profile's contents are not public fields, so the file format can grow without
+an API break.
 
 ## Variant Analysis
 
@@ -41,7 +61,8 @@ dna::variant_analysis::analyze_sanger(...)
 ```
 
 The function validates and loads one Sanger sequencing trace encoded as ABIF,
-one single-record FASTA reference, and one explicit DNA configuration, then runs
+one single-record FASTA reference, and one explicit DNA configuration with the
+target profile it names, then runs
 the same validated read-processing, alignment, and variant-calling scientific
 path used by the CLI.
 
@@ -58,14 +79,15 @@ pub struct VariantAnalysisResult {
     pub input_sha256: String,
     pub reference: ReferenceIdentity,
     pub configuration_sha256: String,
+    pub profile: ProfileIdentity,
     pub reference_segments: Vec<ReferenceSegment>,
     pub variants: Vec<Variant>,
 }
 ```
 
-`input_sha256`, `reference.sha256`, and `configuration_sha256` identify the
-exact source artifact, reference sequence, and validated configuration content
-used for the result.
+`input_sha256`, `reference.sha256`, `configuration_sha256`, and `profile`
+identify the exact source artifact, reference sequence, validated configuration
+content, and target profile used for the result.
 
 ### ReferenceIdentity
 
@@ -151,7 +173,7 @@ The initial policy is:
 ```rust
 #[non_exhaustive]
 pub enum NormalizationPolicy {
-    MtDnaRightAligned,
+    RightAligned,
 }
 ```
 
@@ -167,12 +189,12 @@ pub struct VariantNormalizationResult {
 }
 ```
 
-`MtDnaRightAligned` selects sequence-equivalent 3'/right-most insertion and
-deletion representations without rotating across the FASTA/rCRS coordinate
-seam. Every accepted movement must reconstruct exactly the same complete
+`RightAligned` selects sequence-equivalent 3'/right-most insertion and
+deletion representations without rotating across the FASTA coordinate seam
+(a profile's `indel_placement = "right"`). Every accepted movement must reconstruct exactly the same complete
 alternate sequence as the source calls.
 
-Normalization is optional and does not apply mtDNA special-region nomenclature,
+Normalization is optional and does not apply nomenclature windows,
 sample reconciliation, VCF/HGVS formatting, genotype interpretation, or
 clinical interpretation.
 
@@ -193,12 +215,12 @@ pub fn from_normalization(
 ) -> NomenclatureInput<'_>
 ```
 
-The implemented target policy is the human-mtDNA control-region
-representation:
+Nomenclature applies the windows of a target profile:
 
 ```rust
-pub fn apply_control_region(
+pub fn apply(
     reference_path: &Path,
+    profile: &Profile,
     input: NomenclatureInput<'_>,
 ) -> dna::error::Result<VariantNomenclatureResult>
 ```
@@ -206,8 +228,11 @@ pub fn apply_control_region(
 through:
 
 ```rust
-dna::variant_nomenclature::mtdna::apply_control_region(...)
+dna::variant_nomenclature::apply(...)
 ```
+
+The reference is loaded with the profile topology and must be the profile's
+reference when the profile pins one (`Error::Profile(ProfileError::ReferenceMismatch)`).
 
 The result preserves every prior representation and adds the selected target
 representation:
@@ -223,9 +248,9 @@ pub struct VariantNomenclatureResult {
 }
 ```
 
-The policy recognizes three validated rCRS windows and, within each, uses the
-first rule whose candidate reconstructs the identical window haplotype
-(SRS-NOM-004 to SRS-NOM-015):
+Within each profile window, the first rule whose candidate reconstructs the
+identical window haplotype is used (SRS-NOM-004 to SRS-NOM-015). The shipped
+human-mtDNA profile declares:
 
 | Window | Forms |
 | --- | --- |
@@ -249,6 +274,7 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Error` variant | Wrapped failure | Display prefix |
 | --- | --- | --- |
 | `Config` | `ConfigError` | `invalid configuration value:` |
+| `Profile` | `ProfileError` | `invalid target profile:` |
 | `Abif` | `AbifError` | `invalid ABIF input:` |
 | `Fasta` | `FastaError` | `invalid reference FASTA:` |
 | `Basecalling` | `BasecallingError` | `base re-calling failed:` |
@@ -273,7 +299,7 @@ anchoring failures.
 
 `Path` reports a rejected path with a static reason. `Read`, `Log`, and
 `Output` keep the `std::io::Error` as their `source`. Third-party parser and serializer
-failures (`ConfigParse`, `Serialize`) are erased to `ForeignError`, so
+failures (`ConfigParse`, `ProfileParse`, `Serialize`) are erased to `ForeignError`, so
 dependency types never appear in the public API. Stage failures render inline,
 `"<prefix> <failure>"`, and are reached by matching rather than through
 `std::error::Error::source`.
@@ -292,7 +318,7 @@ are stable; event fields are operational detail and may grow.
 
 The Rust API returns stable typed data for the current Variant Analysis capability. The versioned JSON documents under
 this reference directory remain separate serialization/publication contracts;
-`dna.analysis/v7` is not the Rust API result model.
+`dna.analysis/v8` is not the Rust API result model.
 
 The Sanger adapter name is source-specific by design. Future input modalities
 may provide additional adapters while converging on compatible

@@ -121,6 +121,21 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+/// Basecalling is reference-free and never reads the target profile.
+#[test]
+fn basecall_does_not_read_the_profile() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let config = directory.path().join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_config(&config, "linear")?;
+    fs::remove_file(config.with_extension("profile.toml"))?;
+
+    run(&trace, &config, directory.path())?.success();
+    assert!(basecall_output_path(directory.path(), &trace).exists());
+    Ok(())
+}
+
 #[test]
 fn malformed_abif_leaves_no_basecall_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

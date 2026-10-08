@@ -95,3 +95,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Accepted |
 | [0061](0061-tracing-for-operational-logging.md) | Use `tracing` for operational logging | Accepted |
 | [0062](0062-read-callability.md) | Read callability from the read's own calls | Accepted |
+| [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |

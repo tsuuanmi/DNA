@@ -1,9 +1,8 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
 schema_version = 6
-
-[reference]
-# rCRS is a circular mitochondrial reference.
-topology = "circular"
+# Target profile (reference identity and topology, reportable regions,
+# representation chain), resolved against this file's directory.
+profile = "profiles/human-mtdna-rcrs.toml"
 
 [basecalling]
 # A channel's selected peak and signal at the primary peak must reach this fraction.
@@ -45,8 +44,6 @@ max_indel_length = 50
 # SNV and inserted-base supporting calls must meet both evidence thresholds.
 minimum_peak_height = 150
 relative_quality_threshold = 30
-# Inclusive 1-based normalized variant anchor ranges (HV1, HV2, HV3).
-regions = [[16024, 16365], [73, 340], [438, 576]]
 # Read callability (ADR-0062): calls this close to either end of a read's
 # retained interval cannot support a variant.
 read_end_margin = 8

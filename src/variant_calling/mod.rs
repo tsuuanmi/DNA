@@ -14,14 +14,16 @@ use crate::model::quality::QualityControlResult;
 use crate::model::reference::Reference;
 use crate::model::variant::VariantCallingResult;
 
-/// Extracts, anchors, and filters primary-sequence differences.
+/// Extracts, anchors, and filters primary-sequence differences; `regions` are
+/// the target profile's inclusive 1-based reportable regions.
 pub(crate) fn call(
     alignment: &Alignment,
     reference: &Reference,
     calls: &BaseCalls,
     quality: &QualityControlResult,
     config: &VariantCallingConfig,
+    regions: &[[usize; 2]],
 ) -> Result<VariantCallingResult> {
     let extracted = extract::call(alignment, reference, config)?;
-    filter::apply(extracted, calls, quality, config)
+    filter::apply(extracted, calls, quality, config, regions)
 }

@@ -55,11 +55,18 @@ fn sample(
         reference_bases = inputs.reference.len(),
         config_path = ?inputs.config.source_path.display().to_string(),
         config_sha256 = %inputs.config.source_sha256,
+        profile_id = ?inputs.profile.identity().id,
+        profile_sha256 = %inputs.profile.identity().sha256,
         output_path = ?output.display().to_string(),
     );
 
     drop(stage);
-    let completed_reads = sample_reads::build(&inputs.traces, &inputs.reference, &inputs.config)?;
+    let completed_reads = sample_reads::build(
+        &inputs.traces,
+        &inputs.reference,
+        &inputs.config,
+        &inputs.profile,
+    )?;
     let reads = completed_reads.reads;
     let warning_total = completed_reads.warning_total;
 
@@ -84,7 +91,7 @@ fn sample(
 
     drop(stage);
     let stage = tracing::info_span!("nomenclature").entered();
-    let notation = sample_notation::represent(&reads, &inputs.reference)?;
+    let notation = sample_notation::represent(&reads, &inputs.reference, &inputs.profile)?;
 
     drop(stage);
     let stage = tracing::info_span!("reporting").entered();
@@ -92,6 +99,7 @@ fn sample(
     let result = report::build_sample(CompletedSampleEvidence {
         sample_id: sample_id.to_owned(),
         reference: inputs.reference,
+        profile: inputs.profile.identity().clone(),
         evidence,
         notation,
     })?;

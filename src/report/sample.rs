@@ -14,22 +14,28 @@ use crate::model::sample_result::{
     SampleOverlapResult, SampleProvenanceResult, SampleReadResult, SampleVariantCallResult,
     SampleVariantResult, SampleVariantSupportResult, SampleVariantSupportTopologyResult,
 };
+use crate::profile::{NotationStyle, ProfileIdentity};
+use crate::report::json::project_profile;
 use crate::report::notation::{self, NotationCall};
 use crate::variant_analysis::Variant;
-
-/// Notation policy label: rCRS right alignment plus the control-region policy.
-const NOTATION_POLICY: &str = "rcrs_right_aligned_control_region";
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {
     pub(crate) sample_id: String,
     pub(crate) reference: Reference,
+    pub(crate) profile: ProfileIdentity,
     pub(crate) evidence: SampleEvidence,
-    /// Per-read represented calls, present only against the rCRS.
-    pub(crate) notation: Option<Vec<ReadRepresentation>>,
+    /// Per-read represented calls, present only when the profile declares notation.
+    pub(crate) notation: Option<SampleNotation>,
 }
 
-/// One read's eligible calls in human-mtDNA representation.
+/// Every read's represented calls and the profile style to render them in.
+pub(crate) struct SampleNotation {
+    pub(crate) style: NotationStyle,
+    pub(crate) reads: Vec<ReadRepresentation>,
+}
+
+/// One read's eligible calls in the profile representation.
 pub(crate) struct ReadRepresentation {
     pub(crate) input_sha256: String,
     pub(crate) variants: Vec<Variant>,
@@ -40,6 +46,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
     let CompletedSampleEvidence {
         sample_id,
         reference,
+        profile,
         evidence,
         notation,
     } = completed;
@@ -52,9 +59,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
 
     let read_names = reviewer_read_names(&evidence)?;
     let notation = notation
-        .map(|representations| {
-            project_notation(&reference, &evidence, &read_names, representations)
-        })
+        .map(|notation| project_notation(&reference, &evidence, &read_names, notation))
         .transpose()?;
     let reads = evidence
         .reads
@@ -216,6 +221,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                 sha256: reference.sequence_sha256,
             },
             configuration_sha256: evidence.configuration_sha256,
+            profile: project_profile(profile),
         },
         reads,
         coverage,
@@ -233,10 +239,14 @@ fn project_notation(
     reference: &Reference,
     evidence: &SampleEvidence,
     read_names: &[String],
-    representations: Vec<ReadRepresentation>,
+    notation: SampleNotation,
 ) -> Result<SampleNotationResult> {
+    let SampleNotation { style, reads } = notation;
+    let render = match style {
+        NotationStyle::PerBaseDecimal => notation::render,
+    };
     let mut calls: BTreeMap<NotationCall, Vec<usize>> = BTreeMap::new();
-    for representation in representations {
+    for representation in reads {
         let read_index = evidence
             .reads
             .iter()
@@ -244,7 +254,7 @@ fn project_notation(
             .ok_or(ReportError::Inconsistent(
                 "notation references a read missing from sample evidence",
             ))?;
-        for call in notation::render(
+        for call in render(
             &reference.name,
             &reference.sequence,
             &representation.variants,
@@ -269,7 +279,7 @@ fn project_notation(
         })
         .collect::<Result<_>>()?;
     Ok(SampleNotationResult {
-        policy: NOTATION_POLICY,
+        style: style.label(),
         calls,
     })
 }

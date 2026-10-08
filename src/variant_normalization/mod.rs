@@ -4,7 +4,7 @@
 //! capability may then choose another sequence-equivalent representation under
 //! an explicit policy while preserving the source calls and complete haplotype.
 
-mod mtdna;
+mod right;
 
 use std::path::Path;
 
@@ -18,11 +18,11 @@ use crate::variant_representation::{apply_edits, render_edits, variants_to_edits
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NormalizationPolicy {
-    /// Human-mtDNA 3'/right-most sequence-equivalent indel placement.
+    /// 3'/right-most sequence-equivalent indel placement.
     ///
-    /// The FASTA boundaries define the fixed rCRS coordinate seam; equivalent
-    /// events are never rotated across the end/start boundary.
-    MtDnaRightAligned,
+    /// The FASTA boundaries define a fixed coordinate seam; equivalent events
+    /// are never rotated across the end/start boundary of a circular reference.
+    RightAligned,
 }
 
 /// Source and normalized representations of one unchanged called haplotype.
@@ -55,7 +55,9 @@ pub fn normalize(
     called: &CalledVariantSet,
     policy: NormalizationPolicy,
 ) -> Result<VariantNormalizationResult> {
-    let reference = reference::load(reference_path, ReferenceTopology::Circular)?;
+    // Normalization never moves an edit across the FASTA seam, so the reference
+    // topology does not affect it.
+    let reference = reference::load(reference_path, ReferenceTopology::Linear)?;
     normalize_with(&reference, called, policy)
 }
 
@@ -78,8 +80,8 @@ pub(crate) fn normalize_with(
         apply_edits(&reference.sequence, &source_edits).map_err(NormalizationError::from)?;
 
     let normalized_edits = match policy {
-        NormalizationPolicy::MtDnaRightAligned => {
-            mtdna::right_align(&reference.sequence, &alternate_sequence, &source_edits)
+        NormalizationPolicy::RightAligned => {
+            right::right_align(&reference.sequence, &alternate_sequence, &source_edits)
                 .map_err(NormalizationError::from)?
         }
     };

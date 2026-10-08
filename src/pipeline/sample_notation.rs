@@ -1,45 +1,55 @@
-//! Per-read human-mtDNA representation for the sample notation view.
+//! Per-read profile representation for the sample notation view.
 //!
 //! ADR-0060 composes representation per read before sample reconciliation:
-//! each read's eligible calls are right-aligned and then given the
-//! control-region representation, so sequence-equivalent descriptions from
-//! different reads converge on one notation.
+//! each read's eligible calls are normalized and then given the profile's
+//! window representation, so sequence-equivalent descriptions from different
+//! reads converge on one notation.
 
 use crate::error::{Error, NomenclatureError, Result};
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::variant::Variant as CalledVariant;
-use crate::report::ReadRepresentation;
+use crate::profile::{Notation, Profile};
+use crate::report::{ReadRepresentation, SampleNotation};
 use crate::variant_analysis::{self, CalledVariantSet, ReferenceIdentity, Variant};
-use crate::variant_nomenclature::from_normalization;
-use crate::variant_nomenclature::mtdna::{control_region_with, is_rcrs};
+use crate::variant_nomenclature::{self, from_normalization};
 use crate::variant_normalization::{NormalizationPolicy, normalize_with};
 
-/// Represents every read's eligible calls, or `None` when the reference is not
-/// the rCRS the human-mtDNA policies are validated against.
+/// Represents every read's eligible calls, or `None` when the profile declares
+/// no notation. The reference has already been checked against the profile.
 pub(crate) fn represent(
     reads: &[ReadObservation],
     reference: &Reference,
-) -> Result<Option<Vec<ReadRepresentation>>> {
-    if !is_rcrs(reference) {
+    profile: &Profile,
+) -> Result<Option<SampleNotation>> {
+    let Some(Notation {
+        normalization: policy,
+        style,
+    }) = profile.notation
+    else {
         return Ok(None);
-    }
-    reads
+    };
+    let reads = reads
         .iter()
         .map(|read| {
             Ok(ReadRepresentation {
                 input_sha256: read.input_sha256.clone(),
-                variants: represent_read(reference, &read.variants.reported)?,
+                variants: represent_read(reference, profile, policy, &read.variants.reported)?,
             })
         })
-        .collect::<Result<_>>()
-        .map(Some)
+        .collect::<Result<_>>()?;
+    Ok(Some(SampleNotation { style, reads }))
 }
 
-/// Right-aligns one read's calls, then applies the control-region policy. An edit that
-/// straddles a validated window cannot take that representation
-/// (SRS-NOM-007), so the read keeps its right-aligned form.
-fn represent_read(reference: &Reference, reported: &[CalledVariant]) -> Result<Vec<Variant>> {
+/// Normalizes one read's calls, then applies the profile windows. An edit that
+/// straddles a window cannot take that representation (SRS-NOM-007), so the
+/// read keeps its normalized form.
+fn represent_read(
+    reference: &Reference,
+    profile: &Profile,
+    policy: NormalizationPolicy,
+    reported: &[CalledVariant],
+) -> Result<Vec<Variant>> {
     let called = CalledVariantSet {
         reference: ReferenceIdentity {
             name: reference.name.clone(),
@@ -50,8 +60,8 @@ fn represent_read(reference: &Reference, reported: &[CalledVariant]) -> Result<V
             .map(variant_analysis::project_variant)
             .collect(),
     };
-    let normalized = normalize_with(reference, &called, NormalizationPolicy::MtDnaRightAligned)?;
-    match control_region_with(reference, from_normalization(&normalized)) {
+    let normalized = normalize_with(reference, &called, policy)?;
+    match variant_nomenclature::apply_with(reference, profile, from_normalization(&normalized)) {
         Ok(represented) => Ok(represented.represented_variants),
         Err(Error::VariantNomenclature(NomenclatureError::WindowCrossing { .. })) => {
             Ok(normalized.normalized_variants)
@@ -67,6 +77,7 @@ mod tests {
 
     use crate::model::reference::ReferenceTopology;
     use crate::model::variant::{Variant as CalledVariant, VariantKind};
+    use crate::profile::tests::human_mtdna;
     use crate::reference;
     use crate::variant_analysis;
 
@@ -114,7 +125,12 @@ mod tests {
     #[test]
     fn converges_a_left_run_c_insertion_on_309() -> TestResult {
         let reference = rcrs()?;
-        let represented = represent_read(&reference, &[called(303, "C", "CC", VariantKind::Ins)])?;
+        let represented = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            &[called(303, "C", "CC", VariantKind::Ins)],
+        )?;
         assert_eq!(represented, [public(309, "C", "CC")]);
         Ok(())
     }
@@ -132,28 +148,33 @@ mod tests {
                 },
                 variants: vec![crossing.clone()],
             },
-            NormalizationPolicy::MtDnaRightAligned,
+            NormalizationPolicy::RightAligned,
         )?;
+        let profile = human_mtdna()?;
         assert!(matches!(
-            control_region_with(&reference, from_normalization(&normalized)),
+            variant_nomenclature::apply_with(&reference, &profile, from_normalization(&normalized)),
             Err(Error::VariantNomenclature(
-                NomenclatureError::WindowCrossing { window: "HVS-II" }
-            ))
+                NomenclatureError::WindowCrossing { window }
+            )) if window == "HVS-II"
         ));
 
-        let represented = represent_read(&reference, &[called(301, "AAC", "A", VariantKind::Del)])?;
+        let represented = represent_read(
+            &reference,
+            &profile,
+            NormalizationPolicy::RightAligned,
+            &[called(301, "AAC", "A", VariantKind::Del)],
+        )?;
         assert_eq!(represented, [crossing]);
         Ok(())
     }
 
     #[test]
-    fn applies_only_to_the_rcrs_reference() -> TestResult {
+    fn produces_notation_only_when_the_profile_declares_it() -> TestResult {
         let reference = rcrs()?;
-        assert!(is_rcrs(&reference));
-        let mut other = reference.clone();
-        other.sequence_sha256 = "0".repeat(64);
-        assert!(represent(&[], &other)?.is_none());
-        assert!(represent(&[], &reference)?.is_some());
+        let mut profile = human_mtdna()?;
+        assert!(represent(&[], &reference, &profile)?.is_some());
+        profile.notation = None;
+        assert!(represent(&[], &reference, &profile)?.is_none());
         Ok(())
     }
 }

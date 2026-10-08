@@ -1,4 +1,4 @@
-//! Per-base mtDNA position notation for represented variants.
+//! The `per_base_decimal` notation style for represented variants.
 //!
 //! Rendering is mechanical serialization (ADR-0060 §8): each changed base gets
 //! one call. A substitution is `<position><base>` (`73G`), each deleted base is

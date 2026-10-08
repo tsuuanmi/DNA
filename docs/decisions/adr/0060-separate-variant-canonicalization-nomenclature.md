@@ -224,6 +224,11 @@ declarative control-region policy (HVS-II, HVS-III, HVS-I windows with ordered,
 haplotype-verified rules, SRS-NOM-013 to SRS-NOM-015), exposed as
 `mtdna::apply_control_region`; the sample notation uses it.
 
+**Revision (2026-10-08, third):** the windows, rules, right-alignment choice,
+and notation gate moved into the human-mtDNA target profile (ADR-0063). The
+engine is `variant_nomenclature::apply` with an explicit profile, and the
+policy is `NormalizationPolicy::RightAligned`; the layering above is unchanged.
+
 ## Consequences
 
 - DNA's variant caller remains a real scientific module rather than a thin

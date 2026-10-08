@@ -2,7 +2,7 @@
 
 This directory contains the authoritative machine-readable schemas for current public result contracts.
 
-- [analysis-v7.schema.json](analysis-v7.schema.json) — `dna.analysis/v7`
+- [analysis-v8.schema.json](analysis-v8.schema.json) — `dna.analysis/v8`
 - [basecalls-v2.schema.json](basecalls-v2.schema.json) — `dna.basecalls/v2`
 - [sample-evidence-v9.schema.json](sample-evidence-v9.schema.json) — `dna.sample_evidence/v9`
 

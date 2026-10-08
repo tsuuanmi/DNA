@@ -5,8 +5,9 @@ This directory is the canonical reference for public, machine-visible, configura
 ## Human-readable contracts
 
 - [Configuration](configuration.md): strict TOML and environment behavior.
+- [Target profiles](profiles.md): target knowledge referenced by the configuration.
 - [Basecall result](basecalls.md): `dna.basecalls/v2`.
-- [Analysis result](analysis/README.md): `dna.analysis/v7`.
+- [Analysis result](analysis/README.md): `dna.analysis/v8`.
 - [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v9`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
@@ -14,7 +15,7 @@ This directory is the canonical reference for public, machine-visible, configura
 ## Machine-readable contracts
 
 - [Schema index](schemas/README.md)
-  - [Analysis JSON Schema](schemas/analysis-v7.schema.json)
+  - [Analysis JSON Schema](schemas/analysis-v8.schema.json)
 - [Basecall JSON Schema](schemas/basecalls-v2.schema.json)
 - [Sample evidence JSON Schema](schemas/sample-evidence-v9.schema.json)
 - [Synthetic examples](examples/README.md)

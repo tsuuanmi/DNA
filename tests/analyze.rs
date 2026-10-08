@@ -62,7 +62,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     let second_bytes = fs::read(analysis_output_path(second.path(), &second_trace))?;
     assert_eq!(first_bytes, second_bytes);
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.analysis/v7");
+    assert_eq!(value["schema_version"], "dna.analysis/v8");
     assert_object_keys(
         &value,
         &[
@@ -77,8 +77,10 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     );
     assert_object_keys(
         &value["provenance"],
-        &["input", "reference", "configuration_sha256"],
+        &["input", "reference", "configuration_sha256", "profile"],
     );
+    assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
+    assert_object_keys(&value["provenance"]["profile"], &["id", "sha256"]);
     assert_object_keys(&value["read"], &["call_count", "trim"]);
     assert_object_keys(
         &value["alignment"],
@@ -157,6 +159,52 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     assert!(!log.contains("[[1, 50000]]"));
     assert!(!log.contains("\"schema_version\""));
     assert!(!log.contains("gapped_query"));
+    Ok(())
+}
+
+#[test]
+fn fails_closed_when_the_profile_names_another_reference() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    let profile = config.with_extension("profile.toml");
+    let pinned = fs::read_to_string(&profile)?.replace(
+        "topology='linear'",
+        &format!("topology='linear'\nsequence_sha256='{}'", "0".repeat(64)),
+    );
+    fs::write(&profile, pinned)?;
+
+    run(&trace, &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains(
+            "invalid target profile: reference sequence does not match profile synthetic-linear",
+        ));
+    assert!(!analysis_output_path(directory.path(), &trace).exists());
+    let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+    assert!(log.contains("event=analysis_failed stage=input_loading"));
+    Ok(())
+}
+
+#[test]
+fn requires_the_configured_profile_file() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    fs::remove_file(config.with_extension("profile.toml"))?;
+
+    run(&trace, &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains("failed to read profile file"));
+    assert!(!analysis_output_path(directory.path(), &trace).exists());
     Ok(())
 }
 
@@ -524,9 +572,10 @@ fn filters_by_normalized_anchor_region() -> Result<(), Box<dyn std::error::Error
     write_abif(&trace, &query)?;
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
+    let profile = config.with_extension("profile.toml");
     let restricted =
-        fs::read_to_string(&config)?.replace("regions=[[1, 50000]]", "regions=[[16, 16]]");
-    fs::write(&config, restricted)?;
+        fs::read_to_string(&profile)?.replace("regions=[[1, 50000]]", "regions=[[16, 16]]");
+    fs::write(&profile, restricted)?;
 
     run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;

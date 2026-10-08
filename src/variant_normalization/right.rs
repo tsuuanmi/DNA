@@ -1,4 +1,4 @@
-//! Human-mtDNA 3'/right-most sequence-equivalent indel placement.
+//! 3'/right-most sequence-equivalent indel placement.
 
 use crate::variant_representation::{RepresentationResult, SequenceEdit, apply_edits, sort_edits};
 

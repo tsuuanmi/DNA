@@ -8,9 +8,13 @@ use std::path::{Path, PathBuf};
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
-use support::{write_abif, write_abif_with_secondary_signal, write_config, write_reference};
+use support::{
+    human_mtdna_profile, write_abif, write_abif_with_secondary_signal, write_config,
+    write_config_with_profile, write_reference,
+};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 const SAMPLE_ID: &str = "sample-1";
@@ -286,8 +290,9 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
     Ok(())
 }
 
-/// Against the rCRS, each read's calls are right-aligned and given the HVS-II
-/// representation, then published as per-base notation with supporting reads.
+/// Under the human-mtDNA profile, each read's calls are right-aligned and given
+/// the HVS-II representation, then published as per-base notation with
+/// supporting reads, and the profile identity is recorded.
 #[test]
 fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -299,7 +304,7 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
             .filter(|line| !line.starts_with('>'))
             .collect::<String>();
     let read = format!("{}C{}", &rcrs[270..304], &rcrs[304..350]);
-    write_config(&config, "circular")?;
+    write_config_with_profile(&config, &human_mtdna_profile())?;
     write_abif(&trace, &read)?;
 
     let mut command = Command::new(dna_binary());
@@ -319,9 +324,14 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
     assert_eq!(
         value["notation"],
         serde_json::json!({
-            "policy": "rcrs_right_aligned_control_region",
+            "style": "per_base_decimal",
             "calls": [{"call": "309.1C", "reads": ["hv2-read"]}],
         })
+    );
+    assert_eq!(value["provenance"]["profile"]["id"], "human-mtdna-rcrs");
+    assert_eq!(
+        value["provenance"]["profile"]["sha256"],
+        format!("{:x}", Sha256::digest(fs::read(human_mtdna_profile())?))
     );
     Ok(())
 }
@@ -373,6 +383,72 @@ fn omits_unresolved_indel_flank_from_sample_evidence() -> Result<(), Box<dyn std
         calls[0]["base"].as_str(),
         Some("A" | "C" | "G" | "T")
     ));
+    Ok(())
+}
+
+/// Writes the forward reference read and a reverse read carrying `15A` against
+/// `TTTT{QUERY}CCCC`, returning the two trace paths.
+fn write_two_reads(
+    directory: &Path,
+    reference: &Path,
+) -> Result<[PathBuf; 2], Box<dyn std::error::Error>> {
+    let mut alternate = QUERY.as_bytes().to_vec();
+    alternate[10] = b'A';
+    let forward = directory.join("read-forward.ab1");
+    let reverse = directory.join("read-reverse.ab1");
+    write_reference(reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_abif(&forward, QUERY)?;
+    write_abif(
+        &reverse,
+        &reverse_complement(&String::from_utf8(alternate)?),
+    )?;
+    Ok([forward, reverse])
+}
+
+/// A profile that declares notation drives the generic notation path for any
+/// target, not only human mtDNA.
+#[test]
+fn publishes_notation_for_a_non_mtdna_profile() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    write_config(&config, "linear")?;
+    let profile = config.with_extension("profile.toml");
+    let mut text = fs::read_to_string(&profile)?;
+    text.push_str(
+        "[normalization]\nindel_placement='right'\n[notation]\nstyle='per_base_decimal'\n",
+    );
+    fs::write(&profile, text)?;
+
+    run(&[&forward, &reverse], &reference, &config, directory.path()).success();
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
+    assert_eq!(
+        value["notation"],
+        serde_json::json!({
+            "style": "per_base_decimal",
+            "calls": [{"call": "15A", "reads": ["read-reverse"]}],
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn sample_fails_closed_when_the_profile_names_another_reference()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    write_config_with_profile(&config, &human_mtdna_profile())?;
+
+    run(&[&forward, &reverse], &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains(
+            "invalid target profile: reference sequence does not match profile human-mtdna-rcrs",
+        ));
+    assert!(!sample_output_path(directory.path()).exists());
     Ok(())
 }
 

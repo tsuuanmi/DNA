@@ -9,16 +9,17 @@ the exact source variant representation, and may select another
 sequence-equivalent representation only when the reconstructed haplotype remains
 identical.
 
-`mtdna.rs` owns the human-mtDNA 3'/right-most policy. Shared target-independent
+`right.rs` owns the 3'/right-most policy (`RightAligned`). Shared target-independent
 sequence-edit conversion, haplotype application, edit ordering, and anchored
 variant rendering live in crate-internal `variant_representation.rs` and are
 reused by both normalization and nomenclature.
 
-The initial implemented policy is human-mtDNA 3'/right-most indel placement with
-the FASTA coordinate boundaries treated as the fixed rCRS seam.
+The implemented policy is 3'/right-most indel placement with the FASTA
+coordinate boundaries treated as a fixed seam; a target profile selects it with
+`indel_placement = "right"`.
 
 This module does **not** call variants from raw evidence, reinterpret Sanger
-signal, perform sample reconciliation, apply mtDNA nomenclature rules, or define
+signal, perform sample reconciliation, apply nomenclature windows, or define
 VCF/HGVS serialization conventions.
 
 See [variant lifecycle](../../docs/architecture/variant-lifecycle.md),

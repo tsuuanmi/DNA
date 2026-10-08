@@ -1,4 +1,4 @@
-//! Compact serializable `dna.analysis/v7` contract.
+//! Compact serializable `dna.analysis/v8` contract.
 
 use serde::Serialize;
 
@@ -24,6 +24,14 @@ pub(crate) struct ProvenanceResult {
     pub(crate) input: InputResult,
     pub(crate) reference: ReferenceResult,
     pub(crate) configuration_sha256: String,
+    pub(crate) profile: ProfileResult,
+}
+
+/// Identity of the target profile a result was produced under.
+#[derive(Debug, Serialize)]
+pub(crate) struct ProfileResult {
+    pub(crate) id: String,
+    pub(crate) sha256: String,
 }
 
 /// Input trace identity without an identifying filename or decoded bulk data.

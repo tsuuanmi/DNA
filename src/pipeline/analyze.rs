@@ -53,18 +53,25 @@ fn analyze(
         reference_bases = inputs.reference.len(),
         config_path = ?inputs.config.source_path.display().to_string(),
         config_sha256 = %inputs.config.source_sha256,
+        profile_id = ?inputs.profile.identity().id,
+        profile_sha256 = %inputs.profile.identity().sha256,
         output_path = ?output.display().to_string(),
     );
 
     drop(stage);
-    let completed =
-        variant_analysis::observation::build(&inputs.trace, &inputs.reference, &inputs.config)?;
+    let completed = variant_analysis::observation::build(
+        &inputs.trace,
+        &inputs.reference,
+        &inputs.config,
+        &inputs.profile,
+    )?;
 
     let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let warning_total = completed.warning_total;
     let result = report::build_analysis(CompletedAnalysis {
         reference: inputs.reference,
+        profile: inputs.profile.identity().clone(),
         read: completed.read,
     })?;
     let result_variants = result.variants.len();

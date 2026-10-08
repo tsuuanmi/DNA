@@ -71,8 +71,9 @@ The release target is explicit: `x86_64-unknown-linux-gnu`. The workflow install
 ## Self-contained bundle
 
 The Linux release archive contains the executable plus the authoritative default
-`config/dna.toml` and `references/rCRS.fasta`. Both runtime assets carry
-SHA-256 sidecars inside the archive, and the workflow verifies them before
+`config/dna.toml`, the target profiles under `config/profiles/` that it
+references, and `references/rCRS.fasta`. These runtime assets carry SHA-256
+sidecars inside the archive, and the workflow verifies them before
 publishing. A user extracting the archive therefore does not need a source
 checkout merely to satisfy DNA's default configuration path or use the bundled
 rCRS reference.

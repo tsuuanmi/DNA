@@ -13,13 +13,15 @@ use crate::config::{self, Config};
 use crate::error::{Error, Result, SampleError};
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
+use crate::profile::Profile;
 use crate::reference;
 
 pub(crate) mod abif;
 
-/// Validated paths and configuration prepared before decoding one analysis trace.
+/// Validated paths, configuration, and profile prepared before decoding one analysis trace.
 pub(crate) struct PreparedAnalysisInputs {
     config: Config,
+    profile: Profile,
     trace_path: PathBuf,
     reference_path: PathBuf,
 }
@@ -27,6 +29,7 @@ pub(crate) struct PreparedAnalysisInputs {
 /// Scientific inputs for one reference-guided Sanger analysis.
 pub(crate) struct AnalysisInputs {
     pub(crate) config: Config,
+    pub(crate) profile: Profile,
     pub(crate) trace: Chromatogram,
     pub(crate) reference: Reference,
 }
@@ -46,6 +49,7 @@ pub(crate) struct BasecallInputs {
 /// Scientific inputs for one multi-read Sanger sample analysis.
 pub(crate) struct SampleInputs {
     pub(crate) config: Config,
+    pub(crate) profile: Profile,
     pub(crate) traces: Vec<Chromatogram>,
     pub(crate) reference: Reference,
 }
@@ -59,8 +63,10 @@ pub(crate) fn prepare_analysis(
     require_regular_file(trace_path, "AB1")?;
     require_regular_file(reference_path, "reference")?;
     let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
     Ok(PreparedAnalysisInputs {
         config,
+        profile,
         trace_path: trace_path.to_path_buf(),
         reference_path: reference_path.to_path_buf(),
     })
@@ -70,13 +76,15 @@ pub(crate) fn prepare_analysis(
 pub(crate) fn load_analysis(prepared: PreparedAnalysisInputs) -> Result<AnalysisInputs> {
     let PreparedAnalysisInputs {
         config,
+        profile,
         trace_path,
         reference_path,
     } = prepared;
     let trace = abif::load(&trace_path)?;
-    let reference = reference::load(&reference_path, config.reference.topology)?;
+    let reference = load_reference(&reference_path, &profile)?;
     Ok(AnalysisInputs {
         config,
+        profile,
         trace,
         reference,
     })
@@ -116,13 +124,15 @@ pub(crate) fn load_sample(
     }
     require_regular_file(reference_path, "reference")?;
     let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
     let traces = trace_paths
         .iter()
         .map(|path| abif::load(path))
         .collect::<Result<Vec<_>>>()?;
-    let reference = reference::load(reference_path, config.reference.topology)?;
+    let reference = load_reference(reference_path, &profile)?;
     Ok(SampleInputs {
         config,
+        profile,
         traces,
         reference,
     })
@@ -132,6 +142,19 @@ fn load_config(path: &Path) -> Result<Config> {
     let config = config::load_path(path)?;
     require_regular_file(&config.source_path, "configuration")?;
     Ok(config)
+}
+
+fn load_profile(config: &Config) -> Result<Profile> {
+    require_regular_file(&config.profile_path, "profile")?;
+    Profile::load(&config.profile_path)
+}
+
+/// Loads the reference with the profile's topology and fails closed when it is
+/// not the sequence the profile is validated against.
+fn load_reference(path: &Path, profile: &Profile) -> Result<Reference> {
+    let reference = reference::load(path, profile.topology)?;
+    profile.require_reference(&reference)?;
+    Ok(reference)
 }
 
 fn require_regular_file(path: &Path, kind: &'static str) -> Result<()> {
