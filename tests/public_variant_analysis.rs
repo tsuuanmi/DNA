@@ -1,6 +1,6 @@
 //! Public `variant_analysis` capability without CLI side effects.
 
-mod support;
+pub mod support;
 
 use std::fs;
 

@@ -4,7 +4,7 @@
 //! process-wide, so a concurrent test that runs the same capability without a
 //! subscriber can race the registration of this test's scoped dispatcher.
 
-mod support;
+pub mod support;
 
 use std::sync::{Arc, Mutex};
 

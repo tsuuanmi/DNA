@@ -1,6 +1,6 @@
 //! CLI contract for reference-free basecalling: JSON output, logs, and failures.
 
-mod support;
+pub mod support;
 
 use std::collections::BTreeSet;
 use std::fs;

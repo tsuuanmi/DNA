@@ -1,12 +1,18 @@
 //! Synthetic ABIF, FASTA, and configuration fixtures shared by integration tests.
 
-// Each test binary compiles this module and uses a different subset of it.
-#![allow(dead_code)]
+//!
+//! Every test binary declares `pub mod support` and these helpers are `pub`, so a
+//! binary that uses only some of them reports no dead code.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub(crate) fn write_abif(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error::Error>> {
+/// Writes a clean synthetic ABIF trace whose vendor calls equal `sequence`.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error::Error>> {
     write_abif_fixture(
         path,
         sequence,
@@ -19,7 +25,12 @@ pub(crate) fn write_abif(path: &Path, sequence: &str) -> Result<(), Box<dyn std:
     )
 }
 
-pub(crate) fn write_abif_with_peak_heights(
+/// Writes a synthetic ABIF trace with one primary peak height per call.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_peak_heights(
     path: &Path,
     sequence: &str,
     peak_heights: Vec<i16>,
@@ -36,7 +47,12 @@ pub(crate) fn write_abif_with_peak_heights(
     )
 }
 
-pub(crate) fn write_abif_with_vendor(
+/// Writes a synthetic ABIF trace with separate vendor base calls and PCON element type.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_vendor(
     path: &Path,
     sequence: &str,
     vendor_primary: &str,
@@ -57,7 +73,12 @@ pub(crate) fn write_abif_with_vendor(
     )
 }
 
-pub(crate) fn write_abif_with_channel_order(
+/// Writes a synthetic ABIF trace with a custom `FWO_` channel order.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_channel_order(
     path: &Path,
     sequence: &str,
     channel_order: [u8; 4],
@@ -74,7 +95,12 @@ pub(crate) fn write_abif_with_channel_order(
     )
 }
 
-pub(crate) fn write_abif_with_ploc(
+/// Writes a synthetic ABIF trace with explicit `PLOC.2` peak locations.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_ploc(
     path: &Path,
     sequence: &str,
     ploc: Vec<usize>,
@@ -91,7 +117,12 @@ pub(crate) fn write_abif_with_ploc(
     )
 }
 
-pub(crate) fn write_abif_with_unused_p2ba(
+/// Writes a synthetic ABIF trace carrying an unused `P2BA` record.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_unused_p2ba(
     path: &Path,
     sequence: &str,
     p2ba: Vec<u8>,
@@ -108,7 +139,12 @@ pub(crate) fn write_abif_with_unused_p2ba(
     )
 }
 
-pub(crate) fn write_abif_with_short_pbas(
+/// Writes a synthetic ABIF trace whose vendor `PBAS` is one base short.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_short_pbas(
     path: &Path,
     sequence: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -144,7 +180,12 @@ fn write_abif_fixture(
     )
 }
 
-pub(crate) fn write_abif_with_secondary_signal(
+/// Adds one co-located secondary peak at `call_index`.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_secondary_signal(
     path: &Path,
     sequence: &str,
     call_index: usize,
@@ -155,7 +196,11 @@ pub(crate) fn write_abif_with_secondary_signal(
 }
 
 /// Adds co-located secondary peaks as `(call index, base, height)` triples.
-pub(crate) fn write_abif_with_secondary_signals(
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_secondary_signals(
     path: &Path,
     sequence: &str,
     secondary_signals: &[(usize, u8, i16)],
@@ -174,7 +219,12 @@ pub(crate) fn write_abif_with_secondary_signals(
     )
 }
 
-pub(crate) fn write_abif_with_background_noise(
+/// Adds alternating background signal on every channel across `noisy_calls`.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_background_noise(
     path: &Path,
     sequence: &str,
     noisy_calls: std::ops::Range<usize>,
@@ -348,15 +398,22 @@ fn channel_index(base: u8) -> Result<usize, Box<dyn std::error::Error>> {
     }
 }
 
-pub(crate) fn write_reference(
-    path: &Path,
-    sequence: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// Writes a single-record FASTA named `synthetic`.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_reference(path: &Path, sequence: &str) -> Result<(), Box<dyn std::error::Error>> {
     fs::write(path, format!(">synthetic\n{sequence}\n"))?;
     Ok(())
 }
 
-pub(crate) fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::error::Error>> {
+/// Writes the strict test configuration with the given reference topology.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         path,
         format!(
@@ -366,13 +423,17 @@ pub(crate) fn write_config(path: &Path, topology: &str) -> Result<(), Box<dyn st
     Ok(())
 }
 
-pub(crate) fn analysis_output_path(workdir: &Path, trace: &Path) -> PathBuf {
+/// Path of the analysis result the CLI publishes for `trace` under `workdir`.
+#[must_use]
+pub fn analysis_output_path(workdir: &Path, trace: &Path) -> PathBuf {
     workdir
         .join("results")
         .join(format!("{}.json", trace_stem(trace)))
 }
 
-pub(crate) fn basecall_output_path(workdir: &Path, trace: &Path) -> PathBuf {
+/// Path of the basecall result the CLI publishes for `trace` under `workdir`.
+#[must_use]
+pub fn basecall_output_path(workdir: &Path, trace: &Path) -> PathBuf {
     workdir
         .join("results")
         .join(format!("{}.basecalls.json", trace_stem(trace)))

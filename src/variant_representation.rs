@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::error::RepresentationError;
+use crate::model::reference::base_at;
 use crate::variant_analysis::{Variant, VariantKind};
 
 pub(crate) type RepresentationResult<T> = Result<T, RepresentationError>;
@@ -255,10 +256,7 @@ fn render_edit(
 }
 
 fn reference_base(reference: &str, index: usize) -> RepresentationResult<char> {
-    reference
-        .as_bytes()
-        .get(index)
-        .copied()
+    base_at(reference, index)
         .map(char::from)
         .ok_or(RepresentationError::AnchorOutsideReference)
 }

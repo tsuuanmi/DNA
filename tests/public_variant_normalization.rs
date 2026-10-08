@@ -1,6 +1,6 @@
 //! Public `variant_normalization` capability and its policies.
 
-mod support;
+pub mod support;
 
 use std::path::Path;
 

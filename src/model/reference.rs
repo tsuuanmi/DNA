@@ -12,6 +12,11 @@ pub(crate) enum ReferenceTopology {
     Circular,
 }
 
+/// Returns the base byte of a reference sequence at a 0-based index, if any.
+pub(crate) fn base_at(sequence: &str, index: usize) -> Option<u8> {
+    sequence.as_bytes().get(index).copied()
+}
+
 /// One normalized FASTA record and its identities.
 #[derive(Debug, Clone)]
 pub(crate) struct Reference {
@@ -29,6 +34,6 @@ impl Reference {
 
     /// Returns the base byte at a 0-based index, if it lies inside the sequence.
     pub(crate) fn base(&self, index: usize) -> Option<u8> {
-        self.sequence.as_bytes().get(index).copied()
+        base_at(&self.sequence, index)
     }
 }

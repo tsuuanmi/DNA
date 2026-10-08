@@ -1,6 +1,6 @@
 //! CLI contract for multi-read sample evidence aggregation.
 
-mod support;
+pub mod support;
 
 use std::fs;
 use std::path::{Path, PathBuf};
