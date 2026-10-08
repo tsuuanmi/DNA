@@ -40,7 +40,7 @@ fn sample(
     log: &OperationLog,
     started: Instant,
 ) -> Result<()> {
-    let _stage = tracing::info_span!("input_loading").entered();
+    let stage = tracing::info_span!("input_loading").entered();
     let stage_started = Instant::now();
     let inputs = sanger::load_sample(traces, reference, config_path)?;
     let output = path::sample_output(sample_id)?;
@@ -58,11 +58,12 @@ fn sample(
         output_path = ?output.display().to_string(),
     );
 
+    drop(stage);
     let completed_reads = sample_reads::build(&inputs.traces, &inputs.reference, &inputs.config)?;
     let reads = completed_reads.reads;
     let warning_total = completed_reads.warning_total;
 
-    let _stage = tracing::info_span!("sample_aggregation").entered();
+    let stage = tracing::info_span!("sample_aggregation").entered();
     let stage_started = Instant::now();
     let evidence = sample_science::aggregate(&reads, &inputs.config.sample_reconciliation)?;
     let metrics = sample_metrics::summarize(&evidence);
@@ -81,7 +82,8 @@ fn sample(
         "{metrics}"
     );
 
-    let _stage = tracing::info_span!("reporting").entered();
+    drop(stage);
+    let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let result = report::build_sample(CompletedSampleEvidence {
         sample_id: sample_id.to_owned(),
@@ -96,6 +98,7 @@ fn sample(
     let schema_version = result.schema_version;
     let bytes = report::serialize(&result)?;
 
+    drop(stage);
     let _stage = tracing::info_span!("result_publication").entered();
     tracing::info!(
         event = "sample_result_ready_for_publication",

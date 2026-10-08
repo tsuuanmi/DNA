@@ -32,7 +32,7 @@ pub(crate) struct ProcessedRead {
 /// Runs the scientific stages that require no reference, emitting one
 /// `tracing` stage span and completion event per stage.
 pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<ProcessedRead> {
-    let _stage = tracing::info_span!("basecalling").entered();
+    let stage = tracing::info_span!("basecalling").entered();
     let stage_started = Instant::now();
     let calls = basecalling::call(trace, &config.basecalling)?;
     let canonical_primary = calls
@@ -84,7 +84,8 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         secondary_peak_ratio = %format_args!("{:.4}", config.basecalling.secondary_peak_ratio),
     );
 
-    let _stage = tracing::info_span!("signal_processing").entered();
+    drop(stage);
+    let stage = tracing::info_span!("signal_processing").entered();
     let stage_started = Instant::now();
     let signal = signal_processing::analyze(trace, &calls, &config.signal_processing)?;
     let maximum_secondary_snr = signal
@@ -117,6 +118,7 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         maximum_to_median_event_signal_ratio = ?signal.integrity.maximum_to_median_event_signal_ratio,
     );
 
+    drop(stage);
     let _stage = tracing::info_span!("quality_control").entered();
     let stage_started = Instant::now();
     let quality = quality_control::analyze(trace, &calls, &config.quality_control)?;

@@ -13,25 +13,36 @@ use tracing::Subscriber;
 use tracing::span::{Attributes, Id};
 use tracing_subscriber::Registry;
 use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
+use tracing_subscriber::registry::LookupSpan;
 
 use dna::variant_analysis;
 use support::{write_abif, write_config, write_reference};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 
-/// Records the names of the spans a capability opens.
-struct StageNames(Arc<Mutex<Vec<&'static str>>>);
+/// A span name and the name of the span it was opened inside, if any.
+type OpenedSpan = (&'static str, Option<&'static str>);
 
-impl<S: Subscriber> Layer<S> for StageNames {
-    fn on_new_span(&self, attributes: &Attributes<'_>, _id: &Id, _context: Context<'_, S>) {
+/// Records each span a capability opens with the span it was opened inside.
+struct StageNames(Arc<Mutex<Vec<OpenedSpan>>>);
+
+impl<S> Layer<S> for StageNames
+where
+    S: Subscriber + for<'lookup> LookupSpan<'lookup>,
+{
+    fn on_new_span(&self, attributes: &Attributes<'_>, _id: &Id, context: Context<'_, S>) {
+        let parent = context
+            .current_span()
+            .metadata()
+            .map(tracing::Metadata::name);
         if let Ok(mut names) = self.0.lock() {
-            names.push(attributes.metadata().name());
+            names.push((attributes.metadata().name(), parent));
         }
     }
 }
 
 #[test]
-fn sanger_analysis_reports_stage_spans_to_the_callers_subscriber_without_writing_logs()
+fn sanger_analysis_reports_sequential_stage_spans_to_the_callers_subscriber_without_writing_logs()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace = directory.path().join("trace.ab1");
@@ -54,12 +65,13 @@ fn sanger_analysis_reports_stage_spans_to_the_callers_subscriber_without_writing
     assert_eq!(
         names,
         [
-            "basecalling",
-            "signal_processing",
-            "quality_control",
-            "alignment",
-            "variant_calling"
-        ]
+            ("basecalling", None),
+            ("signal_processing", None),
+            ("quality_control", None),
+            ("alignment", None),
+            ("variant_calling", None),
+        ],
+        "stages follow one another; none is opened inside another"
     );
     assert!(!directory.path().join("logs").exists());
     Ok(())

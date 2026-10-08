@@ -185,7 +185,7 @@ fn score(
             .copied()
             .ok_or(AlignmentError::ProfileIndexOutOfBounds { index: query_index })?;
         total = total
-            .checked_add(substitution(profile, column.reference_base as u8, config))
+            .checked_add(substitution(profile, column.reference_base, config))
             .ok_or(AlignmentError::Overflow(
                 "canonical alignment score overflow",
             ))?;

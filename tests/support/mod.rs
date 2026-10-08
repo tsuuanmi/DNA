@@ -1,3 +1,6 @@
+//! Synthetic ABIF, FASTA, and configuration fixtures shared by integration tests.
+
+// Each test binary compiles this module and uses a different subset of it.
 #![allow(dead_code)]
 
 use std::fs;
@@ -113,7 +116,10 @@ pub(crate) fn write_abif_with_short_pbas(
     write_abif_fixture(path, sequence, short, 1, *b"ACGT", None, None, None)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "synthetic ABIF fixtures expose every record field the tests vary"
+)]
 fn write_abif_fixture(
     path: &Path,
     sequence: &str,
@@ -179,7 +185,10 @@ pub(crate) fn write_abif_with_background_noise(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "synthetic ABIF fixtures expose every record field the tests vary"
+)]
 fn write_abif_fixture_options(
     path: &Path,
     sequence: &str,
@@ -395,7 +404,10 @@ impl Record {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "synthetic ABIF fixtures expose every record field the tests vary"
+)]
 fn write_entry(
     bytes: &mut [u8],
     offset: usize,

@@ -27,7 +27,7 @@
 | `cli` | command syntax | I/O and algorithms |
 | `config` | strict parsing, validation, caps | per-value environment overrides |
 | `error` | typed cross-stage failures | logging and recovery policy |
-| `logger` | append-only operational records | scientific decisions |
+| `operation_log` | append-only operational records rendered from `tracing` events | scientific decisions |
 | `checksum` | stable SHA-256 byte identity | file I/O and policy |
 | `model` | validated domain vocabulary including canonical Sanger evidence | filesystem and algorithms |
 | `input` | source/modality adapters; currently Sanger ABIF | CLI publication paths and scientific algorithms |

@@ -148,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_identifier() -> Result<()> {
+    fn rejects_a_blank_header_line_as_unparseable() -> Result<()> {
         let (_directory, path) = write_reference(b">   \nACGT\n")?;
         assert!(matches!(
             load(&path, ReferenceTopology::Linear),

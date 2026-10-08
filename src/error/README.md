@@ -7,9 +7,10 @@ vocabulary per stage (`AbifError`, `FastaError`, `ConfigError`,
 normalization, and nomenclature errors), plus shared `LocusWindowError` and
 `CallEvidenceError`.
 
-`Error` names the failing stage; the wrapped stage failure carries structured
-data for input and contract violations, and a static description for arithmetic
-overflow or internal-consistency guards. Stage failures render inline as
+`Error` names the failing stage; the wrapped stage failure carries observed
+values as structured data, names fixed rules as distinct variants (some with
+static rule text), and gives arithmetic overflow and internal-consistency guards
+a static description. Stage failures render inline as
 `"<stage prefix>: <failure>"`, which is the CLI and operational-log text.
 
 This module is a dependency leaf: stage modules depend on it, never the

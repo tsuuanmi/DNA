@@ -1,8 +1,9 @@
 //! Typed failures exposed by the DNA application boundary.
 //!
 //! [`Error`] names the failing stage; each stage owns a `#[non_exhaustive]`
-//! failure vocabulary in a submodule. Input and contract violations carry
-//! structured data; arithmetic overflow and internal consistency guards carry a
+//! failure vocabulary in a submodule. Failures that depend on observed values
+//! carry them as structured data; fixed rules are distinct variants, some with
+//! static rule text; arithmetic overflow and internal-consistency guards carry a
 //! static description of the violated invariant. Stage failures render inline
 //! (`"<stage prefix>: <failure>"`) and are reached by matching, not through
 //! [`std::error::Error::source`].

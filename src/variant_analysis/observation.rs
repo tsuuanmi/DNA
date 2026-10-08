@@ -31,15 +31,9 @@ pub(crate) fn build(
         warnings: read_warnings,
     } = read_processing::process(trace, config)?;
 
-    let _stage = tracing::info_span!("alignment").entered();
+    let stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();
     let alignment = alignment::align_best(&quality, &signal, reference, &config.alignment)?;
-    let reference_segments = alignment
-        .reference_segments
-        .iter()
-        .map(|segment| format!("{}..{}", segment.start_0based, segment.end_0based_exclusive))
-        .collect::<Vec<_>>()
-        .join(",");
     tracing::info!(
         event = "alignment_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -52,10 +46,16 @@ pub(crate) fn build(
         callable_identity = %format_args!("{:.4}", alignment.metrics.callable_identity),
         unresolved_query_bases = alignment.metrics.unresolved_query_bases,
         segments = alignment.reference_segments.len(),
-        segment_bounds = ?reference_segments,
+        segment_bounds = ?alignment
+            .reference_segments
+            .iter()
+            .map(|segment| format!("{}..{}", segment.start_0based, segment.end_0based_exclusive))
+            .collect::<Vec<_>>()
+            .join(","),
         wraps_origin = alignment.wraps_origin,
     );
 
+    drop(stage);
     let _stage = tracing::info_span!("variant_calling").entered();
     let stage_started = Instant::now();
     let variants = variant_calling::call(
@@ -94,21 +94,19 @@ pub(crate) fn build(
         max_indel_length = config.variant_calling.max_indel_length,
     );
     for excluded in &variants.excluded {
-        let position = excluded
-            .position_1based
-            .map_or_else(|| "unknown".to_owned(), |position| position.to_string());
-        let reasons = excluded
-            .reasons
-            .iter()
-            .map(|reason| reason.label())
-            .collect::<Vec<_>>()
-            .join(",");
         tracing::warn!(
             event = "variant_removed",
             kind = excluded.kind.label(),
             contig = ?excluded.contig,
-            position = %position,
-            reasons = %reasons,
+            position = %excluded
+                .position_1based
+                .map_or_else(|| "unknown".to_owned(), |position| position.to_string()),
+            reasons = %excluded
+                .reasons
+                .iter()
+                .map(|reason| reason.label())
+                .collect::<Vec<_>>()
+                .join(","),
         );
     }
 

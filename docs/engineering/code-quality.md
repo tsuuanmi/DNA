@@ -31,7 +31,10 @@ roots carry no lint attributes. CI runs Clippy with `-D warnings`, so every
   one documented stage record).
 - A site that is provably safe but still trips a lint uses a targeted
   `#[expect(lint, reason = "...")]` that states the proof. `expect` fails the
-  build if the exception becomes unnecessary. Suppressing dead, unused,
-  unreachable, or deprecated code is never permitted (INV-RUST-004).
+  build if the exception becomes unnecessary. Production source never
+  suppresses dead, unused, unreachable, or deprecated code (INV-RUST-004). The
+  shared integration-test helpers in `tests/support` are the one place where
+  `allow(dead_code)` is expected, because each test binary uses a different
+  subset of them.
 
 The executable quality gates are defined by [CI/CD](ci-cd.md) and repository policy validators.

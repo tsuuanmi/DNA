@@ -37,11 +37,10 @@ impl State {
 /// ambiguous score. The DP itself never compares floating-point values.
 pub(crate) fn substitution(
     profile: Option<EvidenceProfile>,
-    reference: u8,
+    reference: char,
     config: &AlignmentConfig,
 ) -> i64 {
-    let Some(reference_index) =
-        Nucleotide::from_char(char::from(reference)).map(Nucleotide::channel_index)
+    let Some(reference_index) = Nucleotide::from_char(reference).map(Nucleotide::channel_index)
     else {
         return scaled(config.ambiguous_score);
     };
@@ -76,16 +75,17 @@ pub(crate) fn substitution_scores(
     scores
 }
 
-/// Maps a reference byte to the corresponding precomputed substitution slot.
+/// Maps a reference byte to its precomputed substitution slot: the A/C/G/T
+/// channel index, or the ambiguous-reference slot for any other symbol.
 pub(crate) const fn substitution_index(reference: u8) -> usize {
-    match reference {
-        b'A' => 0,
-        b'C' => 1,
-        b'G' => 2,
-        b'T' => 3,
-        _ => 4,
+    match Nucleotide::from_char(reference as char) {
+        Some(base) => base.channel_index(),
+        None => AMBIGUOUS_REFERENCE_SLOT,
     }
 }
+
+/// Substitution slot shared by every non-canonical reference symbol.
+const AMBIGUOUS_REFERENCE_SLOT: usize = 4;
 
 pub(crate) const fn scaled(delta: i32) -> i64 {
     delta as i64 * SCORE_SCALE
@@ -135,11 +135,11 @@ mod tests {
             weights: [1.0, 0.0, 0.0, 0.0],
         };
         assert_eq!(
-            substitution(Some(profile), b'A', &config()),
+            substitution(Some(profile), 'A', &config()),
             scaled(config().match_score)
         );
         assert_eq!(
-            substitution(Some(profile), b'C', &config()),
+            substitution(Some(profile), 'C', &config()),
             scaled(config().mismatch_score)
         );
     }
@@ -150,22 +150,22 @@ mod tests {
             weights: [0.75, 0.25, 0.0, 0.0],
         };
         assert_eq!(
-            substitution(Some(profile), b'A', &config()),
+            substitution(Some(profile), 'A', &config()),
             768 * 3 + 256 * -5
         );
         assert_eq!(
-            substitution(Some(profile), b'C', &config()),
+            substitution(Some(profile), 'C', &config()),
             256 * 3 + 768 * -5
         );
     }
 
     #[test]
     fn missing_profile_or_ambiguous_reference_uses_ambiguous_score() {
-        assert_eq!(substitution(None, b'A', &config()), 0);
+        assert_eq!(substitution(None, 'A', &config()), 0);
         let profile = EvidenceProfile {
             weights: [1.0, 0.0, 0.0, 0.0],
         };
-        assert_eq!(substitution(Some(profile), b'N', &config()), 0);
+        assert_eq!(substitution(Some(profile), 'N', &config()), 0);
     }
 
     #[test]
@@ -181,7 +181,7 @@ mod tests {
             for reference in *b"ACGTN" {
                 assert_eq!(
                     scores[substitution_index(reference)],
-                    substitution(profile, reference, &config())
+                    substitution(profile, char::from(reference), &config())
                 );
             }
         }

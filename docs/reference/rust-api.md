@@ -253,20 +253,32 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Sample` | `SampleError` | `sample evidence failed:` |
 | `Report` | `ReportError` | `failed to assemble analysis report:` |
 
-Input and contract violations carry structured fields, for example
-`AlignmentError::LowIdentity { identity, minimum }` or
-`FastaError::UnsupportedBase { base }`. Arithmetic overflow and
-internal-consistency guards use `Overflow(&'static str)` or
-`Inconsistent(&'static str)`; they indicate a defect rather than bad input.
-`NormalizationError` and `NomenclatureError` wrap the shared
-`RepresentationError` for allele, edit, and anchoring failures.
+Failures that depend on observed values carry them as structured fields, for
+example `AlignmentError::LowIdentity { identity, minimum }` or
+`FastaError::UnsupportedBase { base }`. Fixed rules are distinct variants, some
+of which carry the rule's static text (for example `ConfigError::Constraint` or
+`AbifError::PeakLocations`). Arithmetic overflow and internal-consistency
+guards use `Overflow(&'static str)` or `Inconsistent(&'static str)`; they
+indicate a defect rather than bad input. `NormalizationError` and
+`NomenclatureError` wrap the shared `RepresentationError` for allele, edit, and
+anchoring failures.
 
-Filesystem and I/O failures use `Path`, `Read`, `Log`, and `Output`, which keep
-the `std::io::Error` as their `source`. Third-party parser and serializer
+`Path` reports a rejected path with a static reason. `Read`, `Log`, and
+`Output` keep the `std::io::Error` as their `source`. Third-party parser and serializer
 failures (`ConfigParse`, `Serialize`) are erased to `ForeignError`, so
 dependency types never appear in the public API. Stage failures render inline,
 `"<prefix> <failure>"`, and are reached by matching rather than through
 `std::error::Error::source`.
+
+## Instrumentation
+
+Library capabilities emit `tracing` instrumentation under the `dna` target and
+never install a subscriber, write files, or print. `analyze_sanger` opens one
+`info` span per scientific stage, in order and not nested in one another
+(`basecalling`, `signal_processing`, `quality_control`, `alignment`,
+`variant_calling`), and emits one structured completion event per stage plus
+`warn` events for removed variant candidates and warning summaries. Span names
+are stable; event fields are operational detail and may grow.
 
 ## Boundary rules
 

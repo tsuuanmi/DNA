@@ -66,6 +66,7 @@ impl Operation {
     /// Records the failure in the stage that was running, keeping both errors
     /// if the record itself cannot be persisted.
     fn record_failure(&self, operation: Error) -> Error {
+        // Every operation body enters a stage span before it can fail.
         let stage = self.log.stage().unwrap_or("operation");
         self.log.in_scope(|| {
             tracing::error!(

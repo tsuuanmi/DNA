@@ -33,7 +33,7 @@ fn analyze(
     log: &OperationLog,
     analysis_started: Instant,
 ) -> Result<()> {
-    let _stage = tracing::info_span!("input_loading").entered();
+    let stage = tracing::info_span!("input_loading").entered();
     let stage_started = Instant::now();
     let prepared = sanger::prepare_analysis(trace, reference, config_path)?;
     let output = path::analysis_output(trace)?;
@@ -56,10 +56,11 @@ fn analyze(
         output_path = ?output.display().to_string(),
     );
 
+    drop(stage);
     let completed =
         variant_analysis::observation::build(&inputs.trace, &inputs.reference, &inputs.config)?;
 
-    let _stage = tracing::info_span!("reporting").entered();
+    let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let warning_total = completed.warning_total;
     let result = report::build_analysis(CompletedAnalysis {
@@ -70,6 +71,7 @@ fn analyze(
     let schema_version = result.schema_version;
     let bytes = report::serialize(&result)?;
 
+    drop(stage);
     let _stage = tracing::info_span!("result_publication").entered();
     tracing::info!(
         event = "result_ready_for_publication",

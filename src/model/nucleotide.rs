@@ -38,6 +38,16 @@ impl Nucleotide {
         }
     }
 
+    /// Returns the uppercase nucleotide as an ASCII byte.
+    pub(crate) const fn as_byte(self) -> u8 {
+        match self {
+            Self::A => b'A',
+            Self::C => b'C',
+            Self::G => b'G',
+            Self::T => b'T',
+        }
+    }
+
     /// Returns the canonical A/C/G/T channel index.
     pub(crate) const fn channel_index(self) -> usize {
         match self {
@@ -90,6 +100,7 @@ mod tests {
         assert_eq!(parsed, Nucleotide::ALL.map(Some));
         for (index, base) in Nucleotide::ALL.iter().enumerate() {
             assert_eq!(base.channel_index(), index);
+            assert_eq!(char::from(base.as_byte()), base.as_char());
         }
         for other in ['a', 'N', 'R', '-', 'Ł', '\0'] {
             assert_eq!(Nucleotide::from_char(other), None);

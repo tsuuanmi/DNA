@@ -35,20 +35,26 @@ Operational logging uses the `tracing` ecosystem.
   reports.
 - The public Rust API installs no subscriber. Library callers observe stage
   spans and events through their own subscriber, or not at all.
+- Stages follow one another: each stage span is closed before the next opens,
+  so subscribers see sequential, non-nested stages.
 - A layer cannot return errors, so the first failed record write is captured
-  and surfaced as `Error::Log` when the operation checks or synchronizes the
-  log: immediately after the start record, which keeps an unwritable log a
-  fail-fast error, and before result publication.
+  together with the stage it occurred in, and surfaced as `Error::Log` when the
+  operation checks or synchronizes the log: immediately after the start
+  record, which keeps an unwritable log a fail-fast error, and before result
+  publication. The terminal failure record names the stage of the first failed
+  write.
 
 ## Consequences
 
 - One mechanism replaces the custom trait, its no-op implementation, and the
   threaded stage label; module and line come from `tracing` metadata.
-- The record format, file layout, and stage attribution are unchanged.
+- The record format, file layout, and failure-stage attribution are unchanged.
 - A write failure after the start record is reported at the next durability
-  point instead of at the failing record. No result is published in either case.
+  point instead of at the failing record, so the remaining stages still run.
+  No result is published in either case.
 - `tracing` caches callsite interest process-wide. A test that installs a
   scoped subscriber while other threads run the same instrumented code without
   one must run in its own test binary.
-- Adds `tracing` and `tracing-subscriber` (registry only, no formatting or
-  environment-filter features) as dependencies.
+- Adds `tracing` (without its attribute macros) and `tracing-subscriber`
+  (registry only, no formatting or environment-filter features) as
+  dependencies.

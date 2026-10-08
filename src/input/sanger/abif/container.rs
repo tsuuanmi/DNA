@@ -275,7 +275,10 @@ mod tests {
         );
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "synthetic ABIF fixtures expose every record field the tests vary"
+    )]
     fn write_entry(
         bytes: &mut [u8],
         offset: usize,

@@ -26,7 +26,7 @@ pub(crate) fn run(trace: &Path, config_path: &Path) -> Result<()> {
 }
 
 fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Instant) -> Result<()> {
-    let _stage = tracing::info_span!("input_loading").entered();
+    let stage = tracing::info_span!("input_loading").entered();
     let stage_started = Instant::now();
     let prepared = sanger::prepare_basecall(trace, config_path)?;
     let output = path::basecall_output(trace)?;
@@ -45,6 +45,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         output_path = ?output.display().to_string(),
     );
 
+    drop(stage);
     let ProcessedRead {
         calls,
         signal,
@@ -68,7 +69,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         );
     }
 
-    let _stage = tracing::info_span!("reporting").entered();
+    let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let result = report::build_basecall(CompletedBasecall {
         config: inputs.config,
@@ -82,6 +83,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
     let retained = result.read.retained.len();
     let bytes = report::serialize(&result)?;
 
+    drop(stage);
     let _stage = tracing::info_span!("result_publication").entered();
     tracing::info!(
         event = "basecall_ready_for_publication",

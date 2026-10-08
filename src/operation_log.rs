@@ -49,6 +49,7 @@ struct LogState {
     file: File,
     write_error: Option<io::Error>,
     stage: Option<&'static str>,
+    failed_stage: Option<&'static str>,
 }
 
 impl OperationLog {
@@ -84,6 +85,7 @@ impl OperationLog {
             file,
             write_error: None,
             stage: None,
+            failed_stage: None,
         }));
         let layer = RecordLayer {
             run_id: new_run_id(),
@@ -102,9 +104,11 @@ impl OperationLog {
         tracing::dispatcher::with_default(&self.dispatch, operation)
     }
 
-    /// Name of the most recently entered stage span, if any.
+    /// The stage an operation failure belongs to: the stage whose record first
+    /// failed to write, otherwise the most recently entered stage span.
     pub(crate) fn stage(&self) -> Option<&'static str> {
-        lock(&self.state).stage
+        let state = lock(&self.state);
+        state.failed_stage.or(state.stage)
     }
 
     /// Surfaces, once, the first record write that failed since the last check.
@@ -156,8 +160,11 @@ where
     fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
         let record = self.render(event);
         let mut state = lock(&self.state);
-        if let Err(error) = state.file.write_all(record.as_bytes()) {
-            state.write_error.get_or_insert(error);
+        if let Err(error) = state.file.write_all(record.as_bytes())
+            && state.write_error.is_none()
+        {
+            state.write_error = Some(error);
+            state.failed_stage = state.failed_stage.or(state.stage);
         }
     }
 }
@@ -408,6 +415,24 @@ mod tests {
 
         assert!(matches!(log.check(), Err(Error::Log { path, .. }) if path.ends_with("trace.log")));
         assert!(log.check().is_ok());
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn attributes_a_failed_record_to_the_stage_it_was_written_in() -> TestResult {
+        let directory = tempdir()?;
+        std::os::unix::fs::symlink("/dev/full", directory.path().join("trace.log"))?;
+        let log = OperationLog::open_in(directory.path(), "trace")?;
+        log.in_scope(|| {
+            let alignment = tracing::info_span!("alignment").entered();
+            tracing::info!(event = "alignment_completed");
+            drop(alignment);
+            let _reporting = tracing::info_span!("reporting").entered();
+        });
+
+        assert!(log.check().is_err());
+        assert_eq!(log.stage(), Some("alignment"));
         Ok(())
     }
 

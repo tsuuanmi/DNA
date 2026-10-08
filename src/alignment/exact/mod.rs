@@ -15,11 +15,10 @@ mod tests;
 use crate::alignment::scoring::{scaled, substitution_scores};
 use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
 use crate::model::locus_evidence::EvidenceProfile;
+use crate::model::nucleotide::Nucleotide;
 
 pub(crate) use seeded::{align_at_or_above, align_pruned};
 pub(crate) use upper_bound::{UpperBoundPlacement, classify};
-
-const CANONICAL_BASES: &[u8; 4] = b"ACGT";
 
 #[derive(Debug)]
 struct ProfileBound {
@@ -61,7 +60,7 @@ fn profile_bound(
 
         upper_bound = upper_bound.checked_add(best_score)?;
         edit_loss_floor = edit_loss_floor.min(substitution_loss).min(insertion_loss);
-        optimal_sequence.push(CANONICAL_BASES[best_index]);
+        optimal_sequence.push(Nucleotide::ALL[best_index].as_byte());
     }
 
     (edit_loss_floor > 0).then_some(ProfileBound {
@@ -109,7 +108,7 @@ fn unique_canonical_maximum(scores: [i64; 5]) -> Option<(usize, i64)> {
         .enumerate()
         .filter(|(_, score)| **score == best_score);
     let (index, score) = best.next()?;
-    if best.next().is_some() || index >= CANONICAL_BASES.len() {
+    if best.next().is_some() || index >= Nucleotide::ALL.len() {
         return None;
     }
     Some((index, *score))

@@ -12,8 +12,7 @@ remain independently versioned and are never silently changed in place.
 
 - Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and an explicit Ubuntu 24.04 runner baseline.
 - Crate-wide Rust lint policy in `Cargo.toml` (`missing_docs`, `unreachable_pub`,
-  Clippy `pedantic`) and a tuned release profile (thin LTO, one codegen unit,
-  `panic = "abort"`).
+  Clippy `pedantic`) and a tuned release profile (thin LTO, one codegen unit).
 - Rust/Python source-boundary enforcement.
 - Dependency policy, dependency review, CodeQL, OpenSSF Scorecard, fuzzing,
   self-contained explicit-target auditable release bundles with post-strip metadata verification, release SBOMs, and artifact attestations.
@@ -34,7 +33,10 @@ remain independently versioned and are never silently changed in place.
   `ConfigError`, `AlignmentError`, and so on) instead of `String` messages;
   `DNAProcessing` is renamed `Signal`; `Path::reason` is `&'static str`; and
   `ConfigParse`/`Serialize` no longer expose `toml`/`serde_json` types. CLI and
-  log error text is unchanged.
+  log error text is unchanged, except two internal-invariant messages that
+  valid input cannot reach: `VariantError::NoSupportingCalls` uses the
+  uppercase variant label, and a non-ASCII rendered allele reports
+  `RepresentationError::InvalidAllele`.
 - CI documentation now matches the workflows: CodeQL, fuzzing, MSRV, release
   build, and RustSec audit run on `main` and on schedules, not on pull requests.
 - Corrected the minimum supported Rust version to match language features used
