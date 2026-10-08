@@ -75,7 +75,7 @@ whose primary base is unresolved (`N`) is omitted rather than published or
 given fabricated peaks.
 
 An eligible support has an empty exclusion list. An ineligible support retains one
-or more reasons such as `outside_configured_region`, `peak_below_minimum`,
+or more reasons such as `outside_target_region`, `peak_below_minimum`,
 `relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`, or
 `post_homopolymer`.
 `mixed_supporting_dna` means an SNV's supporting call retained more than one

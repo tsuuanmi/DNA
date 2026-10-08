@@ -19,7 +19,9 @@ remain independently versioned and are never silently changed in place.
   **Breaking:** configuration schema 6 gains a root `profile` key and loses
   `[reference]` and `variant_calling.regions`; `dna.analysis/v8` and
   `dna.sample_evidence/v9` record `provenance.profile` (`id`, file `sha256`);
-  sample `notation.policy` becomes `notation.style = "per_base_decimal"`.
+  sample `notation.policy` becomes `notation.style = "per_base_decimal"`;
+  the variant exclusion reason `outside_configured_region` becomes
+  `outside_target_region`.
   **Breaking (Rust API):** new `dna::profile::{Profile, ProfileIdentity}`;
   `variant_nomenclature::mtdna::apply_control_region` is replaced by
   `variant_nomenclature::apply(reference, &profile, input)`;

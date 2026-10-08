@@ -266,7 +266,7 @@
       "enum": [
         "non_canonical_allele",
         "indel_length_exceeded",
-        "outside_configured_region",
+        "outside_target_region",
         "peak_below_minimum",
         "relative_quality_not_above_threshold",
         "mixed_supporting_dna",

@@ -63,8 +63,8 @@ pub(crate) enum VariantExclusionReason {
     NonCanonicalAllele,
     /// An insertion or deletion exceeded the configured length cap.
     IndelLengthExceeded,
-    /// The normalized anchor was outside every configured region.
-    OutsideConfiguredRegion,
+    /// The normalized anchor was outside every target-profile region.
+    OutsideTargetRegion,
     /// At least one supporting call was below the configured peak floor.
     PeakBelowMinimum,
     /// At least one supporting call did not strictly exceed the quality threshold.
@@ -84,7 +84,7 @@ impl VariantExclusionReason {
         match self {
             Self::NonCanonicalAllele => "non_canonical_allele",
             Self::IndelLengthExceeded => "indel_length_exceeded",
-            Self::OutsideConfiguredRegion => "outside_configured_region",
+            Self::OutsideTargetRegion => "outside_target_region",
             Self::PeakBelowMinimum => "peak_below_minimum",
             Self::RelativeQualityNotAboveThreshold => "relative_quality_not_above_threshold",
             Self::MixedSupportingDNA => "mixed_supporting_dna",

@@ -583,7 +583,7 @@ fn filters_by_normalized_anchor_region() -> Result<(), Box<dyn std::error::Error
     assert_eq!(value["warnings"]["excluded_variant_candidates"], 1);
     let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
     assert!(log.contains(
-        "event=variant_removed kind=SNV contig=\"synthetic\" position=15 reasons=outside_configured_region"
+        "event=variant_removed kind=SNV contig=\"synthetic\" position=15 reasons=outside_target_region"
     ));
     Ok(())
 }

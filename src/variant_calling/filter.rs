@@ -25,7 +25,7 @@ pub(super) fn apply(
     for variant in extracted.reported {
         let mut reasons = Vec::new();
         if !in_region(variant.position_1based, regions) {
-            reasons.push(VariantExclusionReason::OutsideConfiguredRegion);
+            reasons.push(VariantExclusionReason::OutsideTargetRegion);
         }
         reasons.extend(supporting_evidence_reasons(
             &variant, calls, quality, config,
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(
             result.excluded[1].reasons,
             vec![
-                VariantExclusionReason::OutsideConfiguredRegion,
+                VariantExclusionReason::OutsideTargetRegion,
                 VariantExclusionReason::PeakBelowMinimum,
             ]
         );
