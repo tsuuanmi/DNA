@@ -11,6 +11,8 @@ remain independently versioned and are never silently changed in place.
 ### Added
 
 - Production-oriented CI/CD and supply-chain verification, including strict cargo-shear dependency/source hygiene and an explicit Ubuntu 24.04 runner baseline.
+- Declare the crate proprietary (`license = "LicenseRef-Proprietary"`) so SBOMs
+  and audits record its ownership.
 - Crate-wide Rust lint policy in `Cargo.toml` (`missing_docs`, `unreachable_pub`,
   Clippy `pedantic`) and a tuned release profile (thin LTO, one codegen unit).
 - Rust/Python source-boundary enforcement.

@@ -6,6 +6,7 @@ rust-version = "1.88"
 description = "DNA sequencing trace analysis in Rust"
 repository = "https://github.com/tsuuanmi/DNA"
 readme = "README.md"
+license = "LicenseRef-Proprietary"
 publish = false
 
 [features]
