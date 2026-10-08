@@ -50,6 +50,10 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Result comparison with external call sets, reviewer truth, or other tools is
+  out of DNA's scope (ADR-0065, SRS-COMPAT-003): downstream pipelines convert
+  DNA's published results into their canonical sample representation and
+  compare there.
 - **Breaking (Rust API):** the canonical called-variant contracts move from
   `dna::variant_analysis` to the core module `dna::variant` (`Variant`,
   `VariantKind`, `ReferenceIdentity`, `CalledVariantSet`). Modules now form

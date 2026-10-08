@@ -214,7 +214,7 @@ CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust
 
 Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config, target profiles, and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
 
-Longer scientific validation—approved real-AB1 ground-truth comparison, extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
+Longer scientific validation—approved real-AB1 ground-truth comparison (run by downstream pipelines on DNA's published results), extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
 
 See [CI/CD](docs/engineering/ci-cd.md), [repository governance](docs/governance/repository.md), [release evidence](docs/operations/release-evidence-template.md), [production readiness](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md).
 

@@ -36,7 +36,7 @@ data/validation/ground-truth/
 
 Generated evaluation artifacts under `validation-results/` inherit the same policy because extra/missing/representation rows disclose biological differences.
 
-Repository tests may exercise the same parsing and comparison logic only with synthetic reviewer notation and synthetic identities.
+DNA contains no comparison logic (SRS-COMPAT-003, ADR-0065): reviewer truth is parsed and compared by downstream pipelines that consume DNA's published results, and this storage policy applies to their outputs when they are kept as DNA validation evidence.
 
 ## Approval record for real validation evidence
 

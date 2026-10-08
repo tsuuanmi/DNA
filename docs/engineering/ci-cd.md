@@ -143,7 +143,7 @@ Checks that cannot be reduced to normal public CI remain release evidence:
 - long fuzz campaigns;
 - performance and peak-memory measurements;
 - approved real-AB1 regression corpus;
-- ground-truth biological comparison and disagreement analysis.
+- ground-truth biological comparison and disagreement analysis, performed by downstream pipelines on published results (ADR-0065).
 
 A check is added only when its protected failure mode is documented.
 
