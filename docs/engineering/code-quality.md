@@ -5,7 +5,8 @@ DNA prefers one clear implementation with explicit ownership and no transitional
 Required engineering properties include:
 
 - formatted, warning-free Rust and Python tooling;
-- typed failures rather than hidden fallback behavior;
+- typed failures rather than hidden fallback behavior, following the stage
+  failure vocabulary in [Rust public API](../reference/rust-api.md#errors);
 - no first-party unsafe Rust without a new explicit decision and targeted validation;
 - no deprecated/legacy compatibility scaffolding or diagnostic suppression used to preserve obsolete paths;
 - deterministic behavior where required by the domain;

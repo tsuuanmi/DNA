@@ -13,8 +13,8 @@ around T310 into run-length changes at the 309 and 315 boundaries while proving
 that the complete alternate haplotype is unchanged.
 
 Target-independent edit/application/render mechanics live in the crate-internal
-`variant_representation` module; this module owns only nomenclature policy and
-its typed error boundary.
+`variant_representation` module; this module owns only nomenclature policy.
+Its failure vocabulary, `NomenclatureError`, lives in `error`.
 
 It does **not** currently implement the 513-524 HVS-III AC repeat, HVS-I
 16189/16193 policy, Sanger-specific repeat artifact interpretation, decimal

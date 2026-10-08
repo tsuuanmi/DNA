@@ -1,7 +1,7 @@
 //! Configured biological-region and supporting-signal eligibility filters.
 
 use crate::config::VariantCallingConfig;
-use crate::error::{Error, Result};
+use crate::error::{Result, VariantError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
 use crate::model::variant::{
@@ -70,10 +70,11 @@ fn supporting_evidence_reasons(
         .filter(|mapping| mapping.role == VariantCallRole::Supporting)
         .collect::<Vec<_>>();
     if supporting.is_empty() {
-        return Err(Error::Variant(format!(
-            "{:?} at position {} has no supporting calls",
-            variant.kind, variant.position_1based
-        )));
+        return Err(VariantError::NoSupportingCalls {
+            kind: variant.kind.label(),
+            position: variant.position_1based,
+        }
+        .into());
     }
     let mut peak_failed = false;
     let mut quality_failed = false;
@@ -110,27 +111,23 @@ fn assess_call(
     config: &VariantCallingConfig,
 ) -> Result<SupportingCallAssessment> {
     let index = mapping.call_index_0based;
-    let call = calls.calls.get(index).ok_or_else(|| {
-        Error::Variant(format!(
-            "variant filter references missing call index {index}"
-        ))
-    })?;
-    let score = quality.per_call.get(index).ok_or_else(|| {
-        Error::Variant(format!(
-            "variant filter references missing quality index {index}"
-        ))
-    })?;
+    let call = calls
+        .calls
+        .get(index)
+        .ok_or(VariantError::MissingCall { index })?;
+    let score = quality
+        .per_call
+        .get(index)
+        .ok_or(VariantError::MissingQuality { index })?;
     if call.index_0based != index || score.index_0based != index {
-        return Err(Error::Variant(format!(
-            "variant filter call index {index} does not match call/quality records"
-        )));
+        return Err(VariantError::CallMismatch { index }.into());
     }
     let highest_peak = call
         .peaks
         .iter()
         .map(|peak| peak.height)
         .max()
-        .ok_or_else(|| Error::Variant(format!("call index {index} has no channel peaks")))?;
+        .ok_or(VariantError::NoChannelPeaks { index })?;
     Ok(SupportingCallAssessment {
         peak_passes: highest_peak >= config.minimum_peak_height,
         quality_passes: score.relative_quality_score > config.relative_quality_threshold,
@@ -140,6 +137,7 @@ fn assess_call(
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{Error, VariantError};
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
     use crate::model::nucleotide::Nucleotide;
     use crate::model::quality::CallQuality;
@@ -433,7 +431,7 @@ mod tests {
 
         assert!(matches!(
             apply(extracted, &calls, &quality, &config(vec![[1, 1]])),
-            Err(Error::Variant(message)) if message.contains("missing call index 2")
+            Err(Error::Variant(VariantError::MissingCall { index: 2 }))
         ));
     }
 }

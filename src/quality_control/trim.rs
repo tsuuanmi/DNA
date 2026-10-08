@@ -1,7 +1,7 @@
 //! Auditable low-quality end trimming.
 
 use crate::config::QualityControlConfig;
-use crate::error::{Error, Result};
+use crate::error::{QualityControlError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::{CallQuality, QualityControlResult};
 use crate::model::sanger::Chromatogram;
@@ -15,11 +15,11 @@ pub(crate) fn analyze(
     config: &QualityControlConfig,
 ) -> Result<QualityControlResult> {
     if calls.len() < config.minimum_retained_bases {
-        return Err(Error::QualityControl(format!(
-            "{} calls are fewer than minimum_retained_bases {}",
-            calls.len(),
-            config.minimum_retained_bases
-        )));
+        return Err(QualityControlError::TooFewCalls {
+            calls: calls.len(),
+            minimum: config.minimum_retained_bases,
+        }
+        .into());
     }
     let penalty = penalty::calculate(calls, config.trim_window_size, config.best_section_fraction)?;
     let scores = quality::relative_scores(&penalty.penalties, config.max_relative_quality_score);
@@ -53,10 +53,12 @@ pub(crate) fn analyze(
         }
     }
     if trim_end <= trim_start || trim_end - trim_start < config.minimum_retained_bases {
-        return Err(Error::QualityControl(format!(
-            "retained interval {trim_start}..{trim_end} is shorter than minimum {}",
-            config.minimum_retained_bases
-        )));
+        return Err(QualityControlError::RetainedTooShort {
+            start: trim_start,
+            end: trim_end,
+            minimum: config.minimum_retained_bases,
+        }
+        .into());
     }
     let retained_sequence = calls.primary_sequence[trim_start..trim_end].to_owned();
     let per_call = calls

@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::error::{Error, Result};
+use crate::error::{CallEvidenceError, Result, SampleError};
 use crate::model::alignment::Orientation;
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{
@@ -34,10 +34,10 @@ pub(super) fn aggregate(reads: &[&ReadObservation]) -> Result<Vec<VariantEvidenc
                 kind: variant.kind,
             };
             if !seen.insert(key.clone()) {
-                return Err(Error::Sample(format!(
-                    "read {} contains duplicate normalized variant identity",
-                    read.input_sha256
-                )));
+                return Err(SampleError::DuplicateVariant {
+                    read: read.input_sha256.clone(),
+                }
+                .into());
             }
             variants.entry(key).or_default().push(VariantSupport {
                 read_index,
@@ -77,11 +77,9 @@ fn support_topology(
         eligible_reverse_reads: 0,
     };
     for item in support {
-        let read = reads.get(item.read_index).ok_or_else(|| {
-            Error::Sample(format!(
-                "variant support references missing read {}",
-                item.read_index
-            ))
+        let read = reads.get(item.read_index).ok_or(SampleError::MissingRead {
+            context: "variant support",
+            index: item.read_index,
         })?;
         match read.alignment.orientation {
             Orientation::Forward => {
@@ -105,9 +103,9 @@ fn support_topology(
         || topology.eligible_reads
             != topology.eligible_forward_reads + topology.eligible_reverse_reads
     {
-        return Err(Error::Sample(
-            "variant support topology counts are inconsistent".into(),
-        ));
+        return Err(
+            SampleError::Inconsistent("variant support topology counts are inconsistent").into(),
+        );
     }
     Ok(topology)
 }
@@ -120,22 +118,31 @@ fn variant_calls(
         .iter()
         .map(|mapping| {
             let index = mapping.call_index_0based;
-            let call = read.calls.calls.get(index).ok_or_else(|| {
-                Error::Sample(format!("variant references missing call index {index}"))
-            })?;
-            let quality = read.quality.per_call.get(index).ok_or_else(|| {
-                Error::Sample(format!("variant references missing quality index {index}"))
-            })?;
+            let call = read
+                .calls
+                .calls
+                .get(index)
+                .ok_or(SampleError::CallEvidence(CallEvidenceError::MissingCall {
+                    index,
+                }))?;
+            let quality = read
+                .quality
+                .per_call
+                .get(index)
+                .ok_or(SampleError::CallEvidence(
+                    CallEvidenceError::MissingQuality { index },
+                ))?;
             if call.index_0based != index || quality.index_0based != index {
-                return Err(Error::Sample(format!(
-                    "variant call index {index} does not match call/quality records"
-                )));
+                return Err(
+                    SampleError::CallEvidence(CallEvidenceError::IndexMismatch { index }).into(),
+                );
             }
-            let primary = call.primary_peak_evidence.as_ref().ok_or_else(|| {
-                Error::Sample(format!(
-                    "variant call index {index} lacks primary-event peak evidence"
-                ))
-            })?;
+            let primary = call
+                .primary_peak_evidence
+                .as_ref()
+                .ok_or(SampleError::CallEvidence(
+                    CallEvidenceError::MissingPeakEvidence { index },
+                ))?;
             Ok(VariantCallEvidence {
                 role: mapping.role,
                 base: read.alignment.orientation.reference_base(call.primary),

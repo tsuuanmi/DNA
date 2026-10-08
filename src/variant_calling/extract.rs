@@ -1,7 +1,7 @@
 //! Alignment-difference extraction with original-call/reference mappings.
 
 use crate::config::VariantCallingConfig;
-use crate::error::{Error, Result};
+use crate::error::{Result, VariantError};
 use crate::model::alignment::{Alignment, AlignmentColumn};
 use crate::model::reference::Reference;
 use crate::model::variant::{
@@ -24,9 +24,12 @@ pub(crate) fn call(
         if column.query_base == '-' {
             let start = index;
             let previous_reference = previous_reference(&alignment.columns, start);
-            let first_deleted_reference = column.reference_index_0based.ok_or_else(|| {
-                Error::Variant("deletion column lacks a reference coordinate".into())
-            })?;
+            let first_deleted_reference =
+                column
+                    .reference_index_0based
+                    .ok_or(VariantError::Inconsistent(
+                        "deletion column lacks a reference coordinate",
+                    ))?;
             let previous_flank = previous_flank(&alignment.columns, start)?;
             let mut deleted = String::new();
             while index < alignment.columns.len() && alignment.columns[index].query_base == '-' {
@@ -93,9 +96,12 @@ pub(crate) fn call(
         }
         if column.query_base != column.reference_base {
             if is_canonical(column.query_base) && is_canonical(column.reference_base) {
-                let reference_position = column.reference_index_0based.ok_or_else(|| {
-                    Error::Variant("SNV column lacks a reference coordinate".into())
-                })?;
+                let reference_position =
+                    column
+                        .reference_index_0based
+                        .ok_or(VariantError::Inconsistent(
+                            "SNV column lacks a reference coordinate",
+                        ))?;
                 reported.push(normalize::snv(
                     reference,
                     reference_position,

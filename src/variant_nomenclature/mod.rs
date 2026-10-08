@@ -5,7 +5,6 @@
 //! target policies and currently implements the validated human-mtDNA HVS-II
 //! 309/315 representation under `mtdna`.
 
-use crate::error::Error;
 use crate::variant_analysis::{ReferenceIdentity, Variant};
 use crate::variant_normalization::VariantNormalizationResult;
 
@@ -53,8 +52,4 @@ pub struct VariantNomenclatureResult {
     pub normalized_variants: Vec<Variant>,
     /// Variants expressed in the target nomenclature.
     pub represented_variants: Vec<Variant>,
-}
-
-pub(super) fn nomenclature_error(message: impl Into<String>) -> Error {
-    Error::VariantNomenclature(message.into())
 }

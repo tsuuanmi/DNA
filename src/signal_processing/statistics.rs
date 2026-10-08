@@ -1,6 +1,6 @@
 //! Shared local baseline, noise, amplitude, and SNR primitives.
 
-use crate::error::{Error, Result};
+use crate::error::{Result, SignalError};
 
 const NORMAL_MAD_SCALE: f64 = 0.674_489_75;
 const FIRST_DIFFERENCE_SCALE: f64 = std::f64::consts::SQRT_2;
@@ -39,9 +39,10 @@ pub(super) fn round_metric(value: f64) -> f64 {
 
 pub(super) fn median_usize(values: &[usize]) -> Result<f64> {
     if values.is_empty() {
-        return Err(Error::DNAProcessing(
-            "cannot calculate a median from empty integer values".into(),
-        ));
+        return Err(SignalError::InsufficientData(
+            "cannot calculate a median from empty integer values",
+        )
+        .into());
     }
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
@@ -55,9 +56,10 @@ pub(super) fn median_usize(values: &[usize]) -> Result<f64> {
 
 pub(super) fn median_f64(values: &[f64]) -> Result<f64> {
     if values.is_empty() || values.iter().any(|value| !value.is_finite()) {
-        return Err(Error::DNAProcessing(
-            "floating-point median requires finite non-empty values".into(),
-        ));
+        return Err(SignalError::InsufficientData(
+            "floating-point median requires finite non-empty values",
+        )
+        .into());
     }
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
@@ -66,9 +68,10 @@ pub(super) fn median_f64(values: &[f64]) -> Result<f64> {
 
 fn median_i32(values: &[i32]) -> Result<f64> {
     if values.is_empty() {
-        return Err(Error::DNAProcessing(
-            "cannot calculate a median from an empty sample interval".into(),
-        ));
+        return Err(SignalError::InsufficientData(
+            "cannot calculate a median from an empty sample interval",
+        )
+        .into());
     }
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
@@ -86,9 +89,10 @@ fn median_sorted_i32(sorted: &[i32]) -> f64 {
 
 fn noise_sigma(samples: &[i32]) -> Result<f64> {
     if samples.len() < 2 {
-        return Err(Error::DNAProcessing(
-            "noise estimation requires at least two channel samples".into(),
-        ));
+        return Err(SignalError::InsufficientData(
+            "noise estimation requires at least two channel samples",
+        )
+        .into());
     }
     let mut differences = samples
         .windows(2)
@@ -116,6 +120,8 @@ fn median_sorted_f64(sorted: &[f64]) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{Error, SignalError};
+
     use super::*;
 
     #[test]
@@ -131,7 +137,10 @@ mod tests {
         assert_eq!(median_usize(&[2, 8, 4, 6])?, 5.0);
         assert_eq!(median_f64(&[1.0, 9.0, 3.0])?, 3.0);
         assert_eq!(median_f64(&[1.0, 9.0, 3.0, 5.0])?, 4.0);
-        assert!(median_f64(&[f64::NAN]).is_err());
+        assert!(matches!(
+            median_f64(&[f64::NAN]),
+            Err(Error::Signal(SignalError::InsufficientData(_)))
+        ));
         Ok(())
     }
 

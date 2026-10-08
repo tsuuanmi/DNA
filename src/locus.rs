@@ -1,5 +1,6 @@
 //! Shared canonical Sanger locus-window geometry.
 
+use crate::error::LocusWindowError;
 use crate::model::sanger::Chromatogram;
 
 /// Half-open sample window around one validated Sanger locus.
@@ -12,11 +13,11 @@ pub(crate) struct LocusWindow {
 /// Builds symmetric neighboring-midpoint windows around every Sanger locus.
 ///
 /// This geometry is shared by basecalling and signal-evidence extraction. The
-/// caller maps geometry failures into its own stage-specific error type.
-pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>, String> {
+/// caller wraps geometry failures in its own stage-specific error.
+pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>, LocusWindowError> {
     let positions = &trace.locus_positions;
     if positions.len() < 2 {
-        return Err("at least two locus positions are required".into());
+        return Err(LocusWindowError::TooFewLoci);
     }
     let sample_count = trace.sample_count();
     let mut output = Vec::with_capacity(positions.len());
@@ -38,19 +39,20 @@ pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>, String> 
         };
         if start >= end || end > sample_count || positions[index] < start || positions[index] >= end
         {
-            return Err(format!(
-                "invalid locus window {start}..{end} for locus position {}",
-                positions[index]
-            ));
+            return Err(LocusWindowError::InvalidWindow {
+                start,
+                end,
+                position: positions[index],
+            });
         }
         output.push(LocusWindow { start, end });
     }
     Ok(output)
 }
 
-fn midpoint(left: usize, right: usize) -> Result<usize, String> {
+fn midpoint(left: usize, right: usize) -> Result<usize, LocusWindowError> {
     left.checked_add((right - left) / 2)
-        .ok_or_else(|| "locus-window midpoint overflow".into())
+        .ok_or(LocusWindowError::MidpointOverflow)
 }
 
 #[cfg(test)]
@@ -60,7 +62,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builds_neighbor_midpoint_windows() -> Result<(), String> {
+    fn rejects_a_trace_with_fewer_than_two_loci() {
+        let trace = Chromatogram {
+            source_name: "synthetic.ab1".into(),
+            source_sha256: String::new(),
+            channels: std::array::from_fn(|_| vec![0; 12]),
+            locus_positions: vec![2],
+            vendor: VendorEvidence::default(),
+        };
+
+        assert_eq!(windows(&trace), Err(LocusWindowError::TooFewLoci));
+    }
+
+    #[test]
+    fn builds_neighbor_midpoint_windows() -> Result<(), LocusWindowError> {
         let trace = Chromatogram {
             source_name: "synthetic.ab1".into(),
             source_sha256: String::new(),

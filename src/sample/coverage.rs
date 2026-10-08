@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::error::{Error, Result};
+use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
 use crate::model::sample_evidence::{SampleCoverageEvidence, SampleReadEvidence};
 
@@ -25,24 +25,32 @@ pub(super) fn summarize(reads: &[SampleReadEvidence]) -> Result<Vec<SampleCovera
                 Orientation::Forward => {
                     let start = events.entry(segment.start_0based).or_default();
                     start.forward_starts =
-                        start.forward_starts.checked_add(1).ok_or_else(|| {
-                            Error::Sample("forward coverage start count overflow".into())
-                        })?;
+                        start
+                            .forward_starts
+                            .checked_add(1)
+                            .ok_or(SampleError::Overflow(
+                                "forward coverage start count overflow",
+                            ))?;
                     let end = events.entry(segment.end_0based_exclusive).or_default();
-                    end.forward_ends = end.forward_ends.checked_add(1).ok_or_else(|| {
-                        Error::Sample("forward coverage end count overflow".into())
-                    })?;
+                    end.forward_ends = end
+                        .forward_ends
+                        .checked_add(1)
+                        .ok_or(SampleError::Overflow("forward coverage end count overflow"))?;
                 }
                 Orientation::Reverse => {
                     let start = events.entry(segment.start_0based).or_default();
                     start.reverse_starts =
-                        start.reverse_starts.checked_add(1).ok_or_else(|| {
-                            Error::Sample("reverse coverage start count overflow".into())
-                        })?;
+                        start
+                            .reverse_starts
+                            .checked_add(1)
+                            .ok_or(SampleError::Overflow(
+                                "reverse coverage start count overflow",
+                            ))?;
                     let end = events.entry(segment.end_0based_exclusive).or_default();
-                    end.reverse_ends = end.reverse_ends.checked_add(1).ok_or_else(|| {
-                        Error::Sample("reverse coverage end count overflow".into())
-                    })?;
+                    end.reverse_ends = end
+                        .reverse_ends
+                        .checked_add(1)
+                        .ok_or(SampleError::Overflow("reverse coverage end count overflow"))?;
                 }
             }
         }
@@ -61,25 +69,32 @@ pub(super) fn summarize(reads: &[SampleReadEvidence]) -> Result<Vec<SampleCovera
             push_segment(&mut coverage, start, position, forward_depth, reverse_depth)?;
         }
 
-        forward_depth = forward_depth
-            .checked_sub(event.forward_ends)
-            .ok_or_else(|| Error::Sample("forward coverage end exceeds active depth".into()))?;
-        reverse_depth = reverse_depth
-            .checked_sub(event.reverse_ends)
-            .ok_or_else(|| Error::Sample("reverse coverage end exceeds active depth".into()))?;
+        forward_depth =
+            forward_depth
+                .checked_sub(event.forward_ends)
+                .ok_or(SampleError::Inconsistent(
+                    "forward coverage end exceeds active depth",
+                ))?;
+        reverse_depth =
+            reverse_depth
+                .checked_sub(event.reverse_ends)
+                .ok_or(SampleError::Inconsistent(
+                    "reverse coverage end exceeds active depth",
+                ))?;
         forward_depth = forward_depth
             .checked_add(event.forward_starts)
-            .ok_or_else(|| Error::Sample("forward coverage depth overflow".into()))?;
+            .ok_or(SampleError::Overflow("forward coverage depth overflow"))?;
         reverse_depth = reverse_depth
             .checked_add(event.reverse_starts)
-            .ok_or_else(|| Error::Sample("reverse coverage depth overflow".into()))?;
+            .ok_or(SampleError::Overflow("reverse coverage depth overflow"))?;
         previous = Some(position);
     }
 
     if forward_depth != 0 || reverse_depth != 0 {
-        return Err(Error::Sample(
-            "coverage sweep ended with active reference segments".into(),
-        ));
+        return Err(SampleError::Inconsistent(
+            "coverage sweep ended with active reference segments",
+        )
+        .into());
     }
 
     Ok(coverage)
@@ -87,26 +102,26 @@ pub(super) fn summarize(reads: &[SampleReadEvidence]) -> Result<Vec<SampleCovera
 
 fn validate_segments(read: &SampleReadEvidence) -> Result<()> {
     if read.alignment.reference_segments.is_empty() {
-        return Err(Error::Sample(format!(
-            "read {} has no mapped reference coverage",
-            read.input_sha256
-        )));
+        return Err(SampleError::NoCoverage {
+            read: read.input_sha256.clone(),
+        }
+        .into());
     }
     let mut segments = read.alignment.reference_segments.clone();
     segments.sort_by_key(|segment| (segment.start_0based, segment.end_0based_exclusive));
     let mut previous_end = None;
     for segment in segments {
         if segment.start_0based >= segment.end_0based_exclusive {
-            return Err(Error::Sample(format!(
-                "read {} contains empty or reversed reference coverage",
-                read.input_sha256
-            )));
+            return Err(SampleError::InvalidCoverage {
+                read: read.input_sha256.clone(),
+            }
+            .into());
         }
         if previous_end.is_some_and(|end| segment.start_0based < end) {
-            return Err(Error::Sample(format!(
-                "read {} contains overlapping reference segments",
-                read.input_sha256
-            )));
+            return Err(SampleError::OverlappingSegments {
+                read: read.input_sha256.clone(),
+            }
+            .into());
         }
         previous_end = Some(segment.end_0based_exclusive);
     }
@@ -122,9 +137,9 @@ fn push_segment(
 ) -> Result<()> {
     let read_depth = forward_depth
         .checked_add(reverse_depth)
-        .ok_or_else(|| Error::Sample("coverage read depth overflow".into()))?;
+        .ok_or(SampleError::Overflow("coverage read depth overflow"))?;
     if read_depth == 0 || start_0based >= end_0based_exclusive {
-        return Err(Error::Sample("invalid non-empty coverage segment".into()));
+        return Err(SampleError::Inconsistent("invalid non-empty coverage segment").into());
     }
 
     if let Some(previous) = output.last_mut()
@@ -149,6 +164,7 @@ fn push_segment(
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{Error, SampleError};
     use crate::model::alignment::{Orientation, ReferenceSegment};
     use crate::model::sample_evidence::{SampleReadAlignmentEvidence, SampleReadEvidence};
     use crate::model::signal::SangerIntegrity;
@@ -280,12 +296,18 @@ mod tests {
     #[test]
     fn rejects_missing_reference_segments() {
         let reads = vec![read("a", Orientation::Forward, &[])];
-        assert!(summarize(&reads).is_err());
+        assert!(matches!(
+            summarize(&reads),
+            Err(Error::Sample(SampleError::NoCoverage { read })) if read == "a"
+        ));
     }
 
     #[test]
     fn rejects_overlapping_segments_within_one_read() {
         let reads = vec![read("a", Orientation::Forward, &[(0, 10), (5, 15)])];
-        assert!(summarize(&reads).is_err());
+        assert!(matches!(
+            summarize(&reads),
+            Err(Error::Sample(SampleError::OverlappingSegments { read })) if read == "a"
+        ));
     }
 }

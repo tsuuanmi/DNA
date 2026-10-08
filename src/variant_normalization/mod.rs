@@ -8,7 +8,7 @@ mod mtdna;
 
 use std::path::Path;
 
-use crate::error::{Error, Result};
+use crate::error::{NormalizationError, Result};
 use crate::model::reference::ReferenceTopology;
 use crate::reference;
 use crate::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant};
@@ -47,7 +47,7 @@ pub struct VariantNormalizationResult {
 ///
 /// # Errors
 ///
-/// Returns [`Error`] when the reference cannot be loaded,
+/// Returns [`Error`](crate::error::Error) when the reference cannot be loaded,
 /// does not match the called-variant reference identity, or a called variant
 /// is inconsistent with the reference sequence.
 pub fn normalize(
@@ -59,34 +59,30 @@ pub fn normalize(
     if called.reference.name != reference.name
         || called.reference.sha256 != reference.sequence_sha256
     {
-        return Err(normalization_error(
-            "called variants do not match the supplied reference identity",
-        ));
+        return Err(NormalizationError::ReferenceIdentityMismatch.into());
     }
 
     let source_variants = called.variants.clone();
     let source_edits = variants_to_edits(&reference.name, &reference.sequence, &source_variants)
-        .map_err(normalization_error)?;
+        .map_err(NormalizationError::from)?;
     let alternate_sequence =
-        apply_edits(&reference.sequence, &source_edits).map_err(normalization_error)?;
+        apply_edits(&reference.sequence, &source_edits).map_err(NormalizationError::from)?;
 
     let normalized_edits = match policy {
         NormalizationPolicy::MtDnaRightAligned => {
             mtdna::right_align(&reference.sequence, &alternate_sequence, &source_edits)
-                .map_err(normalization_error)?
+                .map_err(NormalizationError::from)?
         }
     };
 
-    if apply_edits(&reference.sequence, &normalized_edits).map_err(normalization_error)?
+    if apply_edits(&reference.sequence, &normalized_edits).map_err(NormalizationError::from)?
         != alternate_sequence
     {
-        return Err(normalization_error(
-            "normalized edits changed the reconstructed haplotype",
-        ));
+        return Err(NormalizationError::HaplotypeChanged.into());
     }
 
     let normalized_variants = render_edits(&reference.name, &reference.sequence, &normalized_edits)
-        .map_err(normalization_error)?;
+        .map_err(NormalizationError::from)?;
 
     Ok(VariantNormalizationResult {
         reference: called.reference.clone(),
@@ -94,8 +90,4 @@ pub fn normalize(
         alternate_sequence,
         normalized_variants,
     })
-}
-
-pub(super) fn normalization_error(message: impl Into<String>) -> Error {
-    Error::VariantNormalization(message.into())
 }

@@ -1,7 +1,7 @@
 //! Traceback decoding and alignment metrics.
 
 use crate::alignment::scoring::{State, is_canonical};
-use crate::error::{Error, Result};
+use crate::error::{AlignmentError, Result};
 use crate::model::alignment::AlignmentMetrics;
 
 #[derive(Debug, Clone)]
@@ -42,17 +42,17 @@ pub(crate) fn decode(input: TracebackInput<'_>) -> Result<RawAlignment> {
         let index = row
             .checked_mul(input.row_width)
             .and_then(|value| value.checked_add(column))
-            .ok_or_else(|| Error::Alignment("traceback index overflow".into()))?;
-        let packed = *input
-            .trace
-            .get(index)
-            .ok_or_else(|| Error::Alignment("traceback index out of bounds".into()))?;
+            .ok_or(AlignmentError::Overflow("traceback index overflow"))?;
+        let packed = *input.trace.get(index).ok_or(AlignmentError::Inconsistent(
+            "traceback index out of bounds",
+        ))?;
         match state {
             State::Match => {
                 if column == 0 {
-                    return Err(Error::Alignment(
-                        "traceback reached match state at reference column zero".into(),
-                    ));
+                    return Err(AlignmentError::Inconsistent(
+                        "traceback reached match state at reference column zero",
+                    )
+                    .into());
                 }
                 reversed.push(RawColumn {
                     query_base: char::from(input.query[row - 1]),
@@ -80,9 +80,10 @@ pub(crate) fn decode(input: TracebackInput<'_>) -> Result<RawAlignment> {
             }
             State::Deletion => {
                 if column == 0 {
-                    return Err(Error::Alignment(
-                        "traceback reached deletion state at reference column zero".into(),
-                    ));
+                    return Err(AlignmentError::Inconsistent(
+                        "traceback reached deletion state at reference column zero",
+                    )
+                    .into());
                 }
                 reversed.push(RawColumn {
                     query_base: '-',

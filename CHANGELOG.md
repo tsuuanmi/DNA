@@ -25,6 +25,12 @@ remain independently versioned and are never silently changed in place.
   `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
   `VariantKind`, `NormalizationPolicy`, `cli::Command`, and `error::Error` are
   `#[non_exhaustive]`.
+- **Breaking (Rust API):** `dna::error::Error` stage variants now wrap typed,
+  `#[non_exhaustive]` per-stage failure enums (`AbifError`, `FastaError`,
+  `ConfigError`, `AlignmentError`, and so on) instead of `String` messages;
+  `DNAProcessing` is renamed `Signal`; `Path::reason` is `&'static str`; and
+  `ConfigParse`/`Serialize` no longer expose `toml`/`serde_json` types. CLI and
+  log error text is unchanged.
 - CI documentation now matches the workflows: CodeQL, fuzzing, MSRV, release
   build, and RustSec audit run on `main` and on schedules, not on pull requests.
 - Corrected the minimum supported Rust version to match language features used

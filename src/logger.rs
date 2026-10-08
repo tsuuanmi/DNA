@@ -68,7 +68,7 @@ impl Logger {
             return Err(Error::Path {
                 kind: "log directory",
                 path: directory,
-                reason: "path must be non-empty".into(),
+                reason: "path must be non-empty",
             });
         }
         Self::open_in(&directory, operation_stem)

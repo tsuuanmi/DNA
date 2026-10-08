@@ -2,14 +2,14 @@
 
 use std::path::Path;
 
-use crate::error::Result;
+use crate::error::{NomenclatureError, Result};
 use crate::model::reference::ReferenceTopology;
 use crate::reference;
 use crate::variant_representation::{
     SequenceEdit, apply_edits, render_edits, sort_edits, variants_to_edits,
 };
 
-use super::{NomenclatureInput, VariantNomenclatureResult, nomenclature_error};
+use super::{NomenclatureInput, VariantNomenclatureResult};
 
 const HV2_START_0BASED: usize = 302;
 const HV2_END_0BASED_EXCLUSIVE: usize = 315;
@@ -36,9 +36,7 @@ pub fn apply_hv2_polyc(
     let reference = reference::load(reference_path, ReferenceTopology::Circular)?;
     if input.reference.name != reference.name || input.reference.sha256 != reference.sequence_sha256
     {
-        return Err(nomenclature_error(
-            "nomenclature input does not match the supplied reference identity",
-        ));
+        return Err(NomenclatureError::ReferenceIdentityMismatch.into());
     }
 
     let normalized_edits = variants_to_edits(
@@ -46,27 +44,23 @@ pub fn apply_hv2_polyc(
         &reference.sequence,
         input.normalized_variants,
     )
-    .map_err(nomenclature_error)?;
-    if apply_edits(&reference.sequence, &normalized_edits).map_err(nomenclature_error)?
+    .map_err(NomenclatureError::from)?;
+    if apply_edits(&reference.sequence, &normalized_edits).map_err(NomenclatureError::from)?
         != input.alternate_sequence
     {
-        return Err(nomenclature_error(
-            "normalized variants do not reproduce the supplied alternate haplotype",
-        ));
+        return Err(NomenclatureError::InconsistentInput.into());
     }
 
     let represented_edits = represent_hv2_polyc(&reference.sequence, &normalized_edits)?;
-    if apply_edits(&reference.sequence, &represented_edits).map_err(nomenclature_error)?
+    if apply_edits(&reference.sequence, &represented_edits).map_err(NomenclatureError::from)?
         != input.alternate_sequence
     {
-        return Err(nomenclature_error(
-            "HV2 nomenclature changed the reconstructed haplotype",
-        ));
+        return Err(NomenclatureError::HaplotypeChanged.into());
     }
 
     let represented_variants =
         render_edits(&reference.name, &reference.sequence, &represented_edits)
-            .map_err(nomenclature_error)?;
+            .map_err(NomenclatureError::from)?;
 
     Ok(VariantNomenclatureResult {
         reference: input.reference.clone(),
@@ -79,9 +73,7 @@ pub fn apply_hv2_polyc(
 
 fn represent_hv2_polyc(reference: &str, normalized: &[SequenceEdit]) -> Result<Vec<SequenceEdit>> {
     if reference.get(HV2_START_0BASED..HV2_END_0BASED_EXCLUSIVE) != Some(HV2_REFERENCE) {
-        return Err(nomenclature_error(
-            "HV2 303-315 reference window does not match the validated rCRS motif",
-        ));
+        return Err(NomenclatureError::ReferenceMotifMismatch.into());
     }
 
     let mut outside = Vec::new();
@@ -89,9 +81,7 @@ fn represent_hv2_polyc(reference: &str, normalized: &[SequenceEdit]) -> Result<V
     for edit in normalized {
         if intersects_hv2(edit) {
             if !contained_in_hv2(edit) {
-                return Err(nomenclature_error(
-                    "variant edit crosses the validated HV2 nomenclature window",
-                ));
+                return Err(NomenclatureError::WindowCrossing.into());
             }
             inside.push(SequenceEdit {
                 start: edit.start - HV2_START_0BASED,
@@ -107,17 +97,15 @@ fn represent_hv2_polyc(reference: &str, normalized: &[SequenceEdit]) -> Result<V
         return Ok(normalized.to_vec());
     }
 
-    let local_alternate = apply_edits(HV2_REFERENCE, &inside).map_err(nomenclature_error)?;
+    let local_alternate = apply_edits(HV2_REFERENCE, &inside).map_err(NomenclatureError::from)?;
     let Some(local_represented) = anchored_run_length_representation(&local_alternate) else {
         return Ok(normalized.to_vec());
     };
 
-    if apply_edits(HV2_REFERENCE, &local_represented).map_err(nomenclature_error)?
+    if apply_edits(HV2_REFERENCE, &local_represented).map_err(NomenclatureError::from)?
         != local_alternate
     {
-        return Err(nomenclature_error(
-            "HV2 run-length representation changed the local haplotype",
-        ));
+        return Err(NomenclatureError::LocalHaplotypeChanged.into());
     }
 
     outside.extend(local_represented.into_iter().map(|edit| SequenceEdit {

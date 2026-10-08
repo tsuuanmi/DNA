@@ -1,6 +1,6 @@
 //! Per-call ambiguity and peak-spacing penalties.
 
-use crate::error::{Error, Result};
+use crate::error::{QualityControlError, Result};
 use crate::model::basecalls::BaseCalls;
 
 /// Penalty vector and best contiguous section.
@@ -19,9 +19,7 @@ pub(crate) fn calculate(
     best_fraction: f64,
 ) -> Result<PenaltyResult> {
     if calls.is_empty() || window_size == 0 {
-        return Err(Error::QualityControl(
-            "quality penalties require calls and a positive window".into(),
-        ));
+        return Err(QualityControlError::EmptyPenaltyInput.into());
     }
     let count = calls.len();
     let mean_spacing = if count > 1 {
@@ -56,7 +54,7 @@ pub(crate) fn calculate(
             0
         };
         let ambiguity = i32::try_from(ambiguity)
-            .map_err(|_| Error::QualityControl("ambiguity penalty overflow".into()))?;
+            .map_err(|_| QualityControlError::Overflow("ambiguity penalty overflow"))?;
         penalties.push(ambiguity.saturating_add(spacing_penalty));
     }
 

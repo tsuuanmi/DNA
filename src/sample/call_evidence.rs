@@ -1,6 +1,6 @@
 //! Reference-oriented projection of call-backed signal evidence.
 
-use crate::error::{Error, Result};
+use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::CallDNAEvidence;
@@ -16,10 +16,8 @@ pub(super) fn for_call(
         .loci
         .get(call_index_0based)
         .filter(|locus| locus.call_index_0based == call_index_0based)
-        .ok_or_else(|| {
-            Error::Sample(format!(
-                "call index {call_index_0based} lacks matching locus evidence"
-            ))
+        .ok_or(SampleError::MissingLocusEvidence {
+            call: call_index_0based,
         })?;
 
     let orientation = read.alignment.orientation;

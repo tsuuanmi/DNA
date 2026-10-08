@@ -25,7 +25,7 @@ pub(crate) fn publish(path: &Path, bytes: &[u8]) -> Result<()> {
         return Err(Error::Path {
             kind: "output",
             path: path.to_path_buf(),
-            reason: "target already exists".into(),
+            reason: "target already exists",
         });
     }
     let parent = path
@@ -95,7 +95,7 @@ fn create_temporary(path: &Path) -> Result<(PathBuf, File)> {
     Err(Error::Path {
         kind: "temporary output",
         path: path.to_path_buf(),
-        reason: "could not reserve a sibling temporary file after 1024 attempts".into(),
+        reason: "could not reserve a sibling temporary file after 1024 attempts",
     })
 }
 

@@ -1,6 +1,6 @@
 //! Compact typed assembly and deterministic JSON serialization.
 
-use crate::error::Result;
+use crate::error::{Error, ReportError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
@@ -31,9 +31,10 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         variants,
     } = read;
     if reference_sha256 != reference.sequence_sha256 {
-        return Err(crate::error::Error::Report(
-            "read observation reference identity does not match report reference".into(),
-        ));
+        return Err(ReportError::Inconsistent(
+            "read observation reference identity does not match report reference",
+        )
+        .into());
     }
     let warnings = warning_summary(&calls, &signal, variants.excluded_count());
     let variant_results =
@@ -85,7 +86,8 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
 
 /// Serializes any typed result with a trailing newline for stable text files.
 pub(crate) fn serialize<T: serde::Serialize>(result: &T) -> Result<Vec<u8>> {
-    let mut bytes = serde_json::to_vec_pretty(result)?;
+    let mut bytes =
+        serde_json::to_vec_pretty(result).map_err(|error| Error::Serialize(Box::new(error)))?;
     bytes.push(b'\n');
     Ok(bytes)
 }

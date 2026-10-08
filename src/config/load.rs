@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::checksum::hex_sha256;
 use crate::config::defaults::{DEFAULT_CONFIG_PATH, MAX_CONFIG_BYTES};
 use crate::config::types::{Config, RawConfig};
-use crate::error::{Error, Result};
+use crate::error::{ConfigError, Error, Result};
 
 /// Resolves the authoritative configuration path without performing I/O.
 pub(crate) fn resolve_path() -> PathBuf {
@@ -22,9 +22,10 @@ pub(crate) fn load_path(path: &Path) -> Result<Config> {
         source,
     })?;
     if metadata.len() > MAX_CONFIG_BYTES as u64 {
-        return Err(Error::Config(format!(
-            "configuration file exceeds {MAX_CONFIG_BYTES} bytes"
-        )));
+        return Err(ConfigError::TooLarge {
+            maximum: MAX_CONFIG_BYTES,
+        }
+        .into());
     }
     let bytes = fs::read(path).map_err(|source| Error::Read {
         kind: "configuration",
@@ -32,15 +33,15 @@ pub(crate) fn load_path(path: &Path) -> Result<Config> {
         source,
     })?;
     if bytes.len() > MAX_CONFIG_BYTES {
-        return Err(Error::Config(format!(
-            "configuration file exceeds {MAX_CONFIG_BYTES} bytes"
-        )));
+        return Err(ConfigError::TooLarge {
+            maximum: MAX_CONFIG_BYTES,
+        }
+        .into());
     }
-    let text = std::str::from_utf8(&bytes)
-        .map_err(|error| Error::Config(format!("configuration must be UTF-8: {error}")))?;
+    let text = std::str::from_utf8(&bytes).map_err(ConfigError::NotUtf8)?;
     let raw: RawConfig = toml::from_str(text).map_err(|source| Error::ConfigParse {
         path: path.to_path_buf(),
-        source,
+        source: Box::new(source),
     })?;
     raw.validate(path.to_path_buf(), hex_sha256(&bytes))
 }

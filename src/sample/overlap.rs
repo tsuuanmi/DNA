@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::config::SampleReconciliationConfig;
-use crate::error::{Error, Result};
+use crate::error::{Result, SampleError};
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{OverlapExclusionReason, ReadOverlapEvidence};
 
@@ -48,9 +48,10 @@ fn coordinates(read: &ReadObservation) -> Result<BTreeMap<usize, CoordinateObser
             continue;
         };
         if column.reference_base == '-' {
-            return Err(Error::Sample(
-                "reference-coordinate overlap cannot contain an insertion reference base".into(),
-            ));
+            return Err(SampleError::Inconsistent(
+                "reference-coordinate overlap cannot contain an insertion reference base",
+            )
+            .into());
         }
         let query_base = is_canonical(column.query_base).then_some(column.query_base);
         if coordinates
@@ -63,11 +64,11 @@ fn coordinates(read: &ReadObservation) -> Result<BTreeMap<usize, CoordinateObser
             )
             .is_some()
         {
-            return Err(Error::Sample(format!(
-                "read {} contains duplicate reference coordinate {}",
-                read.input_sha256,
-                reference_index_0based + 1
-            )));
+            return Err(SampleError::DuplicateCoordinate {
+                read: read.input_sha256.clone(),
+                position: reference_index_0based + 1,
+            }
+            .into());
         }
     }
     Ok(coordinates)
@@ -91,10 +92,10 @@ fn assess_pair(
         };
         shared_positions += 1;
         if left_observation.reference_base != right_observation.reference_base {
-            return Err(Error::Sample(format!(
-                "reference base disagrees at position {}",
-                reference_index_0based + 1
-            )));
+            return Err(SampleError::ReferenceMismatch {
+                position: reference_index_0based + 1,
+            }
+            .into());
         }
 
         let (Some(left_base), Some(right_base)) =
@@ -144,6 +145,8 @@ const fn is_canonical(base: char) -> bool {
 mod tests {
     use super::*;
 
+    type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
+
     fn config(
         minimum_comparable_bases: usize,
         minimum_overlap_agreement: f64,
@@ -180,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn admits_sufficient_canonical_overlap_and_agreement() -> Result<()> {
+    fn admits_sufficient_canonical_overlap_and_agreement() -> TestResult {
         let left = coordinates(&[
             (1, 'A', Some('A')),
             (2, 'C', Some('C')),
@@ -194,8 +197,8 @@ mod tests {
             (4, 'T', Some('A')),
         ]);
 
-        let overlap = assess_pair(0, 1, &left, &right, &config(4, 0.75))?
-            .ok_or_else(|| Error::Sample("expected overlap".into()))?;
+        let overlap =
+            assess_pair(0, 1, &left, &right, &config(4, 0.75))?.ok_or("expected overlap")?;
         assert_eq!(overlap.shared_positions, 4);
         assert_eq!(overlap.comparable_bases, 4);
         assert_eq!(overlap.agreements, 3);
@@ -207,12 +210,12 @@ mod tests {
     }
 
     #[test]
-    fn excludes_gaps_and_unresolved_calls_from_nucleotide_agreement() -> Result<()> {
+    fn excludes_gaps_and_unresolved_calls_from_nucleotide_agreement() -> TestResult {
         let left = coordinates(&[(1, 'A', Some('A')), (2, 'C', None), (3, 'G', Some('G'))]);
         let right = coordinates(&[(1, 'A', Some('A')), (2, 'C', Some('C')), (3, 'G', None)]);
 
-        let overlap = assess_pair(0, 1, &left, &right, &config(2, 0.5))?
-            .ok_or_else(|| Error::Sample("expected overlap".into()))?;
+        let overlap =
+            assess_pair(0, 1, &left, &right, &config(2, 0.5))?.ok_or("expected overlap")?;
         assert_eq!(overlap.shared_positions, 3);
         assert_eq!(overlap.comparable_bases, 1);
         assert_eq!(overlap.agreement, Some(1.0));
@@ -225,12 +228,12 @@ mod tests {
     }
 
     #[test]
-    fn keeps_zero_comparable_overlap_explicit_without_synthetic_agreement() -> Result<()> {
+    fn keeps_zero_comparable_overlap_explicit_without_synthetic_agreement() -> TestResult {
         let left = coordinates(&[(1, 'A', None), (2, 'C', None)]);
         let right = coordinates(&[(1, 'A', Some('A')), (2, 'C', Some('C'))]);
 
-        let overlap = assess_pair(0, 1, &left, &right, &config(1, 0.5))?
-            .ok_or_else(|| Error::Sample("expected overlap".into()))?;
+        let overlap =
+            assess_pair(0, 1, &left, &right, &config(1, 0.5))?.ok_or("expected overlap")?;
         assert_eq!(overlap.shared_positions, 2);
         assert_eq!(overlap.comparable_bases, 0);
         assert_eq!(overlap.agreements, 0);
@@ -245,12 +248,12 @@ mod tests {
     }
 
     #[test]
-    fn reports_both_failed_overlap_rules_in_stable_order() -> Result<()> {
+    fn reports_both_failed_overlap_rules_in_stable_order() -> TestResult {
         let left = coordinates(&[(1, 'A', Some('A')), (2, 'C', Some('C'))]);
         let right = coordinates(&[(1, 'A', Some('G')), (2, 'C', Some('T'))]);
 
-        let overlap = assess_pair(0, 1, &left, &right, &config(3, 0.5))?
-            .ok_or_else(|| Error::Sample("expected overlap".into()))?;
+        let overlap =
+            assess_pair(0, 1, &left, &right, &config(3, 0.5))?.ok_or("expected overlap")?;
         assert!(!overlap.eligible);
         assert_eq!(
             overlap.exclusion_reasons,

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::checksum::hex_sha256;
 use crate::config::MAX_ABIF_BYTES;
-use crate::error::{Error, Result};
+use crate::error::{AbifError, Error, Result, Tag};
 use crate::input::sanger::abif::container::{AbifEntry, AbifFile, parse};
 use crate::input::sanger::abif::reader::Reader;
 use crate::model::sanger::{Chromatogram, VendorEvidence};
@@ -22,10 +22,11 @@ pub(crate) fn load(path: &Path) -> Result<Chromatogram> {
         source,
     })?;
     if metadata.len() == 0 || metadata.len() > MAX_ABIF_BYTES as u64 {
-        return Err(Error::Abif(format!(
-            "file size {} is outside 1..={MAX_ABIF_BYTES} bytes",
-            metadata.len()
-        )));
+        return Err(AbifError::FileSize {
+            bytes: metadata.len(),
+            maximum: MAX_ABIF_BYTES,
+        }
+        .into());
     }
     let bytes = fs::read(path).map_err(|source| Error::Read {
         kind: "AB1",
@@ -33,10 +34,11 @@ pub(crate) fn load(path: &Path) -> Result<Chromatogram> {
         source,
     })?;
     if bytes.is_empty() || bytes.len() > MAX_ABIF_BYTES {
-        return Err(Error::Abif(format!(
-            "file size {} is outside 1..={MAX_ABIF_BYTES} bytes",
-            bytes.len()
-        )));
+        return Err(AbifError::FileSize {
+            bytes: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+            maximum: MAX_ABIF_BYTES,
+        }
+        .into());
     }
     let source_sha256 = hex_sha256(&bytes);
     let abif = parse(bytes)?;
@@ -48,17 +50,21 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
     require_layout(order_entry, TYPE_CHAR, 1)?;
     let order_bytes = abif.payload(order_entry)?;
     if order_bytes.len() != 4 {
-        return Err(Error::Abif("FWO_.1 must contain exactly four bases".into()));
+        return Err(AbifError::ChannelOrder("FWO_.1 must contain exactly four bases").into());
     }
     let channel_order = std::str::from_utf8(order_bytes)
-        .map_err(|error| Error::Abif(format!("FWO_.1 is not ASCII: {error}")))?
+        .map_err(|error| AbifError::NonAscii {
+            record: "FWO_.1",
+            error,
+        })?
         .to_owned();
     let mut seen = [false; 4];
     for base in channel_order.chars() {
-        let index = channel_index(base)
-            .ok_or_else(|| Error::Abif("FWO_.1 is not an A/C/G/T permutation".into()))?;
+        let index = channel_index(base).ok_or(AbifError::ChannelOrder(
+            "FWO_.1 is not an A/C/G/T permutation",
+        ))?;
         if seen[index] {
-            return Err(Error::Abif("FWO_.1 repeats a channel".into()));
+            return Err(AbifError::ChannelOrder("FWO_.1 repeats a channel").into());
         }
         seen[index] = true;
     }
@@ -75,14 +81,12 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
             .iter()
             .any(|channel| channel.len() != sample_count)
     {
-        return Err(Error::Abif(
-            "DATA.9-12 channels must be non-empty and equally sized".into(),
-        ));
+        return Err(AbifError::UnequalChannels.into());
     }
     let mut channels: [Vec<i32>; 4] = std::array::from_fn(|_| Vec::new());
     for (source_index, base) in channel_order.chars().enumerate() {
         let target_index =
-            channel_index(base).ok_or_else(|| Error::Abif("invalid channel order".into()))?;
+            channel_index(base).ok_or(AbifError::ChannelOrder("invalid channel order"))?;
         channels[target_index] = std::mem::take(&mut raw_channels[source_index]);
     }
 
@@ -92,26 +96,26 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
         .into_iter()
         .map(|value| {
             usize::try_from(value)
-                .map_err(|_| Error::Abif("PLOC.2 contains a negative position".into()))
+                .map_err(|_| AbifError::PeakLocations("PLOC.2 contains a negative position"))
         })
-        .collect::<Result<_>>()?;
+        .collect::<std::result::Result<_, AbifError>>()?;
     if locus_positions.is_empty() {
-        return Err(Error::Abif("PLOC.2 is empty".into()));
+        return Err(AbifError::PeakLocations("PLOC.2 is empty").into());
     }
     for pair in locus_positions.windows(2) {
         if pair[0] >= pair[1] {
-            return Err(Error::Abif(
-                "PLOC.2 positions must be strictly increasing".into(),
-            ));
+            return Err(
+                AbifError::PeakLocations("PLOC.2 positions must be strictly increasing").into(),
+            );
         }
     }
     if locus_positions
         .iter()
         .any(|position| *position >= sample_count)
     {
-        return Err(Error::Abif(
-            "PLOC.2 position lies outside channel samples".into(),
-        ));
+        return Err(
+            AbifError::PeakLocations("PLOC.2 position lies outside channel samples").into(),
+        );
     }
 
     let primary = decode_optional_string(abif, *b"PBAS", 2)?;
@@ -119,7 +123,7 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
     let source_name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| Error::Abif("AB1 file name is not valid UTF-8".into()))?
+        .ok_or(AbifError::NonUtf8FileName)?
         .to_owned();
 
     Ok(Chromatogram {
@@ -133,13 +137,7 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
 
 fn require_layout(entry: &AbifEntry, element_type: u16, element_size: usize) -> Result<()> {
     if entry.element_type != element_type || entry.element_size != element_size {
-        return Err(Error::Abif(format!(
-            "tag {}.{} has unsupported element type/size {}/{}",
-            String::from_utf8_lossy(&entry.tag),
-            entry.number,
-            entry.element_type,
-            entry.element_size
-        )));
+        return Err(unsupported_layout(entry).into());
     }
     Ok(())
 }
@@ -147,9 +145,9 @@ fn require_layout(entry: &AbifEntry, element_type: u16, element_size: usize) -> 
 fn decode_i16(abif: &AbifFile, entry: &AbifEntry) -> Result<Vec<i32>> {
     let payload = abif.payload(entry)?;
     let reader = Reader::new(payload);
-    (0..entry.element_count)
+    Ok((0..entry.element_count)
         .map(|index| reader.i16(index * 2).map(i32::from))
-        .collect()
+        .collect::<std::result::Result<_, AbifError>>()?)
 }
 
 fn decode_optional_string(abif: &AbifFile, tag: [u8; 4], number: u32) -> Result<Option<String>> {
@@ -162,8 +160,10 @@ fn decode_optional_string(abif: &AbifFile, tag: [u8; 4], number: u32) -> Result<
         .iter()
         .position(|byte| *byte == 0)
         .unwrap_or(payload.len());
-    let text = std::str::from_utf8(&payload[..end])
-        .map_err(|error| Error::Abif(format!("vendor base string is not ASCII: {error}")))?;
+    let text = std::str::from_utf8(&payload[..end]).map_err(|error| AbifError::NonAscii {
+        record: "vendor base string",
+        error,
+    })?;
     if !text.chars().all(|base| {
         matches!(
             base,
@@ -184,9 +184,7 @@ fn decode_optional_string(abif: &AbifFile, tag: [u8; 4], number: u32) -> Result<
                 | 'N'
         )
     }) {
-        return Err(Error::Abif(
-            "vendor base string contains a non-IUPAC symbol".into(),
-        ));
+        return Err(AbifError::NonIupacVendorBase.into());
     }
     Ok(Some(text.to_owned()))
 }
@@ -196,15 +194,18 @@ fn decode_optional_bytes(abif: &AbifFile, tag: [u8; 4], number: u32) -> Result<O
         return Ok(None);
     };
     if entry.element_size != 1 || !matches!(entry.element_type, TYPE_BYTE | TYPE_CHAR) {
-        return Err(Error::Abif(format!(
-            "tag {}.{} has unsupported element type/size {}/{}",
-            String::from_utf8_lossy(&entry.tag),
-            entry.number,
-            entry.element_type,
-            entry.element_size
-        )));
+        return Err(unsupported_layout(entry).into());
     }
     Ok(Some(abif.payload(entry)?.to_vec()))
+}
+
+fn unsupported_layout(entry: &AbifEntry) -> AbifError {
+    AbifError::UnsupportedLayout {
+        tag: Tag(entry.tag),
+        number: entry.number,
+        element_type: entry.element_type,
+        element_size: entry.element_size,
+    }
 }
 
 const fn channel_index(base: char) -> Option<usize> {

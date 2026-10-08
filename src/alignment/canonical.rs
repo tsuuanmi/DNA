@@ -3,7 +3,7 @@
 use crate::alignment::scoring::{scaled, substitution};
 use crate::alignment::traceback::{self, RawAlignment, RawColumn};
 use crate::config::AlignmentConfig;
-use crate::error::{Error, Result};
+use crate::error::{AlignmentError, Result};
 use crate::model::locus_evidence::EvidenceProfile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,9 +28,11 @@ pub(crate) fn right_align(
     let expected_score = alignment.score;
     let observed_score = score(&alignment.columns, profiles, config)?;
     if observed_score != expected_score {
-        return Err(Error::Alignment(format!(
-            "traceback score {observed_score} disagrees with DP score {expected_score}"
-        )));
+        return Err(AlignmentError::ScoreMismatch {
+            observed: observed_score,
+            expected: expected_score,
+        }
+        .into());
     }
 
     loop {
@@ -161,29 +163,32 @@ fn score(
         let gap = gap_kind(column);
         if let Some(kind) = gap {
             if previous_gap != Some(kind) {
-                total = total
-                    .checked_add(scaled(config.gap_open_score))
-                    .ok_or_else(|| Error::Alignment("canonical alignment score overflow".into()))?;
+                total = total.checked_add(scaled(config.gap_open_score)).ok_or(
+                    AlignmentError::Overflow("canonical alignment score overflow"),
+                )?;
             }
             total = total
                 .checked_add(scaled(config.gap_extension_score))
-                .ok_or_else(|| Error::Alignment("canonical alignment score overflow".into()))?;
+                .ok_or(AlignmentError::Overflow(
+                    "canonical alignment score overflow",
+                ))?;
             previous_gap = Some(kind);
             continue;
         }
 
         previous_gap = None;
-        let query_index = column
-            .query_index
-            .ok_or_else(|| Error::Alignment("aligned canonical column lacks query index".into()))?;
-        let profile = profiles.get(query_index).copied().ok_or_else(|| {
-            Error::Alignment(format!(
-                "canonical alignment query index {query_index} is out of profile bounds"
-            ))
-        })?;
+        let query_index = column.query_index.ok_or(AlignmentError::Inconsistent(
+            "aligned canonical column lacks query index",
+        ))?;
+        let profile = profiles
+            .get(query_index)
+            .copied()
+            .ok_or(AlignmentError::ProfileIndexOutOfBounds { index: query_index })?;
         total = total
             .checked_add(substitution(profile, column.reference_base as u8, config))
-            .ok_or_else(|| Error::Alignment("canonical alignment score overflow".into()))?;
+            .ok_or(AlignmentError::Overflow(
+                "canonical alignment score overflow",
+            ))?;
     }
 
     Ok(total)

@@ -1,6 +1,6 @@
 //! Unweighted accumulation of eligible nucleotide profiles at retained loci.
 
-use crate::error::{Error, Result};
+use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
 use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::read_observation::ReadObservation;
@@ -38,21 +38,17 @@ pub(super) fn aggregate(
         if observation.nucleotide_contribution != NucleotideContribution::Eligible {
             continue;
         }
-        let profile = observation
-            .signal
-            .and_then(|signal| signal.profile)
-            .ok_or_else(|| {
-                Error::Sample(format!(
-                    "eligible nucleotide observation for read {} lacks profile evidence",
-                    observation.read_index
-                ))
+        let profile = observation.signal.and_then(|signal| signal.profile).ok_or(
+            SampleError::MissingProfile {
+                read: observation.read_index,
+            },
+        )?;
+        let read = reads
+            .get(observation.read_index)
+            .ok_or(SampleError::MissingRead {
+                context: "nucleotide support",
+                index: observation.read_index,
             })?;
-        let read = reads.get(observation.read_index).ok_or_else(|| {
-            Error::Sample(format!(
-                "nucleotide support references missing read {}",
-                observation.read_index
-            ))
-        })?;
 
         let impurity = profile_geometry::impurity(profile);
         impurity_sum += impurity;
@@ -114,9 +110,9 @@ pub(super) fn aggregate(
             .chain(result.reverse_support.iter())
             .all(|value| value.is_finite() && *value >= 0.0)
     {
-        return Err(Error::Sample(
-            "nucleotide support accumulation is inconsistent".into(),
-        ));
+        return Err(
+            SampleError::Inconsistent("nucleotide support accumulation is inconsistent").into(),
+        );
     }
 
     Ok(result)

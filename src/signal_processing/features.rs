@@ -1,7 +1,7 @@
 //! Rolling sample-domain baseline, noise, and peak-SNR features.
 
 use crate::config::DNAProcessingConfig;
-use crate::error::{Error, Result};
+use crate::error::{Result, SignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::DNAWindow;
@@ -15,11 +15,11 @@ pub(super) fn calculate(
     config: &DNAProcessingConfig,
 ) -> Result<Vec<DNAWindow>> {
     if calls.len() < config.window_size_bases {
-        return Err(Error::DNAProcessing(format!(
-            "{} calls are fewer than window_size_bases {}",
-            calls.len(),
-            config.window_size_bases
-        )));
+        return Err(SignalError::TooFewCalls {
+            calls: calls.len(),
+            window: config.window_size_bases,
+        }
+        .into());
     }
 
     let mut windows = Vec::with_capacity(calls.len() - config.window_size_bases + 1);
@@ -29,9 +29,13 @@ pub(super) fn calculate(
         let sample_start = selected[0].window_start_0based;
         let sample_end = selected[selected.len() - 1].window_end_0based_exclusive;
         if sample_start >= sample_end || sample_end > trace.sample_count() {
-            return Err(Error::DNAProcessing(format!(
-                "invalid sample interval {sample_start}..{sample_end} for call window {call_start}..{call_end}"
-            )));
+            return Err(SignalError::InvalidSampleInterval {
+                sample_start,
+                sample_end,
+                call_start,
+                call_end,
+            }
+            .into());
         }
 
         let mut baselines = [0.0; 4];
@@ -82,6 +86,7 @@ pub(super) fn calculate(
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{Error, SignalError};
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
     use crate::model::nucleotide::Nucleotide;
     use crate::model::sanger::VendorEvidence;
@@ -182,7 +187,10 @@ mod tests {
                     minimum_noisy_windows: 2,
                 },
             ),
-            Err(Error::DNAProcessing(message)) if message.contains("fewer than")
+            Err(Error::Signal(SignalError::TooFewCalls {
+                calls: 4,
+                window: 5
+            }))
         ));
     }
 }

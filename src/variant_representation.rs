@@ -2,9 +2,10 @@
 
 use std::collections::BTreeSet;
 
+use crate::error::RepresentationError;
 use crate::variant_analysis::{Variant, VariantKind};
 
-pub(crate) type RepresentationResult<T> = Result<T, String>;
+pub(crate) type RepresentationResult<T> = Result<T, RepresentationError>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SequenceEdit {
@@ -34,13 +35,13 @@ pub(crate) fn apply_edits(reference: &str, edits: &[SequenceEdit]) -> Representa
 
     for edit in ordered {
         if edit.start > edit.end || edit.end > reference.len() {
-            return Err("variant edit lies outside the supplied reference".into());
+            return Err(RepresentationError::EditOutsideReference);
         }
         if edit.start < cursor {
-            return Err("variant edits overlap on the reference".into());
+            return Err(RepresentationError::OverlappingEdits);
         }
         if edit.start == edit.end && !insertion_anchors.insert(edit.start) {
-            return Err("multiple insertion edits share one reference boundary".into());
+            return Err(RepresentationError::SharedInsertionBoundary);
         }
 
         output.push_str(&reference[cursor..edit.start]);
@@ -89,26 +90,27 @@ fn variant_to_edit(
     variant: &Variant,
 ) -> RepresentationResult<SequenceEdit> {
     if variant.contig != contig {
-        return Err("called variant contig does not match the supplied reference".into());
+        return Err(RepresentationError::ContigMismatch);
     }
     if variant.position_1based == 0 {
-        return Err("called variant position must be one-based".into());
+        return Err(RepresentationError::PositionNotOneBased);
     }
     validate_allele("reference", &variant.reference)?;
     validate_allele("alternate", &variant.alternate)?;
     validate_kind(variant)?;
 
     let start = variant.position_1based - 1;
-    let allele_end = start
-        .checked_add(variant.reference.len())
-        .ok_or_else(|| "called variant reference span overflow".to_owned())?;
+    let allele_end =
+        start
+            .checked_add(variant.reference.len())
+            .ok_or(RepresentationError::Overflow(
+                "called variant reference span overflow",
+            ))?;
     if allele_end > reference.len() {
-        return Err(
-            "origin-spanning variants are not represented across the canonical seam".into(),
-        );
+        return Err(RepresentationError::OriginSpanning);
     }
     if reference.as_bytes().get(start..allele_end) != Some(variant.reference.as_bytes()) {
-        return Err("called variant reference allele disagrees with the supplied reference".into());
+        return Err(RepresentationError::ReferenceAlleleMismatch);
     }
 
     let reference_bytes = variant.reference.as_bytes();
@@ -132,19 +134,28 @@ fn variant_to_edit(
 
     let edit_start = start
         .checked_add(prefix)
-        .ok_or_else(|| "called variant edit start overflow".to_owned())?;
+        .ok_or(RepresentationError::Overflow(
+            "called variant edit start overflow",
+        ))?;
     let edit_end = allele_end
         .checked_sub(suffix)
-        .ok_or_else(|| "called variant edit end underflow".to_owned())?;
-    let alternate_end = alternate_bytes
-        .len()
-        .checked_sub(suffix)
-        .ok_or_else(|| "called variant alternate span underflow".to_owned())?;
+        .ok_or(RepresentationError::Overflow(
+            "called variant edit end underflow",
+        ))?;
+    let alternate_end =
+        alternate_bytes
+            .len()
+            .checked_sub(suffix)
+            .ok_or(RepresentationError::Overflow(
+                "called variant alternate span underflow",
+            ))?;
     let edit_alternate = String::from_utf8(alternate_bytes[prefix..alternate_end].to_vec())
-        .map_err(|_| "called variant alternate allele is not ASCII DNA".to_owned())?;
+        .map_err(|_| RepresentationError::InvalidAllele {
+            allele: "alternate",
+        })?;
 
     if edit_start == edit_end && edit_alternate.is_empty() {
-        return Err("called variant does not change the reference sequence".into());
+        return Err(RepresentationError::NoChange);
     }
 
     Ok(SequenceEdit {
@@ -163,19 +174,17 @@ fn validate_kind(variant: &Variant) -> RepresentationResult<()> {
     if valid {
         Ok(())
     } else {
-        Err("called variant kind disagrees with its reference/alternate alleles".into())
+        Err(RepresentationError::KindMismatch)
     }
 }
 
-fn validate_allele(label: &str, allele: &str) -> RepresentationResult<()> {
+fn validate_allele(label: &'static str, allele: &str) -> RepresentationResult<()> {
     if allele.is_empty()
         || !allele
             .bytes()
             .all(|base| matches!(base, b'A' | b'C' | b'G' | b'T' | b'N'))
     {
-        return Err(format!(
-            "called variant {label} allele must contain uppercase DNA bases"
-        ));
+        return Err(RepresentationError::InvalidAllele { allele: label });
     }
     Ok(())
 }
@@ -210,7 +219,7 @@ fn render_edit(
     if edit.alternate.is_empty() {
         let deleted = reference
             .get(edit.start..edit.end)
-            .ok_or_else(|| "variant deletion lies outside the reference".to_owned())?;
+            .ok_or(RepresentationError::DeletionOutsideReference)?;
         if edit.start > 0 {
             let anchor = reference_base(reference, edit.start - 1)?;
             return Ok(Variant {
@@ -242,7 +251,7 @@ fn render_edit(
         });
     }
 
-    Err("variant representation produced an unsupported replacement edit".into())
+    Err(RepresentationError::UnsupportedReplacement)
 }
 
 fn reference_base(reference: &str, index: usize) -> RepresentationResult<char> {
@@ -251,5 +260,5 @@ fn reference_base(reference: &str, index: usize) -> RepresentationResult<char> {
         .get(index)
         .copied()
         .map(char::from)
-        .ok_or_else(|| "variant representation anchor lies outside the reference".to_owned())
+        .ok_or(RepresentationError::AnchorOutsideReference)
 }

@@ -1,6 +1,6 @@
 //! Projection of variant-associated calls into concise signal records.
 
-use crate::error::{Error, Result};
+use crate::error::{CallEvidenceError, ReportError, Result};
 use crate::model::alignment::Orientation;
 use crate::model::basecalls::BaseCalls;
 use crate::model::quality::QualityControlResult;
@@ -47,23 +47,24 @@ fn project_call(
     orientation: Orientation,
 ) -> Result<VariantCallResult> {
     let index = mapping.call_index_0based;
-    let call = calls
-        .calls
+    let call = calls.calls.get(index).ok_or(ReportError::CallEvidence(
+        CallEvidenceError::MissingCall { index },
+    ))?;
+    let score = quality
+        .per_call
         .get(index)
-        .ok_or_else(|| Error::Report(format!("variant references missing call index {index}")))?;
-    let score = quality.per_call.get(index).ok_or_else(|| {
-        Error::Report(format!("variant references missing quality index {index}"))
-    })?;
+        .ok_or(ReportError::CallEvidence(
+            CallEvidenceError::MissingQuality { index },
+        ))?;
     if call.index_0based != index || score.index_0based != index {
-        return Err(Error::Report(format!(
-            "variant call index {index} does not match call/quality records"
-        )));
+        return Err(ReportError::CallEvidence(CallEvidenceError::IndexMismatch { index }).into());
     }
-    let primary = call.primary_peak_evidence.as_ref().ok_or_else(|| {
-        Error::Report(format!(
-            "variant call index {index} lacks primary-event peak evidence"
-        ))
-    })?;
+    let primary = call
+        .primary_peak_evidence
+        .as_ref()
+        .ok_or(ReportError::CallEvidence(
+            CallEvidenceError::MissingPeakEvidence { index },
+        ))?;
     Ok(VariantCallResult {
         role: mapping.role,
         base: orientation.reference_base(call.primary),

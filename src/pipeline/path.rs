@@ -9,7 +9,7 @@ fn validate_output(output: &Path) -> Result<()> {
         return Err(Error::Path {
             kind: "output",
             path: output.to_path_buf(),
-            reason: "target already exists".into(),
+            reason: "target already exists",
         });
     }
     let parent = output
@@ -20,7 +20,7 @@ fn validate_output(output: &Path) -> Result<()> {
         return Err(Error::Path {
             kind: "output directory",
             path: parent.to_path_buf(),
-            reason: "path exists but is not a directory".into(),
+            reason: "path exists but is not a directory",
         });
     }
     Ok(())
@@ -56,6 +56,6 @@ pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
         .ok_or_else(|| Error::Path {
             kind: "AB1",
             path: trace.to_path_buf(),
-            reason: "file stem must be valid non-empty UTF-8".into(),
+            reason: "file stem must be valid non-empty UTF-8",
         })
 }

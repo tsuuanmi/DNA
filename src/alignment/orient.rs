@@ -6,7 +6,7 @@ use crate::alignment::exact::{self, UpperBoundPlacement};
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
-use crate::error::{Error, Result};
+use crate::error::{AlignmentError, Result};
 use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, ReferenceSegment};
 use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::nucleotide::reverse_complement;
@@ -96,9 +96,9 @@ pub(crate) fn align_best(
                 let selected = Candidate {
                     orientation: Orientation::Forward,
                     mapping: forward_mapping,
-                    placements: forward_fast.take().ok_or_else(|| {
-                        Error::Alignment("missing proven forward placement".into())
-                    })?,
+                    placements: forward_fast.take().ok_or(AlignmentError::Inconsistent(
+                        "missing proven forward placement",
+                    ))?,
                 };
                 return finish_alignment(&selected, reference, config);
             }
@@ -122,9 +122,9 @@ pub(crate) fn align_best(
                 let selected = Candidate {
                     orientation: Orientation::Reverse,
                     mapping: reverse_mapping,
-                    placements: reverse_fast.take().ok_or_else(|| {
-                        Error::Alignment("missing proven reverse placement".into())
-                    })?,
+                    placements: reverse_fast.take().ok_or(AlignmentError::Inconsistent(
+                        "missing proven reverse placement",
+                    ))?,
                 };
                 return finish_alignment(&selected, reference, config);
             }
@@ -165,9 +165,7 @@ pub(crate) fn align_best(
         Ordering::Greater => &forward,
         Ordering::Less => &reverse,
         Ordering::Equal => {
-            return Err(Error::Alignment(
-                "forward and reverse evidence-profile scores are tied".into(),
-            ));
+            return Err(AlignmentError::OrientationTie.into());
         }
     };
     finish_alignment(selected, reference, config)
@@ -193,12 +191,12 @@ fn select_proven_candidate(
             mapping: reverse_mapping.to_vec(),
             placements: vec![raw],
         })),
-        (Ambiguous, Unattained) | (Unattained, Ambiguous) => Err(Error::Alignment(
-            "selected orientation has multiple equally scoring placements".into(),
-        )),
-        (Unique(_) | Ambiguous, Unique(_) | Ambiguous) => Err(Error::Alignment(
-            "forward and reverse evidence-profile scores are tied".into(),
-        )),
+        (Ambiguous, Unattained) | (Unattained, Ambiguous) => {
+            Err(AlignmentError::AmbiguousPlacement.into())
+        }
+        (Unique(_) | Ambiguous, Unique(_) | Ambiguous) => {
+            Err(AlignmentError::OrientationTie.into())
+        }
     }
 }
 
@@ -208,22 +206,22 @@ fn finish_alignment(
     config: &AlignmentConfig,
 ) -> Result<Alignment> {
     if selected.placements.len() != 1 {
-        return Err(Error::Alignment(
-            "selected orientation has multiple equally scoring placements".into(),
-        ));
+        return Err(AlignmentError::AmbiguousPlacement.into());
     }
     let raw = &selected.placements[0];
     if raw.metrics.callable_columns < config.minimum_callable_bases {
-        return Err(Error::Alignment(format!(
-            "alignment has {} callable columns; minimum is {}",
-            raw.metrics.callable_columns, config.minimum_callable_bases
-        )));
+        return Err(AlignmentError::TooFewCallableColumns {
+            found: raw.metrics.callable_columns,
+            minimum: config.minimum_callable_bases,
+        }
+        .into());
     }
     if raw.metrics.callable_identity < config.minimum_identity {
-        return Err(Error::Alignment(format!(
-            "alignment callable identity {:.4} is below {:.4}",
-            raw.metrics.callable_identity, config.minimum_identity
-        )));
+        return Err(AlignmentError::LowIdentity {
+            identity: raw.metrics.callable_identity,
+            minimum: config.minimum_identity,
+        }
+        .into());
     }
     let (segments, wraps_origin) = segments(raw, reference);
     let columns = raw
@@ -258,32 +256,32 @@ fn retained_profiles(
     signal: &DNAAnalysis,
 ) -> Result<Vec<Option<EvidenceProfile>>> {
     if signal.loci.len() != qc.per_call.len() {
-        return Err(Error::Alignment(format!(
-            "signal/quality call count mismatch: {} loci, {} quality records",
-            signal.loci.len(),
-            qc.per_call.len()
-        )));
+        return Err(AlignmentError::CallCountMismatch {
+            loci: signal.loci.len(),
+            qualities: qc.per_call.len(),
+        }
+        .into());
     }
     if qc.trim_start_0based > qc.trim_end_0based_exclusive
         || qc.trim_end_0based_exclusive > signal.loci.len()
     {
-        return Err(Error::Alignment(format!(
-            "invalid trim interval {}..{} for {} locus profiles",
-            qc.trim_start_0based,
-            qc.trim_end_0based_exclusive,
-            signal.loci.len()
-        )));
+        return Err(AlignmentError::InvalidTrim {
+            start: qc.trim_start_0based,
+            end: qc.trim_end_0based_exclusive,
+            profiles: signal.loci.len(),
+        }
+        .into());
     }
     let profiles = signal.loci[qc.trim_start_0based..qc.trim_end_0based_exclusive]
         .iter()
         .map(|locus| locus.profile)
         .collect::<Vec<_>>();
     if profiles.len() != qc.retained_sequence.len() {
-        return Err(Error::Alignment(format!(
-            "retained sequence/profile length mismatch: {} bases, {} profiles",
-            qc.retained_sequence.len(),
-            profiles.len()
-        )));
+        return Err(AlignmentError::RetainedLengthMismatch {
+            bases: qc.retained_sequence.len(),
+            profiles: profiles.len(),
+        }
+        .into());
     }
     Ok(profiles)
 }

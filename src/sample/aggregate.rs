@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::config::SampleReconciliationConfig;
-use crate::error::{Error, Result};
+use crate::error::{Result, SampleError};
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{
     SampleEvidence, SampleReadAlignmentEvidence, SampleReadEvidence,
@@ -17,9 +17,7 @@ pub(crate) fn aggregate(
     config: &SampleReconciliationConfig,
 ) -> Result<SampleEvidence> {
     let ordered = validated_ordered_reads(reads)?;
-    let first = ordered
-        .first()
-        .ok_or_else(|| Error::Sample("at least one read observation is required".into()))?;
+    let first = ordered.first().ok_or(SampleError::NoReads)?;
     let reference_sha256 = first.reference_sha256.clone();
     let configuration_sha256 = first.configuration_sha256.clone();
 
@@ -55,26 +53,18 @@ pub(crate) fn aggregate(
 }
 
 pub(crate) fn validated_ordered_reads(reads: &[ReadObservation]) -> Result<Vec<&ReadObservation>> {
-    let first = reads
-        .first()
-        .ok_or_else(|| Error::Sample("at least one read observation is required".into()))?;
+    let first = reads.first().ok_or(SampleError::NoReads)?;
 
     let mut identities = BTreeSet::new();
     for read in reads {
         if read.reference_sha256 != first.reference_sha256 {
-            return Err(Error::Sample(
-                "all reads must use the same reference identity".into(),
-            ));
+            return Err(SampleError::MixedReference.into());
         }
         if read.configuration_sha256 != first.configuration_sha256 {
-            return Err(Error::Sample(
-                "all reads must use the same scientific configuration identity".into(),
-            ));
+            return Err(SampleError::MixedConfiguration.into());
         }
         if !identities.insert(read.input_sha256.as_str()) {
-            return Err(Error::Sample(
-                "duplicate input trace content cannot contribute twice".into(),
-            ));
+            return Err(SampleError::DuplicateTrace.into());
         }
     }
 
@@ -101,6 +91,8 @@ mod tests {
     };
 
     use super::*;
+
+    type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
     fn sample_config() -> SampleReconciliationConfig {
         SampleReconciliationConfig {
@@ -279,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn orders_reads_once_and_factors_read_identity_from_evidence() -> Result<()> {
+    fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
         let mut forward = observation(
             "a",
             "reference",
@@ -384,7 +376,7 @@ mod tests {
         );
         let heterogeneity = nucleotide_support
             .heterogeneity
-            .ok_or_else(|| Error::Sample("total profile heterogeneity is missing".into()))?;
+            .ok_or("total profile heterogeneity is missing")?;
         assert!((heterogeneity.within_profile_impurity - 0.7).abs() < 1e-12);
         assert!((heterogeneity.between_profile_dispersion - 0.05).abs() < 1e-12);
         assert!((heterogeneity.total - 0.75).abs() < 1e-12);
@@ -403,7 +395,7 @@ mod tests {
         assert!(
             (nucleotide_support
                 .directional_profile_distance
-                .ok_or_else(|| Error::Sample("directional profile distance is missing".into()))?
+                .ok_or("directional profile distance is missing")?
                 - 0.4)
                 .abs()
                 < 1e-12
@@ -413,7 +405,7 @@ mod tests {
         let forward_signal = evidence.locus_differences[0].observations[0]
             .signal
             .as_ref()
-            .ok_or_else(|| Error::Sample("forward locus signal is missing".into()))?;
+            .ok_or("forward locus signal is missing")?;
         assert_eq!(
             forward_signal.profile.map(|profile| profile.weights),
             Some([0.1, 0.2, 0.3, 0.4])
@@ -430,7 +422,7 @@ mod tests {
         let reverse_signal = evidence.locus_differences[0].observations[1]
             .signal
             .as_ref()
-            .ok_or_else(|| Error::Sample("reverse locus signal is missing".into()))?;
+            .ok_or("reverse locus signal is missing")?;
         assert_eq!(
             reverse_signal.profile.map(|profile| profile.weights),
             Some([0.4, 0.3, 0.2, 0.1])
@@ -642,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_call_with_profile_remains_nucleotide_eligible() -> Result<()> {
+    fn unresolved_call_with_profile_remains_nucleotide_eligible() -> TestResult {
         let read = observation(
             "a",
             "reference",
@@ -687,7 +679,7 @@ mod tests {
         let heterogeneity = evidence.locus_differences[0]
             .nucleotide_support
             .heterogeneity
-            .ok_or_else(|| Error::Sample("single-read profile heterogeneity is missing".into()))?;
+            .ok_or("single-read profile heterogeneity is missing")?;
         assert!((heterogeneity.within_profile_impurity - 0.7).abs() < 1e-12);
         assert_eq!(heterogeneity.between_profile_dispersion, 0.0);
         assert!((heterogeneity.total - 0.7).abs() < 1e-12);

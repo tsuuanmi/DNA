@@ -1,6 +1,6 @@
 //! Strict ABIF directory parsing and exact tag lookup.
 
-use crate::error::{Error, Result};
+use crate::error::{AbifError, Result, Tag};
 use crate::input::sanger::abif::reader::Reader;
 
 const DIRECTORY_ENTRY_SIZE: usize = 28;
@@ -29,12 +29,10 @@ pub(crate) struct AbifFile {
 impl AbifFile {
     /// Returns the unique requested entry.
     pub(crate) fn required(&self, tag: [u8; 4], number: u32) -> Result<&AbifEntry> {
-        self.optional(tag, number)?.ok_or_else(|| {
-            Error::Abif(format!(
-                "missing required tag {}.{number}",
-                String::from_utf8_lossy(&tag)
-            ))
-        })
+        Ok(self.optional(tag, number)?.ok_or(AbifError::MissingTag {
+            tag: Tag(tag),
+            number,
+        })?)
     }
 
     /// Returns an optional unique entry and rejects duplicates.
@@ -45,10 +43,11 @@ impl AbifFile {
             .filter(|entry| entry.tag == tag && entry.number == number);
         let first = matches.next();
         if matches.next().is_some() {
-            return Err(Error::Abif(format!(
-                "duplicate tag {}.{number}",
-                String::from_utf8_lossy(&tag)
-            )));
+            return Err(AbifError::DuplicateTag {
+                tag: Tag(tag),
+                number,
+            }
+            .into());
         }
         Ok(first)
     }
@@ -61,7 +60,7 @@ impl AbifFile {
             entry.data_offset
         };
         let logical_size = element_payload_size(entry.element_size, entry.element_count)?;
-        Reader::new(&self.bytes).slice(offset, logical_size)
+        Ok(Reader::new(&self.bytes).slice(offset, logical_size)?)
     }
 }
 
@@ -69,23 +68,24 @@ impl AbifFile {
 pub(crate) fn parse(bytes: Vec<u8>) -> Result<AbifFile> {
     let reader = Reader::new(&bytes);
     if reader.slice(0, 4)? != b"ABIF" {
-        return Err(Error::Abif("missing ABIF signature".into()));
+        return Err(AbifError::MissingSignature.into());
     }
     let _version = reader.u16(4)?;
     let root = parse_entry(&reader, ROOT_ENTRY_OFFSET)?;
     if &root.tag != b"tdir" {
-        return Err(Error::Abif("root directory tag is not tdir".into()));
+        return Err(AbifError::RootDirectoryTag.into());
     }
     if root.element_size != DIRECTORY_ENTRY_SIZE {
-        return Err(Error::Abif(format!(
-            "root directory entry size is {}; expected {DIRECTORY_ENTRY_SIZE}",
-            root.element_size
-        )));
+        return Err(AbifError::RootDirectoryEntrySize {
+            size: root.element_size,
+            expected: DIRECTORY_ENTRY_SIZE,
+        }
+        .into());
     }
     let directory_bytes = root
         .element_count
         .checked_mul(DIRECTORY_ENTRY_SIZE)
-        .ok_or_else(|| Error::Abif("root directory size overflow".into()))?;
+        .ok_or(AbifError::Overflow("root directory size overflow"))?;
     reader.slice(root.data_offset, root.data_size)?;
     reader.slice(root.data_offset, directory_bytes)?;
 
@@ -93,11 +93,11 @@ pub(crate) fn parse(bytes: Vec<u8>) -> Result<AbifFile> {
     for index in 0..root.element_count {
         let delta = index
             .checked_mul(DIRECTORY_ENTRY_SIZE)
-            .ok_or_else(|| Error::Abif("directory offset overflow".into()))?;
+            .ok_or(AbifError::Overflow("directory offset overflow"))?;
         let offset = root
             .data_offset
             .checked_add(delta)
-            .ok_or_else(|| Error::Abif("directory offset overflow".into()))?;
+            .ok_or(AbifError::Overflow("directory offset overflow"))?;
         let entry = parse_entry(&reader, offset)?;
         let payload_offset = if entry.data_size <= 4 {
             entry.entry_offset + 20
@@ -118,23 +118,27 @@ fn parse_entry(reader: &Reader<'_>, offset: usize) -> Result<AbifEntry> {
     let element_type = reader.u16(offset + 8)?;
     let element_size = usize::from(reader.u16(offset + 10)?);
     let element_count = usize::try_from(reader.u32(offset + 12)?)
-        .map_err(|_| Error::Abif("element count does not fit memory size".into()))?;
+        .map_err(|_| AbifError::Overflow("element count does not fit memory size"))?;
     let data_size = usize::try_from(reader.u32(offset + 16)?)
-        .map_err(|_| Error::Abif("data size does not fit memory size".into()))?;
+        .map_err(|_| AbifError::Overflow("data size does not fit memory size"))?;
     let data_offset = usize::try_from(reader.u32(offset + 20)?)
-        .map_err(|_| Error::Abif("data offset does not fit memory size".into()))?;
+        .map_err(|_| AbifError::Overflow("data offset does not fit memory size"))?;
     if element_size == 0 || element_count == 0 {
-        return Err(Error::Abif(format!(
-            "tag {}.{number} has zero element size or count",
-            String::from_utf8_lossy(&tag)
-        )));
+        return Err(AbifError::EmptyEntry {
+            tag: Tag(tag),
+            number,
+        }
+        .into());
     }
     let expected_size = element_payload_size(element_size, element_count)?;
     if data_size < expected_size {
-        return Err(Error::Abif(format!(
-            "tag {}.{number} data size {data_size} is smaller than element size product {expected_size}",
-            String::from_utf8_lossy(&tag)
-        )));
+        return Err(AbifError::TruncatedEntry {
+            tag: Tag(tag),
+            number,
+            data_size,
+            expected_size,
+        }
+        .into());
     }
     Ok(AbifEntry {
         tag,
@@ -148,14 +152,19 @@ fn parse_entry(reader: &Reader<'_>, offset: usize) -> Result<AbifEntry> {
     })
 }
 
-fn element_payload_size(element_size: usize, element_count: usize) -> Result<usize> {
+fn element_payload_size(
+    element_size: usize,
+    element_count: usize,
+) -> std::result::Result<usize, AbifError> {
     element_size
         .checked_mul(element_count)
-        .ok_or_else(|| Error::Abif("element payload size overflow".into()))
+        .ok_or(AbifError::Overflow("element payload size overflow"))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::error::Error;
+
     use super::*;
 
     const DIRECTORY_OFFSET: usize = 64;
@@ -232,8 +241,20 @@ mod tests {
         let result = parse(bytes);
         assert!(matches!(
             result,
-            Err(Error::Abif(message))
-                if message.contains("smaller than element size product 4")
+            Err(Error::Abif(AbifError::TruncatedEntry {
+                tag: Tag(tag),
+                number: 1,
+                data_size: 3,
+                expected_size: 4,
+            })) if tag == *b"TEST"
+        ));
+    }
+
+    #[test]
+    fn rejects_content_without_abif_signature() {
+        assert!(matches!(
+            parse(b"not an abif container".to_vec()),
+            Err(Error::Abif(AbifError::MissingSignature))
         ));
     }
 

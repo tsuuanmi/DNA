@@ -1,14 +1,16 @@
 //! Original trace-call mappings derived from selected alignment columns.
 
-use crate::error::{Error, Result};
+use crate::error::{Result, VariantError};
 use crate::model::alignment::AlignmentColumn;
 use crate::model::variant::{VariantCallMapping, VariantCallRole};
 
 /// Maps a difference-bearing query column to its original trace call.
 pub(crate) fn supporting(column: &AlignmentColumn) -> Result<VariantCallMapping> {
-    let call_index_0based = column.original_call_index_0based.ok_or_else(|| {
-        Error::Variant("supporting query column lacks an original call index".into())
-    })?;
+    let call_index_0based = column
+        .original_call_index_0based
+        .ok_or(VariantError::Inconsistent(
+            "supporting query column lacks an original call index",
+        ))?;
     Ok(VariantCallMapping {
         role: VariantCallRole::Supporting,
         call_index_0based,
@@ -20,10 +22,15 @@ pub(crate) fn supporting(column: &AlignmentColumn) -> Result<VariantCallMapping>
 pub(crate) fn flanking(column: &AlignmentColumn) -> Result<VariantCallMapping> {
     let call_index_0based = column
         .original_call_index_0based
-        .ok_or_else(|| Error::Variant("flanking column lacks an original call index".into()))?;
-    let reference_position_0based = column
-        .reference_index_0based
-        .ok_or_else(|| Error::Variant("flanking call lacks a reference position".into()))?;
+        .ok_or(VariantError::Inconsistent(
+            "flanking column lacks an original call index",
+        ))?;
+    let reference_position_0based =
+        column
+            .reference_index_0based
+            .ok_or(VariantError::Inconsistent(
+                "flanking call lacks a reference position",
+            ))?;
     Ok(VariantCallMapping {
         role: VariantCallRole::Flanking,
         call_index_0based,
@@ -46,9 +53,10 @@ pub(crate) fn validate_snv(calls: &[VariantCallMapping], position: usize) -> Res
                 || call.reference_position_0based != Some(position)
         })
     {
-        return Err(Error::Variant(
-            "SNV calls must support the substituted reference position".into(),
-        ));
+        return Err(VariantError::Inconsistent(
+            "SNV calls must support the substituted reference position",
+        )
+        .into());
     }
     Ok(())
 }
@@ -61,23 +69,23 @@ pub(crate) fn validate_insertion(calls: &[VariantCallMapping]) -> Result<()> {
             VariantCallRole::Supporting => {
                 supporting += 1;
                 if call.reference_position_0based.is_some() {
-                    return Err(Error::Variant(
-                        "inserted calls must not have a reference position".into(),
-                    ));
+                    return Err(VariantError::Inconsistent(
+                        "inserted calls must not have a reference position",
+                    )
+                    .into());
                 }
             }
             VariantCallRole::Flanking if call.reference_position_0based.is_some() => {}
             VariantCallRole::Flanking => {
-                return Err(Error::Variant(
-                    "insertion flanks must have a reference position".into(),
-                ));
+                return Err(VariantError::Inconsistent(
+                    "insertion flanks must have a reference position",
+                )
+                .into());
             }
         }
     }
     if supporting == 0 {
-        return Err(Error::Variant(
-            "insertion lacks a supporting trace call".into(),
-        ));
+        return Err(VariantError::Inconsistent("insertion lacks a supporting trace call").into());
     }
     Ok(())
 }
@@ -89,9 +97,10 @@ pub(crate) fn validate_deletion(calls: &[VariantCallMapping]) -> Result<()> {
             call.role != VariantCallRole::Flanking || call.reference_position_0based.is_none()
         })
     {
-        return Err(Error::Variant(
-            "deletions must have only reference-aligned flanking calls".into(),
-        ));
+        return Err(VariantError::Inconsistent(
+            "deletions must have only reference-aligned flanking calls",
+        )
+        .into());
     }
     Ok(())
 }

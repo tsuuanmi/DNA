@@ -3,7 +3,7 @@
 use crate::basecalling::iupac;
 use crate::basecalling::peak;
 use crate::config::BasecallingConfig;
-use crate::error::{Error, Result};
+use crate::error::{BasecallingError, Result};
 use crate::model::basecalls::{BaseCall, BaseCalls, PrimaryPeakEvidence};
 use crate::model::sanger::Chromatogram;
 
@@ -20,10 +20,12 @@ pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<B
             .iter()
             .any(|peak| peak.position_0based < window.start || peak.position_0based >= window.end)
         {
-            return Err(Error::Basecalling(format!(
-                "selected peak escaped call window {}..{} at call {index}",
-                window.start, window.end
-            )));
+            return Err(BasecallingError::PeakOutsideWindow {
+                start: window.start,
+                end: window.end,
+                call: index,
+            }
+            .into());
         }
         let mut order = [0_usize, 1, 2, 3];
         order.sort_by(|left, right| {

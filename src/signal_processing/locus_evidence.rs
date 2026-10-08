@@ -1,7 +1,7 @@
 //! Basecall-independent signal evidence at each canonical Sanger locus.
 
 use crate::config::DNAProcessingConfig;
-use crate::error::{Error, Result};
+use crate::error::{Result, SignalError};
 use crate::locus::{self, LocusWindow};
 use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
 use crate::model::sanger::Chromatogram;
@@ -20,18 +20,20 @@ pub(super) fn calculate(
 ) -> Result<Vec<LocusEvidence>> {
     let locus_count = trace.call_count();
     if locus_count < config.window_size_bases {
-        return Err(Error::DNAProcessing(format!(
-            "{locus_count} loci are fewer than window_size_bases {}",
-            config.window_size_bases
-        )));
+        return Err(SignalError::TooFewLoci {
+            loci: locus_count,
+            window: config.window_size_bases,
+        }
+        .into());
     }
 
-    let locus_windows = locus::windows(trace).map_err(Error::DNAProcessing)?;
+    let locus_windows = locus::windows(trace).map_err(SignalError::LocusWindow)?;
     if locus_windows.len() != locus_count {
-        return Err(Error::DNAProcessing(format!(
-            "expected {locus_count} locus windows, found {}",
-            locus_windows.len()
-        )));
+        return Err(SignalError::WindowCountMismatch {
+            expected: locus_count,
+            found: locus_windows.len(),
+        }
+        .into());
     }
 
     let mut evidence = Vec::with_capacity(locus_count);
@@ -135,10 +137,10 @@ fn validate_evidence(evidence: &LocusEvidence, context_width: usize) -> Result<(
     if valid_coordinates && valid_metrics && valid_profile {
         Ok(())
     } else {
-        Err(Error::DNAProcessing(format!(
-            "inconsistent locus evidence at call {}",
-            evidence.call_index_0based
-        )))
+        Err(SignalError::InconsistentLocus {
+            call: evidence.call_index_0based,
+        }
+        .into())
     }
 }
 
@@ -148,9 +150,11 @@ fn local_statistics(
     sample_end: usize,
 ) -> Result<([f64; 4], [f64; 4])> {
     if sample_start >= sample_end || sample_end > trace.sample_count() {
-        return Err(Error::DNAProcessing(format!(
-            "invalid locus context sample interval {sample_start}..{sample_end}"
-        )));
+        return Err(SignalError::InvalidContextInterval {
+            start: sample_start,
+            end: sample_end,
+        }
+        .into());
     }
     let mut baselines = [0.0; 4];
     let mut noise_sigmas = [0.0; 4];
@@ -180,10 +184,12 @@ fn select_event_position(
         || locus_position < window.start
         || locus_position >= window.end
     {
-        return Err(Error::DNAProcessing(format!(
-            "invalid locus event window {}..{} at canonical locus {locus_position}",
-            window.start, window.end
-        )));
+        return Err(SignalError::InvalidEventWindow {
+            start: window.start,
+            end: window.end,
+            locus: locus_position,
+        }
+        .into());
     }
 
     let search_start = window.start.max(1);
@@ -236,6 +242,8 @@ mod tests {
     use crate::model::sanger::{Chromatogram, VendorEvidence};
 
     use super::*;
+
+    type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
     fn config(window_size_bases: usize) -> DNAProcessingConfig {
         DNAProcessingConfig {
@@ -294,14 +302,11 @@ mod tests {
     }
 
     #[test]
-    fn profile_retains_mixed_channel_mass_without_threshold_membership() -> Result<()> {
+    fn profile_retains_mixed_channel_mass_without_threshold_membership() -> TestResult {
         let mut trace = trace();
         trace.channels[1][5] = 40;
         let evidence = calculate(&trace, &config(5))?;
-        let profile = evidence[2]
-            .profile
-            .as_ref()
-            .ok_or_else(|| Error::DNAProcessing("missing profile".into()))?;
+        let profile = evidence[2].profile.as_ref().ok_or("missing profile")?;
         assert_eq!(evidence[2].event_position_0based, 5);
         assert_eq!(evidence[2].corrected_amplitudes, [0.0, 40.0, 100.0, 0.0]);
         assert_eq!(profile.weights, [0.0, 2.0 / 7.0, 5.0 / 7.0, 0.0]);

@@ -7,7 +7,7 @@ use noodles_fasta as fasta;
 
 use crate::checksum::hex_sha256;
 use crate::config::{MAX_REFERENCE_BYTES, MAX_REFERENCE_LENGTH};
-use crate::error::{Error, Result};
+use crate::error::{Error, FastaError, Result};
 use crate::model::reference::{Reference, ReferenceTopology};
 
 /// Loads one normalized reference record.
@@ -18,10 +18,11 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
         source,
     })?;
     if metadata.len() == 0 || metadata.len() > MAX_REFERENCE_BYTES as u64 {
-        return Err(Error::Fasta(format!(
-            "reference file size {} is outside 1..={MAX_REFERENCE_BYTES} bytes",
-            metadata.len()
-        )));
+        return Err(FastaError::FileSize {
+            bytes: metadata.len(),
+            maximum: MAX_REFERENCE_BYTES,
+        }
+        .into());
     }
 
     let bytes = fs::read(path).map_err(|source| Error::Read {
@@ -30,40 +31,45 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
         source,
     })?;
     if bytes.is_empty() || bytes.len() > MAX_REFERENCE_BYTES {
-        return Err(Error::Fasta(format!(
-            "reference file size {} is outside 1..={MAX_REFERENCE_BYTES} bytes",
-            bytes.len()
-        )));
+        return Err(FastaError::FileSize {
+            bytes: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+            maximum: MAX_REFERENCE_BYTES,
+        }
+        .into());
     }
 
-    std::str::from_utf8(&bytes)
-        .map_err(|error| Error::Fasta(format!("reference must be UTF-8: {error}")))?;
+    std::str::from_utf8(&bytes).map_err(|error| FastaError::NotUtf8 {
+        part: "reference",
+        error,
+    })?;
 
     let mut reader = fasta::io::Reader::new(bytes.as_slice());
     let mut records = reader.records();
     let record = records
         .next()
         .transpose()
-        .map_err(|error| Error::Fasta(format!("failed to parse FASTA record: {error}")))?
-        .ok_or_else(|| Error::Fasta("reference is empty".into()))?;
+        .map_err(FastaError::Parse)?
+        .ok_or(FastaError::Empty)?;
 
     if records.next().is_some() {
-        return Err(Error::Fasta(
-            "reference must contain exactly one record".into(),
-        ));
+        return Err(FastaError::MultipleRecords.into());
     }
 
     let name = std::str::from_utf8(record.name())
-        .map_err(|error| Error::Fasta(format!("reference identifier must be UTF-8: {error}")))?
+        .map_err(|error| FastaError::NotUtf8 {
+            part: "reference identifier",
+            error,
+        })?
         .trim();
     if name.is_empty() {
-        return Err(Error::Fasta(
-            "first line must contain a FASTA identifier".into(),
-        ));
+        return Err(FastaError::MissingIdentifier.into());
     }
 
-    let raw_sequence = std::str::from_utf8(record.sequence().as_ref())
-        .map_err(|error| Error::Fasta(format!("reference sequence must be UTF-8: {error}")))?;
+    let raw_sequence =
+        std::str::from_utf8(record.sequence().as_ref()).map_err(|error| FastaError::NotUtf8 {
+            part: "reference sequence",
+            error,
+        })?;
     let mut sequence = String::new();
     for character in raw_sequence
         .chars()
@@ -71,18 +77,17 @@ pub(crate) fn load(path: &Path, topology: ReferenceTopology) -> Result<Reference
     {
         let base = character.to_ascii_uppercase();
         if !matches!(base, 'A' | 'C' | 'G' | 'T' | 'N') {
-            return Err(Error::Fasta(format!(
-                "unsupported reference base {character:?}"
-            )));
+            return Err(FastaError::UnsupportedBase { base: character }.into());
         }
         sequence.push(base);
     }
 
     if sequence.is_empty() || sequence.len() > MAX_REFERENCE_LENGTH {
-        return Err(Error::Fasta(format!(
-            "reference length {} is outside 1..={MAX_REFERENCE_LENGTH}",
-            sequence.len()
-        )));
+        return Err(FastaError::Length {
+            length: sequence.len(),
+            maximum: MAX_REFERENCE_LENGTH,
+        }
+        .into());
     }
 
     let sequence_sha256 = hex_sha256(sequence.as_bytes());
@@ -100,6 +105,8 @@ mod tests {
     use std::path::PathBuf;
 
     use tempfile::{TempDir, tempdir};
+
+    use crate::error::FastaError;
 
     use super::*;
 
@@ -133,28 +140,50 @@ mod tests {
     #[test]
     fn rejects_multiple_records() -> Result<()> {
         let (_directory, path) = write_reference(b">one\nACGT\n>two\nACGT\n")?;
-        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::MultipleRecords))
+        ));
         Ok(())
     }
 
     #[test]
     fn rejects_missing_identifier() -> Result<()> {
         let (_directory, path) = write_reference(b">   \nACGT\n")?;
-        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::Parse(_)))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_identifier_made_only_of_unicode_whitespace() -> Result<()> {
+        let (_directory, path) = write_reference(">\u{a0}\nACGT\n".as_bytes())?;
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::MissingIdentifier))
+        ));
         Ok(())
     }
 
     #[test]
     fn rejects_empty_sequence() -> Result<()> {
         let (_directory, path) = write_reference(b">ref\n")?;
-        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::Length { length: 0, .. }))
+        ));
         Ok(())
     }
 
     #[test]
     fn rejects_unsupported_reference_base() -> Result<()> {
         let (_directory, path) = write_reference(b">ref\nACGR\n")?;
-        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::UnsupportedBase { base: 'R' }))
+        ));
         Ok(())
     }
 
@@ -164,14 +193,24 @@ mod tests {
         let fasta = format!(">ref\n{sequence}\n");
         let (_directory, path) = write_reference(fasta.as_bytes())?;
 
-        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::Length { length, maximum }))
+                if length == MAX_REFERENCE_LENGTH + 1 && maximum == MAX_REFERENCE_LENGTH
+        ));
         Ok(())
     }
 
     #[test]
     fn rejects_non_utf8_reference() -> Result<()> {
         let (_directory, path) = write_reference(&[b'>', b'r', b'e', b'f', b'\n', 0xff, b'\n'])?;
-        assert!(load(&path, ReferenceTopology::Linear).is_err());
+        assert!(matches!(
+            load(&path, ReferenceTopology::Linear),
+            Err(Error::Fasta(FastaError::NotUtf8 {
+                part: "reference",
+                ..
+            }))
+        ));
         Ok(())
     }
 }

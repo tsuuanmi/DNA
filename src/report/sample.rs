@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use crate::error::{Error, Result};
+use crate::error::{ReportError, Result};
 use crate::model::reference::Reference;
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_evidence::SampleEvidence;
@@ -30,9 +30,10 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         evidence,
     } = completed;
     if evidence.reference_sha256 != reference.sequence_sha256 {
-        return Err(Error::Report(
-            "sample evidence reference identity does not match report reference".into(),
-        ));
+        return Err(ReportError::Inconsistent(
+            "sample evidence reference identity does not match report reference",
+        )
+        .into());
     }
 
     let read_names = reviewer_read_names(&evidence)?;
@@ -213,12 +214,10 @@ fn reviewer_read_names(evidence: &SampleEvidence) -> Result<Vec<String>> {
             .file_stem()
             .and_then(|value| value.to_str())
             .filter(|value| !value.is_empty())
-            .ok_or_else(|| Error::Report("sample read has no valid UTF-8 filename stem".into()))?
+            .ok_or(ReportError::InvalidReadName)?
             .to_owned();
         if !unique.insert(name.clone()) {
-            return Err(Error::Report(format!(
-                "sample read name {name:?} is not unique"
-            )));
+            return Err(ReportError::DuplicateReadName { name }.into());
         }
         names.push(name);
     }
@@ -226,8 +225,8 @@ fn reviewer_read_names(evidence: &SampleEvidence) -> Result<Vec<String>> {
 }
 
 fn read_name(read_names: &[String], index: usize) -> Result<&str> {
-    read_names
+    Ok(read_names
         .get(index)
         .map(String::as_str)
-        .ok_or_else(|| Error::Report(format!("sample evidence references missing read {index}")))
+        .ok_or(ReportError::MissingRead { index })?)
 }

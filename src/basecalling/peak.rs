@@ -1,6 +1,6 @@
 //! Channel-local peak selection inside shared PLOC locus windows.
 
-use crate::error::{Error, Result};
+use crate::error::{BasecallingError, Result};
 use crate::locus::{self, LocusWindow};
 use crate::model::basecalls::{ChannelPeak, PeakSource};
 use crate::model::nucleotide::Nucleotide;
@@ -8,7 +8,7 @@ use crate::model::sanger::Chromatogram;
 
 /// Builds the shared PLOC-defined windows and maps geometry failures to basecalling.
 pub(crate) fn windows(trace: &Chromatogram) -> Result<Vec<LocusWindow>> {
-    locus::windows(trace).map_err(Error::Basecalling)
+    Ok(locus::windows(trace).map_err(BasecallingError::LocusWindow)?)
 }
 
 /// Finds one positive local peak per channel or samples the canonical locus explicitly.

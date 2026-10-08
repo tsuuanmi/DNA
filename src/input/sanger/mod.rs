@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::config::{self, Config};
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, SampleError};
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
 use crate::reference;
@@ -109,9 +109,7 @@ pub(crate) fn load_sample(
     config_path: &Path,
 ) -> Result<SampleInputs> {
     if trace_paths.is_empty() {
-        return Err(Error::Sample(
-            "sample analysis requires at least one AB1 trace".into(),
-        ));
+        return Err(SampleError::NoTraces.into());
     }
     for trace_path in trace_paths {
         require_regular_file(trace_path, "AB1")?;
@@ -146,7 +144,7 @@ fn require_regular_file(path: &Path, kind: &'static str) -> Result<()> {
         return Err(Error::Path {
             kind,
             path: path.to_path_buf(),
-            reason: "path must be a non-empty regular file".into(),
+            reason: "path must be a non-empty regular file",
         });
     }
     Ok(())

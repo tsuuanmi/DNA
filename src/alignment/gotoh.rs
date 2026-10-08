@@ -6,7 +6,7 @@ use crate::alignment::scoring::{
 };
 use crate::alignment::traceback::{RawAlignment, TracebackInput, decode};
 use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
-use crate::error::{Error, Result};
+use crate::error::{AlignmentError, Result};
 use crate::model::locus_evidence::EvidenceProfile;
 
 /// Returns up to two distinct equally scoring placements.
@@ -18,34 +18,34 @@ pub(crate) fn align(
     modulo_length: Option<usize>,
 ) -> Result<Vec<RawAlignment>> {
     if query.is_empty() || reference.is_empty() {
-        return Err(Error::Alignment(
-            "query and reference must both be non-empty".into(),
-        ));
+        return Err(AlignmentError::EmptyInput.into());
     }
     let query_bytes = query.as_bytes();
     if profiles.len() != query_bytes.len() {
-        return Err(Error::Alignment(format!(
-            "query/profile length mismatch: {} query bases, {} profiles",
-            query_bytes.len(),
-            profiles.len()
-        )));
+        return Err(AlignmentError::ProfileLengthMismatch {
+            bases: query_bytes.len(),
+            profiles: profiles.len(),
+        }
+        .into());
     }
     let reference_bytes = reference.as_bytes();
     let rows = query_bytes
         .len()
         .checked_add(1)
-        .ok_or_else(|| Error::Alignment("query length overflow".into()))?;
+        .ok_or(AlignmentError::Overflow("query length overflow"))?;
     let width = reference_bytes
         .len()
         .checked_add(1)
-        .ok_or_else(|| Error::Alignment("reference length overflow".into()))?;
+        .ok_or(AlignmentError::Overflow("reference length overflow"))?;
     let cells = rows
         .checked_mul(width)
-        .ok_or_else(|| Error::Alignment("alignment cell count overflow".into()))?;
+        .ok_or(AlignmentError::Overflow("alignment cell count overflow"))?;
     if cells > MAX_ALIGNMENT_CELLS {
-        return Err(Error::Alignment(format!(
-            "alignment requires {cells} cells; cap is {MAX_ALIGNMENT_CELLS}"
-        )));
+        return Err(AlignmentError::TooManyCells {
+            cells,
+            maximum: MAX_ALIGNMENT_CELLS,
+        }
+        .into());
     }
     let mut trace = vec![0_u8; cells];
     let mut previous_match = vec![0_i64; width];
@@ -79,7 +79,7 @@ pub(crate) fn align(
             let (best_diagonal, predecessor) = diagonal
                 .into_iter()
                 .max_by_key(|(score, state)| (*score, state_priority(*state)))
-                .ok_or_else(|| Error::Alignment("missing diagonal state".into()))?;
+                .ok_or(AlignmentError::Inconsistent("missing diagonal state"))?;
             current_match[column] = add(
                 best_diagonal,
                 row_substitution[substitution_index(reference_bytes[column - 1])],
@@ -118,7 +118,9 @@ pub(crate) fn align(
         ]
         .into_iter()
         .max_by_key(|(score, state)| (*score, state_priority(*state)))
-        .ok_or_else(|| Error::Alignment("alignment endpoint state is missing".into()))?;
+        .ok_or(AlignmentError::Inconsistent(
+            "alignment endpoint state is missing",
+        ))?;
         endpoints.push((score, column, state));
     }
     endpoints
@@ -171,9 +173,7 @@ pub(crate) fn align(
         }
     }
     if placements.is_empty() {
-        return Err(Error::Alignment(
-            "no valid bounded alignment traceback was found".into(),
-        ));
+        return Err(AlignmentError::NoTraceback.into());
     }
     Ok(placements)
 }
@@ -191,6 +191,8 @@ mod tests {
     use crate::alignment::scoring::SCORE_SCALE;
 
     use super::*;
+
+    type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
     fn config() -> AlignmentConfig {
         AlignmentConfig {
@@ -276,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn canonicalizes_homopolymer_deletion_to_rightmost_reference_base() -> Result<()> {
+    fn canonicalizes_homopolymer_deletion_to_rightmost_reference_base() -> TestResult {
         let query = "GCCAAAGTT";
         let alignments = align(query, &profiles(query), "GCCAAAAGTT", &config(), None)?;
         assert_eq!(alignments.len(), 1);
@@ -284,14 +286,14 @@ mod tests {
             .columns
             .iter()
             .find(|column| column.query_base == '-')
-            .ok_or_else(|| Error::Alignment("expected canonical deletion".into()))?;
+            .ok_or("expected canonical deletion")?;
         assert_eq!(deletion.reference_index, Some(6));
         assert_eq!(deletion.reference_base, 'A');
         Ok(())
     }
 
     #[test]
-    fn canonicalizes_homopolymer_insertion_to_rightmost_boundary() -> Result<()> {
+    fn canonicalizes_homopolymer_insertion_to_rightmost_boundary() -> TestResult {
         let query = "CAAAAAG";
         let alignments = align(query, &profiles(query), "CAAAAG", &config(), None)?;
         assert_eq!(alignments.len(), 1);
@@ -299,7 +301,7 @@ mod tests {
             .columns
             .iter()
             .position(|column| column.reference_base == '-')
-            .ok_or_else(|| Error::Alignment("expected canonical insertion".into()))?;
+            .ok_or("expected canonical insertion")?;
         assert_eq!(
             alignments[0].columns[insertion_index - 1].reference_index,
             Some(4)

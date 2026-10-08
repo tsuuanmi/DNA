@@ -1,6 +1,6 @@
 //! Observation-only Sanger integrity evidence derived from canonical loci and analyzed channels.
 
-use crate::error::{Error, Result};
+use crate::error::{Result, SignalError};
 use crate::model::locus_evidence::LocusEvidence;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SangerIntegrity;
@@ -10,11 +10,11 @@ use super::statistics;
 /// Derives structural and signal-scale evidence without changing calls or alignment.
 pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<SangerIntegrity> {
     if loci.len() != trace.call_count() {
-        return Err(Error::DNAProcessing(format!(
-            "trace integrity expected {} loci, found {}",
-            trace.call_count(),
-            loci.len()
-        )));
+        return Err(SignalError::LocusCountMismatch {
+            expected: trace.call_count(),
+            found: loci.len(),
+        }
+        .into());
     }
 
     let spacings = trace

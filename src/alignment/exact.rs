@@ -628,6 +628,8 @@ mod tests {
 
     use super::*;
 
+    type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
+
     fn config() -> AlignmentConfig {
         AlignmentConfig {
             match_score: 3,
@@ -777,14 +779,12 @@ mod tests {
     fn require_pruned(
         value: Option<Vec<RawAlignment>>,
         scenario: &str,
-    ) -> Result<Vec<RawAlignment>> {
-        value.ok_or_else(|| {
-            crate::error::Error::Alignment(format!("expected exact seeded pruning for {scenario}"))
-        })
+    ) -> TestResult<Vec<RawAlignment>> {
+        value.ok_or_else(|| format!("expected exact seeded pruning for {scenario}").into())
     }
 
     #[test]
-    fn seeded_pruning_matches_gotoh_for_one_snv() -> Result<()> {
+    fn seeded_pruning_matches_gotoh_for_one_snv() -> TestResult {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = reference_query.to_owned();
         query.replace_range(10..11, "T");
@@ -802,7 +802,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_matches_gotoh_for_one_insertion() -> Result<()> {
+    fn seeded_pruning_matches_gotoh_for_one_insertion() -> TestResult {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let query = format!("{}T{}", &reference_query[..12], &reference_query[12..]);
         let reference = format!("TTTT{reference_query}CCCC");
@@ -819,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> Result<()> {
+    fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> TestResult {
         let reference_query = "GCCAAAAGTTACGTCAGTACGATCGTAC";
         let query = reference_query.replacen("AAAA", "AAA", 1);
         let reference = format!("TTTT{reference_query}CCCC");
@@ -842,7 +842,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_preserves_distinct_equal_placements() -> Result<()> {
+    fn seeded_pruning_preserves_distinct_equal_placements() -> TestResult {
         let motif = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = motif.to_owned();
         query.replace_range(10..11, "T");
@@ -861,7 +861,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_supports_circular_non_origin_windows() -> Result<()> {
+    fn seeded_pruning_supports_circular_non_origin_windows() -> TestResult {
         let reference = "ACGTCAGTACGATCGTACCTGAGTACGATTTTGGGGCCCCAAAATTTT";
         let reference_query = &reference[8..36];
         let mut query = reference_query.to_owned();
@@ -906,7 +906,7 @@ mod tests {
     }
 
     #[test]
-    fn threshold_proof_can_exclude_opposite_orientation() -> Result<()> {
+    fn threshold_proof_can_exclude_opposite_orientation() -> TestResult {
         let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = reference_query.to_owned();
         query.replace_range(10..11, "T");
@@ -934,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn seeded_pruning_falls_back_for_circular_origin_crossing() -> Result<()> {
+    fn seeded_pruning_falls_back_for_circular_origin_crossing() -> TestResult {
         let reference = "ACGTCAGTACGATCGTACCTGAGTACGA";
         let mut query = format!("{}{}", &reference[18..], &reference[..18]);
         query.replace_range(5..6, "A");

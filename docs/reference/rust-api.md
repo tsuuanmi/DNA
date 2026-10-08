@@ -231,6 +231,43 @@ Decimal strings such as `309.1C` or `315.1C` remain an outer notation concern.
 HVS-III 513-524, HVS-I 16189/16193, Sanger artifact interpretation, sample
 reconciliation, and NGS-specific behavior are not implemented by this API.
 
+## Errors
+
+Every fallible API returns `dna::error::Result<T>`, an alias for
+`Result<T, dna::error::Error>`. `Error` names the failing stage, and each stage
+variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported from
+`dna::error`:
+
+| `Error` variant | Wrapped failure | Display prefix |
+| --- | --- | --- |
+| `Config` | `ConfigError` | `invalid configuration value:` |
+| `Abif` | `AbifError` | `invalid ABIF input:` |
+| `Fasta` | `FastaError` | `invalid reference FASTA:` |
+| `Basecalling` | `BasecallingError` | `base re-calling failed:` |
+| `Signal` | `SignalError` | `signal processing failed:` |
+| `QualityControl` | `QualityControlError` | `quality control failed:` |
+| `Alignment` | `AlignmentError` | `alignment failed:` |
+| `Variant` | `VariantError` | `variant calling failed:` |
+| `VariantNormalization` | `NormalizationError` | `variant normalization failed:` |
+| `VariantNomenclature` | `NomenclatureError` | `variant nomenclature failed:` |
+| `Sample` | `SampleError` | `sample evidence failed:` |
+| `Report` | `ReportError` | `failed to assemble analysis report:` |
+
+Input and contract violations carry structured fields, for example
+`AlignmentError::LowIdentity { identity, minimum }` or
+`FastaError::UnsupportedBase { base }`. Arithmetic overflow and
+internal-consistency guards use `Overflow(&'static str)` or
+`Inconsistent(&'static str)`; they indicate a defect rather than bad input.
+`NormalizationError` and `NomenclatureError` wrap the shared
+`RepresentationError` for allele, edit, and anchoring failures.
+
+Filesystem and I/O failures use `Path`, `Read`, `Log`, and `Output`, which keep
+the `std::io::Error` as their `source`. Third-party parser and serializer
+failures (`ConfigParse`, `Serialize`) are erased to `ForeignError`, so
+dependency types never appear in the public API. Stage failures render inline,
+`"<prefix> <failure>"`, and are reached by matching rather than through
+`std::error::Error::source`.
+
 ## Boundary rules
 
 The Rust API returns stable typed data for the current Variant Analysis capability. The versioned JSON documents under

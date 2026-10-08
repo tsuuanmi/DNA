@@ -5,8 +5,11 @@ use std::path::PathBuf;
 use serde::Deserialize;
 
 use crate::config::defaults::{MAX_INDEL_LENGTH, MAX_PEAK_HEIGHT, MAX_REFERENCE_LENGTH};
-use crate::error::{Error, Result};
+use crate::error::{ConfigError, Result};
 use crate::model::reference::ReferenceTopology;
+
+/// Configuration schema version this build accepts.
+const SCHEMA_VERSION: u32 = 5;
 
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
@@ -153,43 +156,48 @@ struct RawVariantCallingConfig {
 
 impl RawConfig {
     pub(super) fn validate(self, source_path: PathBuf, source_sha256: String) -> Result<Config> {
-        if self.schema_version != 5 {
-            return Err(Error::Config(format!(
-                "unsupported schema_version {}; expected 5",
-                self.schema_version
-            )));
+        if self.schema_version != SCHEMA_VERSION {
+            return Err(ConfigError::UnsupportedSchemaVersion {
+                found: self.schema_version,
+                expected: SCHEMA_VERSION,
+            }
+            .into());
         }
         require_fraction(
             "basecalling.secondary_peak_ratio",
             self.basecalling.secondary_peak_ratio,
         )?;
         if !(5..=10).contains(&self.signal_processing.window_size_bases) {
-            return Err(Error::Config(
-                "signal_processing.window_size_bases must be in 5..=10".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "signal_processing.window_size_bases must be in 5..=10",
+            )
+            .into());
         }
         require_positive_finite(
             "signal_processing.minimum_primary_snr",
             self.signal_processing.minimum_primary_snr,
         )?;
         if self.signal_processing.minimum_noisy_windows < 2 {
-            return Err(Error::Config(
-                "signal_processing.minimum_noisy_windows must be at least 2".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "signal_processing.minimum_noisy_windows must be at least 2",
+            )
+            .into());
         }
         if self.quality_control.trim_window_size == 0 {
-            return Err(Error::Config(
-                "quality_control.trim_window_size must be positive".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "quality_control.trim_window_size must be positive",
+            )
+            .into());
         }
         require_fraction(
             "quality_control.best_section_fraction",
             self.quality_control.best_section_fraction,
         )?;
         if self.quality_control.max_relative_quality_score == 0 {
-            return Err(Error::Config(
-                "quality_control.max_relative_quality_score must be positive".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "quality_control.max_relative_quality_score must be positive",
+            )
+            .into());
         }
         require_finite_range(
             "quality_control.trim_stringency",
@@ -198,36 +206,38 @@ impl RawConfig {
             9.0,
         )?;
         if self.quality_control.minimum_retained_bases == 0 {
-            return Err(Error::Config(
-                "quality_control.minimum_retained_bases must be positive".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "quality_control.minimum_retained_bases must be positive",
+            )
+            .into());
         }
         if self.alignment.match_score <= 0 {
-            return Err(Error::Config(
-                "alignment.match_score must be positive".into(),
-            ));
+            return Err(ConfigError::Constraint("alignment.match_score must be positive").into());
         }
         if self.alignment.mismatch_score >= 0
             || self.alignment.gap_open_score >= 0
             || self.alignment.gap_extension_score >= 0
         {
-            return Err(Error::Config(
-                "alignment mismatch and gap scores must be negative".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "alignment mismatch and gap scores must be negative",
+            )
+            .into());
         }
         if self.alignment.minimum_callable_bases == 0 {
-            return Err(Error::Config(
-                "alignment.minimum_callable_bases must be positive".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "alignment.minimum_callable_bases must be positive",
+            )
+            .into());
         }
         require_fraction(
             "alignment.minimum_identity",
             self.alignment.minimum_identity,
         )?;
         if self.sample_reconciliation.minimum_comparable_bases == 0 {
-            return Err(Error::Config(
-                "sample_reconciliation.minimum_comparable_bases must be positive".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "sample_reconciliation.minimum_comparable_bases must be positive",
+            )
+            .into());
         }
         require_fraction(
             "sample_reconciliation.minimum_overlap_agreement",
@@ -236,36 +246,40 @@ impl RawConfig {
         if self.variant_calling.max_indel_length == 0
             || self.variant_calling.max_indel_length > MAX_INDEL_LENGTH
         {
-            return Err(Error::Config(format!(
-                "variant_calling.max_indel_length must be in 1..={MAX_INDEL_LENGTH}"
-            )));
+            return Err(ConfigError::MaxIndelLength {
+                maximum: MAX_INDEL_LENGTH,
+            }
+            .into());
         }
         if self.variant_calling.minimum_peak_height <= 0
             || self.variant_calling.minimum_peak_height > MAX_PEAK_HEIGHT
         {
-            return Err(Error::Config(format!(
-                "variant_calling.minimum_peak_height must be in 1..={MAX_PEAK_HEIGHT}"
-            )));
+            return Err(ConfigError::MinimumPeakHeight {
+                maximum: MAX_PEAK_HEIGHT,
+            }
+            .into());
         }
         if self.variant_calling.relative_quality_threshold
             >= self.quality_control.max_relative_quality_score
         {
-            return Err(Error::Config(
-                "variant_calling.relative_quality_threshold must be less than quality_control.max_relative_quality_score"
-                    .into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "variant_calling.relative_quality_threshold must be less than quality_control.max_relative_quality_score",
+            ).into());
         }
         if self.variant_calling.regions.is_empty() {
-            return Err(Error::Config(
-                "variant_calling.regions must contain at least one inclusive range".into(),
-            ));
+            return Err(ConfigError::Constraint(
+                "variant_calling.regions must contain at least one inclusive range",
+            )
+            .into());
         }
         for (index, region) in self.variant_calling.regions.iter().enumerate() {
             let [start, end] = *region;
             if start == 0 || start > end || end > MAX_REFERENCE_LENGTH {
-                return Err(Error::Config(format!(
-                    "variant_calling.regions[{index}] must satisfy 1 <= start <= end <= {MAX_REFERENCE_LENGTH}"
-                )));
+                return Err(ConfigError::RegionOutOfBounds {
+                    index,
+                    maximum: MAX_REFERENCE_LENGTH,
+                }
+                .into());
             }
         }
         Ok(Config {
@@ -312,31 +326,67 @@ impl RawConfig {
     }
 }
 
-fn require_fraction(name: &str, value: f64) -> Result<()> {
-    require_finite_range(name, value, f64::MIN_POSITIVE, 1.0)
+fn require_fraction(key: &'static str, value: f64) -> Result<()> {
+    require_finite_range(key, value, f64::MIN_POSITIVE, 1.0)
 }
 
-fn require_positive_finite(name: &str, value: f64) -> Result<()> {
+fn require_positive_finite(key: &'static str, value: f64) -> Result<()> {
     if !value.is_finite() || value <= 0.0 {
-        return Err(Error::Config(format!("{name} must be finite and positive")));
+        return Err(ConfigError::NotFinitePositive { key }.into());
     }
     Ok(())
 }
 
-fn require_finite_range(name: &str, value: f64, minimum: f64, maximum: f64) -> Result<()> {
+fn require_finite_range(key: &'static str, value: f64, minimum: f64, maximum: f64) -> Result<()> {
     if !value.is_finite() || value < minimum || value > maximum {
-        return Err(Error::Config(format!(
-            "{name} must be finite and in [{minimum}, {maximum}]"
-        )));
+        return Err(ConfigError::NotFiniteInRange {
+            key,
+            minimum,
+            maximum,
+        }
+        .into());
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{ConfigError, Error};
+
     use super::*;
 
     const VALID: &str = "schema_version=5\n[reference]\ntopology='circular'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nregions=[[16024,16365],[73,340],[438,576]]\n";
+
+    /// Parses TOML, then returns the typed scientific validation outcome.
+    fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
+        let raw: RawConfig = toml::from_str(text)?;
+        Ok(raw.validate("dna.toml".into(), String::new()))
+    }
+
+    #[test]
+    fn rejects_out_of_range_values_with_the_offending_key()
+    -> std::result::Result<(), toml::de::Error> {
+        assert!(matches!(
+            validate_raw(&VALID.replace("window_size_bases=10", "window_size_bases=11"))?,
+            Err(Error::Config(ConfigError::Constraint(rule)))
+                if rule.starts_with("signal_processing.window_size_bases")
+        ));
+        assert!(matches!(
+            validate_raw(&VALID.replace("secondary_peak_ratio=0.33", "secondary_peak_ratio=1.5"))?,
+            Err(Error::Config(ConfigError::NotFiniteInRange {
+                key: "basecalling.secondary_peak_ratio",
+                ..
+            }))
+        ));
+        assert!(matches!(
+            validate_raw(&VALID.replace("[73,340]", "[340,73]"))?,
+            Err(Error::Config(ConfigError::RegionOutOfBounds {
+                index: 1,
+                ..
+            }))
+        ));
+        Ok(())
+    }
 
     fn validate(text: &str) -> std::result::Result<Config, Box<dyn std::error::Error>> {
         let raw: RawConfig = toml::from_str(text)?;
@@ -363,8 +413,15 @@ mod tests {
     }
 
     #[test]
-    fn rejects_old_schema_and_missing_required_fields() {
-        assert!(validate(&VALID.replace("schema_version=5", "schema_version=4")).is_err());
+    fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
+    {
+        assert!(matches!(
+            validate_raw(&VALID.replace("schema_version=5", "schema_version=4"))?,
+            Err(Error::Config(ConfigError::UnsupportedSchemaVersion {
+                found: 4,
+                expected: 5
+            }))
+        ));
         assert!(
             toml::from_str::<RawConfig>(&VALID.replace("minimum_primary_snr=3.0\n", "")).is_err()
         );
@@ -375,6 +432,7 @@ mod tests {
             toml::from_str::<RawConfig>(&VALID.replace("minimum_comparable_bases=25\n", ""))
                 .is_err()
         );
+        Ok(())
     }
 
     #[test]

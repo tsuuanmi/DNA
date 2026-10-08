@@ -1,6 +1,6 @@
 //! Minimal indel representation preserving canonical alignment placement.
 
-use crate::error::{Error, Result};
+use crate::error::{Result, VariantError};
 use crate::model::coordinate::reference_one_based;
 use crate::model::reference::{Reference, ReferenceTopology};
 use crate::model::variant::{Variant, VariantCallMapping, VariantKind};
@@ -13,12 +13,15 @@ pub(crate) fn snv(
     calls: Vec<VariantCallMapping>,
 ) -> Result<Variant> {
     mapping::validate_snv(&calls, position)?;
-    let reference_base = reference
-        .sequence
-        .as_bytes()
-        .get(position)
-        .copied()
-        .ok_or_else(|| Error::Variant("SNV reference position is out of bounds".into()))?;
+    let reference_base =
+        reference
+            .sequence
+            .as_bytes()
+            .get(position)
+            .copied()
+            .ok_or(VariantError::Inconsistent(
+                "SNV reference position is out of bounds",
+            ))?;
     validated(
         reference,
         Variant {
@@ -40,7 +43,7 @@ pub(crate) fn insertion(
     calls: Vec<VariantCallMapping>,
 ) -> Result<Variant> {
     if inserted.is_empty() {
-        return Err(Error::Variant("insertion allele is empty".into()));
+        return Err(VariantError::Inconsistent("insertion allele is empty").into());
     }
     mapping::validate_insertion(&calls)?;
     let anchor = observed_anchor(reference, previous_reference, next_reference)?;
@@ -48,8 +51,9 @@ pub(crate) fn insertion(
         return build_insertion(reference, anchor, inserted, calls);
     }
 
-    let right_anchor = next_reference
-        .ok_or_else(|| Error::Variant("leading insertion lacks a right anchor".into()))?;
+    let right_anchor = next_reference.ok_or(VariantError::Inconsistent(
+        "leading insertion lacks a right anchor",
+    ))?;
     let base = reference_base(reference, right_anchor)?;
     validated(
         reference,
@@ -73,7 +77,7 @@ pub(crate) fn deletion(
     calls: Vec<VariantCallMapping>,
 ) -> Result<Variant> {
     if deleted.is_empty() {
-        return Err(Error::Variant("deletion allele is empty".into()));
+        return Err(VariantError::Inconsistent("deletion allele is empty").into());
     }
     mapping::validate_deletion(&calls)?;
     let anchor = observed_anchor(reference, previous_reference, Some(first_deleted_reference))?;
@@ -81,8 +85,9 @@ pub(crate) fn deletion(
         return build_deletion(reference, anchor, deleted, calls);
     }
 
-    let right_anchor = next_reference
-        .ok_or_else(|| Error::Variant("leading deletion lacks a right anchor".into()))?;
+    let right_anchor = next_reference.ok_or(VariantError::Inconsistent(
+        "leading deletion lacks a right anchor",
+    ))?;
     let base = reference_base(reference, right_anchor)?;
     validated(
         reference,
@@ -160,43 +165,45 @@ fn validated(reference: &Reference, variant: Variant) -> Result<Variant> {
     let start = variant
         .position_1based
         .checked_sub(1)
-        .ok_or_else(|| Error::Variant("variant position must be one-based".into()))?;
+        .ok_or(VariantError::Inconsistent(
+            "variant position must be one-based",
+        ))?;
     for (offset, observed) in variant.reference.bytes().enumerate() {
         let unwrapped = start
             .checked_add(offset)
-            .ok_or_else(|| Error::Variant("variant reference span overflow".into()))?;
+            .ok_or(VariantError::Overflow("variant reference span overflow"))?;
         let position = match reference.topology {
             ReferenceTopology::Linear => unwrapped,
             ReferenceTopology::Circular => unwrapped % reference.len(),
         };
-        let expected = reference
-            .sequence
-            .as_bytes()
-            .get(position)
-            .copied()
-            .ok_or_else(|| Error::Variant("variant reference span is out of bounds".into()))?;
+        let expected = reference.sequence.as_bytes().get(position).copied().ok_or(
+            VariantError::Inconsistent("variant reference span is out of bounds"),
+        )?;
         if observed != expected {
-            return Err(Error::Variant(format!(
-                "variant reference allele disagrees with the supplied reference at position {}",
-                position + 1
-            )));
+            return Err(VariantError::ReferenceAlleleMismatch {
+                position: position + 1,
+            }
+            .into());
         }
     }
     Ok(variant)
 }
 
 fn reference_base(reference: &Reference, position: usize) -> Result<char> {
-    reference
+    Ok(reference
         .sequence
         .as_bytes()
         .get(position)
         .copied()
         .map(char::from)
-        .ok_or_else(|| Error::Variant("indel anchor is outside the reference".into()))
+        .ok_or(VariantError::Inconsistent(
+            "indel anchor is outside the reference",
+        ))?)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{Error, VariantError};
     use crate::model::variant::VariantCallRole;
 
     use super::*;
@@ -306,7 +313,12 @@ mod tests {
             "A",
             deletion_flanks(),
         );
-        assert!(matches!(result, Err(Error::Variant(message)) if message.contains("disagrees")));
+        assert!(matches!(
+            result,
+            Err(Error::Variant(VariantError::ReferenceAlleleMismatch {
+                position: 3
+            }))
+        ));
     }
 
     #[test]

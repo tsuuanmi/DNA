@@ -1,7 +1,7 @@
 //! Typed assembly of the reference-free basecall result.
 
 use crate::config::Config;
-use crate::error::{Error, Result};
+use crate::error::{ReportError, Result};
 use crate::model::basecall_result::{
     BasecallProvenanceResult, BasecallReadResult, BasecallResult, BasecallWarningSummaryResult,
 };
@@ -37,18 +37,19 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
         .map(|call| call.ambiguity)
         .collect::<String>();
     if calls.primary_sequence.len() != call_count || ambiguity.len() != call_count {
-        return Err(Error::Report(
-            "basecall sequence lengths do not match call count".into(),
-        ));
+        return Err(
+            ReportError::Inconsistent("basecall sequence lengths do not match call count").into(),
+        );
     }
     if quality.trim_start_0based > quality.trim_end_0based_exclusive
         || quality.trim_end_0based_exclusive > call_count
         || quality.retained_sequence
             != calls.primary_sequence[quality.trim_start_0based..quality.trim_end_0based_exclusive]
     {
-        return Err(Error::Report(
-            "basecall retained sequence does not match trim bounds".into(),
-        ));
+        return Err(ReportError::Inconsistent(
+            "basecall retained sequence does not match trim bounds",
+        )
+        .into());
     }
     let unresolved_primary_calls = calls
         .calls

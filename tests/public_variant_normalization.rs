@@ -7,6 +7,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
+use dna::error::{Error, NormalizationError, RepresentationError};
 use dna::variant_analysis::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
 use dna::variant_normalization::{self, NormalizationPolicy};
 use support::write_reference;
@@ -38,7 +39,7 @@ fn variant(position_1based: usize, reference: &str, alternate: &str, kind: Varia
 fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
-) -> Result<variant_normalization::VariantNormalizationResult, dna::error::Error> {
+) -> Result<variant_normalization::VariantNormalizationResult, Error> {
     variant_normalization::normalize(
         reference_path,
         called,
@@ -192,11 +193,12 @@ fn rejects_reference_identity_mismatch() -> Result<(), Box<dyn std::error::Error
     let mut called = called(sequence, vec![variant(6, "G", "T", VariantKind::Snv)]);
     called.reference.sha256 = "wrong".into();
 
-    let Err(error) = normalize(&reference_path, &called) else {
-        return Err("expected reference identity mismatch".into());
-    };
-
-    assert!(error.to_string().contains("reference identity"));
+    assert!(matches!(
+        normalize(&reference_path, &called),
+        Err(Error::VariantNormalization(
+            NormalizationError::ReferenceIdentityMismatch
+        ))
+    ));
     Ok(())
 }
 
@@ -208,10 +210,11 @@ fn rejects_source_allele_that_disagrees_with_reference() -> Result<(), Box<dyn s
     write_reference(&reference_path, sequence)?;
     let called = called(sequence, vec![variant(2, "G", "T", VariantKind::Snv)]);
 
-    let Err(error) = normalize(&reference_path, &called) else {
-        return Err("expected reference allele mismatch".into());
-    };
-
-    assert!(error.to_string().contains("reference allele"));
+    assert!(matches!(
+        normalize(&reference_path, &called),
+        Err(Error::VariantNormalization(
+            NormalizationError::Representation(RepresentationError::ReferenceAlleleMismatch)
+        ))
+    ));
     Ok(())
 }
