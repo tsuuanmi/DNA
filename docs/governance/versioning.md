@@ -12,6 +12,16 @@ A contract version introduced in the current unreleased cycle may be revised in 
 
 Configuration is strict and versioned by its documented schema/version field. Unknown or unsupported values fail rather than silently falling back. The same unreleased-cycle rule applies: a configuration schema version introduced in the current unreleased cycle may be revised in place before the first tagged release that accepts it, each revision recorded as Breaking.
 
+## Plugins
+
+Each plugin of the static registry
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md))
+carries a method version, recorded in result provenance. A change that can
+alter a plugin's output for the same inputs and configuration increases that
+plugin's version in the same change, and the CHANGELOG records it. A pure
+refactor with byte-identical output leaves it unchanged. Plugin versions start
+at 1 and are independent of the software version and of contract versions.
+
 ## Software releases
 
 Tagged binary releases use semantic versioning. A release tag is exactly `v<version from Cargo.toml>`.

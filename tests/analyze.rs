@@ -78,7 +78,20 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     );
     assert_object_keys(
         &value["provenance"],
-        &["input", "reference", "configuration_sha256", "profile"],
+        &[
+            "input",
+            "reference",
+            "configuration_sha256",
+            "profile",
+            "plugins",
+        ],
+    );
+    assert_eq!(
+        value["provenance"]["plugins"],
+        serde_json::json!([
+            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "core", "family": "core", "version": 1},
+        ])
     );
     assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
     assert_object_keys(&value["provenance"]["profile"], &["id", "sha256"]);

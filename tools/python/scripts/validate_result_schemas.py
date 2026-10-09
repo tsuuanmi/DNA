@@ -104,6 +104,10 @@ def rejected_analysis_shapes(
     missing_profile["provenance"].pop("profile")
     invalid_profile_id = copy.deepcopy(example)
     invalid_profile_id["provenance"]["profile"]["id"] = "Human mtDNA"
+    missing_plugins = copy.deepcopy(example)
+    missing_plugins["provenance"].pop("plugins")
+    unknown_family = copy.deepcopy(example)
+    unknown_family["provenance"]["plugins"][0]["family"] = "kernel"
     missing_integrity = copy.deepcopy(example)
     missing_integrity["signal_quality"].pop("integrity")
     invalid_integrity_ratio = copy.deepcopy(example)
@@ -172,6 +176,8 @@ def rejected_analysis_shapes(
         ("analysis using old schema version", old_schema),
         ("analysis without profile identity", missing_profile),
         ("analysis with an invalid profile id", invalid_profile_id),
+        ("analysis without plugin provenance", missing_plugins),
+        ("analysis with an unknown plugin family", unknown_family),
         ("analysis without trace integrity", missing_integrity),
         ("analysis with invalid event-signal ratio", invalid_integrity_ratio),
         (
@@ -212,6 +218,8 @@ def rejected_basecall_shapes(
     software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
     old_schema["schema_version"] = "dna.basecalls/v2"
+    missing_plugins = copy.deepcopy(example)
+    missing_plugins["provenance"].pop("plugins")
     missing_integrity = copy.deepcopy(example)
     missing_integrity["signal_quality"].pop("integrity")
     invalid_single_ploc_spacing = copy.deepcopy(example)
@@ -232,6 +240,7 @@ def rejected_basecall_shapes(
         ("basecall provenance with reference", reference),
         ("basecall provenance with software version", software_version),
         ("basecall using old schema version", old_schema),
+        ("basecall without plugin provenance", missing_plugins),
         ("basecall without trace integrity", missing_integrity),
         ("single-PLOC basecall carrying spacing summary", invalid_single_ploc_spacing),
         (
@@ -632,6 +641,10 @@ def rejected_sample_shapes(
 
     old_sample_schema = copy.deepcopy(example)
     old_sample_schema["schema_version"] = "dna.sample_evidence/v9"
+    sample_without_plugins = copy.deepcopy(example)
+    sample_without_plugins["provenance"].pop("plugins")
+    sample_plugin_version_zero = copy.deepcopy(example)
+    sample_plugin_version_zero["provenance"]["plugins"][0]["version"] = 0
 
     unresolved_notation_call = copy.deepcopy(example)
     unresolved_notation_call["notation"]["calls"][0]["call"] = "150N"
@@ -758,6 +771,8 @@ def rejected_sample_shapes(
         ("overlap with comparable bases but no agreement", missing_overlap_agreement),
         ("zero-comparable overlap with agreement", zero_comparable_with_agreement),
         ("sample evidence using old schema version", old_sample_schema),
+        ("sample evidence without plugin provenance", sample_without_plugins),
+        ("sample evidence with plugin version zero", sample_plugin_version_zero),
         ("sample notation with an unresolved call base", unresolved_notation_call),
         ("sample notation with a zero insertion ordinal", zero_insertion_ordinal),
         ("sample notation call without supporting reads", notation_call_without_reads),

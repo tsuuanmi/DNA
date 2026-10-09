@@ -54,12 +54,16 @@ minimum_identity = 0.80
 minimum_comparable_bases = 25
 minimum_overlap_agreement = 0.50
 
+[sanger_evidence]
+# Sanger support vetoes (ADR-0069): an SNV or inserted-base supporting call
+# needs a highest A/C/G/T peak of at least `minimum_peak_height` and a relative
+# quality above `relative_quality_threshold`.
+minimum_peak_height = 150
+relative_quality_threshold = 30
+
 [variant_calling]
 # Anchor bases do not count toward this changed-length limit.
 max_indel_length = 50
-# SNV and inserted-base supporting calls must meet both evidence thresholds.
-minimum_peak_height = 150
-relative_quality_threshold = 30
 # Read callability (ADR-0062, ADR-0067): calls this close to an uninformative
 # call (beyond the trim interval or masked as unresolved) cannot support a
 # variant; the trim keeps this many dephased context calls past the span.

@@ -29,6 +29,7 @@ LAYERS: dict[str, int] = {
     "locus": 0,
     "variant": 0,
     "read_evidence": 0,
+    "plugin": 0,
     "config": 1,
     "reference": 1,
     "profile": 1,
@@ -54,6 +55,7 @@ LAYERS: dict[str, int] = {
 # Modules that must stay independent of any sequencing modality (ADR-0069).
 NEUTRAL: frozenset[str] = frozenset(
     {
+        "plugin",
         "read_evidence",
         "variant",
         "alignment",

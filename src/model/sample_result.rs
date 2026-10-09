@@ -3,8 +3,8 @@
 use serde::Serialize;
 
 use crate::model::result::{
-    AlignmentResult, CallabilityResult, PeakHeightsResult, ProfileResult, ReferenceResult,
-    TraceIntegrityResult,
+    AlignmentResult, CallabilityResult, PeakHeightsResult, PluginResult, ProfileResult,
+    ReferenceResult, TraceIntegrityResult,
 };
 use crate::model::sample_evidence::{LocusState, OverlapExclusionReason};
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
@@ -45,6 +45,7 @@ pub(crate) struct SampleProvenanceResult {
     pub(crate) reference: ReferenceResult,
     pub(crate) configuration_sha256: String,
     pub(crate) profile: ProfileResult,
+    pub(crate) plugins: Vec<PluginResult>,
 }
 
 /// One independently processed sample read with reviewer-facing provenance.

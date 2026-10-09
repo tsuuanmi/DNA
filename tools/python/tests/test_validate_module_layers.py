@@ -76,9 +76,9 @@ class ModuleLayerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_rejects_an_unmapped_module(self) -> None:
-        result = self.run_layers({"plugin.rs": "pub(crate) fn hook() {}\n"})
+        result = self.run_layers({"scheduler.rs": "pub(crate) fn hook() {}\n"})
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("plugin: unmapped module", result.stderr)
+        self.assertIn("scheduler: unmapped module", result.stderr)
 
     def test_rejects_a_neutral_module_depending_on_sanger(self) -> None:
         result = self.run_layers(

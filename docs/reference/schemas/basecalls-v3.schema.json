@@ -56,7 +56,8 @@
       "additionalProperties": false,
       "required": [
         "input",
-        "configuration_sha256"
+        "configuration_sha256",
+        "plugins"
       ],
       "properties": {
         "input": {
@@ -73,6 +74,9 @@
         },
         "configuration_sha256": {
           "$ref": "#/$defs/sha256"
+        },
+        "plugins": {
+          "$ref": "#/$defs/plugins"
         }
       }
     },
@@ -375,6 +379,36 @@
           }
         }
       ]
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "family": {
+            "enum": [
+              "modality",
+              "core",
+              "post_calling"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
     }
   }
 }

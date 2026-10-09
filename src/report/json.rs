@@ -5,9 +5,10 @@ use crate::model::basecalls::BaseCalls;
 use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::result::{
-    AlignmentResult, AnalysisResult, InputResult, IntervalResult, ProfileResult, ProvenanceResult,
-    ReadResult, ReferenceResult, WarningSummaryResult,
+    AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,
+    ProvenanceResult, ReadResult, ReferenceResult, WarningSummaryResult,
 };
+use crate::plugin::PluginDescriptor;
 use crate::profile::ProfileIdentity;
 use crate::report::{callability, signal, variant};
 
@@ -16,6 +17,8 @@ pub(crate) struct CompletedAnalysis {
     pub(crate) reference: Reference,
     pub(crate) profile: ProfileIdentity,
     pub(crate) read: ReadObservation,
+    /// Plugins of the workflow, in execution order.
+    pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
 
 /// Builds the compact v9 document without filesystem side effects.
@@ -24,6 +27,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         reference,
         profile,
         read,
+        plugins,
     } = completed;
     let ReadObservation {
         input_name: _,
@@ -77,6 +81,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
             },
             configuration_sha256,
             profile: project_profile(profile),
+            plugins: project_plugins(plugins),
         },
         read: ReadResult {
             call_count: calls.len(),
@@ -101,6 +106,18 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         variants: variant_results,
         warnings,
     })
+}
+
+/// Projects the workflow's plugin identities recorded in result provenance.
+pub(crate) fn project_plugins(plugins: &[&PluginDescriptor]) -> Vec<PluginResult> {
+    plugins
+        .iter()
+        .map(|plugin| PluginResult {
+            id: plugin.id,
+            family: plugin.family.label(),
+            version: plugin.version,
+        })
+        .collect()
 }
 
 /// Projects the profile identity recorded in result provenance.

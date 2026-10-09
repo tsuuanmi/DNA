@@ -34,10 +34,22 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `minimum_identity` | `0.80` | finite `(0,1]` |
 | `sample_reconciliation` | `minimum_comparable_bases` | `25` | positive |
 | | `minimum_overlap_agreement` | `0.50` | finite `(0,1]` |
-| `variant_calling` | `max_indel_length` | `50` | `1..=50` |
-| | `minimum_peak_height` | `150` | `1..=32767` |
+| `sanger_evidence` | `minimum_peak_height` | `150` | `1..=32767` |
 | | `relative_quality_threshold` | `30` | less than `max_relative_quality_score`; comparison is strict `>` |
+| `variant_calling` | `max_indel_length` | `50` | `1..=50` |
 | | `read_end_margin` | `12` | non-negative integer; `0` disables |
+
+Each section is owned by one plugin of the static registry
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+- the Sanger modality plugin owns `basecalling`, `signal_processing`,
+  `callability`, `quality_control`, and `sanger_evidence`;
+- the core plugin owns `alignment`, `sample_reconciliation`, and
+  `variant_calling`.
+
+The post-calling plugins take their policy from the target profile. Core
+sections hold no Sanger key. `sanger_evidence` holds the thresholds that the
+Sanger evidence adapter turns into support vetoes. The Sanger plugin reads the
+core's `read_end_margin` for its trim context.
 
 For a uniquely strongest basecalling peak, `secondary_peak_ratio` applies both to each channel's selected peak relative to that primary peak and to the channel signal sampled at the primary peak position. Both comparisons are inclusive; this prevents a remote maximum elsewhere in the same PLOC window from qualifying as ambiguity evidence.
 

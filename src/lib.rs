@@ -18,6 +18,7 @@ mod locus;
 mod model;
 mod operation_log;
 mod pipeline;
+mod plugin;
 pub mod profile;
 mod quality_control;
 mod read_evidence;

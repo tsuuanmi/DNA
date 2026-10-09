@@ -77,7 +77,7 @@ criterion.
 | Phase | Scope | Exit criterion |
 |---|---|---|
 | 1 | `ReadEvidence` contract inside the crate. The Sanger adapter (`read_processing::evidence`) owns vetoes and mask reasons. Alignment and variant calling consume only `ReadEvidence`. The module validator enforces neutrality. | Every basecall, analysis, and sample result document is byte-identical before and after. |
-| 2 | Static plugin registry: identity, family, provided and required contracts, owned configuration section. Per-plugin configuration sections (configuration schema bump). Plugin identities in provenance. | Outputs identical apart from provenance; registry validation rejects missing requirements and shared or unknown sections. |
+| 2 | Static plugin registry: identity, family, method version, provided and required contracts, owned configuration sections. Per-plugin configuration sections. Plugin identities in provenance. | Outputs identical apart from provenance; registry validation rejects missing requirements and shared or unknown sections. |
 | 2b | Sample attachments: core sample records hold neutral facts, and Sanger per-call and per-read extras move to an attachment that the report joins. | Byte-identical sample documents; `sample` imports no Sanger type. |
 | 3 | A sequence adapter (consensus FASTA/FASTQ → `ReadEvidence`) and a core-only `dna call` command. | Reviewer consensus sequences give haplotype-identical calls after normalization and nomenclature. |
 | 4 | `dna.called_variants/v1` JSON, emitted by the core and consumed by `dna normalize` and `dna nomenclature`. A conformance plugin (EMPOP-style notation rules). | JSON round trip gives the same result as in-process composition. |
@@ -140,8 +140,8 @@ aggregates are quoted.
 ## Compatibility and migration
 
 - Phase 1: none (internal). The Rust `Error` gains an `Evidence` variant.
-- Phase 2: the configuration schema changes; the shipped configuration is
-  updated in the same change.
+- Phase 2: the unreleased configuration schema 7 is revised in place, and the
+  shipped configuration is updated in the same change.
 - Later contracts are new versioned documents.
 
 ## Decision
@@ -154,3 +154,9 @@ Accepted on 2026-10-09 and recorded by
 - Phase 1: the `read_evidence` module, the Sanger adapter in
   `read_processing::evidence`, and the neutrality rule in
   `tools/python/scripts/validate_module_layers.py`.
+- Phase 2: the compile-time registry and workflow compositions in
+  `src/plugin.rs`, the Sanger-owned `[sanger_evidence]` configuration section
+  (configuration schema 7, revised in place while unreleased), and
+  `provenance.plugins` in the analysis, basecall, and sample documents. Apart
+  from `configuration_sha256` and `provenance.plugins`, every result document
+  of the local corpus and the 320-sample held-out set is unchanged.

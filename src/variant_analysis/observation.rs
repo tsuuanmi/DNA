@@ -53,7 +53,7 @@ pub(crate) fn observe(
         &signal,
         &callability,
         &quality,
-        &config.variant_calling,
+        &config.sanger_evidence,
     )?;
     let alignment = alignment::align_best(&evidence, reference, &config.alignment)?;
     tracing::info!(
@@ -112,8 +112,8 @@ pub(crate) fn observe(
         deletion = deletions,
         excluded = variants.excluded_count(),
         region_count = profile.regions.len(),
-        minimum_peak_height = config.variant_calling.minimum_peak_height,
-        relative_quality_threshold = config.variant_calling.relative_quality_threshold,
+        minimum_peak_height = config.sanger_evidence.minimum_peak_height,
+        relative_quality_threshold = config.sanger_evidence.relative_quality_threshold,
         max_indel_length = config.variant_calling.max_indel_length,
     );
     for excluded in &variants.excluded {

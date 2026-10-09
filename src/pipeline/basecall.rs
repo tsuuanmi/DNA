@@ -7,6 +7,7 @@ use crate::error::Result;
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
+use crate::plugin;
 use crate::read_processing::{self, ProcessedRead};
 use crate::report::{self, CompletedBasecall};
 
@@ -79,6 +80,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         signal,
         callability,
         quality,
+        plugins: plugin::BASECALL,
     })?;
     let schema_version = result.schema_version;
     let call_count = result.read.call_count;

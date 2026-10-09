@@ -4,7 +4,14 @@
     "input": {
       "sha256": "a48e07b87c6c8e84bdb99a8fb4d4935522627134a6f0d6f7f471a20bf49f0c13"
     },
-    "configuration_sha256": "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675"
+    "configuration_sha256": "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675",
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 1
+      }
+    ]
   },
   "read": {
     "call_count": 28,

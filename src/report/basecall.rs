@@ -11,6 +11,8 @@ use crate::model::quality::QualityControlResult;
 use crate::model::result::{InputResult, IntervalResult};
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
+use crate::plugin::PluginDescriptor;
+use crate::report::json::project_plugins;
 use crate::report::{callability, signal};
 
 /// Inputs consumed to build one immutable basecall document.
@@ -21,6 +23,8 @@ pub(crate) struct CompletedBasecall {
     pub(crate) signal: SignalAnalysis,
     pub(crate) callability: ReadCallability,
     pub(crate) quality: QualityControlResult,
+    /// Plugins of the workflow, in execution order.
+    pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
 
 /// Builds `dna.basecalls/v3` without filesystem side effects.
@@ -32,6 +36,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
         signal: signal_analysis,
         callability: read_callability,
         quality,
+        plugins,
     } = completed;
     let call_count = calls.len();
     let ambiguity = calls
@@ -80,6 +85,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
                 sha256: trace.source_sha256,
             },
             configuration_sha256: config.source_sha256,
+            plugins: project_plugins(plugins),
         },
         read: BasecallReadResult {
             call_count,

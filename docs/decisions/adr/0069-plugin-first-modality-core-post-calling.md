@@ -144,3 +144,16 @@ loading plugins at run time.
   module and the neutrality rule.
 - [ADR-0002](0002-single-crate-layering.md) stays in force until the
   workspace-split phase, which needs its own record.
+
+## Revision 2026-10-09 (phase 2)
+
+The registry is a set of compile-time constants in `src/plugin.rs`, so its
+validation runs at compile time instead of at start-up. Constant evaluation
+rejects a duplicate identity, a configuration section owned by two plugins, and
+a required contract that no earlier plugin of a workflow composition provides.
+A test checks that the registry's sections are exactly the shipped
+configuration's sections. Results record their workflow's plugins in
+`provenance.plugins` with a per-plugin method version
+([versioning](../../governance/versioning.md#plugins)). The Sanger support
+thresholds moved from `[variant_calling]` to the Sanger-owned
+`[sanger_evidence]` section.

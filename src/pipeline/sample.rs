@@ -7,6 +7,7 @@ use crate::error::{Result, SampleError};
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
+use crate::plugin;
 use crate::report::{self, CompletedSampleEvidence};
 use crate::sample as sample_science;
 
@@ -99,12 +100,18 @@ fn sample(
     drop(stage);
     let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
+    let plugins = if notation.is_some() {
+        plugin::SAMPLE_WITH_NOTATION
+    } else {
+        plugin::SAMPLE
+    };
     let result = report::build_sample(CompletedSampleEvidence {
         sample_id: sample_id.to_owned(),
         reference: inputs.reference,
         profile: inputs.profile.identity().clone(),
         evidence,
         notation,
+        plugins,
     })?;
     let reads = result.reads.len();
     let rejected_reads = result.rejected_reads.len();

@@ -134,8 +134,6 @@ mod tests {
     fn config(read_end_margin: usize) -> VariantCallingConfig {
         VariantCallingConfig {
             max_indel_length: 50,
-            minimum_peak_height: 150,
-            relative_quality_threshold: 30,
             read_end_margin,
         }
     }

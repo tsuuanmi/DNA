@@ -19,6 +19,7 @@ API documentation lives in rustdoc and source comments.
 - [pipeline](pipeline/README.md) — end-to-end operation orchestration.
 - [profile](profile/README.md) — target profiles: reference identity, regions, representation chain.
 - [quality_control](quality_control/README.md) — relative quality and trimming.
+- `plugin.rs` — the static plugin registry and workflow compositions, validated at compile time (ADR-0069).
 - `read_evidence.rs` — the modality → core per-read evidence contract (ADR-0069).
 - [read_processing](read_processing/README.md) — shared reference-free Sanger read processing and the Sanger evidence adapter.
 - [reference](reference/README.md) — FASTA loading and identity.
@@ -32,7 +33,7 @@ API documentation lives in rustdoc and source comments.
 - [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
 
 File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`,
-`read_evidence.rs`, and `variant.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
+`plugin.rs`, `read_evidence.rs`, and `variant.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
 
 ## Dependency rule
 
@@ -48,7 +49,7 @@ not depend on CLI/`clap` argument types.
 
 The same validator enforces modality neutrality
 ([ADR-0069](../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
-`read_evidence`, `variant`, `alignment`, `variant_calling`, and the
+`plugin`, `read_evidence`, `variant`, `alignment`, `variant_calling`, and the
 post-calling modules must not depend on Sanger modules or on Sanger children of
 `model`. The core caller sees a read only as `ReadEvidence`, which
 `read_processing` builds for Sanger.

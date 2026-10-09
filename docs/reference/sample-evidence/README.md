@@ -10,6 +10,11 @@ and the example is
 Reads that have too few callable calls are recorded in `rejected_reads[]` and
 contribute to no other array ([reads and coverage](reads-coverage.md)).
 
+`provenance` records the reference identity, `configuration_sha256`, the
+target `profile`, and `plugins`: the plugins that produced the document ([ADR-0069](../../decisions/adr/0069-plugin-first-modality-core-post-calling.md)), in execution order, each with its `id`, `family` (`modality`, `core`, or `post_calling`), and method `version` ([versioning](../../governance/versioning.md#plugins)). `sample` runs
+`sanger` and `core`, followed by `normalization` and `nomenclature` when the
+profile declares notation.
+
 The sample identifier and read names are reviewer-facing provenance. They never
 constrain scientific placement, orientation, overlap discovery, or variant
 reconciliation.

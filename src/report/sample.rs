@@ -15,8 +15,9 @@ use crate::model::sample_result::{
     SampleVariantCallResult, SampleVariantOppositionResult, SampleVariantResult,
     SampleVariantSupportResult, SampleVariantSupportTopologyResult,
 };
+use crate::plugin::PluginDescriptor;
 use crate::profile::{NotationStyle, ProfileIdentity};
-use crate::report::json::project_profile;
+use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, NotationCall};
 use crate::variant::Variant;
 
@@ -28,6 +29,8 @@ pub(crate) struct CompletedSampleEvidence {
     pub(crate) evidence: SampleEvidence,
     /// Per-read represented calls, present only when the profile declares notation.
     pub(crate) notation: Option<SampleNotation>,
+    /// Plugins of the workflow, in execution order.
+    pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
 
 /// Every read's represented calls and the profile style to render them in.
@@ -50,6 +53,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         profile,
         evidence,
         notation,
+        plugins,
     } = completed;
     if evidence.reference_sha256 != reference.sequence_sha256 {
         return Err(ReportError::Inconsistent(
@@ -261,6 +265,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
             },
             configuration_sha256: evidence.configuration_sha256,
             profile: project_profile(profile),
+            plugins: project_plugins(plugins),
         },
         reads,
         rejected_reads,

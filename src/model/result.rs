@@ -26,6 +26,15 @@ pub(crate) struct ProvenanceResult {
     pub(crate) reference: ReferenceResult,
     pub(crate) configuration_sha256: String,
     pub(crate) profile: ProfileResult,
+    pub(crate) plugins: Vec<PluginResult>,
+}
+
+/// Identity of a plugin that took part in producing a result (ADR-0069).
+#[derive(Debug, Serialize)]
+pub(crate) struct PluginResult {
+    pub(crate) id: &'static str,
+    pub(crate) family: &'static str,
+    pub(crate) version: u32,
 }
 
 /// Identity of the target profile a result was produced under.

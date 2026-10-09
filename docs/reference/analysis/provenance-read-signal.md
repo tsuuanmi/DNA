@@ -9,9 +9,10 @@ Part of the canonical [analysis contract](README.md).
 - input AB1 `sha256`;
 - reference `name`, `topology`, and sequence `sha256`;
 - `configuration_sha256`;
-- `profile`: the [target profile](../profiles.md) `id` and the `sha256` of the profile file.
+- `profile`: the [target profile](../profiles.md) `id` and the `sha256` of the profile file;
+- `plugins`: the plugins that produced the document ([ADR-0069](../../decisions/adr/0069-plugin-first-modality-core-post-calling.md)), in execution order, each with its `id`, `family` (`modality`, `core`, or `post_calling`), and method `version` ([versioning](../../governance/versioning.md#plugins)). `analyze` runs `sanger`, then `core`.
 
-Software/build identity, local input/configuration paths, expanded configuration, program constants, timestamps, host data, and method identifiers are not serialized. Software/build provenance is deferred until a stable versioning strategy is defined. Effective scientific settings remain in the strict configuration selected for the run.
+Software/build identity, local input/configuration paths, expanded configuration, program constants, timestamps, and host data are not serialized; plugin method versions are the only method identifiers. Software/build provenance is deferred until a stable versioning strategy is defined. Effective scientific settings remain in the strict configuration selected for the run.
 
 ## Read and signal-quality summary
 

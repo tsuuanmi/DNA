@@ -18,7 +18,8 @@ at the input boundary and scientific stages use locus terminology.
 
 ## Fields
 
-- `provenance`: input AB1 SHA-256 and complete strict configuration SHA-256.
+- `provenance`: input AB1 SHA-256, complete strict configuration SHA-256, and
+  `plugins`: the plugins that produced the document ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)), in execution order, each with its `id`, `family` (`modality`, `core`, or `post_calling`), and method `version` ([versioning](../governance/versioning.md#plugins)). `basecall` runs only the `sanger` plugin.
   Software/build identity, the trace filename, local paths, timestamps, and host
   data are omitted; software/build provenance is deferred until a stable
   versioning strategy is defined.

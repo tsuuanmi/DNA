@@ -90,6 +90,13 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     )?;
     assert!(value.get("loci").is_none());
     assert_eq!(value["rejected_reads"], serde_json::json!([]));
+    assert_eq!(
+        value["provenance"]["plugins"],
+        serde_json::json!([
+            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "core", "family": "core", "version": 1},
+        ])
+    );
 
     let reads = value["reads"].as_array().ok_or("reads must be an array")?;
     assert_eq!(reads.len(), 2);
@@ -340,6 +347,15 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
         })
     );
     assert_eq!(value["provenance"]["profile"]["id"], "human-mtdna-rcrs");
+    assert_eq!(
+        value["provenance"]["plugins"],
+        serde_json::json!([
+            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "core", "family": "core", "version": 1},
+            {"id": "normalization", "family": "post_calling", "version": 1},
+            {"id": "nomenclature", "family": "post_calling", "version": 1},
+        ])
+    );
     assert_eq!(
         value["provenance"]["profile"]["sha256"],
         format!("{:x}", Sha256::digest(fs::read(human_mtdna_profile())?))

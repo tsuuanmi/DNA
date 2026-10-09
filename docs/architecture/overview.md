@@ -33,6 +33,7 @@
 | `locus` | 0 | Sanger locus window geometry | signal interpretation |
 | `model` | 0 | validated domain vocabulary including canonical Sanger evidence | filesystem and algorithms |
 | `variant` | 0 | public canonical called-variant contracts | evidence and call mappings |
+| `plugin` | 0 | static plugin registry and workflow compositions, validated at compile time; plugin provenance identities | running stages, configuration values |
 | `read_evidence` | 0 | modality → core per-read evidence contract: bases, profiles, labelled masks, support vetoes, informative interval | modality algorithms, interpreting reason labels |
 | `input` | 3 | source/modality adapters; currently Sanger ABIF | CLI publication paths and scientific algorithms |
 | `reference` | 1 | validated reference identity/model | alignment |
@@ -63,7 +64,7 @@ modality plugins (Sanger: `input`, `read_processing`, `basecalling`,
 (`read_evidence`, `alignment`, `variant_calling`, `sample`), and post-calling
 plugins (`variant_representation`, `variant_normalization`,
 `variant_nomenclature`). The same validator rejects any dependency from a
-modality-neutral module (`read_evidence`, `variant`, `alignment`,
+modality-neutral module (`plugin`, `read_evidence`, `variant`, `alignment`,
 `variant_calling`, and the post-calling modules) on a Sanger module or a Sanger
 child of `model`. `sample` still reads Sanger read observations until the
 attachment split in [PROP-0002](../proposals/0002-plugin-first-architecture.md).

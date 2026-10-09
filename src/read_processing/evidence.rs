@@ -7,7 +7,7 @@
 //! Sanger evidence raises against each call (peak floor, relative quality, and
 //! mixed signal for substitutions).
 
-use crate::config::VariantCallingConfig;
+use crate::config::SangerEvidenceConfig;
 use crate::error::{AlignmentError, Result, VariantError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
@@ -61,7 +61,7 @@ pub(crate) fn read_evidence(
     signal: &SignalAnalysis,
     callability: &ReadCallability,
     quality: &QualityControlResult,
-    config: &VariantCallingConfig,
+    config: &SangerEvidenceConfig,
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
     if callability.mask.len() != count {
@@ -172,12 +172,10 @@ mod tests {
 
     use super::*;
 
-    fn config() -> VariantCallingConfig {
-        VariantCallingConfig {
-            max_indel_length: 50,
+    fn config() -> SangerEvidenceConfig {
+        SangerEvidenceConfig {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
-            read_end_margin: 0,
         }
     }
 

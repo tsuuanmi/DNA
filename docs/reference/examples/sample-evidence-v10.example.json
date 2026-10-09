@@ -11,7 +11,29 @@
     "profile": {
       "id": "human-mtdna-rcrs",
       "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
-    }
+    },
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 1
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 1
+      },
+      {
+        "id": "normalization",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "nomenclature",
+        "family": "post_calling",
+        "version": 1
+      }
+    ]
   },
   "reads": [
     {

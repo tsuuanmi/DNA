@@ -7,6 +7,7 @@ use crate::error::Result;
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
+use crate::plugin;
 use crate::report::{self, CompletedAnalysis};
 use crate::variant_analysis;
 
@@ -73,6 +74,7 @@ fn analyze(
         reference: inputs.reference,
         profile: inputs.profile.identity().clone(),
         read: completed.read,
+        plugins: plugin::ANALYZE,
     })?;
     let result_variants = result.variants.len();
     let schema_version = result.schema_version;

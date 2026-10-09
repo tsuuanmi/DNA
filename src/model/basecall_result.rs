@@ -2,7 +2,9 @@
 
 use serde::Serialize;
 
-use crate::model::result::{CallabilityResult, InputResult, IntervalResult, SignalQualityResult};
+use crate::model::result::{
+    CallabilityResult, InputResult, IntervalResult, PluginResult, SignalQualityResult,
+};
 
 /// Successful reference-free basecall document.
 #[derive(Debug, Serialize)]
@@ -19,6 +21,7 @@ pub(crate) struct BasecallResult {
 pub(crate) struct BasecallProvenanceResult {
     pub(crate) input: InputResult,
     pub(crate) configuration_sha256: String,
+    pub(crate) plugins: Vec<PluginResult>,
 }
 
 /// Called sequences, the retained primary interval, and callability.

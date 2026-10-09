@@ -48,8 +48,8 @@ pub enum ConfigError {
         /// Largest supported indel length.
         maximum: usize,
     },
-    /// `variant_calling.minimum_peak_height` is outside the ABIF peak range.
-    #[error("variant_calling.minimum_peak_height must be in 1..={maximum}")]
+    /// `sanger_evidence.minimum_peak_height` is outside the ABIF peak range.
+    #[error("sanger_evidence.minimum_peak_height must be in 1..={maximum}")]
     MinimumPeakHeight {
         /// Largest representable peak height.
         maximum: i32,

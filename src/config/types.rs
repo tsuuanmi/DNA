@@ -21,6 +21,7 @@ pub(crate) struct Config {
     pub(crate) quality_control: QualityControlConfig,
     pub(crate) alignment: AlignmentConfig,
     pub(crate) sample_reconciliation: SampleReconciliationConfig,
+    pub(crate) sanger_evidence: SangerEvidenceConfig,
     pub(crate) variant_calling: VariantCallingConfig,
     pub(crate) source_path: PathBuf,
     pub(crate) source_sha256: String,
@@ -92,12 +93,18 @@ pub(crate) struct SampleReconciliationConfig {
     pub(crate) minimum_overlap_agreement: f64,
 }
 
-/// Primary-difference calling settings.
+/// Sanger support thresholds that the Sanger evidence adapter turns into
+/// support vetoes (ADR-0069).
+#[derive(Debug, Clone)]
+pub(crate) struct SangerEvidenceConfig {
+    pub(crate) minimum_peak_height: i32,
+    pub(crate) relative_quality_threshold: u8,
+}
+
+/// Modality-neutral primary-difference calling settings.
 #[derive(Debug, Clone)]
 pub(crate) struct VariantCallingConfig {
     pub(crate) max_indel_length: usize,
-    pub(crate) minimum_peak_height: i32,
-    pub(crate) relative_quality_threshold: u8,
     /// Calls this close to an uninformative call (beyond the trim interval or
     /// masked as unresolved) cannot support a variant.
     pub(crate) read_end_margin: usize,
@@ -114,6 +121,7 @@ pub(super) struct RawConfig {
     quality_control: RawQualityControlConfig,
     alignment: RawAlignmentConfig,
     sample_reconciliation: RawSampleReconciliationConfig,
+    sanger_evidence: RawSangerEvidenceConfig,
     variant_calling: RawVariantCallingConfig,
 }
 
@@ -173,10 +181,15 @@ struct RawSampleReconciliationConfig {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawVariantCallingConfig {
-    max_indel_length: usize,
+struct RawSangerEvidenceConfig {
     minimum_peak_height: i32,
     relative_quality_threshold: u8,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawVariantCallingConfig {
+    max_indel_length: usize,
     read_end_margin: usize,
 }
 
@@ -302,19 +315,19 @@ impl RawConfig {
             }
             .into());
         }
-        if self.variant_calling.minimum_peak_height <= 0
-            || self.variant_calling.minimum_peak_height > MAX_PEAK_HEIGHT
+        if self.sanger_evidence.minimum_peak_height <= 0
+            || self.sanger_evidence.minimum_peak_height > MAX_PEAK_HEIGHT
         {
             return Err(ConfigError::MinimumPeakHeight {
                 maximum: MAX_PEAK_HEIGHT,
             }
             .into());
         }
-        if self.variant_calling.relative_quality_threshold
+        if self.sanger_evidence.relative_quality_threshold
             >= self.quality_control.max_relative_quality_score
         {
             return Err(ConfigError::Constraint(
-                "variant_calling.relative_quality_threshold must be less than quality_control.max_relative_quality_score",
+                "sanger_evidence.relative_quality_threshold must be less than quality_control.max_relative_quality_score",
             ).into());
         }
         if self.profile.as_os_str().is_empty() {
@@ -374,10 +387,12 @@ impl RawConfig {
                 minimum_comparable_bases: self.sample_reconciliation.minimum_comparable_bases,
                 minimum_overlap_agreement: self.sample_reconciliation.minimum_overlap_agreement,
             },
+            sanger_evidence: SangerEvidenceConfig {
+                minimum_peak_height: self.sanger_evidence.minimum_peak_height,
+                relative_quality_threshold: self.sanger_evidence.relative_quality_threshold,
+            },
             variant_calling: VariantCallingConfig {
                 max_indel_length: self.variant_calling.max_indel_length,
-                minimum_peak_height: self.variant_calling.minimum_peak_height,
-                relative_quality_threshold: self.variant_calling.relative_quality_threshold,
                 read_end_margin: self.variant_calling.read_end_margin,
             },
             source_path,
@@ -415,7 +430,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\n";
+    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -456,8 +471,8 @@ mod tests {
         assert_eq!(config.signal_processing.minimum_noisy_windows, 2);
         assert_eq!(config.sample_reconciliation.minimum_comparable_bases, 25);
         assert_eq!(config.sample_reconciliation.minimum_overlap_agreement, 0.5);
-        assert_eq!(config.variant_calling.minimum_peak_height, 150);
-        assert_eq!(config.variant_calling.relative_quality_threshold, 30);
+        assert_eq!(config.sanger_evidence.minimum_peak_height, 150);
+        assert_eq!(config.sanger_evidence.relative_quality_threshold, 30);
         Ok(())
     }
 
@@ -489,12 +504,19 @@ mod tests {
     fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
     {
         assert!(matches!(
-            validate_raw(&VALID.replace("schema_version=7", "schema_version=5"))?,
+            validate_raw(&VALID.replace("schema_version=7", "schema_version=6"))?,
             Err(Error::Config(ConfigError::UnsupportedSchemaVersion {
-                found: 5,
+                found: 6,
                 expected: 7
             }))
         ));
+        assert!(
+            toml::from_str::<RawConfig>(&VALID.replace(
+                "max_indel_length=50\n",
+                "max_indel_length=50\nminimum_peak_height=150\n"
+            ))
+            .is_err()
+        );
         assert!(
             toml::from_str::<RawConfig>(&VALID.replace("minimum_primary_snr=3.0\n", "")).is_err()
         );
