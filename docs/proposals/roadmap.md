@@ -58,7 +58,7 @@ These controls make the software build and supply chain defensible. They do not 
 The following remain outside the current production interpretation boundary until separately specified, decided, implemented, and validated:
 
 - new or substantially more complex indel models;
-- phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067);
+- phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067; research under `docs/research/phase-recovery/`);
 - signal denoising and baseline correction (research spike under `docs/research/denoising/`);
 - sample-level consensus and adjudicated sample variants;
 - quantitative heteroplasmy;

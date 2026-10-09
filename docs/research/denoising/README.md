@@ -14,7 +14,8 @@ The analyzed channels are already baseline-corrected, mobility-shifted, and
 spectrally deconvolved by the instrument. On the local reviewed corpus the
 dominant failure modes were dephased and globally mixed signal, which no filter
 removes; the production answer to those is
-[read callability](../../design/callability.md). Any transform that could change
+[read callability](../../design/callability.md), and recovery behind a shift is
+studied in [phase recovery](../phase-recovery/README.md). Any transform that could change
 a call must preserve the decoded trace and produce a separate processed
 projection ([INV-EVID-001/002](../../architecture/invariants/evidence.md),
 [ADR-0013](../../decisions/adr/0013-observational-signal-quality.md),

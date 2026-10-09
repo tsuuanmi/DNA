@@ -144,4 +144,5 @@ produced outside the repository and quoted in aggregate (ADR-0065,
 
 Phase recovery or shadow-ladder deconvolution, calibrated weighting from
 callability features, and signal denoising remain research
-([denoising](../research/denoising/README.md)).
+([phase recovery](../research/phase-recovery/README.md),
+[denoising](../research/denoising/README.md)).
