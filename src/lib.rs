@@ -1,48 +1,48 @@
 //! Library boundary for DNA operations.
 //!
-//! The source-module graph is routed from `src/README.md`. `lib.rs` remains
+//! The source-module graph is routed from `src/README.md` and `crates/README.md`. `lib.rs` remains
 //! the minimal dispatcher: it exposes stable CLI and error boundaries, translates
 //! parsed command arguments into application inputs, and keeps configuration,
 //! scientific capabilities, orchestration, and reporting behind explicit module
 //! boundaries.
 
-mod alignment;
-mod basecalling;
-mod bounds;
-mod callability;
-mod checksum;
 pub mod cli;
 mod config;
-mod conformance;
-pub mod error;
 mod input;
-mod locus;
 mod model;
 mod operation_log;
 mod pipeline;
-mod plugin;
-pub mod profile;
-mod quality_control;
-mod read_call;
-mod read_evidence;
-mod read_processing;
-mod reference;
 mod report;
-mod sample;
-mod signal_processing;
-pub mod variant;
 pub mod variant_analysis;
-mod variant_calling;
-pub mod variant_nomenclature;
-pub mod variant_normalization;
-mod variant_representation;
+
+pub use dna_kernel::{error, variant};
+
+/// Target profiles: knowledge about one sequencing target.
+pub mod profile {
+    pub use dna_kernel::profile::{Profile, ProfileIdentity};
+}
+
+/// Optional haplotype-preserving representation normalization of called
+/// variants.
+pub mod variant_normalization {
+    pub use dna_post::variant_normalization::{
+        NormalizationPolicy, VariantNormalizationResult, normalize,
+    };
+}
+
+/// Optional profile-driven target nomenclature of normalized variants.
+pub mod variant_nomenclature {
+    pub use dna_post::variant_nomenclature::{
+        NomenclatureInput, VariantNomenclatureResult, apply, from_normalization,
+    };
+}
 
 #[cfg(feature = "fuzzing")]
 #[doc(hidden)]
 pub mod fuzzing {
     /// Exercises the bounds-checked ABIF directory parser without filesystem I/O.
     pub fn parse_abif(bytes: &[u8]) {
-        let _ = crate::input::sanger::abif::parse_container(bytes.to_vec());
+        let _ = dna_sanger::abif::parse_container(bytes.to_vec());
     }
 }
 

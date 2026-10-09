@@ -9,6 +9,6 @@ Architecture describes **current system structure**: stable boundaries, context,
 - [Variant lifecycle](variant-lifecycle.md)
 - [System invariants](invariants/README.md)
 - [Decision history](../decisions/README.md)
-- [Source navigation](../../src/README.md)
+- [Source navigation](../../src/README.md) and [workspace crates](../../crates/README.md)
 
 Detailed mechanisms belong in [design](../design/README.md). Exact public/configuration shapes belong in [reference](../reference/README.md). Architecture should not duplicate either.

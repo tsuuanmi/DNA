@@ -3,10 +3,10 @@
 use std::path::Path;
 
 use crate::config::{self, Config};
-use crate::error::{Error, Result};
-use crate::model::reference::Reference;
-use crate::profile::Profile;
-use crate::reference;
+use dna_kernel::error::{Error, Result};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_kernel::reference;
 
 pub(crate) mod sanger;
 pub(crate) mod sequence;

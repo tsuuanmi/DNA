@@ -1,13 +1,13 @@
 //! Projection of variant-associated calls into concise signal records.
 
-use crate::error::{ReportError, Result};
-use crate::model::alignment::Orientation;
-use crate::model::attachment::SangerAttachment;
-use crate::model::reference_call;
 use crate::model::result::{PeakHeightsResult, VariantCallResult, VariantResult};
-use crate::model::variant::Variant;
-use crate::read_evidence::ReadEvidence;
 use crate::report::sanger_call;
+use dna_core::model::alignment::Orientation;
+use dna_core::model::reference_call;
+use dna_core::model::variant::Variant;
+use dna_kernel::error::{ReportError, Result};
+use dna_kernel::read_evidence::ReadEvidence;
+use dna_sanger::model::attachment::SangerAttachment;
 
 /// Projects normalized variants and joins their original calls to essential evidence.
 pub(super) fn project(

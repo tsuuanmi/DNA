@@ -6,14 +6,14 @@
 //! window representation, so sequence-equivalent descriptions from different
 //! reads converge on one notation.
 
-use crate::error::{Error, NomenclatureError, Result};
-use crate::model::called_read::CalledRead;
-use crate::model::reference::Reference;
-use crate::profile::{Notation, Profile};
 use crate::report::{ReadRepresentation, SampleNotation};
-use crate::variant::{CalledVariantSet, ReferenceIdentity, Variant};
-use crate::variant_nomenclature::{self, from_normalization};
-use crate::variant_normalization::{NormalizationPolicy, normalize_with};
+use dna_core::model::called_read::CalledRead;
+use dna_kernel::error::{Error, NomenclatureError, Result};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::{Notation, Profile};
+use dna_kernel::variant::{CalledVariantSet, ReferenceIdentity, Variant};
+use dna_post::variant_nomenclature::{self, from_normalization};
+use dna_post::variant_normalization::{NormalizationPolicy, normalize_with};
 
 /// Represents every called read's eligible calls, or `None` when the profile
 /// declares no notation. The reference has already been checked against the
@@ -92,11 +92,11 @@ mod tests {
     use std::cmp::Ordering;
     use std::path::Path;
 
-    use crate::model::reference::ReferenceTopology;
-    use crate::model::variant::{Variant as CalledVariant, VariantKind};
-    use crate::profile::tests::human_mtdna;
-    use crate::reference;
-    use crate::variant;
+    use dna_core::model::variant::{Variant as CalledVariant, VariantKind};
+    use dna_kernel::model::reference::ReferenceTopology;
+    use dna_kernel::profile::fixtures::human_mtdna;
+    use dna_kernel::reference;
+    use dna_kernel::variant;
 
     use super::*;
 

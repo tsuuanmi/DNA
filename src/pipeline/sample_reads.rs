@@ -1,14 +1,14 @@
 //! Shared multi-trace read processing for sample operations.
 
 use crate::config::Config;
-use crate::error::Result;
-use crate::model::attachment::SangerRejection;
 use crate::model::read_observation::ReadObservation;
-use crate::model::reference::Reference;
-use crate::model::sanger::Chromatogram;
-use crate::profile::Profile;
-use crate::read_processing;
 use crate::variant_analysis;
+use dna_kernel::error::Result;
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_sanger::model::attachment::SangerRejection;
+use dna_sanger::model::sanger::Chromatogram;
+use dna_sanger::read_processing;
 
 pub(crate) struct CompletedSampleReads {
     pub(crate) reads: Vec<ReadObservation>,

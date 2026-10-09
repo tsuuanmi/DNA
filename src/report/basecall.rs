@@ -1,19 +1,19 @@
 //! Typed assembly of the reference-free basecall result.
 
 use crate::config::Config;
-use crate::error::{ReportError, Result};
 use crate::model::basecall_result::{
     BasecallProvenanceResult, BasecallReadResult, BasecallResult, BasecallWarningSummaryResult,
 };
-use crate::model::basecalls::BaseCalls;
-use crate::model::callability::ReadCallability;
-use crate::model::quality::QualityControlResult;
 use crate::model::result::{InputResult, IntervalResult};
-use crate::model::sanger::Chromatogram;
-use crate::model::signal::SignalAnalysis;
-use crate::plugin::PluginDescriptor;
 use crate::report::json::project_plugins;
 use crate::report::{callability, signal};
+use dna_kernel::error::{ReportError, Result};
+use dna_kernel::plugin::PluginDescriptor;
+use dna_sanger::model::basecalls::BaseCalls;
+use dna_sanger::model::callability::ReadCallability;
+use dna_sanger::model::quality::QualityControlResult;
+use dna_sanger::model::sanger::Chromatogram;
+use dna_sanger::model::signal::SignalAnalysis;
 
 /// Inputs consumed to build one immutable basecall document.
 pub(crate) struct CompletedBasecall {

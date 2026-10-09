@@ -22,7 +22,7 @@ One record per call position, in call order:
 - the canonical locus sample position, used only for spacing;
 - the primary call's channel, `None` for an unresolved `N`.
 
-The core consumes nothing else. The Sanger adapter (`src/callability/sanger.rs`)
+The core consumes nothing else. The Sanger adapter (`crates/dna-sanger/src/callability/sanger.rs`)
 is the only code that reads `Chromatogram`, `BaseCalls`, and `SignalAnalysis`.
 
 ## Coordinate domains

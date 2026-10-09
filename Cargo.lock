@@ -265,17 +265,58 @@ dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
- "memchr",
+ "dna-core",
+ "dna-kernel",
+ "dna-post",
+ "dna-sanger",
  "noodles-fasta",
  "predicates",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
- "thiserror",
  "toml",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "dna-core"
+version = "0.1.0"
+dependencies = [
+ "dna-kernel",
+ "memchr",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "dna-kernel"
+version = "0.1.0"
+dependencies = [
+ "noodles-fasta",
+ "serde",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
+name = "dna-post"
+version = "0.1.0"
+dependencies = [
+ "dna-kernel",
+]
+
+[[package]]
+name = "dna-sanger"
+version = "0.1.0"
+dependencies = [
+ "dna-kernel",
+ "serde",
+ "tracing",
 ]
 
 [[package]]

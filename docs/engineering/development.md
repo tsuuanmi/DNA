@@ -18,7 +18,7 @@ workloads during development:
 ```bash
 cargo build --profile local
 cargo run --profile local -- analyze sample.ab1 --reference references/rCRS.fasta
-cargo test --profile local <focused-test-filter>
+cargo test --profile local --workspace <focused-test-filter>
 ```
 
 The `local` profile inherits development settings, keeps incremental

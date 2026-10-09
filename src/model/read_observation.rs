@@ -1,7 +1,7 @@
 //! Complete scientific observation produced from one independently processed Sanger read.
 
-use crate::model::attachment::SangerAttachment;
-use crate::model::called_read::CalledRead;
+use dna_core::model::called_read::CalledRead;
+use dna_sanger::model::attachment::SangerAttachment;
 
 /// A Sanger read after reference placement: the core's modality-neutral
 /// products and the Sanger evidence that reports join to them.

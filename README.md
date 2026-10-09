@@ -189,7 +189,7 @@ Key entry points:
 
 ## Development
 
-The repository root is a Rust project. Executable source under `src/` is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for repository checks, tests, measurement, and research (ADR-0066); it never produces DNA results.
+The repository root is a Rust project. Executable source under `src/` (the `dna` facade) and `crates/*/src/` (the plugin crates, [crates](crates/README.md)) is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for repository checks, tests, measurement, and research (ADR-0066); it never produces DNA results.
 
 The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 
@@ -204,11 +204,11 @@ Required repository checks:
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-targets --all-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
-cargo build --locked --release
+cargo check --workspace --locked --all-targets --all-features
+cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+cargo test --workspace --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
+cargo build --locked --release -p dna
 
 cd tools/python
 uv run ruff format --check scripts tests

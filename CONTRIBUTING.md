@@ -13,7 +13,7 @@ documented lifecycle.
 
 ## Source boundaries
 
-- Executable production source under `src/` is Rust; source-local `README.md` files are the only non-Rust files allowed there.
+- Executable production source under `src/` and `crates/*/src/` is Rust; source-local `README.md` files are the only non-Rust files allowed there.
 - Python under `tools/python/` is for research, validation, orchestration, and
   tests only and must not become a runtime dependency of the `dna` binary.
 - Scientific behavior changes require matching tests and documentation.
@@ -24,11 +24,11 @@ documented lifecycle.
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-targets --all-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
-cargo build --locked --release
+cargo check --workspace --locked --all-targets --all-features
+cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+cargo test --workspace --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
+cargo build --locked --release -p dna
 ```
 
 For Python companion tooling:

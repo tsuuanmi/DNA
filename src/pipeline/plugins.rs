@@ -1,13 +1,13 @@
 //! The registered plugins and the plugin composition of every workflow,
 //! validated at compile time (ADR-0069).
 
-use crate::conformance::PLUGIN as CONFORMANCE;
 use crate::input::sequence::PLUGIN as SEQUENCE;
-use crate::plugin::{Contract, PluginDescriptor, composition, validate_registry};
-use crate::read_call::PLUGIN as CORE;
-use crate::read_processing::PLUGIN as SANGER;
-use crate::variant_nomenclature::PLUGIN as NOMENCLATURE;
-use crate::variant_normalization::PLUGIN as NORMALIZATION;
+use dna_core::read_call::PLUGIN as CORE;
+use dna_kernel::plugin::{Contract, PluginDescriptor, composition, validate_registry};
+use dna_post::conformance::PLUGIN as CONFORMANCE;
+use dna_post::variant_nomenclature::PLUGIN as NOMENCLATURE;
+use dna_post::variant_normalization::PLUGIN as NORMALIZATION;
+use dna_sanger::read_processing::PLUGIN as SANGER;
 
 /// Every plugin this build contains.
 const REGISTRY: &[&PluginDescriptor] = &[
@@ -58,7 +58,7 @@ const _: () = validate_registry(REGISTRY);
 mod tests {
     use std::collections::BTreeSet;
 
-    use crate::plugin::provided_by;
+    use dna_kernel::plugin::provided_by;
 
     use super::*;
 

@@ -25,19 +25,28 @@ class CrateMapTests(unittest.TestCase):
                 text=True,
             )
 
-    def test_accepts_dependencies_on_allowed_crates(self) -> None:
+    def test_accepts_the_allowed_crate_graph(self) -> None:
         result = self.run_map(
             {
-                "lib.rs": "mod model;\nmod pipeline;\nuse crate::pipeline::run;\n",
-                "model/mod.rs": "pub(crate) mod nucleotide;\npub(crate) mod alignment;\n",
-                "model/nucleotide.rs": "pub(crate) struct Nucleotide;\n",
-                "model/alignment.rs": "use crate::model::nucleotide::Nucleotide;\n",
-                "alignment/mod.rs": (
-                    "use crate::{error::Error, model::{alignment::A, nucleotide::N}};\n"
+                "Cargo.toml": '[dependencies]\ndna-core = "0"\ndna-sanger = "0"\n',
+                "src/lib.rs": "pub use dna_kernel::error;\n",
+                "src/pipeline/mod.rs": (
+                    "use dna_core::read_call::call_read;\n"
+                    "use dna_sanger::read_processing::process;\n"
+                    "use crate::{report::build, model::result::Result};\n"
                 ),
-                "error.rs": "pub(crate) struct Error;\n",
-                "pipeline/mod.rs": "use crate::alignment::align;\nuse crate::basecalling::call;\n",
-                "basecalling/mod.rs": "use crate::error::Error;\n",
+                "src/report.rs": "use crate::model::result::Result;\n",
+                "crates/dna-kernel/Cargo.toml": "[dependencies]\n",
+                "crates/dna-kernel/src/error.rs": "pub struct Error;\n",
+                "crates/dna-core/Cargo.toml": (
+                    '[dependencies]\ndna-kernel = "0"\n'
+                    '[dev-dependencies]\ndna-kernel = { version = "0" }\n'
+                ),
+                "crates/dna-core/src/read_call.rs": (
+                    "use dna_kernel::{error::Error, model::reference::Reference};\n"
+                    "use crate::model::alignment::Alignment;\n"
+                ),
+                "crates/dna-core/src/model/alignment.rs": "use crate::model::variant::V;\n",
             }
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -45,14 +54,15 @@ class CrateMapTests(unittest.TestCase):
     def test_rejects_a_plugin_depending_on_another_plugin(self) -> None:
         result = self.run_map(
             {
-                "alignment/mod.rs": "use crate::model::{basecalls::BaseCalls, nucleotide::N};\n",
-                "model/basecalls.rs": "pub(crate) struct BaseCalls;\n",
-                "model/nucleotide.rs": "pub(crate) struct N;\n",
-                "conformance.rs": "use crate::read_call::call_read;\n",
-                "read_call.rs": "pub(crate) fn call_read() {}\n",
+                "crates/dna-core/Cargo.toml": '[dependencies]\ndna-sanger = "0"\n',
+                "crates/dna-core/src/alignment/mod.rs": (
+                    "use dna_sanger::model::basecalls::BaseCalls;\n"
+                ),
+                "crates/dna-post/src/conformance.rs": "use dna_core::read_call::call_read;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn("core must not depend on dna-sanger", result.stderr)
         self.assertIn(
             "core module alignment must not depend on sanger module model::basecalls",
             result.stderr,
@@ -61,15 +71,11 @@ class CrateMapTests(unittest.TestCase):
             "post module conformance must not depend on core module read_call",
             result.stderr,
         )
-        self.assertNotIn("model::nucleotide", result.stderr)
 
-    def test_rejects_the_kernel_or_a_plugin_depending_on_the_facade(self) -> None:
+    def test_rejects_the_kernel_depending_on_any_crate(self) -> None:
         result = self.run_map(
             {
-                "profile/mod.rs": "use crate::model::alignment::Orientation;\n",
-                "model/alignment.rs": "pub(crate) enum Orientation {}\n",
-                "read_processing/mod.rs": "use crate::config::Config;\n",
-                "config/mod.rs": "pub(crate) struct Config;\n",
+                "crates/dna-kernel/src/profile/mod.rs": "use dna_core::model::alignment::A;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
@@ -77,62 +83,41 @@ class CrateMapTests(unittest.TestCase):
             "kernel module profile must not depend on core module model::alignment",
             result.stderr,
         )
-        self.assertIn(
-            "sanger module read_processing must not depend on dna module config",
-            result.stderr,
-        )
-
-    def test_assigns_input_children_individually(self) -> None:
-        result = self.run_map(
-            {
-                "input/sanger/abif/decode.rs": "use crate::input::sequence::load;\n",
-                "input/sequence.rs": "use crate::input::sanger::abif::load;\n",
-            }
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(
-            "sanger module input::sanger::abif must not depend on dna module input",
-            result.stderr,
-        )
-        self.assertNotIn("dna module input must not", result.stderr)
 
     def test_rejects_a_cycle_within_a_crate(self) -> None:
         result = self.run_map(
             {
-                "callability/mod.rs": "use crate::read_processing::SangerConfig;\n",
-                "read_processing/mod.rs": "use crate::callability::analyze;\n",
+                "crates/dna-sanger/src/callability/mod.rs": (
+                    "use crate::read_processing::SangerConfig;\n"
+                ),
+                "crates/dna-sanger/src/read_processing/mod.rs": (
+                    "use crate::callability::analyze;\n"
+                ),
             }
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "module dependency cycle: callability -> read_processing -> callability",
+            "sanger: module dependency cycle: callability -> read_processing -> callability",
             result.stderr,
         )
 
     def test_ignores_tests_and_comments(self) -> None:
         result = self.run_map(
             {
-                "model/nucleotide.rs": (
-                    "//! See [`run`](crate::pipeline::run).\n"
-                    "pub(crate) struct N; // not crate::pipeline\n"
-                    "#[cfg(test)]\nmod tests {\n    use crate::pipeline::run;\n}\n"
+                "crates/dna-core/src/model/variant.rs": (
+                    "//! See [`process`](dna_sanger::read_processing::process).\n"
+                    "pub struct V; // not dna_sanger::x\n"
+                    "#[cfg(test)]\nmod tests {\n    use dna_sanger::x;\n}\n"
                 ),
-                "alignment/tests.rs": "use crate::pipeline::run;\n",
-                "pipeline.rs": "pub(crate) fn run() {}\n",
+                "crates/dna-core/src/sample/tests.rs": "use dna_sanger::x;\n",
             }
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_rejects_unmapped_modules_and_dependencies(self) -> None:
-        result = self.run_map(
-            {
-                "scheduler.rs": "pub(crate) fn hook() {}\n",
-                "pipeline.rs": "use crate::model::fresh::Thing;\n",
-            }
-        )
+    def test_rejects_an_unknown_crate(self) -> None:
+        result = self.run_map({"crates/dna-ngs/src/lib.rs": "pub fn read() {}\n"})
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("scheduler: unmapped module", result.stderr)
-        self.assertIn("unmapped dependency crate::model::fresh::Thing", result.stderr)
+        self.assertIn("crates/dna-ngs: unknown crate", result.stderr)
 
 
 if __name__ == "__main__":

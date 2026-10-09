@@ -3,12 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use crate::error::{ReportError, Result};
-use crate::model::alignment::Orientation;
-use crate::model::attachment::{SangerAttachment, SangerRejection};
-use crate::model::reference::Reference;
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
-use crate::model::sample_evidence::SampleEvidence;
 use crate::model::sample_result::{
     ReadRejectionResult, RejectedSampleReadResult, SampleCoverageResult,
     SampleEvidenceProfileResult, SampleEvidenceResult, SampleLocusDifferenceObservationResult,
@@ -17,11 +12,16 @@ use crate::model::sample_result::{
     SampleVariantOppositionResult, SampleVariantResult, SampleVariantSupportResult,
     SampleVariantSupportTopologyResult,
 };
-use crate::plugin::PluginDescriptor;
-use crate::profile::ProfileIdentity;
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, SampleNotation};
 use crate::report::sanger_call;
+use dna_core::model::alignment::Orientation;
+use dna_core::model::sample_evidence::SampleEvidence;
+use dna_kernel::error::{ReportError, Result};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::plugin::PluginDescriptor;
+use dna_kernel::profile::ProfileIdentity;
+use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {

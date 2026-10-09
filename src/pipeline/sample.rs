@@ -4,14 +4,14 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::error::{Result, SampleError};
 use crate::input::sanger;
-use crate::model::sample_evidence::RejectedSampleRead;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
-use crate::sample as sample_science;
+use dna_core::model::sample_evidence::RejectedSampleRead;
+use dna_core::sample as sample_science;
+use dna_kernel::error::{Result, SampleError};
 
 use super::{Operation, represent, sample_metrics, sample_reads};
 

@@ -194,3 +194,10 @@ and calls its variants.
   homopolymer placement. It reports findings and never rewrites a call. DNA
   therefore checks conformance without imposing it, as decided for the plugin
   families.
+
+## Revision 2026-10-09 (phase 5)
+
+The plugin families are now crates
+([ADR-0070](0070-workspace-split-by-plugin-family.md)): `dna-kernel` holds the
+contracts and descriptor types, `dna-core`, `dna-sanger`, and `dna-post` each
+hold one family, and the `dna` facade composes them.

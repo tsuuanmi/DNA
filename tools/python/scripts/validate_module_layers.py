@@ -1,17 +1,16 @@
-"""Enforce the plugin-family crate map of first-party Rust source (ADR-0069).
+"""Enforce the plugin-family crate map of the workspace (ADR-0069, ADR-0070).
 
-Every module belongs to one crate of the plugin-first workspace:
+The workspace has one facade crate at the root (``src/``, crate ``dna``) and
+one member crate per plugin family under ``crates/``:
 
-- ``kernel``: shared contracts;
-- ``core``: the core caller;
-- ``sanger``: the Sanger modality;
-- ``post``: post-calling plugins;
-- ``dna``: the facade that composes them.
+- ``dna-kernel``: shared contracts;
+- ``dna-core``: the core caller;
+- ``dna-sanger``: the Sanger modality;
+- ``dna-post``: post-calling plugins.
 
-``model`` children and ``input`` children are assigned individually. A module
-may depend only on its own crate or on a crate its crate is allowed to depend
-on: the plugin crates depend only on the kernel, and only the facade composes
-them. The module graph must also be acyclic.
+The plugin crates depend only on the kernel, and only the facade composes
+them. Both source paths (``dna_<crate>::…``) and manifest dependencies must
+follow that graph. Within each crate the module graph must be acyclic.
 """
 
 from __future__ import annotations
@@ -19,11 +18,11 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-SOURCE_ROOT = ROOT / "src"
 
 # Crates each crate may depend on, besides itself.
 ALLOWED: dict[str, frozenset[str]] = {
@@ -33,71 +32,16 @@ ALLOWED: dict[str, frozenset[str]] = {
     "post": frozenset({"kernel"}),
     "dna": frozenset({"kernel", "core", "sanger", "post"}),
 }
-
-# Crate of every module path under the source root; the longest matching
-# prefix wins. Keep in sync with PROP-0002 phase 5.
-MODULES: dict[str, str] = {
-    "error": "kernel",
-    "checksum": "kernel",
-    "bounds": "kernel",
-    "read_evidence": "kernel",
-    "plugin": "kernel",
-    "variant": "kernel",
-    "reference": "kernel",
-    "profile": "kernel",
-    "model::nucleotide": "kernel",
-    "model::reference": "kernel",
-    "alignment": "core",
-    "variant_calling": "core",
-    "sample": "core",
-    "read_call": "core",
-    "model::alignment": "core",
-    "model::variant": "core",
-    "model::coordinate": "core",
-    "model::called_read": "core",
-    "model::reference_call": "core",
-    "model::sample_evidence": "core",
-    "locus": "sanger",
-    "basecalling": "sanger",
-    "signal_processing": "sanger",
-    "callability": "sanger",
-    "quality_control": "sanger",
-    "read_processing": "sanger",
-    "input::sanger::abif": "sanger",
-    "model::basecalls": "sanger",
-    "model::callability": "sanger",
-    "model::locus_evidence": "sanger",
-    "model::quality": "sanger",
-    "model::sanger": "sanger",
-    "model::signal": "sanger",
-    "model::attachment": "sanger",
-    "variant_representation": "post",
-    "variant_normalization": "post",
-    "variant_nomenclature": "post",
-    "conformance": "post",
-    "cli": "dna",
-    "pipeline": "dna",
-    "report": "dna",
-    "operation_log": "dna",
-    "config": "dna",
-    "input": "dna",
-    "variant_analysis": "dna",
-    "model::read_observation": "dna",
-    "model::result": "dna",
-    "model::sample_result": "dna",
-    "model::basecall_result": "dna",
-    "model::variants_result": "dna",
-    "model::notation_result": "dna",
-}
-
-# Files that only declare child modules or compose the crate.
-CONTAINERS = {"lib.rs", "main.rs", "model/mod.rs"}
+# Source path prefix of each member crate.
+PATH_PREFIXES = {f"dna_{name}": name for name in ALLOWED if name != "dna"}
+# Modules whose children are tracked as separate nodes of the module graph.
+SPLIT_MODULES = {"model", "input"}
 
 TEST_MODULE = re.compile(
     r"#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{", re.MULTILINE
 )
 LINE_COMMENT = re.compile(r"//.*$", re.MULTILINE)
-CRATE_USE = re.compile(r"\bcrate::")
+PATH_START = re.compile(r"\b(crate|dna_kernel|dna_core|dna_sanger|dna_post)::")
 TOKEN = re.compile(r"\s*([A-Za-z_][A-Za-z0-9_]*|::|\{|\}|,|\*)")
 
 
@@ -109,21 +53,26 @@ class Edge:
     line: int
 
 
-def module_path(root: Path, path: Path) -> str:
-    parts = list(path.relative_to(root).with_suffix("").parts)
-    if parts[-1] == "mod":
-        parts.pop()
-    return "::".join(parts)
+@dataclass(frozen=True)
+class Crate:
+    name: str
+    source: Path
+    manifest: Path
 
 
-def unit(path: str) -> str | None:
-    """The longest mapped module prefix of a ``::`` path, or None."""
-    segments = path.split("::")
-    for length in range(len(segments), 0, -1):
-        prefix = "::".join(segments[:length])
-        if prefix in MODULES:
-            return prefix
-    return None
+def crates(root: Path) -> tuple[list[Crate], list[str]]:
+    """The facade and every member crate, plus unknown member directories."""
+    found = [Crate("dna", root / "src", root / "Cargo.toml")]
+    unknown: list[str] = []
+    for directory in sorted((root / "crates").glob("*")):
+        if not directory.is_dir():
+            continue
+        name = directory.name.removeprefix("dna-")
+        if not directory.name.startswith("dna-") or name not in ALLOWED:
+            unknown.append(directory.name)
+            continue
+        found.append(Crate(name, directory / "src", directory / "Cargo.toml"))
+    return found, unknown
 
 
 def production_text(path: Path) -> str:
@@ -196,18 +145,54 @@ def expand(tokens: list[str]) -> list[str]:
     return [path for path in paths if path]
 
 
-def edges(root: Path) -> list[Edge]:
-    found: list[Edge] = []
-    for path in sorted(root.rglob("*.rs")):
-        if path.relative_to(root).as_posix() in CONTAINERS or path.name == "tests.rs":
+def unit(path: str) -> str:
+    """Module-graph node of a crate-relative path."""
+    segments = path.split("::")
+    if segments[0] in SPLIT_MODULES and len(segments) > 1:
+        return "::".join(segments[:2])
+    return segments[0]
+
+
+def module_of(source: Path, path: Path) -> str | None:
+    """Crate-relative module of a source file, or None for the crate root."""
+    parts = list(path.relative_to(source).with_suffix("").parts)
+    if parts[-1] == "mod":
+        parts.pop()
+    if parts in (["lib"], ["main"]):
+        return None
+    return unit("::".join(parts)) if parts else None
+
+
+def edges(crate: Crate) -> list[tuple[str, Edge]]:
+    """Every dependency of the crate's production source, with its target crate."""
+    found: list[tuple[str, Edge]] = []
+    for path in sorted(crate.source.rglob("*.rs")):
+        if path.name == "tests.rs":
             continue
-        source = module_path(root, path)
+        source = module_of(crate.source, path) or "crate root"
         text = production_text(path)
-        for match in CRATE_USE.finditer(text):
+        for match in PATH_START.finditer(text):
+            prefix = match.group(1)
+            target_crate = crate.name if prefix == "crate" else PATH_PREFIXES[prefix]
             line = text.count("\n", 0, match.start()) + 1
             for target in expand(path_tokens(text, match.end())):
-                found.append(Edge(source, target, path, line))
+                found.append((target_crate, Edge(source, target, path, line)))
     return found
+
+
+def manifest_dependencies(manifest: Path) -> list[str]:
+    """Workspace crates a manifest depends on, including dev-dependencies."""
+    if not manifest.is_file():
+        return []
+    document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    names: list[str] = []
+    for table in ("dependencies", "dev-dependencies"):
+        names.extend(
+            name.removeprefix("dna-")
+            for name in document.get(table, {})
+            if name.startswith("dna-")
+        )
+    return names
 
 
 def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
@@ -233,40 +218,41 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
     return None
 
 
-def relative(path: Path) -> Path:
-    return path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+def relative(root: Path, path: Path) -> Path:
+    return path.relative_to(root) if path.is_relative_to(root) else path
 
 
-def validate(root: Path = SOURCE_ROOT) -> list[str]:
+def validate(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
-    for path in sorted(root.rglob("*.rs")):
-        if path.relative_to(root).as_posix() in CONTAINERS or path.name == "tests.rs":
-            continue
-        source = module_path(root, path)
-        if unit(source) is None:
-            failures.append(f"{source}: unmapped module; assign it a crate in MODULES")
-    graph: dict[str, set[str]] = {}
-    for edge in edges(root):
-        source_unit = unit(edge.source)
-        if source_unit is None:
-            continue
-        target_unit = unit(edge.target)
-        if target_unit is None:
+    members, unknown = crates(root)
+    failures.extend(
+        f"crates/{name}: unknown crate; add it to the crate map (ADR-0070)"
+        for name in unknown
+    )
+    for crate in members:
+        for dependency in manifest_dependencies(crate.manifest):
+            if dependency not in ALLOWED[crate.name]:
+                failures.append(
+                    f"{relative(root, crate.manifest)}: {crate.name} must not depend on "
+                    f"dna-{dependency}"
+                )
+        graph: dict[str, set[str]] = {}
+        for target_crate, edge in edges(crate):
+            if target_crate != crate.name:
+                if target_crate not in ALLOWED[crate.name]:
+                    failures.append(
+                        f"{relative(root, edge.path)}:{edge.line}: {crate.name} module "
+                        f"{edge.source} must not depend on {target_crate} module "
+                        f"{unit(edge.target)}"
+                    )
+                continue
+            target = unit(edge.target)
+            if edge.source != "crate root" and target != edge.source:
+                graph.setdefault(edge.source, set()).add(target)
+        if cycle := find_cycle(graph):
             failures.append(
-                f"{relative(edge.path)}:{edge.line}: unmapped dependency crate::{edge.target}"
+                f"{crate.name}: module dependency cycle: {' -> '.join(cycle)}"
             )
-            continue
-        if target_unit != source_unit:
-            graph.setdefault(source_unit, set()).add(target_unit)
-        source_crate = MODULES[source_unit]
-        target_crate = MODULES[target_unit]
-        if target_crate != source_crate and target_crate not in ALLOWED[source_crate]:
-            failures.append(
-                f"{relative(edge.path)}:{edge.line}: {source_crate} module {source_unit} "
-                f"must not depend on {target_crate} module {target_unit}"
-            )
-    if cycle := find_cycle(graph):
-        failures.append(f"module dependency cycle: {' -> '.join(cycle)}")
     return failures
 
 
@@ -275,8 +261,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--root",
         type=Path,
-        default=SOURCE_ROOT,
-        help="Rust source root to validate (default: repository src/)",
+        default=ROOT,
+        help="workspace root to validate (default: this repository)",
     )
     return parser.parse_args(argv)
 
@@ -290,8 +276,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(failures)} crate-map violation(s) found", file=sys.stderr)
         return 1
     print(
-        "OK: every module belongs to a plugin-family crate, depends only on its own "
-        "crate or an allowed one, and the module graph is acyclic"
+        "OK: crates depend only on the kernel or, for the facade, on every plugin "
+        "crate, in source and manifests, and each crate's module graph is acyclic"
     )
     return 0
 

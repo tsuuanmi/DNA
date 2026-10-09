@@ -3,9 +3,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use crate::model::attachment::SangerAttachment;
-use crate::model::locus_evidence::LocusEvidence;
-use crate::model::sample_evidence::{NucleotideContribution, SampleEvidence};
+use dna_core::model::sample_evidence::{NucleotideContribution, SampleEvidence};
+use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::model::locus_evidence::LocusEvidence;
 
 /// Aggregation metrics rendered as the `key=value` tail of the
 /// `sample_aggregation_completed` record.

@@ -8,10 +8,10 @@ pub(crate) mod observation;
 
 use std::path::Path;
 
-use crate::error::Result;
 use crate::input::sanger;
-use crate::profile::ProfileIdentity;
-use crate::variant::{CalledVariantSet, ReferenceIdentity, Variant};
+use dna_kernel::error::Result;
+use dna_kernel::profile::ProfileIdentity;
+use dna_kernel::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 
 /// Typed result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,7 +56,7 @@ impl VariantAnalysisResult {
 ///
 /// # Errors
 ///
-/// Returns [`Error`](crate::error::Error) when an input or configuration file is
+/// Returns [`Error`](dna_kernel::error::Error) when an input or configuration file is
 /// unreadable or invalid, or when a scientific stage cannot produce a uniquely
 /// interpretable result (for example an unaligned or low-identity read).
 pub fn analyze_sanger(

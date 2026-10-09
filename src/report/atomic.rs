@@ -4,7 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::error::{Error, Result};
+use dna_kernel::error::{Error, Result};
 
 struct TemporaryFile {
     path: PathBuf,

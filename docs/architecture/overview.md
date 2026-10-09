@@ -54,19 +54,21 @@
 | `report` | dna | contract projection, serialization, atomic publish | scientific decisions |
 | `pipeline` | dna | CLI/sample orchestration, path/log/publication lifecycle | scientific implementation ownership |
 
-Every module belongs to one crate of the plugin-first workspace
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md),
-[PROP-0002](../proposals/0002-plugin-first-architecture.md) phase 5):
+DNA is a Cargo workspace of plugin-family crates
+([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),
+[crates](../../crates/README.md)):
 
-- `kernel` holds the shared contracts;
-- `core` is the core caller;
-- `sanger` is the Sanger modality;
-- `post` holds the post-calling plugins;
-- `dna` is the facade that composes them.
+- `dna-kernel` holds the shared contracts;
+- `dna-core` is the core caller;
+- `dna-sanger` is the Sanger modality;
+- `dna-post` holds the post-calling plugins;
+- the `dna` facade at the repository root composes them.
 
-The plugin crates depend only on `kernel`, and only `dna` composes them. Each
-plugin owns its configuration sections and its descriptor. CI enforces the
-crate map and an acyclic module graph with `validate_module_layers.py`.
+The Crate column above uses the short names. The plugin crates depend only on
+`dna-kernel`, and only `dna` composes them. Each plugin owns its configuration
+sections and its descriptor. CI enforces the crate graph and an acyclic module
+graph within each crate with `validate_module_layers.py`, and tests each plugin
+crate on its own.
 
 Dependencies point toward shared model/config/error and capability boundaries;
 cycles are forbidden.

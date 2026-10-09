@@ -10,13 +10,13 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::checksum::hex_sha256;
 use crate::config::Config;
-use crate::error::{Error, Result, VariantsError};
-use crate::model::nucleotide::is_canonical;
-use crate::model::reference::Reference;
-use crate::profile::Profile;
-use crate::variant::{Variant, VariantKind};
+use dna_kernel::checksum::hex_sha256;
+use dna_kernel::error::{Error, Result, VariantsError};
+use dna_kernel::model::nucleotide::is_canonical;
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_kernel::variant::{Variant, VariantKind};
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
 
@@ -203,7 +203,7 @@ fn to_variant(read: &str, contig: &str, raw: RawVariant) -> Result<Variant> {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::reference::ReferenceTopology;
+    use dna_kernel::model::reference::ReferenceTopology;
 
     use super::*;
 

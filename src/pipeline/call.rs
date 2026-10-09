@@ -3,13 +3,13 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::error::Result;
 use crate::input::sequence;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
-use crate::read_call::{self, CoreRun, ReadIdentity};
 use crate::report::{self, CompletedCall};
+use dna_core::read_call::{self, CoreRun, ReadIdentity};
+use dna_kernel::error::Result;
 
 use super::sample::validate_sample_id;
 use super::{Operation, represent};

@@ -3,13 +3,13 @@
 use std::path::Path;
 use std::time::Instant;
 
-use crate::error::Result;
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedAnalysis};
 use crate::variant_analysis;
+use dna_kernel::error::Result;
 
 use super::Operation;
 

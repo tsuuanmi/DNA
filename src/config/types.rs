@@ -5,16 +5,16 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::alignment::RawAlignmentConfig;
-use crate::basecalling::RawBasecallingConfig;
-use crate::callability::RawCallabilityConfig;
-use crate::error::{ConfigError, Result};
-use crate::quality_control::RawQualityControlConfig;
-use crate::read_call::{CoreConfig, RawCoreConfig};
-use crate::read_processing::{RawSangerConfig, RawSangerEvidenceConfig, SangerConfig};
-use crate::sample::RawSampleReconciliationConfig;
-use crate::signal_processing::RawSignalProcessingConfig;
-use crate::variant_calling::RawVariantCallingConfig;
+use dna_core::alignment::RawAlignmentConfig;
+use dna_core::read_call::{CoreConfig, RawCoreConfig};
+use dna_core::sample::RawSampleReconciliationConfig;
+use dna_core::variant_calling::RawVariantCallingConfig;
+use dna_kernel::error::{ConfigError, Result};
+use dna_sanger::basecalling::RawBasecallingConfig;
+use dna_sanger::callability::RawCallabilityConfig;
+use dna_sanger::quality_control::RawQualityControlConfig;
+use dna_sanger::read_processing::{RawSangerConfig, RawSangerEvidenceConfig, SangerConfig};
+use dna_sanger::signal_processing::RawSignalProcessingConfig;
 
 /// Configuration schema version this build accepts.
 const SCHEMA_VERSION: u32 = 7;
@@ -90,7 +90,7 @@ impl RawConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::{ConfigError, Error};
+    use dna_kernel::error::{ConfigError, Error};
 
     use super::*;
 

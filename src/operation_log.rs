@@ -31,10 +31,18 @@ use tracing::{Dispatch, Event, Level, Metadata, Subscriber};
 use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
 use tracing_subscriber::registry::{LookupSpan, Registry};
 
-use crate::error::{Error, Result};
+use dna_kernel::error::{Error, Result};
 
 const DEFAULT_LOG_DIRECTORY: &str = "logs";
-const CRATE_TARGET: &str = env!("CARGO_CRATE_NAME");
+/// Crates whose events form the operation log: the facade and the plugin crates
+/// it composes (ADR-0069).
+const CRATE_TARGETS: [&str; 5] = [
+    env!("CARGO_CRATE_NAME"),
+    "dna_kernel",
+    "dna_core",
+    "dna_sanger",
+    "dna_post",
+];
 static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// One append-only log file and the dispatcher that writes to it.
@@ -190,9 +198,11 @@ impl RecordLayer {
 fn is_operational(metadata: &Metadata<'_>) -> bool {
     let target = metadata.target();
     *metadata.level() <= Level::INFO
-        && target
-            .strip_prefix(CRATE_TARGET)
-            .is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
+        && CRATE_TARGETS.iter().any(|crate_target| {
+            target
+                .strip_prefix(crate_target)
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
+        })
 }
 
 /// Accumulates `name=value` pairs and an optional trailing message.
@@ -298,7 +308,7 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use crate::error::Error;
+    use dna_kernel::error::Error;
 
     use super::*;
 

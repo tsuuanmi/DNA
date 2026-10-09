@@ -8,19 +8,19 @@
 
 use std::collections::BTreeMap;
 
-use crate::conformance::Finding;
-use crate::error::{ReportError, RepresentationError};
 use crate::model::notation_result::{
     ConformanceResult, FindingResult, NotationProvenanceResult, NotationResult, SourceResult,
 };
-use crate::model::reference::Reference;
 use crate::model::result::ReferenceResult;
 use crate::model::sample_result::{SampleNotationCallResult, SampleNotationResult};
-use crate::plugin::PluginDescriptor;
-use crate::profile::{ConformanceRule, NotationStyle, ProfileIdentity};
 use crate::report::json::{project_plugins, project_profile};
-use crate::variant::Variant;
-use crate::variant_representation::{sort_edits, variants_to_edits};
+use dna_kernel::error::{ReportError, RepresentationError};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::plugin::PluginDescriptor;
+use dna_kernel::profile::{ConformanceRule, NotationStyle, ProfileIdentity};
+use dna_kernel::variant::Variant;
+use dna_post::conformance::Finding;
+use dna_post::variant_representation::{sort_edits, variants_to_edits};
 
 /// Every read's represented calls and the profile style to render them in.
 pub(crate) struct SampleNotation {
@@ -59,7 +59,7 @@ pub(crate) struct CompletedNotation {
 }
 
 /// Builds `dna.notation/v1` without filesystem side effects.
-pub(crate) fn build(completed: CompletedNotation) -> crate::error::Result<NotationResult> {
+pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<NotationResult> {
     let CompletedNotation {
         sample_id,
         reference,
@@ -81,7 +81,7 @@ pub(crate) fn build(completed: CompletedNotation) -> crate::error::Result<Notati
         .collect::<Vec<_>>();
     let conformance = conformance
         .map(
-            |(rules, findings)| -> crate::error::Result<ConformanceResult> {
+            |(rules, findings)| -> dna_kernel::error::Result<ConformanceResult> {
                 if findings.len() != reads.len() {
                     return Err(ReportError::Inconsistent(
                         "conformance findings do not match the document reads",
@@ -105,7 +105,7 @@ pub(crate) fn build(completed: CompletedNotation) -> crate::error::Result<Notati
                                 .collect(),
                         })
                     })
-                    .collect::<crate::error::Result<_>>()?;
+                    .collect::<dna_kernel::error::Result<_>>()?;
                 Ok(ConformanceResult {
                     rules: rules.into_iter().map(ConformanceRule::label).collect(),
                     findings,
@@ -147,7 +147,7 @@ pub(super) fn project(
     identities: &[&str],
     names: &[String],
     notation: SampleNotation,
-) -> crate::error::Result<SampleNotationResult> {
+) -> dna_kernel::error::Result<SampleNotationResult> {
     let SampleNotation { style, reads } = notation;
     let render = match style {
         NotationStyle::PerBaseDecimal => render,
@@ -185,10 +185,10 @@ pub(super) fn project(
                             .cloned()
                             .ok_or(ReportError::MissingRead { index }.into())
                     })
-                    .collect::<crate::error::Result<_>>()?,
+                    .collect::<dna_kernel::error::Result<_>>()?,
             })
         })
-        .collect::<crate::error::Result<_>>()?;
+        .collect::<dna_kernel::error::Result<_>>()?;
     Ok(SampleNotationResult {
         style: style.label(),
         calls,
@@ -246,7 +246,7 @@ pub(super) fn render(
 
 #[cfg(test)]
 mod tests {
-    use crate::variant::{Variant, VariantKind};
+    use dna_kernel::variant::{Variant, VariantKind};
 
     use super::*;
 

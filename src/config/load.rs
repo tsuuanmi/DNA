@@ -4,10 +4,10 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::checksum::hex_sha256;
 use crate::config::defaults::{DEFAULT_CONFIG_PATH, MAX_CONFIG_BYTES};
 use crate::config::types::{Config, RawConfig};
-use crate::error::{ConfigError, Error, Result};
+use dna_kernel::checksum::hex_sha256;
+use dna_kernel::error::{ConfigError, Error, Result};
 
 /// Resolves the authoritative configuration path without performing I/O.
 pub(crate) fn resolve_path() -> PathBuf {
@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn loads_the_shipped_configuration_and_its_profile() -> Result<()> {
         let config = load_path(&Path::new(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_CONFIG_PATH))?;
-        let profile = crate::profile::Profile::load(&config.profile_path)?;
+        let profile = dna_kernel::profile::Profile::load(&config.profile_path)?;
         assert_eq!(profile.identity().id, "human-mtdna-rcrs");
         Ok(())
     }

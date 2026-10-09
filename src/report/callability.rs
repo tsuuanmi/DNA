@@ -1,7 +1,7 @@
 //! Shared projection of signal-derived read callability.
 
-use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::result::{CallabilityResult, CallabilitySegmentResult, IntervalResult};
+use dna_sanger::model::callability::{PhaseState, ReadCallability};
 
 /// Projects the callable span, ordered phase segments with the shadow offsets
 /// of dephased segments, and masked-call count; per-position features, shadow

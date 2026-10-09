@@ -11,6 +11,18 @@ The public modules are `cli`, `error`, `profile`, `variant`, `variant_analysis`,
 configuration, internal models, scientific stages, and reporting, are private
 implementation detail.
 
+The workspace plugin crates (`dna-kernel`, `dna-core`, `dna-sanger`,
+`dna-post`; [ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md))
+are unpublished implementation crates, not part of this boundary. The `dna`
+facade re-exports exactly these public items from them:
+- `error` is `dna_kernel::error`;
+- `variant` is `dna_kernel::variant`;
+- `profile` exposes `Profile` and `ProfileIdentity`;
+- `variant_normalization` exposes `normalize`, `NormalizationPolicy`, and
+  `VariantNormalizationResult`;
+- `variant_nomenclature` exposes `apply`, `from_normalization`,
+  `NomenclatureInput`, and `VariantNomenclatureResult`.
+
 Types follow one evolution rule:
 
 - results that only the library produces (`VariantAnalysisResult`,

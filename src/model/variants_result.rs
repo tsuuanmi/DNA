@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::model::result::AlignmentResult;
 use crate::model::sample_result::{SampleNotationResult, SampleProvenanceResult};
-use crate::model::variant::{VariantExclusionReason, VariantKind};
+use dna_core::model::variant::{VariantExclusionReason, VariantKind};
 
 /// Successful variants document.
 #[derive(Debug, Serialize)]

@@ -3,7 +3,7 @@
 use crate::model::result::{
     IntervalResult, NoisyRegionResult, SignalQualityResult, TraceIntegrityResult,
 };
-use crate::model::signal::{SangerIntegrity, SignalAnalysis};
+use dna_sanger::model::signal::{SangerIntegrity, SignalAnalysis};
 
 /// Projects merged noisy regions while omitting internal rolling windows.
 pub(super) fn project(signal: SignalAnalysis) -> SignalQualityResult {

@@ -6,20 +6,20 @@
 //! ambiguity code is an unresolved `N` whose profile shares its weight equally
 //! among the bases the code admits, and `N` carries no profile.
 
-use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
+use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use noodles_fasta as fasta;
 
-use crate::checksum::hex_sha256;
 use crate::config::Config;
-use crate::error::{Error, Result, SequenceError};
-use crate::model::reference::Reference;
-use crate::profile::Profile;
-use crate::read_evidence::{CallEvidence, EvidenceProfile, ReadEvidence, VetoSet};
-use crate::reference::MAX_REFERENCE_LENGTH;
+use dna_kernel::checksum::hex_sha256;
+use dna_kernel::error::{Error, Result, SequenceError};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, ReadEvidence, VetoSet};
+use dna_kernel::reference::MAX_REFERENCE_LENGTH;
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
 
@@ -296,7 +296,10 @@ mod tests {
             sequence: "AYN".into(),
         };
         let evidence = read_evidence(&read)?;
-        assert_eq!(evidence.ends(), crate::read_evidence::ReadEnds::Vouched);
+        assert_eq!(
+            evidence.ends(),
+            dna_kernel::read_evidence::ReadEnds::Vouched
+        );
         assert_eq!(evidence.informative(), 0..3);
         let calls = evidence.calls();
         assert_eq!(calls[0].base, 'A');

@@ -1,15 +1,15 @@
 //! Projection of the core's called reads into `dna.variants/v1`.
 
-use crate::error::{ReportError, Result};
-use crate::model::called_read::CalledRead;
-use crate::model::reference::Reference;
 use crate::model::result::{AlignmentResult, IntervalResult, ReferenceResult};
 use crate::model::sample_result::SampleProvenanceResult;
 use crate::model::variants_result::{ObservedVariantResult, ReadVariantsResult, VariantsResult};
-use crate::plugin::PluginDescriptor;
-use crate::profile::ProfileIdentity;
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, SampleNotation};
+use dna_core::model::called_read::CalledRead;
+use dna_kernel::error::{ReportError, Result};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::plugin::PluginDescriptor;
+use dna_kernel::profile::ProfileIdentity;
 
 /// Inputs consumed to build one immutable variants document.
 pub(crate) struct CompletedCall {
@@ -80,7 +80,7 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
 }
 
 fn project_read(read: CalledRead) -> ReadVariantsResult {
-    let intervals = |segments: Vec<crate::model::alignment::ReferenceSegment>| {
+    let intervals = |segments: Vec<dna_core::model::alignment::ReferenceSegment>| {
         segments
             .into_iter()
             .map(|segment| IntervalResult {

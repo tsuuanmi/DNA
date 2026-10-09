@@ -2,10 +2,10 @@
 
 use serde::Serialize;
 
-use crate::model::alignment::Orientation;
-use crate::model::callability::PhaseState;
-use crate::model::reference::ReferenceTopology;
-use crate::model::variant::{VariantCallRole, VariantKind};
+use dna_core::model::alignment::Orientation;
+use dna_core::model::variant::{VariantCallRole, VariantKind};
+use dna_kernel::model::reference::ReferenceTopology;
+use dna_sanger::model::callability::PhaseState;
 
 /// Successful compact analysis document.
 #[derive(Debug, Serialize)]

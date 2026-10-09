@@ -10,14 +10,14 @@
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
-use crate::error::{Result, SampleError};
-use crate::model::reference::Reference;
-use crate::model::sanger::Chromatogram;
-use crate::profile::Profile;
+use dna_kernel::error::{Result, SampleError};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_sanger::model::sanger::Chromatogram;
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
 
-pub(crate) mod abif;
+use dna_sanger::abif;
 
 /// Validated paths, configuration, and profile prepared before decoding one analysis trace.
 pub(crate) struct PreparedAnalysisInputs {

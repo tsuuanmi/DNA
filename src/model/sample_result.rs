@@ -6,8 +6,8 @@ use crate::model::result::{
     AlignmentResult, CallabilityResult, PeakHeightsResult, PluginResult, ProfileResult,
     ReferenceResult, TraceIntegrityResult,
 };
-use crate::model::sample_evidence::{LocusState, OverlapExclusionReason};
-use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
+use dna_core::model::sample_evidence::{LocusState, OverlapExclusionReason};
+use dna_core::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
 
 /// Successful compact sample-evidence document.
 #[derive(Debug, Serialize)]

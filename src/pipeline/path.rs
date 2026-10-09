@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::error::{Error, Result};
+use dna_kernel::error::{Error, Result};
 
 fn validate_output(output: &Path) -> Result<()> {
     if output.exists() {

@@ -1,11 +1,11 @@
 ---
 id: PROP-0002
 type: proposal
-status: implementing
+status: implemented
 owners: []
 created: 2026-10-09
 related-requirements: [SRS-VAR-012, SRS-VAR-013]
-related-decisions: [ADR-0058, ADR-0060, ADR-0064, ADR-0069]
+related-decisions: [ADR-0058, ADR-0060, ADR-0064, ADR-0069, ADR-0070]
 implementation: []
 ---
 
@@ -155,7 +155,7 @@ Accepted on 2026-10-09 and recorded by
   `read_processing::evidence`, and the neutrality rule in
   `tools/python/scripts/validate_module_layers.py`.
 - Phase 2: the compile-time registry and workflow compositions in
-  `src/plugin.rs`, the Sanger-owned `[sanger_evidence]` configuration section
+  `crates/dna-kernel/src/plugin.rs`, the Sanger-owned `[sanger_evidence]` configuration section
   (configuration schema 7, revised in place while unreleased), and
   `provenance.plugins` in the analysis, basecall, and sample documents. Apart
   from `configuration_sha256` and `provenance.plugins`, every result document
@@ -198,3 +198,16 @@ Accepted on 2026-10-09 and recorded by
   - the module validator enforces the target crate map
     (kernel, core, sanger, post, dna) instead of layers.
   Every result document is byte-identical.
+- Phase 5b ([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md)):
+  - the workspace has `dna-kernel`, `dna-core`, `dna-sanger`, and `dna-post`
+    under `crates/`, plus the `dna` facade at the root, with shared package
+    metadata, dependencies, and lints;
+  - items used across crates are public and documented;
+  - the facade re-exports the unchanged public Rust API;
+  - CI tests each plugin crate on its own;
+  - the module validator checks the crate graph in source paths and
+    manifests.
+
+  Every result document is byte-identical (754 Sanger and 320 call/notation
+  documents). Each plugin crate builds and tests alone, and neither the
+  kernel nor the core nor the post-calling crate reaches the Sanger crate.

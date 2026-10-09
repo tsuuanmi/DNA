@@ -1,6 +1,6 @@
 # ADR-0064: Crate-ready module layering
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0070](0070-workspace-split-by-plugin-family.md)
 - **Date:** 2026-10-08
 - **Related decisions:** [ADR-0002](0002-single-crate-layering.md),
   [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md),
@@ -76,3 +76,11 @@ the validator enforces next to the layer rule. Modality-neutral modules
 (`plugin`, `read_evidence`, `variant`, `alignment`, `variant_calling`, `sample`,
 `variant_representation`, `variant_normalization`, `variant_nomenclature`) must
 not depend on Sanger modules or on the Sanger children of `model`.
+
+## Revision 2026-10-09 (workspace split)
+
+[ADR-0070](0070-workspace-split-by-plugin-family.md) performs the split this
+record prepared, along plugin families rather than the layer table:
+`dna-kernel`, `dna-core`, `dna-sanger`, `dna-post`, and the `dna` facade. The
+crate graph replaces the layer table and the neutral-module rule. The
+acyclic-module rule still holds within each crate.

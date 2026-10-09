@@ -1,6 +1,6 @@
 # ADR-0002: Use a Single Layered Crate for the MVP
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0070](0070-workspace-split-by-plugin-family.md)
 - **Date:** 2026-08-22
 
 ## Context
@@ -31,3 +31,7 @@ build isolation, or independent release needs.
 
 A workspace ADR may supersede this decision after identifying concrete consumers
 and a cycle-free dependency graph.
+
+> **Superseded (2026-10-09):** [ADR-0070](0070-workspace-split-by-plugin-family.md)
+> splits DNA into a workspace of plugin-family crates once a second modality
+> needed the core without the Sanger stack.

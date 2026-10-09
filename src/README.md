@@ -8,44 +8,28 @@ API documentation lives in rustdoc and source comments.
 
 ## Module map
 
-- [alignment](alignment/README.md) — deterministic evidence-profile alignment.
-- [basecalling](basecalling/README.md) — signal-derived base re-calling.
-- [callability](callability/README.md) — signal-derived per-read callability: phase state, typed mask, callable span.
-- [cli](cli/README.md) — command-line syntax and typed arguments.
-- [config](config/README.md) — strict configuration loading and validation.
-- [error](error/README.md) — typed application failures.
-- [input](input/README.md) — source-specific sequencing input adapters.
-- [model](model/README.md) — validated domain vocabulary.
-- [pipeline](pipeline/README.md) — end-to-end operation orchestration.
-- [profile](profile/README.md) — target profiles: reference identity, regions, representation chain.
-- [quality_control](quality_control/README.md) — relative quality and trimming.
-- `plugin.rs` — plugin descriptor types and their compile-time validation (ADR-0069); `pipeline::plugins` holds the registry and workflow compositions.
-- `read_call.rs` — the core's one-read path from `ReadEvidence` to a `CalledRead`, and `CoreConfig`.
-- `bounds.rs` — shared range checks for configuration values.
-- `read_evidence.rs` — the modality → core per-read evidence contract (ADR-0069).
-- [read_processing](read_processing/README.md) — shared reference-free Sanger read processing and the Sanger evidence adapter.
-- [reference](reference/README.md) — FASTA loading and identity.
-- [report](report/README.md) — contract projection, serialization, publication.
-- [sample](sample/README.md) — multi-read evidence aggregation.
-- [signal_processing](signal_processing/README.md) — observation-only signal analysis.
-- [variant_calling](variant_calling/README.md) — normalized primary-sequence differences.
-- `variant.rs` — public canonical called-variant contracts (`dna::variant`).
-- [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
-- [variant_nomenclature](variant_nomenclature/README.md) — optional profile-driven target nomenclature.
-- `conformance.rs` — reports represented calls that break the profile's notation conventions.
-- [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
+This is the `dna` facade crate. The plugin crates live in
+[crates](../crates/README.md).
 
-File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`,
-`bounds.rs`, `conformance.rs`, `plugin.rs`, `read_call.rs`, `read_evidence.rs`, and `variant.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
+- [cli](cli/README.md) — command-line syntax and typed arguments.
+- [config](config/README.md) — the configuration envelope composing the plugin-owned sections.
+- [input](input/README.md) — loading orchestration and source adapters: Sanger traces, consensus sequences, variants documents.
+- [model](model/README.md) — the Sanger read observation and the serializable result contracts.
+- [pipeline](pipeline/README.md) — operation orchestration, the plugin registry, and workflow compositions.
+- [report](report/README.md) — contract projection, serialization, publication.
+- [variant_analysis](variant_analysis/README.md) — public typed Sanger raw-to-variant capability.
+- `operation_log.rs` — append-only operational records rendered from `tracing` events.
+- `lib.rs` — the public API: `cli`, `run`, `variant_analysis`, and re-exports of `error`, `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
+
+File-only modules use rustdoc/source comments. Do not create directories solely
+to attach README files.
 
 ## Dependency rule
 
-Every module belongs to one crate of the plugin-first workspace
-([ADR-0069](../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
-`kernel` (shared contracts), `core`, `sanger`, `post`, or the composing `dna`
-facade. The plugin crates depend only on `kernel`, only `dna` composes them,
-and the module graph is acyclic; `tools/python/scripts/validate_module_layers.py`
-enforces this in CI.
+The facade depends on every plugin crate; the plugin crates depend only on
+`dna-kernel` ([ADR-0070](../docs/decisions/adr/0070-workspace-split-by-plugin-family.md)).
+Each crate's module graph is acyclic; `tools/python/scripts/validate_module_layers.py`
+enforces both in CI.
 Dependencies point inward toward operation/scientific boundaries and shared
 domain/config/error types rather than outward toward frontends. In particular,
 the CLI may call the pipeline boundary, but pipeline and scientific modules must

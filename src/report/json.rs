@@ -1,18 +1,18 @@
 //! Compact typed assembly and deterministic JSON serialization.
 
-use crate::error::{Error, ReportError, Result};
-use crate::model::attachment::SangerAttachment;
-use crate::model::basecalls::BaseCalls;
-use crate::model::called_read::CalledRead;
 use crate::model::read_observation::ReadObservation;
-use crate::model::reference::Reference;
 use crate::model::result::{
     AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,
     ProvenanceResult, ReadResult, ReferenceResult, WarningSummaryResult,
 };
-use crate::plugin::PluginDescriptor;
-use crate::profile::ProfileIdentity;
 use crate::report::{callability, signal, variant};
+use dna_core::model::called_read::CalledRead;
+use dna_kernel::error::{Error, ReportError, Result};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::plugin::PluginDescriptor;
+use dna_kernel::profile::ProfileIdentity;
+use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::model::basecalls::BaseCalls;
 
 /// Inputs consumed to build the immutable analysis document.
 pub(crate) struct CompletedAnalysis {
@@ -147,7 +147,7 @@ pub(crate) fn serialize<T: serde::Serialize>(result: &T) -> Result<Vec<u8>> {
 
 fn warning_summary(
     calls: &BaseCalls,
-    signal: &crate::model::signal::SignalAnalysis,
+    signal: &dna_sanger::model::signal::SignalAnalysis,
     excluded_variant_candidates: usize,
 ) -> WarningSummaryResult {
     let unresolved_primary_calls = calls

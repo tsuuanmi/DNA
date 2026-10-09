@@ -30,7 +30,7 @@ boundaries do not exist.
 - root `README.md` is the product/contributor router;
 - `docs/README.md` is the knowledge router;
 - every documentation folder has one `README.md` index;
-- every directory under `src/` has a colocated `README.md`;
+- every directory under `src/` and `crates/*/src/` has a colocated `README.md`;
 - `AGENTS.md` contains agent routing plus repository-wide invariants.
 
 README files do not duplicate full specifications.
@@ -52,7 +52,7 @@ defect to reconcile in the owning change.
 
 ## Source-local documentation
 
-Every `src/**/` directory has an up-to-date `README.md` describing its
+Every `src/**/` and `crates/*/src/**/` directory has an up-to-date `README.md` describing its
 responsibility boundary and navigation.
 
 File-only Rust modules use rustdoc/source comments. DNA does not maintain a

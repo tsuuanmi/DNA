@@ -1,9 +1,9 @@
 //! Sanger evidence joined to core call records by call index.
 
-use crate::error::CallEvidenceError;
-use crate::model::alignment::Orientation;
-use crate::model::basecalls::BaseCalls;
-use crate::model::quality::QualityControlResult;
+use dna_core::model::alignment::Orientation;
+use dna_kernel::error::CallEvidenceError;
+use dna_sanger::model::basecalls::BaseCalls;
+use dna_sanger::model::quality::QualityControlResult;
 
 /// Primary-event peak heights on the reference strand and relative quality of
 /// one Sanger call.
@@ -52,9 +52,9 @@ const fn reference_peak_heights(orientation: Orientation, peaks: [i32; 4]) -> [i
 
 #[cfg(test)]
 mod tests {
-    use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource, PrimaryPeakEvidence};
-    use crate::model::nucleotide::Nucleotide;
-    use crate::model::quality::CallQuality;
+    use dna_kernel::model::nucleotide::Nucleotide;
+    use dna_sanger::model::basecalls::{BaseCall, ChannelPeak, PeakSource, PrimaryPeakEvidence};
+    use dna_sanger::model::quality::CallQuality;
 
     use super::*;
 

@@ -1,16 +1,16 @@
 //! One authoritative read-level reference-guided scientific path.
 
 use crate::config::Config;
-use crate::error::Result;
-use crate::model::attachment::SangerAttachment;
 use crate::model::read_observation::ReadObservation;
-use crate::model::reference::Reference;
-use crate::model::sanger::Chromatogram;
-use crate::profile::Profile;
-use crate::read_evidence::VetoSet;
-use crate::read_processing::{self, ProcessedRead};
+use dna_kernel::error::Result;
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_kernel::read_evidence::VetoSet;
+use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::model::sanger::Chromatogram;
+use dna_sanger::read_processing::{self, ProcessedRead};
 
-use crate::read_call::{self, CoreRun, ReadIdentity};
+use dna_core::read_call::{self, CoreRun, ReadIdentity};
 
 /// Completed one-read observation plus operational warning total.
 pub(crate) struct CompletedObservation {

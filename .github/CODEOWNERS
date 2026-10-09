@@ -8,5 +8,6 @@ Cargo.lock @tsuuanmi
 deny.toml @tsuuanmi
 rust-toolchain.toml @tsuuanmi
 src/ @tsuuanmi
+crates/ @tsuuanmi
 docs/decisions/adr/ @tsuuanmi
 docs/reference/ @tsuuanmi

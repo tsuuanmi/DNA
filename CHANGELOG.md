@@ -95,6 +95,20 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Plugin-first architecture, phase 5b (ADR-0070, PROP-0002): DNA is a Cargo
+  workspace.
+  - `dna-kernel` (shared contracts), `dna-core` (the core caller),
+    `dna-sanger` (the Sanger modality), and `dna-post` (post-calling plugins)
+    live under `crates/`; the `dna` facade at the root composes them.
+  - Each plugin crate builds and tests alone.
+  - The public Rust API (`dna::error`, `dna::variant`, `dna::profile`,
+    `dna::variant_normalization`, `dna::variant_nomenclature`,
+    `dna::variant_analysis`, `dna::cli`, `dna::run`) and every result
+    document are unchanged.
+  - The operation log's module path for events of moved code now names its
+    crate.
+  - Cargo commands take `--workspace`, and builds take `-p dna`.
+
 - Plugin-first architecture, phase 5a (PROP-0002): the sources are untangled
   along the future crate boundaries. Each plugin owns its configuration
   sections and its plugin descriptor; the facade composes the configuration

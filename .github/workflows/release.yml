@@ -31,17 +31,17 @@ jobs:
         if: github.event_name == 'push'
         shell: bash
         run: |
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          version="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "dna") | .version')"
           test "$GITHUB_REF_NAME" = "v$version"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Verify release revision
         if: github.event_name == 'push'
         run: |
           cargo fmt --all --check
-          cargo check --locked --all-targets --all-features
-          cargo clippy --locked --all-targets --all-features -- -D warnings
-          cargo test --locked --all-targets --all-features
-          RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+          cargo check --workspace --locked --all-targets --all-features
+          cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+          cargo test --workspace --locked --all-targets --all-features
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
       - name: Install release dependency policy tool
         if: github.event_name == 'push'
         uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
@@ -60,7 +60,7 @@ jobs:
         if: github.event_name == 'push'
         run: cargo audit
       - name: Build auditable release binary
-        run: cargo auditable build --locked --release --target "$RELEASE_TARGET"
+        run: cargo auditable build --locked --release -p dna --target "$RELEASE_TARGET"
       - name: Prepare artifact and provenance
         shell: bash
         run: |

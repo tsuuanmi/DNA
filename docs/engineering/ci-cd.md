@@ -2,7 +2,7 @@
 
 CI exists to protect documented invariants and security boundaries, not to maximize the number of badges.
 
-The repository root is a Rust project. First-party production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is permitted only for research, validation, test, and repository tooling.
+The repository root is a Rust project. First-party production source under `src/` (the `dna` facade) and `crates/*/src/` (the plugin crates of the workspace, ADR-0070) is Rust-only. Python is isolated under `tools/python/` and is permitted only for research, validation, test, and repository tooling.
 
 All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependabot owns routine updates to those pins. Linux jobs pin the GitHub-hosted Ubuntu 24.04 runner image instead of the moving `ubuntu-latest` label so OS/toolchain baseline changes are explicit reviews.
 
@@ -28,13 +28,17 @@ The release toolchain is pinned by `rust-toolchain.toml`. Every pull request run
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-targets --all-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+cargo check --workspace --locked --all-targets --all-features
+cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+cargo test --workspace --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
 ```
 
-Pushes to `main` additionally run `cargo build --locked --release`.
+The rust-quality job also tests `dna-kernel`, `dna-core`, `dna-sanger`, and
+`dna-post` each on its own, and checks with `cargo tree` that the kernel, core,
+and post-calling crates never reach `dna-sanger` (ADR-0070).
+
+Pushes to `main` additionally run `cargo build --locked --release -p dna`.
 
 `cargo shear --deny-warnings` rejects unused/misplaced dependencies and unlinked Rust source files. `--locked` prevents CI from silently changing dependency resolution. Rustdoc warnings are release-blocking alongside compiler and Clippy warnings.
 
@@ -79,11 +83,11 @@ Python dependencies are locked under `tools/python/`; they are not runtime depen
 
 The repository-policy job:
 
-- rejects files under `src/` other than Rust source and source-local `README.md` documentation;
+- rejects files under `src/` or `crates/*/src/` other than Rust source and source-local `README.md` documentation;
 - validates the explicit Rust source policy;
-- validates the module layering of ADR-0064 (no upward dependency, no cycle)
-  and the modality neutrality of ADR-0069 (no dependency from a neutral module
-  or neutral `model` child on a Sanger module or Sanger `model` child);
+- validates the workspace crate map of ADR-0070: the plugin crates depend only
+  on `dna-kernel` in source paths and manifests, only the facade composes them,
+  and each crate's module graph is acyclic;
 - runs Ruff formatting and lint checks;
 - runs basedpyright;
 - runs Python tooling tests;

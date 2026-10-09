@@ -3,13 +3,13 @@
 use std::path::Path;
 use std::time::Instant;
 
-use crate::conformance;
-use crate::error::{Result, VariantsError};
 use crate::input::variants;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedNotation, NamedRead};
+use dna_kernel::error::{Result, VariantsError};
+use dna_post::conformance;
 
 use super::Operation;
 use super::represent;
