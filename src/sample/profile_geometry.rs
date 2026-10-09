@@ -38,17 +38,21 @@ pub(super) fn heterogeneity(
 }
 
 /// Total Variation distance between two normalized A/C/G/T profile distributions.
+///
+/// The distance of two distributions lies in `[0, 1]`; summing rounded weights
+/// can exceed one by an ulp for disjoint profiles, so the result is clamped.
 pub(super) fn total_variation(
     left: Option<EvidenceProfile>,
     right: Option<EvidenceProfile>,
 ) -> Option<f64> {
     Some(
-        0.5 * left?
+        (0.5 * left?
             .weights
             .into_iter()
             .zip(right?.weights)
             .map(|(left, right)| (left - right).abs())
-            .sum::<f64>(),
+            .sum::<f64>())
+        .clamp(0.0, 1.0),
     )
 }
 
@@ -87,5 +91,14 @@ mod tests {
         assert_eq!(total_variation(Some(pure_a), Some(pure_a)), Some(0.0));
         assert_eq!(total_variation(Some(pure_a), Some(pure_g)), Some(1.0));
         assert_eq!(total_variation(Some(pure_a), None), None);
+    }
+
+    #[test]
+    fn total_variation_of_disjoint_rounded_profiles_stays_within_one() {
+        // Observed on a real sample: the unclamped sum is 1.0000000000000002.
+        let forward = profile([0.0, 0.983_935_742_971_887_6, 0.0, 0.016_064_257_028_112_45]);
+        let reverse = profile([0.988_657_844_990_548_2, 0.0, 0.011_342_155_009_451_797, 0.0]);
+
+        assert_eq!(total_variation(Some(forward), Some(reverse)), Some(1.0));
     }
 }
