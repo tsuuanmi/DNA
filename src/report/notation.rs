@@ -8,10 +8,17 @@
 
 use std::collections::BTreeMap;
 
+use crate::conformance::Finding;
 use crate::error::{ReportError, RepresentationError};
+use crate::model::notation_result::{
+    ConformanceResult, FindingResult, NotationProvenanceResult, NotationResult, SourceResult,
+};
 use crate::model::reference::Reference;
+use crate::model::result::ReferenceResult;
 use crate::model::sample_result::{SampleNotationCallResult, SampleNotationResult};
-use crate::profile::NotationStyle;
+use crate::plugin::PluginDescriptor;
+use crate::profile::{ConformanceRule, NotationStyle, ProfileIdentity};
+use crate::report::json::{project_plugins, project_profile};
 use crate::variant::Variant;
 use crate::variant_representation::{sort_edits, variants_to_edits};
 
@@ -25,6 +32,108 @@ pub(crate) struct SampleNotation {
 pub(crate) struct ReadRepresentation {
     pub(crate) input_sha256: String,
     pub(crate) variants: Vec<Variant>,
+}
+
+/// One read of a variants document: its content identity and reviewer-facing
+/// name, in document order.
+pub(crate) struct NamedRead {
+    pub(crate) sha256: String,
+    pub(crate) name: String,
+}
+
+/// Inputs consumed to build one immutable notation document.
+pub(crate) struct CompletedNotation {
+    pub(crate) sample_id: String,
+    pub(crate) reference: Reference,
+    pub(crate) profile: ProfileIdentity,
+    pub(crate) configuration_sha256: String,
+    /// SHA-256 of the source variants document.
+    pub(crate) source_sha256: String,
+    pub(crate) reads: Vec<NamedRead>,
+    pub(crate) notation: SampleNotation,
+    /// The profile's rules and each read's findings, in document read order,
+    /// when the profile declares conformance.
+    pub(crate) conformance: Option<(Vec<ConformanceRule>, Vec<Vec<Finding>>)>,
+    /// Plugins of the workflow, in execution order.
+    pub(crate) plugins: &'static [&'static PluginDescriptor],
+}
+
+/// Builds `dna.notation/v1` without filesystem side effects.
+pub(crate) fn build(completed: CompletedNotation) -> crate::error::Result<NotationResult> {
+    let CompletedNotation {
+        sample_id,
+        reference,
+        profile,
+        configuration_sha256,
+        source_sha256,
+        reads,
+        notation,
+        conformance,
+        plugins,
+    } = completed;
+    let identities = reads
+        .iter()
+        .map(|read| read.sha256.as_str())
+        .collect::<Vec<_>>();
+    let names = reads
+        .iter()
+        .map(|read| read.name.clone())
+        .collect::<Vec<_>>();
+    let conformance = conformance
+        .map(
+            |(rules, findings)| -> crate::error::Result<ConformanceResult> {
+                if findings.len() != reads.len() {
+                    return Err(ReportError::Inconsistent(
+                        "conformance findings do not match the document reads",
+                    )
+                    .into());
+                }
+                let findings = findings
+                    .into_iter()
+                    .zip(&names)
+                    .flat_map(|(findings, name)| {
+                        findings.into_iter().map(move |finding| (finding, name))
+                    })
+                    .map(|(finding, name)| {
+                        Ok(FindingResult {
+                            rule: finding.rule.label(),
+                            read: name.clone(),
+                            calls: render(&reference.name, &reference.sequence, &[finding.variant])
+                                .map_err(ReportError::Representation)?
+                                .into_iter()
+                                .map(|call| call.text)
+                                .collect(),
+                        })
+                    })
+                    .collect::<crate::error::Result<_>>()?;
+                Ok(ConformanceResult {
+                    rules: rules.into_iter().map(ConformanceRule::label).collect(),
+                    findings,
+                })
+            },
+        )
+        .transpose()?;
+    let notation = project(&reference, &identities, &names, notation)?;
+    Ok(NotationResult {
+        schema_version: "dna.notation/v1",
+        sample_id,
+        provenance: NotationProvenanceResult {
+            reference: ReferenceResult {
+                name: reference.name,
+                topology: reference.topology,
+                sha256: reference.sequence_sha256,
+            },
+            configuration_sha256,
+            profile: project_profile(profile),
+            plugins: project_plugins(plugins),
+            source: SourceResult {
+                schema_version: "dna.variants/v1",
+                sha256: source_sha256,
+            },
+        },
+        notation,
+        conformance,
+    })
 }
 
 /// Renders each read's represented calls and lists, per distinct call, the reads

@@ -12,7 +12,7 @@ use crate::report::{self, CompletedCall};
 use crate::variant_analysis::read_call::{self, ReadIdentity};
 
 use super::sample::validate_sample_id;
-use super::{Operation, sample_notation};
+use super::{Operation, represent};
 
 /// Runs one core-only call with one sample-level append-only log.
 pub(crate) fn run(
@@ -81,7 +81,7 @@ fn call(
         .collect::<Result<Vec<_>>>()?;
 
     let stage = tracing::info_span!("nomenclature").entered();
-    let notation = sample_notation::represent(&reads, &inputs.reference, &inputs.profile)?;
+    let notation = represent::represent(&reads, &inputs.reference, &inputs.profile)?;
 
     drop(stage);
     let _stage = tracing::info_span!("reporting").entered();

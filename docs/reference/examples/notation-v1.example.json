@@ -1,0 +1,105 @@
+{
+  "schema_version": "dna.notation/v1",
+  "sample_id": "sample-1",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "7c9319627b34b6edaecdba2967d3b31f1be58db86134f2c507eaa28a22eda762",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "a2933c9570798ef2ec1ffab49219201dd09d10681ccda91359a55af1ee9fdf90"
+    },
+    "plugins": [
+      {
+        "id": "normalization",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "nomenclature",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "conformance",
+        "family": "post_calling",
+        "version": 1
+      }
+    ],
+    "source": {
+      "schema_version": "dna.variants/v1",
+      "sha256": "66a3080138bfa489fc200b7f6e3422575fe13d260019a467e9ba407a46c525fe"
+    }
+  },
+  "notation": {
+    "style": "per_base_decimal",
+    "calls": [
+      {
+        "call": "73G",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "263G",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "309.1C",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "309.2C",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "313.1G",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "489C",
+        "reads": [
+          "HV3"
+        ]
+      },
+      {
+        "call": "573.1C",
+        "reads": [
+          "HV3"
+        ]
+      },
+      {
+        "call": "16223T",
+        "reads": [
+          "HV1"
+        ]
+      }
+    ]
+  },
+  "conformance": {
+    "rules": [
+      "insertion_at_run_end",
+      "insertion_matches_run"
+    ],
+    "findings": [
+      {
+        "rule": "insertion_matches_run",
+        "read": "HV2",
+        "calls": [
+          "313.1G"
+        ]
+      }
+    ]
+  }
+}

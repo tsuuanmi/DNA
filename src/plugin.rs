@@ -41,6 +41,8 @@ enum Contract {
     NormalizedVariants,
     /// Target nomenclature representation.
     Nomenclature,
+    /// Notation-convention findings.
+    Conformance,
 }
 
 /// Identity, interface, and configuration ownership of one plugin.
@@ -116,23 +118,50 @@ pub(crate) const NOMENCLATURE: PluginDescriptor = PluginDescriptor {
     config_sections: &[],
 };
 
+/// Notation-convention checks declared by the target profile.
+pub(crate) const CONFORMANCE: PluginDescriptor = PluginDescriptor {
+    id: "conformance",
+    family: PluginFamily::PostCalling,
+    version: 1,
+    provides: &[Contract::Conformance],
+    requires: &[Contract::Nomenclature],
+    config_sections: &[],
+};
+
 /// Every plugin this build contains.
-const REGISTRY: &[&PluginDescriptor] = &[&SANGER, &SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE];
+const REGISTRY: &[&PluginDescriptor] = &[
+    &SANGER,
+    &SEQUENCE,
+    &CORE,
+    &NORMALIZATION,
+    &NOMENCLATURE,
+    &CONFORMANCE,
+];
 
 /// Plugins of the `basecall` workflow, in execution order.
-pub(crate) const BASECALL: &[&PluginDescriptor] = composition(&[&SANGER]);
+pub(crate) const BASECALL: &[&PluginDescriptor] = composition(&[], &[&SANGER]);
 /// Plugins of the `analyze` workflow, in execution order.
-pub(crate) const ANALYZE: &[&PluginDescriptor] = composition(&[&SANGER, &CORE]);
+pub(crate) const ANALYZE: &[&PluginDescriptor] = composition(&[], &[&SANGER, &CORE]);
 /// Plugins of the `sample` workflow without notation, in execution order.
-pub(crate) const SAMPLE: &[&PluginDescriptor] = composition(&[&SANGER, &CORE]);
+pub(crate) const SAMPLE: &[&PluginDescriptor] = composition(&[], &[&SANGER, &CORE]);
 /// Plugins of the `call` workflow without notation, in execution order.
-pub(crate) const CALL: &[&PluginDescriptor] = composition(&[&SEQUENCE, &CORE]);
+pub(crate) const CALL: &[&PluginDescriptor] = composition(&[], &[&SEQUENCE, &CORE]);
 /// Plugins of the `call` workflow with notation, in execution order.
 pub(crate) const CALL_WITH_NOTATION: &[&PluginDescriptor] =
-    composition(&[&SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE]);
+    composition(&[], &[&SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE]);
+/// Plugins of the `notation` workflow over a variants document, in execution order.
+pub(crate) const NOTATION: &[&PluginDescriptor] = composition(
+    &[Contract::CalledVariants],
+    &[&NORMALIZATION, &NOMENCLATURE],
+);
+/// Plugins of the `notation` workflow with conformance checks, in execution order.
+pub(crate) const NOTATION_WITH_CONFORMANCE: &[&PluginDescriptor] = composition(
+    &[Contract::CalledVariants],
+    &[&NORMALIZATION, &NOMENCLATURE, &CONFORMANCE],
+);
 /// Plugins of the `sample` workflow with notation, in execution order.
 pub(crate) const SAMPLE_WITH_NOTATION: &[&PluginDescriptor] =
-    composition(&[&SANGER, &CORE, &NORMALIZATION, &NOMENCLATURE]);
+    composition(&[], &[&SANGER, &CORE, &NORMALIZATION, &NOMENCLATURE]);
 
 const _: () = validate_registry(REGISTRY);
 
@@ -170,9 +199,10 @@ const fn validate_registry(registry: &[&PluginDescriptor]) {
 }
 
 /// Returns a workflow composition after checking at compile time that its
-/// plugins are registered and that each plugin's required contracts are
-/// provided by a plugin running before it.
+/// plugins are registered and that each plugin's required contracts are read
+/// from the workflow's input documents or provided by a plugin running before it.
 const fn composition(
+    inputs: &[Contract],
     plugins: &'static [&'static PluginDescriptor],
 ) -> &'static [&'static PluginDescriptor] {
     let mut index = 0;
@@ -183,13 +213,29 @@ const fn composition(
             "a composition may use only registered plugins"
         );
         let (earlier, _) = plugins.split_at(index);
-        assert!(
-            provided_by(plugin.requires, earlier),
-            "a plugin's required contracts must be provided before it runs"
-        );
+        let mut required = 0;
+        while required < plugin.requires.len() {
+            let contract = plugin.requires[required];
+            assert!(
+                listed(inputs, contract) || provided_by(&[contract], earlier),
+                "a plugin's required contracts must be provided before it runs"
+            );
+            required += 1;
+        }
         index += 1;
     }
     plugins
+}
+
+const fn listed(contracts: &[Contract], contract: Contract) -> bool {
+    let mut index = 0;
+    while index < contracts.len() {
+        if contracts[index] as u8 == contract as u8 {
+            return true;
+        }
+        index += 1;
+    }
+    false
 }
 
 const fn registered(id: &str) -> bool {

@@ -41,6 +41,39 @@ pub struct Profile {
     pub(crate) windows: Vec<NomenclatureWindow>,
     /// The sample notation chain, when the profile declares one.
     pub(crate) notation: Option<Notation>,
+    /// Notation conventions checked on represented calls, when declared.
+    pub(crate) conformance: Option<Conformance>,
+}
+
+/// Notation conventions that represented calls are checked against; findings
+/// are reported, never applied.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Conformance {
+    /// Rules in reporting order.
+    pub(crate) rules: Vec<ConformanceRule>,
+    /// Shortest run of one reference base that counts as a homopolymer.
+    pub(crate) minimum_run_length: usize,
+}
+
+/// One notation convention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ConformanceRule {
+    /// An insertion that lengthens a homopolymer is placed after its 3' base.
+    InsertionAtRunEnd,
+    /// A base inserted inside a homopolymer is the homopolymer's base; any
+    /// other difference there is written as a substitution.
+    InsertionMatchesRun,
+}
+
+impl ConformanceRule {
+    /// Stable machine-readable label recorded in results.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::InsertionAtRunEnd => "insertion_at_run_end",
+            Self::InsertionMatchesRun => "insertion_matches_run",
+        }
+    }
 }
 
 /// How each read's calls are represented and rendered for sample notation.

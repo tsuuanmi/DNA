@@ -20,3 +20,5 @@ pub(crate) const MAX_ALIGNMENT_CELLS: usize = 100_000_000;
 pub(crate) const MAX_SEQUENCE_BYTES: usize = 1024 * 1024;
 /// Largest number of consensus-sequence records in one call.
 pub(crate) const MAX_SEQUENCE_RECORDS: usize = 64;
+/// Largest accepted variants document.
+pub(crate) const MAX_VARIANTS_BYTES: usize = 16 * 1024 * 1024;

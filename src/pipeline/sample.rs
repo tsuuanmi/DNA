@@ -13,7 +13,7 @@ use crate::plugin;
 use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
 use crate::sample as sample_science;
 
-use super::{Operation, sample_metrics, sample_notation, sample_reads};
+use super::{Operation, represent, sample_metrics, sample_reads};
 
 /// Runs one sample-evidence operation with one sample-level append-only log.
 pub(crate) fn run(
@@ -117,7 +117,7 @@ fn sample(
 
     drop(stage);
     let stage = tracing::info_span!("nomenclature").entered();
-    let notation = sample_notation::represent(&reads, &inputs.reference, &inputs.profile)?;
+    let notation = represent::represent(&reads, &inputs.reference, &inputs.profile)?;
 
     drop(stage);
     let stage = tracing::info_span!("reporting").entered();

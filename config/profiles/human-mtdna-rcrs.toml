@@ -49,3 +49,12 @@ canonical_haplotype = [
   { position = 16184, base = "A" },
   { position = 16189, base = "C" },
 ]
+
+# Notation conventions the `notation` command checks represented calls against;
+# findings are reported, never applied. Following EMPOP/ISFG practice in the
+# control-region C stretches, a homopolymer length variant is written as an
+# insertion of the run's base after its 3' base, and another base inside a run
+# as a substitution.
+[conformance]
+rules = ["insertion_at_run_end", "insertion_matches_run"]
+minimum_run_length = 4

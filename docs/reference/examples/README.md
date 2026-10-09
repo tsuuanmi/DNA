@@ -6,5 +6,6 @@ This directory contains synthetic, non-identifying examples for the current publ
 - [basecalls-v3.example.json](basecalls-v3.example.json)
 - [sample-evidence-v10.example.json](sample-evidence-v10.example.json)
 - [variants-v1.example.json](variants-v1.example.json)
+- [notation-v1.example.json](notation-v1.example.json)
 
 Examples illustrate valid shape; they do not override schemas or human-readable contract semantics.

@@ -182,3 +182,15 @@ example the first base of a region). Sanger reads never vouch for their ends,
 so their results are unchanged. Sanger observation and `dna call` share one
 modality-neutral path, `variant_analysis::read_call`, which places the evidence
 and calls its variants.
+
+## Revision 2026-10-09 (phase 4)
+
+- `dna notation` runs the post-calling plugins alone over one
+  `dna.variants/v1` document and writes `dna.notation/v1`. A workflow
+  composition may now start from a contract read from its input document, and
+  the compile-time check accepts it.
+- A third post-calling plugin, `conformance`, checks represented calls against
+  notation conventions that the target profile declares, such as EMPOP/ISFG
+  homopolymer placement. It reports findings and never rewrites a call. DNA
+  therefore checks conformance without imposing it, as decided for the plugin
+  families.

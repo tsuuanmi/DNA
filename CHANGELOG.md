@@ -10,6 +10,22 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Post-calling notation of a variants document (ADR-0069 phase 4, PROP-0002,
+  SRS-IN-014, SRS-OUT-011, SRS-NOM-016, SRS-PRF-008). The command is
+  `dna notation <sample-id> <variants.json> --reference <reference.fasta>`.
+  - It reads a `dna.variants/v1` document and runs normalization and
+    nomenclature over each read's eligible variants.
+  - It writes `results/<sample-id>.notation.json` (`dna.notation/v1`): the
+    per-read notation (equal to the in-process notation), the source
+    document's identity, and the findings of the new `conformance` plugin.
+  - That plugin reports represented calls that break notation conventions
+    declared in a new profile `[conformance]` section
+    (`insertion_at_run_end`, `insertion_matches_run`); it never changes a
+    call.
+  - The shipped human-mtDNA profile declares both rules, so its file SHA-256
+    recorded in result provenance changes.
+  - **Rust API:** `Error` gains `Variants(VariantsError)` and
+    `VariantsParse`.
 - Core-only calls from reviewed consensus sequences (ADR-0069 phase 3,
   PROP-0002, SRS-IN-013, SRS-OUT-010, SRS-VAR-015). The command is
   `dna call <sample-id> <sequences.fasta>... --reference <reference.fasta>`.

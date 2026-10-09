@@ -10,6 +10,7 @@ use crate::reference;
 
 pub(crate) mod sanger;
 pub(crate) mod sequence;
+pub(crate) mod variants;
 
 fn load_config(path: &Path) -> Result<Config> {
     let config = config::load_path(path)?;

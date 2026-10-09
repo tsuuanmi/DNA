@@ -284,6 +284,7 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Abif` | `AbifError` | `invalid ABIF input:` |
 | `Fasta` | `FastaError` | `invalid reference FASTA:` |
 | `Sequence` | `SequenceError` | `invalid sequence FASTA:` |
+| `Variants` | `VariantsError` | `invalid variants document:` |
 | `Basecalling` | `BasecallingError` | `base re-calling failed:` |
 | `Signal` | `SignalError` | `signal processing failed:` |
 | `Callability` | `CallabilityError` | `read callability failed:` |
@@ -309,7 +310,7 @@ anchoring failures.
 
 `Path` reports a rejected path with a static reason. `Read`, `Log`, and
 `Output` keep the `std::io::Error` as their `source`. Third-party parser and serializer
-failures (`ConfigParse`, `ProfileParse`, `Serialize`) are erased to `ForeignError`, so
+failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `Serialize`) are erased to `ForeignError`, so
 dependency types never appear in the public API. Stage failures render inline,
 `"<prefix> <failure>"`, and are reached by matching rather than through
 `std::error::Error::source`.

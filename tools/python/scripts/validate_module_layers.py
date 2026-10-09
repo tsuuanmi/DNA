@@ -44,6 +44,7 @@ LAYERS: dict[str, int] = {
     "variant_representation": 2,
     "variant_normalization": 2,
     "variant_nomenclature": 2,
+    "conformance": 2,
     "input": 3,
     "variant_analysis": 3,
     "report": 4,
@@ -64,6 +65,7 @@ NEUTRAL: frozenset[str] = frozenset(
         "variant_representation",
         "variant_normalization",
         "variant_nomenclature",
+        "conformance",
     }
 )
 # Modules that implement the Sanger modality.

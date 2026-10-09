@@ -80,7 +80,7 @@ criterion.
 | 2 | Static plugin registry: identity, family, method version, provided and required contracts, owned configuration sections. Per-plugin configuration sections. Plugin identities in provenance. | Outputs identical apart from provenance; registry validation rejects missing requirements and shared or unknown sections. |
 | 2b | Sample attachments: core sample records hold neutral facts, and Sanger per-call and per-read extras move to an attachment that the report joins. | Byte-identical sample documents; `sample` imports no Sanger type. |
 | 3 | A sequence adapter (consensus FASTA/FASTQ → `ReadEvidence`) and a core-only `dna call` command. | Reviewer consensus sequences give haplotype-identical calls after normalization and nomenclature. |
-| 4 | `dna.variants/v1` JSON, emitted by the core and consumed by `dna normalize` and `dna nomenclature`. A conformance plugin (EMPOP-style notation rules). | JSON round trip gives the same result as in-process composition. |
+| 4 | `dna.variants/v1` JSON, emitted by the core and consumed by `dna notation` (normalization and nomenclature). A conformance plugin that reports EMPOP-style notation findings. | JSON round trip gives the same result as in-process composition. |
 | 5 | Workspace split (kernel, core, Sanger, post-calling, CLI crates), with a new ADR superseding ADR-0002. | Each crate builds and tests without the crates it does not depend on. |
 
 Phase 1 is implemented as follows.
@@ -178,3 +178,11 @@ Accepted on 2026-10-09 and recorded by
     reconstructed haplotypes are identical, so this is a nomenclature
     difference for the phase-4 conformance plugin.
   - Sanger results stay byte-identical.
+- Phase 4: `dna notation` over `dna.variants/v1`, with `dna.notation/v1`, the
+  `conformance` post-calling plugin, profile `[conformance]` rules, and
+  compositions that start from an input contract. Measured outside the
+  repository (aggregates only) on the same 160 held-out samples:
+  - the notation derived from each variants document equals the in-process
+    notation in all 160 samples;
+  - the checker reports exactly the 2 samples whose HVS-II notation differs
+    from the reviewers', and nothing in the other 158.

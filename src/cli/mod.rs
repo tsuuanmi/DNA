@@ -4,6 +4,8 @@
 //! one user-supplied sample identifier plus one or more AB1 paths and derives one
 //! sample-evidence result. The call command accepts one sample identifier plus
 //! one or more consensus-sequence FASTA files and runs the core caller alone.
+//! The notation command accepts one sample identifier plus that sample's
+//! variants document and derives its notation with the post-calling plugins.
 //! Configuration is selected by `DNA_CONFIG`.
 
 use std::path::PathBuf;
@@ -35,6 +37,8 @@ pub enum Command {
     Sample(SampleArgs),
     /// Call variants from reviewed consensus sequences with the core alone.
     Call(CallArgs),
+    /// Derive notation and conformance findings from a variants document.
+    Notation(NotationArgs),
 }
 
 /// Arguments for the end-to-end reference analysis pipeline.
@@ -81,6 +85,20 @@ pub struct CallArgs {
     pub sequences: Vec<PathBuf>,
 
     /// Single-contig reference FASTA shared by every sequence.
+    #[arg(long)]
+    pub reference: PathBuf,
+}
+
+/// Arguments for post-calling notation of a variants document.
+#[derive(Debug, Args)]
+pub struct NotationArgs {
+    /// Sample identifier; it must match the document's.
+    pub sample_id: String,
+
+    /// The sample's `dna.variants/v1` document.
+    pub variants: PathBuf,
+
+    /// Single-contig reference FASTA the variants were called against.
     #[arg(long)]
     pub reference: PathBuf,
 }

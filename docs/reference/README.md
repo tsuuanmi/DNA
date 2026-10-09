@@ -10,6 +10,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Analysis result](analysis/README.md): `dna.analysis/v9`.
 - [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v10`.
 - [Variants result](variants.md): `dna.variants/v1`.
+- [Notation result](notation.md): `dna.notation/v1`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
 
@@ -20,6 +21,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Basecall JSON Schema](schemas/basecalls-v3.schema.json)
 - [Sample evidence JSON Schema](schemas/sample-evidence-v10.schema.json)
 - [Variants JSON Schema](schemas/variants-v1.schema.json)
+- [Notation JSON Schema](schemas/notation-v1.schema.json)
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.

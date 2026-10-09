@@ -49,6 +49,7 @@
 | `variant_representation` | 2 | haplotype-preserving edit conversion, application, rendering | policy choices |
 | `variant_normalization` | 2 | optional sequence-equivalent normalization policies | nomenclature windows |
 | `variant_nomenclature` | 2 | profile-driven window representation engine | target knowledge, notation rendering |
+| `conformance` | 2 | reporting represented calls that break the profile's notation conventions | rewriting calls, target knowledge |
 | `report` | 4 | contract projection, serialization, atomic publish | scientific decisions |
 | `pipeline` | 4 | CLI/sample orchestration, path/log/publication lifecycle | scientific implementation ownership |
 
@@ -64,7 +65,7 @@ modality plugins (Sanger: `input::sanger`, `read_processing`, `basecalling`,
 sequences: `input::sequence`), the core caller
 (`read_evidence`, `alignment`, `variant_calling`, `sample`), and post-calling
 plugins (`variant_representation`, `variant_normalization`,
-`variant_nomenclature`). The same validator rejects any dependency from a
+`variant_nomenclature`, `conformance`). The same validator rejects any dependency from a
 modality-neutral module (`plugin`, `read_evidence`, `variant`, `alignment`,
 `variant_calling`, `sample`, and the post-calling modules) or neutral `model`
 child on a Sanger module or a Sanger child of `model`. `sample` aggregates

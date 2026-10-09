@@ -3,10 +3,11 @@
 mod analyze;
 mod basecall;
 mod call;
+mod notation;
 mod path;
+mod represent;
 mod sample;
 mod sample_metrics;
-mod sample_notation;
 mod sample_reads;
 
 use std::path::{Path, PathBuf};
@@ -33,6 +34,16 @@ pub(crate) fn call(
     config_path: &Path,
 ) -> Result<()> {
     call::run(sample_id, sequences, reference, config_path)
+}
+
+/// Derives the notation of one sample's variants document.
+pub(crate) fn notation(
+    sample_id: &str,
+    document: &Path,
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    notation::run(sample_id, document, reference, config_path)
 }
 
 /// Runs one multi-read sample evidence operation.

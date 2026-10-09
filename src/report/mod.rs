@@ -15,5 +15,7 @@ pub(crate) use atomic::publish;
 pub(crate) use basecall::{CompletedBasecall, build as build_basecall};
 pub(crate) use call::{CompletedCall, build as build_call};
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
-pub(crate) use notation::{ReadRepresentation, SampleNotation};
+pub(crate) use notation::{
+    CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,
+};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

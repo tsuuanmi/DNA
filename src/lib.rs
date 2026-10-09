@@ -12,6 +12,7 @@ mod callability;
 mod checksum;
 pub mod cli;
 mod config;
+mod conformance;
 pub mod error;
 mod input;
 mod locus;
@@ -63,6 +64,12 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Call(args) => pipeline::call(
             &args.sample_id,
             &args.sequences,
+            &args.reference,
+            &config_path,
+        ),
+        Command::Notation(args) => pipeline::notation(
+            &args.sample_id,
+            &args.variants,
             &args.reference,
             &config_path,
         ),

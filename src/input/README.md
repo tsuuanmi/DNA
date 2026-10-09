@@ -17,6 +17,10 @@ for bases, shared-weight profiles for IUPAC codes, no masks or vetoes, and
 vouched read ends. The configuration, profile, and reference loaders in
 `mod.rs` are shared by both adapters.
 
+[`variants.rs`](variants.rs) reads a `dna.variants/v1` document for the
+post-calling plugins: the sample, the reference identity, and each read's
+eligible variants, under the same configuration, profile, and reference rules.
+
 No generic input-adapter trait exists yet. A shared trait should be introduced
 only when another modality such as NGS creates a real substitutability need.
 

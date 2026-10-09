@@ -5,7 +5,9 @@ use std::collections::BTreeSet;
 use serde::Deserialize;
 
 use super::window::{Anchor, NomenclatureWindow, WindowRule};
-use super::{IndelPlacement, Notation, NotationStyle, Profile, ProfileIdentity};
+use super::{
+    Conformance, ConformanceRule, IndelPlacement, Notation, NotationStyle, Profile, ProfileIdentity,
+};
 use crate::config::MAX_REFERENCE_LENGTH;
 use crate::error::{ProfileError, Result};
 use crate::model::nucleotide::{Nucleotide, is_canonical};
@@ -26,6 +28,14 @@ pub(super) struct RawProfile {
     normalization: Option<RawNormalization>,
     nomenclature: Option<RawNomenclature>,
     notation: Option<RawNotation>,
+    conformance: Option<RawConformance>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawConformance {
+    rules: Vec<ConformanceRule>,
+    minimum_run_length: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -158,6 +168,36 @@ impl RawProfile {
                 .into());
             }
         };
+        let conformance = match self.conformance {
+            None => None,
+            Some(_) if notation.is_none() => {
+                return Err(ProfileError::Constraint(
+                    "conformance requires the notation it checks",
+                )
+                .into());
+            }
+            Some(raw) => {
+                let mut sorted = raw.rules.clone();
+                sorted.sort_unstable();
+                sorted.dedup();
+                if raw.rules.is_empty() || sorted.len() != raw.rules.len() {
+                    return Err(ProfileError::Constraint(
+                        "conformance.rules must name at least one rule, each once",
+                    )
+                    .into());
+                }
+                if raw.minimum_run_length < 2 {
+                    return Err(ProfileError::Constraint(
+                        "conformance.minimum_run_length must be at least 2",
+                    )
+                    .into());
+                }
+                Some(Conformance {
+                    rules: raw.rules,
+                    minimum_run_length: raw.minimum_run_length,
+                })
+            }
+        };
         let windows = match self.nomenclature {
             Some(nomenclature) if nomenclature.windows.is_empty() => {
                 return Err(ProfileError::Constraint(
@@ -178,6 +218,7 @@ impl RawProfile {
             regions: self.variant_calling.regions,
             windows,
             notation,
+            conformance,
         })
     }
 }
@@ -525,6 +566,42 @@ rules = ["motif_shift"]
         let profile = validated(minimal)??;
         assert_eq!(profile.notation, None);
         assert!(profile.windows.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn validates_conformance_rules() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let declared = format!(
+            "{VALID}[conformance]\nrules = [\"insertion_matches_run\", \"insertion_at_run_end\"]\nminimum_run_length = 4\n"
+        );
+        assert_eq!(
+            validated(&declared)??.conformance,
+            Some(Conformance {
+                rules: vec![
+                    ConformanceRule::InsertionMatchesRun,
+                    ConformanceRule::InsertionAtRunEnd,
+                ],
+                minimum_run_length: 4,
+            })
+        );
+        assert_eq!(validated(VALID)??.conformance, None);
+        for invalid in [
+            declared.replace("\"insertion_matches_run\", \"insertion_at_run_end\"", ""),
+            declared.replace("\"insertion_at_run_end\"", "\"insertion_matches_run\""),
+            declared.replace("minimum_run_length = 4", "minimum_run_length = 1"),
+            declared
+                .replace("[normalization]\nindel_placement = \"right\"\n", "")
+                .replace("[notation]\nstyle = \"per_base_decimal\"\n", ""),
+        ] {
+            assert!(
+                matches!(
+                    validated(&invalid)?,
+                    Err(Error::Profile(ProfileError::Constraint(_)))
+                ),
+                "unexpectedly accepted {invalid}"
+            );
+        }
+        assert!(parse(&declared.replace("insertion_at_run_end", "anything")).is_err());
         Ok(())
     }
 

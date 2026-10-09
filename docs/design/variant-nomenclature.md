@@ -113,7 +113,7 @@ The `sample` command composes this per read when the profile declares notation
 indel placement by `variant_normalization` and then passed through the profile
 windows, so that, for example, the HV2F and HV3R descriptions of one poly-C
 haplotype converge before they are compared. Composition lives in
-`pipeline::sample_notation`, following ADR-0060 §7. An edit that straddles a
+`pipeline::represent`, following ADR-0060 §7. An edit that straddles a
 window keeps its normalized form, because SRS-NOM-007 forbids partially
 rewriting it.
 
@@ -128,6 +128,35 @@ published notation reaches precision 0.885 / recall 0.979 and matches 21
 samples exactly, against 0.73 / 0.86 and no exact matches for raw
 alignment-placed calls. Most remaining disagreements are HV2F poly-C phase
 artifacts and HVS-I 16189/16193 forms, both still non-goals below.
+
+## Notation command and conformance
+
+`notation` runs the same per-read composition over the eligible variants of a
+`dna.variants/v1` document, so a variants document carried to another process
+gets the notation that `call` derives in-process (ADR-0069 phase 4).
+
+When the profile declares `conformance`, the `conformance` module then checks
+each read's represented variants against the declared conventions
+(SRS-NOM-016). It reads homopolymer runs of at least `minimum_run_length` bases
+from the reference sequence and reports findings without changing a call:
+
+- `insertion_at_run_end`: an insertion of one repeated base that touches a run
+  of that base must follow the run's 3' base;
+- `insertion_matches_run`: bases inserted between two bases of a run must be
+  the run's base.
+
+The shipped human-mtDNA profile declares both rules with runs of four or more
+bases. They follow how EMPOP/ISFG practice writes length variation in the
+control-region C stretches. In the HVS-II window, the run-length
+representation can write a G inside the right C run as `313.1G`, while
+reviewers write `314G 315.1C`. Both reconstruct the same haplotype, and the
+finding names that difference.
+
+Measured outside the repository (ADR-0065) on 160 held-out samples with
+reviewer consensus sequences:
+- `notation` reproduced the in-process notation for every sample;
+- the checker reported exactly the two samples whose notation differs from
+  the reviewers' in this way, and nothing else.
 
 ## Scientific basis
 

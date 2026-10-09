@@ -1,4 +1,5 @@
-//! Per-read profile representation for the sample notation view.
+//! Per-read profile representation for the notation view of sample, call,
+//! and notation documents.
 //!
 //! ADR-0060 composes representation per read before sample reconciliation:
 //! each read's eligible calls are normalized and then given the profile's
@@ -8,17 +9,35 @@
 use crate::error::{Error, NomenclatureError, Result};
 use crate::model::called_read::CalledRead;
 use crate::model::reference::Reference;
-use crate::model::variant::Variant as CalledVariant;
 use crate::profile::{Notation, Profile};
 use crate::report::{ReadRepresentation, SampleNotation};
 use crate::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 use crate::variant_nomenclature::{self, from_normalization};
 use crate::variant_normalization::{NormalizationPolicy, normalize_with};
 
-/// Represents every read's eligible calls, or `None` when the profile declares
-/// no notation. The reference has already been checked against the profile.
+/// Represents every called read's eligible calls, or `None` when the profile
+/// declares no notation. The reference has already been checked against the
+/// profile.
 pub(crate) fn represent(
     reads: &[CalledRead],
+    reference: &Reference,
+    profile: &Profile,
+) -> Result<Option<SampleNotation>> {
+    represent_variants(
+        reads.iter().map(|read| {
+            (
+                read.input_sha256.clone(),
+                read.variants.reported.iter().map(Variant::from).collect(),
+            )
+        }),
+        reference,
+        profile,
+    )
+}
+
+/// Represents each read's eligible variants, given with its content identity.
+pub(crate) fn represent_variants(
+    reads: impl IntoIterator<Item = (String, Vec<Variant>)>,
     reference: &Reference,
     profile: &Profile,
 ) -> Result<Option<SampleNotation>> {
@@ -31,11 +50,11 @@ pub(crate) fn represent(
     };
     let policy = NormalizationPolicy::for_placement(indel_placement);
     let reads = reads
-        .iter()
-        .map(|read| {
+        .into_iter()
+        .map(|(input_sha256, variants)| {
             Ok(ReadRepresentation {
-                input_sha256: read.input_sha256.clone(),
-                variants: represent_read(reference, profile, policy, &read.variants.reported)?,
+                input_sha256,
+                variants: represent_read(reference, profile, policy, variants)?,
             })
         })
         .collect::<Result<_>>()?;
@@ -49,14 +68,14 @@ fn represent_read(
     reference: &Reference,
     profile: &Profile,
     policy: NormalizationPolicy,
-    reported: &[CalledVariant],
+    variants: Vec<Variant>,
 ) -> Result<Vec<Variant>> {
     let called = CalledVariantSet {
         reference: ReferenceIdentity {
             name: reference.name.clone(),
             sha256: reference.sequence_sha256.clone(),
         },
-        variants: reported.iter().map(Variant::from).collect(),
+        variants,
     };
     let normalized = normalize_with(reference, &called, policy)?;
     match variant_nomenclature::apply_with(reference, profile, from_normalization(&normalized)) {
@@ -127,7 +146,7 @@ mod tests {
             &reference,
             &human_mtdna()?,
             NormalizationPolicy::RightAligned,
-            &[called(303, "C", "CC", VariantKind::Ins)],
+            vec![Variant::from(&called(303, "C", "CC", VariantKind::Ins))],
         )?;
         assert_eq!(represented, [public(309, "C", "CC")]);
         Ok(())
@@ -160,7 +179,7 @@ mod tests {
             &reference,
             &profile,
             NormalizationPolicy::RightAligned,
-            &[called(301, "AAC", "A", VariantKind::Del)],
+            vec![Variant::from(&called(301, "AAC", "A", VariantKind::Del))],
         )?;
         assert_eq!(represented, [crossing]);
         Ok(())

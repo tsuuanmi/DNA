@@ -22,9 +22,13 @@ SHA-256 of the file bytes in `provenance.profile`.
 | `normalization` | `indel_placement` | with `notation` | `right` (3'/right-most, never across the FASTA seam) |
 | `notation` | `style` | with `normalization` | `per_base_decimal` (`73G`, `249DEL`, `309.1C`) |
 | `nomenclature` | `windows` | no | non-empty array of tables, in reference order without overlap |
+| `conformance` | `rules` | with `notation` | non-empty, without repetition: `insertion_at_run_end`, `insertion_matches_run` ([notation result](notation.md#rules)) |
+| | `minimum_run_length` | with `rules` | at least `2`: the shortest reference homopolymer the rules apply to |
 
-`normalization` and `notation` form the `sample` notation chain and are declared
-together or not at all. Nomenclature windows are used by that chain and by the
+`normalization` and `notation` form the notation chain of `sample`, `call`, and
+`notation`, and are declared together or not at all. `conformance` declares the
+notation conventions that `notation` checks and reports; it never changes a
+call. Nomenclature windows are used by that chain and by the
 `variant_nomenclature::apply` API.
 
 Each `[[nomenclature.windows]]` table:

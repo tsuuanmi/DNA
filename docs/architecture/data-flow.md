@@ -53,6 +53,14 @@ FASTA ---------------------------------> variant_analysis::read_call
                                          CalledRead --> called variants
 ```
 
+A variants document reaches the post-calling plugins in another process:
+
+```text
+variants document --> input::variants --> normalization --> nomenclature
+                                                                 |
+                                                   conformance --+--> notation document
+```
+
 `variant_analysis::observation` owns the authoritative reference-guided
 single-read scientific path. The public Rust Variant Analysis capability, CLI
 analysis, and sample processing reuse that path rather than owning duplicate

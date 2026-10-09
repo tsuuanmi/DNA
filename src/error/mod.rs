@@ -25,6 +25,7 @@ mod sample;
 mod sequence;
 mod signal;
 mod variant;
+mod variants;
 
 use std::path::PathBuf;
 
@@ -45,6 +46,7 @@ pub use sample::SampleError;
 pub use sequence::SequenceError;
 pub use signal::SignalError;
 pub use variant::VariantError;
+pub use variants::VariantsError;
 
 /// Result type returned by DNA operations.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -113,6 +115,18 @@ pub enum Error {
     /// A consensus-sequence FASTA is invalid.
     #[error("invalid sequence FASTA: {0}")]
     Sequence(SequenceError),
+    /// Variants-document bytes were not valid JSON of the expected shape.
+    #[error("invalid variants document {path}: {source}")]
+    VariantsParse {
+        /// The variants document.
+        path: PathBuf,
+        /// Underlying JSON parse failure.
+        #[source]
+        source: ForeignError,
+    },
+    /// A variants document cannot be used for the requested operation.
+    #[error("invalid variants document: {0}")]
+    Variants(VariantsError),
     /// DNA-derived base re-calling failed.
     #[error("base re-calling failed: {0}")]
     Basecalling(BasecallingError),
@@ -196,6 +210,7 @@ stage_failures!(
     Abif(AbifError),
     Fasta(FastaError),
     Sequence(SequenceError),
+    Variants(VariantsError),
     Basecalling(BasecallingError),
     Signal(SignalError),
     Callability(CallabilityError),

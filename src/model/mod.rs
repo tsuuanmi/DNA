@@ -7,6 +7,7 @@ pub(crate) mod callability;
 pub(crate) mod called_read;
 pub(crate) mod coordinate;
 pub(crate) mod locus_evidence;
+pub(crate) mod notation_result;
 pub(crate) mod nucleotide;
 pub(crate) mod quality;
 pub(crate) mod read_observation;

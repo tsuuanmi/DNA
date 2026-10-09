@@ -30,10 +30,11 @@ API documentation lives in rustdoc and source comments.
 - `variant.rs` — public canonical called-variant contracts (`dna::variant`).
 - [variant_analysis](variant_analysis/README.md) — public typed raw-to-variant capability.
 - [variant_nomenclature](variant_nomenclature/README.md) — optional profile-driven target nomenclature.
+- `conformance.rs` — reports represented calls that break the profile's notation conventions.
 - [variant_normalization](variant_normalization/README.md) — optional haplotype-preserving representation normalization.
 
 File-only modules such as `checksum.rs`, `locus.rs`, `operation_log.rs`,
-`plugin.rs`, `read_evidence.rs`, and `variant.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
+`conformance.rs`, `plugin.rs`, `read_evidence.rs`, and `variant.rs` use rustdoc/source comments. Do not create directories solely to attach README files.
 
 ## Dependency rule
 
