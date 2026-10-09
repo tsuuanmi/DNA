@@ -1,5 +1,5 @@
 {
-  "schema_version": "dna.sample_evidence/v9",
+  "schema_version": "dna.sample_evidence/v10",
   "sample_id": "sample-001",
   "provenance": {
     "reference": {
@@ -26,6 +26,23 @@
         "maximum_ploc_spacing": 4,
         "clipped_channel_samples": 0,
         "maximum_to_median_event_signal_ratio": 1
+      },
+      "callability": {
+        "callable_span": {
+          "start": 0,
+          "end": 28
+        },
+        "segments": [
+          {
+            "calls": {
+              "start": 0,
+              "end": 28
+            },
+            "state": "in_phase",
+            "after_repeat": false
+          }
+        ],
+        "masked_calls": 0
       },
       "alignment": {
         "orientation": "forward",
@@ -54,6 +71,23 @@
         "maximum_ploc_spacing": 4,
         "clipped_channel_samples": 0,
         "maximum_to_median_event_signal_ratio": 1
+      },
+      "callability": {
+        "callable_span": {
+          "start": 0,
+          "end": 28
+        },
+        "segments": [
+          {
+            "calls": {
+              "start": 0,
+              "end": 28
+            },
+            "state": "in_phase",
+            "after_repeat": false
+          }
+        ],
+        "masked_calls": 0
       },
       "alignment": {
         "orientation": "reverse",

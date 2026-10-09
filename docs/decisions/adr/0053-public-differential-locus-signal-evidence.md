@@ -99,3 +99,9 @@ keep the Tracy research phase open.
 This ADR does not define a consensus base, sample-level variant verdict,
 heteroplasmy interpretation, quality weighting, artifact classifier, phase-shift
 detector, assay metadata contract, or additional read-admission rule.
+
+## Follow-up (2026-10-09)
+
+[ADR-0067](0067-signal-derived-read-callability.md) promotes phase-shift
+detection to a read-callability state published as observation; recovery
+modelling, contribution weighting, and consensus remain outside this record.

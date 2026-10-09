@@ -3,6 +3,7 @@
 use serde::Serialize;
 
 use crate::model::alignment::{Orientation, ReferenceSegment};
+use crate::model::callability::ReadCallability;
 use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::signal::SangerIntegrity;
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
@@ -90,6 +91,7 @@ pub(crate) struct SampleReadEvidence {
     pub(crate) input_name: String,
     pub(crate) input_sha256: String,
     pub(crate) integrity: SangerIntegrity,
+    pub(crate) callability: ReadCallability,
     pub(crate) alignment: SampleReadAlignmentEvidence,
 }
 

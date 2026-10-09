@@ -166,6 +166,7 @@ fn push_segment(
 mod tests {
     use crate::error::{Error, SampleError};
     use crate::model::alignment::{Orientation, ReferenceSegment};
+    use crate::model::callability::ReadCallability;
     use crate::model::sample_evidence::{SampleReadAlignmentEvidence, SampleReadEvidence};
     use crate::model::signal::SangerIntegrity;
 
@@ -185,6 +186,7 @@ mod tests {
                 clipped_channel_samples: 0,
                 maximum_to_median_event_signal_ratio: Some(1.0),
             },
+            callability: ReadCallability::in_phase(20),
             alignment: SampleReadAlignmentEvidence {
                 orientation,
                 callable_bases: 20,

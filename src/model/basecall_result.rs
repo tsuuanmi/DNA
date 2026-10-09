@@ -1,8 +1,8 @@
-//! Serializable `dna.basecalls/v2` reference-free result contract.
+//! Serializable `dna.basecalls/v3` reference-free result contract.
 
 use serde::Serialize;
 
-use crate::model::result::{InputResult, IntervalResult, SignalQualityResult};
+use crate::model::result::{CallabilityResult, InputResult, IntervalResult, SignalQualityResult};
 
 /// Successful reference-free basecall document.
 #[derive(Debug, Serialize)]
@@ -21,7 +21,7 @@ pub(crate) struct BasecallProvenanceResult {
     pub(crate) configuration_sha256: String,
 }
 
-/// Called sequences and the retained primary interval.
+/// Called sequences, the retained primary interval, and callability.
 #[derive(Debug, Serialize)]
 pub(crate) struct BasecallReadResult {
     pub(crate) call_count: usize,
@@ -29,6 +29,7 @@ pub(crate) struct BasecallReadResult {
     pub(crate) ambiguity: String,
     pub(crate) retained: String,
     pub(crate) trim: IntervalResult,
+    pub(crate) callability: CallabilityResult,
 }
 
 /// Public non-fatal basecall counts.

@@ -67,6 +67,7 @@ fn sanger_analysis_reports_sequential_stage_spans_to_the_callers_subscriber_with
         [
             ("basecalling", None),
             ("signal_processing", None),
+            ("callability", None),
             ("quality_control", None),
             ("alignment", None),
             ("variant_calling", None),

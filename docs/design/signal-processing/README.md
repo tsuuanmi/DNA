@@ -6,7 +6,7 @@ This is the canonical entry point for production signal-processing methods.
 
 DNA reads the analyzed ABIF `DATA.9`–`DATA.12` arrays in canonical A/C/G/T order. These are instrument-analyzed fluorescence channels, not raw detector channels. The current ABIF boundary does not retain a spectral matrix, mobility model, or raw-channel baseline metadata.
 
-The signal-processing stage is deliberately observational. It retains `dna.windowed_snr/v1` noisy-window behavior, derives internal basecall-independent `LocusEvidence` / `EvidenceProfile`, and derives concise whole-read Sanger integrity evidence. Public JSON emits Sanger-integrity observations plus merged candidate-noisy regions; signal processing itself does not smooth channels, re-call bases, trim internal sequence, mutate an alignment, classify dye blobs, or remove a variant. Reference alignment may consume the immutable evidence profile under ADR-0029.
+The signal-processing stage is deliberately observational. It retains `dna.windowed_snr/v1` noisy-window behavior, derives internal basecall-independent `LocusEvidence` / `EvidenceProfile`, and derives concise whole-read Sanger integrity evidence. Public JSON emits Sanger-integrity observations plus merged candidate-noisy regions; signal processing itself does not smooth channels, re-call bases, trim internal sequence, mutate an alignment, classify dye blobs, or remove a variant. Reference alignment may consume the immutable evidence profile under ADR-0029, and [read callability](../callability.md) consumes the corrected locus amplitudes read-only under ADR-0067.
 
 ## Coordinate domains
 
@@ -33,8 +33,6 @@ variant-eligibility authority in v1.
 
 Phred demonstrates that trace features require empirical calibration before becoming error probabilities: [Ewing et al. 1998](https://doi.org/10.1101/gr.8.3.175) and [Ewing & Green 1998](https://doi.org/10.1101/gr.8.3.186).
 
-## Deferred cleaning
+## Signal conditioning is research
 
-No disabled transform or alternate legacy branch is included. A later behavior-changing method must preserve the decoded trace and produce a separate processed projection. Candidate methods include peak-preserving Savitzky–Golay smoothing ([Savitzky and Golay 1964](https://doi.org/10.1021/ac60214a047)), asymmetric baseline correction ([Eilers 2003](https://doi.org/10.1021/ac034173t); [airPLS](https://doi.org/10.1039/b922045c)), and wavelet soft-thresholding ([Donoho 1995](https://doi.org/10.1109/18.382009)).
-
-Before any transform or noisy-region filter affects calls, validation must use approved truth-labeled traces and synthetic major/secondary peaks, baseline drift, impulses, compressed peaks, homopolymers, and read ends. It must measure secondary-peak retention and both false-positive and false-negative variants.
+No disabled transform or alternate legacy branch is included. Smoothing and baseline correction of the analyzed channels are investigated under [research: denoising](../../research/denoising/README.md); a later behavior-changing method must preserve the decoded trace, produce a separate processed projection, and pass the validation protocol recorded there before it can affect calls.

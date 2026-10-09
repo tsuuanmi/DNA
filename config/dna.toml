@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 6
+schema_version = 7
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -15,9 +15,21 @@ minimum_primary_snr = 3.0
 # At least two candidate windows are required for a noisy interval.
 minimum_noisy_windows = 2
 
+[callability]
+# Signal-derived read callability (ADR-0067): rolling window of calls, the
+# defect fractions that open and close a masked stretch, and the shift-offset
+# coherence that separates dephased (slippage) signal from mixed signal, and
+# the fraction of the read's median primary amplitude below which a position
+# is weak. Observation-only until the mask is allowed to act.
+window_calls = 16
+onset_defect_fraction = 0.375
+exit_defect_fraction = 0.125
+shift_coherence = 0.75
+weak_amplitude_fraction = 0.1
+
 [quality_control]
 # Relative, uncalibrated quality and end-trimming settings.
-trim_window_size = 10
+penalty_window_size = 10
 best_section_fraction = 0.10
 max_relative_quality_score = 60
 trim_stringency = 7.0

@@ -29,6 +29,7 @@ LAYERS: dict[str, int] = {
     "profile": 1,
     "basecalling": 2,
     "signal_processing": 2,
+    "callability": 2,
     "quality_control": 2,
     "read_processing": 2,
     "alignment": 2,

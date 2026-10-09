@@ -27,6 +27,7 @@ pub(crate) fn aggregate(
             input_name: read.input_name.clone(),
             input_sha256: read.input_sha256.clone(),
             integrity: read.signal.integrity.clone(),
+            callability: read.callability.clone(),
             alignment: SampleReadAlignmentEvidence {
                 orientation: read.alignment.orientation,
                 callable_bases: read.alignment.metrics.callable_columns,

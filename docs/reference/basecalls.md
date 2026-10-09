@@ -2,16 +2,17 @@
 
 `signal basecall <trace.ab1>` reads the strict configuration selected by
 `DNA_CONFIG` or `config/dna.toml`, runs canonical ABIF decode, signal-derived
-base re-calling, observational signal analysis, and relative quality trimming,
+base re-calling, observational signal analysis, read callability, and relative quality trimming,
 then atomically creates `results/<trace-stem>.basecalls.json`. It does not load a
 reference, align, or call variants. Existing targets are never overwritten.
 
 The authoritative contract is
-[`schemas/basecalls-v2.schema.json`](schemas/basecalls-v2.schema.json); a synthetic
-example is [`examples/basecalls-v2.example.json`](examples/basecalls-v2.example.json).
-Every object is closed and `schema_version` is `dna.basecalls/v2`.
+[`schemas/basecalls-v3.schema.json`](schemas/basecalls-v3.schema.json); a synthetic
+example is [`examples/basecalls-v3.example.json`](examples/basecalls-v3.example.json).
+Every object is closed and `schema_version` is `dna.basecalls/v3`; v3 adds the
+read callability view to `read`.
 
-The versioned v2 schema retains `ploc_*` field names for ABIF-origin integrity
+The versioned v3 schema retains `ploc_*` field names for ABIF-origin integrity
 evidence. Internally, DNA projects `PLOC.2` into canonical Sanger locus positions
 at the input boundary and scientific stages use locus terminology.
 
@@ -26,6 +27,7 @@ at the input boundary and scientific stages use locus terminology.
 - `read.ambiguity`: canonical/IUPAC ambiguity symbol at each locus.
 - `read.retained`: the primary sequence inside `read.trim` after end trimming.
 - `read.trim`: 0-based half-open call interval `[start, end)`.
+- `read.callability`: the `dna.read_callability/v1` view ([method](../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call, empty when everything is masked), `segments` (ordered 0-based half-open call intervals partitioning the read, each with `state` `in_phase`/`dephased`/`mixed`/`weak`/`irregular` and `after_repeat`), and `masked_calls`. It is observation only: it does not change `trim` or `retained`.
 - `signal_quality.integrity`: ABIF-origin locus/vendor-series cardinality evidence, adjacent
   locus-spacing summary, exact signed-16-bit clipping count, and optional
   maximum-to-median corrected event-signal ratio. These observations do not
@@ -45,8 +47,9 @@ construction and integration tests because JSON Schema cannot express them all.
 
 The result contains complete sequence strings and can identify a sample. It must
 follow the same approval, storage, and redistribution policy as its source AB1.
-The relative score used during trimming and the rolling SNR method are not
-Phred-calibrated error probabilities. This output makes no genotype,
+The relative score used during trimming, the rolling SNR method, and the
+callability phase states are not Phred-calibrated error probabilities, mixture
+fractions, or artifact classes. This output makes no genotype,
 heteroplasmy, phase, pathogenicity, or clinical claim.
 
 Operational records append to `$DNA_LOG_DIR/<trace-stem>.log` (default

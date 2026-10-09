@@ -12,11 +12,12 @@ use serde_json::Value;
 use tempfile::tempdir;
 
 use support::{
-    analysis_output_path, write_abif, write_abif_with_background_noise,
-    write_abif_with_channel_order, write_abif_with_peak_heights, write_abif_with_ploc,
+    analysis_output_path, write_abif, write_abif_with_amplitude_decay,
+    write_abif_with_background_noise, write_abif_with_channel_order,
+    write_abif_with_incoherent_doubles, write_abif_with_peak_heights, write_abif_with_ploc,
     write_abif_with_secondary_signal, write_abif_with_secondary_signals,
-    write_abif_with_short_pbas, write_abif_with_unused_p2ba, write_abif_with_vendor, write_config,
-    write_reference,
+    write_abif_with_shadow_ladder, write_abif_with_short_pbas, write_abif_with_unused_p2ba,
+    write_abif_with_vendor, write_config, write_reference,
 };
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -62,7 +63,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     let second_bytes = fs::read(analysis_output_path(second.path(), &second_trace))?;
     assert_eq!(first_bytes, second_bytes);
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.analysis/v8");
+    assert_eq!(value["schema_version"], "dna.analysis/v9");
     assert_object_keys(
         &value,
         &[
@@ -81,7 +82,20 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     );
     assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
     assert_object_keys(&value["provenance"]["profile"], &["id", "sha256"]);
-    assert_object_keys(&value["read"], &["call_count", "trim"]);
+    assert_object_keys(&value["read"], &["call_count", "trim", "callability"]);
+    assert_object_keys(
+        &value["read"]["callability"],
+        &["callable_span", "segments", "masked_calls"],
+    );
+    assert_object_keys(
+        &value["read"]["callability"]["segments"][0],
+        &["calls", "state", "after_repeat"],
+    );
+    assert_eq!(value["read"]["callability"]["masked_calls"], 0);
+    assert_eq!(
+        value["read"]["callability"]["segments"][0]["state"],
+        "in_phase"
+    );
     assert_object_keys(
         &value["alignment"],
         &[
@@ -136,6 +150,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
         "event=inputs_loaded",
         "event=basecalling_completed",
         "event=signal_processing_completed",
+        "event=callability_completed",
         "event=quality_control_completed",
         "event=alignment_completed",
         "event=variant_calling_completed",
@@ -149,6 +164,9 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     assert!(log.lines().all(|line| line.contains("run_id=")));
     assert!(log.contains("calls=28 canonical_primary=28 unresolved_primary=0"));
     assert!(log.contains("retained=28"));
+    assert!(log.contains(
+        "calls=28 repeats=0 segments=1 in_phase_segments=1 dephased_segments=0 mixed_segments=0 weak_segments=0 irregular_segments=0 masked_calls=0 callable=0..28 callable_fraction=1.0000 segment_map=0..28:in_phase window_calls=16"
+    ));
     assert!(log.contains(
         "windows=19 noisy_windows=0 noisy_regions=0 noisy_calls=0 window_size_bases=10 minimum_noisy_windows=2"
     ));
@@ -864,6 +882,94 @@ fn removes_a_variant_called_right_after_a_long_homopolymer()
     Ok(())
 }
 
+/// Read callability (ADR-0067): a slippage shadow ladder behind a long
+/// homopolymer is published as a dephased segment attributed to the repeat,
+/// while the in-phase prefix through the run's last call stays callable.
+#[test]
+fn publishes_a_dephased_segment_after_a_long_homopolymer() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let read = format!(
+        "ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAGCATGCA",
+        "C".repeat(9)
+    );
+    write_abif_with_shadow_ladder(&trace, &read, 23, -1, 0.4)?;
+    write_reference(&reference, &format!("TTTT{read}CCCC"))?;
+    write_config_retaining_everything(&config)?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+    let value = read_result(directory.path(), &trace)?;
+    let callability = &value["read"]["callability"];
+    assert_eq!(
+        callability["segments"],
+        serde_json::json!([
+            {"calls": {"start": 0, "end": 23}, "state": "in_phase", "after_repeat": false},
+            {"calls": {"start": 23, "end": read.len()}, "state": "dephased", "after_repeat": true}
+        ])
+    );
+    assert_eq!(callability["callable_span"]["start"], 0);
+    assert_eq!(callability["callable_span"]["end"], 23);
+    assert_eq!(callability["masked_calls"], read.len() - 23);
+    let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+    assert!(log.contains("event=callability_completed"));
+    assert!(log.contains(&format!(
+        "repeats=1 segments=2 in_phase_segments=1 dephased_segments=1 mixed_segments=0 weak_segments=0 irregular_segments=0 masked_calls={} callable=0..23",
+        read.len() - 23
+    )));
+    assert!(log.contains(&format!(
+        "segment_map=0..23:in_phase,23..{}:dephased+repeat",
+        read.len()
+    )));
+    Ok(())
+}
+
+/// Double peaks that no neighbour offset explains are a mixed segment, and a
+/// collapsed tail is weak; neither is attributed to a repeat.
+#[test]
+fn publishes_mixed_and_weak_segments_without_a_repeat() -> Result<(), Box<dyn std::error::Error>> {
+    let read = "ACGTCAGTACGATCGTACCTGAGTACGATCGATCGTAGCTGACTAGCTAGCATGAC";
+    let mixed = tempdir()?;
+    let trace = mixed.path().join("trace.ab1");
+    let reference = mixed.path().join("reference.fa");
+    let config = mixed.path().join("dna.toml");
+    write_abif_with_incoherent_doubles(&trace, read, 30..read.len(), 500)?;
+    write_reference(&reference, &format!("TTTT{read}CCCC"))?;
+    write_config_retaining_everything(&config)?;
+    run(&trace, &reference, &config, mixed.path()).success();
+    let value = read_result(mixed.path(), &trace)?;
+    let segments = value["read"]["callability"]["segments"]
+        .as_array()
+        .ok_or("segments must be an array")?;
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[1]["state"], "mixed");
+    assert_eq!(segments[1]["after_repeat"], false);
+    assert_eq!(segments[1]["calls"]["start"], 30);
+
+    let weak = tempdir()?;
+    let trace = weak.path().join("trace.ab1");
+    let reference = weak.path().join("reference.fa");
+    let config = weak.path().join("dna.toml");
+    write_abif_with_amplitude_decay(&trace, read, 40, 0.001)?;
+    write_reference(&reference, &format!("TTTT{read}CCCC"))?;
+    write_config_retaining_everything(&config)?;
+    run(&trace, &reference, &config, weak.path()).success();
+    let value = read_result(weak.path(), &trace)?;
+    let segments = value["read"]["callability"]["segments"]
+        .as_array()
+        .ok_or("segments must be an array")?;
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[1]["state"], "weak");
+    assert_eq!(segments[1]["calls"]["start"], 40);
+    assert_eq!(
+        value["read"]["callability"]["masked_calls"],
+        read.len() - 40
+    );
+    Ok(())
+}
+
 /// Regression: an indel flank whose two strongest channels tie is an unresolved
 /// `N` with no primary event; it is omitted from public calls instead of
 /// aborting the analysis.
@@ -975,6 +1081,19 @@ fn unwritable_operation_log_fails_fast_without_publishing_a_result()
         ))
         .stderr(predicate::str::contains("additionally").not());
     assert!(!analysis_output_path(directory.path(), &trace).exists());
+    Ok(())
+}
+
+/// A linear-profile configuration whose best section is the whole read, so the
+/// Tracy-style end trim keeps every call and the callability view can be read
+/// against the untrimmed read.
+fn write_config_retaining_everything(config: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    write_config(config, "linear")?;
+    let config_text = fs::read_to_string(config)?;
+    fs::write(
+        config,
+        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
+    )?;
     Ok(())
 }
 

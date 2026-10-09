@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:signal:schema:sample-evidence:v9",
-  "title": "DNA sample evidence v9",
+  "$id": "urn:signal:schema:sample-evidence:v10",
+  "title": "DNA sample evidence v10",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,7 +16,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "dna.sample_evidence/v9"
+      "const": "dna.sample_evidence/v10"
     },
     "sample_id": {
       "type": "string",
@@ -163,7 +163,8 @@
         "name",
         "sha256",
         "integrity",
-        "alignment"
+        "alignment",
+        "callability"
       ],
       "properties": {
         "name": {
@@ -173,6 +174,9 @@
         "sha256": {
           "$ref": "#/$defs/sha256"
         },
+        "callability": {
+          "$ref": "#/$defs/callability"
+        },
         "alignment": {
           "$ref": "#/$defs/readAlignment"
         },
@@ -180,6 +184,60 @@
           "$ref": "#/$defs/integrity"
         }
       }
+    },
+    "callability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callable_span",
+        "segments",
+        "masked_calls"
+      ],
+      "properties": {
+        "callable_span": {
+          "$ref": "#/$defs/interval"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/callabilitySegment"
+          }
+        },
+        "masked_calls": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "callabilitySegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "state",
+        "after_repeat"
+      ],
+      "properties": {
+        "calls": {
+          "$ref": "#/$defs/interval"
+        },
+        "state": {
+          "$ref": "#/$defs/phaseState"
+        },
+        "after_repeat": {
+          "type": "boolean"
+        }
+      }
+    },
+    "phaseState": {
+      "enum": [
+        "in_phase",
+        "dephased",
+        "mixed",
+        "weak",
+        "irregular"
+      ]
     },
     "readAlignment": {
       "type": "object",

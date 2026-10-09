@@ -8,7 +8,7 @@ use crate::config::defaults::{MAX_INDEL_LENGTH, MAX_PEAK_HEIGHT};
 use crate::error::{ConfigError, Result};
 
 /// Configuration schema version this build accepts.
-const SCHEMA_VERSION: u32 = 6;
+const SCHEMA_VERSION: u32 = 7;
 
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
@@ -17,6 +17,7 @@ pub(crate) struct Config {
     pub(crate) profile_path: PathBuf,
     pub(crate) basecalling: BasecallingConfig,
     pub(crate) signal_processing: SignalProcessingConfig,
+    pub(crate) callability: CallabilityConfig,
     pub(crate) quality_control: QualityControlConfig,
     pub(crate) alignment: AlignmentConfig,
     pub(crate) sample_reconciliation: SampleReconciliationConfig,
@@ -39,10 +40,26 @@ pub(crate) struct SignalProcessingConfig {
     pub(crate) minimum_noisy_windows: usize,
 }
 
+/// Signal-derived read-callability settings.
+#[derive(Debug, Clone)]
+pub(crate) struct CallabilityConfig {
+    /// Calls per rolling window of the phase statistics.
+    pub(crate) window_calls: usize,
+    /// Defect fraction at or above which an in-phase stretch ends.
+    pub(crate) onset_defect_fraction: f64,
+    /// Defect fraction at or below which a masked stretch ends.
+    pub(crate) exit_defect_fraction: f64,
+    /// Fraction of a segment's double peaks that must share one shift offset
+    /// for the segment to count as dephased rather than mixed.
+    pub(crate) shift_coherence: f64,
+    /// Fraction of the read's median primary amplitude below which a position is weak.
+    pub(crate) weak_amplitude_fraction: f64,
+}
+
 /// Relative score and trimming settings.
 #[derive(Debug, Clone)]
 pub(crate) struct QualityControlConfig {
-    pub(crate) trim_window_size: usize,
+    pub(crate) penalty_window_size: usize,
     pub(crate) best_section_fraction: f64,
     pub(crate) max_relative_quality_score: u8,
     pub(crate) trim_stringency: f64,
@@ -89,6 +106,7 @@ pub(super) struct RawConfig {
     profile: PathBuf,
     basecalling: RawBasecallingConfig,
     signal_processing: RawSignalProcessingConfig,
+    callability: RawCallabilityConfig,
     quality_control: RawQualityControlConfig,
     alignment: RawAlignmentConfig,
     sample_reconciliation: RawSampleReconciliationConfig,
@@ -111,8 +129,18 @@ struct RawSignalProcessingConfig {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct RawCallabilityConfig {
+    window_calls: usize,
+    onset_defect_fraction: f64,
+    exit_defect_fraction: f64,
+    shift_coherence: f64,
+    weak_amplitude_fraction: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RawQualityControlConfig {
-    trim_window_size: usize,
+    penalty_window_size: usize,
     best_section_fraction: f64,
     max_relative_quality_score: u8,
     trim_stringency: f64,
@@ -178,9 +206,40 @@ impl RawConfig {
             )
             .into());
         }
-        if self.quality_control.trim_window_size == 0 {
+        if !(8..=64).contains(&self.callability.window_calls) {
+            return Err(
+                ConfigError::Constraint("callability.window_calls must be in 8..=64").into(),
+            );
+        }
+        require_fraction(
+            "callability.onset_defect_fraction",
+            self.callability.onset_defect_fraction,
+        )?;
+        require_finite_range(
+            "callability.exit_defect_fraction",
+            self.callability.exit_defect_fraction,
+            0.0,
+            1.0,
+        )?;
+        if self.callability.exit_defect_fraction >= self.callability.onset_defect_fraction {
             return Err(ConfigError::Constraint(
-                "quality_control.trim_window_size must be positive",
+                "callability.exit_defect_fraction must be less than callability.onset_defect_fraction",
+            )
+            .into());
+        }
+        require_fraction(
+            "callability.shift_coherence",
+            self.callability.shift_coherence,
+        )?;
+        require_finite_range(
+            "callability.weak_amplitude_fraction",
+            self.callability.weak_amplitude_fraction,
+            0.0,
+            0.5,
+        )?;
+        if self.quality_control.penalty_window_size == 0 {
+            return Err(ConfigError::Constraint(
+                "quality_control.penalty_window_size must be positive",
             )
             .into());
         }
@@ -284,8 +343,15 @@ impl RawConfig {
                 minimum_primary_snr: self.signal_processing.minimum_primary_snr,
                 minimum_noisy_windows: self.signal_processing.minimum_noisy_windows,
             },
+            callability: CallabilityConfig {
+                window_calls: self.callability.window_calls,
+                onset_defect_fraction: self.callability.onset_defect_fraction,
+                exit_defect_fraction: self.callability.exit_defect_fraction,
+                shift_coherence: self.callability.shift_coherence,
+                weak_amplitude_fraction: self.callability.weak_amplitude_fraction,
+            },
             quality_control: QualityControlConfig {
-                trim_window_size: self.quality_control.trim_window_size,
+                penalty_window_size: self.quality_control.penalty_window_size,
                 best_section_fraction: self.quality_control.best_section_fraction,
                 max_relative_quality_score: self.quality_control.max_relative_quality_score,
                 trim_stringency: self.quality_control.trim_stringency,
@@ -347,7 +413,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=6\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
+    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nshift_coherence=0.75\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -421,10 +487,10 @@ mod tests {
     fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
     {
         assert!(matches!(
-            validate_raw(&VALID.replace("schema_version=6", "schema_version=5"))?,
+            validate_raw(&VALID.replace("schema_version=7", "schema_version=5"))?,
             Err(Error::Config(ConfigError::UnsupportedSchemaVersion {
                 found: 5,
-                expected: 6
+                expected: 7
             }))
         ));
         assert!(

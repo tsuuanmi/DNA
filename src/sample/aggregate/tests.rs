@@ -4,6 +4,7 @@ use crate::model::alignment::{
     Alignment, AlignmentColumn, AlignmentMetrics, Orientation, ReferenceSegment,
 };
 use crate::model::basecalls::{BaseCall, BaseCalls, ChannelPeak, PeakSource, PrimaryPeakEvidence};
+use crate::model::callability::ReadCallability;
 use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
 use crate::model::nucleotide::Nucleotide;
 use crate::model::quality::{CallQuality, QualityControlResult};
@@ -135,6 +136,7 @@ fn observation(
             windows: Vec::new(),
             noisy_regions: Vec::new(),
         },
+        callability: ReadCallability::in_phase(call_count),
         quality: QualityControlResult {
             per_call,
             trim_start_0based: 0,

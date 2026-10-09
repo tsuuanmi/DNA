@@ -68,3 +68,11 @@ nearly identical results. The thresholds are empirical: revisit them as
 validation data grows. The rules are
 modality-specific Sanger evidence, applied before canonicalization as
 ADR-0060 §5 requires.
+
+## Follow-up (2026-10-09)
+
+[ADR-0067](0067-signal-derived-read-callability.md) derives callability from
+the read's own signal. Its first increment publishes that view as observation
+beside these rules; its second increment replaces the sequence-only
+`post_homopolymer` window with the measured phase state and will supersede this
+record in part, keeping `read_end` and the filename-free principle.

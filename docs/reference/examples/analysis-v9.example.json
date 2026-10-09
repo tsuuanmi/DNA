@@ -1,5 +1,5 @@
 {
-  "schema_version": "dna.analysis/v8",
+  "schema_version": "dna.analysis/v9",
   "provenance": {
     "input": {
       "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -20,6 +20,39 @@
     "trim": {
       "start": 2,
       "end": 26
+    },
+    "callability": {
+      "callable_span": {
+        "start": 2,
+        "end": 26
+      },
+      "segments": [
+        {
+          "calls": {
+            "start": 0,
+            "end": 2
+          },
+          "state": "weak",
+          "after_repeat": false
+        },
+        {
+          "calls": {
+            "start": 2,
+            "end": 26
+          },
+          "state": "in_phase",
+          "after_repeat": false
+        },
+        {
+          "calls": {
+            "start": 26,
+            "end": 28
+          },
+          "state": "dephased",
+          "after_repeat": true
+        }
+      ],
+      "masked_calls": 4
     }
   },
   "signal_quality": {

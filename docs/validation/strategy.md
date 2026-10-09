@@ -16,7 +16,8 @@ DNA selects validation by the failure mode being protected.
 - approved real AB1 evidence is required for scientific release confidence;
 - external implementations are differential evidence, not automatic ground truth;
 - disagreements are analyzed rather than hidden by compatibility fallbacks;
-- comparison with reviewer truth or other tools runs in downstream pipelines on DNA's published results (ADR-0065); its outputs are evidence about a DNA revision, not DNA code.
+- comparison with reviewer truth or other tools runs in downstream pipelines on DNA's published results (ADR-0065); its outputs are evidence about a DNA revision, not DNA code;
+- local real traces are exploratory evidence: threshold choices are recorded in decisions as aggregates measured against a named revision, and release claims still require the approval record of [data governance](../governance/data.md).
 
 ## Release confidence
 

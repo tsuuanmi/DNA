@@ -21,13 +21,18 @@ pub(crate) fn analyze(
         }
         .into());
     }
-    let penalty = penalty::calculate(calls, config.trim_window_size, config.best_section_fraction)?;
+    let penalty = penalty::calculate(
+        calls,
+        config.penalty_window_size,
+        config.best_section_fraction,
+    )?;
     let scores = quality::relative_scores(&penalty.penalties, config.max_relative_quality_score);
-    let threshold = config.trim_stringency * penalty.best_average * config.trim_window_size as f64;
+    let threshold =
+        config.trim_stringency * penalty.best_average * config.penalty_window_size as f64;
     let mut trim_start = 0;
     for start in (0..penalty.best_start).rev() {
         let end = start
-            .saturating_add(config.trim_window_size)
+            .saturating_add(config.penalty_window_size)
             .min(calls.len());
         let sum: i64 = penalty.penalties[start..end]
             .iter()
@@ -41,7 +46,7 @@ pub(crate) fn analyze(
     let mut trim_end = calls.len();
     for start in penalty.best_end..calls.len() {
         let end = start
-            .saturating_add(config.trim_window_size)
+            .saturating_add(config.penalty_window_size)
             .min(calls.len());
         let sum: i64 = penalty.penalties[start..end]
             .iter()
@@ -138,7 +143,7 @@ mod tests {
             &trace,
             &calls,
             &QualityControlConfig {
-                trim_window_size: 2,
+                penalty_window_size: 2,
                 best_section_fraction: 0.5,
                 max_relative_quality_score: 60,
                 trim_stringency: 7.0,

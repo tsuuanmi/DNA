@@ -2,7 +2,7 @@
 
 Owns the typed `Error` boundary, the shared `Result<T>` alias, and one failure
 vocabulary per stage (`AbifError`, `FastaError`, `ConfigError`, `ProfileError`,
-`BasecallingError`, `SignalError`, `QualityControlError`, `AlignmentError`,
+`BasecallingError`, `SignalError`, `CallabilityError`, `QualityControlError`, `AlignmentError`,
 `VariantError`, `SampleError`, `ReportError`, and the representation,
 normalization, and nomenclature errors), plus shared `LocusWindowError` and
 `CallEvidenceError`.

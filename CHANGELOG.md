@@ -10,6 +10,20 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Signal-derived read callability (ADR-0067, SRS-CALL-001 to SRS-CALL-008): a
+  new `callability` stage derives, from each read's own signal in trace order,
+  phase-state segments (`in_phase`, `dephased`, `mixed`, `weak`, `irregular`),
+  a per-position mask, and the callable span, and publishes them as
+  observation. Trim bounds, alignment, warnings, and variant eligibility are
+  unchanged in this increment. **Breaking:** `dna.basecalls/v2` → `v3`,
+  `dna.analysis/v8` → `v9`, and `dna.sample_evidence/v9` → `v10` gain the
+  required `read.callability` / `reads[].callability` view; configuration
+  schema 6 → 7 adds `[callability]` (`window_calls`, `onset_defect_fraction`,
+  `exit_defect_fraction`, `shift_coherence`, `weak_amplitude_fraction`) and
+  renames `quality_control.trim_window_size` to `penalty_window_size`.
+  **Breaking (Rust API):** `Error` gains `Callability(CallabilityError)`, and
+  `analyze_sanger` opens a `callability` stage span between
+  `signal_processing` and `quality_control`.
 - Target profiles (ADR-0063, SRS-PRF-001 to SRS-PRF-007): target knowledge —
   reference identity and topology, reportable regions, indel placement,
   nomenclature windows and their rules, notation style — moves out of code and

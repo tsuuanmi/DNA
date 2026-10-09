@@ -285,6 +285,7 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Fasta` | `FastaError` | `invalid reference FASTA:` |
 | `Basecalling` | `BasecallingError` | `base re-calling failed:` |
 | `Signal` | `SignalError` | `signal processing failed:` |
+| `Callability` | `CallabilityError` | `read callability failed:` |
 | `QualityControl` | `QualityControlError` | `quality control failed:` |
 | `Alignment` | `AlignmentError` | `alignment failed:` |
 | `Variant` | `VariantError` | `variant calling failed:` |
@@ -315,7 +316,7 @@ dependency types never appear in the public API. Stage failures render inline,
 Library capabilities emit `tracing` instrumentation under the `dna` target and
 never install a subscriber, write files, or print. `analyze_sanger` opens one
 `info` span per scientific stage, in order and not nested in one another
-(`basecalling`, `signal_processing`, `quality_control`, `alignment`,
+(`basecalling`, `signal_processing`, `callability`, `quality_control`, `alignment`,
 `variant_calling`), and emits one structured completion event per stage plus
 `warn` events for removed variant candidates and warning summaries. Span names
 are stable; event fields are operational detail and may grow.
@@ -324,7 +325,7 @@ are stable; event fields are operational detail and may grow.
 
 The Rust API returns stable typed data for the current Variant Analysis capability. The versioned JSON documents under
 this reference directory remain separate serialization/publication contracts;
-`dna.analysis/v8` is not the Rust API result model.
+`dna.analysis/v9` is not the Rust API result model.
 
 The Sanger adapter name is source-specific by design. Future input modalities
 may provide additional adapters while converging on compatible

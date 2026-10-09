@@ -32,6 +32,7 @@ Current supported behavior includes:
 - signal-derived re-calling at validated canonical Sanger loci;
 - explicit primary and ambiguity states;
 - observational Sanger-integrity and rolling signal-to-noise annotations;
+- signal-derived read callability: phase-state segments, a typed mask, and the callable span, published as observation (ADR-0067);
 - deterministic read-quality scoring and end trimming;
 - forward/reverse profile-aware semi-global alignment to one short reference;
 - linear and circular reference handling;
@@ -129,9 +130,9 @@ Running DNA over many samples, converting its results, and comparing them with o
 
 Current public result contracts are:
 
-- `dna.basecalls/v2` — reference-free primary/ambiguity/retained read result;
-- `dna.analysis/v8` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
-- `dna.sample_evidence/v9` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
+- `dna.basecalls/v3` — reference-free primary/ambiguity/retained read result with the read callability view;
+- `dna.analysis/v9` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence and the read callability view;
+- `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 

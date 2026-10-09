@@ -4,11 +4,13 @@ DNA versions externally meaningful contracts explicitly.
 
 ## Public JSON contracts
 
-Closed schemas such as `dna.analysis/v8`, `dna.basecalls/v2`, and `dna.sample_evidence/v9` are immutable by version. Incompatible shape or semantic changes require a new contract version.
+Closed schemas such as `dna.analysis/v9`, `dna.basecalls/v3`, and `dna.sample_evidence/v10` are immutable by version. Incompatible shape or semantic changes require a new contract version.
+
+A contract version introduced in the current unreleased cycle may be revised in place until the first tagged release that emits it; every such revision is recorded as **Breaking** under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Configuration
 
-Configuration is strict and versioned by its documented schema/version field. Unknown or unsupported values fail rather than silently falling back.
+Configuration is strict and versioned by its documented schema/version field. Unknown or unsupported values fail rather than silently falling back. The same unreleased-cycle rule applies: a configuration schema version introduced in the current unreleased cycle may be revised in place before the first tagged release that accepts it, each revision recorded as Breaking.
 
 ## Software releases
 

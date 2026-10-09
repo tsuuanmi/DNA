@@ -10,6 +10,7 @@ API documentation lives in rustdoc and source comments.
 
 - [alignment](alignment/README.md) — deterministic evidence-profile alignment.
 - [basecalling](basecalling/README.md) — signal-derived base re-calling.
+- [callability](callability/README.md) — signal-derived per-read callability: phase state, typed mask, callable span.
 - [cli](cli/README.md) — command-line syntax and typed arguments.
 - [config](config/README.md) — strict configuration loading and validation.
 - [error](error/README.md) — typed application failures.
@@ -50,8 +51,9 @@ records, and synchronization remain outer operation concerns.
 
 Source-specific filesystem loading belongs to `input`; the current Sanger
 adapter produces validated trace/reference/configuration models without knowing
-CLI publication paths. Reference-free read processing is a shared scientific
-core used by both basecall and Variant Analysis. Reference-guided observation
+CLI publication paths. Reference-free read processing (basecalling, signal processing, callability,
+quality control) is a shared scientific core used by both basecall and Variant
+Analysis. Reference-guided observation
 ownership belongs to `variant_analysis`; `pipeline` consumes these
 capabilities rather than owning their implementations.
 

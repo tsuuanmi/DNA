@@ -48,7 +48,7 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
     ))?;
     assert_eq!(first_bytes, second_bytes);
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.basecalls/v2");
+    assert_eq!(value["schema_version"], "dna.basecalls/v3");
     assert_object_keys(
         &value,
         &[
@@ -62,7 +62,28 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
     assert_object_keys(&value["provenance"], &["input", "configuration_sha256"]);
     assert_object_keys(
         &value["read"],
-        &["call_count", "primary", "ambiguity", "retained", "trim"],
+        &[
+            "call_count",
+            "primary",
+            "ambiguity",
+            "retained",
+            "trim",
+            "callability",
+        ],
+    );
+    assert_object_keys(
+        &value["read"]["callability"],
+        &["callable_span", "segments", "masked_calls"],
+    );
+    assert_eq!(value["read"]["callability"]["callable_span"]["start"], 0);
+    assert_eq!(
+        value["read"]["callability"]["callable_span"]["end"],
+        QUERY.len()
+    );
+    assert_eq!(value["read"]["callability"]["masked_calls"], 0);
+    assert_eq!(
+        value["read"]["callability"]["segments"],
+        serde_json::json!([{"calls": {"start": 0, "end": QUERY.len()}, "state": "in_phase", "after_repeat": false}])
     );
     assert_object_keys(
         &value["warnings"],
@@ -108,6 +129,7 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
         "event=basecall_inputs_loaded",
         "event=basecalling_completed",
         "event=signal_processing_completed",
+        "event=callability_completed",
         "event=quality_control_completed",
         "event=basecall_ready_for_publication",
     ] {

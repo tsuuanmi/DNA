@@ -244,6 +244,103 @@ pub fn write_abif_with_background_noise(
     )
 }
 
+/// Adds a slippage "shadow" ladder: from `onset_call` on, every call also
+/// carries `fraction` of the primary height on the channel of the call
+/// `offset` positions away (skipped where that channel is the call's own).
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_shadow_ladder(
+    path: &Path,
+    sequence: &str,
+    onset_call: usize,
+    offset: isize,
+    fraction: f64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bases = sequence.as_bytes();
+    let mut secondary_signals = Vec::new();
+    for call_index in onset_call..bases.len() {
+        let Some(source) = call_index.checked_add_signed(offset) else {
+            continue;
+        };
+        let Some(&shadow) = bases.get(source) else {
+            continue;
+        };
+        if shadow == bases[call_index] {
+            continue;
+        }
+        let height = scaled_height(fraction)?;
+        if height >= 1 {
+            secondary_signals.push((call_index, shadow, height));
+        }
+    }
+    write_abif_with_secondary_signals(path, sequence, &secondary_signals)
+}
+
+/// Adds double peaks across `calls` whose secondary channel copies a
+/// neighbour's primary at an offset that changes from call to call, so no
+/// single slippage offset explains them.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_incoherent_doubles(
+    path: &Path,
+    sequence: &str,
+    calls: std::ops::Range<usize>,
+    height: i16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bases = sequence.as_bytes();
+    let offsets: [isize; 6] = [1, -1, 2, -2, 3, -3];
+    let mut secondary_signals = Vec::new();
+    for call_index in calls {
+        let own = *bases
+            .get(call_index)
+            .ok_or("synthetic incoherent-double call index is out of range")?;
+        let secondary = offsets
+            .iter()
+            .cycle()
+            .skip(call_index % offsets.len())
+            .take(offsets.len())
+            .filter_map(|&offset| call_index.checked_add_signed(offset))
+            .filter_map(|source| bases.get(source).copied())
+            .find(|&base| base != own)
+            .ok_or("no neighbouring primary differs from the call's own channel")?;
+        secondary_signals.push((call_index, secondary, height));
+    }
+    write_abif_with_secondary_signals(path, sequence, &secondary_signals)
+}
+
+/// Scales the primary peak heights from `from_call` on by `factor`.
+///
+/// # Errors
+///
+/// Fails when the fixture parameters are inconsistent or the file cannot be written.
+pub fn write_abif_with_amplitude_decay(
+    path: &Path,
+    sequence: &str,
+    from_call: usize,
+    factor: f64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let decayed = scaled_height(factor)?;
+    let heights = (0..sequence.len())
+        .map(|index| if index >= from_call { decayed } else { 1000 })
+        .collect();
+    write_abif_with_peak_heights(path, sequence, heights)
+}
+
+/// The synthetic full peak height of 1000 scaled by `fraction`, rounded to the
+/// nearest integer; fractions outside `0..=1` are rejected.
+fn scaled_height(fraction: f64) -> Result<i16, Box<dyn std::error::Error>> {
+    if !(0.0..=1.0).contains(&fraction) {
+        return Err("synthetic height fraction must be within 0..=1".into());
+    }
+    // Thousandths are exact in i32 once the fraction is in range.
+    let thousandths = (fraction * 1000.0).round().to_string().parse::<i32>()?;
+    Ok(i16::try_from(thousandths)?)
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "synthetic ABIF fixtures expose every record field the tests vary"
@@ -444,7 +541,7 @@ pub fn write_config_with_profile(
     fs::write(
         path,
         format!(
-            "schema_version=6\nprofile='{profile}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\ntrim_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
+            "schema_version=7\nprofile='{profile}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nshift_coherence=0.75\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
         ),
     )?;
     Ok(())

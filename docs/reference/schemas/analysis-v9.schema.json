@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:signal:schema:analysis:v8",
-  "title": "DNA compact analysis v8",
+  "$id": "urn:signal:schema:analysis:v9",
+  "title": "DNA compact analysis v9",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,7 +15,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "dna.analysis/v8"
+      "const": "dna.analysis/v9"
     },
     "provenance": {
       "$ref": "#/$defs/provenance"
@@ -138,7 +138,8 @@
       "additionalProperties": false,
       "required": [
         "call_count",
-        "trim"
+        "trim",
+        "callability"
       ],
       "properties": {
         "call_count": {
@@ -147,8 +148,65 @@
         },
         "trim": {
           "$ref": "#/$defs/interval"
+        },
+        "callability": {
+          "$ref": "#/$defs/callability"
         }
       }
+    },
+    "callability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callable_span",
+        "segments",
+        "masked_calls"
+      ],
+      "properties": {
+        "callable_span": {
+          "$ref": "#/$defs/interval"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/callabilitySegment"
+          }
+        },
+        "masked_calls": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "callabilitySegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "state",
+        "after_repeat"
+      ],
+      "properties": {
+        "calls": {
+          "$ref": "#/$defs/interval"
+        },
+        "state": {
+          "$ref": "#/$defs/phaseState"
+        },
+        "after_repeat": {
+          "type": "boolean"
+        }
+      }
+    },
+    "phaseState": {
+      "enum": [
+        "in_phase",
+        "dephased",
+        "mixed",
+        "weak",
+        "irregular"
+      ]
     },
     "noisyRegion": {
       "type": "object",

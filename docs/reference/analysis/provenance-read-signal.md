@@ -15,13 +15,15 @@ Software/build identity, local input/configuration paths, expanded configuration
 
 ## Read and signal-quality summary
 
-The v8 serialized integrity object retains `ploc_*` field names because those
+The v9 serialized integrity object retains `ploc_*` field names because those
 names are part of the current closed JSON contract. Internally, `PLOC.2` is
 projected to canonical Sanger locus positions at the ABIF boundary.
 
 `read.call_count` is the number of canonical Sanger call loci decoded from `PLOC.2`. `read.trim.start` and `read.trim.end` delimit the retained calls as a 0-based half-open interval. No sequence string is emitted.
 
-`signal_quality.noisy_regions` contains only merged candidate-noisy regions. Each region has 0-based half-open `calls` and `samples` intervals plus `minimum_primary_snr`. Full-width stride-one windows are still calculated internally by `dna.windowed_snr/v1`, but v8 does not serialize them. The regions remain observational and do not alter trimming, alignment, warning counts, or variant eligibility.
+`read.callability` is the `dna.read_callability/v1` view ([method](../../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call; empty when every call is masked), `segments` (ordered 0-based half-open call intervals that partition the read, each with `state` `in_phase`, `dephased`, `mixed`, `weak`, or `irregular` and `after_repeat`, true when the segment starts in the window after a long repeat run), and `masked_calls`. In v9 the view is observation only: it does not alter `trim`, alignment, warning counts, or variant eligibility. Phase states are read-level signal states, not error probabilities or artifact classes.
+
+`signal_quality.noisy_regions` contains only merged candidate-noisy regions. Each region has 0-based half-open `calls` and `samples` intervals plus `minimum_primary_snr`. Full-width stride-one windows are still calculated internally by `dna.windowed_snr/v1`, but v9 does not serialize them. The regions remain observational and do not alter trimming, alignment, warning counts, or variant eligibility.
 
 ## Trace integrity
 

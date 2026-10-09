@@ -16,6 +16,7 @@ read_processing
     |
     +--> basecalling
     +--> signal_processing
+    +--> callability
     +--> quality_control
               |
               v
@@ -67,7 +68,7 @@ The source-specific paths are intentionally different:
 
 | Source | Path to called variants |
 |---|---|
-| Sanger ABIF | chromatogram -> base calling/signal/QC -> selected pairwise alignment -> Sanger caller |
+| Sanger ABIF | chromatogram -> base calling/signal/callability/QC -> selected pairwise alignment -> Sanger caller |
 | assembled/consensus FASTA | reference alignment -> sequence-difference caller |
 | FASTQ / NGS reads | read QC/preprocessing -> mapping -> NGS caller |
 | BAM / CRAM | validated aligned-read evidence -> NGS caller |

@@ -3,9 +3,11 @@
 use std::time::Instant;
 
 use crate::basecalling;
+use crate::callability;
 use crate::config::Config;
 use crate::error::Result;
 use crate::model::basecalls::{BaseCalls, PeakSource};
+use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
@@ -25,6 +27,7 @@ pub(crate) struct ReadWarnings {
 pub(crate) struct ProcessedRead {
     pub(crate) calls: BaseCalls,
     pub(crate) signal: SignalAnalysis,
+    pub(crate) callability: ReadCallability,
     pub(crate) quality: QualityControlResult,
     pub(crate) warnings: ReadWarnings,
 }
@@ -119,6 +122,50 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
     );
 
     drop(stage);
+    let stage = tracing::info_span!("callability").entered();
+    let stage_started = Instant::now();
+    let callability = callability::analyze(trace, &calls, &signal, config)?;
+    let segment_map = callability
+        .segments
+        .iter()
+        .map(|segment| {
+            format!(
+                "{}..{}:{}{}",
+                segment.call_start_0based,
+                segment.call_end_0based_exclusive,
+                segment.state.label(),
+                if segment.after_repeat { "+repeat" } else { "" },
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let callable_fraction = callability.callable_count() as f64 / calls.len() as f64;
+    tracing::info!(
+        event = "callability_completed",
+        elapsed_ms = stage_started.elapsed().as_millis(),
+        calls = calls.len(),
+        repeats = callability.repeats.len(),
+        segments = callability.segments.len(),
+        in_phase_segments = callability.segment_count(PhaseState::InPhase),
+        dephased_segments = callability.segment_count(PhaseState::Dephased),
+        mixed_segments = callability.segment_count(PhaseState::Mixed),
+        weak_segments = callability.segment_count(PhaseState::Weak),
+        irregular_segments = callability.segment_count(PhaseState::Irregular),
+        masked_calls = callability.masked_count(),
+        callable = %format_args!(
+            "{}..{}",
+            callability.callable_start_0based, callability.callable_end_0based_exclusive
+        ),
+        callable_fraction = %format_args!("{callable_fraction:.4}"),
+        segment_map = %segment_map,
+        window_calls = config.callability.window_calls,
+        onset_defect_fraction = %format_args!("{:.4}", config.callability.onset_defect_fraction),
+        exit_defect_fraction = %format_args!("{:.4}", config.callability.exit_defect_fraction),
+        shift_coherence = %format_args!("{:.4}", config.callability.shift_coherence),
+        weak_amplitude_fraction = %format_args!("{:.4}", config.callability.weak_amplitude_fraction),
+    );
+
+    drop(stage);
     let _stage = tracing::info_span!("quality_control").entered();
     let stage_started = Instant::now();
     let quality = quality_control::analyze(trace, &calls, &config.quality_control)?;
@@ -181,6 +228,7 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
     Ok(ProcessedRead {
         calls,
         signal,
+        callability,
         quality,
         warnings: ReadWarnings {
             unresolved_primary_calls: unresolved_primary,

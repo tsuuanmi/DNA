@@ -15,7 +15,7 @@ DNA separates six interface classes:
    Sanger Variant Analysis return stable typed called-variant results without CLI
    publication side effects.
 4. **Scientific module boundaries** — typed internal models passed between
-   decoding, calling, signal, QC, alignment, variant, and sample stages.
+   decoding, calling, signal, callability, QC, alignment, variant, and sample stages.
 5. **Public serialized result boundary** — closed versioned JSON contracts.
 6. **Filesystem/operational boundary** — atomic publication and append-only logs.
 

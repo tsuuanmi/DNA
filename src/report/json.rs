@@ -9,7 +9,7 @@ use crate::model::result::{
     ReadResult, ReferenceResult, WarningSummaryResult,
 };
 use crate::profile::ProfileIdentity;
-use crate::report::{signal, variant};
+use crate::report::{callability, signal, variant};
 
 /// Inputs consumed to build the immutable analysis document.
 pub(crate) struct CompletedAnalysis {
@@ -18,7 +18,7 @@ pub(crate) struct CompletedAnalysis {
     pub(crate) read: ReadObservation,
 }
 
-/// Builds the compact v8 document without filesystem side effects.
+/// Builds the compact v9 document without filesystem side effects.
 pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisResult> {
     let CompletedAnalysis {
         reference,
@@ -32,6 +32,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         configuration_sha256,
         calls,
         signal,
+        callability: read_callability,
         quality,
         alignment,
         variants,
@@ -56,7 +57,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         .collect();
 
     Ok(AnalysisResult {
-        schema_version: "dna.analysis/v8",
+        schema_version: "dna.analysis/v9",
         provenance: ProvenanceResult {
             input: InputResult {
                 sha256: input_sha256,
@@ -75,6 +76,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
                 start: quality.trim_start_0based,
                 end: quality.trim_end_0based_exclusive,
             },
+            callability: callability::project(&read_callability),
         },
         signal_quality,
         alignment: AlignmentResult {

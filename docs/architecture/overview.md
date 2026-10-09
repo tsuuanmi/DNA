@@ -38,6 +38,7 @@
 | `read_processing` | 2 | shared reference-free Sanger read processing | reference interpretation |
 | `basecalling` | 2 | signal-derived calls | trimming/reference knowledge |
 | `signal_processing` | 2 | observation-only Sanger signal evidence | reference interpretation |
+| `callability` | 2 | signal-derived per-read phase state, typed mask, callable span; modality-generic core plus one Sanger adapter | channel/call mutation, basecall rescue, reference or profile knowledge, variant decisions |
 | `quality_control` | 2 | relative quality/end trimming | variant filtering |
 | `alignment` | 2 | current profile-aware pairwise placement/orientation | variant extraction and input-format parsing |
 | `variant_calling` | 2 | evidence-backed differences, mapping, allele anchoring, eligibility | target nomenclature, genotype/clinical interpretation |

@@ -49,6 +49,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
     let ProcessedRead {
         calls,
         signal,
+        callability,
         quality,
         warnings,
     } = read_processing::process(&inputs.trace, &inputs.config)?;
@@ -76,6 +77,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         trace: inputs.trace,
         calls,
         signal,
+        callability,
         quality,
     })?;
     let schema_version = result.schema_version;

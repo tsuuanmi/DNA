@@ -1,5 +1,5 @@
 {
-  "schema_version": "dna.basecalls/v2",
+  "schema_version": "dna.basecalls/v3",
   "provenance": {
     "input": {
       "sha256": "a48e07b87c6c8e84bdb99a8fb4d4935522627134a6f0d6f7f471a20bf49f0c13"
@@ -14,6 +14,23 @@
     "trim": {
       "start": 0,
       "end": 28
+    },
+    "callability": {
+      "callable_span": {
+        "start": 0,
+        "end": 28
+      },
+      "segments": [
+        {
+          "calls": {
+            "start": 0,
+            "end": 28
+          },
+          "state": "in_phase",
+          "after_repeat": false
+        }
+      ],
+      "masked_calls": 0
     }
   },
   "signal_quality": {

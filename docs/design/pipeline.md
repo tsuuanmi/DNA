@@ -5,13 +5,13 @@ This document is the canonical orchestration map for the production scientific p
 ## Overview
 
 ```text
-AB1 + TOML ──► decode ──► basecalling ──► signal_processing ──► quality_control
-                                                                     ├─► basecalls/v2
-FASTA reference ─────────────────────────────────────────────────────┴─► alignment ─► variant_calling
-                                                                                              │
-                                                                                       ReadObservation
-                                                                                         ├─► analysis/v8
-                                                                                         └─► sample aggregation
+AB1 + TOML ──► decode ──► basecalling ──► signal_processing ──► callability ──► quality_control
+                                                                                      ├─► basecalls/v3
+FASTA reference ──────────────────────────────────────────────────────────────────────┴─► alignment ─► variant_calling
+                                                                                                               │
+                                                                                                        ReadObservation
+                                                                                                          ├─► analysis/v9
+                                                                                                          └─► sample aggregation
 ```
 
 `analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. Each
@@ -36,9 +36,10 @@ typed result; no stage mutates shared state.
 | 1 | [ABIF decoding](abif-decoding.md) |
 | 2 | [Basecalling](basecalling.md) |
 | 3 | [Signal processing](signal-processing/README.md) |
-| 4 | [Quality control](quality-control.md) |
-| 5 | [Alignment](alignment.md) |
-| 6 | [Variant calling](variant-calling.md) |
+| 4 | [Callability](callability.md) |
+| 5 | [Quality control](quality-control.md) |
+| 6 | [Alignment](alignment.md) |
+| 7 | [Variant calling](variant-calling.md) |
 | sample aggregation | [Sample evidence aggregation](sample-evidence/README.md) |
 
 ## Ownership boundaries
@@ -49,7 +50,7 @@ does not follow the CLI command tree:
 - `input::sanger` owns Sanger source validation/loading into validated
   trace/reference/configuration models;
 - crate-internal `read_processing` owns the shared reference-free
-  basecalling/signal/QC path used by basecall and Variant Analysis;
+  basecalling/signal/callability/QC path used by basecall and Variant Analysis;
 - `variant_analysis` owns the reference-guided one-read observation path,
   including alignment and variant calling;
 - `pipeline` owns CLI/sample orchestration, application filesystem naming and
@@ -62,13 +63,13 @@ implementation.
 
 ## One-read observation boundary
 
-After selected alignment and variant calling, DNA materializes a `ReadObservation` that owns the input identity, base calls, basecall-independent locus/signal observations, quality-control result, selected alignment, and read-level variant result for exactly one trace.
+After selected alignment and variant calling, DNA materializes a `ReadObservation` that owns the input identity, base calls, basecall-independent locus/signal observations, read callability, quality-control result, selected alignment, and read-level variant result for exactly one trace.
 
 The read has already located itself at this boundary. Its orientation and covered reference segments come from evidence-driven semi-global alignment and circular projection; filenames or nominal HV/F/R labels are not placement inputs. This same one-read product feeds both the current analysis report and implemented sample-level reconciliation.
 
 ## Output boundary
 
-Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v2`, `dna.analysis/v8`, and `dna.sample_evidence/v9`, including schemas, examples, coordinate semantics, and publication-visible fields.
+Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, and `dna.sample_evidence/v10`, including schemas, examples, coordinate semantics, and publication-visible fields.
 
 ## Interpretation boundary
 

@@ -6,6 +6,8 @@ mod locus_evidence;
 mod regions;
 mod statistics;
 
+pub(crate) use statistics::round_metric;
+
 use crate::config::SignalProcessingConfig;
 use crate::error::Result;
 use crate::model::basecalls::BaseCalls;

@@ -73,3 +73,8 @@ ADR-0030 advances the current sample contract from `dna.sample_evidence/v3`
 to `dna.sample_evidence/v4` to expose Tracy-derived pairwise overlap/admission
 evidence. The `mixed_supporting_dna` eligibility semantics defined here remain
 unchanged.
+
+2026-10-09: the persistent post-indel phase shift this record left to a
+separate method is detected by [ADR-0067](0067-signal-derived-read-callability.md)
+as a read-callability state; `mixed_supporting_dna` is unchanged and no
+length-mixture method is introduced.

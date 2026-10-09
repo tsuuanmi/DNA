@@ -90,7 +90,7 @@ scientific paths.
 
 | Input/source | Source-specific evidence path | Variant boundary |
 |---|---|---|
-| Sanger ABIF | ABIF -> chromatogram -> base calling / signal / QC -> selected pairwise alignment | Sanger alignment caller -> `CalledVariantSet` |
+| Sanger ABIF | ABIF -> chromatogram -> base calling / signal / callability / QC -> selected pairwise alignment | Sanger alignment caller -> `CalledVariantSet` |
 | assembled/consensus FASTA sequence | sequence -> reference alignment | sequence-difference caller -> `CalledVariantSet` |
 | FASTQ / NGS reads | reads -> QC/preprocessing -> mapping -> read/depth evidence | NGS caller -> `CalledVariantSet` |
 | BAM / CRAM | validated aligned-read input -> read/depth/mapping evidence | NGS caller -> `CalledVariantSet` |

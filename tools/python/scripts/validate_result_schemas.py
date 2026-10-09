@@ -13,12 +13,12 @@ from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "docs" / "reference"
-ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v8.schema.json"
-ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v8.example.json"
-BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v2.schema.json"
-BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v2.example.json"
-SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v9.schema.json"
-SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v9.example.json"
+ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v9.schema.json"
+ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v9.example.json"
+BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v3.schema.json"
+BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v3.example.json"
+SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v10.schema.json"
+SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v10.example.json"
 
 
 def load_json(path: Path) -> Any:
@@ -99,7 +99,7 @@ def rejected_analysis_shapes(
     removed_software_version = copy.deepcopy(example)
     removed_software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.analysis/v7"
+    old_schema["schema_version"] = "dna.analysis/v8"
     missing_profile = copy.deepcopy(example)
     missing_profile["provenance"].pop("profile")
     invalid_profile_id = copy.deepcopy(example)
@@ -112,6 +112,18 @@ def rejected_analysis_shapes(
     ] = 0.5
     excessive_vendor_mismatches = copy.deepcopy(example)
     excessive_vendor_mismatches["warnings"]["ploc_vendor_length_mismatches"] = 3
+    missing_callability = copy.deepcopy(example)
+    missing_callability["read"].pop("callability")
+    unknown_phase_state = copy.deepcopy(example)
+    unknown_phase_state["read"]["callability"]["segments"][0]["state"] = "noisy"
+    segment_without_attribution = copy.deepcopy(example)
+    segment_without_attribution["read"]["callability"]["segments"][0].pop(
+        "after_repeat"
+    )
+    callability_with_mask_array = copy.deepcopy(example)
+    callability_with_mask_array["read"]["callability"]["mask"] = [False]
+    callability_without_segments = copy.deepcopy(example)
+    callability_without_segments["read"]["callability"]["segments"] = []
 
     return [
         ("SNV with no calls", document("SNV", [])),
@@ -135,6 +147,14 @@ def rejected_analysis_shapes(
             "analysis with more than two vendor length mismatches",
             excessive_vendor_mismatches,
         ),
+        ("analysis read without callability", missing_callability),
+        ("analysis callability with unknown phase state", unknown_phase_state),
+        (
+            "analysis callability segment without repeat attribution",
+            segment_without_attribution,
+        ),
+        ("analysis callability with per-position mask", callability_with_mask_array),
+        ("analysis callability without segments", callability_without_segments),
     ]
 
 
@@ -154,7 +174,7 @@ def rejected_basecall_shapes(
     software_version = copy.deepcopy(example)
     software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.basecalls/v1"
+    old_schema["schema_version"] = "dna.basecalls/v2"
     missing_integrity = copy.deepcopy(example)
     missing_integrity["signal_quality"].pop("integrity")
     invalid_single_ploc_spacing = copy.deepcopy(example)
@@ -162,6 +182,10 @@ def rejected_basecall_shapes(
     integrity["ploc_count"] = 1
     excessive_vendor_mismatches = copy.deepcopy(example)
     excessive_vendor_mismatches["warnings"]["ploc_vendor_length_mismatches"] = 3
+    missing_callability = copy.deepcopy(example)
+    missing_callability["read"].pop("callability")
+    negative_masked_calls = copy.deepcopy(example)
+    negative_masked_calls["read"]["callability"]["masked_calls"] = -1
 
     return [
         ("basecall primary with unsupported symbol", invalid_primary),
@@ -177,7 +201,78 @@ def rejected_basecall_shapes(
             "basecall with more than two vendor length mismatches",
             excessive_vendor_mismatches,
         ),
+        ("basecall read without callability", missing_callability),
+        ("basecall callability with negative masked calls", negative_masked_calls),
     ]
+
+
+def validate_callability_view(
+    callability: Any, call_count: Any, label: str, errors: list[str]
+) -> None:
+    """Check that segments partition the read and the counts agree with them."""
+    if not isinstance(callability, dict) or not isinstance(call_count, int):
+        return
+    segments = callability.get("segments")
+    span = callability.get("callable_span")
+    if not isinstance(segments, list) or not isinstance(span, dict):
+        return
+    expected_start = 0
+    masked = 0
+    unmasked: list[int] = []
+    for segment in segments:
+        if not isinstance(segment, dict):
+            return
+        calls = segment.get("calls")
+        if not isinstance(calls, dict):
+            return
+        start, end = calls.get("start"), calls.get("end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            return
+        if start != expected_start or end <= start:
+            errors.append(f"{label}: callability segments do not partition the read")
+            return
+        expected_start = end
+        if segment.get("state") == "in_phase":
+            unmasked.extend((start, end))
+        else:
+            masked += end - start
+    if expected_start != call_count:
+        errors.append(f"{label}: callability segments do not cover every call")
+        return
+    if callability.get("masked_calls") != masked:
+        errors.append(f"{label}: callability masked_calls disagrees with segments")
+    expected_span = (
+        {"start": unmasked[0], "end": unmasked[-1]}
+        if unmasked
+        else {"start": call_count, "end": call_count}
+    )
+    if span != expected_span:
+        errors.append(f"{label}: callability callable_span disagrees with segments")
+
+
+def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
+    for path in paths:
+        document = load_json(path)
+        if not isinstance(document, dict):
+            continue
+        read = document.get("read")
+        if isinstance(read, dict):
+            validate_callability_view(
+                read.get("callability"), read.get("call_count"), str(path), errors
+            )
+        reads = document.get("reads")
+        if isinstance(reads, list):
+            for item in reads:
+                if isinstance(item, dict):
+                    integrity = item.get("integrity")
+                    call_count = (
+                        integrity.get("ploc_count")
+                        if isinstance(integrity, dict)
+                        else None
+                    )
+                    validate_callability_view(
+                        item.get("callability"), call_count, str(path), errors
+                    )
 
 
 def validate_sample_support_topology_document(
@@ -363,7 +458,7 @@ def rejected_sample_shapes(
     zero_comparable_with_agreement["overlaps"][0]["conflicts"] = 0
 
     old_sample_schema = copy.deepcopy(example)
-    old_sample_schema["schema_version"] = "dna.sample_evidence/v8"
+    old_sample_schema["schema_version"] = "dna.sample_evidence/v9"
 
     unresolved_notation_call = copy.deepcopy(example)
     unresolved_notation_call["notation"]["calls"][0]["call"] = "150N"
@@ -405,6 +500,8 @@ def rejected_sample_shapes(
 
     missing_read_integrity = copy.deepcopy(example)
     missing_read_integrity["reads"][0].pop("integrity")
+    missing_read_callability = copy.deepcopy(example)
+    missing_read_callability["reads"][0].pop("callability")
 
     invalid_sample_id = copy.deepcopy(example)
     invalid_sample_id["sample_id"] = "../sample"
@@ -485,6 +582,7 @@ def rejected_sample_shapes(
         ("sample evidence with empty coverage topology", empty_coverage),
         ("sample coverage with zero read depth", zero_coverage_depth),
         ("sample read without trace integrity", missing_read_integrity),
+        ("sample read without callability", missing_read_callability),
         ("sample evidence with invalid sample id", invalid_sample_id),
         (
             "sparse difference locus with only reference observations",
@@ -565,6 +663,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
     validate_sample_support_topology(sample_paths, errors)
+    validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
 
     analysis_example = load_json(ANALYSIS_EXAMPLE)
     valid_shapes = analysis_call_shapes(analysis_example)
@@ -655,6 +754,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not duplicate_read_errors:
         errors.append("expected duplicate sample read name to be rejected")
+
+    inconsistent_callability = copy.deepcopy(analysis_example)
+    inconsistent_callability["read"]["callability"]["masked_calls"] += 1
+    callability_errors: list[str] = []
+    validate_callability_view(
+        inconsistent_callability["read"]["callability"],
+        inconsistent_callability["read"]["call_count"],
+        "synthetic inconsistent callability",
+        callability_errors,
+    )
+    if not callability_errors:
+        errors.append("expected inconsistent callability counts to be rejected")
 
     assert_rejected(analysis_validator, rejected_analysis, errors)
     assert_rejected(basecall_validator, rejected_basecalls, errors)

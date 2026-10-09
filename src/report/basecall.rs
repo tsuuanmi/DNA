@@ -6,11 +6,12 @@ use crate::model::basecall_result::{
     BasecallProvenanceResult, BasecallReadResult, BasecallResult, BasecallWarningSummaryResult,
 };
 use crate::model::basecalls::BaseCalls;
+use crate::model::callability::ReadCallability;
 use crate::model::quality::QualityControlResult;
 use crate::model::result::{InputResult, IntervalResult};
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
-use crate::report::signal;
+use crate::report::{callability, signal};
 
 /// Inputs consumed to build one immutable basecall document.
 pub(crate) struct CompletedBasecall {
@@ -18,16 +19,18 @@ pub(crate) struct CompletedBasecall {
     pub(crate) trace: Chromatogram,
     pub(crate) calls: BaseCalls,
     pub(crate) signal: SignalAnalysis,
+    pub(crate) callability: ReadCallability,
     pub(crate) quality: QualityControlResult,
 }
 
-/// Builds `dna.basecalls/v2` without filesystem side effects.
+/// Builds `dna.basecalls/v3` without filesystem side effects.
 pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
     let CompletedBasecall {
         config,
         trace,
         calls,
         signal: signal_analysis,
+        callability: read_callability,
         quality,
     } = completed;
     let call_count = calls.len();
@@ -71,7 +74,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
     let signal_quality = signal::project(signal_analysis);
 
     Ok(BasecallResult {
-        schema_version: "dna.basecalls/v2",
+        schema_version: "dna.basecalls/v3",
         provenance: BasecallProvenanceResult {
             input: InputResult {
                 sha256: trace.source_sha256,
@@ -87,6 +90,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
                 start: quality.trim_start_0based,
                 end: quality.trim_end_0based_exclusive,
             },
+            callability: callability::project(&read_callability),
         },
         signal_quality,
         warnings: BasecallWarningSummaryResult {

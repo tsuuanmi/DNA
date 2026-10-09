@@ -12,6 +12,7 @@ mod abif;
 mod alignment;
 mod basecalling;
 mod call_evidence;
+mod callability;
 mod config;
 mod fasta;
 mod locus;
@@ -29,6 +30,7 @@ pub use abif::{AbifError, Tag};
 pub use alignment::AlignmentError;
 pub use basecalling::BasecallingError;
 pub use call_evidence::CallEvidenceError;
+pub use callability::CallabilityError;
 pub use config::ConfigError;
 pub use fasta::FastaError;
 pub use locus::LocusWindowError;
@@ -110,6 +112,9 @@ pub enum Error {
     /// Observational signal-quality feature extraction failed.
     #[error("signal processing failed: {0}")]
     Signal(SignalError),
+    /// Signal-derived read callability could not be derived.
+    #[error("read callability failed: {0}")]
+    Callability(CallabilityError),
     /// Quality scoring or end trimming failed.
     #[error("quality control failed: {0}")]
     QualityControl(QualityControlError),
@@ -182,6 +187,7 @@ stage_failures!(
     Fasta(FastaError),
     Basecalling(BasecallingError),
     Signal(SignalError),
+    Callability(CallabilityError),
     QualityControl(QualityControlError),
     Alignment(AlignmentError),
     Variant(VariantError),
@@ -237,6 +243,14 @@ mod tests {
                 }
                 .into(),
                 "signal processing failed: 4 calls are fewer than window_size_bases 5",
+            ),
+            (
+                CallabilityError::TooFewPositions {
+                    positions: 1,
+                    minimum: 2,
+                }
+                .into(),
+                "read callability failed: 1 call positions are fewer than the minimum 2",
             ),
             (
                 QualityControlError::RetainedTooShort {

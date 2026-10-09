@@ -33,7 +33,7 @@ pub(super) fn snr(corrected_amplitude: f64, noise_sigma: f64) -> f64 {
 }
 
 /// Rounds an emitted or thresholded signal metric to six decimal places.
-pub(super) fn round_metric(value: f64) -> f64 {
+pub(crate) fn round_metric(value: f64) -> f64 {
     (value * OUTPUT_PRECISION).round() / OUTPUT_PRECISION
 }
 

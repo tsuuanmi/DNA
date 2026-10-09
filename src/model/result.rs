@@ -1,8 +1,9 @@
-//! Compact serializable `dna.analysis/v8` contract.
+//! Compact serializable `dna.analysis/v9` contract.
 
 use serde::Serialize;
 
 use crate::model::alignment::Orientation;
+use crate::model::callability::PhaseState;
 use crate::model::reference::ReferenceTopology;
 use crate::model::variant::{VariantCallRole, VariantKind};
 
@@ -48,11 +49,28 @@ pub(crate) struct ReferenceResult {
     pub(crate) sha256: String,
 }
 
-/// Call count and retained interval without complete sequence strings.
+/// Call count, retained interval, and callability without complete sequence strings.
 #[derive(Debug, Serialize)]
 pub(crate) struct ReadResult {
     pub(crate) call_count: usize,
     pub(crate) trim: IntervalResult,
+    pub(crate) callability: CallabilityResult,
+}
+
+/// Signal-derived callability view of one read (`dna.read_callability/v1`).
+#[derive(Debug, Serialize)]
+pub(crate) struct CallabilityResult {
+    pub(crate) callable_span: IntervalResult,
+    pub(crate) segments: Vec<CallabilitySegmentResult>,
+    pub(crate) masked_calls: usize,
+}
+
+/// One maximal run of calls sharing a phase state.
+#[derive(Debug, Serialize)]
+pub(crate) struct CallabilitySegmentResult {
+    pub(crate) calls: IntervalResult,
+    pub(crate) state: PhaseState,
+    pub(crate) after_repeat: bool,
 }
 
 /// A shared 0-based half-open result interval.

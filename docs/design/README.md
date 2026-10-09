@@ -6,6 +6,7 @@ These documents describe **current mechanisms**: how DNA implements its scientif
 - [ABIF decoding](abif-decoding.md): bounded container decode and scientific-tag extraction.
 - [Basecalling](basecalling.md): PLOC-window peak selection and primary/ambiguity calls.
 - [Signal processing](signal-processing/README.md): rolling SNR, locus evidence, trace-integrity observations, and interpretation limits.
+- [Callability](callability.md): per-position signal features, phase-state segments, the typed mask, and the callable span over a modality-generic core with a Sanger adapter.
 - [Quality control](quality-control.md): penalty, relative quality, best-section selection, and end trimming.
 - [Alignment](alignment.md): profile-aware Gotoh placement, traceback, orientation, and circular mapping.
 - [Variant calling](variant-calling.md): difference extraction, allele anchoring, eligibility, and deterministic ordering.

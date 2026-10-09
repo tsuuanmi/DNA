@@ -29,6 +29,7 @@ pub(crate) fn build(
     let ProcessedRead {
         calls,
         signal,
+        callability,
         quality,
         warnings: read_warnings,
     } = read_processing::process(trace, config)?;
@@ -144,6 +145,7 @@ pub(crate) fn build(
             configuration_sha256: config.source_sha256.clone(),
             calls,
             signal,
+            callability,
             quality,
             alignment,
             variants,

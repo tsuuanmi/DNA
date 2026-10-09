@@ -2,6 +2,7 @@
 
 use crate::model::alignment::Alignment;
 use crate::model::basecalls::BaseCalls;
+use crate::model::callability::ReadCallability;
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::SignalAnalysis;
 use crate::model::variant::VariantCallingResult;
@@ -20,6 +21,7 @@ pub(crate) struct ReadObservation {
     pub(crate) configuration_sha256: String,
     pub(crate) calls: BaseCalls,
     pub(crate) signal: SignalAnalysis,
+    pub(crate) callability: ReadCallability,
     pub(crate) quality: QualityControlResult,
     pub(crate) alignment: Alignment,
     pub(crate) variants: VariantCallingResult,

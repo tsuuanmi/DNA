@@ -72,7 +72,7 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     assert_eq!(first_bytes, second_bytes);
 
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v9");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v10");
     assert_eq!(value["sample_id"], SAMPLE_ID);
     assert_object_keys(
         &value,
@@ -99,6 +99,15 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     assert_eq!(reverse_read["integrity"]["ploc_count"], QUERY.len());
     assert_eq!(forward_read["integrity"]["clipped_channel_samples"], 0);
     assert_eq!(reverse_read["integrity"]["clipped_channel_samples"], 0);
+    for read in [forward_read, reverse_read] {
+        assert_object_keys(
+            read,
+            &["name", "sha256", "integrity", "callability", "alignment"],
+        )?;
+        assert_eq!(read["callability"]["masked_calls"], 0);
+        assert_eq!(read["callability"]["callable_span"]["end"], QUERY.len());
+    }
+    assert!(log_text(first.path())?.contains("masked_calls_total=0 callable_calls_total=56"));
 
     let coverage = value["coverage"]
         .as_array()
@@ -252,7 +261,7 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
         .success();
 
     let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v9");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v10");
     assert_eq!(value["overlaps"], serde_json::json!([]));
     let coverage = value["coverage"]
         .as_array()
@@ -320,7 +329,7 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
         .success();
 
     let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v9");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v10");
     assert_eq!(
         value["notation"],
         serde_json::json!({
@@ -468,6 +477,12 @@ fn run(
         command.arg(trace);
     }
     command.arg("--reference").arg(reference).assert()
+}
+
+fn log_text(workdir: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(fs::read_to_string(
+        workdir.join("logs").join(format!("{SAMPLE_ID}.log")),
+    )?)
 }
 
 fn sample_output_path(workdir: &Path) -> PathBuf {

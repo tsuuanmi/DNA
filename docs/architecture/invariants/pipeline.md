@@ -6,3 +6,4 @@ These invariants are part of the canonical [system invariant set](README.md).
 - **INV-PIPE-002:** Reference-aware stages do not alter upstream signal-derived base calls.
 - **INV-PIPE-003:** Expected external-input failures are explicit typed failures, not panics or silent fallbacks.
 - **INV-PIPE-004:** Identical scientific inputs, configuration, algorithm versions, and supported execution environment produce deterministic scientific output.
+- **INV-PIPE-005:** Read callability is derived once per read, before alignment, from that read's own signal in trace order; reference, profile, filename, and other reads never feed it, and downstream stages consume the mask rather than recompute it.

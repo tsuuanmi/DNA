@@ -8,7 +8,7 @@ in the primary sequence are considered; no allele-frequency, genotype,
 heteroplasmy, post-calling haplotype canonicalization, or target nomenclature
 inference is performed.
 
-### Substep 6.1 — Difference extraction
+### Substep 7.1 — Difference extraction
 
 Walking the alignment columns:
 
@@ -20,7 +20,7 @@ Differences whose allele contains a non-canonical base, or whose indel length
 exceeds `max_indel_length`, increment the excluded-candidate warning count rather
 than being reported.
 
-### Substep 6.2 — Allele construction and anchoring
+### Substep 7.2 — Allele construction and anchoring
 
 The caller converts each selected-alignment difference into a validated
 reference-oriented allele representation.
@@ -51,7 +51,7 @@ ADR-0060 may move sequence-equivalent events only after reconstructing and
 preserving the complete represented haplotype. That capability is intentionally
 separate from this caller.
 
-### Substep 6.3 — Configured eligibility
+### Substep 7.3 — Configured eligibility
 
 A called candidate is retained only when its 1-based anchor `position` lies
 inside at least one configured inclusive region. SNV supporting calls and every
@@ -79,7 +79,7 @@ counts of differential-locus observations and variant-associated calls that
 retain a basecall-independent profile; those operational counts do not alter the
 scientific result.
 
-### Substep 6.4 — Ordering
+### Substep 7.4 — Ordering
 
 Reported variants are sorted by `(contig, position, reference, alternate)` and
 deduplicated.

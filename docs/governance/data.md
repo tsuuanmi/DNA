@@ -51,7 +51,7 @@ Before using a real AB1 trace as compatibility, validation, or release evidence,
 7. expected stage outputs or biological truth and how they were established;
 8. redistribution permission or restriction.
 
-A trace without this record may be used for exploratory local debugging, but not to support compatibility or release claims.
+A trace without this record may be used for exploratory local debugging, but not to support compatibility or release claims. Exploratory measurements on the local corpus may inform a decision when they are quoted in aggregate without sample identifiers and against a named revision; they do not satisfy the approval record.
 
 ## Operational boundary
 

@@ -26,7 +26,7 @@ Prioritize evidence that demonstrates:
 
 - ABIF/channel/PLOC decoding matches the intended container and scientific-tag semantics;
 - signal-derived re-calling is deterministic and preserves unresolved evidence;
-- trimming removes justified tails without silently rewriting internal evidence;
+- trimming removes justified tails without silently rewriting internal evidence, and read callability masks internal dephased or mixed stretches without rewriting evidence;
 - forward/reverse placement is correct and ambiguous placement fails explicitly;
 - reported SNVs and supported indels map back to the observed trace evidence and reference strand;
 - sample evidence preserves independent read observations, coverage, overlap, differential loci, and normalized variant support without prematurely turning them into consensus or genotype claims.
@@ -58,7 +58,8 @@ These controls make the software build and supply chain defensible. They do not 
 The following remain outside the current production interpretation boundary until separately specified, decided, implemented, and validated:
 
 - new or substantially more complex indel models;
-- production mtDNA poly-C detector/state/recovery/weighting;
+- phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067);
+- signal denoising and baseline correction (research spike under `docs/research/denoising/`);
 - sample-level consensus and adjudicated sample variants;
 - quantitative heteroplasmy;
 - mixed-template or length-mixture decomposition;

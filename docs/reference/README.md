@@ -6,18 +6,18 @@ This directory is the canonical reference for public, machine-visible, configura
 
 - [Configuration](configuration.md): strict TOML and environment behavior.
 - [Target profiles](profiles.md): target knowledge referenced by the configuration.
-- [Basecall result](basecalls.md): `dna.basecalls/v2`.
-- [Analysis result](analysis/README.md): `dna.analysis/v8`.
-- [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v9`.
+- [Basecall result](basecalls.md): `dna.basecalls/v3`.
+- [Analysis result](analysis/README.md): `dna.analysis/v9`.
+- [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v10`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
 
 ## Machine-readable contracts
 
 - [Schema index](schemas/README.md)
-  - [Analysis JSON Schema](schemas/analysis-v8.schema.json)
-- [Basecall JSON Schema](schemas/basecalls-v2.schema.json)
-- [Sample evidence JSON Schema](schemas/sample-evidence-v9.schema.json)
+  - [Analysis JSON Schema](schemas/analysis-v9.schema.json)
+- [Basecall JSON Schema](schemas/basecalls-v3.schema.json)
+- [Sample evidence JSON Schema](schemas/sample-evidence-v10.schema.json)
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.

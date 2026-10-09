@@ -3,6 +3,7 @@
 pub(crate) mod alignment;
 pub(crate) mod basecall_result;
 pub(crate) mod basecalls;
+pub(crate) mod callability;
 pub(crate) mod coordinate;
 pub(crate) mod locus_evidence;
 pub(crate) mod nucleotide;

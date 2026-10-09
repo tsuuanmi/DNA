@@ -16,6 +16,10 @@ Each record contains:
   exact-clipping, and event-signal-scale observations retained by the one-read
   pipeline; this evidence remains read-local and does not by itself admit/reject
   a read;
+- `callability`: the read's `dna.read_callability/v1` view — callable span,
+  ordered phase-state segments with repeat attribution, and masked-call count —
+  exactly as the one-read contracts publish it ([method](../../design/callability.md));
+  in v10 it is observation only and does not by itself admit/reject a read;
 - `alignment`: the evidence-derived orientation, callable-base count and
   identity, unresolved-base count, gap-open count, mapped reference segments, and
   origin-wrap state.

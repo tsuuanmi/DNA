@@ -2,6 +2,7 @@
 
 mod atomic;
 mod basecall;
+mod callability;
 mod json;
 mod notation;
 mod sample;

@@ -8,6 +8,7 @@
 
 mod alignment;
 mod basecalling;
+mod callability;
 mod checksum;
 pub mod cli;
 mod config;

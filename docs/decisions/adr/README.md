@@ -27,6 +27,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | circular/reference placement | ADR-0010, ADR-0029, ADR-0047 | alignment SRS/method + alignment invariants |
 | variant calling / canonicalization / nomenclature | ADR-0047 → ADR-0057 → ADR-0060 | current variant SRS/method; platform direction in ADR-0060 |
 | signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
+| signal-derived read callability | ADR-0067 | SRS-CALL-* + callability method + evidence/pipeline invariants |
 | sample boundary and sparse evidence | ADR-0023, ADR-0025 | sample SRS/method + sample contract |
 | overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035 | sample SRS/method + sample contract |
 | sample call-signal projection | ADR-0037 (partially supersedes ADR-0034 and ADR-0036) | sample method + sample contract |
@@ -37,7 +38,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | modular analysis/public API boundaries | ADR-0058 | proposal + architecture/design/reference as implemented |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
 | operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
-| Sanger read callability | ADR-0027, ADR-0062 | SRS-VAR-012/013 + variant-calling method |
+| Sanger variant eligibility | ADR-0027, ADR-0062 (→ ADR-0067 when its mask acts) | SRS-VAR-012/013 + variant-calling method |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
@@ -99,3 +100,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0064](0064-crate-ready-module-layering.md) | Crate-ready module layering | Accepted |
 | [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Accepted |
 | [0066](0066-python-limited-to-repository-tooling.md) | Python in DNA is limited to repository tooling | Accepted |
+| [0067](0067-signal-derived-read-callability.md) | Signal-derived read callability | Accepted |

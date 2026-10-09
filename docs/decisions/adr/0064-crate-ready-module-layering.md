@@ -32,7 +32,7 @@ depend on implementations.
    |---|---|---|
    | 0 core | `error`, `checksum`, `model`, `locus`, `variant` | `dna-core` |
    | 1 target data | `config`, `reference`, `profile` | `dna-core` or `dna-profile` |
-   | 2 science | `basecalling`, `signal_processing`, `quality_control`, `read_processing`, `alignment`, `variant_calling`, `sample`, `variant_representation`, `variant_normalization`, `variant_nomenclature` | `dna-sanger`, `dna-analysis`, `dna-representation` |
+   | 2 science | `basecalling`, `signal_processing`, `callability`, `quality_control`, `read_processing`, `alignment`, `variant_calling`, `sample`, `variant_representation`, `variant_normalization`, `variant_nomenclature` | `dna-sanger`, `dna-analysis`, `dna-representation` |
    | 3 adapters and capabilities | `input`, `variant_analysis` | `dna-input-sanger`, `dna-variant-analysis` |
    | 4 delivery | `report`, `operation_log`, `pipeline`, `cli` | `dna` (facade and CLI) |
 

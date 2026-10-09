@@ -38,6 +38,8 @@ pub(super) struct SampleAggregationMetrics {
     locus_unresolved_reads: usize,
     locus_deletion_reads: usize,
     variants: usize,
+    masked_calls_total: usize,
+    callable_calls_total: usize,
 }
 
 pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
@@ -240,6 +242,16 @@ pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
             .map(|difference| difference.support_topology.deletion_reads)
             .sum(),
         variants: evidence.variants.len(),
+        masked_calls_total: evidence
+            .reads
+            .iter()
+            .map(|read| read.callability.masked_count())
+            .sum(),
+        callable_calls_total: evidence
+            .reads
+            .iter()
+            .map(|read| read.callability.callable_count())
+            .sum(),
     }
 }
 
@@ -261,7 +273,7 @@ impl fmt::Display for SampleAggregationMetrics {
                 "locus_forward_reads={} locus_reverse_reads={} locus_reference_reads={} ",
                 "locus_alternate_reads={} locus_unresolved_reads={} locus_deletion_reads={} variants={} ",
                 "profiled_variant_calls={} noisy_variant_calls={} variant_positive_corrected_channels={} ",
-                "variant_positive_snr_channels={}"
+                "variant_positive_snr_channels={} masked_calls_total={} callable_calls_total={}"
             ),
             self.profiled_locus_observations,
             self.profiled_locus_forward_reads,
@@ -293,7 +305,9 @@ impl fmt::Display for SampleAggregationMetrics {
             self.profiled_variant_calls,
             self.noisy_variant_calls,
             self.variant_positive_corrected_channels,
-            self.variant_positive_snr_channels
+            self.variant_positive_snr_channels,
+            self.masked_calls_total,
+            self.callable_calls_total
         )
     }
 }

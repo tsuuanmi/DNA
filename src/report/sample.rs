@@ -41,7 +41,7 @@ pub(crate) struct ReadRepresentation {
     pub(crate) variants: Vec<Variant>,
 }
 
-/// Builds `dna.sample_evidence/v9` without filesystem side effects.
+/// Builds `dna.sample_evidence/v10` without filesystem side effects.
 pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidenceResult> {
     let CompletedSampleEvidence {
         sample_id,
@@ -69,6 +69,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
             name: name.clone(),
             sha256: read.input_sha256,
             integrity: crate::report::signal::project_integrity(&read.integrity),
+            callability: crate::report::callability::project(&read.callability),
             alignment: AlignmentResult {
                 orientation: read.alignment.orientation,
                 callable_bases: read.alignment.callable_bases,
@@ -212,7 +213,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         .collect::<Result<Vec<_>>>()?;
 
     Ok(SampleEvidenceResult {
-        schema_version: "dna.sample_evidence/v9",
+        schema_version: "dna.sample_evidence/v10",
         sample_id,
         provenance: SampleProvenanceResult {
             reference: ReferenceResult {

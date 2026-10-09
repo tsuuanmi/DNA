@@ -14,7 +14,7 @@ Determine whether the failure is in:
 
 - input/path/config validation;
 - ABIF or FASTA decoding;
-- basecalling/signal/QC;
+- basecalling/signal/callability/QC;
 - alignment or variant processing;
 - sample aggregation;
 - serialization/publication;

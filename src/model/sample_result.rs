@@ -1,9 +1,10 @@
-//! Serializable `dna.sample_evidence/v9` contract.
+//! Serializable `dna.sample_evidence/v10` contract.
 
 use serde::Serialize;
 
 use crate::model::result::{
-    AlignmentResult, PeakHeightsResult, ProfileResult, ReferenceResult, TraceIntegrityResult,
+    AlignmentResult, CallabilityResult, PeakHeightsResult, ProfileResult, ReferenceResult,
+    TraceIntegrityResult,
 };
 use crate::model::sample_evidence::{LocusState, OverlapExclusionReason};
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
@@ -51,6 +52,7 @@ pub(crate) struct SampleReadResult {
     pub(crate) name: String,
     pub(crate) sha256: String,
     pub(crate) integrity: TraceIntegrityResult,
+    pub(crate) callability: CallabilityResult,
     pub(crate) alignment: AlignmentResult,
 }
 

@@ -13,3 +13,7 @@
 - **Core confidence floor:** the smallest scientific path that must be well understood and validated first.
 - **Current supported baseline:** capabilities the product already implements intentionally and retains while validation continues.
 - **Research:** non-normative exploratory documentation under `docs/research/`.
+- **Read callability:** the signal-derived, per-read view of where a read is still one ladder: phase-state segments, a per-position mask, and the callable span (`dna.read_callability/v1`).
+- **Phase state:** the behaviour of the measured signal over a run of calls — `in_phase`, `dephased` (superimposed ladders offset by a few calls, the slippage shadow), `mixed` (double peaks that no single offset explains), `weak`, or `irregular` (call spacing).
+- **Masked call:** a call inside a non-in-phase segment; it keeps its call and evidence but is declared not callable by the read's own signal.
+- **Callable span:** the 0-based half-open call interval from the first to the last unmasked call; empty when every call is masked.

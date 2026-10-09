@@ -14,6 +14,7 @@ DNA is a deterministic Rust library and CLI for DNA analysis. The current normat
 | `SRS-PRF-*` | target profiles | [profiles.md](profiles.md) |
 | `SRS-BC-*` | DNA-derived base re-calling | [basecalling.md](basecalling.md) |
 | `SRS-SIG-*` | observational signal processing | [signal-processing.md](signal-processing.md) |
+| `SRS-CALL-*` | signal-derived read callability: phase state, mask, callable span | [callability.md](callability.md) |
 | `SRS-QC-*` | quality control and trimming | [quality-control.md](quality-control.md) |
 | `SRS-ALN-*` | reference alignment and placement | [alignment.md](alignment.md) |
 | `SRS-SAMPLE-*` | multi-read sample evidence | [sample-evidence](sample-evidence/README.md) |

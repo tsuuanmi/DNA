@@ -25,7 +25,7 @@ as a permanent platform primitive. If a maintained implementation can later
 express the same contract, replacement should occur behind the alignment
 boundary and requires separate scientific-equivalence validation.
 
-### Substep 5.1 — Orientation candidates
+### Substep 6.1 — Orientation candidates
 
 The retained query evidence is aligned in both orientations:
 
@@ -37,7 +37,7 @@ so the query may wrap across the origin; the working reference length is the
 modulo length. A traceback may consume at most one reference length, so a query
 whose required reference span is longer than the circle is unsupported.
 
-### Substep 5.2 — Proven exact fast path
+### Substep 6.2 — Proven exact fast path
 
 Before allocating Gotoh matrices, DNA attempts a conservative upper-bound proof for both orientations. For every retained locus, the proof requires one strictly best canonical reference base under the existing fixed-point `EvidenceProfile` substitution scores, and that substitution score must be strictly better than extending a query gap. The concatenation of those unique per-locus best bases is therefore the only gapless sequence that can attain the sum of all per-locus maxima.
 
@@ -79,11 +79,11 @@ The pruned result is used only when the proof is complete and the certified wind
 
 A proven score in one orientation is also a valid threshold for the opposite orientation. If the same q-gram proof establishes that the opposite orientation has no placement able to reach that threshold, DNA can reject that orientation without allocating its full Gotoh matrix. Otherwise the ordinary orientation comparison remains unchanged.
 
-### Substep 5.3 — Gotoh scoring
+### Substep 6.3 — Gotoh scoring
 
 Three dynamic-programming matrices track match, insertion, and deletion states. All score deltas use fixed-point scale 1024. For canonical reference base `r`, profile support is quantized as `u = round(weight[r] × 1024)` and substitution score is `u × match_score + (1024-u) × mismatch_score`. A missing profile or non-canonical reference base receives `1024 × ambiguous_score`. Gap open/extension deltas use the same scale, preserving `open + k × extension` semantics and preserving the clean one-hot method ordering. Endpoint candidates are ranked from the last query row, allowing free reference flanks. For a circular reference, DNA selects the highest-scoring traceback whose consumed reference span is at most one circle rather than letting an invalid unbounded candidate mask a valid placement. Allocation is bounded by a compiled cell cap.
 
-### Substep 5.4 — Traceback
+### Substep 6.4 — Traceback
 
 The traceback internally decodes the selected path into equal-length gapped query and
 gapped reference strings, an operation-run string (e.g. `5M`, `3M1I1M`), and
@@ -97,11 +97,11 @@ reference segments, not the rows, operation runs, or score. When multiple paths 
   columns);
 - `unresolved_query_bases` (query `N` columns).
 
-### Substep 5.5 — Orientation selection
+### Substep 6.5 — Orientation selection
 
 The forward and reverse candidates are compared by fixed-point profile score only. The strictly better orientation is selected; an exact score tie is an error and primary-sequence exact/mismatch metrics do not break it. After placement, `callable_columns`, `callable_identity`, exact/mismatch counts, and unresolved-query count are still computed from the retained primary sequence on the selected traceback. The selected orientation must meet the existing `minimum_callable_bases` and `minimum_identity` primary-sequence admission gates, otherwise analysis fails.
 
-### Substep 5.6 — Reference segments
+### Substep 6.6 — Reference segments
 
 For a linear reference, the alignment maps to one half-open reference segment.
 For a circular reference, the aligned span is projected back onto the reference;
