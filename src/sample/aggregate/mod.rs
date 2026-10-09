@@ -6,18 +6,38 @@ use crate::config::SampleReconciliationConfig;
 use crate::error::{Result, SampleError};
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{
-    SampleEvidence, SampleReadAlignmentEvidence, SampleReadEvidence,
+    RejectedSampleRead, SampleEvidence, SampleReadAlignmentEvidence, SampleReadEvidence,
 };
 
 use super::{coverage, loci, overlap, variants};
 
-/// Aggregates independently processed reads without using filenames or pair labels as merge keys.
+/// Aggregates independently processed reads without using filenames or pair
+/// labels as merge keys; rejected reads are recorded but contribute nothing.
 pub(crate) fn aggregate(
     reads: &[ReadObservation],
+    rejected: &[RejectedSampleRead],
     config: &SampleReconciliationConfig,
 ) -> Result<SampleEvidence> {
+    if reads.is_empty() && !rejected.is_empty() {
+        return Err(SampleError::NoAdmittedReads {
+            rejected: rejected.len(),
+        }
+        .into());
+    }
     let ordered = validated_ordered_reads(reads)?;
     let first = ordered.first().ok_or(SampleError::NoReads)?;
+    let mut identities = ordered
+        .iter()
+        .map(|read| read.input_sha256.as_str())
+        .collect::<BTreeSet<_>>();
+    if !rejected
+        .iter()
+        .all(|read| identities.insert(read.input_sha256.as_str()))
+    {
+        return Err(SampleError::DuplicateTrace.into());
+    }
+    let mut rejected_reads = rejected.to_vec();
+    rejected_reads.sort_by(|left, right| left.input_sha256.cmp(&right.input_sha256));
     let reference_sha256 = first.reference_sha256.clone();
     let configuration_sha256 = first.configuration_sha256.clone();
 
@@ -48,6 +68,7 @@ pub(crate) fn aggregate(
         reference_sha256,
         configuration_sha256,
         reads: read_evidence,
+        rejected_reads,
         coverage,
         overlaps: overlap::assess(&ordered, config)?,
         locus_differences: loci::aggregate(&ordered)?,

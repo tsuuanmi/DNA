@@ -10,6 +10,6 @@ These requirements are part of the canonical [DNA SRS](../README.md). The family
 | `SRS-SAMPLE-007..012` | pairwise overlap admission, coverage, support topology | [Overlap and topology](overlap-topology.md) |
 | `SRS-SAMPLE-013..018` | locus profiles, noisy context, signal evidence, contribution eligibility | [Signal evidence](signal-evidence.md) |
 | `SRS-SAMPLE-019..023` | support accumulation, mean profiles, heterogeneity, directional distance | [Profile aggregation](profile-aggregation.md) |
-| `SRS-SAMPLE-024..026` | masked observations, masked topology, callable reference segments | [Callability](callability.md) |
+| `SRS-SAMPLE-024..027` | masked observations, masked topology, callable reference segments, rejected reads | [Callability](callability.md) |
 
 Requirement IDs are stable. Cross-family documents should reference these IDs rather than restating their normative language.

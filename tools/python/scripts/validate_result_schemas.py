@@ -329,20 +329,50 @@ def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
                 read.get("callability"), read.get("call_count"), str(path), errors
             )
         validate_callable_segments(document.get("alignment"), str(path), errors)
-        reads = document.get("reads")
-        if isinstance(reads, list):
-            for item in reads:
-                if isinstance(item, dict):
-                    validate_callable_segments(item.get("alignment"), str(path), errors)
-                    integrity = item.get("integrity")
-                    call_count = (
-                        integrity.get("ploc_count")
-                        if isinstance(integrity, dict)
-                        else None
-                    )
-                    validate_callability_view(
-                        item.get("callability"), call_count, str(path), errors
-                    )
+        reads = [
+            *(document.get("reads") or []),
+            *(document.get("rejected_reads") or []),
+        ]
+        for item in reads:
+            if isinstance(item, dict):
+                validate_callable_segments(item.get("alignment"), str(path), errors)
+                integrity = item.get("integrity")
+                call_count = (
+                    integrity.get("ploc_count") if isinstance(integrity, dict) else None
+                )
+                validate_callability_view(
+                    item.get("callability"), call_count, str(path), errors
+                )
+
+
+def validate_rejection(read: dict[str, Any], label: str, errors: list[str]) -> None:
+    """Check that a rejected read's counts agree with its callability view."""
+    rejection = read.get("rejection")
+    callability = read.get("callability")
+    integrity = read.get("integrity")
+    if not (
+        isinstance(rejection, dict)
+        and isinstance(callability, dict)
+        and isinstance(integrity, dict)
+    ):
+        return
+    callable_calls = rejection.get("callable_calls")
+    minimum = rejection.get("minimum_callable_calls")
+    calls = integrity.get("ploc_count")
+    masked = callability.get("masked_calls")
+    if not (
+        isinstance(callable_calls, int)
+        and isinstance(minimum, int)
+        and isinstance(calls, int)
+        and isinstance(masked, int)
+    ):
+        return
+    if callable_calls != calls - masked:
+        errors.append(
+            f"{label}: rejected read callable_calls disagrees with its callability"
+        )
+    if callable_calls >= minimum:
+        errors.append(f"{label}: rejected read reaches minimum_callable_calls")
 
 
 def validate_sample_support_topology_document(
@@ -366,6 +396,18 @@ def validate_sample_support_topology_document(
                 errors.append(f"{label}: duplicate read name {name!r}")
                 continue
             orientations[name] = orientation
+
+    rejected = document.get("rejected_reads")
+    if isinstance(rejected, list):
+        for read in rejected:
+            if not isinstance(read, dict):
+                continue
+            name = read.get("name")
+            if isinstance(name, str) and name in orientations:
+                errors.append(
+                    f"{label}: rejected read {name!r} is also an admitted read"
+                )
+            validate_rejection(read, label, errors)
 
     loci = document.get("locus_differences")
     if isinstance(loci, list):
@@ -588,6 +630,15 @@ def rejected_sample_shapes(
         observation["state"] = "reference"
         observation["base"] = all_reference_locus["locus_differences"][0]["reference"]
 
+    rejected_with_alignment = copy.deepcopy(example)
+    rejected_with_alignment["rejected_reads"][0]["alignment"] = copy.deepcopy(
+        example["reads"][0]["alignment"]
+    )
+    rejected_with_unknown_reason = copy.deepcopy(example)
+    rejected_with_unknown_reason["rejected_reads"][0]["rejection"]["reason"] = "noisy"
+    missing_rejected_reads = copy.deepcopy(example)
+    missing_rejected_reads.pop("rejected_reads")
+
     all_masked_locus = copy.deepcopy(example)
     for observation in all_masked_locus["locus_differences"][0]["observations"]:
         observation["state"] = "masked"
@@ -669,6 +720,9 @@ def rejected_sample_shapes(
         ("sample read without trace integrity", missing_read_integrity),
         ("sample read without callability", missing_read_callability),
         ("sample locus retained only by masked observations", all_masked_locus),
+        ("sample rejected read with an alignment", rejected_with_alignment),
+        ("sample rejected read with an unknown reason", rejected_with_unknown_reason),
+        ("sample without rejected reads", missing_rejected_reads),
         ("sample read alignment without masked bases", missing_masked_bases),
         ("sample locus topology without masked reads", missing_masked_reads),
         ("sample evidence with invalid sample id", invalid_sample_id),
@@ -842,6 +896,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not duplicate_read_errors:
         errors.append("expected duplicate sample read name to be rejected")
+
+    for description, mutate in [
+        (
+            "admitted name",
+            lambda read: read.update(name=sample_example["reads"][0]["name"]),
+        ),
+        ("callable count", lambda read: read["rejection"].update(callable_calls=3)),
+        ("minimum", lambda read: read["rejection"].update(minimum_callable_calls=0)),
+    ]:
+        inconsistent_rejection = copy.deepcopy(sample_example)
+        mutate(inconsistent_rejection["rejected_reads"][0])
+        rejection_errors: list[str] = []
+        validate_sample_support_topology_document(
+            inconsistent_rejection, "synthetic rejected read", rejection_errors
+        )
+        if not rejection_errors:
+            errors.append(
+                f"expected a rejected read with inconsistent {description} to fail"
+            )
 
     inconsistent_callability = copy.deepcopy(analysis_example)
     inconsistent_callability["read"]["callability"]["masked_calls"] += 1

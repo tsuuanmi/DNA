@@ -16,6 +16,7 @@ pub(crate) struct SampleEvidenceResult {
     pub(crate) sample_id: String,
     pub(crate) provenance: SampleProvenanceResult,
     pub(crate) reads: Vec<SampleReadResult>,
+    pub(crate) rejected_reads: Vec<RejectedSampleReadResult>,
     pub(crate) coverage: Vec<SampleCoverageResult>,
     pub(crate) overlaps: Vec<SampleOverlapResult>,
     pub(crate) locus_differences: Vec<SampleLocusDifferenceResult>,
@@ -54,6 +55,24 @@ pub(crate) struct SampleReadResult {
     pub(crate) integrity: TraceIntegrityResult,
     pub(crate) callability: CallabilityResult,
     pub(crate) alignment: AlignmentResult,
+}
+
+/// One read with too few callable calls; it contributes nothing else.
+#[derive(Debug, Serialize)]
+pub(crate) struct RejectedSampleReadResult {
+    pub(crate) name: String,
+    pub(crate) sha256: String,
+    pub(crate) integrity: TraceIntegrityResult,
+    pub(crate) callability: CallabilityResult,
+    pub(crate) rejection: ReadRejectionResult,
+}
+
+/// Why a read was not analyzed.
+#[derive(Debug, Serialize)]
+pub(crate) struct ReadRejectionResult {
+    pub(crate) reason: &'static str,
+    pub(crate) callable_calls: usize,
+    pub(crate) minimum_callable_calls: usize,
 }
 
 /// One maximal reference interval with constant read/orientation depth.

@@ -119,6 +119,44 @@
       }
     }
   ],
+  "rejected_reads": [
+    {
+      "name": "read-c",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "integrity": {
+        "ploc_count": 28,
+        "vendor_primary_count": 28,
+        "vendor_quality_count": 28,
+        "minimum_ploc_spacing": 4,
+        "median_ploc_spacing": 4,
+        "maximum_ploc_spacing": 4,
+        "clipped_channel_samples": 0,
+        "maximum_to_median_event_signal_ratio": 1
+      },
+      "callability": {
+        "callable_span": {
+          "start": 28,
+          "end": 28
+        },
+        "segments": [
+          {
+            "calls": {
+              "start": 0,
+              "end": 28
+            },
+            "state": "mixed",
+            "after_repeat": false
+          }
+        ],
+        "masked_calls": 28
+      },
+      "rejection": {
+        "reason": "callable_calls_below_minimum",
+        "callable_calls": 0,
+        "minimum_callable_calls": 20
+      }
+    }
+  ],
   "coverage": [
     {
       "reference": {

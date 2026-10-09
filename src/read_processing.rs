@@ -7,7 +7,7 @@ use crate::callability;
 use crate::config::Config;
 use crate::error::{CallabilityError, Result};
 use crate::model::basecalls::{BaseCalls, PeakSource};
-use crate::model::callability::{PhaseState, ReadCallability};
+use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
@@ -32,9 +32,37 @@ pub(crate) struct ProcessedRead {
     pub(crate) warnings: ReadWarnings,
 }
 
+/// A read after the stages that decide whether it can be analyzed at all.
+pub(crate) struct PreparedRead {
+    pub(crate) calls: BaseCalls,
+    pub(crate) signal: SignalAnalysis,
+    pub(crate) callability: ReadCallability,
+    pub(crate) warnings: ReadWarnings,
+}
+
+impl PreparedRead {
+    /// Why the read cannot be analyzed, or `None` when it has enough callable
+    /// calls.
+    pub(crate) fn rejection(&self, config: &Config) -> Option<ReadRejection> {
+        let callable_calls = self.callability.callable_count();
+        let minimum_callable_calls = config.callability.minimum_callable_calls;
+        (callable_calls < minimum_callable_calls).then_some(ReadRejection {
+            callable_calls,
+            minimum_callable_calls,
+        })
+    }
+}
+
 /// Runs the scientific stages that require no reference, emitting one
-/// `tracing` stage span and completion event per stage.
+/// `tracing` stage span and completion event per stage; a read with too few
+/// callable calls fails typed.
 pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<ProcessedRead> {
+    let prepared = prepare(trace, config)?;
+    finish(trace, prepared, config)
+}
+
+/// Runs basecalling, signal processing, and callability.
+pub(crate) fn prepare(trace: &Chromatogram, config: &Config) -> Result<PreparedRead> {
     let stage = tracing::info_span!("basecalling").entered();
     let stage_started = Instant::now();
     let calls = basecalling::call(trace, &config.basecalling)?;
@@ -183,15 +211,42 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         repeat_min_length = config.callability.repeat_min_length,
         minimum_callable_calls = config.callability.minimum_callable_calls,
     );
-    if callability.callable_count() < config.callability.minimum_callable_calls {
+
+    drop(stage);
+    Ok(PreparedRead {
+        calls,
+        signal,
+        callability,
+        warnings: ReadWarnings {
+            unresolved_primary_calls: unresolved_primary,
+            multi_channel_unresolved_calls: multi_channel_unresolved,
+            vendor_disagreements,
+            locus_vendor_length_mismatches,
+            clipped_channel_samples,
+        },
+    })
+}
+
+/// Runs quality control on a prepared read; a read with too few callable
+/// calls fails typed.
+pub(crate) fn finish(
+    trace: &Chromatogram,
+    prepared: PreparedRead,
+    config: &Config,
+) -> Result<ProcessedRead> {
+    if let Some(rejection) = prepared.rejection(config) {
         return Err(CallabilityError::TooFewCallableCalls {
-            callable: callability.callable_count(),
-            minimum: config.callability.minimum_callable_calls,
+            callable: rejection.callable_calls,
+            minimum: rejection.minimum_callable_calls,
         }
         .into());
     }
-
-    drop(stage);
+    let PreparedRead {
+        calls,
+        signal,
+        callability,
+        warnings,
+    } = prepared;
     let _stage = tracing::info_span!("quality_control").entered();
     let stage_started = Instant::now();
     let quality = quality_control::analyze(
@@ -262,12 +317,6 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         signal,
         callability,
         quality,
-        warnings: ReadWarnings {
-            unresolved_primary_calls: unresolved_primary,
-            multi_channel_unresolved_calls: multi_channel_unresolved,
-            vendor_disagreements,
-            locus_vendor_length_mismatches,
-            clipped_channel_samples,
-        },
+        warnings,
     })
 }

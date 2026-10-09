@@ -9,6 +9,7 @@
     "sample_id",
     "provenance",
     "reads",
+    "rejected_reads",
     "coverage",
     "overlaps",
     "locus_differences",
@@ -31,6 +32,14 @@
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/read"
+      }
+    },
+    "rejected_reads": {
+      "description": "Reads with too few callable calls, ordered by sha256; they contribute no alignment, coverage, overlap, locus, variant, or notation evidence.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/rejectedRead"
       }
     },
     "locus_differences": {
@@ -182,6 +191,57 @@
         },
         "integrity": {
           "$ref": "#/$defs/integrity"
+        }
+      }
+    },
+    "rejectedRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256",
+        "integrity",
+        "callability",
+        "rejection"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        },
+        "callability": {
+          "$ref": "#/$defs/callability"
+        },
+        "rejection": {
+          "$ref": "#/$defs/readRejection"
+        }
+      }
+    },
+    "readRejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "callable_calls",
+        "minimum_callable_calls"
+      ],
+      "properties": {
+        "reason": {
+          "const": "callable_calls_below_minimum"
+        },
+        "callable_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum_callable_calls": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },

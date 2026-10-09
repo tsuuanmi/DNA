@@ -84,11 +84,15 @@ remain independently versioned and are never silently changed in place.
   and ships `read_end_margin = 12`; `dna.analysis/v9` and
   `dna.sample_evidence/v10` alignment summaries gain `masked_bases` and
   `callable_reference_segments`; sample evidence gains the `masked` locus
-  state, `support_topology.masked_reads`, and the exclusion reasons
-  `dephased_signal`, `mixed_signal`, `weak_signal`, and `irregular_spacing`.
-  **Breaking (Rust API):** `QualityControlError` replaces `TooFewCalls` and
-  `RetainedTooShort` with `InvalidCallableSpan`, and `CallabilityError` gains
-  `TooFewCallableCalls`.
+  state, `support_topology.masked_reads`, the exclusion reasons
+  `dephased_signal`, `mixed_signal`, `weak_signal`, and `irregular_spacing`, and
+  the required `rejected_reads[]` array.
+  A `sample` read with too few callable calls is recorded in the new
+  `rejected_reads[]` registry, contributes nothing else, and no longer fails
+  the operation. **Breaking (Rust API):** `QualityControlError` replaces
+  `TooFewCalls` and `RetainedTooShort` with `InvalidCallableSpan`,
+  `CallabilityError` gains `TooFewCallableCalls`, and `SampleError` gains
+  `NoAdmittedReads`.
 - Read callability separates dephased from mixed double-peak segments with a
   shadow model (ADR-0067 calibration amendment): a non-negative least-squares
   fit of each segment's normalized amplitudes to the read's own primary calls

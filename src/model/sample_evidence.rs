@@ -3,7 +3,7 @@
 use serde::Serialize;
 
 use crate::model::alignment::{Orientation, ReferenceSegment};
-use crate::model::callability::ReadCallability;
+use crate::model::callability::{ReadCallability, ReadRejection};
 use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::signal::SangerIntegrity;
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
@@ -99,6 +99,17 @@ pub(crate) struct SampleReadEvidence {
     pub(crate) integrity: SangerIntegrity,
     pub(crate) callability: ReadCallability,
     pub(crate) alignment: SampleReadAlignmentEvidence,
+}
+
+/// A read with too few callable calls, recorded at sample scope without
+/// contributing alignment, coverage, overlaps, loci, or variants.
+#[derive(Debug, Clone)]
+pub(crate) struct RejectedSampleRead {
+    pub(crate) input_name: String,
+    pub(crate) input_sha256: String,
+    pub(crate) integrity: SangerIntegrity,
+    pub(crate) callability: ReadCallability,
+    pub(crate) rejection: ReadRejection,
 }
 
 /// Reference-oriented signal evidence associated with one source call.
@@ -204,6 +215,7 @@ pub(crate) struct SampleEvidence {
     pub(crate) reference_sha256: String,
     pub(crate) configuration_sha256: String,
     pub(crate) reads: Vec<SampleReadEvidence>,
+    pub(crate) rejected_reads: Vec<RejectedSampleRead>,
     pub(crate) coverage: Vec<SampleCoverageEvidence>,
     pub(crate) overlaps: Vec<ReadOverlapEvidence>,
     pub(crate) locus_differences: Vec<SampleLocusEvidence>,

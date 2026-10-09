@@ -26,13 +26,25 @@ pub(crate) fn build(
     config: &Config,
     profile: &Profile,
 ) -> Result<CompletedObservation> {
+    let processed = read_processing::process(trace, config)?;
+    observe(trace, processed, reference, config, profile)
+}
+
+/// Runs the alignment and variant stages for one processed read.
+pub(crate) fn observe(
+    trace: &Chromatogram,
+    processed: ProcessedRead,
+    reference: &Reference,
+    config: &Config,
+    profile: &Profile,
+) -> Result<CompletedObservation> {
     let ProcessedRead {
         calls,
         signal,
         callability,
         quality,
         warnings: read_warnings,
-    } = read_processing::process(trace, config)?;
+    } = processed;
 
     let stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();

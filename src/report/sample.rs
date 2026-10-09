@@ -8,11 +8,12 @@ use crate::model::reference::Reference;
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_evidence::SampleEvidence;
 use crate::model::sample_result::{
-    SampleCoverageResult, SampleEvidenceProfileResult, SampleEvidenceResult,
-    SampleLocusDifferenceObservationResult, SampleLocusDifferenceResult,
-    SampleLocusSupportTopologyResult, SampleNotationCallResult, SampleNotationResult,
-    SampleOverlapResult, SampleProvenanceResult, SampleReadResult, SampleVariantCallResult,
-    SampleVariantResult, SampleVariantSupportResult, SampleVariantSupportTopologyResult,
+    ReadRejectionResult, RejectedSampleReadResult, SampleCoverageResult,
+    SampleEvidenceProfileResult, SampleEvidenceResult, SampleLocusDifferenceObservationResult,
+    SampleLocusDifferenceResult, SampleLocusSupportTopologyResult, SampleNotationCallResult,
+    SampleNotationResult, SampleOverlapResult, SampleProvenanceResult, SampleReadResult,
+    SampleVariantCallResult, SampleVariantResult, SampleVariantSupportResult,
+    SampleVariantSupportTopologyResult,
 };
 use crate::profile::{NotationStyle, ProfileIdentity};
 use crate::report::json::project_profile;
@@ -57,7 +58,23 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         .into());
     }
 
-    let read_names = reviewer_read_names(&evidence)?;
+    let (read_names, rejected_names) = reviewer_read_names(&evidence)?;
+    let rejected_reads = evidence
+        .rejected_reads
+        .iter()
+        .zip(rejected_names)
+        .map(|(read, name)| RejectedSampleReadResult {
+            name,
+            sha256: read.input_sha256.clone(),
+            integrity: crate::report::signal::project_integrity(&read.integrity),
+            callability: crate::report::callability::project(&read.callability),
+            rejection: ReadRejectionResult {
+                reason: "callable_calls_below_minimum",
+                callable_calls: read.rejection.callable_calls,
+                minimum_callable_calls: read.rejection.minimum_callable_calls,
+            },
+        })
+        .collect();
     let notation = notation
         .map(|notation| project_notation(&reference, &evidence, &read_names, notation))
         .transpose()?;
@@ -236,6 +253,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
             profile: project_profile(profile),
         },
         reads,
+        rejected_reads,
         coverage,
         overlaps,
         locus_differences,
@@ -296,11 +314,12 @@ fn project_notation(
     })
 }
 
-fn reviewer_read_names(evidence: &SampleEvidence) -> Result<Vec<String>> {
-    let mut names = Vec::with_capacity(evidence.reads.len());
+/// Reviewer-facing names of the admitted and the rejected reads, unique
+/// across both.
+fn reviewer_read_names(evidence: &SampleEvidence) -> Result<(Vec<String>, Vec<String>)> {
     let mut unique = BTreeSet::new();
-    for read in &evidence.reads {
-        let name = Path::new(&read.input_name)
+    let mut name_of = |input_name: &str| -> Result<String> {
+        let name = Path::new(input_name)
             .file_stem()
             .and_then(|value| value.to_str())
             .filter(|value| !value.is_empty())
@@ -309,9 +328,19 @@ fn reviewer_read_names(evidence: &SampleEvidence) -> Result<Vec<String>> {
         if !unique.insert(name.clone()) {
             return Err(ReportError::DuplicateReadName { name }.into());
         }
-        names.push(name);
-    }
-    Ok(names)
+        Ok(name)
+    };
+    let names = evidence
+        .reads
+        .iter()
+        .map(|read| name_of(&read.input_name))
+        .collect::<Result<Vec<_>>>()?;
+    let rejected = evidence
+        .rejected_reads
+        .iter()
+        .map(|read| name_of(&read.input_name))
+        .collect::<Result<Vec<_>>>()?;
+    Ok((names, rejected))
 }
 
 fn read_name(read_names: &[String], index: usize) -> Result<&str> {

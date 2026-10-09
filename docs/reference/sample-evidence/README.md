@@ -7,6 +7,9 @@ writes one deterministic `results/<sample-id>.sample.json` document identified a
 and the example is
 [`examples/sample-evidence-v10.example.json`](../examples/sample-evidence-v10.example.json).
 
+Reads that have too few callable calls are recorded in `rejected_reads[]` and
+contribute to no other array ([reads and coverage](reads-coverage.md)).
+
 The sample identifier and read names are reviewer-facing provenance. They never
 constrain scientific placement, orientation, overlap discovery, or variant
 reconciliation.

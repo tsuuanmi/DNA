@@ -12,8 +12,8 @@ use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
 use support::{
-    human_mtdna_profile, write_abif, write_abif_with_secondary_signal, write_config,
-    write_config_with_profile, write_reference,
+    human_mtdna_profile, write_abif, write_abif_with_incoherent_doubles,
+    write_abif_with_secondary_signal, write_config, write_config_with_profile, write_reference,
 };
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -81,6 +81,7 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
             "sample_id",
             "provenance",
             "reads",
+            "rejected_reads",
             "coverage",
             "overlaps",
             "locus_differences",
@@ -88,6 +89,7 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
         ],
     )?;
     assert!(value.get("loci").is_none());
+    assert_eq!(value["rejected_reads"], serde_json::json!([]));
 
     let reads = value["reads"].as_array().ok_or("reads must be an array")?;
     assert_eq!(reads.len(), 2);
@@ -387,6 +389,85 @@ fn omits_unresolved_indel_flank_from_sample_evidence() -> Result<(), Box<dyn std
 
 /// Writes the forward reference read and a reverse read carrying `15A` against
 /// `TTTT{QUERY}CCCC`, returning the two trace paths.
+/// Read callability (ADR-0067): a read with too few callable calls is recorded
+/// as rejected and the remaining reads are still aggregated.
+#[test]
+fn records_a_read_with_too_few_callable_calls_as_rejected() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    let mixed = directory.path().join("read-mixed.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif(&forward, QUERY)?;
+    write_abif(&reverse, &reverse_complement(QUERY))?;
+    write_abif_with_incoherent_doubles(&mixed, QUERY, 0..QUERY.len(), 500)?;
+
+    run(
+        &[&forward, &mixed, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+    )
+    .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let reads = value["reads"].as_array().ok_or("reads must be an array")?;
+    assert_eq!(reads.len(), 2);
+    assert!(reads.iter().all(|read| read["name"] != "read-mixed"));
+    let rejected = value["rejected_reads"]
+        .as_array()
+        .ok_or("rejected_reads must be an array")?;
+    assert_eq!(rejected.len(), 1);
+    assert_object_keys(
+        &rejected[0],
+        &["name", "sha256", "integrity", "callability", "rejection"],
+    )?;
+    assert_eq!(rejected[0]["name"], "read-mixed");
+    assert_eq!(
+        rejected[0]["rejection"],
+        serde_json::json!({
+            "reason": "callable_calls_below_minimum",
+            "callable_calls": 0,
+            "minimum_callable_calls": 20
+        })
+    );
+    assert_eq!(rejected[0]["callability"]["masked_calls"], QUERY.len());
+    assert_eq!(value["coverage"][0]["read_depth"], 2);
+    let log = log_text(directory.path())?;
+    assert!(log.contains("event=sample_read_rejected read_index=1"));
+    assert!(log.contains(
+        "reason=callable_calls_below_minimum callable_calls=0 minimum_callable_calls=20"
+    ));
+    assert!(log.contains("rejected_reads=1"));
+    Ok(())
+}
+
+/// A sample whose every read is rejected fails typed and publishes nothing.
+#[test]
+fn fails_when_every_read_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let first = directory.path().join("read-first.ab1");
+    let second = directory.path().join("read-second.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif_with_incoherent_doubles(&first, QUERY, 0..QUERY.len(), 500)?;
+    write_abif_with_incoherent_doubles(&second, QUERY, 0..QUERY.len(), 400)?;
+
+    run(&[&first, &second], &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains(
+            "all 2 reads have too few callable calls to be analyzed",
+        ));
+    assert!(!sample_output_path(directory.path()).exists());
+    Ok(())
+}
+
 fn write_two_reads(
     directory: &Path,
     reference: &Path,
@@ -452,7 +533,7 @@ fn sample_fails_closed_when_the_profile_names_another_reference()
 }
 
 fn run(
-    traces: &[&PathBuf; 2],
+    traces: &[&PathBuf],
     reference: &Path,
     config: &Path,
     workdir: &Path,

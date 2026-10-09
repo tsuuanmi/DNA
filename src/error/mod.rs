@@ -282,6 +282,10 @@ mod tests {
                 "variant calling failed: variant reference allele disagrees with the supplied reference at position 9",
             ),
             (
+                SampleError::NoAdmittedReads { rejected: 2 }.into(),
+                "sample evidence failed: all 2 reads have too few callable calls to be analyzed",
+            ),
+            (
                 SampleError::CallEvidence(CallEvidenceError::MissingPeakEvidence { index: 7 })
                     .into(),
                 "sample evidence failed: variant call index 7 lacks primary-event peak evidence",

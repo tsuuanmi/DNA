@@ -68,16 +68,19 @@ fn sample(
         &inputs.profile,
     )?;
     let reads = completed_reads.reads;
+    let rejected = completed_reads.rejected;
     let warning_total = completed_reads.warning_total;
 
     let stage = tracing::info_span!("sample_aggregation").entered();
     let stage_started = Instant::now();
-    let evidence = sample_science::aggregate(&reads, &inputs.config.sample_reconciliation)?;
+    let evidence =
+        sample_science::aggregate(&reads, &rejected, &inputs.config.sample_reconciliation)?;
     let metrics = sample_metrics::summarize(&evidence);
     tracing::info!(
         event = "sample_aggregation_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
         reads = evidence.reads.len(),
+        rejected_reads = evidence.rejected_reads.len(),
         coverage_segments = evidence.coverage.len(),
         overlaps = evidence.overlaps.len(),
         eligible_overlaps = evidence
@@ -104,6 +107,7 @@ fn sample(
         notation,
     })?;
     let reads = result.reads.len();
+    let rejected_reads = result.rejected_reads.len();
     let coverage_segments = result.coverage.len();
     let overlaps = result.overlaps.len();
     let locus_differences = result.locus_differences.len();
@@ -119,6 +123,7 @@ fn sample(
         total_elapsed_ms = started.elapsed().as_millis(),
         schema = schema_version,
         reads,
+        rejected_reads,
         coverage_segments,
         overlaps,
         locus_differences,

@@ -15,6 +15,12 @@ pub enum SampleError {
     /// Aggregation received no read observation.
     #[error("at least one read observation is required")]
     NoReads,
+    /// Every read had too few callable calls.
+    #[error("all {rejected} reads have too few callable calls to be analyzed")]
+    NoAdmittedReads {
+        /// Rejected read count.
+        rejected: usize,
+    },
     /// Reads were analyzed against different references.
     #[error("all reads must use the same reference identity")]
     MixedReference,

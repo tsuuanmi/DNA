@@ -144,8 +144,9 @@ mask once and fails typed on an inconsistency.
 - **Quality control** trims to the callable span plus up to
   `variant_calling.read_end_margin` calls of an adjacent dephased segment
   ([quality control](quality-control.md), substep 5.3). A read with fewer than
-  `minimum_callable_calls` unmasked calls fails typed after the
-  `callability_completed` event.
+  `minimum_callable_calls` unmasked calls fails `analyze` and `basecall`
+  typed after the `callability_completed` event; `sample` records it as
+  rejected and continues ([read registry](sample-evidence/read-registry.md)).
 - **Alignment** keeps dephased calls with their call and evidence profile, which
   still read the main ladder and anchor the alignment, and presents every other
   masked call as unresolved `N` without a profile ([alignment](alignment.md)).

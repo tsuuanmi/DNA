@@ -223,7 +223,7 @@ fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
         vec![snv(73, "A", "G")],
     );
 
-    let evidence = aggregate(&[reverse, forward], &sample_config())?;
+    let evidence = aggregate(&[reverse, forward], &[], &sample_config())?;
 
     assert_eq!(evidence.reads[0].input_name, "a.ab1");
     assert_eq!(evidence.reads[1].input_name, "b.ab1");
@@ -429,7 +429,7 @@ fn omits_reference_matches_but_preserves_non_reference_states() -> Result<()> {
     );
     read.signal.loci[2].profile = None;
 
-    let evidence = aggregate(&[read], &sample_config())?;
+    let evidence = aggregate(&[read], &[], &sample_config())?;
 
     assert_eq!(evidence.locus_differences.len(), 3);
     assert_eq!(evidence.locus_differences[0].position_1based, 12);
@@ -571,7 +571,7 @@ fn unresolved_call_with_profile_remains_nucleotide_eligible() -> TestResult {
         Vec::new(),
     );
 
-    let evidence = aggregate(&[read], &sample_config())?;
+    let evidence = aggregate(&[read], &[], &sample_config())?;
 
     assert_eq!(evidence.locus_differences.len(), 1);
     assert_eq!(
@@ -639,7 +639,7 @@ fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -
     );
     masked.callability.mask = vec![Some(crate::model::callability::PhaseState::Dephased); 2];
 
-    let evidence = aggregate(&[differing, masked], &sample_config())?;
+    let evidence = aggregate(&[differing, masked], &[], &sample_config())?;
 
     assert_eq!(evidence.locus_differences.len(), 1);
     let locus = &evidence.locus_differences[0];
@@ -679,7 +679,7 @@ fn differential_locus_retains_reference_support_from_overlapping_reads() -> Resu
         Vec::new(),
     );
 
-    let evidence = aggregate(&[reference, alternate], &sample_config())?;
+    let evidence = aggregate(&[reference, alternate], &[], &sample_config())?;
 
     assert_eq!(evidence.locus_differences.len(), 1);
     let topology = evidence.locus_differences[0].support_topology;
@@ -728,7 +728,7 @@ fn all_reference_overlap_needs_no_per_locus_records() -> Result<()> {
         Vec::new(),
     );
 
-    let evidence = aggregate(&[first, second], &sample_config())?;
+    let evidence = aggregate(&[first, second], &[], &sample_config())?;
 
     assert!(evidence.locus_differences.is_empty());
     Ok(())
@@ -756,7 +756,7 @@ fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     reverse.variants.reported.clear();
     reverse.variants.observed[0].exclusion_reasons = vec![VariantExclusionReason::PeakBelowMinimum];
 
-    let evidence = aggregate(&[forward, reverse], &sample_config())?;
+    let evidence = aggregate(&[forward, reverse], &[], &sample_config())?;
 
     assert_eq!(evidence.variants[0].support.len(), 2);
     assert_eq!(evidence.variants[0].support_topology.reads, 2);
@@ -798,7 +798,7 @@ fn rejects_misindexed_locus_evidence() {
     );
     read.signal.loci[0].call_index_0based = 1;
 
-    assert!(aggregate(&[read], &sample_config()).is_err());
+    assert!(aggregate(&[read], &[], &sample_config()).is_err());
 }
 
 #[test]
@@ -812,7 +812,7 @@ fn rejects_duplicate_reference_coordinate_within_one_read() {
         Vec::new(),
     );
 
-    assert!(aggregate(&[read], &sample_config()).is_err());
+    assert!(aggregate(&[read], &[], &sample_config()).is_err());
 }
 
 #[test]
@@ -827,7 +827,7 @@ fn rejects_duplicate_normalized_variant_identity_within_one_read() {
         vec![variant.clone(), variant],
     );
 
-    assert!(aggregate(&[read], &sample_config()).is_err());
+    assert!(aggregate(&[read], &[], &sample_config()).is_err());
 }
 
 #[test]
@@ -848,7 +848,7 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
         vec![column('A', 'A', Some(0), 0)],
         Vec::new(),
     );
-    assert!(aggregate(&[first.clone(), incompatible], &sample_config()).is_err());
+    assert!(aggregate(&[first.clone(), incompatible], &[], &sample_config()).is_err());
 
     let mut duplicate = observation(
         "a",
@@ -859,5 +859,5 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
         Vec::new(),
     );
     duplicate.input_name = "renamed-copy.ab1".into();
-    assert!(aggregate(&[first, duplicate], &sample_config()).is_err());
+    assert!(aggregate(&[first, duplicate], &[], &sample_config()).is_err());
 }

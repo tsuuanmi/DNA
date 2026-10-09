@@ -83,7 +83,8 @@ read's own signal.
    they could be calibrated on the local corpus before the mask acted.
 6. Increment 2 makes the mask act:
    - a read with fewer than `callability.minimum_callable_calls` unmasked
-     calls fails typed;
+     calls fails `analyze` and `basecall` typed, while `sample` records it as
+     rejected and continues with the other reads;
    - the trim interval is the callable span, widened by up to
      `variant_calling.read_end_margin` calls of an adjacent dephased segment;
    - alignment keeps dephased calls with their call and evidence profile and
@@ -94,9 +95,7 @@ read's own signal.
      `irregular_spacing`) in place of the sequence-only `post_homopolymer`
      window, and a masked call is no SNV candidate;
    - sample aggregation records masked observations as `masked`, which never
-     retain a locus, and publishes each read's callable reference segments;
-   - still to come: a `sample` read with too few callable calls is recorded as
-     rejected instead of failing the operation.
+     retain a locus, and publishes each read's callable reference segments.
 
    This increment supersedes ADR-0062 in part.
 7. Signal denoising remains research ([denoising](../../research/denoising/README.md)).
@@ -134,9 +133,10 @@ read's own signal.
   adds `callability.minimum_callable_calls`, and raises the shipped
   `read_end_margin` from 8 to 12; the contracts gain `alignment.masked_bases`,
   `alignment.callable_reference_segments`, the `masked` locus state, the
-  `masked_reads` topology count, and four exclusion reasons; the Rust
-  `QualityControlError` loses its retention variants and `CallabilityError`
-  gains `TooFewCallableCalls`.
+  `masked_reads` topology count, four exclusion reasons, and the
+  `rejected_reads` registry; the Rust `QualityControlError` loses its retention
+  variants, `CallabilityError` gains `TooFewCallableCalls`, and `SampleError`
+  gains `NoAdmittedReads`.
 - The thresholds shipped in `config/dna.toml` are calibrated on the local
   corpus only (see the measurements below) and must be revisited as validation
   data grows.

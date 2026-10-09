@@ -134,6 +134,15 @@ pub(crate) struct RepeatRun {
     pub(crate) unit: RepeatUnit,
 }
 
+/// Why a read is not analyzed: too few of its calls are callable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ReadRejection {
+    /// Unmasked call count.
+    pub(crate) callable_calls: usize,
+    /// Configured minimum callable calls.
+    pub(crate) minimum_callable_calls: usize,
+}
+
 /// Complete signal-derived callability of one read.
 ///
 /// `segments` partition `[0, call_count)` in order; `mask` has one entry per

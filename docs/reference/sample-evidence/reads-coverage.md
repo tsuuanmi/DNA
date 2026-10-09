@@ -5,7 +5,9 @@ Part of the canonical [sample evidence contract](README.md).
 ## Reads and post-trim coverage
 
 `reads[]` is the one registry of contributing reads. Records are sorted by
-SHA-256, so CLI argument order does not change the scientific document.
+SHA-256, so CLI argument order does not change the scientific document. Reads
+that could not be analyzed are listed separately in `rejected_reads[]` (see
+[Rejected reads](#rejected-reads)).
 
 Each record contains:
 
@@ -44,6 +46,22 @@ For a circular reference, a read can cross the reference origin. In that case
 one from the mapped start to the end of the reference and one from reference
 position 0 to the mapped end. A normal non-crossing read has
 `wraps_origin: false`.
+
+## Rejected reads
+
+`rejected_reads[]` lists reads whose callability left fewer than
+`callability.minimum_callable_calls` unmasked calls (ADR-0067). Records are
+sorted by SHA-256 and contain `name`, `sha256`, `integrity`, and `callability`
+as in `reads[]`, plus `rejection`:
+
+- `reason`: `callable_calls_below_minimum`;
+- `callable_calls`: the read's unmasked call count;
+- `minimum_callable_calls`: the configured minimum.
+
+A rejected read has no `alignment` and contributes nothing to `coverage[]`,
+`overlaps[]`, `locus_differences[]`, `variants[]`, or `notation`. Names are
+unique across both registries. The array is empty when every read was
+analyzed; a sample whose every read is rejected fails without a document.
 
 Read names are unique within one emitted sample document because they are used as
 human-readable references from overlap, locus, and variant evidence. SHA-256 remains the
