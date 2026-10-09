@@ -30,7 +30,7 @@ depend on implementations.
 
    | Layer | Modules | Possible future crate |
    |---|---|---|
-   | 0 core | `error`, `checksum`, `model`, `locus`, `variant` | `dna-core` |
+   | 0 core | `error`, `checksum`, `model`, `locus`, `variant`, `read_evidence` | `dna-core` |
    | 1 target data | `config`, `reference`, `profile` | `dna-core` or `dna-profile` |
    | 2 science | `basecalling`, `signal_processing`, `callability`, `quality_control`, `read_processing`, `alignment`, `variant_calling`, `sample`, `variant_representation`, `variant_normalization`, `variant_nomenclature` | `dna-sanger`, `dna-analysis`, `dna-representation` |
    | 3 adapters and capabilities | `input`, `variant_analysis` | `dna-input-sanger`, `dna-variant-analysis` |
@@ -66,3 +66,12 @@ A split into crates follows when one of these holds:
 - **Breaking (Rust API):** `dna::variant_analysis::{Variant, VariantKind,
   ReferenceIdentity, CalledVariantSet}` move to `dna::variant`.
 - Scientific output is unchanged.
+
+## Revision 2026-10-09
+
+[ADR-0069](0069-plugin-first-modality-core-post-calling.md) adds the layer-0
+module `read_evidence` (the modality → core contract) and a neutrality rule that
+the validator enforces next to the layer rule. Modality-neutral modules
+(`read_evidence`, `variant`, `alignment`, `variant_calling`,
+`variant_representation`, `variant_normalization`, `variant_nomenclature`) must
+not depend on Sanger modules or on the Sanger children of `model`.

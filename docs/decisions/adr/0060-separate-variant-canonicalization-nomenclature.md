@@ -1,6 +1,6 @@
 # ADR-0060: Separate variant calling, canonicalization, and nomenclature
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0069](0069-plugin-first-modality-core-post-calling.md) (§1, §6)
 - **Date:** 2026-10-03
 - **Related decisions:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md), [ADR-0057](0057-haplotype-correctness-and-variant-nomenclature.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
 
@@ -266,3 +266,8 @@ This ADR supersedes ADR-0047 only in the narrower assumption that final
 canonical variant representation must always inherit the alignment-selected gap
 placement and that positional variant canonicalization has one authoritative
 home inside `alignment::canonical`.
+
+[ADR-0069](0069-plugin-first-modality-core-post-calling.md) supersedes §1 and
+§6 in part: the caller is a modality-neutral core over per-read evidence
+(`ReadEvidence`), and modality eligibility reaches it as data. Called variants
+remain the convergence boundary for imported calls.

@@ -35,7 +35,8 @@ Use this map to find current rationale without treating the chronological ADR li
 | reviewer-facing public signal evidence | ADR-0026, ADR-0053 | analysis/sample contracts |
 | release/readiness | ADR-0018, ADR-0021 | release operations + roadmap/validation evidence |
 | documentation governance | ADR-0006 → ADR-0022 | documentation governance + source-local README policy |
-| modular analysis/public API boundaries | ADR-0058 | proposal + architecture/design/reference as implemented |
+| modular analysis/public API boundaries | ADR-0058 → ADR-0069 | proposals + architecture/design/reference as implemented |
+| plugin families and the modality → core evidence contract | ADR-0069 (supersedes ADR-0058 §4 and ADR-0060 §1/§6 in part) | PROP-0002 + interface architecture + variant-calling method |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
 | operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
 | Sanger variant eligibility | ADR-0027, ADR-0062 → ADR-0067 | SRS-VAR-012/013 + variant-calling method |
@@ -91,9 +92,9 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0047](0047-canonical-right-aligned-mtdna-gaps.md) | Canonical right-aligned mtDNA gap placement | Superseded in part by ADR-0060 |
 | [0053](0053-public-differential-locus-signal-evidence.md) | Expose concise differential-locus signal evidence in sample output | Accepted |
 | [0057](0057-haplotype-correctness-and-variant-nomenclature.md) | Separate haplotype correctness from variant nomenclature | Accepted |
-| [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Accepted |
+| [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Superseded in part by ADR-0069 |
 | [0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md) | Reuse ecosystem machinery behind DNA-owned contracts | Accepted |
-| [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Accepted |
+| [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Superseded in part by ADR-0069 |
 | [0061](0061-tracing-for-operational-logging.md) | Use `tracing` for operational logging | Accepted |
 | [0062](0062-read-callability.md) | Read callability from the read's own calls | Superseded in part by ADR-0067 |
 | [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |
@@ -102,3 +103,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0066](0066-python-limited-to-repository-tooling.md) | Python in DNA is limited to repository tooling | Accepted |
 | [0067](0067-signal-derived-read-callability.md) | Signal-derived read callability | Accepted |
 | [0068](0068-variant-opposition-evidence.md) | Variant opposition evidence | Accepted |
+| [0069](0069-plugin-first-modality-core-post-calling.md) | Plugin-first composition of modality, core, and post-calling plugins | Accepted |

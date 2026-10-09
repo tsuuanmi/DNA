@@ -5,7 +5,7 @@ status: implementing
 owners: []
 created: 2026-10-03
 related-requirements: []
-related-decisions: [ADR-0058, ADR-0059, ADR-0060]
+related-decisions: [ADR-0058, ADR-0059, ADR-0060, ADR-0069]
 implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26, PR-32, PR-34]
 ---
 
@@ -585,6 +585,10 @@ The reuse-first implementation policy is recorded by
 The variant lifecycle boundary between calling, canonicalization, and
 nomenclature is recorded by
 [ADR-0060](../decisions/adr/0060-separate-variant-canonicalization-nomenclature.md).
+
+The plugin families and the modality → core evidence contract are refined by
+[ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md) and
+[PROP-0002](0002-plugin-first-architecture.md).
 
 Acceptance establishes architectural direction; it does not make unimplemented
 capabilities current production behavior.

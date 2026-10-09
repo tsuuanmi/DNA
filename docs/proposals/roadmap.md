@@ -14,6 +14,8 @@ The core confidence floor remains the read-level path defined by [ADR-0021](../d
 
 The proposal is not current production architecture. Its implementation is intentionally incremental: preserve the validated Sanger path, introduce stable public and canonical boundaries first, add alternative implementations only where independent variation is real, and extract crates only when dependency or lifecycle boundaries justify them.
 
+[PROP-0002](0002-plugin-first-architecture.md), accepted by [ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md), sequences that direction as three plugin families (modality, core caller, post-calling) with phased exit criteria. Phase 1, the modality → core evidence contract, is implemented.
+
 ## Validation priorities
 
 ### Approved real-trace baseline
