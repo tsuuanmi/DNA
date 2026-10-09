@@ -1,7 +1,7 @@
 //! Equivalence of the exact acceleration tiers with full-reference Gotoh.
 
 use crate::alignment::scoring::SCORE_SCALE;
-use crate::model::locus_evidence::EvidenceProfile;
+use crate::read_evidence::EvidenceProfile;
 
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;

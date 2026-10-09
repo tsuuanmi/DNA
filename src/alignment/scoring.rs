@@ -1,8 +1,8 @@
 //! Fixed-point profile substitution scoring and deterministic state ordering.
 
 use crate::config::AlignmentConfig;
-use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::nucleotide::Nucleotide;
+use crate::read_evidence::EvidenceProfile;
 
 pub(crate) const NEGATIVE_INFINITY: i64 = i64::MIN / 4;
 

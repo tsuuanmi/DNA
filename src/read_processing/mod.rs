@@ -1,5 +1,9 @@
 //! Shared reference-free read processing for reusable scientific capabilities.
 
+mod evidence;
+
+pub(crate) use evidence::read_evidence;
+
 use std::time::Instant;
 
 use crate::basecalling;

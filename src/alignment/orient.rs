@@ -8,12 +8,11 @@ use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
 use crate::error::{AlignmentError, Result};
 use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, ReferenceSegment};
-use crate::model::callability::{PhaseState, ReadCallability};
-use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::nucleotide::reverse_complement;
-use crate::model::quality::QualityControlResult;
 use crate::model::reference::{Reference, ReferenceTopology};
-use crate::model::signal::SignalAnalysis;
+use crate::read_evidence::{
+    CallEvidence, CallMask, EvidenceProfile, MaskedAlignment, ReadEvidence,
+};
 
 struct Candidate {
     orientation: Orientation,
@@ -23,37 +22,42 @@ struct Candidate {
 
 /// Aligns both evidence-profile orientations and returns one unique selected result.
 ///
-/// Masked calls inside the trim interval enter the query as unresolved `N`
-/// without an evidence profile, so they neither score nor count as callable;
-/// dephased calls keep their call and profile, because they still read the
-/// main ladder and anchor the alignment.
+/// The query is the read's informative calls. An unresolved masked call enters
+/// it as `N` without an evidence profile, so it neither scores nor counts as
+/// callable; an anchoring masked call keeps its base and profile.
 pub(crate) fn align_best(
-    qc: &QualityControlResult,
-    callability: &ReadCallability,
-    signal: &SignalAnalysis,
+    evidence: &ReadEvidence,
     reference: &Reference,
     config: &AlignmentConfig,
 ) -> Result<Alignment> {
-    if callability.mask.len() != qc.per_call.len() {
-        return Err(AlignmentError::Inconsistent(
-            "callability mask and quality evidence disagree in call count",
-        )
-        .into());
-    }
-    let masked = &callability.mask;
-    let forward_query = qc
-        .retained_sequence
-        .chars()
-        .zip(qc.trim_start_0based..)
-        .map(|(base, index)| if unresolved(masked[index]) { 'N' } else { base })
+    let calls = evidence.calls();
+    let informative = evidence.informative();
+    let retained = &calls[informative.clone()];
+    let forward_query = retained
+        .iter()
+        .map(|call| {
+            if unresolved(call.mask) {
+                'N'
+            } else {
+                call.base
+            }
+        })
         .collect::<String>();
     let reverse_query = reverse_complement(&forward_query);
-    let forward_profiles = retained_profiles(qc, signal, masked)?;
-    let reverse_profiles = reverse_profiles(&forward_profiles);
-    let forward_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive).collect::<Vec<_>>();
-    let reverse_mapping = (qc.trim_start_0based..qc.trim_end_0based_exclusive)
-        .rev()
+    let forward_profiles = retained
+        .iter()
+        .map(|call| {
+            if unresolved(call.mask) {
+                None
+            } else {
+                call.profile
+            }
+        })
         .collect::<Vec<_>>();
+    let reverse_profiles = reverse_profiles(&forward_profiles);
+    let forward_mapping = informative.clone().collect::<Vec<_>>();
+    let reverse_mapping = informative.rev().collect::<Vec<_>>();
+    let masked = calls;
     let (working_reference, modulo_length) = match reference.topology {
         ReferenceTopology::Linear => (reference.sequence.clone(), None),
         ReferenceTopology::Circular => (
@@ -223,7 +227,7 @@ fn finish_alignment(
     selected: &Candidate,
     reference: &Reference,
     config: &AlignmentConfig,
-    masked: &[Option<PhaseState>],
+    calls: &[CallEvidence],
 ) -> Result<Alignment> {
     if selected.placements.len() != 1 {
         return Err(AlignmentError::AmbiguousPlacement.into());
@@ -264,8 +268,8 @@ fn finish_alignment(
     let mask_of = |column: &AlignmentColumn| {
         column
             .original_call_index_0based
-            .and_then(|index| masked.get(index).copied())
-            .flatten()
+            .and_then(|index| calls.get(index))
+            .and_then(|call| call.mask)
     };
     let masked_query_bases = columns
         .iter()
@@ -294,47 +298,6 @@ fn finish_alignment(
         metrics,
         columns,
     })
-}
-
-fn retained_profiles(
-    qc: &QualityControlResult,
-    signal: &SignalAnalysis,
-    masked: &[Option<PhaseState>],
-) -> Result<Vec<Option<EvidenceProfile>>> {
-    if signal.loci.len() != qc.per_call.len() {
-        return Err(AlignmentError::CallCountMismatch {
-            loci: signal.loci.len(),
-            qualities: qc.per_call.len(),
-        }
-        .into());
-    }
-    if qc.trim_start_0based > qc.trim_end_0based_exclusive
-        || qc.trim_end_0based_exclusive > signal.loci.len()
-    {
-        return Err(AlignmentError::InvalidTrim {
-            start: qc.trim_start_0based,
-            end: qc.trim_end_0based_exclusive,
-            profiles: signal.loci.len(),
-        }
-        .into());
-    }
-    let profiles = (qc.trim_start_0based..qc.trim_end_0based_exclusive)
-        .map(|index| {
-            if unresolved(masked[index]) {
-                None
-            } else {
-                signal.loci[index].profile
-            }
-        })
-        .collect::<Vec<_>>();
-    if profiles.len() != qc.retained_sequence.len() {
-        return Err(AlignmentError::RetainedLengthMismatch {
-            bases: qc.retained_sequence.len(),
-            profiles: profiles.len(),
-        }
-        .into());
-    }
-    Ok(profiles)
 }
 
 /// Reference segments observed by unmasked calls: a call column counts when
@@ -382,9 +345,9 @@ fn callable_segments(
     segments
 }
 
-/// A masked call aligns as unresolved unless it is dephased.
-fn unresolved(mask: Option<PhaseState>) -> bool {
-    mask.is_some_and(|state| state != PhaseState::Dephased)
+/// Whether a call aligns as unresolved.
+fn unresolved(mask: Option<CallMask>) -> bool {
+    mask.is_some_and(|mask| mask.alignment == MaskedAlignment::Unresolved)
 }
 
 fn reverse_profiles(profiles: &[Option<EvidenceProfile>]) -> Vec<Option<EvidenceProfile>> {
@@ -443,10 +406,7 @@ fn segments(alignment: &RawAlignment, reference: &Reference) -> (Vec<ReferenceSe
 #[cfg(test)]
 mod tests {
     use crate::model::alignment::AlignmentMetrics;
-    use crate::model::locus_evidence::LocusEvidence;
-    use crate::model::quality::CallQuality;
     use crate::model::reference::ReferenceTopology;
-    use crate::model::signal::SangerIntegrity;
 
     use super::*;
 
@@ -491,72 +451,6 @@ mod tests {
         );
     }
 
-    fn qc(sequence: &str) -> QualityControlResult {
-        QualityControlResult {
-            per_call: sequence
-                .chars()
-                .enumerate()
-                .map(|(index_0based, _)| CallQuality {
-                    index_0based,
-                    penalty: 0,
-                    relative_quality_score: 60,
-                    vendor_quality_applies: false,
-                })
-                .collect(),
-            trim_start_0based: 0,
-            trim_end_0based_exclusive: sequence.len(),
-            retained_sequence: sequence.into(),
-        }
-    }
-
-    fn signal(sequence: &str) -> SignalAnalysis {
-        let loci = sequence
-            .bytes()
-            .enumerate()
-            .map(|(call_index_0based, base)| {
-                let weights = match base {
-                    b'A' => [1.0, 0.0, 0.0, 0.0],
-                    b'C' => [0.0, 1.0, 0.0, 0.0],
-                    b'G' => [0.0, 0.0, 1.0, 0.0],
-                    b'T' => [0.0, 0.0, 0.0, 1.0],
-                    _ => [0.0; 4],
-                };
-                LocusEvidence {
-                    call_index_0based,
-                    locus_position_0based: call_index_0based,
-                    window_start_0based: call_index_0based,
-                    window_end_0based_exclusive: call_index_0based + 1,
-                    context_call_start_0based: call_index_0based,
-                    context_call_end_0based_exclusive: call_index_0based + 1,
-                    context_sample_start_0based: call_index_0based,
-                    context_sample_end_0based_exclusive: call_index_0based + 1,
-                    event_position_0based: call_index_0based,
-                    channel_heights: [0; 4],
-                    channel_baselines: [0.0; 4],
-                    channel_noise_sigmas: [1.0; 4],
-                    corrected_amplitudes: weights,
-                    snrs: weights,
-                    profile: Some(EvidenceProfile { weights }),
-                }
-            })
-            .collect();
-        SignalAnalysis {
-            integrity: SangerIntegrity {
-                locus_count: sequence.len(),
-                vendor_primary_count: None,
-                vendor_quality_count: None,
-                minimum_locus_spacing: None,
-                median_locus_spacing: None,
-                maximum_locus_spacing: None,
-                clipped_channel_samples: 0,
-                maximum_to_median_event_signal_ratio: None,
-            },
-            loci,
-            windows: Vec::new(),
-            noisy_regions: Vec::new(),
-        }
-    }
-
     fn config() -> AlignmentConfig {
         AlignmentConfig {
             match_score: 3,
@@ -580,20 +474,8 @@ mod tests {
 
     #[test]
     fn forward_and_reverse_reads_share_canonical_deletion_coordinate() -> Result<()> {
-        let forward = align_best(
-            &qc("GCCAAAGTT"),
-            &ReadCallability::in_phase(9),
-            &signal("GCCAAAGTT"),
-            &reference(),
-            &config(),
-        )?;
-        let reverse = align_best(
-            &qc("AACTTTGGC"),
-            &ReadCallability::in_phase(9),
-            &signal("AACTTTGGC"),
-            &reference(),
-            &config(),
-        )?;
+        let forward = align_best(&ReadEvidence::clean("GCCAAAGTT"), &reference(), &config())?;
+        let reverse = align_best(&ReadEvidence::clean("AACTTTGGC"), &reference(), &config())?;
 
         assert_eq!(forward.orientation, Orientation::Forward);
         assert_eq!(reverse.orientation, Orientation::Reverse);
@@ -621,15 +503,9 @@ mod tests {
             topology: ReferenceTopology::Linear,
             sequence_sha256: String::new(),
         };
-        let error = align_best(
-            &qc("ACGT"),
-            &ReadCallability::in_phase(4),
-            &signal("ACGT"),
-            &reference,
-            &config(),
-        )
-        .err()
-        .map(|error| error.to_string());
+        let error = align_best(&ReadEvidence::clean("ACGT"), &reference, &config())
+            .err()
+            .map(|error| error.to_string());
         assert_eq!(
             error.as_deref(),
             Some("alignment failed: forward and reverse evidence-profile scores are tied")
@@ -644,15 +520,9 @@ mod tests {
             topology: ReferenceTopology::Linear,
             sequence_sha256: String::new(),
         };
-        let error = align_best(
-            &qc("AAA"),
-            &ReadCallability::in_phase(3),
-            &signal("AAA"),
-            &reference,
-            &config(),
-        )
-        .err()
-        .map(|error| error.to_string());
+        let error = align_best(&ReadEvidence::clean("AAA"), &reference, &config())
+            .err()
+            .map(|error| error.to_string());
         assert_eq!(
             error.as_deref(),
             Some("alignment failed: selected orientation has multiple equally scoring placements")

@@ -27,11 +27,15 @@ boundary and requires separate scientific-equivalence validation.
 
 ### Substep 6.1 — Orientation candidates
 
-The retained query evidence is aligned in both orientations. A masked call
-([callability](callability.md)) inside the trim interval enters the query as
-unresolved `N` without an evidence profile, so it scores `ambiguous_score` and
-is never callable; a `dephased` call keeps its call and profile, because it
-still reads the main ladder and anchors the alignment.
+Alignment takes the read as `ReadEvidence`
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+The query is its informative interval (the trim interval for Sanger), aligned
+in both orientations. A call whose mask is *unresolved* enters the query as `N`
+without an evidence profile, so it scores `ambiguous_score` and is never
+callable. A call whose mask is *anchoring* keeps its base and profile, because
+it still anchors the alignment. The Sanger adapter makes `dephased` calls
+anchoring and every other masked call unresolved
+([callability](callability.md)).
 
 - **forward:** retained profile order and retained primary sequence as-is;
 - **reverse:** reverse profile order with A↔T/C↔G profile complementation, plus the reverse-complemented retained primary sequence for traceback character/provenance mapping.

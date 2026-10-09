@@ -48,13 +48,14 @@ pub(crate) fn observe(
 
     let stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();
-    let alignment = alignment::align_best(
-        &quality,
-        &callability,
+    let evidence = read_processing::read_evidence(
+        &calls,
         &signal,
-        reference,
-        &config.alignment,
+        &callability,
+        &quality,
+        &config.variant_calling,
     )?;
+    let alignment = alignment::align_best(&evidence, reference, &config.alignment)?;
     tracing::info!(
         event = "alignment_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -83,9 +84,7 @@ pub(crate) fn observe(
     let variants = variant_calling::call(
         &alignment,
         reference,
-        &calls,
-        &quality,
-        &callability,
+        &evidence,
         &config.variant_calling,
         &profile.regions,
     )?;

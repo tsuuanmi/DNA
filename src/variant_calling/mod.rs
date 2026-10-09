@@ -9,24 +9,21 @@ mod mapping;
 use crate::config::VariantCallingConfig;
 use crate::error::Result;
 use crate::model::alignment::Alignment;
-use crate::model::basecalls::BaseCalls;
-use crate::model::callability::ReadCallability;
-use crate::model::quality::QualityControlResult;
 use crate::model::reference::Reference;
 use crate::model::variant::VariantCallingResult;
+use crate::read_evidence::ReadEvidence;
 
-/// Extracts, anchors, and filters primary-sequence differences; `regions` are
-/// the target profile's inclusive 1-based reportable regions.
+/// Extracts, anchors, and filters primary-sequence differences from one read's
+/// alignment and modality evidence; `regions` are the target profile's
+/// inclusive 1-based reportable regions.
 pub(crate) fn call(
     alignment: &Alignment,
     reference: &Reference,
-    calls: &BaseCalls,
-    quality: &QualityControlResult,
-    callability: &ReadCallability,
+    evidence: &ReadEvidence,
     config: &VariantCallingConfig,
     regions: &[[usize; 2]],
 ) -> Result<VariantCallingResult> {
-    let eligibility = eligibility::ReadEligibility::new(quality, callability, config);
+    let eligibility = eligibility::ReadEligibility::new(evidence, config);
     let extracted = extract::call(alignment, reference, &eligibility, config)?;
-    filter::apply(extracted, calls, quality, &eligibility, config, regions)
+    filter::apply(extracted, evidence, &eligibility, regions)
 }

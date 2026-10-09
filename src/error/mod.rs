@@ -14,6 +14,7 @@ mod basecalling;
 mod call_evidence;
 mod callability;
 mod config;
+mod evidence;
 mod fasta;
 mod locus;
 mod profile;
@@ -32,6 +33,7 @@ pub use basecalling::BasecallingError;
 pub use call_evidence::CallEvidenceError;
 pub use callability::CallabilityError;
 pub use config::ConfigError;
+pub use evidence::EvidenceError;
 pub use fasta::FastaError;
 pub use locus::LocusWindowError;
 pub use profile::ProfileError;
@@ -118,6 +120,9 @@ pub enum Error {
     /// Quality scoring or end trimming failed.
     #[error("quality control failed: {0}")]
     QualityControl(QualityControlError),
+    /// A modality's per-read evidence could not enter the core.
+    #[error("read evidence failed: {0}")]
+    Evidence(EvidenceError),
     /// Pairwise alignment failed or was not uniquely interpretable.
     #[error("alignment failed: {0}")]
     Alignment(AlignmentError),
@@ -189,6 +194,7 @@ stage_failures!(
     Signal(SignalError),
     Callability(CallabilityError),
     QualityControl(QualityControlError),
+    Evidence(EvidenceError),
     Alignment(AlignmentError),
     Variant(VariantError),
     VariantNormalization(NormalizationError),
@@ -280,6 +286,10 @@ mod tests {
             (
                 VariantError::ReferenceAlleleMismatch { position: 9 }.into(),
                 "variant calling failed: variant reference allele disagrees with the supplied reference at position 9",
+            ),
+            (
+                EvidenceError::InvalidReason("read_end").into(),
+                "read evidence failed: invalid modality reason label \"read_end\"",
             ),
             (
                 SampleError::NoAdmittedReads { rejected: 2 }.into(),

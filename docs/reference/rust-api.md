@@ -287,6 +287,7 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Signal` | `SignalError` | `signal processing failed:` |
 | `Callability` | `CallabilityError` | `read callability failed:` |
 | `QualityControl` | `QualityControlError` | `quality control failed:` |
+| `Evidence` | `EvidenceError` | `read evidence failed:` |
 | `Alignment` | `AlignmentError` | `alignment failed:` |
 | `Variant` | `VariantError` | `variant calling failed:` |
 | `VariantNormalization` | `NormalizationError` | `variant normalization failed:` |

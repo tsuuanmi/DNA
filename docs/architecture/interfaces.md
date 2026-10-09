@@ -15,7 +15,10 @@ DNA separates six interface classes:
    Sanger Variant Analysis return stable typed called-variant results without CLI
    publication side effects.
 4. **Scientific module boundaries** — typed internal models passed between
-   decoding, calling, signal, callability, QC, alignment, variant, and sample stages.
+   decoding, calling, signal, callability, QC, alignment, variant, and sample
+   stages. The modality evidence boundary is one of them: a modality plugin
+   hands the core caller per-read `ReadEvidence`, and the core sees no modality
+   type ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 5. **Public serialized result boundary** — closed versioned JSON contracts.
 6. **Filesystem/operational boundary** — atomic publication and append-only logs.
 

@@ -14,8 +14,8 @@ mod tests;
 
 use crate::alignment::scoring::{scaled, substitution_scores};
 use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
-use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::nucleotide::Nucleotide;
+use crate::read_evidence::EvidenceProfile;
 
 pub(crate) use seeded::{align_at_or_above, align_pruned};
 pub(crate) use upper_bound::{UpperBoundPlacement, classify};

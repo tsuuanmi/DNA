@@ -7,7 +7,7 @@ use crate::alignment::scoring::{
 use crate::alignment::traceback::{RawAlignment, TracebackInput, decode};
 use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
 use crate::error::{AlignmentError, Result};
-use crate::model::locus_evidence::EvidenceProfile;
+use crate::read_evidence::EvidenceProfile;
 
 /// Returns up to two distinct equally scoring placements.
 pub(crate) fn align(

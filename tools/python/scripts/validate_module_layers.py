@@ -3,6 +3,10 @@
 Every top-level module under ``src/`` belongs to one layer. Production code may
 depend only on modules in the same or a lower layer, and the module graph must
 be acyclic, so each layer can later become a crate without redesign.
+
+Modality-neutral modules (the core caller, the evidence contract, and
+post-calling representation, ADR-0069) must not depend on the Sanger modality:
+neither on its modules nor on the Sanger children of ``model``.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ LAYERS: dict[str, int] = {
     "model": 0,
     "locus": 0,
     "variant": 0,
+    "read_evidence": 0,
     "config": 1,
     "reference": 1,
     "profile": 1,
@@ -46,6 +51,37 @@ LAYERS: dict[str, int] = {
     "cli": 4,
 }
 
+# Modules that must stay independent of any sequencing modality (ADR-0069).
+NEUTRAL: frozenset[str] = frozenset(
+    {
+        "read_evidence",
+        "variant",
+        "alignment",
+        "variant_calling",
+        "variant_representation",
+        "variant_normalization",
+        "variant_nomenclature",
+    }
+)
+# Modules that implement the Sanger modality.
+SANGER: frozenset[str] = frozenset(
+    {
+        "basecalling",
+        "signal_processing",
+        "callability",
+        "quality_control",
+        "read_processing",
+        "input",
+        "locus",
+        "sample",
+    }
+)
+# Children of ``model`` that neutral modules may use; every other child is
+# Sanger-specific or a delivery contract.
+NEUTRAL_MODEL_CHILDREN: frozenset[str] = frozenset(
+    {"alignment", "coordinate", "nucleotide", "reference", "variant"}
+)
+
 # Crate roots compose every module and are not part of any layer.
 CRATE_ROOTS = {"lib.rs", "main.rs"}
 
@@ -56,6 +92,8 @@ LINE_COMMENT = re.compile(r"//.*$", re.MULTILINE)
 CRATE_PATH = re.compile(r"\bcrate::([a-z_][a-z0-9_]*)")
 CRATE_GROUP = re.compile(r"\bcrate::\{([^}]*)\}")
 GROUP_MEMBER = re.compile(r"(?:^|,)\s*([a-z_][a-z0-9_]*)")
+MODEL_PATH = re.compile(r"\bcrate::model::([a-z_][a-z0-9_]*)")
+MODEL_GROUP = re.compile(r"\bcrate::model::\{([^}]*)\}")
 
 
 @dataclass(frozen=True)
@@ -101,6 +139,29 @@ def edges(root: Path) -> list[Edge]:
         for target, line in targets:
             if target != source:
                 found.append(Edge(source, target, path, line))
+    return found
+
+
+def model_children(root: Path) -> list[Edge]:
+    """References from modules to children of ``model``, as ``model::child`` edges."""
+    found: list[Edge] = []
+    for path in sorted(root.rglob("*.rs")):
+        source = module_of(root, path)
+        if source is None or path.name == "tests.rs":
+            continue
+        text = production_text(path)
+        for match in MODEL_GROUP.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            found.extend(
+                Edge(source, member.group(1), path, line)
+                for member in GROUP_MEMBER.finditer(match.group(1))
+            )
+        for match in MODEL_PATH.finditer(text):
+            found.append(
+                Edge(
+                    source, match.group(1), path, text.count("\n", 0, match.start()) + 1
+                )
+            )
     return found
 
 
@@ -158,6 +219,18 @@ def validate(root: Path = SOURCE_ROOT) -> list[str]:
                 f"{relative(edge.path)}:{edge.line}: layer {source_layer} module "
                 f"{edge.source} must not depend on layer {target_layer} module {edge.target}"
             )
+    for edge in edges(root):
+        if edge.source in NEUTRAL and edge.target in SANGER:
+            failures.append(
+                f"{relative(edge.path)}:{edge.line}: modality-neutral module {edge.source} "
+                f"must not depend on Sanger module {edge.target} (ADR-0069)"
+            )
+    for edge in model_children(root):
+        if edge.source in NEUTRAL and edge.target not in NEUTRAL_MODEL_CHILDREN:
+            failures.append(
+                f"{relative(edge.path)}:{edge.line}: modality-neutral module {edge.source} "
+                f"must not depend on model::{edge.target} (ADR-0069)"
+            )
     if cycle := find_cycle(graph):
         failures.append(f"module dependency cycle: {' -> '.join(cycle)}")
     return failures
@@ -182,7 +255,10 @@ def main(argv: list[str] | None = None) -> int:
     if failures:
         print(f"{len(failures)} module-layering violation(s) found", file=sys.stderr)
         return 1
-    print("OK: Rust modules depend only on the same or lower layers, without cycles")
+    print(
+        "OK: Rust modules depend only on the same or lower layers, without cycles, "
+        "and modality-neutral modules stay independent of Sanger"
+    )
     return 0
 
 

@@ -2,11 +2,11 @@
 
 use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
-use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{
     LocusNucleotideSupport, NucleotideContribution, ProfileHeterogeneity, SampleLocusObservation,
 };
+use crate::read_evidence::EvidenceProfile;
 
 use super::profile_geometry;
 

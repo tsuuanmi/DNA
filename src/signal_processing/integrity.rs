@@ -69,8 +69,8 @@ pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<San
 
 #[cfg(test)]
 mod tests {
-    use crate::model::locus_evidence::EvidenceProfile;
     use crate::model::sanger::VendorEvidence;
+    use crate::read_evidence::EvidenceProfile;
 
     use super::*;
 

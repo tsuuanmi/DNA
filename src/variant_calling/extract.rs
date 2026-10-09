@@ -233,10 +233,9 @@ fn optional_pair(
 #[cfg(test)]
 mod tests {
     use crate::model::alignment::{AlignmentMetrics, Orientation};
-    use crate::model::callability::{PhaseSegment, PhaseState, ReadCallability};
-    use crate::model::quality::QualityControlResult;
     use crate::model::reference::ReferenceTopology;
     use crate::model::variant::VariantCallRole;
+    use crate::read_evidence::{CallMask, EvidenceReason, MaskedAlignment, ReadEvidence};
 
     use super::*;
 
@@ -278,42 +277,35 @@ mod tests {
         }
     }
 
-    fn quality(calls: usize) -> QualityControlResult {
-        QualityControlResult {
-            per_call: Vec::new(),
-            trim_start_0based: 0,
-            trim_end_0based_exclusive: calls,
-            retained_sequence: String::new(),
-        }
-    }
-
     /// Extracts with every call of a 16-call read callable.
     fn extract(alignment: &Alignment, reference: &Reference) -> Result<VariantCallingResult> {
-        extract_masked(alignment, reference, &ReadCallability::in_phase(16))
+        extract_masked(
+            alignment,
+            reference,
+            &ReadEvidence::clean(&"ACGT".repeat(4)),
+        )
     }
 
     fn extract_masked(
         alignment: &Alignment,
         reference: &Reference,
-        callability: &ReadCallability,
+        evidence: &ReadEvidence,
     ) -> Result<VariantCallingResult> {
-        let quality = quality(callability.mask.len());
-        let eligibility = ReadEligibility::new(&quality, callability, &config());
+        let eligibility = ReadEligibility::new(evidence, &config());
         call(alignment, reference, &eligibility, &config())
     }
 
     /// A 16-call read whose calls from `from` on are masked as dephased.
-    fn masked_from(from: usize) -> ReadCallability {
-        let mut read = ReadCallability::in_phase(16);
-        read.segments[0].call_end_0based_exclusive = from;
-        read.segments.push(PhaseSegment {
-            call_start_0based: from,
-            call_end_0based_exclusive: 16,
-            state: PhaseState::Dephased,
-            after_repeat: false,
-            shadow: None,
-        });
-        read.mask[from..].fill(Some(PhaseState::Dephased));
+    fn masked_from(from: usize) -> ReadEvidence {
+        let mut read = ReadEvidence::clean(&"ACGT".repeat(4));
+        for index in from..16 {
+            let mut call = read.calls()[index];
+            call.mask = Some(CallMask {
+                alignment: MaskedAlignment::Anchoring,
+                reason: EvidenceReason::new("dephased_signal"),
+            });
+            read = read.with_call(index, call);
+        }
         read
     }
 
@@ -434,7 +426,9 @@ mod tests {
         assert_eq!(result.excluded[0].kind, VariantKind::Ins);
         assert_eq!(
             result.excluded[0].reasons,
-            vec![VariantExclusionReason::DephasedSignal]
+            vec![VariantExclusionReason::Evidence(EvidenceReason::new(
+                "dephased_signal"
+            ))]
         );
         Ok(())
     }

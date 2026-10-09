@@ -65,6 +65,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Plugin-first architecture, phase 1 (ADR-0069, PROP-0002, SRS-VAR-014):
+  alignment and variant calling consume a modality-neutral per-read evidence
+  contract (`ReadEvidence`) instead of Sanger types. The Sanger adapter in
+  `read_processing` owns the peak, relative-quality, and mixed-signal vetoes
+  and the phase-state mask reasons. The module validator rejects any dependency
+  from a neutral module on a Sanger module. Every result document is unchanged.
+  **Breaking (Rust API):** `Error` gains `Evidence(EvidenceError)`.
+
 - Sample variants publish opposition evidence (ADR-0068, SRS-SAMPLE-028): the
   admitted reads whose callable reference segments cover the variant's evidence
   span without supporting it, with orientation counts. It is evidence only;

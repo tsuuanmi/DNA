@@ -5,12 +5,19 @@ eligibility of primary-sequence SNVs and supported small indels. Reportable
 regions come from the target profile and are passed in by the caller.
 
 Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
-`filter.rs`. `eligibility.rs` decides which calls of a read can support a
-variant: calls near an uninformative call — beyond the trim interval or masked
-as unresolved (`read_end`, ADR-0062) — and
-masked calls, which carry the reason of their phase segment from the read's
-[callability](../callability/README.md) (ADR-0067). A masked call is no SNV
-candidate in `extract.rs`.
+`filter.rs`. The module reads each read only as `ReadEvidence`
+([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md))
+and imports no Sanger type.
+- `eligibility.rs` decides which calls of a read can support a variant. Calls
+  near an uninformative call (outside the informative interval, or masked as
+  unresolved) give `read_end` (ADR-0062). Masked evidence calls give their
+  mask reason, verbatim.
+- `filter.rs` applies the region gate and reports the union of the supporting
+  calls' modality vetoes, in vocabulary order and filtered by scope.
+- A masked call is no SNV candidate in `extract.rs`.
+
+The core never interprets a modality label; the Sanger labels are produced in
+[read_processing](../read_processing/README.md).
 `anchor.rs` constructs and validates anchored REF/ALT alleles while preserving
 the alignment-selected event placement; post-calling haplotype normalization
 and target nomenclature belong to `variant_normalization` and

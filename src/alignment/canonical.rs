@@ -4,7 +4,7 @@ use crate::alignment::scoring::{scaled, substitution};
 use crate::alignment::traceback::{self, RawAlignment, RawColumn};
 use crate::config::AlignmentConfig;
 use crate::error::{AlignmentError, Result};
-use crate::model::locus_evidence::EvidenceProfile;
+use crate::read_evidence::EvidenceProfile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GapKind {

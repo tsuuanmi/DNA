@@ -1,34 +1,6 @@
 //! Basecall-independent signal evidence at one vendor-defined locus.
 
-/// Normalized non-negative A/C/G/T evidence derived from corrected channel amplitudes.
-///
-/// Channel order follows `Nucleotide::ALL`: A, C, G, T. A profile exists only
-/// when the locus contains positive corrected signal.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct EvidenceProfile {
-    pub(crate) weights: [f64; 4],
-}
-
-impl EvidenceProfile {
-    pub(crate) fn from_corrected_amplitudes(amplitudes: [f64; 4]) -> Option<Self> {
-        let total = amplitudes.iter().sum::<f64>();
-        (total > 0.0).then(|| Self {
-            weights: amplitudes.map(|amplitude| amplitude / total),
-        })
-    }
-
-    /// Complements A/C/G/T evidence while preserving its total mass.
-    pub(crate) const fn complemented(self) -> Self {
-        Self {
-            weights: [
-                self.weights[3],
-                self.weights[2],
-                self.weights[1],
-                self.weights[0],
-            ],
-        }
-    }
-}
+use crate::read_evidence::EvidenceProfile;
 
 /// Immutable signal evidence at one PLOC-defined locus.
 ///

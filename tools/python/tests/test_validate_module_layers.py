@@ -80,6 +80,25 @@ class ModuleLayerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("plugin: unmapped module", result.stderr)
 
+    def test_rejects_a_neutral_module_depending_on_sanger(self) -> None:
+        result = self.run_layers(
+            {
+                "lib.rs": "mod alignment;\nmod model;\nmod basecalling;\n",
+                "model/mod.rs": "pub(crate) mod basecalls;\npub(crate) mod nucleotide;\n",
+                "model/basecalls.rs": "pub(crate) struct BaseCalls;\n",
+                "model/nucleotide.rs": "pub(crate) struct Nucleotide;\n",
+                "basecalling/mod.rs": "pub(crate) fn call() {}\n",
+                "alignment/mod.rs": (
+                    "use crate::model::{basecalls::BaseCalls, nucleotide::Nucleotide};\n"
+                    "use crate::basecalling::call;\n"
+                ),
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not depend on model::basecalls", result.stderr)
+        self.assertIn("must not depend on Sanger module basecalling", result.stderr)
+        self.assertNotIn("model::nucleotide", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

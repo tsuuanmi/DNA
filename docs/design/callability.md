@@ -141,6 +141,13 @@ mask once and fails typed on an inconsistency.
 
 ## Consumers
 
+The core caller does not read callability directly. The Sanger adapter
+(`read_processing::evidence`) turns every masked call into a `ReadEvidence` mask
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+- the mask is *anchoring* for a `dephased` call and *unresolved* otherwise;
+- its reason is `post_homopolymer` when the segment starts in the window after
+  a repeat run, and otherwise the state label.
+
 - **Quality control** trims to the callable span plus up to
   `variant_calling.read_end_margin` calls of an adjacent dephased segment
   ([quality control](quality-control.md), substep 5.3). A read with fewer than

@@ -12,5 +12,11 @@ authority for canonical-base parsing and A/C/G/T channel order, and
 `reference_call` resolves a variant call mapping to its reference-strand call
 evidence for both sample aggregation and reporting.
 
+`EvidenceProfile` belongs to the modality-neutral `read_evidence` contract, not
+to `model`. The modality-neutral children are `alignment`, `coordinate`,
+`nucleotide`, `reference`, and `variant`. The other children are Sanger
+vocabulary, and the module validator keeps neutral modules from importing them
+([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+
 See [system architecture](../../docs/architecture/overview.md) and
 [system invariants](../../docs/architecture/invariants/README.md).

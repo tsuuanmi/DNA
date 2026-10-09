@@ -3,14 +3,17 @@
 Owns bounded, deterministic affine-gap alignment, strand selection, traceback,
 and canonical repeat-equivalent gap placement.
 
-Entry point: `align_best` from `mod.rs`.
+Entry point: `align_best` from `mod.rs`, over the read's `ReadEvidence`
+([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+The module imports no Sanger type.
 
 Key children: `scoring.rs`, [`exact/`](exact/README.md), `gotoh.rs`,
 `traceback.rs`, `canonical.rs`, and `orient.rs`.
 
-Masked calls of the read's [callability](../callability/README.md) enter the
-query as unresolved, except dephased calls, which keep their call and profile;
-`orient.rs` also derives masked-base counts and the callable reference segments.
+The query is the evidence's informative interval. Calls with an *unresolved*
+mask enter it as `N` without a profile; calls with an *anchoring* mask keep
+their base and profile. `orient.rs` also derives the masked-base counts and the
+callable reference segments from the masks.
 
 This module does not extract variants or mutate upstream signal evidence.
 

@@ -4,7 +4,7 @@ use memchr::memmem::Finder;
 
 use crate::alignment::traceback::{RawAlignment, RawColumn, metrics};
 use crate::config::AlignmentConfig;
-use crate::model::locus_evidence::EvidenceProfile;
+use crate::read_evidence::EvidenceProfile;
 
 use super::{problem_is_provable, profile_bound};
 

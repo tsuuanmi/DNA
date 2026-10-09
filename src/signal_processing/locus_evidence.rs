@@ -3,8 +3,9 @@
 use crate::config::SignalProcessingConfig;
 use crate::error::{Result, SignalError};
 use crate::locus::{self, LocusWindow};
-use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
+use crate::model::locus_evidence::LocusEvidence;
 use crate::model::sanger::Chromatogram;
+use crate::read_evidence::EvidenceProfile;
 
 use super::statistics;
 

@@ -5,7 +5,7 @@ use crate::model::alignment::{
 };
 use crate::model::basecalls::{BaseCall, BaseCalls, ChannelPeak, PeakSource, PrimaryPeakEvidence};
 use crate::model::callability::ReadCallability;
-use crate::model::locus_evidence::{EvidenceProfile, LocusEvidence};
+use crate::model::locus_evidence::LocusEvidence;
 use crate::model::nucleotide::Nucleotide;
 use crate::model::quality::{CallQuality, QualityControlResult};
 use crate::model::signal::{NoisyRegion, SignalAnalysis};
@@ -13,6 +13,7 @@ use crate::model::variant::{
     ObservedVariant, Variant, VariantCallMapping, VariantCallRole, VariantCallingResult,
     VariantExclusionReason, VariantKind,
 };
+use crate::read_evidence::EvidenceProfile;
 
 use super::*;
 
@@ -791,7 +792,9 @@ fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
         vec![variant],
     );
     reverse.variants.reported.clear();
-    reverse.variants.observed[0].exclusion_reasons = vec![VariantExclusionReason::PeakBelowMinimum];
+    reverse.variants.observed[0].exclusion_reasons = vec![VariantExclusionReason::Evidence(
+        crate::read_evidence::EvidenceReason::new("peak_below_minimum"),
+    )];
 
     let evidence = aggregate(&[forward, reverse], &[], &sample_config())?;
 
@@ -812,7 +815,9 @@ fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     assert!(!evidence.variants[0].support[1].eligible);
     assert_eq!(
         evidence.variants[0].support[1].exclusion_reasons,
-        vec![VariantExclusionReason::PeakBelowMinimum]
+        vec![VariantExclusionReason::Evidence(
+            crate::read_evidence::EvidenceReason::new("peak_below_minimum")
+        )]
     );
     assert_eq!(evidence.variants[0].support[0].calls[0].base, 'G');
     assert_eq!(

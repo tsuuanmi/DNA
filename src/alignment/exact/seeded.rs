@@ -6,7 +6,7 @@ use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
 use crate::config::AlignmentConfig;
 use crate::error::Result;
-use crate::model::locus_evidence::EvidenceProfile;
+use crate::read_evidence::EvidenceProfile;
 
 use super::{ProfileBound, canonical_reference_length, problem_is_provable, profile_bound};
 

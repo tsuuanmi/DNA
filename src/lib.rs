@@ -20,6 +20,7 @@ mod operation_log;
 mod pipeline;
 pub mod profile;
 mod quality_control;
+mod read_evidence;
 mod read_processing;
 mod reference;
 mod report;

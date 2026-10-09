@@ -4,9 +4,9 @@ use serde::Serialize;
 
 use crate::model::alignment::{Orientation, ReferenceSegment};
 use crate::model::callability::{ReadCallability, ReadRejection};
-use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::signal::SangerIntegrity;
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
+use crate::read_evidence::EvidenceProfile;
 
 /// Why a mapped read pair is not admitted as reliable overlap evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

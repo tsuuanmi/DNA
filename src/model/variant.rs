@@ -2,6 +2,8 @@
 
 use serde::Serialize;
 
+use crate::read_evidence::EvidenceReason;
+
 /// Supported primary-difference type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -56,8 +58,11 @@ pub(crate) struct Variant {
 }
 
 /// Stable reason a primary-difference candidate was not reportable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+///
+/// The core owns the first four reasons. Every other reason comes from the
+/// read's modality evidence and is reported verbatim; the core never
+/// interprets it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum VariantExclusionReason {
     /// At least one changed base was not canonical A/C/G/T.
     NonCanonicalAllele,
@@ -65,45 +70,28 @@ pub(crate) enum VariantExclusionReason {
     IndelLengthExceeded,
     /// The normalized anchor was outside every target-profile region.
     OutsideTargetRegion,
-    /// At least one supporting call was below the configured peak floor.
-    PeakBelowMinimum,
-    /// At least one supporting call did not strictly exceed the quality threshold.
-    RelativeQualityNotAboveThreshold,
-    /// An SNV supporting call retained more than one co-localized qualifying channel.
-    #[serde(rename = "mixed_supporting_dna")]
-    MixedSupportingDNA,
-    /// An evidence call lies within the read-end margin of the trim interval.
+    /// A mapped call lies within the read-end margin of an uninformative call.
     ReadEnd,
-    /// An evidence call is masked in a segment that starts right after a long
-    /// repeat run.
-    PostHomopolymer,
-    /// An evidence call is masked in a dephased segment.
-    DephasedSignal,
-    /// An evidence call is masked in a mixed-signal segment.
-    MixedSignal,
-    /// An evidence call is masked in a weak-signal segment.
-    WeakSignal,
-    /// An evidence call is masked in an irregular-spacing segment.
-    IrregularSpacing,
+    /// A support veto or mask reason supplied by the read's modality.
+    Evidence(EvidenceReason),
 }
 
 impl VariantExclusionReason {
-    /// Stable operational-log label.
+    /// Stable published label.
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::NonCanonicalAllele => "non_canonical_allele",
             Self::IndelLengthExceeded => "indel_length_exceeded",
             Self::OutsideTargetRegion => "outside_target_region",
-            Self::PeakBelowMinimum => "peak_below_minimum",
-            Self::RelativeQualityNotAboveThreshold => "relative_quality_not_above_threshold",
-            Self::MixedSupportingDNA => "mixed_supporting_dna",
             Self::ReadEnd => "read_end",
-            Self::PostHomopolymer => "post_homopolymer",
-            Self::DephasedSignal => "dephased_signal",
-            Self::MixedSignal => "mixed_signal",
-            Self::WeakSignal => "weak_signal",
-            Self::IrregularSpacing => "irregular_spacing",
+            Self::Evidence(reason) => reason.label(),
         }
+    }
+}
+
+impl Serialize for VariantExclusionReason {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.label())
     }
 }
 
@@ -142,5 +130,39 @@ impl VariantCallingResult {
     /// Number of candidates excluded across extraction and configured filtering.
     pub(crate) fn excluded_count(&self) -> usize {
         self.excluded.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pins every published exclusion-reason label in its serialized form.
+    #[test]
+    fn serializes_every_exclusion_reason_with_its_label() -> serde_json::Result<()> {
+        let reasons = [
+            (
+                VariantExclusionReason::NonCanonicalAllele,
+                "non_canonical_allele",
+            ),
+            (
+                VariantExclusionReason::IndelLengthExceeded,
+                "indel_length_exceeded",
+            ),
+            (
+                VariantExclusionReason::OutsideTargetRegion,
+                "outside_target_region",
+            ),
+            (VariantExclusionReason::ReadEnd, "read_end"),
+            (
+                VariantExclusionReason::Evidence(EvidenceReason::new("mixed_supporting_dna")),
+                "mixed_supporting_dna",
+            ),
+        ];
+        for (reason, label) in reasons {
+            assert_eq!(reason.label(), label);
+            assert_eq!(serde_json::to_string(&reason)?, format!("\"{label}\""));
+        }
+        Ok(())
     }
 }

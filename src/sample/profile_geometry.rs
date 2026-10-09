@@ -1,7 +1,7 @@
 //! Threshold-free geometry over normalized nucleotide evidence profiles.
 
-use crate::model::locus_evidence::EvidenceProfile;
 use crate::model::sample_evidence::ProfileHeterogeneity;
+use crate::read_evidence::EvidenceProfile;
 
 /// Gini impurity of one normalized A/C/G/T profile.
 pub(super) fn impurity(profile: EvidenceProfile) -> f64 {

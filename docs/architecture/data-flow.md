@@ -22,10 +22,16 @@ read_processing
               v
       variant_analysis::observation
               |
+              v
+   read_processing::evidence (Sanger adapter)
+              |
+              v
+         ReadEvidence
+              |
 FASTA ------> alignment
               |
               v
-        variant_calling
+        variant_calling <-- ReadEvidence
               |
               v
         ReadObservation
@@ -41,6 +47,11 @@ FASTA ------> alignment
 single-read scientific path. The public Rust Variant Analysis capability, CLI
 analysis, and sample processing reuse that path rather than owning duplicate
 implementations.
+
+Alignment and variant calling see the read only as `ReadEvidence`
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+the Sanger adapter turns calls, signal, callability, and quality into bases,
+profiles, labelled masks, support vetoes, and the informative interval.
 
 Completed typed scientific state is projected by the report layer and serialized
 before atomic no-overwrite CLI publication. Logging remains operational side

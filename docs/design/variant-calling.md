@@ -79,6 +79,24 @@ knowledge.
 
 Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as an observed called difference but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
 
+The caller reads each read only as `ReadEvidence`
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+The region gate, `indel_length_exceeded`, `non_canonical_allele`, and
+`read_end` are core rules. Everything else arrives from the modality as data:
+- the Sanger adapter (`read_processing::evidence`) raises the support vetoes
+  `peak_below_minimum` and `relative_quality_not_above_threshold`, which apply
+  to SNVs and insertions, and `mixed_supporting_dna`, which applies to SNVs
+  only;
+- it labels masked calls with their segment reason.
+
+A variant's reasons are reported in this order:
+1. `outside_target_region`;
+2. the union of its supporting calls' vetoes, in the adapter's vocabulary
+   order (the order listed above);
+3. `read_end`;
+4. the mask reasons of its evidence calls, in mapping order and without
+   duplicates.
+
 Each removed candidate increments `excluded_variant_candidates` once, even when
 it fails more than one eligibility condition. The pure variant stage also returns
 a concise exclusion diagnostic containing kind, contig, caller position when
