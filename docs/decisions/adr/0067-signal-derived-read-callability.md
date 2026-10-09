@@ -195,11 +195,11 @@ Rust implementation on top of revision `6ef8070`, against the reviewer calls
 
 | | before (`6ef8070`) | increment 2 |
 |---|---|---|
-| precision / recall | 0.949 / 0.970 | 0.970 / 0.977 |
-| false / missed calls | 23 / 13 | 14 / 11 |
-| samples agreeing exactly | 18 | 19 |
+| precision / recall | 0.949 / 0.970 | 0.979 / 0.977 |
+| false / missed calls | 23 / 13 | 10 / 11 |
+| samples agreeing exactly | 18 | 22 |
 | reads failing analysis | 8 (4 strict PLOC, 4 identity gate) | 4 (strict PLOC) |
-| `mixed_supporting_dna` exclusions | 1 098 | 217 |
+| `mixed_supporting_dna` exclusions | 1 098 | 173 |
 
 - The globally mixed read class no longer produces indel cascades; the four
   reads that failed the identity gate now place.
@@ -214,8 +214,20 @@ Rust implementation on top of revision `6ef8070`, against the reviewer calls
   HVS-I read. Pulling an onset that falls in the window after a run back to the
   run's end removed calls such as 301C, 302C, and 16194C, which a leading
   slipped population produced before its second peak became visible.
-- **Read-end margin:** a sweep from 4 to 16 calls gave a plateau at 12–14
-  (precision 0.970, recall 0.977). The shipped value is 12.
+- **Read-end margin:** a sweep from 4 to 16 calls gave a plateau at 12–14.
+  The shipped value is 12. The margin is measured from every uninformative
+  call — beyond the trim interval or inside an unresolved masked segment —
+  because an internal unresolved stretch is as uninformative to the aligner as
+  a trim end; on this corpus that changed no call.
+- **Weak threshold:** raising `weak_amplitude_fraction` from 0.10 to 0.20
+  masked decaying read tails that produced false calls (four fewer false calls,
+  no missed call); 0.25 began to mask long poly-C runs and lost 309.1C/309.2C.
+  The shipped value is 0.20.
+- **Remaining differences:** missed calls are 309.1C/309.2C/309.3C where both
+  strands dephase at the run (seven calls) plus ambiguity-code conventions;
+  false calls include a decaying reverse-read tail, a reverse-read HVS-I run
+  read one call longer (16193.1C), and an indel at the edge of a short callable
+  stretch between dephased segments in a read that previously failed.
 - Runtime of the full local run is unchanged (about 44 s).
 
 ## Supersession

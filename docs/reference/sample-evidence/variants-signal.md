@@ -86,7 +86,8 @@ the configured gate still operates on the internal relative-quality method even
 though the public numeric field is simply `quality`.
 
 `read_end` (ADR-0062) means a mapped call of the variant lies within the
-configured margin of either end of the read's trim interval. The other
+configured margin of an uninformative call: beyond the read's trim interval or
+inside a masked segment that aligns as unresolved. The other
 read-callability reasons (ADR-0067) name the phase segment of a masked evidence
 call: `post_homopolymer` when the segment starts in the window after a long
 repeat run in the read's sequencing direction, otherwise `dephased_signal`,

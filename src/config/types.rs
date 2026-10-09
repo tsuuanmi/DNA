@@ -98,8 +98,8 @@ pub(crate) struct VariantCallingConfig {
     pub(crate) max_indel_length: usize,
     pub(crate) minimum_peak_height: i32,
     pub(crate) relative_quality_threshold: u8,
-    /// Calls this close to either end of the trim interval (the callable span)
-    /// cannot support a variant.
+    /// Calls this close to an uninformative call (beyond the trim interval or
+    /// masked as unresolved) cannot support a variant.
     pub(crate) read_end_margin: usize,
 }
 

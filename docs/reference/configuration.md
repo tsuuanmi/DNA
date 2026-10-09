@@ -20,7 +20,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `minimum_main_share` | `0.35` | finite `(0,1]` |
 | | `maximum_far_share` | `0.12` | finite `[0,1]` |
 | | `minimum_shadow_share` | `0.1` | finite `(0,1]` |
-| | `weak_amplitude_fraction` | `0.1` | finite `[0,0.5]`; `0` disables the weak defect |
+| | `weak_amplitude_fraction` | `0.2` | finite `[0,0.5]`; `0` disables the weak defect |
 | | `repeat_min_length` | `8` | integer at least `2` |
 | | `minimum_callable_calls` | `20` | positive |
 | `quality_control` | `penalty_window_size` | `10` | positive |
@@ -43,7 +43,7 @@ For a uniquely strongest basecalling peak, `secondary_peak_ratio` applies both t
 
 `basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold reuses `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 7 remain in the strict TOML selected for the run; the local path is omitted.
 
-`read_end_margin` (ADR-0062) makes a variant ineligible when any of its mapped calls lies within that many calls of either end of the trim interval (`read_end`); the trim interval is the callable span plus at most that many dephased context calls per side, so a difference needs that many informative calls between it and an uninformative end. Masked evidence calls add the reason of their phase segment (ADR-0067). These rules use only the read's own calls and signal; no primer or file-name knowledge is involved.
+`read_end_margin` (ADR-0062) makes a variant ineligible when any of its mapped calls lies within that many calls of an uninformative call (`read_end`): beyond the trim interval, which is the callable span plus at most that many dephased context calls per side, or inside a masked segment that aligns as unresolved. Masked evidence calls add the reason of their phase segment (ADR-0067). These rules use only the read's own calls and signal; no primer or file-name knowledge is involved.
 
 ## `.env`
 

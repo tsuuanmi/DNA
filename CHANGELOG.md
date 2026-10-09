@@ -74,8 +74,11 @@ remain independently versioned and are never silently changed in place.
   sequence-only `post_homopolymer` window, and a masked call is no SNV
   candidate. Masked sample observations are kept as `masked` and never retain a
   locus. A mask that starts in the window after a repeat run is pulled back to
-  the run's end. On the local corpus precision rises from 0.949 to 0.970,
-  recall from 0.970 to 0.977, and the reads that failed the identity gate now
+  the run's end. `read_end` is measured from every uninformative call,
+  including internal unresolved masked segments, and the shipped
+  `weak_amplitude_fraction` rises to 0.2. On the local corpus precision rises
+  from 0.949 to 0.979, recall from 0.970 to 0.977, and the reads that failed
+  the identity gate now
   place. **Breaking (unreleased, revised in place):** configuration schema 7
   removes `quality_control.best_section_fraction`, `trim_stringency`,
   `minimum_retained_bases`, and `variant_calling.post_homopolymer_window`,

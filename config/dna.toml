@@ -29,7 +29,7 @@ exit_defect_fraction = 0.125
 minimum_main_share = 0.35
 maximum_far_share = 0.12
 minimum_shadow_share = 0.1
-weak_amplitude_fraction = 0.1
+weak_amplitude_fraction = 0.2
 repeat_min_length = 8
 minimum_callable_calls = 20
 
@@ -60,6 +60,7 @@ max_indel_length = 50
 # SNV and inserted-base supporting calls must meet both evidence thresholds.
 minimum_peak_height = 150
 relative_quality_threshold = 30
-# Read callability (ADR-0062): calls this close to either end of the trim
-# interval, the callable span, cannot support a variant.
+# Read callability (ADR-0062, ADR-0067): calls this close to an uninformative
+# call (beyond the trim interval or masked as unresolved) cannot support a
+# variant; the trim keeps this many dephased context calls past the span.
 read_end_margin = 12

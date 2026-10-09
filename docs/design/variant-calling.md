@@ -64,9 +64,12 @@ Deletions have no supporting trace base, so their flanks are not subjected to
 peak or quality thresholds; their caller anchor must still be in a region.
 Read eligibility (ADR-0062, ADR-0067, SRS-VAR-013) then marks a variant
 ineligible when any of its mapped calls lies within `read_end_margin` calls of
-either end of the trim interval (`read_end`). Because the trim interval is the
-callable span plus at most that many dephased context calls, a difference needs
-that many informative calls between it and an uninformative end. A masked
+an uninformative call (`read_end`). A call is informative when it lies inside
+the trim interval and is unmasked or dephased; calls beyond the trim interval
+and masked calls aligned as unresolved are not. A difference therefore needs
+that many informative calls between it and the nearest place where the
+alignment has no information, at the read's ends and around internal masked
+segments alike. A masked
 evidence call — a supporting call, or a flanking call of a deletion — adds the
 reason of its segment: `post_homopolymer` when the segment starts in the window
 after a repeat run, otherwise `dephased_signal`, `mixed_signal`, `weak_signal`,

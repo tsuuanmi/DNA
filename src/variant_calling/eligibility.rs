@@ -1,11 +1,13 @@
 //! Read eligibility: which calls of a read can support a variant.
 //!
-//! A mapped call within `read_end_margin` calls of either end of the trim
-//! interval, which is the read's callable span, cannot support a variant
-//! (`read_end`): beyond the span the alignment has no information, so a
-//! difference close to it may be an edge artifact. A masked evidence call — a
-//! supporting call, or a flanking call of a deletion, which has none —
-//! contributes the reason of its phase segment.
+//! A call is informative when it lies inside the trim interval and is not
+//! masked, or is masked as dephased, which still anchors the alignment. A
+//! mapped call within `read_end_margin` calls of an uninformative call — beyond
+//! either end of the trim interval or inside an unresolved masked segment —
+//! cannot support a variant (`read_end`): the alignment has no information
+//! there, so a difference close to it may be an edge artifact. A masked
+//! evidence call — a supporting call, or a flanking call of a deletion, which
+//! has none — contributes the reason of its phase segment.
 
 use crate::config::VariantCallingConfig;
 use crate::model::callability::{PhaseState, ReadCallability};
@@ -16,10 +18,9 @@ use crate::model::variant::{
 
 /// Trusted calls of one read.
 pub(super) struct ReadEligibility<'a> {
-    /// First call index outside the leading end margin.
-    trusted_start: usize,
-    /// End (exclusive) of the calls outside the trailing end margin.
-    trusted_end: usize,
+    /// Per call: at least `read_end_margin` informative calls separate it from
+    /// the nearest uninformative call on both sides.
+    trusted: Vec<bool>,
     callability: &'a ReadCallability,
 }
 
@@ -31,13 +32,32 @@ impl<'a> ReadEligibility<'a> {
         callability: &'a ReadCallability,
         config: &VariantCallingConfig,
     ) -> Self {
+        let calls = callability.mask.len();
+        let informative = (0..calls)
+            .map(|index| {
+                (quality.trim_start_0based..quality.trim_end_0based_exclusive).contains(&index)
+                    && callability.mask[index].is_none_or(|state| state == PhaseState::Dephased)
+            })
+            .collect::<Vec<_>>();
+        let margin = config.read_end_margin;
+        // Informative run lengths ending at and starting at every call.
+        let mut before = vec![0_usize; calls];
+        let mut run = 0_usize;
+        for index in 0..calls {
+            run = if informative[index] { run + 1 } else { 0 };
+            before[index] = run;
+        }
+        let mut after = vec![0_usize; calls];
+        run = 0;
+        for index in (0..calls).rev() {
+            run = if informative[index] { run + 1 } else { 0 };
+            after[index] = run;
+        }
+        let trusted = (0..calls)
+            .map(|index| before[index] > margin && after[index] > margin)
+            .collect();
         Self {
-            trusted_start: quality
-                .trim_start_0based
-                .saturating_add(config.read_end_margin),
-            trusted_end: quality
-                .trim_end_0based_exclusive
-                .saturating_sub(config.read_end_margin),
+            trusted,
             callability,
         }
     }
@@ -79,8 +99,11 @@ impl<'a> ReadEligibility<'a> {
             .collect::<Vec<_>>();
         let mut reasons = Vec::new();
         if mappings.iter().any(|mapping| {
-            mapping.call_index_0based < self.trusted_start
-                || mapping.call_index_0based >= self.trusted_end
+            !self
+                .trusted
+                .get(mapping.call_index_0based)
+                .copied()
+                .unwrap_or(false)
         }) {
             reasons.push(VariantExclusionReason::ReadEnd);
         }
@@ -220,6 +243,38 @@ mod tests {
                 Some(VariantExclusionReason::PostHomopolymer),
             ]
         );
+    }
+
+    #[test]
+    fn flags_evidence_near_an_internal_unresolved_mask_but_not_a_dephased_one() {
+        let read = callability(
+            40,
+            &[
+                (0, 15, PhaseState::InPhase, false),
+                (15, 20, PhaseState::Mixed, false),
+                (20, 30, PhaseState::InPhase, false),
+                (30, 35, PhaseState::Dephased, false),
+                (35, 40, PhaseState::InPhase, false),
+            ],
+        );
+        let eligibility = ReadEligibility::new(&quality(40, (0, 40)), &read, &settings(3));
+        let read_end = |index| {
+            eligibility
+                .reasons(
+                    VariantKind::Snv,
+                    &[mapping(VariantCallRole::Supporting, index)],
+                )
+                .contains(&VariantExclusionReason::ReadEnd)
+        };
+        for (index, expected) in [
+            (11, false),
+            (12, true),
+            (22, true),
+            (23, false),
+            (29, false),
+        ] {
+            assert_eq!(read_end(index), expected, "call {index}");
+        }
     }
 
     #[test]

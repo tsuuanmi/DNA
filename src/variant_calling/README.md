@@ -6,7 +6,8 @@ regions come from the target profile and are passed in by the caller.
 
 Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
 `filter.rs`. `eligibility.rs` decides which calls of a read can support a
-variant: calls near the ends of the trim interval (`read_end`, ADR-0062) and
+variant: calls near an uninformative call — beyond the trim interval or masked
+as unresolved (`read_end`, ADR-0062) — and
 masked calls, which carry the reason of their phase segment from the read's
 [callability](../callability/README.md) (ADR-0067). A masked call is no SNV
 candidate in `extract.rs`.
