@@ -124,6 +124,10 @@ def rejected_analysis_shapes(
     callability_with_mask_array["read"]["callability"]["mask"] = [False]
     callability_without_segments = copy.deepcopy(example)
     callability_without_segments["read"]["callability"]["segments"] = []
+    alignment_without_masked_bases = copy.deepcopy(example)
+    alignment_without_masked_bases["alignment"].pop("masked_bases")
+    alignment_without_callable_segments = copy.deepcopy(example)
+    alignment_without_callable_segments["alignment"].pop("callable_reference_segments")
     segments = example["read"]["callability"]["segments"]
     dephased = next(
         index
@@ -182,6 +186,11 @@ def rejected_analysis_shapes(
         ),
         ("analysis callability with per-position mask", callability_with_mask_array),
         ("analysis callability without segments", callability_without_segments),
+        ("analysis alignment without masked bases", alignment_without_masked_bases),
+        (
+            "analysis alignment without callable reference segments",
+            alignment_without_callable_segments,
+        ),
         *shadow_cases,
     ]
 
@@ -281,6 +290,34 @@ def validate_callability_view(
         errors.append(f"{label}: callability callable_span disagrees with segments")
 
 
+def validate_callable_segments(alignment: Any, label: str, errors: list[str]) -> None:
+    """Check that every callable reference segment lies inside one mapped segment."""
+    if not isinstance(alignment, dict):
+        return
+    mapped = alignment.get("reference_segments")
+    callable_segments = alignment.get("callable_reference_segments")
+    if not isinstance(mapped, list) or not isinstance(callable_segments, list):
+        return
+    for segment in callable_segments:
+        if not isinstance(segment, dict):
+            return
+        start, end = segment.get("start"), segment.get("end")
+        if not isinstance(start, int) or not isinstance(end, int) or end <= start:
+            errors.append(f"{label}: empty or invalid callable reference segment")
+            return
+        if not any(
+            isinstance(outer, dict)
+            and isinstance(outer.get("start"), int)
+            and isinstance(outer.get("end"), int)
+            and outer["start"] <= start
+            and end <= outer["end"]
+            for outer in mapped
+        ):
+            errors.append(
+                f"{label}: callable reference segment {start}..{end} lies outside the mapped segments"
+            )
+
+
 def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
     for path in paths:
         document = load_json(path)
@@ -291,10 +328,12 @@ def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
             validate_callability_view(
                 read.get("callability"), read.get("call_count"), str(path), errors
             )
+        validate_callable_segments(document.get("alignment"), str(path), errors)
         reads = document.get("reads")
         if isinstance(reads, list):
             for item in reads:
                 if isinstance(item, dict):
+                    validate_callable_segments(item.get("alignment"), str(path), errors)
                     integrity = item.get("integrity")
                     call_count = (
                         integrity.get("ploc_count")
@@ -346,6 +385,7 @@ def validate_sample_support_topology_document(
                 "alternate_reads": 0,
                 "unresolved_reads": 0,
                 "deletion_reads": 0,
+                "masked_reads": 0,
                 "profile_reads": 0,
                 "profile_forward_reads": 0,
                 "profile_reverse_reads": 0,
@@ -373,7 +413,13 @@ def validate_sample_support_topology_document(
                 seen_reads.add(read_name)
                 orientation = orientations[read_name]
                 expected[f"{orientation}_reads"] += 1
-                if state in {"reference", "alternate", "unresolved", "deletion"}:
+                if state in {
+                    "reference",
+                    "alternate",
+                    "unresolved",
+                    "deletion",
+                    "masked",
+                }:
                     expected[f"{state}_reads"] += 1
                 else:
                     valid = False
@@ -542,6 +588,14 @@ def rejected_sample_shapes(
         observation["state"] = "reference"
         observation["base"] = all_reference_locus["locus_differences"][0]["reference"]
 
+    all_masked_locus = copy.deepcopy(example)
+    for observation in all_masked_locus["locus_differences"][0]["observations"]:
+        observation["state"] = "masked"
+    missing_masked_bases = copy.deepcopy(example)
+    missing_masked_bases["reads"][0]["alignment"].pop("masked_bases")
+    missing_masked_reads = copy.deepcopy(example)
+    missing_masked_reads["locus_differences"][0]["support_topology"].pop("masked_reads")
+
     verbose_deletion = copy.deepcopy(example)
     observation = verbose_deletion["locus_differences"][0]["observations"][0]
     observation["state"] = "deletion"
@@ -614,6 +668,9 @@ def rejected_sample_shapes(
         ("sample coverage with zero read depth", zero_coverage_depth),
         ("sample read without trace integrity", missing_read_integrity),
         ("sample read without callability", missing_read_callability),
+        ("sample locus retained only by masked observations", all_masked_locus),
+        ("sample read alignment without masked bases", missing_masked_bases),
+        ("sample locus topology without masked reads", missing_masked_reads),
         ("sample evidence with invalid sample id", invalid_sample_id),
         (
             "sparse difference locus with only reference observations",
@@ -797,6 +854,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not callability_errors:
         errors.append("expected inconsistent callability counts to be rejected")
+
+    outside_callable = copy.deepcopy(analysis_example)
+    outside_callable["alignment"]["callable_reference_segments"] = [
+        {"start": 0, "end": 1_000_000}
+    ]
+    outside_errors: list[str] = []
+    validate_callable_segments(
+        outside_callable["alignment"], "synthetic callable segment", outside_errors
+    )
+    if not outside_errors:
+        errors.append("expected a callable segment outside the mapping to be rejected")
 
     unsorted_offsets = copy.deepcopy(analysis_example)
     for segment in unsorted_offsets["read"]["callability"]["segments"]:

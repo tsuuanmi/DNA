@@ -60,16 +60,17 @@ pub(crate) struct CallabilityConfig {
     pub(crate) minimum_shadow_share: f64,
     /// Fraction of the read's median primary amplitude below which a position is weak.
     pub(crate) weak_amplitude_fraction: f64,
+    /// Shortest run of identical or alternating primary calls treated as a repeat.
+    pub(crate) repeat_min_length: usize,
+    /// Fewest callable calls a read needs to be analyzed.
+    pub(crate) minimum_callable_calls: usize,
 }
 
-/// Relative score and trimming settings.
+/// Relative quality settings.
 #[derive(Debug, Clone)]
 pub(crate) struct QualityControlConfig {
     pub(crate) penalty_window_size: usize,
-    pub(crate) best_section_fraction: f64,
     pub(crate) max_relative_quality_score: u8,
-    pub(crate) trim_stringency: f64,
-    pub(crate) minimum_retained_bases: usize,
 }
 
 /// Pairwise alignment settings.
@@ -97,12 +98,9 @@ pub(crate) struct VariantCallingConfig {
     pub(crate) max_indel_length: usize,
     pub(crate) minimum_peak_height: i32,
     pub(crate) relative_quality_threshold: u8,
-    /// Calls this close to either end of the retained interval cannot support a variant.
+    /// Calls this close to either end of the trim interval (the callable span)
+    /// cannot support a variant.
     pub(crate) read_end_margin: usize,
-    /// Shortest run of identical primary calls treated as a phase-shifting homopolymer.
-    pub(crate) homopolymer_min_length: usize,
-    /// Calls, starting with a long homopolymer's last call, that cannot support a variant.
-    pub(crate) post_homopolymer_window: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,16 +141,15 @@ struct RawCallabilityConfig {
     maximum_far_share: f64,
     minimum_shadow_share: f64,
     weak_amplitude_fraction: f64,
+    repeat_min_length: usize,
+    minimum_callable_calls: usize,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawQualityControlConfig {
     penalty_window_size: usize,
-    best_section_fraction: f64,
     max_relative_quality_score: u8,
-    trim_stringency: f64,
-    minimum_retained_bases: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -181,8 +178,6 @@ struct RawVariantCallingConfig {
     minimum_peak_height: i32,
     relative_quality_threshold: u8,
     read_end_margin: usize,
-    homopolymer_min_length: usize,
-    post_homopolymer_window: usize,
 }
 
 impl RawConfig {
@@ -261,25 +256,9 @@ impl RawConfig {
             )
             .into());
         }
-        require_fraction(
-            "quality_control.best_section_fraction",
-            self.quality_control.best_section_fraction,
-        )?;
         if self.quality_control.max_relative_quality_score == 0 {
             return Err(ConfigError::Constraint(
                 "quality_control.max_relative_quality_score must be positive",
-            )
-            .into());
-        }
-        require_finite_range(
-            "quality_control.trim_stringency",
-            self.quality_control.trim_stringency,
-            0.0,
-            9.0,
-        )?;
-        if self.quality_control.minimum_retained_bases == 0 {
-            return Err(ConfigError::Constraint(
-                "quality_control.minimum_retained_bases must be positive",
             )
             .into());
         }
@@ -341,9 +320,15 @@ impl RawConfig {
         if self.profile.as_os_str().is_empty() {
             return Err(ConfigError::Constraint("profile must name a target profile file").into());
         }
-        if self.variant_calling.homopolymer_min_length < 2 {
+        if self.callability.repeat_min_length < 2 {
             return Err(ConfigError::Constraint(
-                "variant_calling.homopolymer_min_length must be at least 2",
+                "callability.repeat_min_length must be at least 2",
+            )
+            .into());
+        }
+        if self.callability.minimum_callable_calls == 0 {
+            return Err(ConfigError::Constraint(
+                "callability.minimum_callable_calls must be positive",
             )
             .into());
         }
@@ -369,13 +354,12 @@ impl RawConfig {
                 maximum_far_share: self.callability.maximum_far_share,
                 minimum_shadow_share: self.callability.minimum_shadow_share,
                 weak_amplitude_fraction: self.callability.weak_amplitude_fraction,
+                repeat_min_length: self.callability.repeat_min_length,
+                minimum_callable_calls: self.callability.minimum_callable_calls,
             },
             quality_control: QualityControlConfig {
                 penalty_window_size: self.quality_control.penalty_window_size,
-                best_section_fraction: self.quality_control.best_section_fraction,
                 max_relative_quality_score: self.quality_control.max_relative_quality_score,
-                trim_stringency: self.quality_control.trim_stringency,
-                minimum_retained_bases: self.quality_control.minimum_retained_bases,
             },
             alignment: AlignmentConfig {
                 match_score: self.alignment.match_score,
@@ -395,8 +379,6 @@ impl RawConfig {
                 minimum_peak_height: self.variant_calling.minimum_peak_height,
                 relative_quality_threshold: self.variant_calling.relative_quality_threshold,
                 read_end_margin: self.variant_calling.read_end_margin,
-                homopolymer_min_length: self.variant_calling.homopolymer_min_length,
-                post_homopolymer_window: self.variant_calling.post_homopolymer_window,
             },
             source_path,
             source_sha256,
@@ -433,7 +415,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
+    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {

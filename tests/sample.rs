@@ -241,11 +241,6 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
 
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
-    let config_text = fs::read_to_string(&config)?;
-    fs::write(
-        &config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
     write_abif_with_secondary_signal(&trace, &query, 10, b'C', 400)?;
 
     let mut command = Command::new(dna_binary());
@@ -358,11 +353,6 @@ fn omits_unresolved_indel_flank_from_sample_evidence() -> Result<(), Box<dyn std
         &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
     )?;
     write_config(&config, "linear")?;
-    let config_text = fs::read_to_string(&config)?;
-    fs::write(
-        &config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
     write_abif_with_secondary_signal(&trace, QUERY, 13, b'A', 1000)?;
 
     let mut command = Command::new(dna_binary());

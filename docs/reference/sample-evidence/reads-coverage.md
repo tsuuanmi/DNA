@@ -20,16 +20,22 @@ Each record contains:
   ordered phase-state segments with repeat attribution and the shadow offsets of
   dephased segments, and masked-call count —
   exactly as the one-read contracts publish it ([method](../../design/callability.md));
-  in v10 it is observation only and does not by itself admit/reject a read;
 - `alignment`: the evidence-derived orientation, callable-base count and
-  identity, unresolved-base count, gap-open count, mapped reference segments, and
-  origin-wrap state.
+  identity, unresolved-base count, masked-base count, gap-open count, mapped
+  reference segments, callable reference segments, and origin-wrap state.
 
-The scientific pipeline trims each read before alignment. `reference_segments`
-therefore describe where the **retained post-trim sequence** aligned on the
-reference, not the untrimmed raw call span.
+The scientific pipeline trims each read to its callable span, plus a few
+dephased context calls, before alignment. `reference_segments` therefore
+describe where the **retained post-trim sequence** aligned on the reference,
+not the untrimmed raw call span. `masked_bases` counts aligned calls that the
+read's callability masks: dephased ones align with their call and profile,
+every other masked call as unresolved, and none of them counts in
+`unresolved_bases`. `callable_reference_segments` are the parts of the mapped
+segments observed by unmasked calls and by deletions between them; a covered
+position outside them is covered by a masked call.
 
-`reference_segments` are 0-based half-open. For a segment
+`reference_segments` and `callable_reference_segments` are 0-based half-open.
+For a segment
 `{"start": S, "end": E}`, the covered 1-based biological positions are
 `S + 1` through `E`, inclusive.
 

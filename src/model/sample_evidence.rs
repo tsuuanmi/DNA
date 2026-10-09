@@ -48,6 +48,8 @@ pub(crate) enum LocusState {
     Alternate,
     Unresolved,
     Deletion,
+    /// Covered by a masked call: kept for review, never callable.
+    Masked,
 }
 
 /// Structural nucleotide-contribution eligibility for one retained locus observation.
@@ -56,6 +58,7 @@ pub(crate) enum NucleotideContribution {
     Eligible,
     MissingProfile,
     DeletionEvent,
+    MaskedCall,
 }
 
 /// Factorized topology of reads observing one retained differential locus.
@@ -68,6 +71,7 @@ pub(crate) struct LocusSupportTopology {
     pub(crate) alternate_reads: usize,
     pub(crate) unresolved_reads: usize,
     pub(crate) deletion_reads: usize,
+    pub(crate) masked_reads: usize,
     pub(crate) profile_reads: usize,
     pub(crate) profile_forward_reads: usize,
     pub(crate) profile_reverse_reads: usize,
@@ -81,7 +85,9 @@ pub(crate) struct SampleReadAlignmentEvidence {
     pub(crate) identity: f64,
     pub(crate) gap_opens: usize,
     pub(crate) unresolved_bases: usize,
+    pub(crate) masked_bases: usize,
     pub(crate) reference_segments: Vec<ReferenceSegment>,
+    pub(crate) callable_reference_segments: Vec<ReferenceSegment>,
     pub(crate) wraps_origin: bool,
 }
 

@@ -38,7 +38,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | modular analysis/public API boundaries | ADR-0058 | proposal + architecture/design/reference as implemented |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
 | operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
-| Sanger variant eligibility | ADR-0027, ADR-0062 (→ ADR-0067 when its mask acts) | SRS-VAR-012/013 + variant-calling method |
+| Sanger variant eligibility | ADR-0027, ADR-0062 → ADR-0067 | SRS-VAR-012/013 + variant-calling method |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
@@ -95,7 +95,7 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md) | Reuse ecosystem machinery behind DNA-owned contracts | Accepted |
 | [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Accepted |
 | [0061](0061-tracing-for-operational-logging.md) | Use `tracing` for operational logging | Accepted |
-| [0062](0062-read-callability.md) | Read callability from the read's own calls | Accepted |
+| [0062](0062-read-callability.md) | Read callability from the read's own calls | Superseded in part by ADR-0067 |
 | [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |
 | [0064](0064-crate-ready-module-layering.md) | Crate-ready module layering | Accepted |
 | [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Accepted |

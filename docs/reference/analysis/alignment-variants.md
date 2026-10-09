@@ -8,8 +8,13 @@ The selected alignment reports:
 
 - `orientation` (`forward` or `reverse`);
 - `callable_bases` and callable `identity`;
-- `unresolved_bases` and `gap_opens`;
+- `unresolved_bases` (unresolved calls) and `masked_bases` (masked calls of
+  the read's callability: dephased ones align with their call and profile, the
+  others as unresolved) and `gap_opens`;
 - one or two 0-based half-open `reference_segments`;
+- `callable_reference_segments`: the 0-based half-open parts of the mapped
+  segments observed by unmasked calls, and by deletions between them, in
+  alignment order;
 - `wraps_origin`.
 
 Gapped query/reference rows, operation runs, fixed-point profile score, exact-match/mismatch redundancy, and traceback columns remain internal. Placement consumes the retained post-trim `EvidenceProfile` sequence, while the retained primary sequence remains attached to traceback columns for callable/identity metrics and downstream primary-sequence variant extraction. `reference_segments` therefore describe post-trim mapped coverage.

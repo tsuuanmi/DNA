@@ -253,13 +253,21 @@ mod tests {
                 "read callability failed: 1 call positions are fewer than the minimum 2",
             ),
             (
-                QualityControlError::RetainedTooShort {
-                    start: 0,
-                    end: 2,
+                CallabilityError::TooFewCallableCalls {
+                    callable: 12,
                     minimum: 20,
                 }
                 .into(),
-                "quality control failed: retained interval 0..2 is shorter than minimum 20",
+                "read callability failed: 12 callable calls are fewer than minimum_callable_calls 20",
+            ),
+            (
+                QualityControlError::InvalidCallableSpan {
+                    start: 4,
+                    end: 2,
+                    calls: 10,
+                }
+                .into(),
+                "quality control failed: callable span 4..2 does not fit 10 calls",
             ),
             (
                 AlignmentError::LowIdentity {

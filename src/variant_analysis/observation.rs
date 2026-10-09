@@ -36,7 +36,13 @@ pub(crate) fn build(
 
     let stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();
-    let alignment = alignment::align_best(&quality, &signal, reference, &config.alignment)?;
+    let alignment = alignment::align_best(
+        &quality,
+        &callability,
+        &signal,
+        reference,
+        &config.alignment,
+    )?;
     tracing::info!(
         event = "alignment_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -48,6 +54,7 @@ pub(crate) fn build(
         callable_columns = alignment.metrics.callable_columns,
         callable_identity = %format_args!("{:.4}", alignment.metrics.callable_identity),
         unresolved_query_bases = alignment.metrics.unresolved_query_bases,
+        masked_query_bases = alignment.metrics.masked_query_bases,
         segments = alignment.reference_segments.len(),
         segment_bounds = ?alignment
             .reference_segments
@@ -66,6 +73,7 @@ pub(crate) fn build(
         reference,
         &calls,
         &quality,
+        &callability,
         &config.variant_calling,
         &profile.regions,
     )?;

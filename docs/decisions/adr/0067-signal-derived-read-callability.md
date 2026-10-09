@@ -77,18 +77,28 @@ read's own signal.
    adapter exists (ADR-0058 §4).
 4. Decoded channels, loci, calls, selected peaks, and locus evidence are never
    modified; a masked position keeps its call and evidence (INV-EVID-010).
-5. Increment 1 publishes the view as observation in `dna.basecalls/v3`,
+5. Increment 1 published the view as observation in `dna.basecalls/v3`,
    `dna.analysis/v9`, and `dna.sample_evidence/v10` and as aggregate log
-   metrics; it alters no trim bound, alignment, warning total, or eligibility.
-   Thresholds are configuration (schema 7, `[callability]`), calibrated on the
-   local corpus before the mask is allowed to act.
-6. Increment 2 makes the mask act: the trim interval becomes the callable span
-   plus a context margin, masked positions enter alignment as unresolved,
-   variant eligibility reports the mask state in place of the sequence-only
-   `post_homopolymer` window, sample aggregation treats masked coverage as
-   covered but not callable, and a `sample` read with too few callable calls is
-   recorded as rejected instead of failing the operation. That increment
-   supersedes ADR-0062 in part.
+   metrics, with thresholds as configuration (schema 7, `[callability]`), so
+   they could be calibrated on the local corpus before the mask acted.
+6. Increment 2 makes the mask act:
+   - a read with fewer than `callability.minimum_callable_calls` unmasked
+     calls fails typed;
+   - the trim interval is the callable span, widened by up to
+     `variant_calling.read_end_margin` calls of an adjacent dephased segment;
+   - alignment keeps dephased calls with their call and evidence profile and
+     presents every other masked call as unresolved;
+   - variant eligibility gives a masked evidence call the reason of its
+     segment (`post_homopolymer` after a repeat run, otherwise
+     `dephased_signal`, `mixed_signal`, `weak_signal`, or
+     `irregular_spacing`) in place of the sequence-only `post_homopolymer`
+     window, and a masked call is no SNV candidate;
+   - sample aggregation records masked observations as `masked`, which never
+     retain a locus, and publishes each read's callable reference segments;
+   - still to come: a `sample` read with too few callable calls is recorded as
+     rejected instead of failing the operation.
+
+   This increment supersedes ADR-0062 in part.
 7. Signal denoising remains research ([denoising](../../research/denoising/README.md)).
 
 ## Alternatives
@@ -117,8 +127,19 @@ read's own signal.
 - **Breaking:** configuration schema 7 adds `[callability]` and renames
   `quality_control.trim_window_size` to `penalty_window_size`; the three result
   contracts gain the required callability view.
-- The thresholds shipped in `config/dna.toml` are initial values; increment 1
-  exists to record their effect on the local corpus before increment 2.
+- **Breaking:** increment 2 removes `quality_control.best_section_fraction`,
+  `trim_stringency`, and `minimum_retained_bases` and
+  `variant_calling.post_homopolymer_window`, moves
+  `variant_calling.homopolymer_min_length` to `callability.repeat_min_length`,
+  adds `callability.minimum_callable_calls`, and raises the shipped
+  `read_end_margin` from 8 to 12; the contracts gain `alignment.masked_bases`,
+  `alignment.callable_reference_segments`, the `masked` locus state, the
+  `masked_reads` topology count, and four exclusion reasons; the Rust
+  `QualityControlError` loses its retention variants and `CallabilityError`
+  gains `TooFewCallableCalls`.
+- The thresholds shipped in `config/dna.toml` are calibrated on the local
+  corpus only (see the measurements below) and must be revisited as validation
+  data grows.
 - A slipped population above one half flips the primary inside the run with no
   in-run signature; only cross-strand disagreement at sample scope can reveal
   it ([known limitations](../../validation/known-limitations.md)).
@@ -166,11 +187,43 @@ shadow from a neighbour's peak tail. How severe a dephased segment is, and
 whether its sequence can be recovered, is left to the
 [phase-recovery research](../../research/phase-recovery/README.md).
 
+## Increment 2 measurements (2026-10-09)
+
+Measured outside the repository on the 199 local traces and 52 samples with the
+Rust implementation on top of revision `6ef8070`, against the reviewer calls
+(aggregate only):
+
+| | before (`6ef8070`) | increment 2 |
+|---|---|---|
+| precision / recall | 0.949 / 0.970 | 0.970 / 0.977 |
+| false / missed calls | 23 / 13 | 14 / 11 |
+| samples agreeing exactly | 18 | 19 |
+| reads failing analysis | 8 (4 strict PLOC, 4 identity gate) | 4 (strict PLOC) |
+| `mixed_supporting_dna` exclusions | 1 098 | 217 |
+
+- The globally mixed read class no longer produces indel cascades; the four
+  reads that failed the identity gate now place.
+- **Anchoring by dephased context:** with every masked call unresolved and the
+  trim at the callable span, recall fell to 0.953 at any read-end margin.
+  Insertions in a poly-C run need informative calls after the run to beat a
+  mismatch at the alignment edge, and the dephased calls next to the span
+  still read the main ladder. Keeping them, with their profiles, restored
+  309.1C/309.2C.
+- **Onset after a run:** keeping a run's last call callable when it carried the
+  first double peak produced length artifacts such as 16188.1C on the reverse
+  HVS-I read. Pulling an onset that falls in the window after a run back to the
+  run's end removed calls such as 301C, 302C, and 16194C, which a leading
+  slipped population produced before its second peak became visible.
+- **Read-end margin:** a sweep from 4 to 16 calls gave a plateau at 12–14
+  (precision 0.970, recall 0.977). The shipped value is 12.
+- Runtime of the full local run is unchanged (about 44 s).
+
 ## Supersession
 
 ADR-0013's deferred decision on signal-driven exclusion is taken here; its
 observational SNR windows stay observation-only. ADR-0027 and ADR-0053 keep
 phase recovery, weighting, and consensus as research; detection is promoted.
-ADR-0062 remains the authority for `read_end` and the sequence-only
-`post_homopolymer` rule until increment 2 lands, when this record supersedes
-that rule in part.
+Increment 2 supersedes ADR-0062 in part: the sequence-only `post_homopolymer`
+window is replaced by the mask reasons above, while `read_end` and the
+filename-free principle remain, now measured from the signal-derived trim
+interval.

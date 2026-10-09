@@ -69,11 +69,20 @@ pub(super) fn defects(features: &[PositionFeatures], thresholds: &Thresholds) ->
 /// The forward statistic at `i` is the defect fraction over `[i, i + window)`.
 /// An in-phase stretch ends where that fraction reaches the onset threshold
 /// (or the lower `exit + 1/window` inside a repeat prior window), localized at
-/// the first defective position of the window; a masked stretch ends where the
+/// the first defective position of the window. When that position lies in the
+/// window after a repeat run, the masked stretch starts right after the run
+/// instead: the calls between the run and the first defect are where a
+/// slipped population can already lead without a visible second peak. A
+/// masked stretch ends where the
 /// fraction drops to the exit threshold. Decisions freeze once fewer than half
 /// a window remains, and a callable island shorter than one window is absorbed
 /// by its masked neighbours.
-pub(super) fn segment(defects: &[Defect], prior: &[bool], thresholds: &Thresholds) -> Vec<bool> {
+pub(super) fn segment(
+    defects: &[Defect],
+    prior: &[bool],
+    repeats: &[RepeatRun],
+    thresholds: &Thresholds,
+) -> Vec<bool> {
     let positions = defects.len();
     let window = thresholds.window.max(1);
     let mut cumulative = vec![0_usize; positions + 1];
@@ -103,12 +112,22 @@ pub(super) fn segment(defects: &[Defect], prior: &[bool], thresholds: &Threshold
             };
             if fraction(index) >= threshold {
                 let end = index.saturating_add(window).min(positions);
-                let onset = (index..end)
+                let first = (index..end)
                     .find(|&position| defects[position] != Defect::None)
                     .unwrap_or(index);
-                callable[index..onset].fill(true);
+                let onset = repeats
+                    .iter()
+                    .rev()
+                    .map(|run| run.call_end_0based_exclusive.min(positions))
+                    .find(|&run_end| first >= run_end && first < run_end.saturating_add(window))
+                    .unwrap_or(first);
+                if onset >= index {
+                    callable[index..onset].fill(true);
+                } else {
+                    callable[onset..index].fill(false);
+                }
                 in_phase = false;
-                index = onset;
+                index = onset.max(index);
                 continue;
             }
             callable[index] = true;
@@ -172,7 +191,12 @@ mod tests {
 
     fn run(text: &str, thresholds: &Thresholds) -> String {
         let defects = pattern(text);
-        render(&segment(&defects, &vec![false; defects.len()], thresholds))
+        render(&segment(
+            &defects,
+            &vec![false; defects.len()],
+            &[],
+            thresholds,
+        ))
     }
 
     #[test]
@@ -203,14 +227,59 @@ mod tests {
     fn lowers_the_onset_threshold_inside_a_repeat_prior_window() {
         let defects = pattern("........d...d...........");
         assert_eq!(
-            render(&segment(&defects, &vec![false; defects.len()], &THRESHOLDS)),
+            render(&segment(
+                &defects,
+                &vec![false; defects.len()],
+                &[],
+                &THRESHOLDS
+            )),
             "cccccccccccccccccccccccc"
         );
         let mut prior = vec![false; defects.len()];
         prior[7..11].fill(true);
         assert_eq!(
-            render(&segment(&defects, &prior, &THRESHOLDS)),
+            render(&segment(&defects, &prior, &[], &THRESHOLDS)),
             "ccccccccmmmmmccccccccccc"
+        );
+    }
+
+    #[test]
+    fn keeps_a_mask_that_starts_inside_a_repeat_run() {
+        // The run's last call carries the shadow of the base after the run.
+        let defects = pattern("........ddddd.d.................");
+        let run = [RepeatRun {
+            call_start_0based: 4,
+            call_end_0based_exclusive: 9,
+            unit: RepeatUnit::Homopolymer(1),
+        }];
+        let prior = vec![false; defects.len()];
+        let expected = "ccccccccmmmmmmmccccccccccccccccc";
+        assert_eq!(
+            render(&segment(&defects, &prior, &[], &THRESHOLDS)),
+            expected
+        );
+        assert_eq!(
+            render(&segment(&defects, &prior, &run, &THRESHOLDS)),
+            expected
+        );
+    }
+
+    #[test]
+    fn pulls_a_mask_that_starts_after_a_repeat_run_back_to_the_run_end() {
+        let defects = pattern("............dddd.d..............");
+        let run = [RepeatRun {
+            call_start_0based: 4,
+            call_end_0based_exclusive: 9,
+            unit: RepeatUnit::Homopolymer(1),
+        }];
+        let prior = vec![false; defects.len()];
+        assert_eq!(
+            render(&segment(&defects, &prior, &[], &THRESHOLDS)),
+            "ccccccccccccmmmmmmcccccccccccccc"
+        );
+        assert_eq!(
+            render(&segment(&defects, &prior, &run, &THRESHOLDS)),
+            "cccccccccmmmmmmmmmcccccccccccccc"
         );
     }
 

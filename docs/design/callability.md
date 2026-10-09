@@ -8,9 +8,10 @@ Derives, from the read's own signal in trace order, where the read is still
 one ladder and therefore callable. The stage runs after signal processing and
 before quality control for every read, reference-, profile-, and filename-free.
 It never modifies channels, loci, calls, selected peaks, or locus evidence; a
-masked position keeps its original call and evidence. While the mask is
-observation-only ([ADR-0067](../decisions/adr/0067-signal-derived-read-callability.md)
-increment 1) it alters no trim bound, alignment, warning total, or eligibility.
+masked position keeps its original call and evidence. Quality control,
+alignment, variant eligibility, and sample aggregation consume the mask
+([ADR-0067](../decisions/adr/0067-signal-derived-read-callability.md); see
+[Consumers](#consumers)).
 
 ## Inputs
 
@@ -51,7 +52,7 @@ two positions is a typed failure.
 
 ### Substep 4.2 — Repeat runs
 
-Maximal runs of at least `variant_calling.homopolymer_min_length` identical
+Maximal runs of at least `repeat_min_length` identical
 canonical primary calls (homopolymers) or alternating pairs of distinct
 canonical calls (dinucleotide repeats) are recorded; an unresolved call breaks a
 run. Runs are priors: they never mask by themselves.
@@ -69,7 +70,10 @@ A hysteresis state machine walks the read:
 - it starts masked when the first fraction reaches `onset_defect_fraction`;
 - an in-phase stretch ends where the fraction reaches `onset_defect_fraction`,
   or `exit_defect_fraction + 1/window_calls` inside a prior window, localized at
-  the first defective position of that window;
+  the first defective position of that window; when that position lies in the
+  `window_calls` positions after a repeat run, the masked stretch starts right
+  after the run instead, also masking the calls already walked past, because a
+  slipped population can lead there before its second peak becomes visible;
 - a masked stretch ends where the fraction drops to `exit_defect_fraction`;
 - decisions freeze once fewer than half a window remains, so the tail inherits
   the current state;
@@ -135,19 +139,32 @@ mask once and fails typed on an inconsistency.
   or `106..275:mixed[0.855,0.131]`: the reported offsets of a dephased segment
   and, for every fitted double-peak segment, its main and far shares.
 
-Increment 2 of ADR-0067 adds the consumers: quality control derives the trim
-interval from the callable span, alignment presents masked positions as
-unresolved, variant eligibility reports the mask state, and sample aggregation
-treats masked coverage as covered but not callable.
+## Consumers
+
+- **Quality control** trims to the callable span plus up to
+  `variant_calling.read_end_margin` calls of an adjacent dephased segment
+  ([quality control](quality-control.md), substep 5.3). A read with fewer than
+  `minimum_callable_calls` unmasked calls fails typed after the
+  `callability_completed` event.
+- **Alignment** keeps dephased calls with their call and evidence profile, which
+  still read the main ladder and anchor the alignment, and presents every other
+  masked call as unresolved `N` without a profile ([alignment](alignment.md)).
+- **Variant eligibility** turns a masked evidence call into the reason of its
+  segment, and a column on a masked call is no SNV candidate
+  ([variant calling](variant-calling.md)).
+- **Sample aggregation** records a masked call as a `masked` observation that
+  never retains a locus by itself and carries no nucleotide mass
+  ([sample evidence](sample-evidence/README.md)).
 
 ## Configuration
 
 `[callability]` holds `window_calls`, `onset_defect_fraction`,
 `exit_defect_fraction`, `minimum_main_share`, `maximum_far_share`,
-`minimum_shadow_share`, and `weak_amplitude_fraction`
+`minimum_shadow_share`, `weak_amplitude_fraction`, `repeat_min_length`, and
+`minimum_callable_calls`
 ([configuration](../reference/configuration.md)); the double threshold reuses
-`basecalling.secondary_peak_ratio` and the run length reuses
-`variant_calling.homopolymer_min_length`. The shadow offsets (±1..±3), the
+`basecalling.secondary_peak_ratio`. `repeat_min_length` sets the shortest
+repeat run, and `minimum_callable_calls` the fewest unmasked calls a read needs. The shadow offsets (±1..±3), the
 minimum fit size (eight positions), the solver tolerances, and the spacing
 defect threshold (0.5) are method constants of `dna.read_callability/v1`.
 
@@ -163,9 +180,9 @@ sequence behind the shift. The templates come from the read's own calls, so a
 primary flipped by a strong shadow becomes a wrong template for its neighbours.
 Slippage in a dinucleotide repeat leaves shadows two calls away, which the
 model counts as far, so such a segment is `mixed`. A `mixed` segment says only
-that the shadow model does not explain its double peaks. A slipped population above one half
-flips the primary inside the run with no in-run signature; only cross-strand
-disagreement at sample scope can reveal it.
+that the shadow model does not explain its double peaks. A slipped population
+above one half flips the primary inside the run with no in-run signature; only
+cross-strand disagreement at sample scope can reveal it.
 
 ## Validation
 

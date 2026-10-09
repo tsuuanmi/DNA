@@ -1,4 +1,5 @@
-//! Uncalibrated relative quality scoring and low-quality end trimming.
+//! Uncalibrated relative quality scoring and the trim interval derived from
+//! the read's callable span.
 
 mod penalty;
 mod quality;

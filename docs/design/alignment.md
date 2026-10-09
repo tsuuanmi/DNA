@@ -27,7 +27,11 @@ boundary and requires separate scientific-equivalence validation.
 
 ### Substep 6.1 — Orientation candidates
 
-The retained query evidence is aligned in both orientations:
+The retained query evidence is aligned in both orientations. A masked call
+([callability](callability.md)) inside the trim interval enters the query as
+unresolved `N` without an evidence profile, so it scores `ambiguous_score` and
+is never callable; a `dephased` call keeps its call and profile, because it
+still reads the main ladder and anchors the alignment.
 
 - **forward:** retained profile order and retained primary sequence as-is;
 - **reverse:** reverse profile order with A↔T/C↔G profile complementation, plus the reverse-complemented retained primary sequence for traceback character/provenance mapping.
@@ -95,7 +99,9 @@ reference segments, not the rows, operation runs, or score. When multiple paths 
 - `callable_columns` (columns where both bases are canonical);
 - `callable_identity` = `exact_matches / callable_columns` (0 when no callable
   columns);
-- `unresolved_query_bases` (query `N` columns).
+- `unresolved_query_bases` (query `N` columns, excluding masked calls);
+- `masked_query_bases` (columns on masked calls of any state, dephased ones
+  included).
 
 ### Substep 6.5 — Orientation selection
 
@@ -107,3 +113,9 @@ For a linear reference, the alignment maps to one half-open reference segment.
 For a circular reference, the aligned span is projected back onto the reference;
 if it crosses the origin it is split into two segments and `wraps_origin` is
 `true`.
+
+The callable reference segments are the runs of consecutive reference indexes
+observed, in alignment order, by columns on unmasked calls and by deletion
+columns whose nearest call columns on both sides are unmasked. Each lies inside
+one reference segment; a covered position outside them is covered by a masked
+call.

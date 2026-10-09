@@ -146,6 +146,7 @@ fn observation(
         alignment: Alignment {
             orientation,
             score: 1,
+            callable_segments: reference_segments.clone(),
             reference_segments,
             wraps_origin: false,
             metrics: AlignmentMetrics {
@@ -155,6 +156,7 @@ fn observation(
                 callable_columns: 0,
                 callable_identity: 0.0,
                 unresolved_query_bases: 0,
+                masked_query_bases: 0,
             },
             columns,
         },
@@ -614,6 +616,47 @@ fn unresolved_call_with_profile_remains_nucleotide_eligible() -> TestResult {
             .directional_profile_distance
             .is_none()
     );
+    Ok(())
+}
+
+#[test]
+fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -> TestResult {
+    let differing = observation(
+        "a",
+        "reference",
+        "config",
+        Orientation::Forward,
+        vec![column('A', 'T', Some(0), 12), column('C', 'C', Some(1), 13)],
+        Vec::new(),
+    );
+    let mut masked = observation(
+        "b",
+        "reference",
+        "config",
+        Orientation::Forward,
+        vec![column('N', 'T', Some(0), 12), column('N', 'C', Some(1), 13)],
+        Vec::new(),
+    );
+    masked.callability.mask = vec![Some(crate::model::callability::PhaseState::Dephased); 2];
+
+    let evidence = aggregate(&[differing, masked], &sample_config())?;
+
+    assert_eq!(evidence.locus_differences.len(), 1);
+    let locus = &evidence.locus_differences[0];
+    assert_eq!(locus.position_1based, 13);
+    assert_eq!(locus.support_topology.masked_reads, 1);
+    assert_eq!(locus.support_topology.alternate_reads, 1);
+    let masked = locus
+        .observations
+        .iter()
+        .find(|observation| observation.state == crate::model::sample_evidence::LocusState::Masked)
+        .ok_or("masked observation missing")?;
+    assert_eq!(masked.base, Some('G'));
+    assert_eq!(
+        masked.nucleotide_contribution,
+        crate::model::sample_evidence::NucleotideContribution::MaskedCall
+    );
+    assert_eq!(locus.nucleotide_support.contributors, 1);
     Ok(())
 }
 

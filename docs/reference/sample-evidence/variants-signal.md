@@ -76,19 +76,21 @@ given fabricated peaks.
 
 An eligible support has an empty exclusion list. An ineligible support retains one
 or more reasons such as `outside_target_region`, `peak_below_minimum`,
-`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`, or
-`post_homopolymer`.
+`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`,
+`post_homopolymer`, `dephased_signal`, `mixed_signal`, `weak_signal`, or
+`irregular_spacing`.
 `mixed_supporting_dna` means an SNV's supporting call retained more than one
 co-localized qualifying channel under the authoritative basecalling rule; the
 normalized observation remains evidence, but it is not presented as a clean SNV. The latter name remains explicit because
 the configured gate still operates on the internal relative-quality method even
 though the public numeric field is simply `quality`.
 
-`read_end` and `post_homopolymer` are read-callability reasons (ADR-0062): a
-mapped call of the variant lies within the configured margin of either end of
-the read's retained interval, or in the window that starts at the last call of
-a long homopolymer in the read's sequencing direction, where slippage shifts
-phase.
+`read_end` (ADR-0062) means a mapped call of the variant lies within the
+configured margin of either end of the read's trim interval. The other
+read-callability reasons (ADR-0067) name the phase segment of a masked evidence
+call: `post_homopolymer` when the segment starts in the window after a long
+repeat run in the read's sequencing direction, otherwise `dephased_signal`,
+`mixed_signal`, `weak_signal`, or `irregular_spacing`.
 
 ## Differential-locus signal evidence in v8
 

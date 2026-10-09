@@ -72,10 +72,19 @@ pub(crate) enum VariantExclusionReason {
     /// An SNV supporting call retained more than one co-localized qualifying channel.
     #[serde(rename = "mixed_supporting_dna")]
     MixedSupportingDNA,
-    /// A mapped call lies within the read-end margin of the retained interval.
+    /// An evidence call lies within the read-end margin of the trim interval.
     ReadEnd,
-    /// A mapped call lies in the window that starts at the end of a long homopolymer.
+    /// An evidence call is masked in a segment that starts right after a long
+    /// repeat run.
     PostHomopolymer,
+    /// An evidence call is masked in a dephased segment.
+    DephasedSignal,
+    /// An evidence call is masked in a mixed-signal segment.
+    MixedSignal,
+    /// An evidence call is masked in a weak-signal segment.
+    WeakSignal,
+    /// An evidence call is masked in an irregular-spacing segment.
+    IrregularSpacing,
 }
 
 impl VariantExclusionReason {
@@ -90,6 +99,10 @@ impl VariantExclusionReason {
             Self::MixedSupportingDNA => "mixed_supporting_dna",
             Self::ReadEnd => "read_end",
             Self::PostHomopolymer => "post_homopolymer",
+            Self::DephasedSignal => "dephased_signal",
+            Self::MixedSignal => "mixed_signal",
+            Self::WeakSignal => "weak_signal",
+            Self::IrregularSpacing => "irregular_spacing",
         }
     }
 }

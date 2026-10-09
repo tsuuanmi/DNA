@@ -11,10 +11,17 @@ use crate::model::variant::{
 };
 use crate::variant_calling::{anchor, mapping};
 
+use super::eligibility::ReadEligibility;
+
 /// Extracts normalized primary-sequence differences.
+///
+/// A masked call aligns as unresolved: a column on a masked call is no SNV
+/// candidate at all, and an insertion with a masked inserted call is excluded
+/// with the reasons of its masks.
 pub(crate) fn call(
     alignment: &Alignment,
     reference: &Reference,
+    eligibility: &ReadEligibility<'_>,
     config: &VariantCallingConfig,
 ) -> Result<VariantCallingResult> {
     let mut reported = Vec::new();
@@ -75,7 +82,18 @@ pub(crate) fn call(
             }
             let next_reference = next_reference(&alignment.columns, index);
             let next_flank = next_flank(&alignment.columns, index)?;
-            let reasons = allele_exclusion_reasons(&inserted, config.max_indel_length);
+            let mut reasons = Vec::new();
+            for reason in calls
+                .iter()
+                .filter_map(|call| eligibility.mask_reason(call.call_index_0based))
+            {
+                if !reasons.contains(&reason) {
+                    reasons.push(reason);
+                }
+            }
+            if reasons.is_empty() {
+                reasons = allele_exclusion_reasons(&inserted, config.max_indel_length);
+            }
             if reasons.is_empty() {
                 calls.extend(optional_pair(previous_flank, next_flank));
                 reported.push(anchor::insertion(
@@ -95,7 +113,10 @@ pub(crate) fn call(
             }
             continue;
         }
-        if column.query_base != column.reference_base {
+        let masked = column
+            .original_call_index_0based
+            .is_some_and(|call| eligibility.mask_reason(call).is_some());
+        if column.query_base != column.reference_base && !masked {
             if is_canonical(column.query_base) && is_canonical(column.reference_base) {
                 let reference_position =
                     column
@@ -212,6 +233,8 @@ fn optional_pair(
 #[cfg(test)]
 mod tests {
     use crate::model::alignment::{AlignmentMetrics, Orientation};
+    use crate::model::callability::{PhaseSegment, PhaseState, ReadCallability};
+    use crate::model::quality::QualityControlResult;
     use crate::model::reference::ReferenceTopology;
     use crate::model::variant::VariantCallRole;
 
@@ -222,6 +245,7 @@ mod tests {
             orientation: Orientation::Forward,
             score: 0,
             reference_segments: Vec::new(),
+            callable_segments: Vec::new(),
             wraps_origin: false,
             metrics: AlignmentMetrics {
                 exact_matches: 0,
@@ -230,6 +254,7 @@ mod tests {
                 callable_columns: 1,
                 callable_identity: 1.0,
                 unresolved_query_bases: 0,
+                masked_query_bases: 0,
             },
             columns,
         }
@@ -250,14 +275,51 @@ mod tests {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
             read_end_margin: 0,
-            homopolymer_min_length: 8,
-            post_homopolymer_window: 0,
         }
+    }
+
+    fn quality(calls: usize) -> QualityControlResult {
+        QualityControlResult {
+            per_call: Vec::new(),
+            trim_start_0based: 0,
+            trim_end_0based_exclusive: calls,
+            retained_sequence: String::new(),
+        }
+    }
+
+    /// Extracts with every call of a 16-call read callable.
+    fn extract(alignment: &Alignment, reference: &Reference) -> Result<VariantCallingResult> {
+        extract_masked(alignment, reference, &ReadCallability::in_phase(16))
+    }
+
+    fn extract_masked(
+        alignment: &Alignment,
+        reference: &Reference,
+        callability: &ReadCallability,
+    ) -> Result<VariantCallingResult> {
+        let quality = quality(callability.mask.len());
+        let eligibility = ReadEligibility::new(&quality, callability, &config());
+        call(alignment, reference, &eligibility, &config())
+    }
+
+    /// A 16-call read whose calls from `from` on are masked as dephased.
+    fn masked_from(from: usize) -> ReadCallability {
+        let mut read = ReadCallability::in_phase(16);
+        read.segments[0].call_end_0based_exclusive = from;
+        read.segments.push(PhaseSegment {
+            call_start_0based: from,
+            call_end_0based_exclusive: 16,
+            state: PhaseState::Dephased,
+            after_repeat: false,
+            shadow: None,
+        });
+        read.mask[from..].fill(Some(PhaseState::Dephased));
+        read
     }
 
     #[test]
     fn leading_alignment_deletion_uses_reference_predecessor() -> Result<()> {
-        let result = call(
+        let result = extract(
             &alignment(vec![
                 AlignmentColumn {
                     query_base: '-',
@@ -273,7 +335,6 @@ mod tests {
                 },
             ]),
             &reference(ReferenceTopology::Linear),
-            &config(),
         )?;
         let variant = &result.reported[0];
         assert_eq!(variant.position_1based, 2);
@@ -288,7 +349,7 @@ mod tests {
 
     #[test]
     fn unresolved_primary_difference_is_excluded() -> Result<()> {
-        let result = call(
+        let result = extract(
             &alignment(vec![AlignmentColumn {
                 query_base: 'N',
                 reference_base: 'C',
@@ -296,7 +357,6 @@ mod tests {
                 reference_index_0based: Some(2),
             }]),
             &reference(ReferenceTopology::Linear),
-            &config(),
         )?;
         assert!(result.reported.is_empty());
         assert_eq!(result.excluded_count(), 1);
@@ -311,7 +371,7 @@ mod tests {
 
     #[test]
     fn leading_alignment_insertion_keeps_inserted_and_flanking_mappings() -> Result<()> {
-        let result = call(
+        let result = extract(
             &alignment(vec![
                 AlignmentColumn {
                     query_base: 'A',
@@ -327,7 +387,6 @@ mod tests {
                 },
             ]),
             &reference(ReferenceTopology::Linear),
-            &config(),
         )?;
         let variant = &result.reported[0];
         assert_eq!(variant.position_1based, 2);
@@ -340,6 +399,43 @@ mod tests {
         assert_eq!(variant.calls[1].role, VariantCallRole::Flanking);
         assert_eq!(variant.calls[1].call_index_0based, 5);
         assert_eq!(variant.calls[1].reference_position_0based, Some(2));
+        Ok(())
+    }
+
+    #[test]
+    fn masked_calls_are_no_snv_candidates_and_exclude_insertions() -> Result<()> {
+        let columns = vec![
+            AlignmentColumn {
+                query_base: 'N',
+                reference_base: 'C',
+                original_call_index_0based: Some(4),
+                reference_index_0based: Some(2),
+            },
+            AlignmentColumn {
+                query_base: 'N',
+                reference_base: '-',
+                original_call_index_0based: Some(5),
+                reference_index_0based: None,
+            },
+            AlignmentColumn {
+                query_base: 'N',
+                reference_base: 'G',
+                original_call_index_0based: Some(6),
+                reference_index_0based: Some(3),
+            },
+        ];
+        let result = extract_masked(
+            &alignment(columns),
+            &reference(ReferenceTopology::Linear),
+            &masked_from(4),
+        )?;
+        assert!(result.reported.is_empty());
+        assert_eq!(result.excluded_count(), 1);
+        assert_eq!(result.excluded[0].kind, VariantKind::Ins);
+        assert_eq!(
+            result.excluded[0].reasons,
+            vec![VariantExclusionReason::DephasedSignal]
+        );
         Ok(())
     }
 }

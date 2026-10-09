@@ -76,9 +76,19 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                 identity: read.alignment.identity,
                 gap_opens: read.alignment.gap_opens,
                 unresolved_bases: read.alignment.unresolved_bases,
+                masked_bases: read.alignment.masked_bases,
                 reference_segments: read
                     .alignment
                     .reference_segments
+                    .into_iter()
+                    .map(|segment| IntervalResult {
+                        start: segment.start_0based,
+                        end: segment.end_0based_exclusive,
+                    })
+                    .collect(),
+                callable_reference_segments: read
+                    .alignment
+                    .callable_reference_segments
                     .into_iter()
                     .map(|segment| IntervalResult {
                         start: segment.start_0based,
@@ -160,6 +170,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                     alternate_reads: difference.support_topology.alternate_reads,
                     unresolved_reads: difference.support_topology.unresolved_reads,
                     deletion_reads: difference.support_topology.deletion_reads,
+                    masked_reads: difference.support_topology.masked_reads,
                     profile_reads: difference.support_topology.profile_reads,
                     profile_forward_reads: difference.support_topology.profile_forward_reads,
                     profile_reverse_reads: difference.support_topology.profile_reverse_reads,

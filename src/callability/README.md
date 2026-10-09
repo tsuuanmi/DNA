@@ -31,8 +31,9 @@ core unchanged; no trait is introduced until a second adapter exists.
 The stage runs after signal processing and before quality control, reference-,
 profile-, and filename-free, in trace order for both strands. It never modifies
 channels, loci, calls, selected peaks, or locus evidence; a masked position keeps
-its original call and evidence. While the mask is observation-only it alters no
-trim bound, alignment, warning total, or variant eligibility.
+its original call and evidence. Quality control, alignment, variant
+eligibility, and sample aggregation consume the mask; none of them recomputes
+it.
 
 See [callability requirements](../../docs/requirements/callability.md),
 [callability method](../../docs/design/callability.md), ADR-0067, and the

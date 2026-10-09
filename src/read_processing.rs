@@ -5,7 +5,7 @@ use std::time::Instant;
 use crate::basecalling;
 use crate::callability;
 use crate::config::Config;
-use crate::error::Result;
+use crate::error::{CallabilityError, Result};
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::QualityControlResult;
@@ -180,12 +180,27 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         maximum_far_share = %format_args!("{:.4}", config.callability.maximum_far_share),
         minimum_shadow_share = %format_args!("{:.4}", config.callability.minimum_shadow_share),
         weak_amplitude_fraction = %format_args!("{:.4}", config.callability.weak_amplitude_fraction),
+        repeat_min_length = config.callability.repeat_min_length,
+        minimum_callable_calls = config.callability.minimum_callable_calls,
     );
+    if callability.callable_count() < config.callability.minimum_callable_calls {
+        return Err(CallabilityError::TooFewCallableCalls {
+            callable: callability.callable_count(),
+            minimum: config.callability.minimum_callable_calls,
+        }
+        .into());
+    }
 
     drop(stage);
     let _stage = tracing::info_span!("quality_control").entered();
     let stage_started = Instant::now();
-    let quality = quality_control::analyze(trace, &calls, &config.quality_control)?;
+    let quality = quality_control::analyze(
+        trace,
+        &calls,
+        &callability,
+        &config.quality_control,
+        config.variant_calling.read_end_margin,
+    )?;
     let score_min = quality
         .per_call
         .iter()

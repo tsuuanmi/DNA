@@ -20,6 +20,14 @@ pub enum CallabilityError {
         /// Evidence record count.
         found: usize,
     },
+    /// Too few calls are callable for the read to be analyzed.
+    #[error("{callable} callable calls are fewer than minimum_callable_calls {minimum}")]
+    TooFewCallableCalls {
+        /// Unmasked call count.
+        callable: usize,
+        /// Configured minimum callable calls.
+        minimum: usize,
+    },
     /// Derived segments, mask, or callable span violate their invariants.
     #[error("inconsistent callability: {0}")]
     Inconsistent(&'static str),

@@ -10,6 +10,7 @@ DNA uses several coordinate domains. They are deliberately distinct.
 | trim interval | 0-based | half-open | `[trim.start, trim.end)` |
 | callability segments and callable span | 0-based | half-open | `[calls.start, calls.end)` |
 | reference segments | 0-based | half-open | `[start, end)` |
+| callable reference segments | 0-based | half-open | `[start, end)` |
 | reported biological variant position | 1-based | scalar | `position = 73` |
 
 ## Rules

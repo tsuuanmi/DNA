@@ -165,6 +165,7 @@ pub(crate) fn metrics(columns: &[RawColumn]) -> AlignmentMetrics {
         callable_columns,
         callable_identity,
         unresolved_query_bases,
+        masked_query_bases: 0,
     }
 }
 

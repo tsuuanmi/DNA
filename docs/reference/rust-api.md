@@ -295,7 +295,8 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Report` | `ReportError` | `failed to assemble analysis report:` |
 
 Failures that depend on observed values carry them as structured fields, for
-example `AlignmentError::LowIdentity { identity, minimum }` or
+example `AlignmentError::LowIdentity { identity, minimum }`,
+`CallabilityError::TooFewCallableCalls { callable, minimum }`, or
 `FastaError::UnsupportedBase { base }`. Fixed rules are distinct variants, some
 of which carry the rule's static text (for example `ConfigError::Constraint` or
 `AbifError::PeakLocations`). Arithmetic overflow and internal-consistency

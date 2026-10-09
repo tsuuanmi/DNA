@@ -32,8 +32,8 @@ Current supported behavior includes:
 - signal-derived re-calling at validated canonical Sanger loci;
 - explicit primary and ambiguity states;
 - observational Sanger-integrity and rolling signal-to-noise annotations;
-- signal-derived read callability: phase-state segments, a typed mask, and the callable span, published as observation (ADR-0067);
-- deterministic read-quality scoring and end trimming;
+- signal-derived read callability: phase-state segments, a typed mask, and the callable span, which set the trim interval, the masked alignment query, variant eligibility, and masked sample observations (ADR-0067);
+- deterministic relative read-quality scoring and a trim interval derived from the callable span;
 - forward/reverse profile-aware semi-global alignment to one short reference;
 - linear and circular reference handling;
 - primary-sequence SNVs and supported small insertions/deletions;

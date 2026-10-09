@@ -59,7 +59,11 @@ pub(crate) struct AlignmentMetrics {
     pub(crate) gap_opens: usize,
     pub(crate) callable_columns: usize,
     pub(crate) callable_identity: f64,
+    /// Unresolved query bases, excluding masked calls.
     pub(crate) unresolved_query_bases: usize,
+    /// Query bases from masked calls: dephased calls align with their call
+    /// and profile, every other masked call as unresolved.
+    pub(crate) masked_query_bases: usize,
 }
 
 /// One column of the selected alignment.
@@ -77,6 +81,9 @@ pub(crate) struct Alignment {
     pub(crate) orientation: Orientation,
     pub(crate) score: i64,
     pub(crate) reference_segments: Vec<ReferenceSegment>,
+    /// Reference segments observed by unmasked calls, and by deletions between
+    /// them, in alignment order; a subset of `reference_segments`.
+    pub(crate) callable_segments: Vec<ReferenceSegment>,
     pub(crate) wraps_origin: bool,
     pub(crate) metrics: AlignmentMetrics,
     pub(crate) columns: Vec<AlignmentColumn>,

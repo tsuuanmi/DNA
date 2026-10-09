@@ -38,7 +38,7 @@ impl Settings {
     fn from_config(config: &Config) -> Self {
         Self {
             weak_amplitude_fraction: config.callability.weak_amplitude_fraction,
-            repeat_min_length: config.variant_calling.homopolymer_min_length,
+            repeat_min_length: config.callability.repeat_min_length,
             shadow: shadow::Rules {
                 main_minimum: config.callability.minimum_main_share,
                 far_maximum: config.callability.maximum_far_share,
@@ -75,7 +75,7 @@ fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCall
     let repeats = runs::find(&primary, settings.repeat_min_length);
     let prior = phase::prior_windows(features.len(), &repeats, settings.thresholds.window);
     let defects = phase::defects(&features, &settings.thresholds);
-    let callable = phase::segment(&defects, &prior, &settings.thresholds);
+    let callable = phase::segment(&defects, &prior, &repeats, &settings.thresholds);
     let segments = classify::segments(
         &callable,
         &classify::Context {

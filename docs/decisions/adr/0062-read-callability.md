@@ -1,6 +1,6 @@
 # ADR-0062: Read callability from the read's own calls
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0067](0067-signal-derived-read-callability.md)
 - **Date:** 2026-10-08
 - **Related decisions:** [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md),
   [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md)
@@ -72,7 +72,8 @@ ADR-0060 §5 requires.
 ## Follow-up (2026-10-09)
 
 [ADR-0067](0067-signal-derived-read-callability.md) derives callability from
-the read's own signal. Its first increment publishes that view as observation
-beside these rules; its second increment replaces the sequence-only
-`post_homopolymer` window with the measured phase state and will supersede this
-record in part, keeping `read_end` and the filename-free principle.
+the read's own signal. Its second increment replaces the sequence-only
+`post_homopolymer` window with the measured phase state and supersedes this
+record in part. `read_end` and the filename-free principle remain; the margin
+is now measured from the signal-derived trim interval, and the shipped value is
+12 calls.

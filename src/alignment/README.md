@@ -8,6 +8,10 @@ Entry point: `align_best` from `mod.rs`.
 Key children: `scoring.rs`, [`exact/`](exact/README.md), `gotoh.rs`,
 `traceback.rs`, `canonical.rs`, and `orient.rs`.
 
+Masked calls of the read's [callability](../callability/README.md) enter the
+query as unresolved, except dephased calls, which keep their call and profile;
+`orient.rs` also derives masked-base counts and the callable reference segments.
+
 This module does not extract variants or mutate upstream signal evidence.
 
 The evidence-profile Gotoh implementation is intentionally first-party after reuse evaluation rather

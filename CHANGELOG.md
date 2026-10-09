@@ -65,6 +65,30 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- The read-callability mask acts (ADR-0067 increment 2, SRS-CALL-009 to
+  SRS-CALL-012). The trim interval is the callable span plus up to
+  `read_end_margin` adjacent dephased calls (`dna.callable_span_trim/v1`
+  replaces the best-section walk-out). Alignment keeps dephased calls with
+  their profile and aligns other masked calls as unresolved. Masked evidence
+  calls exclude a variant with the reason of their segment, replacing the
+  sequence-only `post_homopolymer` window, and a masked call is no SNV
+  candidate. Masked sample observations are kept as `masked` and never retain a
+  locus. A mask that starts in the window after a repeat run is pulled back to
+  the run's end. On the local corpus precision rises from 0.949 to 0.970,
+  recall from 0.970 to 0.977, and the reads that failed the identity gate now
+  place. **Breaking (unreleased, revised in place):** configuration schema 7
+  removes `quality_control.best_section_fraction`, `trim_stringency`,
+  `minimum_retained_bases`, and `variant_calling.post_homopolymer_window`,
+  moves `variant_calling.homopolymer_min_length` to
+  `callability.repeat_min_length`, adds `callability.minimum_callable_calls`,
+  and ships `read_end_margin = 12`; `dna.analysis/v9` and
+  `dna.sample_evidence/v10` alignment summaries gain `masked_bases` and
+  `callable_reference_segments`; sample evidence gains the `masked` locus
+  state, `support_topology.masked_reads`, and the exclusion reasons
+  `dephased_signal`, `mixed_signal`, `weak_signal`, and `irregular_spacing`.
+  **Breaking (Rust API):** `QualityControlError` replaces `TooFewCalls` and
+  `RetainedTooShort` with `InvalidCallableSpan`, and `CallabilityError` gains
+  `TooFewCallableCalls`.
 - Read callability separates dephased from mixed double-peak segments with a
   shadow model (ADR-0067 calibration amendment): a non-negative least-squares
   fit of each segment's normalized amplitudes to the read's own primary calls

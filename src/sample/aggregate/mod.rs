@@ -34,7 +34,9 @@ pub(crate) fn aggregate(
                 identity: read.alignment.metrics.callable_identity,
                 gap_opens: read.alignment.metrics.gap_opens,
                 unresolved_bases: read.alignment.metrics.unresolved_query_bases,
+                masked_bases: read.alignment.metrics.masked_query_bases,
                 reference_segments: read.alignment.reference_segments.clone(),
+                callable_reference_segments: read.alignment.callable_segments.clone(),
                 wraps_origin: read.alignment.wraps_origin,
             },
         })

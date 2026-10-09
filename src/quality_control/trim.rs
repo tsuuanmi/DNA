@@ -1,70 +1,56 @@
-//! Auditable low-quality end trimming.
+//! Trim interval from the callable span (`dna.callable_span_trim/v1`).
 
 use crate::config::QualityControlConfig;
 use crate::error::{QualityControlError, Result};
 use crate::model::basecalls::BaseCalls;
+use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::{CallQuality, QualityControlResult};
 use crate::model::sanger::Chromatogram;
 use crate::quality_control::penalty;
 use crate::quality_control::quality;
 
-/// Scores calls and selects one retained interval.
+/// Scores calls and derives the one retained interval: the read's callable
+/// span, widened on each side by up to `context_margin` calls of an adjacent
+/// dephased segment. Dephased calls still read the main ladder, so they anchor
+/// the alignment next to the span; calls of any other masked state carry no
+/// alignment information and are trimmed.
 pub(crate) fn analyze(
     trace: &Chromatogram,
     calls: &BaseCalls,
+    callability: &ReadCallability,
     config: &QualityControlConfig,
+    context_margin: usize,
 ) -> Result<QualityControlResult> {
-    if calls.len() < config.minimum_retained_bases {
-        return Err(QualityControlError::TooFewCalls {
+    let span_start = callability.callable_start_0based;
+    let span_end = callability.callable_end_0based_exclusive;
+    if span_start >= span_end || span_end > calls.len() {
+        return Err(QualityControlError::InvalidCallableSpan {
+            start: span_start,
+            end: span_end,
             calls: calls.len(),
-            minimum: config.minimum_retained_bases,
         }
         .into());
     }
-    let penalty = penalty::calculate(
-        calls,
-        config.penalty_window_size,
-        config.best_section_fraction,
-    )?;
-    let scores = quality::relative_scores(&penalty.penalties, config.max_relative_quality_score);
-    let threshold =
-        config.trim_stringency * penalty.best_average * config.penalty_window_size as f64;
-    let mut trim_start = 0;
-    for start in (0..penalty.best_start).rev() {
-        let end = start
-            .saturating_add(config.penalty_window_size)
-            .min(calls.len());
-        let sum: i64 = penalty.penalties[start..end]
-            .iter()
-            .map(|value| i64::from(*value))
-            .sum();
-        if sum as f64 > threshold {
-            trim_start = end.min(penalty.best_start);
-            break;
-        }
-    }
-    let mut trim_end = calls.len();
-    for start in penalty.best_end..calls.len() {
-        let end = start
-            .saturating_add(config.penalty_window_size)
-            .min(calls.len());
-        let sum: i64 = penalty.penalties[start..end]
-            .iter()
-            .map(|value| i64::from(*value))
-            .sum();
-        if sum as f64 > threshold {
-            trim_end = start.max(penalty.best_end);
-            break;
-        }
-    }
-    if trim_end <= trim_start || trim_end - trim_start < config.minimum_retained_bases {
-        return Err(QualityControlError::RetainedTooShort {
-            start: trim_start,
-            end: trim_end,
-            minimum: config.minimum_retained_bases,
-        }
-        .into());
-    }
+    let penalties = penalty::calculate(calls, config.penalty_window_size)?;
+    let scores = quality::relative_scores(&penalties, config.max_relative_quality_score);
+    let dephased = |index: usize| {
+        callability
+            .segment_at(index)
+            .filter(|segment| segment.state == PhaseState::Dephased)
+    };
+    let trim_start = span_start
+        .checked_sub(1)
+        .and_then(dephased)
+        .map_or(span_start, |segment| {
+            span_start
+                .saturating_sub(context_margin)
+                .max(segment.call_start_0based)
+        });
+    let trim_end = dephased(span_end).map_or(span_end, |segment| {
+        span_end
+            .saturating_add(context_margin)
+            .min(segment.call_end_0based_exclusive)
+    });
     let retained_sequence = calls.primary_sequence[trim_start..trim_end].to_owned();
     let per_call = calls
         .calls
@@ -79,7 +65,7 @@ pub(crate) fn analyze(
                 .copied();
             CallQuality {
                 index_0based: index,
-                penalty: penalty.penalties[index],
+                penalty: penalties[index],
                 relative_quality_score: scores[index],
                 vendor_quality_applies: vendor_quality.is_some()
                     && call.vendor_agrees == Some(true),
@@ -103,7 +89,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn retains_a_uniform_read_and_applies_matching_vendor_quality() -> Result<()> {
+    fn trims_to_the_callable_span_and_applies_matching_vendor_quality() -> Result<()> {
         let locations = [2, 6, 10, 14];
         let calls = BaseCalls {
             calls: locations
@@ -139,22 +125,54 @@ mod tests {
                 qualities: Some(vec![40; 4]),
             },
         };
-        let result = analyze(
-            &trace,
-            &calls,
-            &QualityControlConfig {
-                penalty_window_size: 2,
-                best_section_fraction: 0.5,
-                max_relative_quality_score: 60,
-                trim_stringency: 7.0,
-                minimum_retained_bases: 4,
-            },
-        )?;
+        let config = QualityControlConfig {
+            penalty_window_size: 2,
+            max_relative_quality_score: 60,
+        };
+        let mut callability = ReadCallability::in_phase(4);
+        let result = analyze(&trace, &calls, &callability, &config, 1)?;
         assert_eq!(
             (result.trim_start_0based, result.trim_end_0based_exclusive),
             (0, 4)
         );
         assert_eq!(result.retained_sequence, "AAAA");
+        callability.callable_start_0based = 2;
+        callability.callable_end_0based_exclusive = 3;
+        let narrowed = analyze(&trace, &calls, &callability, &config, 1)?;
+        assert_eq!(
+            (
+                narrowed.trim_start_0based,
+                narrowed.trim_end_0based_exclusive
+            ),
+            (2, 3)
+        );
+        assert_eq!(narrowed.retained_sequence, "A");
+        // A dephased neighbour anchors the span; a mixed one is trimmed.
+        callability.segments = [
+            (0, 2, PhaseState::Dephased),
+            (2, 3, PhaseState::InPhase),
+            (3, 4, PhaseState::Mixed),
+        ]
+        .map(
+            |(start, end, state)| crate::model::callability::PhaseSegment {
+                call_start_0based: start,
+                call_end_0based_exclusive: end,
+                state,
+                after_repeat: false,
+                shadow: None,
+            },
+        )
+        .to_vec();
+        let anchored = analyze(&trace, &calls, &callability, &config, 1)?;
+        assert_eq!(
+            (
+                anchored.trim_start_0based,
+                anchored.trim_end_0based_exclusive
+            ),
+            (1, 3)
+        );
+        callability.callable_end_0based_exclusive = 2;
+        assert!(analyze(&trace, &calls, &callability, &config, 1).is_err());
         assert!(result.per_call.iter().all(|quality| {
             quality.relative_quality_score == 60 && quality.vendor_quality_applies
         }));

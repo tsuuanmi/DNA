@@ -1,6 +1,6 @@
 //! Profile-region and configured supporting-signal eligibility filters.
 
-use super::callability::ReadCallability;
+use super::eligibility::ReadEligibility;
 use crate::config::VariantCallingConfig;
 use crate::error::{Result, VariantError};
 use crate::model::basecalls::BaseCalls;
@@ -15,13 +15,13 @@ pub(super) fn apply(
     extracted: VariantCallingResult,
     calls: &BaseCalls,
     quality: &QualityControlResult,
+    eligibility: &ReadEligibility<'_>,
     config: &VariantCallingConfig,
     regions: &[[usize; 2]],
 ) -> Result<VariantCallingResult> {
     let mut reported = Vec::with_capacity(extracted.reported.len());
     let mut observed = Vec::with_capacity(extracted.reported.len());
     let mut excluded = extracted.excluded;
-    let callability = ReadCallability::new(calls, quality, config);
     for variant in extracted.reported {
         let mut reasons = Vec::new();
         if !in_region(variant.position_1based, regions) {
@@ -30,7 +30,7 @@ pub(super) fn apply(
         reasons.extend(supporting_evidence_reasons(
             &variant, calls, quality, config,
         )?);
-        reasons.extend(callability.reasons(&variant.calls));
+        reasons.extend(eligibility.reasons(variant.kind, &variant.calls));
         observed.push(ObservedVariant {
             variant: variant.clone(),
             exclusion_reasons: reasons.clone(),
@@ -143,6 +143,7 @@ fn assess_call(
 mod tests {
     use crate::error::{Error, VariantError};
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
+    use crate::model::callability::ReadCallability;
     use crate::model::nucleotide::Nucleotide;
     use crate::model::quality::CallQuality;
 
@@ -154,9 +155,20 @@ mod tests {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
             read_end_margin: 0,
-            homopolymer_min_length: 8,
-            post_homopolymer_window: 0,
         }
+    }
+
+    /// Applies the filters to a read whose calls are all callable.
+    fn filter(
+        extracted: VariantCallingResult,
+        calls: &BaseCalls,
+        quality: &QualityControlResult,
+        config: &VariantCallingConfig,
+        regions: &[[usize; 2]],
+    ) -> Result<VariantCallingResult> {
+        let read = ReadCallability::in_phase(quality.per_call.len());
+        let eligibility = ReadEligibility::new(quality, &read, config);
+        apply(extracted, calls, quality, &eligibility, config, regions)
     }
 
     fn evidence(peaks: &[i32], scores: &[u8]) -> (BaseCalls, QualityControlResult) {
@@ -263,7 +275,7 @@ mod tests {
             excluded: vec![prior_exclusion()],
         };
 
-        let result = apply(extracted, &calls, &quality, &config(), &[[10, 20]])?;
+        let result = filter(extracted, &calls, &quality, &config(), &[[10, 20]])?;
 
         assert_eq!(result.reported.len(), 2);
         assert_eq!(result.reported[0].position_1based, 10);
@@ -298,7 +310,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(), &[[1, 3]])?;
+        let result = filter(extracted, &calls, &quality, &config(), &[[1, 3]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].position_1based, 3);
@@ -348,7 +360,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(), &[[1, 2]])?;
+        let result = filter(extracted, &calls, &quality, &config(), &[[1, 2]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].kind, VariantKind::Ins);
@@ -391,7 +403,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(), &[[1, 2]])?;
+        let result = filter(extracted, &calls, &quality, &config(), &[[1, 2]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].position_1based, 2);
@@ -415,7 +427,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &config(), &[[5, 5]])?;
+        let result = filter(extracted, &calls, &quality, &config(), &[[5, 5]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.excluded_count(), 0);
@@ -436,7 +448,7 @@ mod tests {
         };
 
         assert!(matches!(
-            apply(extracted, &calls, &quality, &config(), &[[1, 1]]),
+            filter(extracted, &calls, &quality, &config(), &[[1, 1]]),
             Err(Error::Variant(VariantError::MissingCall { index: 2 }))
         ));
     }
@@ -463,7 +475,7 @@ mod tests {
             excluded: Vec::new(),
         };
 
-        let result = apply(extracted, &calls, &quality, &read_end, &[[1, 100]])?;
+        let result = filter(extracted, &calls, &quality, &read_end, &[[1, 100]])?;
 
         assert_eq!(result.reported.len(), 1);
         assert_eq!(result.reported[0].position_1based, 6);

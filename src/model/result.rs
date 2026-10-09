@@ -124,8 +124,10 @@ pub(crate) struct AlignmentResult {
     pub(crate) callable_bases: usize,
     pub(crate) identity: f64,
     pub(crate) unresolved_bases: usize,
+    pub(crate) masked_bases: usize,
     pub(crate) gap_opens: usize,
     pub(crate) reference_segments: Vec<IntervalResult>,
+    pub(crate) callable_reference_segments: Vec<IntervalResult>,
     pub(crate) wraps_origin: bool,
 }
 

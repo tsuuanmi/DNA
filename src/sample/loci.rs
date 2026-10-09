@@ -31,8 +31,8 @@ pub(crate) fn aggregate(reads: &[&ReadObservation]) -> Result<Vec<SampleLocusEvi
                 )
                 .into());
             }
-            let state = classify(column);
-            if state == LocusState::Reference {
+            let state = classify(read, column);
+            if matches!(state, LocusState::Reference | LocusState::Masked) {
                 continue;
             }
             let position_1based = reference_index_0based
@@ -113,6 +113,7 @@ fn support_topology(
         alternate_reads: 0,
         unresolved_reads: 0,
         deletion_reads: 0,
+        masked_reads: 0,
         profile_reads: 0,
         profile_forward_reads: 0,
         profile_reverse_reads: 0,
@@ -152,6 +153,7 @@ fn support_topology(
             LocusState::Alternate => topology.alternate_reads += 1,
             LocusState::Unresolved => topology.unresolved_reads += 1,
             LocusState::Deletion => topology.deletion_reads += 1,
+            LocusState::Masked => topology.masked_reads += 1,
         }
     }
 
@@ -161,6 +163,7 @@ fn support_topology(
                 + topology.alternate_reads
                 + topology.unresolved_reads
                 + topology.deletion_reads
+                + topology.masked_reads
         || topology.profile_reads != topology.profile_forward_reads + topology.profile_reverse_reads
         || topology.profile_reads > topology.reads - topology.deletion_reads
     {
@@ -177,7 +180,7 @@ fn observation(
     read: &ReadObservation,
     column: &AlignmentColumn,
 ) -> Result<SampleLocusObservation> {
-    let state = classify(column);
+    let state = classify(read, column);
     if state == LocusState::Deletion {
         let signal = None;
         return Ok(SampleLocusObservation {
@@ -205,19 +208,37 @@ fn observation(
         ))?;
 
     let signal = Some(call_evidence::for_call(read, call_index_0based)?);
+    let base = if state == LocusState::Masked {
+        let call = read
+            .calls
+            .calls
+            .get(call_index_0based)
+            .ok_or(SampleError::Inconsistent("masked locus lacks its call"))?;
+        read.alignment.orientation.reference_base(call.primary)
+    } else {
+        column.query_base
+    };
     Ok(SampleLocusObservation {
         read_index,
         state,
-        base: Some(column.query_base),
+        base: Some(base),
         quality: Some(quality.relative_quality_score),
         signal,
         nucleotide_contribution: contribution::classify(state, signal),
     })
 }
 
-fn classify(column: &AlignmentColumn) -> LocusState {
+/// A masked call observes its locus as masked, whatever it aligned to; it
+/// never retains a locus by itself.
+fn classify(read: &ReadObservation, column: &AlignmentColumn) -> LocusState {
+    let masked = column
+        .original_call_index_0based
+        .and_then(|index| read.callability.mask.get(index))
+        .is_some_and(Option::is_some);
     if column.query_base == '-' {
         LocusState::Deletion
+    } else if masked {
+        LocusState::Masked
     } else if !is_canonical(column.query_base) || !is_canonical(column.reference_base) {
         LocusState::Unresolved
     } else if column.query_base == column.reference_base {

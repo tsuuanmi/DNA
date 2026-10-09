@@ -16,9 +16,11 @@ Walking the alignment columns:
 - a column where the reference is `-` is an **insertion** of the query bases;
 - a column with unequal canonical query and reference bases is an **SNV**.
 
-Differences whose allele contains a non-canonical base, or whose indel length
-exceeds `max_indel_length`, increment the excluded-candidate warning count rather
-than being reported.
+A column on a masked call ([callability](callability.md)) is no SNV candidate
+and produces no record. An insertion with a masked inserted call is excluded
+with the mask reasons of those calls. Other differences whose allele contains a
+non-canonical base, or whose indel length exceeds `max_indel_length`, increment
+the excluded-candidate warning count rather than being reported.
 
 ### Substep 7.2 — Allele construction and anchoring
 
@@ -60,13 +62,17 @@ or equal to `minimum_peak_height` and an uncalibrated relative score strictly
 greater than `relative_quality_threshold`. Insertion flanks are not evaluated.
 Deletions have no supporting trace base, so their flanks are not subjected to
 peak or quality thresholds; their caller anchor must still be in a region.
-Read callability (ADR-0062, SRS-VAR-013) then marks a variant ineligible when
-any of its mapped calls is untrusted for its read: within `read_end_margin`
-calls of either end of the retained interval (`read_end`), or within the
-`post_homopolymer_window` calls that start at the last call of a run of at least
-`homopolymer_min_length` identical canonical primary calls in trace order
-(`post_homopolymer`). Trace order is the sequencing direction for both strands,
-so forward and reverse reads are handled alike without primer knowledge.
+Read eligibility (ADR-0062, ADR-0067, SRS-VAR-013) then marks a variant
+ineligible when any of its mapped calls lies within `read_end_margin` calls of
+either end of the trim interval (`read_end`). Because the trim interval is the
+callable span plus at most that many dephased context calls, a difference needs
+that many informative calls between it and an uninformative end. A masked
+evidence call — a supporting call, or a flanking call of a deletion — adds the
+reason of its segment: `post_homopolymer` when the segment starts in the window
+after a repeat run, otherwise `dephased_signal`, `mixed_signal`, `weak_signal`,
+or `irregular_spacing`. Trace order is the sequencing direction for both
+strands, so forward and reverse reads are handled alike without primer
+knowledge.
 
 Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as an observed called difference but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
 

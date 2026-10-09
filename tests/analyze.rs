@@ -103,8 +103,10 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
             "callable_bases",
             "identity",
             "unresolved_bases",
+            "masked_bases",
             "gap_opens",
             "reference_segments",
+            "callable_reference_segments",
             "wraps_origin",
         ],
     );
@@ -448,11 +450,6 @@ fn excludes_mixed_supporting_snv_without_erasing_the_observation()
     write_abif_with_secondary_signal(&trace, &query, 10, b'C', 400)?;
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
-    let config_text = fs::read_to_string(&config)?;
-    fs::write(
-        &config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
 
     run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
@@ -478,7 +475,7 @@ fn annotates_noisy_region_without_filtering_supported_snv() -> Result<(), Box<dy
         let trace = directory.path().join("trace.ab1");
         let reference = directory.path().join("reference.fa");
         let config = directory.path().join("dna.toml");
-        write_abif_with_background_noise(&trace, &query, 7..14, 300)?;
+        write_abif_with_background_noise(&trace, &query, 7..14, 100)?;
         write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
         write_config(&config, "linear")?;
         let config_text = fs::read_to_string(&config)?;
@@ -838,30 +835,26 @@ fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-/// Read callability (ADR-0062): an SNV in the calls right after a long
-/// homopolymer is reported only while the post-homopolymer rule is disabled.
+/// Read callability (ADR-0067): an SNV right after a long homopolymer is
+/// reported while the signal stays in phase, and is no candidate at all once
+/// a shadow ladder masks the calls after the run.
 #[test]
-fn removes_a_variant_called_right_after_a_long_homopolymer()
+fn reports_an_snv_after_a_homopolymer_only_while_the_signal_is_in_phase()
 -> Result<(), Box<dyn std::error::Error>> {
-    let read = format!("ACGTAG{}TACGTAGCTAGCATG", "C".repeat(8));
+    let read = format!(
+        "ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAGCATGCA",
+        "C".repeat(9)
+    );
     let mut reference_read = read.clone();
-    reference_read.replace_range(14..15, "G");
-    for (window, reported) in [(0, 1), (3, 0)] {
+    reference_read.replace_range(26..27, "T");
+    for (shadows, reported) in [(&[][..], 1), (&[(-1, 0.4)][..], 0)] {
         let directory = tempdir()?;
         let trace = directory.path().join("trace.ab1");
         let reference = directory.path().join("reference.fa");
         let config = directory.path().join("dna.toml");
-        write_abif(&trace, &read)?;
+        write_abif_with_shadow_ladder(&trace, &read, 23, shadows)?;
         write_reference(&reference, &format!("TTTT{reference_read}CCCC"))?;
         write_config(&config, "linear")?;
-        let config_text = fs::read_to_string(&config)?;
-        fs::write(
-            &config,
-            config_text.replace(
-                "post_homopolymer_window=0",
-                &format!("post_homopolymer_window={window}"),
-            ),
-        )?;
 
         run(&trace, &reference, &config, directory.path()).success();
 
@@ -869,16 +862,74 @@ fn removes_a_variant_called_right_after_a_long_homopolymer()
         assert_eq!(
             value["variants"].as_array().map(Vec::len),
             Some(reported),
-            "window {window}"
+            "shadows {shadows:?}"
         );
-        let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+        // The dephased tail is trimmed: the trim interval is the callable span.
+        let trim_end = if reported == 1 { read.len() } else { 23 };
         assert_eq!(
-            log.contains("event=variant_removed kind=SNV"),
-            reported == 0,
-            "window {window}"
+            value["read"]["trim"]["end"], trim_end,
+            "shadows {shadows:?}"
         );
-        assert_eq!(log.contains("reasons=post_homopolymer"), reported == 0);
+        assert_eq!(value["alignment"]["masked_bases"], 0, "shadows {shadows:?}");
+        let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+        assert!(
+            !log.contains("event=variant_removed"),
+            "shadows {shadows:?}"
+        );
     }
+    Ok(())
+}
+
+/// Read callability (ADR-0067): an internal mixed-signal stretch stays inside
+/// the trim interval, aligns as unresolved, and supports no variant, while an
+/// SNV in the callable signal after it is reported.
+#[test]
+fn aligns_an_internal_masked_stretch_as_unresolved() -> Result<(), Box<dyn std::error::Error>> {
+    let read = "ACGTCAGTACGATCGTACCTGAGTACGATCGATCGTAGCTGACTAGCTAGCATGACGTCAGTCATGCATCGATGCTAGCTAGTCGATCGA";
+    let mut reference_read = read.to_owned();
+    reference_read.replace_range(40..41, "C");
+    reference_read.replace_range(70..71, "A");
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif_with_incoherent_doubles(&trace, read, 32..52, 500)?;
+    write_reference(&reference, &format!("TTTT{reference_read}CCCC"))?;
+    write_config(&config, "linear")?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+    let value = read_result(directory.path(), &trace)?;
+    let segments = value["read"]["callability"]["segments"]
+        .as_array()
+        .ok_or("segments must be an array")?;
+    let masked = segments
+        .iter()
+        .find(|segment| segment["state"] != "in_phase")
+        .ok_or("an internal masked segment is expected")?;
+    assert_eq!(masked["state"], "mixed");
+    let masked_calls = value["read"]["callability"]["masked_calls"]
+        .as_u64()
+        .ok_or("masked_calls must be a count")?;
+    assert_eq!(value["read"]["trim"]["start"], 0);
+    assert_eq!(value["read"]["trim"]["end"], read.len());
+    assert_eq!(
+        value["alignment"]["masked_bases"].as_u64(),
+        Some(masked_calls)
+    );
+    let start = masked["calls"]["start"].as_u64().ok_or("segment start")?;
+    let end = masked["calls"]["end"].as_u64().ok_or("segment end")?;
+    assert_eq!(
+        value["alignment"]["callable_reference_segments"],
+        serde_json::json!([
+            {"start": 4, "end": 4 + start},
+            {"start": 4 + end, "end": 4 + read.len()}
+        ])
+    );
+    let variants = value["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1, "{variants:?}");
+    assert_eq!(variants[0]["position"], 4 + 70 + 1);
     Ok(())
 }
 
@@ -898,7 +949,7 @@ fn publishes_a_dephased_segment_after_a_long_homopolymer() -> Result<(), Box<dyn
     );
     write_abif_with_shadow_ladder(&trace, &read, 23, &[(-1, 0.4)])?;
     write_reference(&reference, &format!("TTTT{read}CCCC"))?;
-    write_config_retaining_everything(&config)?;
+    write_config(&config, "linear")?;
 
     run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
@@ -947,7 +998,7 @@ fn publishes_two_sided_shadows_after_a_long_homopolymer() -> Result<(), Box<dyn 
     );
     write_abif_with_shadow_ladder(&trace, &read, 23, &[(-1, 0.4), (1, 0.4)])?;
     write_reference(&reference, &format!("TTTT{read}CCCC"))?;
-    write_config_retaining_everything(&config)?;
+    write_config(&config, "linear")?;
 
     run(&trace, &reference, &config, directory.path()).success();
     let value = read_result(directory.path(), &trace)?;
@@ -974,7 +1025,7 @@ fn publishes_mixed_and_weak_segments_without_a_repeat() -> Result<(), Box<dyn st
     let config = mixed.path().join("dna.toml");
     write_abif_with_incoherent_doubles(&trace, read, 30..read.len(), 500)?;
     write_reference(&reference, &format!("TTTT{read}CCCC"))?;
-    write_config_retaining_everything(&config)?;
+    write_config(&config, "linear")?;
     run(&trace, &reference, &config, mixed.path()).success();
     let value = read_result(mixed.path(), &trace)?;
     let segments = value["read"]["callability"]["segments"]
@@ -992,7 +1043,7 @@ fn publishes_mixed_and_weak_segments_without_a_repeat() -> Result<(), Box<dyn st
     let config = weak.path().join("dna.toml");
     write_abif_with_amplitude_decay(&trace, read, 40, 0.001)?;
     write_reference(&reference, &format!("TTTT{read}CCCC"))?;
-    write_config_retaining_everything(&config)?;
+    write_config(&config, "linear")?;
     run(&trace, &reference, &config, weak.path()).success();
     let value = read_result(weak.path(), &trace)?;
     let segments = value["read"]["callability"]["segments"]
@@ -1023,11 +1074,6 @@ fn omits_unresolved_indel_flank_without_failing() -> Result<(), Box<dyn std::err
         &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
     )?;
     write_config(&config, "linear")?;
-    let config_text = fs::read_to_string(&config)?;
-    fs::write(
-        &config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
 
     run(&trace, &reference, &config, directory.path()).success();
 
@@ -1069,11 +1115,6 @@ fn omits_mixed_signal_indel_flank_called_n() -> Result<(), Box<dyn std::error::E
         &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
     )?;
     write_config(&config, "linear")?;
-    let config_text = fs::read_to_string(&config)?;
-    fs::write(
-        &config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
 
     run(&trace, &reference, &config, directory.path()).success();
 
@@ -1119,19 +1160,6 @@ fn unwritable_operation_log_fails_fast_without_publishing_a_result()
         ))
         .stderr(predicate::str::contains("additionally").not());
     assert!(!analysis_output_path(directory.path(), &trace).exists());
-    Ok(())
-}
-
-/// A linear-profile configuration whose best section is the whole read, so the
-/// Tracy-style end trim keeps every call and the callability view can be read
-/// against the untrimmed read.
-fn write_config_retaining_everything(config: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    write_config(config, "linear")?;
-    let config_text = fs::read_to_string(config)?;
-    fs::write(
-        config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
     Ok(())
 }
 

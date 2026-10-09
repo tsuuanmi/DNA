@@ -49,8 +49,15 @@
         "callable_bases": 120,
         "identity": 0.98,
         "unresolved_bases": 0,
+        "masked_bases": 0,
         "gap_opens": 0,
         "reference_segments": [
+          {
+            "start": 100,
+            "end": 220
+          }
+        ],
+        "callable_reference_segments": [
           {
             "start": 100,
             "end": 220
@@ -94,8 +101,15 @@
         "callable_bases": 120,
         "identity": 0.975,
         "unresolved_bases": 0,
+        "masked_bases": 0,
         "gap_opens": 0,
         "reference_segments": [
+          {
+            "start": 140,
+            "end": 260
+          }
+        ],
+        "callable_reference_segments": [
           {
             "start": 140,
             "end": 260
@@ -187,6 +201,7 @@
         "alternate_reads": 1,
         "unresolved_reads": 0,
         "deletion_reads": 0,
+        "masked_reads": 0,
         "profile_reads": 2,
         "profile_forward_reads": 1,
         "profile_reverse_reads": 1
@@ -231,6 +246,7 @@
         "alternate_reads": 2,
         "unresolved_reads": 0,
         "deletion_reads": 0,
+        "masked_reads": 0,
         "profile_reads": 2,
         "profile_forward_reads": 1,
         "profile_reverse_reads": 1

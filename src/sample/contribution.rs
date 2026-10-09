@@ -9,6 +9,8 @@ pub(super) fn classify(
 ) -> NucleotideContribution {
     if state == LocusState::Deletion {
         NucleotideContribution::DeletionEvent
+    } else if state == LocusState::Masked {
+        NucleotideContribution::MaskedCall
     } else if signal.and_then(|evidence| evidence.profile).is_some() {
         NucleotideContribution::Eligible
     } else {

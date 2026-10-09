@@ -20,7 +20,9 @@ minimum_noisy_windows = 2
 # defect fractions that open and close a masked stretch, the shadow-fit shares
 # that separate dephased (slippage) signal from mixed signal, and the fraction
 # of the read's median primary amplitude below which a position is weak.
-# Observation-only until the mask is allowed to act.
+# Repeat runs of at least `repeat_min_length` identical or alternating primary
+# calls are priors for the window after them; a read needs at least
+# `minimum_callable_calls` callable calls to be analyzed.
 window_calls = 16
 onset_defect_fraction = 0.375
 exit_defect_fraction = 0.125
@@ -28,14 +30,14 @@ minimum_main_share = 0.35
 maximum_far_share = 0.12
 minimum_shadow_share = 0.1
 weak_amplitude_fraction = 0.1
+repeat_min_length = 8
+minimum_callable_calls = 20
 
 [quality_control]
-# Relative, uncalibrated quality and end-trimming settings.
+# Relative, uncalibrated per-call quality. The trim interval is the read's
+# callable span (ADR-0067).
 penalty_window_size = 10
-best_section_fraction = 0.10
 max_relative_quality_score = 60
-trim_stringency = 7.0
-minimum_retained_bases = 20
 
 [alignment]
 # Semi-global affine-gap scoring. A length-k gap costs open + k * extension.
@@ -58,10 +60,6 @@ max_indel_length = 50
 # SNV and inserted-base supporting calls must meet both evidence thresholds.
 minimum_peak_height = 150
 relative_quality_threshold = 30
-# Read callability (ADR-0062): calls this close to either end of a read's
-# retained interval cannot support a variant.
-read_end_margin = 8
-# A run of at least this many identical primary calls shifts phase; this many
-# calls, starting with the run's last call, cannot support a variant (0 disables).
-homopolymer_min_length = 8
-post_homopolymer_window = 7
+# Read callability (ADR-0062): calls this close to either end of the trim
+# interval, the callable span, cannot support a variant.
+read_end_margin = 12

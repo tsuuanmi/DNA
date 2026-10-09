@@ -160,6 +160,16 @@ impl ReadCallability {
         self.mask.len() - self.callable_count()
     }
 
+    /// The segment covering call `index`, if the index lies inside the read.
+    pub(crate) fn segment_at(&self, index: usize) -> Option<&PhaseSegment> {
+        let position = self
+            .segments
+            .partition_point(|segment| segment.call_end_0based_exclusive <= index);
+        self.segments
+            .get(position)
+            .filter(|segment| segment.call_start_0based <= index)
+    }
+
     /// Number of segments in `state`.
     pub(crate) fn segment_count(&self, state: PhaseState) -> usize {
         self.segments

@@ -5,7 +5,9 @@ coverage, overlap, locus, nucleotide-profile, and normalized-variant evidence.
 
 The entry point is [`aggregate/`](aggregate/README.md). Its sibling modules
 separate coverage, overlap, locus aggregation, call evidence, contribution
-policy, profile geometry, nucleotide support, and variant aggregation.
+policy, profile geometry, nucleotide support, and variant aggregation. A call
+masked by the read's [callability](../callability/README.md) observes a locus
+as `masked`: it never retains the locus by itself and adds no nucleotide mass.
 
 This module does not discover input files, infer samples from filenames, or emit
 final reports.

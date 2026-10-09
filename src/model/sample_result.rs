@@ -99,6 +99,7 @@ pub(crate) struct SampleLocusSupportTopologyResult {
     pub(crate) alternate_reads: usize,
     pub(crate) unresolved_reads: usize,
     pub(crate) deletion_reads: usize,
+    pub(crate) masked_reads: usize,
     pub(crate) profile_reads: usize,
     pub(crate) profile_forward_reads: usize,
     pub(crate) profile_reverse_reads: usize,

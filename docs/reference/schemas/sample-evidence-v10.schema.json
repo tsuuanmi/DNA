@@ -297,7 +297,9 @@
         "identity",
         "gap_opens",
         "unresolved_bases",
+        "masked_bases",
         "reference_segments",
+        "callable_reference_segments",
         "wraps_origin"
       ],
       "properties": {
@@ -321,10 +323,22 @@
           "type": "integer",
           "minimum": 0
         },
+        "masked_bases": {
+          "description": "Aligned query bases from masked calls, presented to alignment as unresolved; not counted in unresolved_bases or callable_bases.",
+          "type": "integer",
+          "minimum": 0
+        },
         "reference_segments": {
           "type": "array",
           "minItems": 1,
           "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/interval"
+          }
+        },
+        "callable_reference_segments": {
+          "description": "Reference intervals observed by unmasked calls and by deletions between them, in alignment order; each lies inside one reference segment. A covered position outside them is covered by a masked call.",
+          "type": "array",
           "items": {
             "$ref": "#/$defs/interval"
           }
@@ -378,7 +392,11 @@
         "relative_quality_not_above_threshold",
         "mixed_supporting_dna",
         "read_end",
-        "post_homopolymer"
+        "post_homopolymer",
+        "dephased_signal",
+        "mixed_signal",
+        "weak_signal",
+        "irregular_spacing"
       ]
     },
     "variantCall": {
@@ -536,7 +554,8 @@
           "enum": [
             "reference",
             "alternate",
-            "unresolved"
+            "unresolved",
+            "masked"
           ]
         },
         "base": {
@@ -958,6 +977,7 @@
         "alternate_reads",
         "unresolved_reads",
         "deletion_reads",
+        "masked_reads",
         "profile_reads",
         "profile_forward_reads",
         "profile_reverse_reads"
@@ -988,6 +1008,10 @@
           "minimum": 0
         },
         "deletion_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "masked_reads": {
           "type": "integer",
           "minimum": 0
         },

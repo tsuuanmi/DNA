@@ -193,6 +193,7 @@ mod tests {
                 identity: 1.0,
                 gap_opens: 0,
                 unresolved_bases: 0,
+                masked_bases: 0,
                 reference_segments: segments
                     .iter()
                     .map(|&(start_0based, end_0based_exclusive)| ReferenceSegment {
@@ -200,6 +201,7 @@ mod tests {
                         end_0based_exclusive,
                     })
                     .collect(),
+                callable_reference_segments: Vec::new(),
                 wraps_origin: segments.len() > 1,
             },
         }
