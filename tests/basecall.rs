@@ -1,4 +1,6 @@
-mod support;
+//! CLI contract for reference-free basecalling: JSON output, logs, and failures.
+
+pub mod support;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -46,7 +48,7 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
     ))?;
     assert_eq!(first_bytes, second_bytes);
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.basecalls/v2");
+    assert_eq!(value["schema_version"], "dna.basecalls/v3");
     assert_object_keys(
         &value,
         &[
@@ -57,10 +59,38 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
             "warnings",
         ],
     );
-    assert_object_keys(&value["provenance"], &["input", "configuration_sha256"]);
+    assert_object_keys(
+        &value["provenance"],
+        &["input", "configuration_sha256", "plugins"],
+    );
+    assert_eq!(
+        value["provenance"]["plugins"],
+        serde_json::json!([{"id": "sanger", "family": "modality", "version": 1}])
+    );
     assert_object_keys(
         &value["read"],
-        &["call_count", "primary", "ambiguity", "retained", "trim"],
+        &[
+            "call_count",
+            "primary",
+            "ambiguity",
+            "retained",
+            "trim",
+            "callability",
+        ],
+    );
+    assert_object_keys(
+        &value["read"]["callability"],
+        &["callable_span", "segments", "masked_calls"],
+    );
+    assert_eq!(value["read"]["callability"]["callable_span"]["start"], 0);
+    assert_eq!(
+        value["read"]["callability"]["callable_span"]["end"],
+        QUERY.len()
+    );
+    assert_eq!(value["read"]["callability"]["masked_calls"], 0);
+    assert_eq!(
+        value["read"]["callability"]["segments"],
+        serde_json::json!([{"calls": {"start": 0, "end": QUERY.len()}, "state": "in_phase", "after_repeat": false}])
     );
     assert_object_keys(
         &value["warnings"],
@@ -106,6 +136,7 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
         "event=basecall_inputs_loaded",
         "event=basecalling_completed",
         "event=signal_processing_completed",
+        "event=callability_completed",
         "event=quality_control_completed",
         "event=basecall_ready_for_publication",
     ] {
@@ -116,6 +147,21 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
     }
     assert!(!log.contains(QUERY));
     assert!(!log.contains("\"schema_version\""));
+    Ok(())
+}
+
+/// Basecalling is reference-free and never reads the target profile.
+#[test]
+fn basecall_does_not_read_the_profile() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let config = directory.path().join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_config(&config, "linear")?;
+    fs::remove_file(config.with_extension("profile.toml"))?;
+
+    run(&trace, &config, directory.path())?.success();
+    assert!(basecall_output_path(directory.path(), &trace).exists());
     Ok(())
 }
 

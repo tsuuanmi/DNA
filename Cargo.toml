@@ -1,39 +1,99 @@
 [package]
 name = "dna"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.88"
 description = "DNA sequencing trace analysis in Rust"
-repository = "https://github.com/tsuuanmi/DNA"
 readme = "README.md"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
 
 [features]
 default = []
-fuzzing = []
+fuzzing = ["dna-sanger/fuzzing"]
 
 [dependencies]
+chrono.workspace = true
+clap.workspace = true
+dna-core.workspace = true
+dna-kernel.workspace = true
+dna-post.workspace = true
+dna-sanger.workspace = true
+noodles-fasta.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+dna-kernel = { workspace = true, features = ["test-support"] }
+predicates.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true
+
+[workspace]
+members = ["crates/*"]
+exclude = ["fuzz"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+repository = "https://github.com/tsuuanmi/DNA"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[workspace.dependencies]
+dna-core = { path = "crates/dna-core", version = "0.1.0" }
+dna-kernel = { path = "crates/dna-kernel", version = "0.1.0" }
+dna-post = { path = "crates/dna-post", version = "0.1.0" }
+dna-sanger = { path = "crates/dna-sanger", version = "0.1.0" }
+assert_cmd = "2"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
 memchr = "2.8.3"
 noodles-fasta = "0.60"
+predicates = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+tempfile = "3"
 thiserror = "2"
 toml = "0.8"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
 
-[dev-dependencies]
-assert_cmd = "2"
-predicates = "3"
-tempfile = "3"
-
-[lints.rust]
+[workspace.lints.rust]
+deprecated = "deny"
+missing_docs = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
 unsafe_code = "forbid"
+unused_qualifications = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Counts and lengths are bounded by the input limits in the input limits next to each loader,
+# far below the 2^52 integers an `f64` represents exactly.
+cast_precision_loss = "allow"
+# Outputs are byte-deterministic, so tests assert exact floating-point values.
+float_cmp = "allow"
+# Stage functions mirror one documented stage record each; size is reviewed per change.
+too_many_lines = "allow"
 expect_used = "deny"
 unwrap_used = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "debuginfo"
 
 [profile.local]
 inherits = "dev"

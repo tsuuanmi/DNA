@@ -93,12 +93,12 @@ If a capability already exists in the current implementation and is:
 
 then it remains part of the working baseline and future development should build on it rather than regress or remove it merely to simplify the MVP.
 
-This applies to currently implemented capabilities such as small indel handling, circular-reference behavior, rolling SNR annotations, batch orchestration, and richer call evidence where their current contracts remain sound.
+This applies to currently implemented capabilities such as small indel handling, circular-reference behavior, rolling SNR annotations, and richer call evidence where their current contracts remain sound. (Batch orchestration has since moved to downstream pipelines for a boundary reason; see ADR-0066.)
 
 The following are **not prerequisites for proving the core confidence floor**, but may remain supported when already implemented and validated:
 
 - insertion/deletion calling;
-- repeat-aware or poly-C special handling;
+- repeat-aware or poly-C special handling (signal-derived read callability, ADR-0067, is modality-generic read interpretation rather than target-specific poly-C handling and joins the supported baseline once validated);
 - quantitative heteroplasmy;
 - mixed-template decomposition;
 - sample-level consensus;

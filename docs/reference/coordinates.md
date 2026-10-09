@@ -8,7 +8,9 @@ DNA uses several coordinate domains. They are deliberately distinct.
 | ABIF PLOC / trace sample | 0-based | internal implementation coordinate |
 | call/sample windows | 0-based | half-open | `[start, end)` |
 | trim interval | 0-based | half-open | `[trim.start, trim.end)` |
+| callability segments and callable span | 0-based | half-open | `[calls.start, calls.end)` |
 | reference segments | 0-based | half-open | `[start, end)` |
+| callable reference segments | 0-based | half-open | `[start, end)` |
 | reported biological variant position | 1-based | scalar | `position = 73` |
 
 ## Rules
@@ -22,4 +24,4 @@ DNA uses several coordinate domains. They are deliberately distinct.
 
 See also [system invariants](../architecture/invariants/README.md) and the versioned output contracts.
 
-Reviewer-facing `dna.analysis/v7` and `dna.sample_evidence/v8` variant evidence intentionally does not serialize original call index or PLOC. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.
+Reviewer-facing `dna.analysis/v9` and `dna.sample_evidence/v10` variant evidence intentionally does not serialize original call index or PLOC. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.

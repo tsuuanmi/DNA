@@ -12,4 +12,4 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 
 - **SRS-API-006:** `VariantAnalysisResult` MUST expose a typed `CalledVariantSet` projection that carries one reference identity plus the reportable called variants without implying a right/left alignment, nomenclature, or interchange-format normalization policy.
 - **SRS-API-007:** DNA MUST expose optional post-calling variant normalization as a separate Rust capability accepting an explicit normalization policy; using Variant Analysis MUST NOT implicitly invoke that capability.
-- **SRS-API-008:** DNA MUST expose target nomenclature as a separate optional capability boundary. The initial public seam MAY expose only immutable context required by future target policies and MUST NOT silently apply mtDNA nomenclature rules.
+- **SRS-API-008:** DNA MUST expose target nomenclature as a separate optional capability boundary that applies the windows of an explicitly supplied target profile (`variant_nomenclature::apply`) and MUST NOT silently apply any target's nomenclature rules.

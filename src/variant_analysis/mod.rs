@@ -6,16 +6,16 @@
 
 pub(crate) mod observation;
 
-use std::fmt;
 use std::path::Path;
 
-use crate::error::Result;
 use crate::input::sanger;
-use crate::logger::StageLog;
-use crate::model::variant as internal_variant;
+use dna_kernel::error::Result;
+use dna_kernel::profile::ProfileIdentity;
+use dna_kernel::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 
 /// Typed result of one reference-guided variant analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct VariantAnalysisResult {
     /// SHA-256 identity of the analyzed source artifact.
     pub input_sha256: String,
@@ -23,52 +23,21 @@ pub struct VariantAnalysisResult {
     pub reference: ReferenceIdentity,
     /// SHA-256 identity of the validated scientific configuration.
     pub configuration_sha256: String,
+    /// Identity of the target profile the configuration references.
+    pub profile: ProfileIdentity,
     /// Reference intervals covered by the selected alignment.
     pub reference_segments: Vec<ReferenceSegment>,
     /// Normalized reportable primary-sequence differences.
     pub variants: Vec<Variant>,
 }
 
-/// Stable reference identity carried by analysis results.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReferenceIdentity {
-    pub name: String,
-    pub sha256: String,
-}
-
 /// Zero-based, half-open covered interval on the reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceSegment {
+    /// First covered reference index (0-based, inclusive).
     pub start_0based: usize,
+    /// End of the covered interval (0-based, exclusive).
     pub end_0based_exclusive: usize,
-}
-
-/// Supported called-variant type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum VariantKind {
-    Snv,
-    Ins,
-    Del,
-}
-
-/// One reportable evidence-backed primary-sequence difference.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Variant {
-    pub contig: String,
-    pub position_1based: usize,
-    pub reference: String,
-    pub alternate: String,
-    pub kind: VariantKind,
-}
-
-/// Cross-modality boundary for evidence-backed variants against one reference.
-///
-/// This type does not imply right/left alignment, nomenclature, VCF
-/// normalization, or another representation policy.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CalledVariantSet {
-    pub reference: ReferenceIdentity,
-    pub variants: Vec<Variant>,
 }
 
 impl VariantAnalysisResult {
@@ -84,6 +53,12 @@ impl VariantAnalysisResult {
 
 /// Runs the current Sanger AB1 adapter through the canonical Variant Analysis
 /// capability without CLI logging or JSON publication side effects.
+///
+/// # Errors
+///
+/// Returns [`Error`](dna_kernel::error::Error) when an input or configuration file is
+/// unreadable or invalid, or when a scientific stage cannot produce a uniquely
+/// interpretable result (for example an unaligned or low-identity read).
 pub fn analyze_sanger(
     trace: &Path,
     reference: &Path,
@@ -95,17 +70,14 @@ pub fn analyze_sanger(
         name: inputs.reference.name.clone(),
         sha256: inputs.reference.sequence_sha256.clone(),
     };
-    let mut log = SilentStageLog;
-    let mut stage = "read_processing";
     let completed = observation::build(
         &inputs.trace,
         &inputs.reference,
         &inputs.config,
-        &mut log,
-        &mut stage,
+        &inputs.profile,
     )?;
 
-    let read = completed.read;
+    let read = completed.read.called;
     let reference_segments = read
         .alignment
         .reference_segments
@@ -115,39 +87,14 @@ pub fn analyze_sanger(
             end_0based_exclusive: segment.end_0based_exclusive,
         })
         .collect();
-    let variants = read.variants.reported.iter().map(project_variant).collect();
+    let variants = read.variants.reported.iter().map(Variant::from).collect();
 
     Ok(VariantAnalysisResult {
         input_sha256: read.input_sha256,
         reference: reference_identity,
         configuration_sha256: read.configuration_sha256,
+        profile: inputs.profile.identity().clone(),
         reference_segments,
         variants,
     })
-}
-
-fn project_variant(variant: &internal_variant::Variant) -> Variant {
-    Variant {
-        contig: variant.contig.clone(),
-        position_1based: variant.position_1based,
-        reference: variant.reference.clone(),
-        alternate: variant.alternate.clone(),
-        kind: match variant.kind {
-            internal_variant::VariantKind::Snv => VariantKind::Snv,
-            internal_variant::VariantKind::Ins => VariantKind::Ins,
-            internal_variant::VariantKind::Del => VariantKind::Del,
-        },
-    }
-}
-
-struct SilentStageLog;
-
-impl StageLog for SilentStageLog {
-    fn info(&mut self, _module: &str, _line: u32, _message: fmt::Arguments<'_>) -> Result<()> {
-        Ok(())
-    }
-
-    fn warn(&mut self, _module: &str, _line: u32, _message: fmt::Arguments<'_>) -> Result<()> {
-        Ok(())
-    }
 }

@@ -16,7 +16,7 @@ repository rules enforced by CI.
 | [research](../research/README.md) | exploratory scientific/engineering evidence |
 | [validation](../validation/README.md) | acceptance, datasets/evidence, limitations, benchmarks, and traceability |
 | [engineering](../engineering/README.md) | development, testing, CI/CD, release, dependencies, and code quality |
-| [operations](../operations/README.md) | readiness, observability, batch runbook, and investigation playbook |
+| [operations](../operations/README.md) | readiness, observability, and investigation playbook |
 | [security](../security/README.md) | local-CLI trust boundaries, threat model, and supply-chain policy |
 | [reference](../reference/README.md) | JSON schemas, result/configuration semantics, coordinates, examples, glossary |
 | [governance](README.md) | documentation/data/versioning/ownership/lifecycle policy |
@@ -30,7 +30,7 @@ boundaries do not exist.
 - root `README.md` is the product/contributor router;
 - `docs/README.md` is the knowledge router;
 - every documentation folder has one `README.md` index;
-- every directory under `src/` has a colocated `README.md`;
+- every directory under `src/` and `crates/*/src/` has a colocated `README.md`;
 - `AGENTS.md` contains agent routing plus repository-wide invariants.
 
 README files do not duplicate full specifications.
@@ -52,7 +52,7 @@ defect to reconcile in the owning change.
 
 ## Source-local documentation
 
-Every `src/**/` directory has an up-to-date `README.md` describing its
+Every `src/**/` and `crates/*/src/**/` directory has an up-to-date `README.md` describing its
 responsibility boundary and navigation.
 
 File-only Rust modules use rustdoc/source comments. DNA does not maintain a
@@ -109,7 +109,7 @@ decision for this documentation system.
 
 ## CI enforcement
 
-`scripts/validate_docs_structure.py` enforces:
+`tools/python/scripts/validate_docs_structure.py` enforces:
 
 - one README per documentation folder;
 - one README per source directory;

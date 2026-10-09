@@ -30,3 +30,7 @@ The prior configuration schema and output contract are replaced without compatib
 ## Deferred decision
 
 DNA cleaning, noise-aware base calling, calibrated quality, or variant exclusion requires a later ADR backed by approved truth labels and synthetic minor-peak preservation tests. Any processed signal must be a separate projection; it must never overwrite the decoded evidence.
+
+## Follow-up (2026-10-09)
+
+[ADR-0067](0067-signal-derived-read-callability.md) takes the deferred decision on signal-driven exclusion through a separate read-callability view derived from locus evidence; the rolling SNR windows and noisy regions of this record stay observation-only, and signal cleaning remains research.

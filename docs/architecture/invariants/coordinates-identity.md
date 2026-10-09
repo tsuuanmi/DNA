@@ -2,7 +2,7 @@
 
 These invariants are part of the canonical [system invariant set](README.md).
 
-- **INV-COORD-001:** Trace sample positions, original call indexes, PLOC values, trim bounds, signal-window bounds, and reference segments are 0-based unless a contract explicitly says otherwise.
+- **INV-COORD-001:** Trace sample positions, original call indexes, PLOC values, trim bounds, signal-window bounds, callability segment and callable-span bounds, reference segments, and callable reference segments are 0-based unless a contract explicitly says otherwise.
 - **INV-COORD-002:** Reported biological variant positions are 1-based.
 - **INV-COORD-003:** Half-open intervals use `[start, end)`.
 - **INV-COORD-004:** Call index, trace-sample position, and biological reference position are different coordinate domains and must not be substituted implicitly.

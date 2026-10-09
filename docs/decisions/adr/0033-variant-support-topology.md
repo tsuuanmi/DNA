@@ -107,3 +107,10 @@ the result-contract validator independently recomputes topology from
 - Future consensus/sample-variant policy can consume this evidence but must
   define opposition, gap handling, contributor admission, and calibration in a
   separate decision.
+
+## Follow-up (2026-10-09)
+
+[ADR-0068](0068-variant-opposition-evidence.md) takes the opposition decision
+for callable coverage: every variant publishes the admitted reads that callably
+observe its evidence span without supporting it. The support topology above is
+unchanged.

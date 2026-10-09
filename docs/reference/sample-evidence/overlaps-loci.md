@@ -54,7 +54,7 @@ Each retained locus also exposes `support_topology` derived from the same
 authoritative observations:
 
 - total and forward/reverse read counts;
-- reference/alternate/unresolved/deletion read counts;
+- reference/alternate/unresolved/deletion/masked read counts;
 - profile-bearing read count and its forward/reverse partition.
 
 These counts are evidence topology only. They are not a vote, confidence score,
@@ -64,7 +64,9 @@ At a retained locus, `observations[]` contains every read that covers that locus
 including reads that agree with the reference. A call-backed observation contains:
 
 - `read`: human-readable read name;
-- `state`: `reference`, `alternate`, or `unresolved`;
+- `state`: `reference`, `alternate`, `unresolved`, or `masked` (a masked call
+  of the read's callability; it never retains a locus by itself and adds no
+  nucleotide support);
 - `base`: reference-oriented observed base;
 - `quality`: the existing uncalibrated relative quality score;
 - optional `profile`: normalized basecall-independent A/C/G/T evidence already
@@ -79,8 +81,11 @@ quality, profile, or noisy-call context.
 
 Dense all-reference positions are omitted. The compact default is explicit:
 
-- inside a read's mapped `reference_segments`, absence from
+- inside a read's `callable_reference_segments`, absence from
   `locus_differences[]` means that read is a canonical reference match there;
+- inside its mapped `reference_segments` but outside its callable segments,
+  the read covers the position with a masked call: neither reference support
+  nor a difference;
 - outside the read's mapped segments, the position is uncovered;
 - at a retained differential locus, the explicit observations are authoritative.
 

@@ -1,0 +1,22 @@
+[package]
+name = "dna-sanger"
+description = "DNA Sanger modality: ABIF decoding, basecalling, signal, callability, quality control, and read evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Exposes the ABIF container parser to the fuzz harness.
+fuzzing = []
+
+[dependencies]
+dna-kernel.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

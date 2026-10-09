@@ -32,12 +32,14 @@ Current supported behavior includes:
 - signal-derived re-calling at validated canonical Sanger loci;
 - explicit primary and ambiguity states;
 - observational Sanger-integrity and rolling signal-to-noise annotations;
-- deterministic read-quality scoring and end trimming;
+- signal-derived read callability: phase-state segments, a typed mask, and the callable span, which set the trim interval, the masked alignment query, variant eligibility, and masked sample observations (ADR-0067);
+- deterministic relative read-quality scoring and a trim interval derived from the callable span;
 - forward/reverse profile-aware semi-global alignment to one short reference;
 - linear and circular reference handling;
 - primary-sequence SNVs and supported small insertions/deletions;
 - reviewer-facing reference-oriented A/C/G/T peak and quality evidence for reported variants;
 - run-length total/forward/reverse coverage topology, Tracy-derived pairwise overlap/admission evidence, and factorized normalized-variant support topology across independently placed sample reads;
+- a plugin-first composition (ADR-0069): the Sanger modality and a reviewed-consensus sequence modality feed one modality-neutral core caller, which the `call` command runs alone, and post-calling plugins (normalization, nomenclature, conformance findings) that the `notation` command runs over a variants document;
 - closed versioned JSON schemas;
 - atomic no-overwrite result publication;
 - typed failures and bounded resource use.
@@ -111,7 +113,21 @@ cargo run --release -- sample AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
 ```
 
-DNA reads `DNA_CONFIG` or `config/dna.toml`.
+Core-only calls from reviewed consensus sequences (one FASTA record per read):
+
+```bash
+cargo run --release -- call AB0442 consensus.fasta \
+  --reference references/rCRS.fasta
+```
+
+Notation and conformance findings from a variants document:
+
+```bash
+cargo run --release -- notation AB0442 results/AB0442.variants.json \
+  --reference references/rCRS.fasta
+```
+
+DNA reads `DNA_CONFIG` or `config/dna.toml` and, for reference-guided commands, the [target profile](docs/reference/profiles.md) it names (`config/profiles/human-mtdna-rcrs.toml` by default).
 
 Successful core commands publish exactly one command-specific JSON result without overwriting an existing result:
 
@@ -119,29 +135,23 @@ Successful core commands publish exactly one command-specific JSON result withou
 basecall -> results/<trace-stem>.basecalls.json
 analyze  -> results/<trace-stem>.json
 sample   -> results/<sample-id>.sample.json
+call     -> results/<sample-id>.variants.json
+notation -> results/<sample-id>.notation.json
 ```
 
-Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample. The batch runner persists only the sample log while keeping per-trace JSON results.
+Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
 
-The external Python batch runner `tools/python/scripts/analyze_samples.py` keeps per-trace results and the aggregate together. Python is companion tooling for research, validation, and testing; the production runtime remains Rust-only:
-
-```text
-results/<sample-id>/
-├── <trace-stem>.json
-├── ...
-└── <sample-id>.json
-```
-
-The final `<sample-id>.json` is generated only when every selected trace for that
-sample succeeds.
+Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066).
 
 ## Output contracts
 
 Current public result contracts are:
 
-- `dna.basecalls/v2` — reference-free primary/ambiguity/retained read result;
-- `dna.analysis/v7` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence;
-- `dna.sample_evidence/v8` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
+- `dna.basecalls/v3` — reference-free primary/ambiguity/retained read result with the read callability view;
+- `dna.analysis/v9` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence and the read callability view;
+- `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons;
+- `dna.variants/v1` — the core's per-read placements and observed variants from reviewed consensus sequences, with eligibility and optional notation, and no modality evidence;
+- `dna.notation/v1` — the post-calling notation of a variants document and the target profile's conformance findings.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 
@@ -179,7 +189,7 @@ Key entry points:
 
 ## Development
 
-The repository root is a Rust project. Executable source under `src/` is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for research, validation, orchestration, and test tooling.
+The repository root is a Rust project. Executable source under `src/` (the `dna` facade) and `crates/*/src/` (the plugin crates, [crates](crates/README.md)) is Rust; source-local `README.md` files document module ownership and boundaries. Python is isolated under `tools/python/` and is used only for repository checks, tests, measurement, and research (ADR-0066); it never produces DNA results.
 
 The release Rust toolchain is pinned by `rust-toolchain.toml`; `Cargo.toml` separately declares the minimum supported Rust version (MSRV). GitHub-hosted Linux verification and delivery jobs pin Ubuntu 24.04 rather than following the moving `ubuntu-latest` label.
 
@@ -194,11 +204,11 @@ Required repository checks:
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-targets --all-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
-cargo build --locked --release
+cargo check --workspace --locked --all-targets --all-features
+cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+cargo test --workspace --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
+cargo build --locked --release -p dna
 
 cd tools/python
 uv run ruff format --check scripts tests
@@ -208,13 +218,15 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 uv run python scripts/validate_docs_structure.py
+uv run python scripts/validate_module_layers.py
+uv run python scripts/validate_workflow_policy.py
 ```
 
 CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency/source hygiene, dependency policy/review, RustSec, CodeQL, schemas/reference data, an ABIF fuzz smoke campaign, and a release-package smoke. Mandatory CI jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.
 
-Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
+Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config, target profiles, and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
 
-Longer scientific validation—approved real-AB1 ground-truth comparison, extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
+Longer scientific validation—approved real-AB1 ground-truth comparison (run by downstream pipelines on DNA's published results), extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
 
 See [CI/CD](docs/engineering/ci-cd.md), [repository governance](docs/governance/repository.md), [release evidence](docs/operations/release-evidence-template.md), [production readiness](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md).
 

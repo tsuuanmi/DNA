@@ -17,7 +17,9 @@ midpoints of neighboring positions:
 - last window: `[midpoint(p[n-2], p[n-1]), p[n-1] + (p[n-1]-p[n-2]+1)/2)`,
   clamped to the sample count.
 
-`midpoint(a, b) = a + (b - a) / 2`. At least two basecall positions are
+`midpoint(a, b) = a + max((b - a) / 2, 1)`, so a boundary always lies strictly
+after its left locus and loci one sample apart each keep a window containing
+themselves. At least two basecall positions are
 required.
 
 ### Substep 2.2 — Per-channel peak selection

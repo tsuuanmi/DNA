@@ -14,7 +14,8 @@ The current public capability receives:
 - one `CalledVariantSet` carrying the expected reference identity;
 - one explicit `NormalizationPolicy`.
 
-The initial implemented policy is `MtDnaRightAligned`.
+The implemented policy is `RightAligned`, selected by a target profile's
+`indel_placement = "right"` in the `sample` workflow (ADR-0063).
 
 ## Step 1 — Validate reference identity and source alleles
 
@@ -61,7 +62,7 @@ reference, or otherwise cannot produce one deterministic sequence are rejected.
 The reconstructed sequence is retained in `VariantNormalizationResult` as
 `alternate_sequence`.
 
-## Step 4 — Apply mtDNA right-alignment policy
+## Step 4 — Apply the right-alignment policy
 
 Only pure insertions and pure deletions are positionally shifted.
 
@@ -100,9 +101,9 @@ result is deterministic.
 
 ### Canonical seam
 
-No candidate shift is generated beyond the final FASTA base. The biological
-mtDNA circle therefore does not permit indefinite representation rotation across
-the fixed rCRS/FASTA coordinate seam.
+No candidate shift is generated beyond the final FASTA base. A circular
+reference such as the mtDNA genome therefore does not permit indefinite
+representation rotation across the fixed FASTA coordinate seam.
 
 ## Step 5 — Render normalized edits
 

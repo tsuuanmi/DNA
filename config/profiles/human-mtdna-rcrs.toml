@@ -1,0 +1,60 @@
+# Human mtDNA control region against the revised Cambridge Reference Sequence
+# (rCRS, NC_012920.1). Target knowledge only: method parameters live in the
+# scientific configuration that references this profile.
+schema_version = 1
+id = "human-mtdna-rcrs"
+
+[reference]
+# SHA-256 of the normalized rCRS sequence; a run against another reference fails.
+sequence_sha256 = "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+topology = "circular"
+
+[variant_calling]
+# Inclusive 1-based reportable regions: HVS-I, HVS-II, HVS-III.
+regions = [[16024, 16365], [73, 340], [438, 576]]
+
+[normalization]
+# Forensic mtDNA convention: 3'/right-most indel placement, never across the seam.
+indel_placement = "right"
+
+[notation]
+# One call per changed base: 73G, 249DEL, 309.1C.
+style = "per_base_decimal"
+
+# Repeat windows whose sequence-equivalent haplotypes take one forensic
+# representation (EMPOP/ISFG conventions). Rules are tried in order; the first
+# whose candidate reproduces the window haplotype wins.
+[[nomenclature.windows]]
+name = "HVS-II"
+start = 303
+sequence = "CCCCCCCTCCCCC"
+structure = { kind = "anchored_homopolymer", repeat_base = "C", anchor = 310, anchor_base = "T" }
+rules = ["anchored_run_lengths", "anchor_duplication", "anchor_deletion", "terminal_repeat_insertion"]
+
+[[nomenclature.windows]]
+name = "HVS-III"
+start = 513
+sequence = "GCACACACACAC"
+structure = { kind = "tandem_repeat", motif = "AC" }
+rules = ["motif_shift"]
+
+[[nomenclature.windows]]
+name = "HVS-I"
+start = 16181
+sequence = "AAACCCCCTCCCC"
+structure = { kind = "anchored_homopolymer", repeat_base = "C", anchor = 16189, anchor_base = "T" }
+rules = ["canonical_haplotype", "anchor_deletion"]
+canonical_haplotype = [
+  { position = 16183, base = "C" },
+  { position = 16184, base = "A" },
+  { position = 16189, base = "C" },
+]
+
+# Notation conventions the `notation` command checks represented calls against;
+# findings are reported, never applied. Following EMPOP/ISFG practice in the
+# control-region C stretches, a homopolymer length variant is written as an
+# insertion of the run's base after its 3' base, and another base inside a run
+# as a substitution.
+[conformance]
+rules = ["insertion_at_run_end", "insertion_matches_run"]
+minimum_run_length = 4

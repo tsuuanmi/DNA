@@ -1,57 +1,82 @@
 //! Shared multi-trace read processing for sample operations.
 
 use crate::config::Config;
-use crate::error::Result;
-use crate::logger::Logger;
 use crate::model::read_observation::ReadObservation;
-use crate::model::reference::Reference;
-use crate::model::sanger::Chromatogram;
 use crate::variant_analysis;
+use dna_kernel::error::Result;
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_sanger::model::attachment::SangerRejection;
+use dna_sanger::model::sanger::Chromatogram;
+use dna_sanger::read_processing;
 
 pub(crate) struct CompletedSampleReads {
     pub(crate) reads: Vec<ReadObservation>,
+    pub(crate) rejected: Vec<SangerRejection>,
     pub(crate) warning_total: usize,
 }
 
+/// Processes every trace independently; a read with too few callable calls is
+/// recorded as rejected and the remaining reads continue.
 pub(crate) fn build(
     traces: &[Chromatogram],
     reference: &Reference,
     config: &Config,
-    logger: &mut Logger,
-    stage: &mut &'static str,
+    profile: &Profile,
 ) -> Result<CompletedSampleReads> {
     let mut reads = Vec::with_capacity(traces.len());
+    let mut rejected = Vec::new();
     let mut warning_total = 0usize;
 
     for (index, trace) in traces.iter().enumerate() {
-        logger.info(
-            module_path!(),
-            line!(),
-            format_args!(
-                "event=sample_read_started read_index={} trace_name={:?} trace_sha256={}",
-                index, trace.source_name, trace.source_sha256
-            ),
+        tracing::info!(
+            event = "sample_read_started",
+            read_index = index,
+            trace_name = ?trace.source_name,
+            trace_sha256 = %trace.source_sha256,
+        );
+        let prepared = read_processing::prepare(trace, &config.sanger)?;
+        if let Some(rejection) = prepared.rejection(&config.sanger) {
+            tracing::warn!(
+                event = "sample_read_rejected",
+                read_index = index,
+                trace_sha256 = %trace.source_sha256,
+                reason = "callable_calls_below_minimum",
+                callable_calls = rejection.callable_calls,
+                minimum_callable_calls = rejection.minimum_callable_calls,
+            );
+            rejected.push(SangerRejection {
+                input_name: trace.source_name.clone(),
+                input_sha256: trace.source_sha256.clone(),
+                integrity: prepared.signal.integrity,
+                callability: prepared.callability,
+                rejection,
+            });
+            continue;
+        }
+        let processed = read_processing::finish(
+            trace,
+            prepared,
+            &config.sanger,
+            config.core.variant_calling.read_end_margin,
         )?;
         let completed =
-            variant_analysis::observation::build(trace, reference, config, logger, stage)?;
+            variant_analysis::observation::observe(trace, processed, reference, config, profile)?;
         warning_total += completed.warning_total;
-        logger.info(
-            module_path!(),
-            line!(),
-            format_args!(
-                "event=sample_read_completed read_index={} trace_sha256={} orientation={:?} segments={} variants={}",
-                index,
-                completed.read.input_sha256,
-                completed.read.alignment.orientation,
-                completed.read.alignment.reference_segments.len(),
-                completed.read.variants.reported.len()
-            ),
-        )?;
+        tracing::info!(
+            event = "sample_read_completed",
+            read_index = index,
+            trace_sha256 = %completed.read.called.input_sha256,
+            orientation = ?completed.read.called.alignment.orientation,
+            segments = completed.read.called.alignment.reference_segments.len(),
+            variants = completed.read.called.variants.reported.len(),
+        );
         reads.push(completed.read);
     }
 
     Ok(CompletedSampleReads {
         reads,
+        rejected,
         warning_total,
     })
 }

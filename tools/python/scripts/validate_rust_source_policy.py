@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-SOURCE_ROOT = ROOT / "src"
+# The facade crate at the root and every workspace member crate.
+SOURCE_ROOTS = [ROOT / "src", *sorted(ROOT.glob("crates/*/src"))]
 
 DEPRECATED_ATTRIBUTE = re.compile(r"#\s*\[\s*deprecated(?:\s*[=(]|\s*\])")
 LINT_SUPPRESSION = re.compile(r"\b(?:allow|expect)\s*\(([^)]*)\)")
@@ -131,10 +132,11 @@ def inspect_source(path: Path) -> list[Violation]:
     return violations
 
 
-def validate(root: Path = SOURCE_ROOT) -> list[Violation]:
+def validate(roots: list[Path] | None = None) -> list[Violation]:
     violations: list[Violation] = []
-    for path in sorted(root.rglob("*.rs")):
-        violations.extend(inspect_source(path))
+    for root in roots or SOURCE_ROOTS:
+        for path in sorted(root.rglob("*.rs")):
+            violations.extend(inspect_source(path))
     return violations
 
 
@@ -143,15 +145,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--root",
         type=Path,
-        default=SOURCE_ROOT,
-        help="Rust source root to validate (default: repository src/)",
+        action="append",
+        help="Rust source root to validate; may be repeated (default: src/ and crates/*/src)",
     )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    violations = validate(args.root)
+    roots: list[Path] | None = args.root
+    violations = validate(roots)
     for violation in violations:
         print(f"FAIL: {violation.render()}", file=sys.stderr)
     if violations:

@@ -32,7 +32,7 @@ The package path:
 
 - builds with pinned `cargo-auditable` and locked dependencies;
 - strips while preserving `.dep-v0`, then verifies and audits the packaged binary;
-- bundles authoritative `config/dna.toml` and `references/rCRS.fasta` with checksums;
+- bundles authoritative `config/dna.toml`, `config/profiles/`, and `references/rCRS.fasta` with checksums;
 - emits an SPDX JSON SBOM and SHA-256 checksums;
 - verifies the archive before staging it for attestation/publication.
 

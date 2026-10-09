@@ -1,17 +1,16 @@
 //! One authoritative read-level reference-guided scientific path.
 
-use std::time::Instant;
-
-use crate::alignment;
 use crate::config::Config;
-use crate::error::Result;
-use crate::logger::StageLog;
 use crate::model::read_observation::ReadObservation;
-use crate::model::reference::Reference;
-use crate::model::sanger::Chromatogram;
-use crate::model::variant::VariantKind;
-use crate::read_processing::{self, ProcessedRead};
-use crate::variant_calling;
+use dna_kernel::error::Result;
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_kernel::read_evidence::VetoSet;
+use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::model::sanger::Chromatogram;
+use dna_sanger::read_processing::{self, ProcessedRead};
+
+use dna_core::read_call::{self, CoreRun, ReadIdentity};
 
 /// Completed one-read observation plus operational warning total.
 pub(crate) struct CompletedObservation {
@@ -20,124 +19,74 @@ pub(crate) struct CompletedObservation {
 }
 
 /// Runs the shared read, alignment, and variant stages for one trace.
-pub(crate) fn build<L: StageLog + ?Sized>(
+pub(crate) fn build(
     trace: &Chromatogram,
     reference: &Reference,
     config: &Config,
-    logger: &mut L,
-    stage: &mut &'static str,
+    profile: &Profile,
+) -> Result<CompletedObservation> {
+    let processed = read_processing::process(
+        trace,
+        &config.sanger,
+        config.core.variant_calling.read_end_margin,
+    )?;
+    observe(trace, processed, reference, config, profile)
+}
+
+/// Runs the alignment and variant stages for one processed read.
+pub(crate) fn observe(
+    trace: &Chromatogram,
+    processed: ProcessedRead,
+    reference: &Reference,
+    config: &Config,
+    profile: &Profile,
 ) -> Result<CompletedObservation> {
     let ProcessedRead {
         calls,
         signal,
+        callability,
         quality,
         warnings: read_warnings,
-    } = read_processing::process(trace, config, logger, stage)?;
+    } = processed;
 
-    *stage = "alignment";
-    let stage_started = Instant::now();
-    let alignment = alignment::align_best(&quality, &signal, reference, &config.alignment)?;
-    let reference_segments = alignment
-        .reference_segments
-        .iter()
-        .map(|segment| format!("{}..{}", segment.start_0based, segment.end_0based_exclusive))
-        .collect::<Vec<_>>()
-        .join(",");
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=alignment_completed elapsed_ms={} orientation={:?} profile_score_units={} ",
-                "exact_matches={} mismatches={} gap_opens={} callable_columns={} ",
-                "callable_identity={:.4} unresolved_query_bases={} segments={} ",
-                "segment_bounds={:?} wraps_origin={}"
-            ),
-            stage_started.elapsed().as_millis(),
-            alignment.orientation,
-            alignment.score,
-            alignment.metrics.exact_matches,
-            alignment.metrics.mismatches,
-            alignment.metrics.gap_opens,
-            alignment.metrics.callable_columns,
-            alignment.metrics.callable_identity,
-            alignment.metrics.unresolved_query_bases,
-            alignment.reference_segments.len(),
-            reference_segments,
-            alignment.wraps_origin
-        ),
-    )?;
-
-    *stage = "variant_calling";
-    let stage_started = Instant::now();
-    let variants = variant_calling::call(
-        &alignment,
-        reference,
+    let stage = tracing::info_span!("read_evidence").entered();
+    let evidence = read_processing::read_evidence(
         &calls,
+        &signal,
+        &callability,
         &quality,
-        &config.variant_calling,
+        &config.sanger.sanger_evidence,
     )?;
-    let snvs = variants
-        .reported
-        .iter()
-        .filter(|variant| variant.kind == VariantKind::Snv)
-        .count();
-    let insertions = variants
-        .reported
-        .iter()
-        .filter(|variant| variant.kind == VariantKind::Ins)
-        .count();
-    let deletions = variants
-        .reported
-        .iter()
-        .filter(|variant| variant.kind == VariantKind::Del)
-        .count();
-    logger.info(
-        module_path!(),
-        line!(),
-        format_args!(
-            concat!(
-                "event=variant_calling_completed elapsed_ms={} reported={} snv={} insertion={} ",
-                "deletion={} excluded={} region_count={} minimum_peak_height={} ",
-                "relative_quality_threshold={} max_indel_length={}"
-            ),
-            stage_started.elapsed().as_millis(),
-            variants.reported.len(),
-            snvs,
-            insertions,
-            deletions,
-            variants.excluded_count(),
-            config.variant_calling.regions.len(),
-            config.variant_calling.minimum_peak_height,
-            config.variant_calling.relative_quality_threshold,
-            config.variant_calling.max_indel_length
-        ),
-    )?;
-    for excluded in &variants.excluded {
-        let position = excluded
-            .position_1based
-            .map_or_else(|| "unknown".to_owned(), |position| position.to_string());
-        let reasons = excluded
-            .reasons
+    tracing::info!(
+        event = "read_evidence_completed",
+        calls = evidence.calls().len(),
+        informative = ?evidence.informative(),
+        masked_calls = evidence.calls().iter().filter(|call| call.mask.is_some()).count(),
+        vetoed_calls = evidence
+            .calls()
             .iter()
-            .map(|reason| reason.label())
-            .collect::<Vec<_>>()
-            .join(",");
-        logger.warn(
-            module_path!(),
-            line!(),
-            format_args!(
-                "event=variant_removed kind={} contig={:?} position={} reasons={}",
-                excluded.kind.label(),
-                excluded.contig,
-                position,
-                reasons
-            ),
-        )?;
-    }
+            .filter(|call| call.vetoes != VetoSet::default())
+            .count(),
+        minimum_peak_height = config.sanger.sanger_evidence.minimum_peak_height,
+        relative_quality_threshold = config.sanger.sanger_evidence.relative_quality_threshold,
+    );
+    drop(stage);
+    let called = read_call::call_read(
+        ReadIdentity {
+            input_name: trace.source_name.clone(),
+            input_sha256: trace.source_sha256.clone(),
+        },
+        evidence,
+        reference,
+        &CoreRun {
+            config: &config.core,
+            configuration_sha256: &config.source_sha256,
+            regions: &profile.regions,
+        },
+    )?;
 
-    let excluded_variant_candidates = variants.excluded_count();
-    let reference_origin_wrap = alignment.wraps_origin;
+    let excluded_variant_candidates = called.variants.excluded_count();
+    let reference_origin_wrap = called.alignment.wraps_origin;
     let warning_total = read_warnings.unresolved_primary_calls
         + read_warnings.multi_channel_unresolved_calls
         + read_warnings.vendor_disagreements
@@ -146,39 +95,28 @@ pub(crate) fn build<L: StageLog + ?Sized>(
         + excluded_variant_candidates
         + usize::from(reference_origin_wrap);
     if warning_total > 0 {
-        logger.warn(
-            module_path!(),
-            line!(),
-            format_args!(
-                concat!(
-                    "event=warning_summary total={} unresolved_primary_calls={} ",
-                    "multi_channel_unresolved_calls={} vendor_disagreements={} ",
-                    "ploc_vendor_length_mismatches={} clipped_channel_samples={} ",
-                    "excluded_variant_candidates={} reference_origin_wrap={}"
-                ),
-                warning_total,
-                read_warnings.unresolved_primary_calls,
-                read_warnings.multi_channel_unresolved_calls,
-                read_warnings.vendor_disagreements,
-                read_warnings.locus_vendor_length_mismatches,
-                read_warnings.clipped_channel_samples,
-                excluded_variant_candidates,
-                reference_origin_wrap
-            ),
-        )?;
+        tracing::warn!(
+            event = "warning_summary",
+            total = warning_total,
+            unresolved_primary_calls = read_warnings.unresolved_primary_calls,
+            multi_channel_unresolved_calls = read_warnings.multi_channel_unresolved_calls,
+            vendor_disagreements = read_warnings.vendor_disagreements,
+            ploc_vendor_length_mismatches = read_warnings.locus_vendor_length_mismatches,
+            clipped_channel_samples = read_warnings.clipped_channel_samples,
+            excluded_variant_candidates,
+            reference_origin_wrap,
+        );
     }
 
     Ok(CompletedObservation {
         read: ReadObservation {
-            input_name: trace.source_name.clone(),
-            input_sha256: trace.source_sha256.clone(),
-            reference_sha256: reference.sequence_sha256.clone(),
-            configuration_sha256: config.source_sha256.clone(),
-            calls,
-            signal,
-            quality,
-            alignment,
-            variants,
+            called,
+            sanger: SangerAttachment {
+                calls,
+                signal,
+                callability,
+                quality,
+            },
         },
         warning_total,
     })

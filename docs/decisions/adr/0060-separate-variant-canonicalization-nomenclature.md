@@ -1,6 +1,6 @@
 # ADR-0060: Separate variant calling, canonicalization, and nomenclature
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0069](0069-plugin-first-modality-core-post-calling.md) (§1, §6)
 - **Date:** 2026-10-03
 - **Related decisions:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md), [ADR-0057](0057-haplotype-correctness-and-variant-nomenclature.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
 
@@ -210,8 +210,24 @@ Current production truth now includes:
   human-mtDNA HVS-II 309/315 poly-C representation rule, preserving source,
   normalized, and represented variants plus the complete alternate haplotype.
 
-Additional target-specific windows such as HVS-III 513-524 and HVS-I
-16189/16193 remain unimplemented and require their own tests and validation.
+The HVS-III 513-524 and HVS-I 16181-16193 windows are implemented alongside
+HVS-II as one declarative control-region policy (see the second revision below).
+
+**Revision (2026-10-08):** the `sample` workflow now composes normalization and
+the HVS-II rule per read against the rCRS, as §7 permits, and publishes
+per-base notation from the outer report layer, as §8 requires
+(`dna.sample_evidence/v9`, SRS-NOM-010 to SRS-NOM-012). Analysis output and the
+public API are unchanged.
+
+**Revision (2026-10-08, second):** the nomenclature policy is now the
+declarative control-region policy (HVS-II, HVS-III, HVS-I windows with ordered,
+haplotype-verified rules, SRS-NOM-013 to SRS-NOM-015), exposed as
+`mtdna::apply_control_region`; the sample notation uses it.
+
+**Revision (2026-10-08, third):** the windows, rules, right-alignment choice,
+and notation gate moved into the human-mtDNA target profile (ADR-0063). The
+engine is `variant_nomenclature::apply` with an explicit profile, and the
+policy is `NormalizationPolicy::RightAligned`; the layering above is unchanged.
 
 ## Consequences
 
@@ -250,3 +266,8 @@ This ADR supersedes ADR-0047 only in the narrower assumption that final
 canonical variant representation must always inherit the alignment-selected gap
 placement and that positional variant canonicalization has one authoritative
 home inside `alignment::canonical`.
+
+[ADR-0069](0069-plugin-first-modality-core-post-calling.md) supersedes §1 and
+§6 in part: the caller is a modality-neutral core over per-read evidence
+(`ReadEvidence`), and modality eligibility reaches it as data. Called variants
+remain the convergence boundary for imported calls.

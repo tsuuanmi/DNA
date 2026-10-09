@@ -2,11 +2,16 @@
 
 CI exists to protect documented invariants and security boundaries, not to maximize the number of badges.
 
-The repository root is a Rust project. First-party production source under `src/` is Rust-only. Python is isolated under `tools/python/` and is permitted only for research, validation, test, and repository tooling.
+The repository root is a Rust project. First-party production source under `src/` (the `dna` facade) and `crates/*/src/` (the plugin crates of the workspace, ADR-0070) is Rust-only. Python is isolated under `tools/python/` and is permitted only for research, validation, test, and repository tooling.
 
 All third-party GitHub Actions are pinned to immutable full commit SHAs. Dependabot owns routine updates to those pins. Linux jobs pin the GitHub-hosted Ubuntu 24.04 runner image instead of the moving `ubuntu-latest` label so OS/toolchain baseline changes are explicit reviews.
 
 ## Pull-request lane
+
+Pull requests run only the fast gates needed to merge safely. Slower checks that
+cannot regress through an ordinary source change (release build, RustSec audit,
+MSRV, CodeQL, fuzzing, release packaging) run on `main`, on a schedule, or on
+tags, as stated in each section below.
 
 ### GitHub Actions policy
 
@@ -18,27 +23,31 @@ Workflow changes are checked three ways:
 
 ### Rust quality
 
-
 The release toolchain is pinned by `rust-toolchain.toml`. Every pull request runs:
 
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-targets --all-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
-cargo build --locked --release
+cargo check --workspace --locked --all-targets --all-features
+cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+cargo test --workspace --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
 ```
+
+The rust-quality job also tests `dna-kernel`, `dna-core`, `dna-sanger`, and
+`dna-post` each on its own, and checks with `cargo tree` that the kernel, core,
+and post-calling crates never reach `dna-sanger` (ADR-0070).
+
+Pushes to `main` additionally run `cargo build --locked --release -p dna`.
 
 `cargo shear --deny-warnings` rejects unused/misplaced dependencies and unlinked Rust source files. `--locked` prevents CI from silently changing dependency resolution. Rustdoc warnings are release-blocking alongside compiler and Clippy warnings.
 
 ### Minimum supported Rust version
 
-`Cargo.toml` declares the MSRV. CI independently installs that exact compiler and verifies:
+`Cargo.toml` declares the MSRV. On pushes to `main`, CI independently installs that exact compiler and verifies:
 
 ```bash
-cargo +1.88.0 check --locked --all-targets
+cargo +1.88.0 check --workspace --locked --all-targets
 ```
 
 The MSRV and release toolchain are intentionally separate: the former is a compatibility promise; the latter is the reproducible toolchain used for release-quality checks.
@@ -48,20 +57,20 @@ The MSRV and release toolchain are intentionally separate: the former is a compa
 Dependency verification has three layers:
 
 1. `cargo-deny` checks advisories, yanked crates, licenses, trusted sources, wildcard requirements, banned/replacement crates, and duplicate-version policy.
-2. pinned `cargo-audit 0.22.2` independently checks the committed `Cargo.lock` against RustSec.
+2. pinned `cargo-audit 0.22.2` independently checks the committed `Cargo.lock` against RustSec on pushes to `main`.
 3. GitHub dependency review rejects pull requests that introduce dependencies with moderate-or-higher known vulnerabilities.
 
 `deny.toml` is the authoritative source/license/bans policy. Exceptions must include a concrete reason and review date rather than silently weakening the global policy.
 
 ### Static security analysis
 
-CodeQL analyzes Rust on pull requests, `main`, and a weekly schedule with the `security-extended` query suite. Results are published to GitHub code scanning.
+CodeQL analyzes Rust on pushes to `main` and on a weekly schedule with the `security-extended` query suite. Results are published to GitHub code scanning.
 
 ### Adversarial parser validation
 
 The `ABIF fuzz smoke` job exercises the bounds-checked ABIF directory parser with `cargo-fuzz`:
 
-- 30-second campaigns on pull requests and `main`;
+- 30-second campaigns on pushes to `main`;
 - longer scheduled campaigns;
 - pinned nightly toolchain and cargo-fuzz version;
 - retained minimized regressions when a defect is found.
@@ -74,13 +83,16 @@ Python dependencies are locked under `tools/python/`; they are not runtime depen
 
 The repository-policy job:
 
-- rejects files under `src/` other than Rust source and source-local `README.md` documentation;
+- rejects files under `src/` or `crates/*/src/` other than Rust source and source-local `README.md` documentation;
 - validates the explicit Rust source policy;
+- validates the workspace crate map of ADR-0070: the plugin crates depend only
+  on `dna-kernel` in source paths and manifests, only the facade composes them,
+  and each crate's module graph is acyclic;
 - runs Ruff formatting and lint checks;
 - runs basedpyright;
 - runs Python tooling tests;
 - validates result schemas and examples;
-- parses the strict TOML configuration template;
+- parses the strict TOML configuration template and the target profile it names;
 - verifies the documented environment template;
 - verifies the rCRS checksum and reference length.
 
@@ -90,17 +102,12 @@ The Rust source-policy gate complements compiler/Clippy checks by rejecting expl
 
 The `CI success` job waits for every mandatory job in `.github/workflows/ci.yml` and fails unless all applicable gates succeeded. Branch rules should require this aggregate check instead of duplicating every internal job name, reducing protection drift as CI evolves.
 
-### Release packaging smoke
+### Release packaging
 
-Pull requests that change release-relevant Rust, workflow, configuration, or reference files run the `Release package` job from `.github/workflows/release.yml`. It exercises the actual delivery path before a tag exists:
-
-- builds the explicit supported target with `cargo-auditable`;
-- strips while preserving `.dep-v0`, then audits the packaged binary;
-- verifies the bundled authoritative configuration and rCRS reference;
-- generates the SPDX SBOM;
-- creates and verifies the release archive and checksums.
-
-Because `Release package` is a required branch check, its workflow must run on every pull request; workflow-level path filters would leave the required check pending when skipped. The pull-request smoke job has only `contents: read`. OIDC, attestation, and release-write permissions exist only in downstream tag-only jobs that do not compile source code.
+`.github/workflows/release.yml` runs only for `v*` tags; see the
+[release / delivery lane](#release--delivery-lane). Its packaging job has only
+`contents: read`. OIDC, attestation, and release-write permissions exist only in
+downstream jobs that do not compile source code.
 
 ## Scheduled security posture
 
@@ -125,7 +132,7 @@ The workflow:
 4. installs and builds the explicit `x86_64-unknown-linux-gnu` target with pinned `cargo-auditable`, strips it while explicitly preserving `.dep-v0`, and audits the packaged binary;
 5. records Rust/Cargo identity, source revision, and `Cargo.lock` checksum;
 6. generates an SPDX JSON SBOM from the auditable binary with a pinned Syft version;
-7. packages the Linux `x86_64-unknown-linux-gnu` binary together with the authoritative `config/dna.toml` and `references/rCRS.fasta`, including per-file checksums;
+7. packages the Linux `x86_64-unknown-linux-gnu` binary together with the authoritative `config/dna.toml`, `config/profiles/`, and `references/rCRS.fasta`, including per-file checksums;
 8. produces SHA-256 checksums;
 9. creates GitHub/Sigstore build-provenance and SBOM attestations;
 10. publishes the archive, SBOM, and checksums to the GitHub Release.
@@ -142,7 +149,7 @@ Checks that cannot be reduced to normal public CI remain release evidence:
 - long fuzz campaigns;
 - performance and peak-memory measurements;
 - approved real-AB1 regression corpus;
-- ground-truth biological comparison and disagreement analysis.
+- ground-truth biological comparison and disagreement analysis, performed by downstream pipelines on published results (ADR-0065).
 
 A check is added only when its protected failure mode is documented.
 

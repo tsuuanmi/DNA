@@ -1,0 +1,22 @@
+[package]
+name = "dna-core"
+description = "DNA core caller: alignment, variant calling, and sample aggregation over read evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dna-kernel.workspace = true
+memchr.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+dna-kernel = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true

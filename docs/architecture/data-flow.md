@@ -6,7 +6,7 @@
 Sanger ABIF
     |
     v
-input::sanger::abif
+dna_sanger::abif
     |
     v
 model::sanger::Chromatogram
@@ -16,30 +16,60 @@ read_processing
     |
     +--> basecalling
     +--> signal_processing
+    +--> callability
     +--> quality_control
               |
               v
       variant_analysis::observation
               |
+              v
+   read_processing::evidence (Sanger adapter)
+              |
+              v
+         ReadEvidence
+              |
 FASTA ------> alignment
               |
               v
-        variant_calling
+        variant_calling <-- ReadEvidence
               |
               v
-        ReadObservation
-           /       \
-          v         v
-   analysis result  sample aggregation
-                        |
-                        v
-                  sample evidence
+        ReadObservation = CalledRead + SangerAttachment
+           /                 \
+          v                   v
+   analysis result     sample aggregation (CalledRead only)
+                              |
+                              v
+                       sample evidence --> report joins SangerAttachment
+```
+
+Reviewed consensus sequences take a shorter path into the same core:
+
+```text
+consensus FASTA --> input::sequence --> ReadEvidence (vouched ends)
+                                             |
+FASTA ---------------------------------> dna_core::read_call
+                                             |
+                                         CalledRead --> called variants
+```
+
+A variants document reaches the post-calling plugins in another process:
+
+```text
+variants document --> input::variants --> normalization --> nomenclature
+                                                                 |
+                                                   conformance --+--> notation document
 ```
 
 `variant_analysis::observation` owns the authoritative reference-guided
 single-read scientific path. The public Rust Variant Analysis capability, CLI
 analysis, and sample processing reuse that path rather than owning duplicate
 implementations.
+
+Alignment and variant calling see the read only as `ReadEvidence`
+([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+the Sanger adapter turns calls, signal, callability, and quality into bases,
+profiles, labelled masks, support vetoes, and the informative interval.
 
 Completed typed scientific state is projected by the report layer and serialized
 before atomic no-overwrite CLI publication. Logging remains operational side
@@ -52,7 +82,8 @@ has actually been called or imported. The common convergence point is
 `CalledVariantSet`, not a universal raw-alignment object.
 
 ```text
-Sanger evidence --> Sanger caller --------------------+
+Sanger evidence --> ReadEvidence --> core caller -----+
+consensus FASTA --> ReadEvidence --> core caller -----+
                                                       |
 NGS evidence ----> NGS caller ------------------------+--> CalledVariantSet
                                                       |       /     |      \
@@ -67,8 +98,8 @@ The source-specific paths are intentionally different:
 
 | Source | Path to called variants |
 |---|---|
-| Sanger ABIF | chromatogram -> base calling/signal/QC -> selected pairwise alignment -> Sanger caller |
-| assembled/consensus FASTA | reference alignment -> sequence-difference caller |
+| Sanger ABIF | chromatogram -> base calling/signal/callability/QC -> `ReadEvidence` -> core caller (implemented) |
+| assembled/consensus FASTA | `ReadEvidence` -> core caller (implemented, `call`) |
 | FASTQ / NGS reads | read QC/preprocessing -> mapping -> NGS caller |
 | BAM / CRAM | validated aligned-read evidence -> NGS caller |
 | VCF / BCF | validated variant importer; raw calling is bypassed |

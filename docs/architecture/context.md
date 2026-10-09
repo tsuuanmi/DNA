@@ -12,7 +12,8 @@ DNA separates four orthogonal concerns:
 
 - **biological target** — for example mitochondrial DNA, nuclear/genomic DNA, or
   targeted loci/panels;
-- **sequencing modality** — currently Sanger, with NGS as a future modality;
+- **sequencing modality** — currently Sanger traces and reviewed consensus
+  sequences, with NGS as a future modality;
 - **external format** — for example ABIF, FASTA/FASTQ, BAM/CRAM, or VCF/BCF;
 - **analysis capability** — for example base calling, alignment/mapping, variant
   analysis, SNP/genotyping analysis, haplogroup, or nomenclature.
@@ -23,8 +24,10 @@ modality.
 ## Current production inputs
 
 - Sanger sequencing traces encoded as ABIF (commonly named `.ab1`);
+- reviewed consensus sequences in FASTA, one record per read (`call`);
+- `dna.variants/v1` documents for post-calling notation (`notation`);
 - one short FASTA reference for reference-guided operations;
-- strict TOML configuration;
+- strict TOML configuration and the target profile it names;
 - explicit sample identifiers and trace paths for sample aggregation.
 
 Future formats or modalities are not production behavior until their own
@@ -35,8 +38,8 @@ requirements, adapters, validation, and public contracts are implemented.
 - one versioned command-specific JSON result per successful core invocation;
 - typed Rust results for public library capabilities;
 - separate append-only operational logs;
-- batch orchestration may group per-trace and aggregate outputs without changing
-  core scientific semantics.
+- downstream pipelines orchestrate runs and group, convert, and compare outputs
+  (ADR-0065, ADR-0066); DNA itself does none of that.
 
 ## Trust boundary
 

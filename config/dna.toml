@@ -1,9 +1,8 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 5
-
-[reference]
-# rCRS is a circular mitochondrial reference.
-topology = "circular"
+schema_version = 7
+# Target profile (reference identity and topology, reportable regions,
+# representation chain), resolved against this file's directory.
+profile = "profiles/human-mtdna-rcrs.toml"
 
 [basecalling]
 # A channel's selected peak and signal at the primary peak must reach this fraction.
@@ -16,13 +15,29 @@ minimum_primary_snr = 3.0
 # At least two candidate windows are required for a noisy interval.
 minimum_noisy_windows = 2
 
+[callability]
+# Signal-derived read callability (ADR-0067): rolling window of calls, the
+# defect fractions that open and close a masked stretch, the shadow-fit shares
+# that separate dephased (slippage) signal from mixed signal, and the fraction
+# of the read's median primary amplitude below which a position is weak.
+# Repeat runs of at least `repeat_min_length` identical or alternating primary
+# calls are priors for the window after them; a read needs at least
+# `minimum_callable_calls` callable calls to be analyzed.
+window_calls = 16
+onset_defect_fraction = 0.375
+exit_defect_fraction = 0.125
+minimum_main_share = 0.35
+maximum_far_share = 0.12
+minimum_shadow_share = 0.1
+weak_amplitude_fraction = 0.2
+repeat_min_length = 8
+minimum_callable_calls = 20
+
 [quality_control]
-# Relative, uncalibrated quality and end-trimming settings.
-trim_window_size = 10
-best_section_fraction = 0.10
+# Relative, uncalibrated per-call quality. The trim interval is the read's
+# callable span (ADR-0067).
+penalty_window_size = 10
 max_relative_quality_score = 60
-trim_stringency = 7.0
-minimum_retained_bases = 20
 
 [alignment]
 # Semi-global affine-gap scoring. A length-k gap costs open + k * extension.
@@ -39,11 +54,17 @@ minimum_identity = 0.80
 minimum_comparable_bases = 25
 minimum_overlap_agreement = 0.50
 
+[sanger_evidence]
+# Sanger support vetoes (ADR-0069): an SNV or inserted-base supporting call
+# needs a highest A/C/G/T peak of at least `minimum_peak_height` and a relative
+# quality above `relative_quality_threshold`.
+minimum_peak_height = 150
+relative_quality_threshold = 30
+
 [variant_calling]
 # Anchor bases do not count toward this changed-length limit.
 max_indel_length = 50
-# SNV and inserted-base supporting calls must meet both evidence thresholds.
-minimum_peak_height = 150
-relative_quality_threshold = 30
-# Inclusive 1-based normalized variant anchor ranges (HV1, HV2, HV3).
-regions = [[16024, 16365], [73, 340], [438, 576]]
+# Read callability (ADR-0062, ADR-0067): calls this close to an uninformative
+# call (beyond the trim interval or masked as unresolved) cannot support a
+# variant; the trim keeps this many dephased context calls past the span.
+read_end_margin = 12

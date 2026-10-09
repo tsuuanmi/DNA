@@ -1,17 +1,9 @@
-//! Validated domain vocabulary shared by scientific stages.
+//! Facade records: the Sanger read observation and the serializable result
+//! contracts.
 
-pub(crate) mod alignment;
 pub(crate) mod basecall_result;
-pub(crate) mod basecalls;
-pub(crate) mod coordinate;
-pub(crate) mod locus_evidence;
-pub(crate) mod nucleotide;
-pub(crate) mod quality;
+pub(crate) mod notation_result;
 pub(crate) mod read_observation;
-pub(crate) mod reference;
 pub(crate) mod result;
-pub(crate) mod sample_evidence;
 pub(crate) mod sample_result;
-pub(crate) mod sanger;
-pub(crate) mod signal;
-pub(crate) mod variant;
+pub(crate) mod variants_result;

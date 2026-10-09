@@ -4,7 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::error::{Error, Result};
+use dna_kernel::error::{Error, Result};
 
 struct TemporaryFile {
     path: PathBuf,
@@ -25,7 +25,7 @@ pub(crate) fn publish(path: &Path, bytes: &[u8]) -> Result<()> {
         return Err(Error::Path {
             kind: "output",
             path: path.to_path_buf(),
-            reason: "target already exists".into(),
+            reason: "target already exists",
         });
     }
     let parent = path
@@ -83,7 +83,7 @@ fn create_temporary(path: &Path) -> Result<(PathBuf, File)> {
             .open(&temporary_path)
         {
             Ok(file) => return Ok((temporary_path, file)),
-            Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(source) => {
                 return Err(Error::Output {
                     path: temporary_path,
@@ -95,7 +95,7 @@ fn create_temporary(path: &Path) -> Result<(PathBuf, File)> {
     Err(Error::Path {
         kind: "temporary output",
         path: path.to_path_buf(),
-        reason: "could not reserve a sibling temporary file after 1024 attempts".into(),
+        reason: "could not reserve a sibling temporary file after 1024 attempts",
     })
 }
 

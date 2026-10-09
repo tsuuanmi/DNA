@@ -15,7 +15,10 @@ DNA separates six interface classes:
    Sanger Variant Analysis return stable typed called-variant results without CLI
    publication side effects.
 4. **Scientific module boundaries** — typed internal models passed between
-   decoding, calling, signal, QC, alignment, variant, and sample stages.
+   decoding, calling, signal, callability, QC, alignment, variant, and sample
+   stages. The modality evidence boundary is one of them: a modality plugin
+   hands the core caller per-read `ReadEvidence`, and the core sees no modality
+   type ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 5. **Public serialized result boundary** — closed versioned JSON contracts.
 6. **Filesystem/operational boundary** — atomic publication and append-only logs.
 
@@ -29,22 +32,23 @@ future non-CLI callers.
 
 The current Sanger filesystem adapter owns validation and loading of Sanger
 sequencing traces, FASTA references, and explicit configuration into validated
-internal models. Its current format layer is `input::sanger::abif`; support is
+internal models. Its current format layer is `dna_sanger::abif`; support is
 determined by the ABIF container and required sequencing tags rather than a
 filename suffix. `PLOC.2` is decoded at that format boundary and projected to
 canonical Sanger `locus_positions`; downstream scientific modules do not depend
 on the ABIF tag name. It does not derive `results/*` paths, validate overwrite
 targets, select log paths, or publish outputs. Those remain outer operation/publication concerns.
 
-Operational stage logging crosses this boundary through a minimal internal
-`StageLog` capability. Shared reference-free read processing and
-reference-guided Variant Analysis can emit informational and warning records
-without depending on the file-backed logger; log destination selection,
-terminal error logging, and synchronization stay in the outer operation layer.
+Operational stage logging crosses this boundary as `tracing` instrumentation
+([ADR-0061](../decisions/adr/0061-tracing-for-operational-logging.md)). Shared
+reference-free read processing and reference-guided Variant Analysis emit
+structured events and one span per stage without knowing any destination; log
+destination selection, record rendering, terminal error logging, and
+synchronization stay in the outer operation layer.
 
 The production `pipeline` composes scientific capabilities but does not own
-their implementations. Reference-free read processing is crate-internal shared
-science; reference-guided one-read observation is owned by
+their implementations. Reference-free read processing is shared Sanger science
+in `dna_sanger::read_processing`; reference-guided one-read observation is owned by
 `variant_analysis` and is reused by CLI analysis, sample evidence, and the
 public Rust API.
 

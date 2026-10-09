@@ -2,12 +2,16 @@
 
 DNA's production core and runtime are Rust. This directory contains Python only for repository support work:
 
-- research and exploratory analysis;
-- validation and contract checks;
-- batch/corpus orchestration;
+- repository checks and CI validators (source policy, module layering,
+  workflows, documentation structure, result schemas);
+- measurement and validation helpers that produce evidence about a DNA build;
+- research and exploratory analysis that no production path depends on;
 - tests for the Python tooling itself.
 
-Python code here must not become a runtime dependency of the `dna` binary or be placed under the Rust production `src/` tree.
+Orchestrating DNA runs, converting results, and comparing them with other
+sources belong to downstream pipelines, not here (ADR-0065, ADR-0066).
+
+Python code here must not become a runtime dependency of the `dna` binary or be placed under the Rust production `src/` or `crates/*/src/` trees.
 
 ## Environment
 
@@ -25,9 +29,11 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 uv run python scripts/validate_docs_structure.py
+uv run python scripts/validate_module_layers.py
+uv run python scripts/validate_workflow_policy.py
 ```
 
-The lockfile in this directory belongs only to these Python development tools. Rust dependencies remain authoritative in the root `Cargo.toml` and `Cargo.lock`.
+The lockfile in this directory belongs only to these Python development tools. Rust dependencies remain authoritative in the workspace `Cargo.toml` files and the root `Cargo.lock`.
 
 
 ## Performance evidence

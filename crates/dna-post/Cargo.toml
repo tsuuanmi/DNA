@@ -1,0 +1,18 @@
+[package]
+name = "dna-post"
+description = "DNA post-calling plugins: representation, normalization, nomenclature, and conformance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dna-kernel.workspace = true
+
+[dev-dependencies]
+dna-kernel = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

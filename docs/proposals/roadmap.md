@@ -14,6 +14,8 @@ The core confidence floor remains the read-level path defined by [ADR-0021](../d
 
 The proposal is not current production architecture. Its implementation is intentionally incremental: preserve the validated Sanger path, introduce stable public and canonical boundaries first, add alternative implementations only where independent variation is real, and extract crates only when dependency or lifecycle boundaries justify them.
 
+[PROP-0002](0002-plugin-first-architecture.md), accepted by [ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md), sequences that direction as three plugin families (modality, core caller, post-calling) with phased exit criteria. All phases are implemented: the modality → core evidence contract, the plugin registry with per-plugin configuration, a modality-neutral sample aggregation, a core-only `call` over reviewed consensus sequences, a post-calling `notation` with conformance findings, and the workspace split into plugin-family crates (ADR-0070).
+
 ## Validation priorities
 
 ### Approved real-trace baseline
@@ -26,7 +28,7 @@ Prioritize evidence that demonstrates:
 
 - ABIF/channel/PLOC decoding matches the intended container and scientific-tag semantics;
 - signal-derived re-calling is deterministic and preserves unresolved evidence;
-- trimming removes justified tails without silently rewriting internal evidence;
+- trimming removes justified tails without silently rewriting internal evidence, and read callability masks internal dephased or mixed stretches without rewriting evidence;
 - forward/reverse placement is correct and ambiguous placement fails explicitly;
 - reported SNVs and supported indels map back to the observed trace evidence and reference strand;
 - sample evidence preserves independent read observations, coverage, overlap, differential loci, and normalized variant support without prematurely turning them into consensus or genotype claims.
@@ -58,7 +60,8 @@ These controls make the software build and supply chain defensible. They do not 
 The following remain outside the current production interpretation boundary until separately specified, decided, implemented, and validated:
 
 - new or substantially more complex indel models;
-- production mtDNA poly-C detector/state/recovery/weighting;
+- phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067; research under `docs/research/phase-recovery/`);
+- signal denoising and baseline correction (research spike under `docs/research/denoising/`);
 - sample-level consensus and adjudicated sample variants;
 - quantitative heteroplasmy;
 - mixed-template or length-mixture decomposition;

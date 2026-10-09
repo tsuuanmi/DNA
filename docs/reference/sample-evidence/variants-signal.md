@@ -36,8 +36,20 @@ the existing per-read support records:
 
 The counts are recomputed from `support[]` and the read registry by contract
 validation. They do not include covering reads that support the reference, are
-unresolved, or observe another event. Those local denominator/opposition states
-remain in `coverage[]` and `locus_differences[]`.
+unresolved, or observe another event; those reads appear in `opposition`.
+
+Each variant also contains `opposition` (ADR-0068):
+
+- `reads`: admitted reads, in read-registry order, whose
+  `callable_reference_segments` cover the variant's evidence span and that have
+  no `support[]` record for this variant. The evidence span is the anchored
+  reference allele (the SNV position; a deletion's anchor and deleted bases)
+  and, for an insertion, the anchor and the base after it;
+- `forward_reads` / `reverse_reads`: those reads by selected orientation.
+
+A read that supports a different event at the same place opposes this one.
+Opposition is evidence, not a vote, verdict, weight, or confidence, and contract
+validation recomputes it from the read registry and `support[]`.
 
 Orientation support is not a claim of assay independence, and eligible-read
 count is not a probability, confidence score, vote weight, genotype, or
@@ -70,20 +82,32 @@ with the strongest channel without mentally reverse-complementing the trace.
 
 Supporting calls carry the observed alternate or inserted base evidence. Indels
 can also carry flanking calls because a deletion has no signal at the deleted
-reference base and an insertion is bounded by aligned reference bases.
+reference base and an insertion is bounded by aligned reference bases. A flank
+whose primary base is unresolved (`N`) is omitted rather than published or
+given fabricated peaks.
 
 An eligible support has an empty exclusion list. An ineligible support retains one
-or more reasons such as `outside_configured_region`, `peak_below_minimum`,
-`relative_quality_not_above_threshold`, or `mixed_supporting_dna`.
+or more reasons such as `outside_target_region`, `peak_below_minimum`,
+`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`,
+`post_homopolymer`, `dephased_signal`, `mixed_signal`, `weak_signal`, or
+`irregular_spacing`.
 `mixed_supporting_dna` means an SNV's supporting call retained more than one
 co-localized qualifying channel under the authoritative basecalling rule; the
 normalized observation remains evidence, but it is not presented as a clean SNV. The latter name remains explicit because
 the configured gate still operates on the internal relative-quality method even
 though the public numeric field is simply `quality`.
 
-## Differential-locus signal evidence in v8
+`read_end` (ADR-0062) means a mapped call of the variant lies within the
+configured margin of an uninformative call: beyond the read's trim interval or
+inside a masked segment that aligns as unresolved. The other
+read-callability reasons (ADR-0067) name the phase segment of a masked evidence
+call: `post_homopolymer` when the segment starts in the window after a long
+repeat run in the read's sequencing direction, otherwise `dephased_signal`,
+`mixed_signal`, `weak_signal`, or `irregular_spacing`.
 
-v8 promotes the smallest reviewer-useful part of the internal sample signal
+## Differential-locus signal evidence
+
+Sample evidence promotes the smallest reviewer-useful part of the internal sample signal
 evidence into `locus_differences[]`: the normalized A/C/G/T
 `EvidenceProfile`, existing noisy-region membership, and factorized support
 topology.

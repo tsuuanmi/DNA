@@ -1,12 +1,13 @@
-//! Serializable `dna.sample_evidence/v8` contract.
+//! Serializable `dna.sample_evidence/v10` contract.
 
 use serde::Serialize;
 
 use crate::model::result::{
-    AlignmentResult, PeakHeightsResult, ReferenceResult, TraceIntegrityResult,
+    AlignmentResult, CallabilityResult, PeakHeightsResult, PluginResult, ProfileResult,
+    ReferenceResult, TraceIntegrityResult,
 };
-use crate::model::sample_evidence::{LocusState, OverlapExclusionReason};
-use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
+use dna_core::model::sample_evidence::{LocusState, OverlapExclusionReason};
+use dna_core::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
 
 /// Successful compact sample-evidence document.
 #[derive(Debug, Serialize)]
@@ -15,10 +16,27 @@ pub(crate) struct SampleEvidenceResult {
     pub(crate) sample_id: String,
     pub(crate) provenance: SampleProvenanceResult,
     pub(crate) reads: Vec<SampleReadResult>,
+    pub(crate) rejected_reads: Vec<RejectedSampleReadResult>,
     pub(crate) coverage: Vec<SampleCoverageResult>,
     pub(crate) overlaps: Vec<SampleOverlapResult>,
     pub(crate) locus_differences: Vec<SampleLocusDifferenceResult>,
     pub(crate) variants: Vec<SampleVariantResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) notation: Option<SampleNotationResult>,
+}
+
+/// Profile notation of each read's eligible calls (profiles declaring notation only).
+#[derive(Debug, Serialize)]
+pub(crate) struct SampleNotationResult {
+    pub(crate) style: &'static str,
+    pub(crate) calls: Vec<SampleNotationCallResult>,
+}
+
+/// One rendered call and the reads whose represented calls contain it.
+#[derive(Debug, Serialize)]
+pub(crate) struct SampleNotationCallResult {
+    pub(crate) call: String,
+    pub(crate) reads: Vec<String>,
 }
 
 /// Scientific identities shared by every sample read.
@@ -26,6 +44,8 @@ pub(crate) struct SampleEvidenceResult {
 pub(crate) struct SampleProvenanceResult {
     pub(crate) reference: ReferenceResult,
     pub(crate) configuration_sha256: String,
+    pub(crate) profile: ProfileResult,
+    pub(crate) plugins: Vec<PluginResult>,
 }
 
 /// One independently processed sample read with reviewer-facing provenance.
@@ -34,7 +54,26 @@ pub(crate) struct SampleReadResult {
     pub(crate) name: String,
     pub(crate) sha256: String,
     pub(crate) integrity: TraceIntegrityResult,
+    pub(crate) callability: CallabilityResult,
     pub(crate) alignment: AlignmentResult,
+}
+
+/// One read with too few callable calls; it contributes nothing else.
+#[derive(Debug, Serialize)]
+pub(crate) struct RejectedSampleReadResult {
+    pub(crate) name: String,
+    pub(crate) sha256: String,
+    pub(crate) integrity: TraceIntegrityResult,
+    pub(crate) callability: CallabilityResult,
+    pub(crate) rejection: ReadRejectionResult,
+}
+
+/// Why a read was not analyzed.
+#[derive(Debug, Serialize)]
+pub(crate) struct ReadRejectionResult {
+    pub(crate) reason: &'static str,
+    pub(crate) callable_calls: usize,
+    pub(crate) minimum_callable_calls: usize,
 }
 
 /// One maximal reference interval with constant read/orientation depth.
@@ -80,6 +119,7 @@ pub(crate) struct SampleLocusSupportTopologyResult {
     pub(crate) alternate_reads: usize,
     pub(crate) unresolved_reads: usize,
     pub(crate) deletion_reads: usize,
+    pub(crate) masked_reads: usize,
     pub(crate) profile_reads: usize,
     pub(crate) profile_forward_reads: usize,
     pub(crate) profile_reverse_reads: usize,
@@ -122,6 +162,16 @@ pub(crate) struct SampleVariantResult {
     pub(crate) kind: VariantKind,
     pub(crate) support_topology: SampleVariantSupportTopologyResult,
     pub(crate) support: Vec<SampleVariantSupportResult>,
+    pub(crate) opposition: SampleVariantOppositionResult,
+}
+
+/// Admitted reads that callably observe the variant's reference span without
+/// supporting it.
+#[derive(Debug, Serialize)]
+pub(crate) struct SampleVariantOppositionResult {
+    pub(crate) reads: Vec<String>,
+    pub(crate) forward_reads: usize,
+    pub(crate) reverse_reads: usize,
 }
 
 /// Factorized read/orientation topology for one observed normalized variant.

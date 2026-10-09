@@ -1,0 +1,148 @@
+{
+  "schema_version": "dna.analysis/v9",
+  "provenance": {
+    "input": {
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "reference": {
+      "name": "synthetic-reference",
+      "topology": "linear",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "configuration_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
+    },
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 1
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 1
+      }
+    ]
+  },
+  "read": {
+    "call_count": 28,
+    "trim": {
+      "start": 2,
+      "end": 26
+    },
+    "callability": {
+      "callable_span": {
+        "start": 2,
+        "end": 26
+      },
+      "segments": [
+        {
+          "calls": {
+            "start": 0,
+            "end": 2
+          },
+          "state": "weak",
+          "after_repeat": false
+        },
+        {
+          "calls": {
+            "start": 2,
+            "end": 26
+          },
+          "state": "in_phase",
+          "after_repeat": false
+        },
+        {
+          "calls": {
+            "start": 26,
+            "end": 28
+          },
+          "state": "dephased",
+          "after_repeat": true,
+          "shadow_offsets": [
+            -1,
+            1
+          ]
+        }
+      ],
+      "masked_calls": 4
+    }
+  },
+  "signal_quality": {
+    "integrity": {
+      "ploc_count": 28,
+      "vendor_primary_count": 28,
+      "vendor_quality_count": 28,
+      "minimum_ploc_spacing": 4,
+      "median_ploc_spacing": 4,
+      "maximum_ploc_spacing": 4,
+      "clipped_channel_samples": 0,
+      "maximum_to_median_event_signal_ratio": 1
+    },
+    "noisy_regions": [
+      {
+        "calls": {
+          "start": 8,
+          "end": 15
+        },
+        "samples": {
+          "start": 79,
+          "end": 151
+        },
+        "minimum_primary_snr": 4.125
+      }
+    ]
+  },
+  "alignment": {
+    "orientation": "forward",
+    "callable_bases": 24,
+    "identity": 0.9583333333333334,
+    "unresolved_bases": 0,
+    "masked_bases": 0,
+    "gap_opens": 0,
+    "reference_segments": [
+      {
+        "start": 100,
+        "end": 124
+      }
+    ],
+    "callable_reference_segments": [
+      {
+        "start": 100,
+        "end": 124
+      }
+    ],
+    "wraps_origin": false
+  },
+  "variants": [
+    {
+      "position": 112,
+      "reference": "A",
+      "alternate": "G",
+      "kind": "SNV",
+      "calls": [
+        {
+          "role": "supporting",
+          "base": "G",
+          "peaks": {
+            "A": 84,
+            "C": 36,
+            "G": 842,
+            "T": 21
+          },
+          "quality": 37
+        }
+      ]
+    }
+  ],
+  "warnings": {
+    "unresolved_primary_calls": 0,
+    "multi_channel_unresolved_calls": 0,
+    "excluded_variant_candidates": 1,
+    "ploc_vendor_length_mismatches": 0,
+    "clipped_channel_samples": 0
+  }
+}

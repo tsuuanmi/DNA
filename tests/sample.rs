@@ -1,4 +1,6 @@
-mod support;
+//! CLI contract for multi-read sample evidence aggregation.
+
+pub mod support;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -6,9 +8,13 @@ use std::path::{Path, PathBuf};
 use assert_cmd::Command;
 use predicates::prelude::*;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
-use support::{write_abif, write_abif_with_secondary_signal, write_config, write_reference};
+use support::{
+    human_mtdna_profile, write_abif, write_abif_with_incoherent_doubles,
+    write_abif_with_secondary_signal, write_config, write_config_with_profile, write_reference,
+};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 const SAMPLE_ID: &str = "sample-1";
@@ -19,7 +25,7 @@ fn dna_binary() -> String {
 }
 
 #[test]
-fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::error::Error>> {
+fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::error::Error>> {
     let first = tempdir()?;
     let second = tempdir()?;
 
@@ -44,7 +50,7 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
         } else {
             [&forward, &reverse]
         };
-        run(&traces, &reference, &config, directory)?
+        run(&traces, &reference, &config, directory)
             .success()
             .stdout(predicate::str::is_empty())
             .stderr(predicate::str::is_empty());
@@ -66,7 +72,7 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
     assert_eq!(first_bytes, second_bytes);
 
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v8");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v10");
     assert_eq!(value["sample_id"], SAMPLE_ID);
     assert_object_keys(
         &value,
@@ -75,6 +81,7 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
             "sample_id",
             "provenance",
             "reads",
+            "rejected_reads",
             "coverage",
             "overlaps",
             "locus_differences",
@@ -82,6 +89,14 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
         ],
     )?;
     assert!(value.get("loci").is_none());
+    assert_eq!(value["rejected_reads"], serde_json::json!([]));
+    assert_eq!(
+        value["provenance"]["plugins"],
+        serde_json::json!([
+            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "core", "family": "core", "version": 1},
+        ])
+    );
 
     let reads = value["reads"].as_array().ok_or("reads must be an array")?;
     assert_eq!(reads.len(), 2);
@@ -93,6 +108,15 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
     assert_eq!(reverse_read["integrity"]["ploc_count"], QUERY.len());
     assert_eq!(forward_read["integrity"]["clipped_channel_samples"], 0);
     assert_eq!(reverse_read["integrity"]["clipped_channel_samples"], 0);
+    for read in [forward_read, reverse_read] {
+        assert_object_keys(
+            read,
+            &["name", "sha256", "integrity", "callability", "alignment"],
+        )?;
+        assert_eq!(read["callability"]["masked_calls"], 0);
+        assert_eq!(read["callability"]["callable_span"]["end"], QUERY.len());
+    }
+    assert!(log_text(first.path())?.contains("masked_calls_total=0 callable_calls_total=56"));
 
     let coverage = value["coverage"]
         .as_array()
@@ -191,6 +215,11 @@ fn writes_deterministic_compact_sample_evidence_v8() -> Result<(), Box<dyn std::
     assert_eq!(variant["support_topology"]["reverse_reads"], 1);
     assert_eq!(variant["support_topology"]["eligible_forward_reads"], 0);
     assert_eq!(variant["support_topology"]["eligible_reverse_reads"], 1);
+    // The forward read observes the same position callably without the variant.
+    assert_eq!(
+        variant["opposition"],
+        serde_json::json!({"reads": ["read-forward"], "forward_reads": 1, "reverse_reads": 0})
+    );
     let support = variant["support"]
         .as_array()
         .ok_or("variant support must be an array")?;
@@ -226,11 +255,6 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
 
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
-    let config_text = fs::read_to_string(&config)?;
-    fs::write(
-        &config,
-        config_text.replace("best_section_fraction=0.10", "best_section_fraction=1.0"),
-    )?;
     write_abif_with_secondary_signal(&trace, &query, 10, b'C', 400)?;
 
     let mut command = Command::new(dna_binary());
@@ -246,7 +270,7 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
         .success();
 
     let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
-    assert_eq!(value["schema_version"], "dna.sample_evidence/v8");
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v10");
     assert_eq!(value["overlaps"], serde_json::json!([]));
     let coverage = value["coverage"]
         .as_array()
@@ -284,12 +308,257 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
     Ok(())
 }
 
+/// Under the human-mtDNA profile, each read's calls are right-aligned and given
+/// the HVS-II representation, then published as per-base notation with
+/// supporting reads, and the profile identity is recorded.
+#[test]
+fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let config = directory.path().join("dna.toml");
+    let trace = directory.path().join("hv2-read.ab1");
+    let rcrs =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("references/rCRS.fasta"))?
+            .lines()
+            .filter(|line| !line.starts_with('>'))
+            .collect::<String>();
+    let read = format!("{}C{}", &rcrs[270..304], &rcrs[304..350]);
+    write_config_with_profile(&config, &human_mtdna_profile())?;
+    write_abif(&trace, &read)?;
+
+    let mut command = Command::new(dna_binary());
+    command
+        .current_dir(directory.path())
+        .env("DNA_CONFIG", &config)
+        .arg("sample")
+        .arg(SAMPLE_ID)
+        .arg(&trace)
+        .arg("--reference")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("references/rCRS.fasta"))
+        .assert()
+        .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["schema_version"], "dna.sample_evidence/v10");
+    assert_eq!(
+        value["notation"],
+        serde_json::json!({
+            "style": "per_base_decimal",
+            "calls": [{"call": "309.1C", "reads": ["hv2-read"]}],
+        })
+    );
+    assert_eq!(value["provenance"]["profile"]["id"], "human-mtdna-rcrs");
+    assert_eq!(
+        value["provenance"]["plugins"],
+        serde_json::json!([
+            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "core", "family": "core", "version": 1},
+            {"id": "normalization", "family": "post_calling", "version": 1},
+            {"id": "nomenclature", "family": "post_calling", "version": 1},
+        ])
+    );
+    assert_eq!(
+        value["provenance"]["profile"]["sha256"],
+        format!("{:x}", Sha256::digest(fs::read(human_mtdna_profile())?))
+    );
+    Ok(())
+}
+
+/// Regression: a sample read whose indel flank is an unresolved tied call still
+/// yields sample evidence; the unresolved flank is omitted from public calls.
+#[test]
+fn omits_unresolved_indel_flank_from_sample_evidence() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let trace = directory.path().join("tied-flank.ab1");
+    write_reference(
+        &reference,
+        &format!("TTTT{}A{}CCCC", &QUERY[..14], &QUERY[14..]),
+    )?;
+    write_config(&config, "linear")?;
+    write_abif_with_secondary_signal(&trace, QUERY, 13, b'A', 1000)?;
+
+    let mut command = Command::new(dna_binary());
+    command
+        .current_dir(directory.path())
+        .env("DNA_CONFIG", &config)
+        .arg("sample")
+        .arg(SAMPLE_ID)
+        .arg(&trace)
+        .arg("--reference")
+        .arg(&reference)
+        .assert()
+        .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let variants = value["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0]["kind"], "DEL");
+    let calls = variants[0]["support"][0]["calls"]
+        .as_array()
+        .ok_or("support calls must be an array")?;
+    assert_eq!(calls.len(), 1, "the unresolved flank is omitted");
+    assert_eq!(calls[0]["role"], "flanking");
+    assert!(matches!(
+        calls[0]["base"].as_str(),
+        Some("A" | "C" | "G" | "T")
+    ));
+    Ok(())
+}
+
+/// Writes the forward reference read and a reverse read carrying `15A` against
+/// `TTTT{QUERY}CCCC`, returning the two trace paths.
+/// Read callability (ADR-0067): a read with too few callable calls is recorded
+/// as rejected and the remaining reads are still aggregated.
+#[test]
+fn records_a_read_with_too_few_callable_calls_as_rejected() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    let mixed = directory.path().join("read-mixed.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif(&forward, QUERY)?;
+    write_abif(&reverse, &reverse_complement(QUERY))?;
+    write_abif_with_incoherent_doubles(&mixed, QUERY, 0..QUERY.len(), 500)?;
+
+    run(
+        &[&forward, &mixed, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+    )
+    .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let reads = value["reads"].as_array().ok_or("reads must be an array")?;
+    assert_eq!(reads.len(), 2);
+    assert!(reads.iter().all(|read| read["name"] != "read-mixed"));
+    let rejected = value["rejected_reads"]
+        .as_array()
+        .ok_or("rejected_reads must be an array")?;
+    assert_eq!(rejected.len(), 1);
+    assert_object_keys(
+        &rejected[0],
+        &["name", "sha256", "integrity", "callability", "rejection"],
+    )?;
+    assert_eq!(rejected[0]["name"], "read-mixed");
+    assert_eq!(
+        rejected[0]["rejection"],
+        serde_json::json!({
+            "reason": "callable_calls_below_minimum",
+            "callable_calls": 0,
+            "minimum_callable_calls": 20
+        })
+    );
+    assert_eq!(rejected[0]["callability"]["masked_calls"], QUERY.len());
+    assert_eq!(value["coverage"][0]["read_depth"], 2);
+    let log = log_text(directory.path())?;
+    assert!(log.contains("event=sample_read_rejected read_index=1"));
+    assert!(log.contains(
+        "reason=callable_calls_below_minimum callable_calls=0 minimum_callable_calls=20"
+    ));
+    assert!(log.contains("rejected_reads=1"));
+    Ok(())
+}
+
+/// A sample whose every read is rejected fails typed and publishes nothing.
+#[test]
+fn fails_when_every_read_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let first = directory.path().join("read-first.ab1");
+    let second = directory.path().join("read-second.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif_with_incoherent_doubles(&first, QUERY, 0..QUERY.len(), 500)?;
+    write_abif_with_incoherent_doubles(&second, QUERY, 0..QUERY.len(), 400)?;
+
+    run(&[&first, &second], &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains(
+            "all 2 reads have too few callable calls to be analyzed",
+        ));
+    assert!(!sample_output_path(directory.path()).exists());
+    Ok(())
+}
+
+fn write_two_reads(
+    directory: &Path,
+    reference: &Path,
+) -> Result<[PathBuf; 2], Box<dyn std::error::Error>> {
+    let mut alternate = QUERY.as_bytes().to_vec();
+    alternate[10] = b'A';
+    let forward = directory.join("read-forward.ab1");
+    let reverse = directory.join("read-reverse.ab1");
+    write_reference(reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_abif(&forward, QUERY)?;
+    write_abif(
+        &reverse,
+        &reverse_complement(&String::from_utf8(alternate)?),
+    )?;
+    Ok([forward, reverse])
+}
+
+/// A profile that declares notation drives the generic notation path for any
+/// target, not only human mtDNA.
+#[test]
+fn publishes_notation_for_a_non_mtdna_profile() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    write_config(&config, "linear")?;
+    let profile = config.with_extension("profile.toml");
+    let mut text = fs::read_to_string(&profile)?;
+    text.push_str(
+        "[normalization]\nindel_placement='right'\n[notation]\nstyle='per_base_decimal'\n",
+    );
+    fs::write(&profile, text)?;
+
+    run(&[&forward, &reverse], &reference, &config, directory.path()).success();
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
+    assert_eq!(
+        value["notation"],
+        serde_json::json!({
+            "style": "per_base_decimal",
+            "calls": [{"call": "15A", "reads": ["read-reverse"]}],
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn sample_fails_closed_when_the_profile_names_another_reference()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    write_config_with_profile(&config, &human_mtdna_profile())?;
+
+    run(&[&forward, &reverse], &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains(
+            "invalid target profile: reference sequence does not match profile human-mtdna-rcrs",
+        ));
+    assert!(!sample_output_path(directory.path()).exists());
+    Ok(())
+}
+
 fn run(
-    traces: &[&PathBuf; 2],
+    traces: &[&PathBuf],
     reference: &Path,
     config: &Path,
     workdir: &Path,
-) -> Result<assert_cmd::assert::Assert, Box<dyn std::error::Error>> {
+) -> assert_cmd::assert::Assert {
     let mut command = Command::new(dna_binary());
     command
         .current_dir(workdir)
@@ -299,7 +568,13 @@ fn run(
     for trace in traces {
         command.arg(trace);
     }
-    Ok(command.arg("--reference").arg(reference).assert())
+    command.arg("--reference").arg(reference).assert()
+}
+
+fn log_text(workdir: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(fs::read_to_string(
+        workdir.join("logs").join(format!("{SAMPLE_ID}.log")),
+    )?)
 }
 
 fn sample_output_path(workdir: &Path) -> PathBuf {

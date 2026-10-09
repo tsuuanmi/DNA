@@ -27,22 +27,27 @@ Use this map to find current rationale without treating the chronological ADR li
 | circular/reference placement | ADR-0010, ADR-0029, ADR-0047 | alignment SRS/method + alignment invariants |
 | variant calling / canonicalization / nomenclature | ADR-0047 → ADR-0057 → ADR-0060 | current variant SRS/method; platform direction in ADR-0060 |
 | signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
+| signal-derived read callability | ADR-0067 | SRS-CALL-* + callability method + evidence/pipeline invariants |
 | sample boundary and sparse evidence | ADR-0023, ADR-0025 | sample SRS/method + sample contract |
-| overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035 | sample SRS/method + sample contract |
+| overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035, ADR-0068 | sample SRS/method + sample contract |
 | sample call-signal projection | ADR-0037 (partially supersedes ADR-0034 and ADR-0036) | sample method + sample contract |
 | nucleotide contribution/profile geometry | ADR-0038 through ADR-0043 | sample SRS/method; public subset in sample contract |
 | reviewer-facing public signal evidence | ADR-0026, ADR-0053 | analysis/sample contracts |
 | release/readiness | ADR-0018, ADR-0021 | release operations + roadmap/validation evidence |
 | documentation governance | ADR-0006 → ADR-0022 | documentation governance + source-local README policy |
-| modular analysis/public API boundaries | ADR-0058 | proposal + architecture/design/reference as implemented |
+| modular analysis/public API boundaries | ADR-0058 → ADR-0069 → ADR-0070 | proposals + architecture/design/reference as implemented |
+| crate structure | ADR-0002 → ADR-0064 → ADR-0070 | `crates/README.md` + engineering docs |
+| plugin families and the modality → core evidence contract | ADR-0069 (supersedes ADR-0058 §4 and ADR-0060 §1/§6 in part) | PROP-0002 + interface architecture + variant-calling method |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
+| operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
+| Sanger variant eligibility | ADR-0027, ADR-0062 → ADR-0067 | SRS-VAR-012/013 + variant-calling method |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-mvp-vertical-slice.md) | End-to-end MVP first | Accepted |
-| [0002](0002-single-crate-layering.md) | Single-crate layering | Accepted |
+| [0002](0002-single-crate-layering.md) | Single-crate layering | Superseded by ADR-0070 |
 | [0003](0003-behavioral-compatibility.md) | Apollo behavioral evidence | Superseded in part by ADR-0009 |
 | [0004](0004-rcrs-direct-alignment.md) | Direct rCRS alignment | Superseded by ADR-0010 |
 | [0005](0005-versioned-output-contracts.md) | JSON plus VCF | Superseded by ADR-0008 |
@@ -88,6 +93,16 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0047](0047-canonical-right-aligned-mtdna-gaps.md) | Canonical right-aligned mtDNA gap placement | Superseded in part by ADR-0060 |
 | [0053](0053-public-differential-locus-signal-evidence.md) | Expose concise differential-locus signal evidence in sample output | Accepted |
 | [0057](0057-haplotype-correctness-and-variant-nomenclature.md) | Separate haplotype correctness from variant nomenclature | Accepted |
-| [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Accepted |
+| [0058](0058-canonical-contracts-and-modular-analysis-composition.md) | Canonical contracts and modular analysis composition | Superseded in part by ADR-0069 and ADR-0070 |
 | [0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md) | Reuse ecosystem machinery behind DNA-owned contracts | Accepted |
-| [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Accepted |
+| [0060](0060-separate-variant-canonicalization-nomenclature.md) | Separate variant calling, canonicalization, and nomenclature | Superseded in part by ADR-0069 |
+| [0061](0061-tracing-for-operational-logging.md) | Use `tracing` for operational logging | Accepted |
+| [0062](0062-read-callability.md) | Read callability from the read's own calls | Superseded in part by ADR-0067 |
+| [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |
+| [0064](0064-crate-ready-module-layering.md) | Crate-ready module layering | Superseded in part by ADR-0070 |
+| [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Accepted |
+| [0066](0066-python-limited-to-repository-tooling.md) | Python in DNA is limited to repository tooling | Accepted |
+| [0067](0067-signal-derived-read-callability.md) | Signal-derived read callability | Accepted |
+| [0068](0068-variant-opposition-evidence.md) | Variant opposition evidence | Accepted |
+| [0069](0069-plugin-first-modality-core-post-calling.md) | Plugin-first composition of modality, core, and post-calling plugins | Accepted |
+| [0070](0070-workspace-split-by-plugin-family.md) | Workspace split by plugin family | Accepted |

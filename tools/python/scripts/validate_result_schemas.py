@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, and sample-evidence result contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, variants, and notation result contracts."""
 
 from __future__ import annotations
 
@@ -13,12 +13,16 @@ from jsonschema import Draft202012Validator, SchemaError, ValidationError
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "docs" / "reference"
-ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v7.schema.json"
-ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v7.example.json"
-BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v2.schema.json"
-BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v2.example.json"
-SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v8.schema.json"
-SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v8.example.json"
+ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v9.schema.json"
+ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v9.example.json"
+BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v3.schema.json"
+BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v3.example.json"
+SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v10.schema.json"
+SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v10.example.json"
+VARIANTS_SCHEMA = CONTRACTS / "schemas" / "variants-v1.schema.json"
+VARIANTS_EXAMPLE = CONTRACTS / "examples" / "variants-v1.example.json"
+NOTATION_SCHEMA = CONTRACTS / "schemas" / "notation-v1.schema.json"
+NOTATION_EXAMPLE = CONTRACTS / "examples" / "notation-v1.example.json"
 
 
 def load_json(path: Path) -> Any:
@@ -99,7 +103,15 @@ def rejected_analysis_shapes(
     removed_software_version = copy.deepcopy(example)
     removed_software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.analysis/v6"
+    old_schema["schema_version"] = "dna.analysis/v8"
+    missing_profile = copy.deepcopy(example)
+    missing_profile["provenance"].pop("profile")
+    invalid_profile_id = copy.deepcopy(example)
+    invalid_profile_id["provenance"]["profile"]["id"] = "Human mtDNA"
+    missing_plugins = copy.deepcopy(example)
+    missing_plugins["provenance"].pop("plugins")
+    unknown_family = copy.deepcopy(example)
+    unknown_family["provenance"]["plugins"][0]["family"] = "kernel"
     missing_integrity = copy.deepcopy(example)
     missing_integrity["signal_quality"].pop("integrity")
     invalid_integrity_ratio = copy.deepcopy(example)
@@ -108,6 +120,49 @@ def rejected_analysis_shapes(
     ] = 0.5
     excessive_vendor_mismatches = copy.deepcopy(example)
     excessive_vendor_mismatches["warnings"]["ploc_vendor_length_mismatches"] = 3
+    missing_callability = copy.deepcopy(example)
+    missing_callability["read"].pop("callability")
+    unknown_phase_state = copy.deepcopy(example)
+    unknown_phase_state["read"]["callability"]["segments"][0]["state"] = "noisy"
+    segment_without_attribution = copy.deepcopy(example)
+    segment_without_attribution["read"]["callability"]["segments"][0].pop(
+        "after_repeat"
+    )
+    callability_with_mask_array = copy.deepcopy(example)
+    callability_with_mask_array["read"]["callability"]["mask"] = [False]
+    callability_without_segments = copy.deepcopy(example)
+    callability_without_segments["read"]["callability"]["segments"] = []
+    alignment_without_masked_bases = copy.deepcopy(example)
+    alignment_without_masked_bases["alignment"].pop("masked_bases")
+    alignment_without_callable_segments = copy.deepcopy(example)
+    alignment_without_callable_segments["alignment"].pop("callable_reference_segments")
+    segments = example["read"]["callability"]["segments"]
+    dephased = next(
+        index
+        for index, segment in enumerate(segments)
+        if segment["state"] == "dephased"
+    )
+    in_phase = next(
+        index
+        for index, segment in enumerate(segments)
+        if segment["state"] == "in_phase"
+    )
+    shadow_cases: list[tuple[str, dict[str, Any]]] = []
+    for description, index, offsets in [
+        ("dephased segment without shadow offsets", dephased, None),
+        ("in-phase segment with shadow offsets", in_phase, [-1]),
+        ("shadow offset zero", dephased, [0]),
+        ("duplicate shadow offsets", dephased, [-1, -1]),
+        ("empty shadow offsets", dephased, []),
+        ("shadow offsets without a one-call shadow", dephased, [2]),
+    ]:
+        mutated = copy.deepcopy(example)
+        segment = mutated["read"]["callability"]["segments"][index]
+        if offsets is None:
+            segment.pop("shadow_offsets")
+        else:
+            segment["shadow_offsets"] = offsets
+        shadow_cases.append((f"analysis callability {description}", mutated))
 
     return [
         ("SNV with no calls", document("SNV", [])),
@@ -123,12 +178,77 @@ def rejected_analysis_shapes(
         ("document with removed sequence section", removed_section),
         ("analysis provenance with removed software version", removed_software_version),
         ("analysis using old schema version", old_schema),
+        ("analysis without profile identity", missing_profile),
+        ("analysis with an invalid profile id", invalid_profile_id),
+        ("analysis without plugin provenance", missing_plugins),
+        ("analysis with an unknown plugin family", unknown_family),
         ("analysis without trace integrity", missing_integrity),
         ("analysis with invalid event-signal ratio", invalid_integrity_ratio),
         (
             "analysis with more than two vendor length mismatches",
             excessive_vendor_mismatches,
         ),
+        ("analysis read without callability", missing_callability),
+        ("analysis callability with unknown phase state", unknown_phase_state),
+        (
+            "analysis callability segment without repeat attribution",
+            segment_without_attribution,
+        ),
+        ("analysis callability with per-position mask", callability_with_mask_array),
+        ("analysis callability without segments", callability_without_segments),
+        ("analysis alignment without masked bases", alignment_without_masked_bases),
+        (
+            "analysis alignment without callable reference segments",
+            alignment_without_callable_segments,
+        ),
+        *shadow_cases,
+    ]
+
+
+def rejected_variants_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    no_reads = copy.deepcopy(example)
+    no_reads["reads"] = []
+    missing_plugins = copy.deepcopy(example)
+    missing_plugins["provenance"].pop("plugins")
+    modality_field = copy.deepcopy(example)
+    modality_field["reads"][0]["variants"][0]["peaks"] = {"A": 1}
+    invalid_reason = copy.deepcopy(example)
+    invalid_reason["reads"][0]["variants"][0]["exclusion_reasons"] = ["Read End"]
+    invalid_allele = copy.deepcopy(example)
+    invalid_allele["reads"][0]["variants"][0]["alternate"] = "N"
+    old_schema = copy.deepcopy(example)
+    old_schema["schema_version"] = "dna.variants/v0"
+    return [
+        ("variants without reads", no_reads),
+        ("variants without plugin provenance", missing_plugins),
+        ("called variant carrying modality evidence", modality_field),
+        ("called variant with an invalid reason label", invalid_reason),
+        ("called variant with a non-canonical allele", invalid_allele),
+        ("variants using an unknown schema version", old_schema),
+    ]
+
+
+def rejected_notation_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    missing_source = copy.deepcopy(example)
+    missing_source["provenance"].pop("source")
+    other_source = copy.deepcopy(example)
+    other_source["provenance"]["source"]["schema_version"] = "dna.sample_evidence/v10"
+    unknown_rule = copy.deepcopy(example)
+    unknown_rule["conformance"]["rules"].append("minimize_differences")
+    empty_finding = copy.deepcopy(example)
+    empty_finding["conformance"]["findings"][0]["calls"] = []
+    missing_notation = copy.deepcopy(example)
+    missing_notation.pop("notation")
+    return [
+        ("notation without its source document", missing_source),
+        ("notation from a non-variants document", other_source),
+        ("notation with an unknown conformance rule", unknown_rule),
+        ("notation finding without calls", empty_finding),
+        ("notation document without notation", missing_notation),
     ]
 
 
@@ -148,7 +268,9 @@ def rejected_basecall_shapes(
     software_version = copy.deepcopy(example)
     software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.basecalls/v1"
+    old_schema["schema_version"] = "dna.basecalls/v2"
+    missing_plugins = copy.deepcopy(example)
+    missing_plugins["provenance"].pop("plugins")
     missing_integrity = copy.deepcopy(example)
     missing_integrity["signal_quality"].pop("integrity")
     invalid_single_ploc_spacing = copy.deepcopy(example)
@@ -156,6 +278,10 @@ def rejected_basecall_shapes(
     integrity["ploc_count"] = 1
     excessive_vendor_mismatches = copy.deepcopy(example)
     excessive_vendor_mismatches["warnings"]["ploc_vendor_length_mismatches"] = 3
+    missing_callability = copy.deepcopy(example)
+    missing_callability["read"].pop("callability")
+    negative_masked_calls = copy.deepcopy(example)
+    negative_masked_calls["read"]["callability"]["masked_calls"] = -1
 
     return [
         ("basecall primary with unsupported symbol", invalid_primary),
@@ -165,13 +291,197 @@ def rejected_basecall_shapes(
         ("basecall provenance with reference", reference),
         ("basecall provenance with software version", software_version),
         ("basecall using old schema version", old_schema),
+        ("basecall without plugin provenance", missing_plugins),
         ("basecall without trace integrity", missing_integrity),
         ("single-PLOC basecall carrying spacing summary", invalid_single_ploc_spacing),
         (
             "basecall with more than two vendor length mismatches",
             excessive_vendor_mismatches,
         ),
+        ("basecall read without callability", missing_callability),
+        ("basecall callability with negative masked calls", negative_masked_calls),
     ]
+
+
+def validate_callability_view(
+    callability: Any, call_count: Any, label: str, errors: list[str]
+) -> None:
+    """Check that segments partition the read and the counts agree with them."""
+    if not isinstance(callability, dict) or not isinstance(call_count, int):
+        return
+    segments = callability.get("segments")
+    span = callability.get("callable_span")
+    if not isinstance(segments, list) or not isinstance(span, dict):
+        return
+    expected_start = 0
+    masked = 0
+    unmasked: list[int] = []
+    for segment in segments:
+        if not isinstance(segment, dict):
+            return
+        calls = segment.get("calls")
+        if not isinstance(calls, dict):
+            return
+        start, end = calls.get("start"), calls.get("end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            return
+        if start != expected_start or end <= start:
+            errors.append(f"{label}: callability segments do not partition the read")
+            return
+        expected_start = end
+        offsets = segment.get("shadow_offsets")
+        if isinstance(offsets, list) and offsets != sorted(offsets):
+            errors.append(f"{label}: callability shadow offsets are not ascending")
+        if segment.get("state") == "in_phase":
+            unmasked.extend((start, end))
+        else:
+            masked += end - start
+    if expected_start != call_count:
+        errors.append(f"{label}: callability segments do not cover every call")
+        return
+    if callability.get("masked_calls") != masked:
+        errors.append(f"{label}: callability masked_calls disagrees with segments")
+    expected_span = (
+        {"start": unmasked[0], "end": unmasked[-1]}
+        if unmasked
+        else {"start": call_count, "end": call_count}
+    )
+    if span != expected_span:
+        errors.append(f"{label}: callability callable_span disagrees with segments")
+
+
+def validate_callable_segments(alignment: Any, label: str, errors: list[str]) -> None:
+    """Check that every callable reference segment lies inside one mapped segment."""
+    if not isinstance(alignment, dict):
+        return
+    mapped = alignment.get("reference_segments")
+    callable_segments = alignment.get("callable_reference_segments")
+    if not isinstance(mapped, list) or not isinstance(callable_segments, list):
+        return
+    for segment in callable_segments:
+        if not isinstance(segment, dict):
+            return
+        start, end = segment.get("start"), segment.get("end")
+        if not isinstance(start, int) or not isinstance(end, int) or end <= start:
+            errors.append(f"{label}: empty or invalid callable reference segment")
+            return
+        if not any(
+            isinstance(outer, dict)
+            and isinstance(outer.get("start"), int)
+            and isinstance(outer.get("end"), int)
+            and outer["start"] <= start
+            and end <= outer["end"]
+            for outer in mapped
+        ):
+            errors.append(
+                f"{label}: callable reference segment {start}..{end} lies outside the mapped segments"
+            )
+
+
+def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
+    for path in paths:
+        document = load_json(path)
+        if not isinstance(document, dict):
+            continue
+        read = document.get("read")
+        if isinstance(read, dict):
+            validate_callability_view(
+                read.get("callability"), read.get("call_count"), str(path), errors
+            )
+        validate_callable_segments(document.get("alignment"), str(path), errors)
+        reads = [
+            *(document.get("reads") or []),
+            *(document.get("rejected_reads") or []),
+        ]
+        for item in reads:
+            if isinstance(item, dict):
+                validate_callable_segments(item.get("alignment"), str(path), errors)
+                integrity = item.get("integrity")
+                call_count = (
+                    integrity.get("ploc_count") if isinstance(integrity, dict) else None
+                )
+                validate_callability_view(
+                    item.get("callability"), call_count, str(path), errors
+                )
+
+
+def validate_rejection(read: dict[str, Any], label: str, errors: list[str]) -> None:
+    """Check that a rejected read's counts agree with its callability view."""
+    rejection = read.get("rejection")
+    callability = read.get("callability")
+    integrity = read.get("integrity")
+    if not (
+        isinstance(rejection, dict)
+        and isinstance(callability, dict)
+        and isinstance(integrity, dict)
+    ):
+        return
+    callable_calls = rejection.get("callable_calls")
+    minimum = rejection.get("minimum_callable_calls")
+    calls = integrity.get("ploc_count")
+    masked = callability.get("masked_calls")
+    if not (
+        isinstance(callable_calls, int)
+        and isinstance(minimum, int)
+        and isinstance(calls, int)
+        and isinstance(masked, int)
+    ):
+        return
+    if callable_calls != calls - masked:
+        errors.append(
+            f"{label}: rejected read callable_calls disagrees with its callability"
+        )
+    if callable_calls >= minimum:
+        errors.append(f"{label}: rejected read reaches minimum_callable_calls")
+
+
+def expected_opposition(
+    document: dict[str, Any], variant: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Recompute a variant's opposition from the read registry and its support."""
+    reads = document.get("reads")
+    support = variant.get("support")
+    position = variant.get("position")
+    reference = variant.get("reference")
+    if not (
+        isinstance(reads, list)
+        and isinstance(support, list)
+        and isinstance(position, int)
+        and isinstance(reference, str)
+    ):
+        return None
+    supporting = {item.get("read") for item in support if isinstance(item, dict)}
+    start = position - 1
+    end = start + len(reference) + (1 if variant.get("kind") == "INS" else 0)
+    names: list[str] = []
+    counts = {"forward": 0, "reverse": 0}
+    for read in reads:
+        if not isinstance(read, dict) or read.get("name") in supporting:
+            continue
+        alignment = read.get("alignment")
+        if not isinstance(alignment, dict):
+            return None
+        segments = alignment.get("callable_reference_segments")
+        orientation = alignment.get("orientation")
+        if not isinstance(segments, list) or orientation not in counts:
+            return None
+        if all(
+            any(
+                isinstance(segment, dict)
+                and isinstance(segment.get("start"), int)
+                and isinstance(segment.get("end"), int)
+                and segment["start"] <= reference_index < segment["end"]
+                for segment in segments
+            )
+            for reference_index in range(start, end)
+        ):
+            names.append(str(read.get("name")))
+            counts[orientation] += 1
+    return {
+        "reads": names,
+        "forward_reads": counts["forward"],
+        "reverse_reads": counts["reverse"],
+    }
 
 
 def validate_sample_support_topology_document(
@@ -196,6 +506,18 @@ def validate_sample_support_topology_document(
                 continue
             orientations[name] = orientation
 
+    rejected = document.get("rejected_reads")
+    if isinstance(rejected, list):
+        for read in rejected:
+            if not isinstance(read, dict):
+                continue
+            name = read.get("name")
+            if isinstance(name, str) and name in orientations:
+                errors.append(
+                    f"{label}: rejected read {name!r} is also an admitted read"
+                )
+            validate_rejection(read, label, errors)
+
     loci = document.get("locus_differences")
     if isinstance(loci, list):
         for index, locus in enumerate(loci):
@@ -214,6 +536,7 @@ def validate_sample_support_topology_document(
                 "alternate_reads": 0,
                 "unresolved_reads": 0,
                 "deletion_reads": 0,
+                "masked_reads": 0,
                 "profile_reads": 0,
                 "profile_forward_reads": 0,
                 "profile_reverse_reads": 0,
@@ -241,7 +564,13 @@ def validate_sample_support_topology_document(
                 seen_reads.add(read_name)
                 orientation = orientations[read_name]
                 expected[f"{orientation}_reads"] += 1
-                if state in {"reference", "alternate", "unresolved", "deletion"}:
+                if state in {
+                    "reference",
+                    "alternate",
+                    "unresolved",
+                    "deletion",
+                    "masked",
+                }:
                     expected[f"{state}_reads"] += 1
                 else:
                     valid = False
@@ -276,6 +605,11 @@ def validate_sample_support_topology_document(
     for index, variant in enumerate(variants):
         if not isinstance(variant, dict):
             continue
+        opposition = expected_opposition(document, variant)
+        if opposition is not None and variant.get("opposition") != opposition:
+            errors.append(
+                f"{label}: variant {index} opposition does not match callable coverage and support"
+            )
         support = variant.get("support")
         topology = variant.get("support_topology")
         if not isinstance(support, list) or not isinstance(topology, dict):
@@ -357,7 +691,26 @@ def rejected_sample_shapes(
     zero_comparable_with_agreement["overlaps"][0]["conflicts"] = 0
 
     old_sample_schema = copy.deepcopy(example)
-    old_sample_schema["schema_version"] = "dna.sample_evidence/v7"
+    old_sample_schema["schema_version"] = "dna.sample_evidence/v9"
+    sample_without_plugins = copy.deepcopy(example)
+    sample_without_plugins["provenance"].pop("plugins")
+    sample_plugin_version_zero = copy.deepcopy(example)
+    sample_plugin_version_zero["provenance"]["plugins"][0]["version"] = 0
+
+    unresolved_notation_call = copy.deepcopy(example)
+    unresolved_notation_call["notation"]["calls"][0]["call"] = "150N"
+    zero_insertion_ordinal = copy.deepcopy(example)
+    zero_insertion_ordinal["notation"]["calls"][0]["call"] = "309.0C"
+    notation_call_without_reads = copy.deepcopy(example)
+    notation_call_without_reads["notation"]["calls"][0]["reads"] = []
+    unknown_notation_style = copy.deepcopy(example)
+    unknown_notation_style["notation"]["style"] = "hgvs"
+    legacy_notation_policy = copy.deepcopy(example)
+    legacy_notation_policy["notation"]["policy"] = "rcrs_right_aligned_control_region"
+    sample_without_profile = copy.deepcopy(example)
+    sample_without_profile["provenance"].pop("profile")
+    extra_notation_field = copy.deepcopy(example)
+    extra_notation_field["notation"]["consensus"] = []
 
     missing_locus_support_topology = copy.deepcopy(example)
     missing_locus_support_topology["locus_differences"][0].pop("support_topology")
@@ -384,6 +737,8 @@ def rejected_sample_shapes(
 
     missing_read_integrity = copy.deepcopy(example)
     missing_read_integrity["reads"][0].pop("integrity")
+    missing_read_callability = copy.deepcopy(example)
+    missing_read_callability["reads"][0].pop("callability")
 
     invalid_sample_id = copy.deepcopy(example)
     invalid_sample_id["sample_id"] = "../sample"
@@ -392,6 +747,25 @@ def rejected_sample_shapes(
     for observation in all_reference_locus["locus_differences"][0]["observations"]:
         observation["state"] = "reference"
         observation["base"] = all_reference_locus["locus_differences"][0]["reference"]
+
+    rejected_with_alignment = copy.deepcopy(example)
+    rejected_with_alignment["rejected_reads"][0]["alignment"] = copy.deepcopy(
+        example["reads"][0]["alignment"]
+    )
+    rejected_with_unknown_reason = copy.deepcopy(example)
+    rejected_with_unknown_reason["rejected_reads"][0]["rejection"]["reason"] = "noisy"
+    missing_rejected_reads = copy.deepcopy(example)
+    missing_rejected_reads.pop("rejected_reads")
+
+    all_masked_locus = copy.deepcopy(example)
+    for observation in all_masked_locus["locus_differences"][0]["observations"]:
+        observation["state"] = "masked"
+    missing_masked_bases = copy.deepcopy(example)
+    missing_masked_bases["reads"][0]["alignment"].pop("masked_bases")
+    missing_opposition = copy.deepcopy(example)
+    missing_opposition["variants"][0].pop("opposition")
+    missing_masked_reads = copy.deepcopy(example)
+    missing_masked_reads["locus_differences"][0]["support_topology"].pop("masked_reads")
 
     verbose_deletion = copy.deepcopy(example)
     observation = verbose_deletion["locus_differences"][0]["observations"][0]
@@ -448,6 +822,15 @@ def rejected_sample_shapes(
         ("overlap with comparable bases but no agreement", missing_overlap_agreement),
         ("zero-comparable overlap with agreement", zero_comparable_with_agreement),
         ("sample evidence using old schema version", old_sample_schema),
+        ("sample evidence without plugin provenance", sample_without_plugins),
+        ("sample evidence with plugin version zero", sample_plugin_version_zero),
+        ("sample notation with an unresolved call base", unresolved_notation_call),
+        ("sample notation with a zero insertion ordinal", zero_insertion_ordinal),
+        ("sample notation call without supporting reads", notation_call_without_reads),
+        ("sample notation with an unknown style", unknown_notation_style),
+        ("sample notation with the removed policy field", legacy_notation_policy),
+        ("sample evidence without profile identity", sample_without_profile),
+        ("sample notation with an extra field", extra_notation_field),
         ("sample locus without support topology", missing_locus_support_topology),
         ("sample called locus without noisy context", missing_locus_noisy_context),
         ("sample locus profile with out-of-range channel", out_of_range_profile),
@@ -457,6 +840,14 @@ def rejected_sample_shapes(
         ("sample evidence with empty coverage topology", empty_coverage),
         ("sample coverage with zero read depth", zero_coverage_depth),
         ("sample read without trace integrity", missing_read_integrity),
+        ("sample read without callability", missing_read_callability),
+        ("sample locus retained only by masked observations", all_masked_locus),
+        ("sample rejected read with an alignment", rejected_with_alignment),
+        ("sample rejected read with an unknown reason", rejected_with_unknown_reason),
+        ("sample without rejected reads", missing_rejected_reads),
+        ("sample read alignment without masked bases", missing_masked_bases),
+        ("sample locus topology without masked reads", missing_masked_reads),
+        ("sample variant without opposition", missing_opposition),
         ("sample evidence with invalid sample id", invalid_sample_id),
         (
             "sparse difference locus with only reference observations",
@@ -521,6 +912,22 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="sample-evidence result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--variants",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="variants result to validate; may be repeated",
+    )
+    parser.add_argument(
+        "--notation",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="notation result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
 
 
@@ -530,13 +937,20 @@ def main(argv: list[str] | None = None) -> int:
     analysis_validator = validator(ANALYSIS_SCHEMA, errors)
     basecall_validator = validator(BASECALL_SCHEMA, errors)
     sample_validator = validator(SAMPLE_SCHEMA, errors)
+    variants_validator = validator(VARIANTS_SCHEMA, errors)
+    notation_validator = validator(NOTATION_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
+    variants_paths = args.variants or [VARIANTS_EXAMPLE]
+    notation_paths = args.notation or [NOTATION_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
+    validate_documents(variants_validator, variants_paths, errors)
+    validate_documents(notation_validator, notation_paths, errors)
     validate_sample_support_topology(sample_paths, errors)
+    validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
 
     analysis_example = load_json(ANALYSIS_EXAMPLE)
     valid_shapes = analysis_call_shapes(analysis_example)
@@ -628,9 +1042,84 @@ def main(argv: list[str] | None = None) -> int:
     if not duplicate_read_errors:
         errors.append("expected duplicate sample read name to be rejected")
 
+    wrong_opposition = copy.deepcopy(sample_example)
+    wrong_opposition["variants"][0]["opposition"] = {
+        "reads": [],
+        "forward_reads": 0,
+        "reverse_reads": 0,
+    }
+    opposition_errors: list[str] = []
+    validate_sample_support_topology_document(
+        wrong_opposition, "synthetic opposition", opposition_errors
+    )
+    if not opposition_errors:
+        errors.append(
+            "expected an opposition that omits a callable read to be rejected"
+        )
+
+    for description, mutate in [
+        (
+            "admitted name",
+            lambda read: read.update(name=sample_example["reads"][0]["name"]),
+        ),
+        ("callable count", lambda read: read["rejection"].update(callable_calls=3)),
+        ("minimum", lambda read: read["rejection"].update(minimum_callable_calls=0)),
+    ]:
+        inconsistent_rejection = copy.deepcopy(sample_example)
+        mutate(inconsistent_rejection["rejected_reads"][0])
+        rejection_errors: list[str] = []
+        validate_sample_support_topology_document(
+            inconsistent_rejection, "synthetic rejected read", rejection_errors
+        )
+        if not rejection_errors:
+            errors.append(
+                f"expected a rejected read with inconsistent {description} to fail"
+            )
+
+    inconsistent_callability = copy.deepcopy(analysis_example)
+    inconsistent_callability["read"]["callability"]["masked_calls"] += 1
+    callability_errors: list[str] = []
+    validate_callability_view(
+        inconsistent_callability["read"]["callability"],
+        inconsistent_callability["read"]["call_count"],
+        "synthetic inconsistent callability",
+        callability_errors,
+    )
+    if not callability_errors:
+        errors.append("expected inconsistent callability counts to be rejected")
+
+    outside_callable = copy.deepcopy(analysis_example)
+    outside_callable["alignment"]["callable_reference_segments"] = [
+        {"start": 0, "end": 1_000_000}
+    ]
+    outside_errors: list[str] = []
+    validate_callable_segments(
+        outside_callable["alignment"], "synthetic callable segment", outside_errors
+    )
+    if not outside_errors:
+        errors.append("expected a callable segment outside the mapping to be rejected")
+
+    unsorted_offsets = copy.deepcopy(analysis_example)
+    for segment in unsorted_offsets["read"]["callability"]["segments"]:
+        if segment["state"] == "dephased":
+            segment["shadow_offsets"] = [1, -1]
+    offset_errors: list[str] = []
+    validate_callability_view(
+        unsorted_offsets["read"]["callability"],
+        unsorted_offsets["read"]["call_count"],
+        "synthetic unsorted shadow offsets",
+        offset_errors,
+    )
+    if not offset_errors:
+        errors.append("expected unsorted shadow offsets to be rejected")
+
     assert_rejected(analysis_validator, rejected_analysis, errors)
     assert_rejected(basecall_validator, rejected_basecalls, errors)
     assert_rejected(sample_validator, rejected_samples, errors)
+    rejected_variants = rejected_variants_shapes(load_json(VARIANTS_EXAMPLE))
+    assert_rejected(variants_validator, rejected_variants, errors)
+    rejected_notation = rejected_notation_shapes(load_json(NOTATION_EXAMPLE))
+    assert_rejected(notation_validator, rejected_notation, errors)
 
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
@@ -639,9 +1128,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
-        f"and {len(sample_paths)} sample-evidence document(s), {len(valid_shapes)} "
-        f"analysis call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples)} "
+        f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, and "
+        f"{len(notation_paths)} notation document(s), {len(valid_shapes)} analysis "
+        "call shapes; rejected "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation)} "
         "invalid shape(s)"
     )
     return 0

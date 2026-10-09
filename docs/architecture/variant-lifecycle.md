@@ -90,15 +90,17 @@ scientific paths.
 
 | Input/source | Source-specific evidence path | Variant boundary |
 |---|---|---|
-| Sanger ABIF | ABIF -> chromatogram -> base calling / signal / QC -> selected pairwise alignment | Sanger alignment caller -> `CalledVariantSet` |
-| assembled/consensus FASTA sequence | sequence -> reference alignment | sequence-difference caller -> `CalledVariantSet` |
+| Sanger ABIF | ABIF -> chromatogram -> base calling / signal / callability / QC -> `ReadEvidence` | core caller (`dna_core::read_call`) -> `CalledVariantSet` |
+| assembled/consensus FASTA sequence | sequence -> `ReadEvidence` (vouched ends) | core caller (`dna_core::read_call`) -> `CalledVariantSet` |
 | FASTQ / NGS reads | reads -> QC/preprocessing -> mapping -> read/depth evidence | NGS caller -> `CalledVariantSet` |
 | BAM / CRAM | validated aligned-read input -> read/depth/mapping evidence | NGS caller -> `CalledVariantSet` |
 | VCF / BCF | validated external called-variant representation | variant importer/adapter -> `CalledVariantSet`; raw calling is bypassed |
 | future evidence source | source-specific adapter/analysis | source-specific caller or importer -> `CalledVariantSet` |
 
 These rows are architectural paths, not claims that all sources are currently
-implemented. Current production support is Sanger ABIF plus FASTA reference.
+implemented. Current production support is Sanger ABIF and reviewed consensus
+FASTA through the shared core caller, plus `dna.variants/v1` documents imported
+by `notation`.
 
 ### Why there is no universal raw-alignment contract
 
@@ -229,11 +231,10 @@ biological call.
 Today DNA implements:
 
 ~~~text
-Sanger ABIF
-  -> Sanger evidence
-  -> selected pairwise alignment
-  -> variant_calling
-  -> current Variant Analysis result
+Sanger ABIF            -> Sanger evidence -> ReadEvidence -+
+reviewed consensus FASTA ----------------> ReadEvidence -+-> core caller (alignment, variant_calling)
+                                                          -> analysis / sample / variants documents
+dna.variants/v1 -> notation (normalization, nomenclature, conformance)
 ~~~
 
 The current Sanger aligner also selects deterministic right-most
@@ -242,19 +243,17 @@ the current variant builder preserves that selected placement.
 
 DNA now also exposes `VariantAnalysisResult::called_variants()` as the typed
 `CalledVariantSet` boundary and an optional standalone
-`variant_normalization` capability. The initial
-`MtDnaRightAligned` policy preserves source calls and the complete reconstructed
-haplotype while selecting sequence-equivalent 3'/right-most indel placement
-without crossing the FASTA/rCRS seam.
+`variant_normalization` capability. The `RightAligned` policy preserves source
+calls and the complete reconstructed haplotype while selecting
+sequence-equivalent 3'/right-most indel placement without crossing the FASTA
+seam.
 
 DNA also exposes the immutable `variant_nomenclature` input seam from a
 `VariantNormalizationResult`, carrying reference identity, exact source calls,
 the reconstructed alternate haplotype, and normalized variants together.
 
-The first target-specific implementation is the human-mtDNA HVS-II 309/315
-poly-C rule. It converts sequence-equivalent movement of the T310 anchor into
-C-run length changes at the 309 and 315 boundaries and verifies that the
-complete represented haplotype is unchanged.
-
-HVS-III 513-524 and HVS-I 16189/16193 nomenclature remain planned under
-ADR-0060.
+Target-specific nomenclature is data: a target profile (ADR-0063) declares
+reference windows with ordered rules, and the generic engine applies the first
+rule that reproduces each window haplotype, verifying that the complete
+represented haplotype is unchanged. The shipped human-mtDNA profile declares the
+HVS-II 303-315, HVS-III 513-524, and HVS-I 16181-16193 windows.

@@ -1,6 +1,6 @@
 # Data and Fixture Governance
 
-This document governs local biological data, derived results, validation truth, and approved real-trace evidence. Operational batch mechanics live in [operations/batch.md](../operations/runbooks/batch-analysis.md).
+This document governs local biological data, derived results, validation truth, and approved real-trace evidence.
 
 ## Scope
 
@@ -36,7 +36,7 @@ data/validation/ground-truth/
 
 Generated evaluation artifacts under `validation-results/` inherit the same policy because extra/missing/representation rows disclose biological differences.
 
-Repository tests may exercise the same parsing and comparison logic only with synthetic reviewer notation and synthetic identities.
+DNA contains no comparison logic (SRS-COMPAT-003, ADR-0065): reviewer truth is parsed and compared by downstream pipelines that consume DNA's published results, and this storage policy applies to their outputs when they are kept as DNA validation evidence.
 
 ## Approval record for real validation evidence
 
@@ -51,8 +51,8 @@ Before using a real AB1 trace as compatibility, validation, or release evidence,
 7. expected stage outputs or biological truth and how they were established;
 8. redistribution permission or restriction.
 
-A trace without this record may be used for exploratory local debugging, but not to support compatibility or release claims.
+A trace without this record may be used for exploratory local debugging, but not to support compatibility or release claims. Exploratory measurements on the local corpus may inform a decision when they are quoted in aggregate without sample identifiers and against a named revision; they do not satisfy the approval record.
 
 ## Operational boundary
 
-Selecting, grouping, cleaning, and rerunning a local corpus is external orchestration. It does not expand the core CLI input contract. See [local batch orchestration](../operations/runbooks/batch-analysis.md).
+Selecting, grouping, cleaning, and rerunning a local corpus is orchestration by downstream pipelines (ADR-0066). It does not expand the core CLI input contract.

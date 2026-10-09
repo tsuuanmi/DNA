@@ -13,9 +13,9 @@ documented lifecycle.
 
 ## Source boundaries
 
-- Executable production source under `src/` is Rust; source-local `README.md` files are the only non-Rust files allowed there.
-- Python under `tools/python/` is for research, validation, orchestration, and
-  tests only and must not become a runtime dependency of the `dna` binary.
+- Executable production source under `src/` and `crates/*/src/` is Rust; source-local `README.md` files are the only non-Rust files allowed there.
+- Python under `tools/python/` is for repository checks, measurement, and tests
+  only (ADR-0066; batch orchestration belongs to downstream pipelines) and must not become a runtime dependency of the `dna` binary.
 - Scientific behavior changes require matching tests and documentation.
 - Breaking JSON output changes require a new contract/schema version.
 
@@ -24,11 +24,11 @@ documented lifecycle.
 ```bash
 cargo fmt --all --check
 cargo shear --deny-warnings
-cargo check --locked --all-targets --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
-cargo test --locked --all-targets --all-features
-RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
-cargo build --locked --release
+cargo check --workspace --locked --all-targets --all-features
+cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+cargo test --workspace --locked --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
+cargo build --locked --release -p dna
 ```
 
 For Python companion tooling:
@@ -40,6 +40,11 @@ uv run ruff format --check scripts tests
 uv run ruff check scripts tests
 uv run basedpyright scripts tests
 uv run python -m unittest discover -s tests -p 'test_*.py'
+uv run python scripts/validate_result_schemas.py
+uv run python scripts/validate_rust_source_policy.py
+uv run python scripts/validate_docs_structure.py
+uv run python scripts/validate_module_layers.py
+uv run python scripts/validate_workflow_policy.py
 ```
 
 CI additionally runs workflow security analysis, dependency policy/review, MSRV checks,

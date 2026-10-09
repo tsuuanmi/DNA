@@ -1,10 +1,13 @@
-mod support;
+//! Public `variant_analysis` capability without CLI side effects.
+
+pub mod support;
 
 use std::fs;
 
 use tempfile::tempdir;
 
-use dna::variant_analysis::{self, VariantKind};
+use dna::variant::VariantKind;
+use dna::variant_analysis;
 use support::{write_abif, write_config, write_reference};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -43,6 +46,10 @@ fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
     assert!(!result.reference.sha256.is_empty());
     assert!(!result.configuration_sha256.is_empty());
     assert!(!result.reference_segments.is_empty());
+
+    let called = result.called_variants();
+    assert_eq!(called.reference, result.reference);
+    assert_eq!(called.variants, result.variants);
 
     assert!(!directory.path().join("results").exists());
     assert!(!directory.path().join("logs").exists());

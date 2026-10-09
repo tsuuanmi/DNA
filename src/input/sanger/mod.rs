@@ -9,17 +9,20 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::config::{self, Config};
-use crate::error::{Error, Result};
-use crate::model::reference::Reference;
-use crate::model::sanger::Chromatogram;
-use crate::reference;
+use crate::config::Config;
+use dna_kernel::error::{Result, SampleError};
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
+use dna_sanger::model::sanger::Chromatogram;
 
-pub(crate) mod abif;
+use super::{load_config, load_profile, load_reference, require_regular_file};
 
-/// Validated paths and configuration prepared before decoding one analysis trace.
+use dna_sanger::abif;
+
+/// Validated paths, configuration, and profile prepared before decoding one analysis trace.
 pub(crate) struct PreparedAnalysisInputs {
     config: Config,
+    profile: Profile,
     trace_path: PathBuf,
     reference_path: PathBuf,
 }
@@ -27,6 +30,7 @@ pub(crate) struct PreparedAnalysisInputs {
 /// Scientific inputs for one reference-guided Sanger analysis.
 pub(crate) struct AnalysisInputs {
     pub(crate) config: Config,
+    pub(crate) profile: Profile,
     pub(crate) trace: Chromatogram,
     pub(crate) reference: Reference,
 }
@@ -46,6 +50,7 @@ pub(crate) struct BasecallInputs {
 /// Scientific inputs for one multi-read Sanger sample analysis.
 pub(crate) struct SampleInputs {
     pub(crate) config: Config,
+    pub(crate) profile: Profile,
     pub(crate) traces: Vec<Chromatogram>,
     pub(crate) reference: Reference,
 }
@@ -59,8 +64,10 @@ pub(crate) fn prepare_analysis(
     require_regular_file(trace_path, "AB1")?;
     require_regular_file(reference_path, "reference")?;
     let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
     Ok(PreparedAnalysisInputs {
         config,
+        profile,
         trace_path: trace_path.to_path_buf(),
         reference_path: reference_path.to_path_buf(),
     })
@@ -70,13 +77,15 @@ pub(crate) fn prepare_analysis(
 pub(crate) fn load_analysis(prepared: PreparedAnalysisInputs) -> Result<AnalysisInputs> {
     let PreparedAnalysisInputs {
         config,
+        profile,
         trace_path,
         reference_path,
     } = prepared;
     let trace = abif::load(&trace_path)?;
-    let reference = reference::load(&reference_path, config.reference.topology)?;
+    let reference = load_reference(&reference_path, &profile)?;
     Ok(AnalysisInputs {
         config,
+        profile,
         trace,
         reference,
     })
@@ -109,45 +118,23 @@ pub(crate) fn load_sample(
     config_path: &Path,
 ) -> Result<SampleInputs> {
     if trace_paths.is_empty() {
-        return Err(Error::Sample(
-            "sample analysis requires at least one AB1 trace".into(),
-        ));
+        return Err(SampleError::NoTraces.into());
     }
     for trace_path in trace_paths {
         require_regular_file(trace_path, "AB1")?;
     }
     require_regular_file(reference_path, "reference")?;
     let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
     let traces = trace_paths
         .iter()
         .map(|path| abif::load(path))
         .collect::<Result<Vec<_>>>()?;
-    let reference = reference::load(reference_path, config.reference.topology)?;
+    let reference = load_reference(reference_path, &profile)?;
     Ok(SampleInputs {
         config,
+        profile,
         traces,
         reference,
     })
-}
-
-fn load_config(path: &Path) -> Result<Config> {
-    let config = config::load_path(path)?;
-    require_regular_file(&config.source_path, "configuration")?;
-    Ok(config)
-}
-
-fn require_regular_file(path: &Path, kind: &'static str) -> Result<()> {
-    let metadata = path.metadata().map_err(|source| Error::Read {
-        kind,
-        path: path.to_path_buf(),
-        source,
-    })?;
-    if !metadata.is_file() || metadata.len() == 0 {
-        return Err(Error::Path {
-            kind,
-            path: path.to_path_buf(),
-            reason: "path must be a non-empty regular file".into(),
-        });
-    }
-    Ok(())
 }

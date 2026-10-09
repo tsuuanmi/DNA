@@ -5,7 +5,9 @@ Part of the canonical [sample evidence contract](README.md).
 ## Reads and post-trim coverage
 
 `reads[]` is the one registry of contributing reads. Records are sorted by
-SHA-256, so CLI argument order does not change the scientific document.
+SHA-256, so CLI argument order does not change the scientific document. Reads
+that could not be analyzed are listed separately in `rejected_reads[]` (see
+[Rejected reads](#rejected-reads)).
 
 Each record contains:
 
@@ -16,15 +18,26 @@ Each record contains:
   exact-clipping, and event-signal-scale observations retained by the one-read
   pipeline; this evidence remains read-local and does not by itself admit/reject
   a read;
+- `callability`: the read's `dna.read_callability/v1` view — callable span,
+  ordered phase-state segments with repeat attribution and the shadow offsets of
+  dephased segments, and masked-call count —
+  exactly as the one-read contracts publish it ([method](../../design/callability.md));
 - `alignment`: the evidence-derived orientation, callable-base count and
-  identity, unresolved-base count, gap-open count, mapped reference segments, and
-  origin-wrap state.
+  identity, unresolved-base count, masked-base count, gap-open count, mapped
+  reference segments, callable reference segments, and origin-wrap state.
 
-The scientific pipeline trims each read before alignment. `reference_segments`
-therefore describe where the **retained post-trim sequence** aligned on the
-reference, not the untrimmed raw call span.
+The scientific pipeline trims each read to its callable span, plus a few
+dephased context calls, before alignment. `reference_segments` therefore
+describe where the **retained post-trim sequence** aligned on the reference,
+not the untrimmed raw call span. `masked_bases` counts aligned calls that the
+read's callability masks: dephased ones align with their call and profile,
+every other masked call as unresolved, and none of them counts in
+`unresolved_bases`. `callable_reference_segments` are the parts of the mapped
+segments observed by unmasked calls and by deletions between them; a covered
+position outside them is covered by a masked call.
 
-`reference_segments` are 0-based half-open. For a segment
+`reference_segments` and `callable_reference_segments` are 0-based half-open.
+For a segment
 `{"start": S, "end": E}`, the covered 1-based biological positions are
 `S + 1` through `E`, inclusive.
 
@@ -33,6 +46,22 @@ For a circular reference, a read can cross the reference origin. In that case
 one from the mapped start to the end of the reference and one from reference
 position 0 to the mapped end. A normal non-crossing read has
 `wraps_origin: false`.
+
+## Rejected reads
+
+`rejected_reads[]` lists reads whose callability left fewer than
+`callability.minimum_callable_calls` unmasked calls (ADR-0067). Records are
+sorted by SHA-256 and contain `name`, `sha256`, `integrity`, and `callability`
+as in `reads[]`, plus `rejection`:
+
+- `reason`: `callable_calls_below_minimum`;
+- `callable_calls`: the read's unmasked call count;
+- `minimum_callable_calls`: the configured minimum.
+
+A rejected read has no `alignment` and contributes nothing to `coverage[]`,
+`overlaps[]`, `locus_differences[]`, `variants[]`, or `notation`. Names are
+unique across both registries. The array is empty when every read was
+analyzed; a sample whose every read is rejected fails without a document.
 
 Read names are unique within one emitted sample document because they are used as
 human-readable references from overlap, locus, and variant evidence. SHA-256 remains the

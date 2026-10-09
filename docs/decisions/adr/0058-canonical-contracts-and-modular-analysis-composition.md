@@ -1,6 +1,6 @@
 # ADR-0058: Canonical contracts and modular analysis composition
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0069](0069-plugin-first-modality-core-post-calling.md) (§4) and [ADR-0070](0070-workspace-split-by-plugin-family.md) (§9)
 - **Date:** 2026-10-03
 - **Related proposal:** [PROP-0001](../../proposals/0001-modular-dna-analysis-platform.md)
 
@@ -79,6 +79,10 @@ A module is not automatically a plugin. Traits, separate crates, runtime
 selection, and provider abstractions are introduced only when they remove a real
 coupling, dependency, testing, ownership, or configuration problem.
 
+> **Superseded in part (2026-10-09):** [ADR-0069](0069-plugin-first-modality-core-post-calling.md)
+> declares the modality, core-caller, and post-calling families and their data
+> contracts as variation seams. Stages inside a plugin remain ordinary modules.
+
 ### 5. Algorithm and data-provider variation remain independent
 
 When an analysis algorithm and its knowledge source can vary separately, DNA
@@ -134,6 +138,9 @@ The current source may introduce these boundaries inside one crate. A future
 workspace ADR may supersede ADR-0002 only after identifying concrete crate
 consumers and a cycle-free dependency graph with a justified dependency,
 ownership, reuse, build, or release boundary.
+
+> **Superseded (2026-10-09):** [ADR-0070](0070-workspace-split-by-plugin-family.md)
+> splits the workspace by plugin family.
 
 ## Alternatives considered
 

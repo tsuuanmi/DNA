@@ -12,7 +12,7 @@ DNA documentation implements the reusable [Documentation Architecture Standard](
 4. [Decisions](decisions/README.md) — why durable choices were made.
 5. [Proposals](proposals/README.md) and [research](research/README.md) — changes/evidence that are not current truth.
 6. [Reference](reference/README.md) — exact public/configuration/schema semantics.
-7. The nearest [source README](../src/README.md) and affected source — implementation ownership and executable behavior.
+7. The nearest source README ([facade](../src/README.md), [workspace crates](../crates/README.md)) and affected source — implementation ownership and executable behavior.
 8. [Validation](validation/README.md) — evidence that protects the behavior.
 9. [Engineering](engineering/README.md), [operations](operations/README.md), and [security](security/README.md) — delivery and production support.
 10. [Governance](governance/README.md) — lifecycle, ownership, versioning, and documentation policy.
@@ -53,7 +53,6 @@ docs/
 ├── validation/
 ├── engineering/
 ├── operations/
-│   ├── runbooks/
 │   └── playbooks/
 ├── security/
 ├── reference/

@@ -31,17 +31,17 @@ jobs:
         if: github.event_name == 'push'
         shell: bash
         run: |
-          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          version="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "dna") | .version')"
           test "$GITHUB_REF_NAME" = "v$version"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - name: Verify release revision
         if: github.event_name == 'push'
         run: |
           cargo fmt --all --check
-          cargo check --locked --all-targets --all-features
-          cargo clippy --locked --all-targets --all-features -- -D warnings
-          cargo test --locked --all-targets --all-features
-          RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+          cargo check --workspace --locked --all-targets --all-features
+          cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
+          cargo test --workspace --locked --all-targets --all-features
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
       - name: Install release dependency policy tool
         if: github.event_name == 'push'
         uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
@@ -60,13 +60,14 @@ jobs:
         if: github.event_name == 'push'
         run: cargo audit
       - name: Build auditable release binary
-        run: cargo auditable build --locked --release --target "$RELEASE_TARGET"
+        run: cargo auditable build --locked --release -p dna --target "$RELEASE_TARGET"
       - name: Prepare artifact and provenance
         shell: bash
         run: |
-          mkdir -p dist/package/config dist/package/references
+          mkdir -p dist/package/config/profiles dist/package/references
           cp "target/${RELEASE_TARGET}/release/dna" dist/package/dna
           cp config/dna.toml dist/package/config/dna.toml
+          cp config/profiles/*.toml dist/package/config/profiles/
           cp references/rCRS.fasta dist/package/references/rCRS.fasta
           strip --keep-section=.dep-v0 dist/package/dna
           rustc --version --verbose > dist/package/rustc-version.txt
@@ -76,6 +77,7 @@ jobs:
           (
             cd dist/package
             sha256sum config/dna.toml > config/dna.toml.sha256
+            sha256sum config/profiles/*.toml > config/profiles.sha256
             sha256sum references/rCRS.fasta > references/rCRS.fasta.sha256
           )
       - name: Verify packaged binary and runtime assets
@@ -86,6 +88,7 @@ jobs:
           (
             cd dist/package
             sha256sum -c config/dna.toml.sha256
+            sha256sum -c config/profiles.sha256
             sha256sum -c references/rCRS.fasta.sha256
             ./dna --help >/dev/null
           )

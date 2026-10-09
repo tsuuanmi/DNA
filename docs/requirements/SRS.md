@@ -2,7 +2,7 @@
 
 This document is the canonical index for DNA's normative Software Requirements Specification (SRS).
 
-DNA is a deterministic Rust library and CLI for DNA analysis. The current normative production requirements cover the implemented Sanger ABIF path against short references; future mtDNA, nuclear/genomic DNA, targeted/SNP, NGS, or downstream capabilities become normative only when their requirement families are added. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
+DNA is a deterministic Rust library and CLI for DNA analysis. The current normative production requirements cover the implemented Sanger ABIF path, reviewed consensus sequences (`call`), and variants documents (`notation`) against short references; future mtDNA, nuclear/genomic DNA, targeted/SNP, NGS, or downstream capabilities become normative only when their requirement families are added. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
 
 ## Requirement families
 
@@ -11,8 +11,10 @@ DNA is a deterministic Rust library and CLI for DNA analysis. The current normat
 | `SRS-IN-*` | inputs and process boundary | [input.md](input.md) |
 | `SRS-API-*` | public Rust library boundary | [api.md](api.md) |
 | `SRS-CFG-*` | configuration | [configuration.md](configuration.md) |
+| `SRS-PRF-*` | target profiles | [profiles.md](profiles.md) |
 | `SRS-BC-*` | DNA-derived base re-calling | [basecalling.md](basecalling.md) |
 | `SRS-SIG-*` | observational signal processing | [signal-processing.md](signal-processing.md) |
+| `SRS-CALL-*` | signal-derived read callability: phase state, mask, callable span | [callability.md](callability.md) |
 | `SRS-QC-*` | quality control and trimming | [quality-control.md](quality-control.md) |
 | `SRS-ALN-*` | reference alignment and placement | [alignment.md](alignment.md) |
 | `SRS-SAMPLE-*` | multi-read sample evidence | [sample-evidence](sample-evidence/README.md) |
@@ -20,7 +22,6 @@ DNA is a deterministic Rust library and CLI for DNA analysis. The current normat
 | `SRS-VN-*` | optional post-calling variant normalization | [variant-normalization.md](variant-normalization.md) |
 | `SRS-NOM-*` | optional target-specific variant nomenclature | [variant-nomenclature.md](variant-nomenclature.md) |
 | `SRS-OUT-*` | result publication and operational logging | [output.md](output.md) |
-| `SRS-BAT-*` | external batch orchestration | [batch.md](batch.md) |
 | `SRS-COMPAT-*` | external-reference comparison constraints | [constraints.md](constraints.md) |
 | `SRS-NFR-*` | non-functional quality attributes | [quality-attributes.md](quality-attributes.md) |
 | `SRS-VAL-*` | validation acceptance criteria | [validation/acceptance criteria](../validation/acceptance-criteria.md) |

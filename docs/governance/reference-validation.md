@@ -11,12 +11,13 @@ DNA compares behaviors only where the scientific preconditions match. Current DN
 | Apollo area | DNA | Treatment |
 |---|---|---|
 | `preprocessing/abif.h` | `trace` | strict bounds and canonical DATA.9-12/FWO/PLOC decode |
-| ABIF `basecall` | `basecalling`; `signal basecall` | PLOC-window signal re-calling with corrected ties/ambiguity and one versioned JSON result; no Apollo FASTA/FASTQ/TSV compatibility surface |
+| ABIF `basecall` | `basecalling`; `dna basecall` | PLOC-window signal re-calling with corrected ties/ambiguity and one versioned JSON result; no Apollo FASTA/FASTQ/TSV compatibility surface |
 | no Apollo equivalent | `signal_processing` | observation-only rolling SNR and candidate-noisy regions |
-| quality helpers/`trim.h` | `quality_control` | safe penalty and end-trim behavior; score named relative |
+| no Apollo equivalent | `callability` | signal-derived phase-state segments, mask, and callable span (ADR-0067) |
+| quality helpers/`trim.h` | `quality_control` | safe penalty arithmetic; score named relative; the trim interval comes from the callable span, not Apollo's best-section walk-out |
 | `alignment/gotoh.h` | `alignment` | bounded deterministic fixed-point profile-aware semi-global affine DP |
 | primary subset of `variant.h` | `variant_calling` | SNV/small-indel extraction, normalization, and configured eligibility |
-| `logger.rs` | `logger` | Apollo-style timestamp/level/source records written to per-trace files |
+| `operation_log.rs` | `operation_log` | Apollo-style timestamp/level/source records rendered from `tracing` events into per-operation files |
 | `report/json.h` | `report` | versioned, nested, schema-governed JSON |
 
 ## Differential evidence targets
@@ -44,11 +45,11 @@ For an approved fixture, raw decoded bytes, channel remapping, PLOC positions, u
 - N uses an explicit alignment score and cannot produce a reportable SNV;
 - rCRS is treated as circular and origin-spanning coordinates are preserved;
 - indels are normalized deterministically, including circular repeats;
-- compact `dna.analysis/v7` JSON is the sole reference-guided single-read analysis result; it retains provenance, read/trim, merged noisy-region, alignment, normalized-variant, and warning summaries while omitting filenames, sequences, rolling windows, gapped rows, method constants, call indexes/PLOC coordinates, selected-peak positions/sources, vendor data, and redundant fields; append-only operational logs remain separate and no VCF/BCF or legacy JSON compatibility layer exists;
+- compact `dna.analysis/v9` JSON is the sole reference-guided single-read analysis result; it retains provenance, read/trim/callability, merged noisy-region, alignment, normalized-variant, and warning summaries while omitting filenames, sequences, rolling windows, gapped rows, method constants, call indexes/PLOC coordinates, selected-peak positions/sources, vendor data, and redundant fields; append-only operational logs remain separate and no VCF/BCF or legacy JSON compatibility layer exists;
 - no ConfirmFilter, PHFinder, genotype, allelic fraction, or two-allele decomposition.
 
 None of these divergences keeps a legacy path: DNA emits a single
-`dna.analysis/v7` result, consumes only the documented tags, and exposes no
+`dna.analysis/v9` result, consumes only the documented tags, and exposes no
 compatibility switch, alias, or removed behavior.
 
 The previous Apollo Rust port is not ground truth where it uses PBAS as the final result, sample-specific early-region logic, loose goldens, ignored write errors, or inconsistent coordinates/quality fields.

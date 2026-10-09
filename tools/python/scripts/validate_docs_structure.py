@@ -3,7 +3,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DOCS = ROOT / "docs"
-SOURCE = ROOT / "src"
+# Source trees: the facade crate at the root and every workspace member crate.
+SOURCES = [ROOT / "src", *sorted(ROOT.glob("crates/*/src"))]
 FORBIDDEN_NAMES = {
     "archive",
     "archives",
@@ -84,8 +85,12 @@ def main() -> None:
             )
 
     source_directories = [
-        SOURCE,
-        *sorted(path for path in SOURCE.rglob("*") if path.is_dir()),
+        directory
+        for source in SOURCES
+        for directory in [
+            source,
+            *sorted(path for path in source.rglob("*") if path.is_dir()),
+        ]
     ]
     for directory in source_directories:
         if not (directory / "README.md").is_file():
@@ -98,7 +103,8 @@ def main() -> None:
         ROOT / "README.md",
         ROOT / "AGENTS.md",
         *sorted(DOCS.rglob("*.md")),
-        *sorted(SOURCE.rglob("README.md")),
+        *sorted((ROOT / "crates").rglob("README.md")),
+        *sorted((ROOT / "src").rglob("README.md")),
     ]
     for markdown_file in markdown_files:
         validate_markdown_links(markdown_file, errors)

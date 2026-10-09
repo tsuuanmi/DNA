@@ -1,12 +1,12 @@
 //! Shared projection of merged observational signal-quality regions.
 
 use crate::model::result::{
-    DNAQualityResult, IntervalResult, NoisyRegionResult, TraceIntegrityResult,
+    IntervalResult, NoisyRegionResult, SignalQualityResult, TraceIntegrityResult,
 };
-use crate::model::signal::{DNAAnalysis, SangerIntegrity};
+use dna_sanger::model::signal::{SangerIntegrity, SignalAnalysis};
 
 /// Projects merged noisy regions while omitting internal rolling windows.
-pub(super) fn project(signal: DNAAnalysis) -> DNAQualityResult {
+pub(super) fn project(signal: SignalAnalysis) -> SignalQualityResult {
     let integrity = project_integrity(&signal.integrity);
     let noisy_regions = signal
         .noisy_regions
@@ -23,7 +23,7 @@ pub(super) fn project(signal: DNAAnalysis) -> DNAQualityResult {
             minimum_primary_snr: region.minimum_primary_snr,
         })
         .collect();
-    DNAQualityResult {
+    SignalQualityResult {
         integrity,
         noisy_regions,
     }
