@@ -2,9 +2,9 @@
 
 use memchr::memmem::Finder;
 
+use crate::alignment::AlignmentConfig;
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
-use crate::config::AlignmentConfig;
 use crate::error::Result;
 use crate::read_evidence::EvidenceProfile;
 

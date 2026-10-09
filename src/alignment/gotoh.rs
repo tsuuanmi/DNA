@@ -5,7 +5,7 @@ use crate::alignment::scoring::{
     NEGATIVE_INFINITY, State, add, scaled, substitution_index, substitution_scores,
 };
 use crate::alignment::traceback::{RawAlignment, TracebackInput, decode};
-use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
+use crate::alignment::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
 use crate::error::{AlignmentError, Result};
 use crate::read_evidence::EvidenceProfile;
 

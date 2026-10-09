@@ -1,14 +1,18 @@
 //! Shared reference-free read processing for reusable scientific capabilities.
 
+use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
+mod config;
 mod evidence;
 
+pub(crate) use config::{
+    RawSangerConfig, RawSangerEvidenceConfig, SangerConfig, SangerEvidenceConfig,
+};
 pub(crate) use evidence::read_evidence;
 
 use std::time::Instant;
 
 use crate::basecalling;
 use crate::callability;
-use crate::config::Config;
 use crate::error::{CallabilityError, Result};
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
@@ -47,7 +51,7 @@ pub(crate) struct PreparedRead {
 impl PreparedRead {
     /// Why the read cannot be analyzed, or `None` when it has enough callable
     /// calls.
-    pub(crate) fn rejection(&self, config: &Config) -> Option<ReadRejection> {
+    pub(crate) fn rejection(&self, config: &SangerConfig) -> Option<ReadRejection> {
         let callable_calls = self.callability.callable_count();
         let minimum_callable_calls = config.callability.minimum_callable_calls;
         (callable_calls < minimum_callable_calls).then_some(ReadRejection {
@@ -60,13 +64,21 @@ impl PreparedRead {
 /// Runs the scientific stages that require no reference, emitting one
 /// `tracing` stage span and completion event per stage; a read with too few
 /// callable calls fails typed.
-pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<ProcessedRead> {
+///
+/// `context_margin` is the most calls of an adjacent dephased segment the trim
+/// keeps beyond the callable span; the composer passes the core's read-end
+/// margin so that kept context can anchor the alignment.
+pub(crate) fn process(
+    trace: &Chromatogram,
+    config: &SangerConfig,
+    context_margin: usize,
+) -> Result<ProcessedRead> {
     let prepared = prepare(trace, config)?;
-    finish(trace, prepared, config)
+    finish(trace, prepared, config, context_margin)
 }
 
 /// Runs basecalling, signal processing, and callability.
-pub(crate) fn prepare(trace: &Chromatogram, config: &Config) -> Result<PreparedRead> {
+pub(crate) fn prepare(trace: &Chromatogram, config: &SangerConfig) -> Result<PreparedRead> {
     let stage = tracing::info_span!("basecalling").entered();
     let stage_started = Instant::now();
     let calls = basecalling::call(trace, &config.basecalling)?;
@@ -156,7 +168,13 @@ pub(crate) fn prepare(trace: &Chromatogram, config: &Config) -> Result<PreparedR
     drop(stage);
     let stage = tracing::info_span!("callability").entered();
     let stage_started = Instant::now();
-    let callability = callability::analyze(trace, &calls, &signal, config)?;
+    let callability = callability::analyze(
+        trace,
+        &calls,
+        &signal,
+        &config.callability,
+        config.basecalling.secondary_peak_ratio,
+    )?;
     let segment_map = callability
         .segments
         .iter()
@@ -232,11 +250,12 @@ pub(crate) fn prepare(trace: &Chromatogram, config: &Config) -> Result<PreparedR
 }
 
 /// Runs quality control on a prepared read; a read with too few callable
-/// calls fails typed.
+/// calls fails typed. `context_margin` is as for [`process`].
 pub(crate) fn finish(
     trace: &Chromatogram,
     prepared: PreparedRead,
-    config: &Config,
+    config: &SangerConfig,
+    context_margin: usize,
 ) -> Result<ProcessedRead> {
     if let Some(rejection) = prepared.rejection(config) {
         return Err(CallabilityError::TooFewCallableCalls {
@@ -258,7 +277,7 @@ pub(crate) fn finish(
         &calls,
         &callability,
         &config.quality_control,
-        config.variant_calling.read_end_margin,
+        context_margin,
     )?;
     let score_min = quality
         .per_call
@@ -324,3 +343,20 @@ pub(crate) fn finish(
         warnings,
     })
 }
+
+/// Sanger ABIF modality: basecalling, signal processing, callability, quality
+/// control, and the evidence adapter.
+pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
+    id: "sanger",
+    family: PluginFamily::Modality,
+    version: 1,
+    provides: &[Contract::ReadEvidence],
+    requires: &[],
+    config_sections: &[
+        "basecalling",
+        "signal_processing",
+        "callability",
+        "quality_control",
+        "sanger_evidence",
+    ],
+};

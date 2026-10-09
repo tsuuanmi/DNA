@@ -6,6 +6,7 @@
 //! ambiguity code is an unresolved `N` whose profile shares its weight equally
 //! among the bases the code admits, and `N` carries no profile.
 
+use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,13 +14,19 @@ use std::path::{Path, PathBuf};
 use noodles_fasta as fasta;
 
 use crate::checksum::hex_sha256;
-use crate::config::{Config, MAX_REFERENCE_LENGTH, MAX_SEQUENCE_BYTES, MAX_SEQUENCE_RECORDS};
+use crate::config::Config;
 use crate::error::{Error, Result, SequenceError};
 use crate::model::reference::Reference;
 use crate::profile::Profile;
 use crate::read_evidence::{CallEvidence, EvidenceProfile, ReadEvidence, VetoSet};
+use crate::reference::MAX_REFERENCE_LENGTH;
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
+
+/// Largest accepted consensus-sequence FASTA file.
+const MAX_SEQUENCE_BYTES: usize = 1024 * 1024;
+/// Largest number of consensus-sequence records in one call.
+const MAX_SEQUENCE_RECORDS: usize = 64;
 
 /// One consensus sequence read from a FASTA record.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,6 +240,16 @@ pub(crate) fn read_evidence(read: &SequenceRead) -> Result<ReadEvidence> {
     let informative = 0..calls.len();
     Ok(ReadEvidence::new(calls, informative, Vec::new())?.with_vouched_ends())
 }
+
+/// Reviewed consensus sequences in FASTA.
+pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
+    id: "sequence",
+    family: PluginFamily::Modality,
+    version: 1,
+    provides: &[Contract::ReadEvidence],
+    requires: &[],
+    config_sections: &[],
+};
 
 #[cfg(test)]
 mod tests {

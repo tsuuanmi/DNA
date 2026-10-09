@@ -2,12 +2,12 @@
 
 use std::collections::BTreeSet;
 
-use crate::config::SampleReconciliationConfig;
 use crate::error::{Result, SampleError};
 use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{
     RejectedSampleRead, SampleEvidence, SampleReadAlignmentEvidence, SampleReadEvidence,
 };
+use crate::sample::SampleReconciliationConfig;
 
 use super::{coverage, loci, overlap, variants};
 

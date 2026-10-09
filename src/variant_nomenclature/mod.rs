@@ -6,6 +6,7 @@
 //! [`Profile`]; this module owns only the generic
 //! engine and its haplotype-preservation proof.
 
+use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
 mod windows;
 
 use std::path::Path;
@@ -131,3 +132,13 @@ pub(crate) fn apply_with(
         represented_variants,
     })
 }
+
+/// Profile-driven target nomenclature.
+pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
+    id: "nomenclature",
+    family: PluginFamily::PostCalling,
+    version: 1,
+    provides: &[Contract::Nomenclature],
+    requires: &[Contract::NormalizedVariants],
+    config_sections: &[],
+};

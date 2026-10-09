@@ -13,9 +13,9 @@ assembly of the internal `ReadObservation` (a `CalledRead` plus its
 reference-free read processing is provided by the crate-internal
 `read_processing` module.
 
-`read_call.rs` is the core's modality-neutral one-read path: it places a
-read's `ReadEvidence` on the reference and calls its variants, producing a
-`CalledRead`. Sanger observation and the core-only `call` command both use it.
+The core's modality-neutral one-read path is the top-level `read_call`
+module; Sanger observation composes it after the Sanger evidence adapter,
+passing the Sanger and core configuration sections separately.
 
 CLI and sample pipelines consume this capability through a crate-private
 observation seam. Variant Analysis does not own file-backed CLI logging, JSON

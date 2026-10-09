@@ -26,6 +26,9 @@ document records the full rationale. A future maintained implementation may
 replace this code only if it satisfies the same scientific contract and is
 validated independently.
 
+`config.rs` owns the `[alignment]`, with the alignment-cell cap configuration section: its raw record, validated
+record, and rules (ADR-0069).
+
 See [alignment requirements](../../docs/requirements/alignment.md),
 [alignment method](../../docs/design/alignment.md), and
 [alignment invariants](../../docs/architecture/invariants/alignment.md).

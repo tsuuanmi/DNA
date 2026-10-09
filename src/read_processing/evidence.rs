@@ -7,7 +7,7 @@
 //! Sanger evidence raises against each call (peak floor, relative quality, and
 //! mixed signal for substitutions).
 
-use crate::config::SangerEvidenceConfig;
+use super::SangerEvidenceConfig;
 use crate::error::{AlignmentError, Result, VariantError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};

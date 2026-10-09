@@ -2,7 +2,7 @@
 
 use crate::error::{ReportError, Result};
 use crate::model::alignment::Orientation;
-use crate::model::read_observation::SangerAttachment;
+use crate::model::attachment::SangerAttachment;
 use crate::model::reference_call;
 use crate::model::result::{PeakHeightsResult, VariantCallResult, VariantResult};
 use crate::model::variant::Variant;

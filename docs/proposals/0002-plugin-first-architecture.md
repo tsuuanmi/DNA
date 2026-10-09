@@ -186,3 +186,15 @@ Accepted on 2026-10-09 and recorded by
     notation in all 160 samples;
   - the checker reports exactly the 2 samples whose HVS-II notation differs
     from the reviewers', and nothing in the other 158.
+- Phase 5a: the in-place untangling that makes the split mechanical:
+  - every plugin owns its configuration sections (`SangerConfig`,
+    `CoreConfig`) and its plugin descriptor;
+  - the facade composes the configuration envelope, the registry, and the
+    workflow compositions;
+  - the core's one-read path (`read_call`) takes only core inputs, and the
+    composer passes the Sanger trim context margin;
+  - the Sanger attachment model is separated from the facade's
+    `ReadObservation`;
+  - the module validator enforces the target crate map
+    (kernel, core, sanger, post, dna) instead of layers.
+  Every result document is byte-identical.

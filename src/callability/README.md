@@ -37,6 +37,9 @@ only through the Sanger `ReadEvidence` adapter in
 [read_processing](../read_processing/README.md), which maps phase states to
 mask labels. None of them recomputes the mask.
 
+`config.rs` owns the `[callability]` configuration section: its raw record, validated
+record, and rules (ADR-0069).
+
 See [callability requirements](../../docs/requirements/callability.md),
 [callability method](../../docs/design/callability.md), ADR-0067, and the
 [evidence invariants](../../docs/architecture/invariants/evidence.md).

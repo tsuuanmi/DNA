@@ -1,16 +1,51 @@
 //! The core's one-read path: placement and variant calling from modality evidence.
 
+use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
 use std::time::Instant;
 
-use crate::alignment;
-use crate::config::Config;
+use crate::alignment::{self, AlignmentConfig, RawAlignmentConfig};
 use crate::error::Result;
 use crate::model::called_read::CalledRead;
 use crate::model::reference::Reference;
 use crate::model::variant::VariantKind;
-use crate::profile::Profile;
 use crate::read_evidence::ReadEvidence;
-use crate::variant_calling;
+use crate::sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
+use crate::variant_calling::{self, RawVariantCallingConfig, VariantCallingConfig};
+
+/// Every configuration section the core plugin owns.
+#[derive(Debug, Clone)]
+pub(crate) struct CoreConfig {
+    pub(crate) alignment: AlignmentConfig,
+    pub(crate) variant_calling: VariantCallingConfig,
+    pub(crate) sample_reconciliation: SampleReconciliationConfig,
+}
+
+/// The core plugin's sections as written in the configuration.
+pub(crate) struct RawCoreConfig {
+    pub(crate) alignment: RawAlignmentConfig,
+    pub(crate) variant_calling: RawVariantCallingConfig,
+    pub(crate) sample_reconciliation: RawSampleReconciliationConfig,
+}
+
+impl RawCoreConfig {
+    /// Validates every section.
+    pub(crate) fn validate(self) -> Result<CoreConfig> {
+        Ok(CoreConfig {
+            alignment: self.alignment.validate()?,
+            variant_calling: self.variant_calling.validate()?,
+            sample_reconciliation: self.sample_reconciliation.validate()?,
+        })
+    }
+}
+
+/// Run-level inputs of the core that do not come from the read.
+pub(crate) struct CoreRun<'a> {
+    pub(crate) config: &'a CoreConfig,
+    /// SHA-256 of the configuration the run was made with.
+    pub(crate) configuration_sha256: &'a str,
+    /// Inclusive 1-based reportable regions of the target.
+    pub(crate) regions: &'a [[usize; 2]],
+}
 
 /// Content identity and reviewer-facing name of one read.
 pub(crate) struct ReadIdentity {
@@ -24,9 +59,9 @@ pub(crate) fn call_read(
     identity: ReadIdentity,
     evidence: ReadEvidence,
     reference: &Reference,
-    config: &Config,
-    profile: &Profile,
+    run: &CoreRun<'_>,
 ) -> Result<CalledRead> {
+    let config = run.config;
     let stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();
     let alignment = alignment::align_best(&evidence, reference, &config.alignment)?;
@@ -60,7 +95,7 @@ pub(crate) fn call_read(
         reference,
         &evidence,
         &config.variant_calling,
-        &profile.regions,
+        run.regions,
     )?;
     let snvs = variants
         .reported
@@ -85,7 +120,7 @@ pub(crate) fn call_read(
         insertion = insertions,
         deletion = deletions,
         excluded = variants.excluded_count(),
-        region_count = profile.regions.len(),
+        region_count = run.regions.len(),
         max_indel_length = config.variant_calling.max_indel_length,
     );
     for excluded in &variants.excluded {
@@ -109,9 +144,20 @@ pub(crate) fn call_read(
         input_name: identity.input_name,
         input_sha256: identity.input_sha256,
         reference_sha256: reference.sequence_sha256.clone(),
-        configuration_sha256: config.source_sha256.clone(),
+        configuration_sha256: run.configuration_sha256.to_owned(),
         evidence,
         alignment,
         variants,
     })
 }
+
+/// Core caller: evidence-profile alignment, per-read variant calling, and
+/// sample aggregation.
+pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
+    id: "core",
+    family: PluginFamily::Core,
+    version: 1,
+    provides: &[Contract::CalledVariants],
+    requires: &[Contract::ReadEvidence],
+    config_sections: &["alignment", "sample_reconciliation", "variant_calling"],
+};

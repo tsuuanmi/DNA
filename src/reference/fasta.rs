@@ -5,8 +5,8 @@ use std::path::Path;
 
 use noodles_fasta as fasta;
 
+use super::{MAX_REFERENCE_BYTES, MAX_REFERENCE_LENGTH};
 use crate::checksum::hex_sha256;
-use crate::config::{MAX_REFERENCE_BYTES, MAX_REFERENCE_LENGTH};
 use crate::error::{Error, FastaError, Result};
 use crate::model::reference::{Reference, ReferenceTopology};
 

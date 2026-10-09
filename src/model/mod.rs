@@ -1,6 +1,7 @@
 //! Validated domain vocabulary shared by scientific stages.
 
 pub(crate) mod alignment;
+pub(crate) mod attachment;
 pub(crate) mod basecall_result;
 pub(crate) mod basecalls;
 pub(crate) mod callability;

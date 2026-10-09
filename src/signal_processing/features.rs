@@ -1,10 +1,10 @@
 //! Rolling sample-domain baseline, noise, and peak-SNR features.
 
-use crate::config::SignalProcessingConfig;
 use crate::error::{Result, SignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalWindow;
+use crate::signal_processing::SignalProcessingConfig;
 
 use super::statistics;
 

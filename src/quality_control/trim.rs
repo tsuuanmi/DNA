@@ -1,11 +1,11 @@
 //! Trim interval from the callable span (`dna.callable_span_trim/v1`).
 
-use crate::config::QualityControlConfig;
 use crate::error::{QualityControlError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::{CallQuality, QualityControlResult};
 use crate::model::sanger::Chromatogram;
+use crate::quality_control::QualityControlConfig;
 use crate::quality_control::penalty;
 use crate::quality_control::quality;
 

@@ -1,8 +1,8 @@
 //! Canonical right alignment for repeat-equivalent optimal gap placements.
 
+use crate::alignment::AlignmentConfig;
 use crate::alignment::scoring::{scaled, substitution};
 use crate::alignment::traceback::{self, RawAlignment, RawColumn};
-use crate::config::AlignmentConfig;
 use crate::error::{AlignmentError, Result};
 use crate::read_evidence::EvidenceProfile;
 

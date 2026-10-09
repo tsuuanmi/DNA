@@ -4,6 +4,7 @@
 //! capability may then choose another sequence-equivalent representation under
 //! an explicit policy while preserving the source calls and complete haplotype.
 
+use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
 mod right;
 
 use std::path::Path;
@@ -112,3 +113,13 @@ pub(crate) fn normalize_with(
         normalized_variants,
     })
 }
+
+/// Haplotype-preserving variant normalization.
+pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
+    id: "normalization",
+    family: PluginFamily::PostCalling,
+    version: 1,
+    provides: &[Contract::NormalizedVariants],
+    requires: &[Contract::CalledVariants],
+    config_sections: &[],
+};

@@ -2,7 +2,8 @@
 
 use crate::config::Config;
 use crate::error::Result;
-use crate::model::read_observation::{ReadObservation, SangerRejection};
+use crate::model::attachment::SangerRejection;
+use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
 use crate::profile::Profile;
@@ -34,8 +35,8 @@ pub(crate) fn build(
             trace_name = ?trace.source_name,
             trace_sha256 = %trace.source_sha256,
         );
-        let prepared = read_processing::prepare(trace, config)?;
-        if let Some(rejection) = prepared.rejection(config) {
+        let prepared = read_processing::prepare(trace, &config.sanger)?;
+        if let Some(rejection) = prepared.rejection(&config.sanger) {
             tracing::warn!(
                 event = "sample_read_rejected",
                 read_index = index,
@@ -53,7 +54,12 @@ pub(crate) fn build(
             });
             continue;
         }
-        let processed = read_processing::finish(trace, prepared, config)?;
+        let processed = read_processing::finish(
+            trace,
+            prepared,
+            &config.sanger,
+            config.core.variant_calling.read_end_margin,
+        )?;
         let completed =
             variant_analysis::observation::observe(trace, processed, reference, config, profile)?;
         warning_total += completed.warning_total;

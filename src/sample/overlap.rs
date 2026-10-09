@@ -2,11 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use crate::config::SampleReconciliationConfig;
 use crate::error::{Result, SampleError};
 use crate::model::called_read::CalledRead;
 use crate::model::nucleotide::is_canonical;
 use crate::model::sample_evidence::{OverlapExclusionReason, ReadOverlapEvidence};
+use crate::sample::SampleReconciliationConfig;
 
 #[derive(Debug, Clone, Copy)]
 struct CoordinateObservation {

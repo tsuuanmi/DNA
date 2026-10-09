@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::checksum::hex_sha256;
-use crate::config::{Config, MAX_VARIANTS_BYTES};
+use crate::config::Config;
 use crate::error::{Error, Result, VariantsError};
 use crate::model::nucleotide::is_canonical;
 use crate::model::reference::Reference;
@@ -19,6 +19,9 @@ use crate::profile::Profile;
 use crate::variant::{Variant, VariantKind};
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
+
+/// Largest accepted variants document.
+const MAX_VARIANTS_BYTES: usize = 16 * 1024 * 1024;
 
 /// The contract this reader accepts.
 const SCHEMA_VERSION: &str = "dna.variants/v1";

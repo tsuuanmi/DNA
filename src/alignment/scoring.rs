@@ -1,6 +1,6 @@
 //! Fixed-point profile substitution scoring and deterministic state ordering.
 
-use crate::config::AlignmentConfig;
+use crate::alignment::AlignmentConfig;
 use crate::model::nucleotide::Nucleotide;
 use crate::read_evidence::EvidenceProfile;
 

@@ -9,11 +9,11 @@
 //! A masked evidence call — a supporting call, or a flanking call of a
 //! deletion, which has none — contributes its modality's mask reason.
 
-use crate::config::VariantCallingConfig;
 use crate::model::variant::{
     VariantCallMapping, VariantCallRole, VariantExclusionReason, VariantKind,
 };
 use crate::read_evidence::{MaskedAlignment, ReadEnds, ReadEvidence};
+use crate::variant_calling::VariantCallingConfig;
 
 /// Trusted calls of one read.
 pub(super) struct ReadEligibility<'a> {

@@ -1,12 +1,14 @@
-//! Static plugin registry of the composition kernel (ADR-0069).
+//! Plugin descriptors and their compile-time validation (ADR-0069).
 //!
 //! DNA composes three coarse plugin families at compile time: modality
 //! plugins that produce per-read evidence, the core caller, and post-calling
-//! plugins. Each descriptor names the plugin, its family, its method version,
-//! the contracts it provides and requires, and the configuration sections it
-//! owns. The registry and every workflow composition are validated at compile
-//! time: identities and configuration sections are unique, and each plugin's
-//! required contracts are provided by a plugin that runs before it.
+//! plugins. Each plugin declares one descriptor: its identity, family, method
+//! version, the contracts it provides and requires, and the configuration
+//! sections it owns. The composer lists the registered descriptors and the
+//! workflow compositions and validates both in constant evaluation:
+//! identities and configuration sections are unique, and each plugin's
+//! required contracts are read from the workflow's input documents or provided
+//! by a plugin that runs before it.
 
 /// Coarse plugin family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,7 +34,7 @@ impl PluginFamily {
 
 /// Data contract exchanged between plugins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Contract {
+pub(crate) enum Contract {
     /// Per-read modality evidence (`read_evidence::ReadEvidence`).
     ReadEvidence,
     /// Called variants (`variant::CalledVariantSet`).
@@ -54,120 +56,17 @@ pub(crate) struct PluginDescriptor {
     /// Method version: increases whenever the plugin's output can change for
     /// the same inputs and configuration.
     pub(crate) version: u32,
-    provides: &'static [Contract],
-    requires: &'static [Contract],
+    /// Contracts the plugin produces.
+    pub(crate) provides: &'static [Contract],
+    /// Contracts the plugin needs before it runs.
+    pub(crate) requires: &'static [Contract],
     /// Top-level configuration sections the plugin owns.
-    config_sections: &'static [&'static str],
+    pub(crate) config_sections: &'static [&'static str],
 }
-
-/// Sanger ABIF modality: basecalling, signal processing, callability, quality
-/// control, and the evidence adapter.
-pub(crate) const SANGER: PluginDescriptor = PluginDescriptor {
-    id: "sanger",
-    family: PluginFamily::Modality,
-    version: 1,
-    provides: &[Contract::ReadEvidence],
-    requires: &[],
-    config_sections: &[
-        "basecalling",
-        "signal_processing",
-        "callability",
-        "quality_control",
-        "sanger_evidence",
-    ],
-};
-
-/// Reviewed consensus sequences in FASTA.
-pub(crate) const SEQUENCE: PluginDescriptor = PluginDescriptor {
-    id: "sequence",
-    family: PluginFamily::Modality,
-    version: 1,
-    provides: &[Contract::ReadEvidence],
-    requires: &[],
-    config_sections: &[],
-};
-
-/// Core caller: evidence-profile alignment, per-read variant calling, and
-/// sample aggregation.
-pub(crate) const CORE: PluginDescriptor = PluginDescriptor {
-    id: "core",
-    family: PluginFamily::Core,
-    version: 1,
-    provides: &[Contract::CalledVariants],
-    requires: &[Contract::ReadEvidence],
-    config_sections: &["alignment", "sample_reconciliation", "variant_calling"],
-};
-
-/// Haplotype-preserving variant normalization.
-pub(crate) const NORMALIZATION: PluginDescriptor = PluginDescriptor {
-    id: "normalization",
-    family: PluginFamily::PostCalling,
-    version: 1,
-    provides: &[Contract::NormalizedVariants],
-    requires: &[Contract::CalledVariants],
-    config_sections: &[],
-};
-
-/// Profile-driven target nomenclature.
-pub(crate) const NOMENCLATURE: PluginDescriptor = PluginDescriptor {
-    id: "nomenclature",
-    family: PluginFamily::PostCalling,
-    version: 1,
-    provides: &[Contract::Nomenclature],
-    requires: &[Contract::NormalizedVariants],
-    config_sections: &[],
-};
-
-/// Notation-convention checks declared by the target profile.
-pub(crate) const CONFORMANCE: PluginDescriptor = PluginDescriptor {
-    id: "conformance",
-    family: PluginFamily::PostCalling,
-    version: 1,
-    provides: &[Contract::Conformance],
-    requires: &[Contract::Nomenclature],
-    config_sections: &[],
-};
-
-/// Every plugin this build contains.
-const REGISTRY: &[&PluginDescriptor] = &[
-    &SANGER,
-    &SEQUENCE,
-    &CORE,
-    &NORMALIZATION,
-    &NOMENCLATURE,
-    &CONFORMANCE,
-];
-
-/// Plugins of the `basecall` workflow, in execution order.
-pub(crate) const BASECALL: &[&PluginDescriptor] = composition(&[], &[&SANGER]);
-/// Plugins of the `analyze` workflow, in execution order.
-pub(crate) const ANALYZE: &[&PluginDescriptor] = composition(&[], &[&SANGER, &CORE]);
-/// Plugins of the `sample` workflow without notation, in execution order.
-pub(crate) const SAMPLE: &[&PluginDescriptor] = composition(&[], &[&SANGER, &CORE]);
-/// Plugins of the `call` workflow without notation, in execution order.
-pub(crate) const CALL: &[&PluginDescriptor] = composition(&[], &[&SEQUENCE, &CORE]);
-/// Plugins of the `call` workflow with notation, in execution order.
-pub(crate) const CALL_WITH_NOTATION: &[&PluginDescriptor] =
-    composition(&[], &[&SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE]);
-/// Plugins of the `notation` workflow over a variants document, in execution order.
-pub(crate) const NOTATION: &[&PluginDescriptor] = composition(
-    &[Contract::CalledVariants],
-    &[&NORMALIZATION, &NOMENCLATURE],
-);
-/// Plugins of the `notation` workflow with conformance checks, in execution order.
-pub(crate) const NOTATION_WITH_CONFORMANCE: &[&PluginDescriptor] = composition(
-    &[Contract::CalledVariants],
-    &[&NORMALIZATION, &NOMENCLATURE, &CONFORMANCE],
-);
-/// Plugins of the `sample` workflow with notation, in execution order.
-pub(crate) const SAMPLE_WITH_NOTATION: &[&PluginDescriptor] =
-    composition(&[], &[&SANGER, &CORE, &NORMALIZATION, &NOMENCLATURE]);
-
-const _: () = validate_registry(REGISTRY);
 
 /// Fails compilation unless identities and configuration sections are unique
 /// and every required contract is provided by a registered plugin.
-const fn validate_registry(registry: &[&PluginDescriptor]) {
+pub(crate) const fn validate_registry(registry: &[&PluginDescriptor]) {
     let mut index = 0;
     while index < registry.len() {
         let plugin = registry[index];
@@ -201,7 +100,8 @@ const fn validate_registry(registry: &[&PluginDescriptor]) {
 /// Returns a workflow composition after checking at compile time that its
 /// plugins are registered and that each plugin's required contracts are read
 /// from the workflow's input documents or provided by a plugin running before it.
-const fn composition(
+pub(crate) const fn composition(
+    registry: &[&PluginDescriptor],
     inputs: &[Contract],
     plugins: &'static [&'static PluginDescriptor],
 ) -> &'static [&'static PluginDescriptor] {
@@ -209,7 +109,7 @@ const fn composition(
     while index < plugins.len() {
         let plugin = plugins[index];
         assert!(
-            registered(plugin.id),
+            registered(registry, plugin.id),
             "a composition may use only registered plugins"
         );
         let (earlier, _) = plugins.split_at(index);
@@ -238,10 +138,10 @@ const fn listed(contracts: &[Contract], contract: Contract) -> bool {
     false
 }
 
-const fn registered(id: &str) -> bool {
+const fn registered(registry: &[&PluginDescriptor], id: &str) -> bool {
     let mut index = 0;
-    while index < REGISTRY.len() {
-        if same(REGISTRY[index].id, id) {
+    while index < registry.len() {
+        if same(registry[index].id, id) {
             return true;
         }
         index += 1;
@@ -249,7 +149,7 @@ const fn registered(id: &str) -> bool {
     false
 }
 
-const fn provided_by(required: &[Contract], plugins: &[&PluginDescriptor]) -> bool {
+pub(crate) const fn provided_by(required: &[Contract], plugins: &[&PluginDescriptor]) -> bool {
     let mut index = 0;
     while index < required.len() {
         let mut found = false;
@@ -300,41 +200,43 @@ const fn same(left: &str, right: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use super::*;
 
-    #[test]
-    fn registry_sections_are_exactly_the_shipped_configuration_sections() {
-        let shipped: toml::Table = toml::from_str(include_str!("../config/dna.toml"))
-            .unwrap_or_else(|error| panic!("shipped configuration parses: {error}"));
-        let sections: BTreeSet<&str> = shipped
-            .iter()
-            .filter(|(_, value)| value.is_table())
-            .map(|(key, _)| key.as_str())
-            .collect();
-        let owned: BTreeSet<&str> = REGISTRY
-            .iter()
-            .flat_map(|plugin| plugin.config_sections.iter().copied())
-            .collect();
-        assert_eq!(sections, owned);
-    }
-
-    #[test]
-    fn checks_requirements_against_earlier_plugins() {
-        assert!(provided_by(CORE.requires, &[&SANGER]));
-        assert!(!provided_by(CORE.requires, &[&NORMALIZATION]));
-        assert!(!provided_by(NOMENCLATURE.requires, &[&SANGER, &CORE]));
-        assert!(provided_by(NOMENCLATURE.requires, SAMPLE_WITH_NOTATION));
-    }
+    const MODALITY: PluginDescriptor = PluginDescriptor {
+        id: "modality",
+        family: PluginFamily::Modality,
+        version: 1,
+        provides: &[Contract::ReadEvidence],
+        requires: &[],
+        config_sections: &["modality"],
+    };
+    const CALLER: PluginDescriptor = PluginDescriptor {
+        id: "caller",
+        family: PluginFamily::Core,
+        version: 1,
+        provides: &[Contract::CalledVariants],
+        requires: &[Contract::ReadEvidence],
+        config_sections: &["caller"],
+    };
 
     #[test]
     fn compares_identities_and_sections_bytewise() {
         assert!(same("core", "core"));
         assert!(!same("core", "cores"));
-        assert!(contains_section(SANGER.config_sections, "callability"));
-        assert!(!contains_section(CORE.config_sections, "callability"));
-        assert!(registered("nomenclature"));
-        assert!(!registered("ngs"));
+        assert!(contains_section(MODALITY.config_sections, "modality"));
+        assert!(!contains_section(CALLER.config_sections, "modality"));
+        assert!(registered(&[&MODALITY, &CALLER], "caller"));
+        assert!(!registered(&[&MODALITY], "caller"));
+    }
+
+    #[test]
+    fn accepts_requirements_from_inputs_or_earlier_plugins() {
+        assert!(provided_by(CALLER.requires, &[&MODALITY]));
+        assert!(!provided_by(CALLER.requires, &[]));
+        assert!(listed(&[Contract::ReadEvidence], Contract::ReadEvidence));
+        assert_eq!(
+            composition(&[&MODALITY, &CALLER], &[Contract::ReadEvidence], &[&CALLER]).len(),
+            1
+        );
     }
 }

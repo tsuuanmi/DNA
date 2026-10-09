@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::error::{ReportError, Result};
 use crate::model::alignment::Orientation;
-use crate::model::read_observation::{SangerAttachment, SangerRejection};
+use crate::model::attachment::{SangerAttachment, SangerRejection};
 use crate::model::reference::Reference;
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_evidence::SampleEvidence;

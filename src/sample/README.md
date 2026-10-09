@@ -18,6 +18,9 @@ noisy-region context. A call whose evidence carries a mask observes a locus as
 This module does not discover input files, infer samples from filenames, or emit
 final reports.
 
+`config.rs` owns the `[sample_reconciliation]` configuration section: its raw record, validated
+record, and rules (ADR-0069).
+
 See [sample requirements](../../docs/requirements/sample-evidence/README.md),
 [sample methods](../../docs/design/sample-evidence/README.md), and
 [sample invariants](../../docs/architecture/invariants/sample-boundaries.md).

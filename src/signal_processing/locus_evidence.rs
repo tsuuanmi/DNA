@@ -1,11 +1,11 @@
 //! Basecall-independent signal evidence at each canonical Sanger locus.
 
-use crate::config::SignalProcessingConfig;
 use crate::error::{Result, SignalError};
 use crate::locus::{self, LocusWindow};
 use crate::model::locus_evidence::LocusEvidence;
 use crate::model::sanger::Chromatogram;
 use crate::read_evidence::EvidenceProfile;
+use crate::signal_processing::SignalProcessingConfig;
 
 use super::statistics;
 
@@ -239,8 +239,8 @@ fn context_start(locus_index: usize, locus_count: usize, window_size_bases: usiz
 
 #[cfg(test)]
 mod tests {
-    use crate::config::SignalProcessingConfig;
     use crate::model::sanger::{Chromatogram, VendorEvidence};
+    use crate::signal_processing::SignalProcessingConfig;
 
     use super::*;
 

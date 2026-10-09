@@ -9,7 +9,7 @@ use crate::input::sanger;
 use crate::model::sample_evidence::RejectedSampleRead;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
-use crate::plugin;
+use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
 use crate::sample as sample_science;
 
@@ -96,7 +96,7 @@ fn sample(
     let evidence = sample_science::aggregate(
         &reads.iter().collect::<Vec<_>>(),
         &rejected,
-        &inputs.config.sample_reconciliation,
+        &inputs.config.core.sample_reconciliation,
     )?;
     let metrics = sample_metrics::summarize(&evidence, &sanger_reads);
     tracing::info!(

@@ -102,10 +102,10 @@ fn support_vetoes(
 
 #[cfg(test)]
 mod tests {
-    use crate::config::VariantCallingConfig;
     use crate::error::{Error, VariantError};
     use crate::model::variant::VariantCallMapping;
     use crate::read_evidence::{CallEvidence, EvidenceReason, SupportVeto};
+    use crate::variant_calling::VariantCallingConfig;
 
     use super::*;
 

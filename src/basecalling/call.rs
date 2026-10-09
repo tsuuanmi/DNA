@@ -1,8 +1,8 @@
 //! DNA-derived call orchestration at validated PLOC loci.
 
+use crate::basecalling::BasecallingConfig;
 use crate::basecalling::iupac;
 use crate::basecalling::peak;
-use crate::config::BasecallingConfig;
 use crate::error::{BasecallingError, Result};
 use crate::model::basecalls::{BaseCall, BaseCalls, PrimaryPeakEvidence};
 use crate::model::sanger::Chromatogram;

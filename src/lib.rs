@@ -8,6 +8,7 @@
 
 mod alignment;
 mod basecalling;
+mod bounds;
 mod callability;
 mod checksum;
 pub mod cli;
@@ -22,6 +23,7 @@ mod pipeline;
 mod plugin;
 pub mod profile;
 mod quality_control;
+mod read_call;
 mod read_evidence;
 mod read_processing;
 mod reference;

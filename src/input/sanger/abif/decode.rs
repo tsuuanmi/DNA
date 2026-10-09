@@ -4,12 +4,15 @@ use std::fs;
 use std::path::Path;
 
 use crate::checksum::hex_sha256;
-use crate::config::MAX_ABIF_BYTES;
+
 use crate::error::{AbifError, Error, Result, Tag};
 use crate::input::sanger::abif::container::{AbifEntry, AbifFile, parse};
 use crate::input::sanger::abif::reader::Reader;
 use crate::model::nucleotide::Nucleotide;
 use crate::model::sanger::{Chromatogram, VendorEvidence};
+
+/// Largest accepted ABIF container for Sanger input.
+const MAX_ABIF_BYTES: usize = 64 * 1024 * 1024;
 
 const TYPE_BYTE: u16 = 1;
 const TYPE_CHAR: u16 = 2;

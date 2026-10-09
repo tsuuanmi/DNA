@@ -1,5 +1,6 @@
 //! Normalized primary-sequence differences and original-call mappings.
 
+use crate::variant as public;
 use serde::Serialize;
 
 use crate::read_evidence::EvidenceReason;
@@ -130,6 +131,23 @@ impl VariantCallingResult {
     /// Number of candidates excluded across extraction and configured filtering.
     pub(crate) fn excluded_count(&self) -> usize {
         self.excluded.len()
+    }
+}
+
+impl From<&Variant> for public::Variant {
+    /// Projects an internal called variant into the public variant boundary.
+    fn from(variant: &Variant) -> Self {
+        Self {
+            contig: variant.contig.clone(),
+            position_1based: variant.position_1based,
+            reference: variant.reference.clone(),
+            alternate: variant.alternate.clone(),
+            kind: match variant.kind {
+                VariantKind::Snv => public::VariantKind::Snv,
+                VariantKind::Ins => public::VariantKind::Ins,
+                VariantKind::Del => public::VariantKind::Del,
+            },
+        }
     }
 }
 

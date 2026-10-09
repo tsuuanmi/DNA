@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "tools" / "python" / "scripts" / "validate_module_layers.py"
 
 
-class ModuleLayerTests(unittest.TestCase):
-    def run_layers(self, files: dict[str, str]) -> subprocess.CompletedProcess[str]:
+class CrateMapTests(unittest.TestCase):
+    def run_map(self, files: dict[str, str]) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name, source in files.items():
@@ -25,98 +25,114 @@ class ModuleLayerTests(unittest.TestCase):
                 text=True,
             )
 
-    def test_accepts_downward_dependencies(self) -> None:
-        result = self.run_layers(
+    def test_accepts_dependencies_on_allowed_crates(self) -> None:
+        result = self.run_map(
             {
                 "lib.rs": "mod model;\nmod pipeline;\nuse crate::pipeline::run;\n",
-                "model.rs": "pub(crate) struct Call;\n",
-                "pipeline/mod.rs": "use crate::model::Call;\nuse crate::{error::Error, model};\n",
+                "model/mod.rs": "pub(crate) mod nucleotide;\npub(crate) mod alignment;\n",
+                "model/nucleotide.rs": "pub(crate) struct Nucleotide;\n",
+                "model/alignment.rs": "use crate::model::nucleotide::Nucleotide;\n",
+                "alignment/mod.rs": (
+                    "use crate::{error::Error, model::{alignment::A, nucleotide::N}};\n"
+                ),
                 "error.rs": "pub(crate) struct Error;\n",
+                "pipeline/mod.rs": "use crate::alignment::align;\nuse crate::basecalling::call;\n",
+                "basecalling/mod.rs": "use crate::error::Error;\n",
             }
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_rejects_an_upward_dependency(self) -> None:
-        result = self.run_layers(
+    def test_rejects_a_plugin_depending_on_another_plugin(self) -> None:
+        result = self.run_map(
             {
-                "model.rs": "use crate::pipeline::run;\n",
-                "pipeline.rs": "pub(crate) fn run() {}\n",
+                "alignment/mod.rs": "use crate::model::{basecalls::BaseCalls, nucleotide::N};\n",
+                "model/basecalls.rs": "pub(crate) struct BaseCalls;\n",
+                "model/nucleotide.rs": "pub(crate) struct N;\n",
+                "conformance.rs": "use crate::read_call::call_read;\n",
+                "read_call.rs": "pub(crate) fn call_read() {}\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "layer 0 module model must not depend on layer 4 module pipeline",
+            "core module alignment must not depend on sanger module model::basecalls",
+            result.stderr,
+        )
+        self.assertIn(
+            "post module conformance must not depend on core module read_call",
+            result.stderr,
+        )
+        self.assertNotIn("model::nucleotide", result.stderr)
+
+    def test_rejects_the_kernel_or_a_plugin_depending_on_the_facade(self) -> None:
+        result = self.run_map(
+            {
+                "profile/mod.rs": "use crate::model::alignment::Orientation;\n",
+                "model/alignment.rs": "pub(crate) enum Orientation {}\n",
+                "read_processing/mod.rs": "use crate::config::Config;\n",
+                "config/mod.rs": "pub(crate) struct Config;\n",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "kernel module profile must not depend on core module model::alignment",
+            result.stderr,
+        )
+        self.assertIn(
+            "sanger module read_processing must not depend on dna module config",
             result.stderr,
         )
 
-    def test_rejects_a_same_layer_cycle(self) -> None:
-        result = self.run_layers(
+    def test_assigns_input_children_individually(self) -> None:
+        result = self.run_map(
             {
-                "profile.rs": "use crate::reference::Reference;\n",
-                "reference.rs": "use crate::profile::Profile;\n",
+                "input/sanger/abif/decode.rs": "use crate::input::sequence::load;\n",
+                "input/sequence.rs": "use crate::input::sanger::abif::load;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "module dependency cycle: profile -> reference -> profile", result.stderr
+            "sanger module input::sanger::abif must not depend on dna module input",
+            result.stderr,
+        )
+        self.assertNotIn("dna module input must not", result.stderr)
+
+    def test_rejects_a_cycle_within_a_crate(self) -> None:
+        result = self.run_map(
+            {
+                "callability/mod.rs": "use crate::read_processing::SangerConfig;\n",
+                "read_processing/mod.rs": "use crate::callability::analyze;\n",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "module dependency cycle: callability -> read_processing -> callability",
+            result.stderr,
         )
 
     def test_ignores_tests_and_comments(self) -> None:
-        result = self.run_layers(
+        result = self.run_map(
             {
-                "model.rs": (
+                "model/nucleotide.rs": (
                     "//! See [`run`](crate::pipeline::run).\n"
-                    "pub(crate) struct Call; // not crate::pipeline\n"
+                    "pub(crate) struct N; // not crate::pipeline\n"
                     "#[cfg(test)]\nmod tests {\n    use crate::pipeline::run;\n}\n"
                 ),
-                "model/tests.rs": "use crate::pipeline::run;\n",
+                "alignment/tests.rs": "use crate::pipeline::run;\n",
                 "pipeline.rs": "pub(crate) fn run() {}\n",
             }
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_rejects_an_unmapped_module(self) -> None:
-        result = self.run_layers({"scheduler.rs": "pub(crate) fn hook() {}\n"})
+    def test_rejects_unmapped_modules_and_dependencies(self) -> None:
+        result = self.run_map(
+            {
+                "scheduler.rs": "pub(crate) fn hook() {}\n",
+                "pipeline.rs": "use crate::model::fresh::Thing;\n",
+            }
+        )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("scheduler: unmapped module", result.stderr)
-
-    def test_rejects_a_neutral_module_depending_on_sanger(self) -> None:
-        result = self.run_layers(
-            {
-                "lib.rs": "mod alignment;\nmod model;\nmod basecalling;\n",
-                "model/mod.rs": "pub(crate) mod basecalls;\npub(crate) mod nucleotide;\n",
-                "model/basecalls.rs": "pub(crate) struct BaseCalls;\n",
-                "model/nucleotide.rs": "pub(crate) struct Nucleotide;\n",
-                "basecalling/mod.rs": "pub(crate) fn call() {}\n",
-                "alignment/mod.rs": (
-                    "use crate::model::{basecalls::BaseCalls, nucleotide::Nucleotide};\n"
-                    "use crate::basecalling::call;\n"
-                ),
-            }
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("must not depend on model::basecalls", result.stderr)
-        self.assertIn("must not depend on Sanger module basecalling", result.stderr)
-        self.assertNotIn("model::nucleotide", result.stderr)
-
-    def test_rejects_a_neutral_model_child_depending_on_sanger(self) -> None:
-        result = self.run_layers(
-            {
-                "lib.rs": "mod model;\n",
-                "model/mod.rs": "pub(crate) mod called_read;\npub(crate) mod signal;\n",
-                "model/signal.rs": "pub(crate) struct SignalAnalysis;\n",
-                "model/called_read.rs": (
-                    "use crate::model::signal::SignalAnalysis;\n"
-                    "pub(crate) struct CalledRead(SignalAnalysis);\n"
-                ),
-            }
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(
-            "model/called_read.rs:1: modality-neutral module model must not depend on "
-            "model::signal",
-            result.stderr,
-        )
+        self.assertIn("unmapped dependency crate::model::fresh::Thing", result.stderr)
 
 
 if __name__ == "__main__":

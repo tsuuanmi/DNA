@@ -7,9 +7,9 @@ use crate::error::Result;
 use crate::input::sequence;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
-use crate::plugin;
+use crate::pipeline::plugins as plugin;
+use crate::read_call::{self, CoreRun, ReadIdentity};
 use crate::report::{self, CompletedCall};
-use crate::variant_analysis::read_call::{self, ReadIdentity};
 
 use super::sample::validate_sample_id;
 use super::{Operation, represent};
@@ -57,6 +57,11 @@ fn call(
     );
 
     drop(stage);
+    let run = CoreRun {
+        config: &inputs.config.core,
+        configuration_sha256: &inputs.config.source_sha256,
+        regions: &inputs.profile.regions,
+    };
     let reads = inputs
         .reads
         .iter()
@@ -74,8 +79,7 @@ fn call(
                 },
                 sequence::read_evidence(read)?,
                 &inputs.reference,
-                &inputs.config,
-                &inputs.profile,
+                &run,
             )
         })
         .collect::<Result<Vec<_>>>()?;

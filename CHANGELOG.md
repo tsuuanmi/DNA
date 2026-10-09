@@ -95,6 +95,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Plugin-first architecture, phase 5a (PROP-0002): the sources are untangled
+  along the future crate boundaries. Each plugin owns its configuration
+  sections and its plugin descriptor; the facade composes the configuration
+  envelope, the plugin registry, and the workflow compositions. The module
+  validator enforces the crate map (kernel, core, sanger, post, dna) instead of
+  layers. Configuration files, result documents, and the public Rust API are
+  unchanged.
+
 - Plugin-first architecture, phase 2b (ADR-0069, PROP-0002): sample
   aggregation is modality-neutral. It consumes each read's `CalledRead`
   (identity, evidence, alignment, variants), and the sample report joins the

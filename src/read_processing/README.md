@@ -24,6 +24,12 @@ modality-neutral core.
   This file is the only place where Sanger peaks, relative quality,
   qualifying channels, and phase states turn into core evidence.
 
+`config.rs` owns the `[sanger_evidence]` section and `SangerConfig`, which
+validates every Sanger-owned section together, including the cross-section
+check of the relative-quality threshold. `mod.rs` also declares the Sanger
+plugin descriptor. The trim's context margin comes from the composer, which
+passes the core's `read_end_margin`.
+
 This module does not use reference context and does not decide variant
 eligibility: it supplies labels, and the core reports them.
 

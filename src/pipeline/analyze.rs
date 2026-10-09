@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
-use crate::plugin;
+use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedAnalysis};
 use crate::variant_analysis;
 

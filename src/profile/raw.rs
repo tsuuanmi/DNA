@@ -8,10 +8,10 @@ use super::window::{Anchor, NomenclatureWindow, WindowRule};
 use super::{
     Conformance, ConformanceRule, IndelPlacement, Notation, NotationStyle, Profile, ProfileIdentity,
 };
-use crate::config::MAX_REFERENCE_LENGTH;
 use crate::error::{ProfileError, Result};
 use crate::model::nucleotide::{Nucleotide, is_canonical};
 use crate::model::reference::ReferenceTopology;
+use crate::reference::MAX_REFERENCE_LENGTH;
 
 /// Profile schema version this build accepts.
 const SCHEMA_VERSION: u32 = 1;

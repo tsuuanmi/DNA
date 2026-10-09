@@ -2,10 +2,10 @@
 
 use std::cmp::Ordering;
 
+use crate::alignment::AlignmentConfig;
 use crate::alignment::exact::{self, UpperBoundPlacement};
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
-use crate::config::AlignmentConfig;
 use crate::error::{AlignmentError, Result};
 use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, ReferenceSegment};
 use crate::model::nucleotide::reverse_complement;

@@ -8,7 +8,7 @@ use crate::error::{Result, VariantsError};
 use crate::input::variants;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
-use crate::plugin;
+use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedNotation, NamedRead};
 
 use super::Operation;

@@ -1,5 +1,9 @@
 //! Sample-level evidence aggregation in reference-coordinate and variant space.
 
+mod config;
+
+pub(crate) use config::{RawSampleReconciliationConfig, SampleReconciliationConfig};
+
 mod aggregate;
 mod call_evidence;
 mod contribution;

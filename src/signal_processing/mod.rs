@@ -1,5 +1,9 @@
 //! Observation-only rolling signal-quality analysis.
 
+mod config;
+
+pub(crate) use config::{RawSignalProcessingConfig, SignalProcessingConfig};
+
 mod features;
 mod integrity;
 mod locus_evidence;
@@ -8,7 +12,6 @@ mod statistics;
 
 pub(crate) use statistics::round_metric;
 
-use crate::config::SignalProcessingConfig;
 use crate::error::Result;
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;

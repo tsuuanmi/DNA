@@ -26,14 +26,6 @@ impl Orientation {
             },
         }
     }
-
-    /// Projects A/C/G/T channel heights from trace strand to reference strand.
-    pub(crate) const fn reference_peak_heights(self, peaks: [i32; 4]) -> [i32; 4] {
-        match self {
-            Self::Forward => peaks,
-            Self::Reverse => [peaks[3], peaks[2], peaks[1], peaks[0]],
-        }
-    }
 }
 
 /// One half-open segment on the original reference.

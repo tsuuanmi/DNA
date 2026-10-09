@@ -3,9 +3,9 @@
 use crate::alignment::scoring::SCORE_SCALE;
 use crate::read_evidence::EvidenceProfile;
 
+use crate::alignment::AlignmentConfig;
 use crate::alignment::gotoh;
 use crate::alignment::traceback::RawAlignment;
-use crate::config::AlignmentConfig;
 
 use super::*;
 

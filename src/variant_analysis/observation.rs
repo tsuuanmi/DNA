@@ -2,14 +2,15 @@
 
 use crate::config::Config;
 use crate::error::Result;
-use crate::model::read_observation::{ReadObservation, SangerAttachment};
+use crate::model::attachment::SangerAttachment;
+use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
 use crate::profile::Profile;
 use crate::read_evidence::VetoSet;
 use crate::read_processing::{self, ProcessedRead};
 
-use super::read_call::{self, ReadIdentity};
+use crate::read_call::{self, CoreRun, ReadIdentity};
 
 /// Completed one-read observation plus operational warning total.
 pub(crate) struct CompletedObservation {
@@ -24,7 +25,11 @@ pub(crate) fn build(
     config: &Config,
     profile: &Profile,
 ) -> Result<CompletedObservation> {
-    let processed = read_processing::process(trace, config)?;
+    let processed = read_processing::process(
+        trace,
+        &config.sanger,
+        config.core.variant_calling.read_end_margin,
+    )?;
     observe(trace, processed, reference, config, profile)
 }
 
@@ -50,7 +55,7 @@ pub(crate) fn observe(
         &signal,
         &callability,
         &quality,
-        &config.sanger_evidence,
+        &config.sanger.sanger_evidence,
     )?;
     tracing::info!(
         event = "read_evidence_completed",
@@ -62,8 +67,8 @@ pub(crate) fn observe(
             .iter()
             .filter(|call| call.vetoes != VetoSet::default())
             .count(),
-        minimum_peak_height = config.sanger_evidence.minimum_peak_height,
-        relative_quality_threshold = config.sanger_evidence.relative_quality_threshold,
+        minimum_peak_height = config.sanger.sanger_evidence.minimum_peak_height,
+        relative_quality_threshold = config.sanger.sanger_evidence.relative_quality_threshold,
     );
     drop(stage);
     let called = read_call::call_read(
@@ -73,8 +78,11 @@ pub(crate) fn observe(
         },
         evidence,
         reference,
-        config,
-        profile,
+        &CoreRun {
+            config: &config.core,
+            configuration_sha256: &config.source_sha256,
+            regions: &profile.regions,
+        },
     )?;
 
     let excluded_variant_candidates = called.variants.excluded_count();

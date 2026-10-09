@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
-use crate::plugin;
+use crate::pipeline::plugins as plugin;
 use crate::read_processing::{self, ProcessedRead};
 use crate::report::{self, CompletedBasecall};
 
@@ -53,7 +53,11 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         callability,
         quality,
         warnings,
-    } = read_processing::process(&inputs.trace, &inputs.config)?;
+    } = read_processing::process(
+        &inputs.trace,
+        &inputs.config.sanger,
+        inputs.config.core.variant_calling.read_end_margin,
+    )?;
     let warning_total = warnings.unresolved_primary_calls
         + warnings.multi_channel_unresolved_calls
         + warnings.vendor_disagreements

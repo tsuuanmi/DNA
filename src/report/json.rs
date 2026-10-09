@@ -1,9 +1,10 @@
 //! Compact typed assembly and deterministic JSON serialization.
 
 use crate::error::{Error, ReportError, Result};
+use crate::model::attachment::SangerAttachment;
 use crate::model::basecalls::BaseCalls;
 use crate::model::called_read::CalledRead;
-use crate::model::read_observation::{ReadObservation, SangerAttachment};
+use crate::model::read_observation::ReadObservation;
 use crate::model::reference::Reference;
 use crate::model::result::{
     AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,

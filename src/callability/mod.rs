@@ -10,6 +10,10 @@
 //! the plain records of `model::callability`; `sanger` is the one adapter that
 //! reads Sanger types.
 
+mod config;
+
+pub(crate) use config::{CallabilityConfig, RawCallabilityConfig};
+
 mod classify;
 mod features;
 mod mask;
@@ -18,7 +22,6 @@ mod runs;
 mod sanger;
 mod shadow;
 
-use crate::config::Config;
 use crate::error::Result;
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PositionEvidence, ReadCallability};
@@ -35,20 +38,20 @@ struct Settings {
 }
 
 impl Settings {
-    fn from_config(config: &Config) -> Self {
+    fn from_config(config: &CallabilityConfig, secondary_peak_ratio: f64) -> Self {
         Self {
-            weak_amplitude_fraction: config.callability.weak_amplitude_fraction,
-            repeat_min_length: config.callability.repeat_min_length,
+            weak_amplitude_fraction: config.weak_amplitude_fraction,
+            repeat_min_length: config.repeat_min_length,
             shadow: shadow::Rules {
-                main_minimum: config.callability.minimum_main_share,
-                far_maximum: config.callability.maximum_far_share,
-                shadow_minimum: config.callability.minimum_shadow_share,
+                main_minimum: config.minimum_main_share,
+                far_maximum: config.maximum_far_share,
+                shadow_minimum: config.minimum_shadow_share,
             },
             thresholds: phase::Thresholds {
-                window: config.callability.window_calls,
-                onset: config.callability.onset_defect_fraction,
-                exit: config.callability.exit_defect_fraction,
-                double_ratio: config.basecalling.secondary_peak_ratio,
+                window: config.window_calls,
+                onset: config.onset_defect_fraction,
+                exit: config.exit_defect_fraction,
+                double_ratio: secondary_peak_ratio,
             },
         }
     }
@@ -59,10 +62,14 @@ pub(crate) fn analyze(
     trace: &Chromatogram,
     calls: &BaseCalls,
     signal: &SignalAnalysis,
-    config: &Config,
+    config: &CallabilityConfig,
+    secondary_peak_ratio: f64,
 ) -> Result<ReadCallability> {
     let evidence = sanger::evidence(trace, calls, signal)?;
-    derive(&evidence, &Settings::from_config(config))
+    derive(
+        &evidence,
+        &Settings::from_config(config, secondary_peak_ratio),
+    )
 }
 
 /// The modality-generic core: evidence records in call order to callability.

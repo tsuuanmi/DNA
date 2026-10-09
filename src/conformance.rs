@@ -8,6 +8,7 @@
 //! from the reference sequence.
 
 use crate::model::reference::Reference;
+use crate::plugin::{Contract, PluginDescriptor, PluginFamily};
 use crate::profile::{Conformance, ConformanceRule};
 use crate::variant::{Variant, VariantKind};
 
@@ -125,6 +126,16 @@ fn run(bases: &[u8], position: usize) -> (usize, usize) {
     }
     (start, end)
 }
+
+/// Notation-convention checks declared by the target profile.
+pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
+    id: "conformance",
+    family: PluginFamily::PostCalling,
+    version: 1,
+    provides: &[Contract::Conformance],
+    requires: &[Contract::Nomenclature],
+    config_sections: &[],
+};
 
 #[cfg(test)]
 mod tests {

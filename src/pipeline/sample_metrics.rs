@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use crate::model::attachment::SangerAttachment;
 use crate::model::locus_evidence::LocusEvidence;
-use crate::model::read_observation::SangerAttachment;
 use crate::model::sample_evidence::{NucleotideContribution, SampleEvidence};
 
 /// Aggregation metrics rendered as the `key=value` tail of the

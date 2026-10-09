@@ -1,11 +1,20 @@
-//! Typed and validated configuration records.
+//! The validated configuration envelope: target profile, source identity, and
+//! the sections each plugin owns (ADR-0069).
 
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::config::defaults::{MAX_INDEL_LENGTH, MAX_PEAK_HEIGHT};
+use crate::alignment::RawAlignmentConfig;
+use crate::basecalling::RawBasecallingConfig;
+use crate::callability::RawCallabilityConfig;
 use crate::error::{ConfigError, Result};
+use crate::quality_control::RawQualityControlConfig;
+use crate::read_call::{CoreConfig, RawCoreConfig};
+use crate::read_processing::{RawSangerConfig, RawSangerEvidenceConfig, SangerConfig};
+use crate::sample::RawSampleReconciliationConfig;
+use crate::signal_processing::RawSignalProcessingConfig;
+use crate::variant_calling::RawVariantCallingConfig;
 
 /// Configuration schema version this build accepts.
 const SCHEMA_VERSION: u32 = 7;
@@ -15,101 +24,15 @@ const SCHEMA_VERSION: u32 = 7;
 pub(crate) struct Config {
     /// Target profile path, resolved against the configuration file's directory.
     pub(crate) profile_path: PathBuf,
-    pub(crate) basecalling: BasecallingConfig,
-    pub(crate) signal_processing: SignalProcessingConfig,
-    pub(crate) callability: CallabilityConfig,
-    pub(crate) quality_control: QualityControlConfig,
-    pub(crate) alignment: AlignmentConfig,
-    pub(crate) sample_reconciliation: SampleReconciliationConfig,
-    pub(crate) sanger_evidence: SangerEvidenceConfig,
-    pub(crate) variant_calling: VariantCallingConfig,
+    /// Sections owned by the Sanger modality plugin.
+    pub(crate) sanger: SangerConfig,
+    /// Sections owned by the core plugin.
+    pub(crate) core: CoreConfig,
     pub(crate) source_path: PathBuf,
     pub(crate) source_sha256: String,
 }
 
-/// DNA re-calling settings.
-#[derive(Debug, Clone)]
-pub(crate) struct BasecallingConfig {
-    pub(crate) secondary_peak_ratio: f64,
-}
-
-/// Observation-only rolling signal-quality settings.
-#[derive(Debug, Clone)]
-pub(crate) struct SignalProcessingConfig {
-    pub(crate) window_size_bases: usize,
-    pub(crate) minimum_primary_snr: f64,
-    pub(crate) minimum_noisy_windows: usize,
-}
-
-/// Signal-derived read-callability settings.
-#[derive(Debug, Clone)]
-pub(crate) struct CallabilityConfig {
-    /// Calls per rolling window of the phase statistics.
-    pub(crate) window_calls: usize,
-    /// Defect fraction at or above which an in-phase stretch ends.
-    pub(crate) onset_defect_fraction: f64,
-    /// Defect fraction at or below which a masked stretch ends.
-    pub(crate) exit_defect_fraction: f64,
-    /// Smallest main-ladder share of a segment's shadow fit for the segment to
-    /// count as dephased rather than mixed.
-    pub(crate) minimum_main_share: f64,
-    /// Largest far-shadow (offsets of two or three calls) share of a dephased
-    /// segment's shadow fit.
-    pub(crate) maximum_far_share: f64,
-    /// Smallest share for a shadow offset to be reported; a dephased segment
-    /// needs a one-call shadow at or above it.
-    pub(crate) minimum_shadow_share: f64,
-    /// Fraction of the read's median primary amplitude below which a position is weak.
-    pub(crate) weak_amplitude_fraction: f64,
-    /// Shortest run of identical or alternating primary calls treated as a repeat.
-    pub(crate) repeat_min_length: usize,
-    /// Fewest callable calls a read needs to be analyzed.
-    pub(crate) minimum_callable_calls: usize,
-}
-
-/// Relative quality settings.
-#[derive(Debug, Clone)]
-pub(crate) struct QualityControlConfig {
-    pub(crate) penalty_window_size: usize,
-    pub(crate) max_relative_quality_score: u8,
-}
-
-/// Pairwise alignment settings.
-#[derive(Debug, Clone)]
-pub(crate) struct AlignmentConfig {
-    pub(crate) match_score: i32,
-    pub(crate) mismatch_score: i32,
-    pub(crate) ambiguous_score: i32,
-    pub(crate) gap_open_score: i32,
-    pub(crate) gap_extension_score: i32,
-    pub(crate) minimum_callable_bases: usize,
-    pub(crate) minimum_identity: f64,
-}
-
-/// Cross-read overlap admission settings used before sample consensus.
-#[derive(Debug, Clone)]
-pub(crate) struct SampleReconciliationConfig {
-    pub(crate) minimum_comparable_bases: usize,
-    pub(crate) minimum_overlap_agreement: f64,
-}
-
-/// Sanger support thresholds that the Sanger evidence adapter turns into
-/// support vetoes (ADR-0069).
-#[derive(Debug, Clone)]
-pub(crate) struct SangerEvidenceConfig {
-    pub(crate) minimum_peak_height: i32,
-    pub(crate) relative_quality_threshold: u8,
-}
-
-/// Modality-neutral primary-difference calling settings.
-#[derive(Debug, Clone)]
-pub(crate) struct VariantCallingConfig {
-    pub(crate) max_indel_length: usize,
-    /// Calls this close to an uninformative call (beyond the trim interval or
-    /// masked as unresolved) cannot support a variant.
-    pub(crate) read_end_margin: usize,
-}
-
+/// The configuration as written: one table per plugin-owned section.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct RawConfig {
@@ -125,74 +48,6 @@ pub(super) struct RawConfig {
     variant_calling: RawVariantCallingConfig,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawBasecallingConfig {
-    secondary_peak_ratio: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawSignalProcessingConfig {
-    window_size_bases: usize,
-    minimum_primary_snr: f64,
-    minimum_noisy_windows: usize,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawCallabilityConfig {
-    window_calls: usize,
-    onset_defect_fraction: f64,
-    exit_defect_fraction: f64,
-    minimum_main_share: f64,
-    maximum_far_share: f64,
-    minimum_shadow_share: f64,
-    weak_amplitude_fraction: f64,
-    repeat_min_length: usize,
-    minimum_callable_calls: usize,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawQualityControlConfig {
-    penalty_window_size: usize,
-    max_relative_quality_score: u8,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawAlignmentConfig {
-    match_score: i32,
-    mismatch_score: i32,
-    ambiguous_score: i32,
-    gap_open_score: i32,
-    gap_extension_score: i32,
-    minimum_callable_bases: usize,
-    minimum_identity: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawSampleReconciliationConfig {
-    minimum_comparable_bases: usize,
-    minimum_overlap_agreement: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawSangerEvidenceConfig {
-    minimum_peak_height: i32,
-    relative_quality_threshold: u8,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawVariantCallingConfig {
-    max_indel_length: usize,
-    read_end_margin: usize,
-}
-
 impl RawConfig {
     pub(super) fn validate(self, source_path: PathBuf, source_sha256: String) -> Result<Config> {
         if self.schema_version != SCHEMA_VERSION {
@@ -202,226 +57,35 @@ impl RawConfig {
             }
             .into());
         }
-        require_fraction(
-            "basecalling.secondary_peak_ratio",
-            self.basecalling.secondary_peak_ratio,
-        )?;
-        if !(5..=10).contains(&self.signal_processing.window_size_bases) {
-            return Err(ConfigError::Constraint(
-                "signal_processing.window_size_bases must be in 5..=10",
-            )
-            .into());
-        }
-        require_positive_finite(
-            "signal_processing.minimum_primary_snr",
-            self.signal_processing.minimum_primary_snr,
-        )?;
-        if self.signal_processing.minimum_noisy_windows < 2 {
-            return Err(ConfigError::Constraint(
-                "signal_processing.minimum_noisy_windows must be at least 2",
-            )
-            .into());
-        }
-        if !(8..=64).contains(&self.callability.window_calls) {
-            return Err(
-                ConfigError::Constraint("callability.window_calls must be in 8..=64").into(),
-            );
-        }
-        require_fraction(
-            "callability.onset_defect_fraction",
-            self.callability.onset_defect_fraction,
-        )?;
-        require_finite_range(
-            "callability.exit_defect_fraction",
-            self.callability.exit_defect_fraction,
-            0.0,
-            1.0,
-        )?;
-        if self.callability.exit_defect_fraction >= self.callability.onset_defect_fraction {
-            return Err(ConfigError::Constraint(
-                "callability.exit_defect_fraction must be less than callability.onset_defect_fraction",
-            )
-            .into());
-        }
-        require_fraction(
-            "callability.minimum_main_share",
-            self.callability.minimum_main_share,
-        )?;
-        require_finite_range(
-            "callability.maximum_far_share",
-            self.callability.maximum_far_share,
-            0.0,
-            1.0,
-        )?;
-        require_fraction(
-            "callability.minimum_shadow_share",
-            self.callability.minimum_shadow_share,
-        )?;
-        require_finite_range(
-            "callability.weak_amplitude_fraction",
-            self.callability.weak_amplitude_fraction,
-            0.0,
-            0.5,
-        )?;
-        if self.quality_control.penalty_window_size == 0 {
-            return Err(ConfigError::Constraint(
-                "quality_control.penalty_window_size must be positive",
-            )
-            .into());
-        }
-        if self.quality_control.max_relative_quality_score == 0 {
-            return Err(ConfigError::Constraint(
-                "quality_control.max_relative_quality_score must be positive",
-            )
-            .into());
-        }
-        if self.alignment.match_score <= 0 {
-            return Err(ConfigError::Constraint("alignment.match_score must be positive").into());
-        }
-        if self.alignment.mismatch_score >= 0
-            || self.alignment.gap_open_score >= 0
-            || self.alignment.gap_extension_score >= 0
-        {
-            return Err(ConfigError::Constraint(
-                "alignment mismatch and gap scores must be negative",
-            )
-            .into());
-        }
-        if self.alignment.minimum_callable_bases == 0 {
-            return Err(ConfigError::Constraint(
-                "alignment.minimum_callable_bases must be positive",
-            )
-            .into());
-        }
-        require_fraction(
-            "alignment.minimum_identity",
-            self.alignment.minimum_identity,
-        )?;
-        if self.sample_reconciliation.minimum_comparable_bases == 0 {
-            return Err(ConfigError::Constraint(
-                "sample_reconciliation.minimum_comparable_bases must be positive",
-            )
-            .into());
-        }
-        require_fraction(
-            "sample_reconciliation.minimum_overlap_agreement",
-            self.sample_reconciliation.minimum_overlap_agreement,
-        )?;
-        if self.variant_calling.max_indel_length == 0
-            || self.variant_calling.max_indel_length > MAX_INDEL_LENGTH
-        {
-            return Err(ConfigError::MaxIndelLength {
-                maximum: MAX_INDEL_LENGTH,
-            }
-            .into());
-        }
-        if self.sanger_evidence.minimum_peak_height <= 0
-            || self.sanger_evidence.minimum_peak_height > MAX_PEAK_HEIGHT
-        {
-            return Err(ConfigError::MinimumPeakHeight {
-                maximum: MAX_PEAK_HEIGHT,
-            }
-            .into());
-        }
-        if self.sanger_evidence.relative_quality_threshold
-            >= self.quality_control.max_relative_quality_score
-        {
-            return Err(ConfigError::Constraint(
-                "sanger_evidence.relative_quality_threshold must be less than quality_control.max_relative_quality_score",
-            ).into());
-        }
         if self.profile.as_os_str().is_empty() {
             return Err(ConfigError::Constraint("profile must name a target profile file").into());
         }
-        if self.callability.repeat_min_length < 2 {
-            return Err(ConfigError::Constraint(
-                "callability.repeat_min_length must be at least 2",
-            )
-            .into());
+        let sanger = RawSangerConfig {
+            basecalling: self.basecalling,
+            signal_processing: self.signal_processing,
+            callability: self.callability,
+            quality_control: self.quality_control,
+            sanger_evidence: self.sanger_evidence,
         }
-        if self.callability.minimum_callable_calls == 0 {
-            return Err(ConfigError::Constraint(
-                "callability.minimum_callable_calls must be positive",
-            )
-            .into());
+        .validate()?;
+        let core = RawCoreConfig {
+            alignment: self.alignment,
+            variant_calling: self.variant_calling,
+            sample_reconciliation: self.sample_reconciliation,
         }
+        .validate()?;
         let profile_path = source_path
             .parent()
             .unwrap_or_else(|| Path::new(""))
             .join(&self.profile);
         Ok(Config {
             profile_path,
-            basecalling: BasecallingConfig {
-                secondary_peak_ratio: self.basecalling.secondary_peak_ratio,
-            },
-            signal_processing: SignalProcessingConfig {
-                window_size_bases: self.signal_processing.window_size_bases,
-                minimum_primary_snr: self.signal_processing.minimum_primary_snr,
-                minimum_noisy_windows: self.signal_processing.minimum_noisy_windows,
-            },
-            callability: CallabilityConfig {
-                window_calls: self.callability.window_calls,
-                onset_defect_fraction: self.callability.onset_defect_fraction,
-                exit_defect_fraction: self.callability.exit_defect_fraction,
-                minimum_main_share: self.callability.minimum_main_share,
-                maximum_far_share: self.callability.maximum_far_share,
-                minimum_shadow_share: self.callability.minimum_shadow_share,
-                weak_amplitude_fraction: self.callability.weak_amplitude_fraction,
-                repeat_min_length: self.callability.repeat_min_length,
-                minimum_callable_calls: self.callability.minimum_callable_calls,
-            },
-            quality_control: QualityControlConfig {
-                penalty_window_size: self.quality_control.penalty_window_size,
-                max_relative_quality_score: self.quality_control.max_relative_quality_score,
-            },
-            alignment: AlignmentConfig {
-                match_score: self.alignment.match_score,
-                mismatch_score: self.alignment.mismatch_score,
-                ambiguous_score: self.alignment.ambiguous_score,
-                gap_open_score: self.alignment.gap_open_score,
-                gap_extension_score: self.alignment.gap_extension_score,
-                minimum_callable_bases: self.alignment.minimum_callable_bases,
-                minimum_identity: self.alignment.minimum_identity,
-            },
-            sample_reconciliation: SampleReconciliationConfig {
-                minimum_comparable_bases: self.sample_reconciliation.minimum_comparable_bases,
-                minimum_overlap_agreement: self.sample_reconciliation.minimum_overlap_agreement,
-            },
-            sanger_evidence: SangerEvidenceConfig {
-                minimum_peak_height: self.sanger_evidence.minimum_peak_height,
-                relative_quality_threshold: self.sanger_evidence.relative_quality_threshold,
-            },
-            variant_calling: VariantCallingConfig {
-                max_indel_length: self.variant_calling.max_indel_length,
-                read_end_margin: self.variant_calling.read_end_margin,
-            },
+            sanger,
+            core,
             source_path,
             source_sha256,
         })
     }
-}
-
-fn require_fraction(key: &'static str, value: f64) -> Result<()> {
-    require_finite_range(key, value, f64::MIN_POSITIVE, 1.0)
-}
-
-fn require_positive_finite(key: &'static str, value: f64) -> Result<()> {
-    if !value.is_finite() || value <= 0.0 {
-        return Err(ConfigError::NotFinitePositive { key }.into());
-    }
-    Ok(())
-}
-
-fn require_finite_range(key: &'static str, value: f64, minimum: f64, maximum: f64) -> Result<()> {
-    if !value.is_finite() || value < minimum || value > maximum {
-        return Err(ConfigError::NotFiniteInRange {
-            key,
-            minimum,
-            maximum,
-        }
-        .into());
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -466,13 +130,19 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let config = validate(VALID)?;
 
-        assert_eq!(config.signal_processing.window_size_bases, 10);
-        assert_eq!(config.signal_processing.minimum_primary_snr, 3.0);
-        assert_eq!(config.signal_processing.minimum_noisy_windows, 2);
-        assert_eq!(config.sample_reconciliation.minimum_comparable_bases, 25);
-        assert_eq!(config.sample_reconciliation.minimum_overlap_agreement, 0.5);
-        assert_eq!(config.sanger_evidence.minimum_peak_height, 150);
-        assert_eq!(config.sanger_evidence.relative_quality_threshold, 30);
+        assert_eq!(config.sanger.signal_processing.window_size_bases, 10);
+        assert_eq!(config.sanger.signal_processing.minimum_primary_snr, 3.0);
+        assert_eq!(config.sanger.signal_processing.minimum_noisy_windows, 2);
+        assert_eq!(
+            config.core.sample_reconciliation.minimum_comparable_bases,
+            25
+        );
+        assert_eq!(
+            config.core.sample_reconciliation.minimum_overlap_agreement,
+            0.5
+        );
+        assert_eq!(config.sanger.sanger_evidence.minimum_peak_height, 150);
+        assert_eq!(config.sanger.sanger_evidence.relative_quality_threshold, 30);
         Ok(())
     }
 

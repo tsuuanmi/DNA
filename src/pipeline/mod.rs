@@ -5,6 +5,7 @@ mod basecall;
 mod call;
 mod notation;
 mod path;
+mod plugins;
 mod represent;
 mod sample;
 mod sample_metrics;

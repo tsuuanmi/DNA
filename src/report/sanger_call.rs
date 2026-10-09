@@ -37,9 +37,17 @@ pub(super) fn evidence(
         .as_ref()
         .ok_or(CallEvidenceError::MissingPeakEvidence { index })?;
     Ok(SangerCallEvidence {
-        peak_heights: orientation.reference_peak_heights(primary.channel_heights),
+        peak_heights: reference_peak_heights(orientation, primary.channel_heights),
         quality: score.relative_quality_score,
     })
+}
+
+/// Projects A/C/G/T channel heights from trace strand to reference strand.
+const fn reference_peak_heights(orientation: Orientation, peaks: [i32; 4]) -> [i32; 4] {
+    match orientation {
+        Orientation::Forward => peaks,
+        Orientation::Reverse => [peaks[3], peaks[2], peaks[1], peaks[0]],
+    }
 }
 
 #[cfg(test)]

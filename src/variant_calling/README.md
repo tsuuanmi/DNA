@@ -26,6 +26,9 @@ and target nomenclature belong to `variant_normalization` and
 This module does not infer genotype, heteroplasmy, phase, pathogenicity, or
 clinical significance.
 
+`config.rs` owns the `[variant_calling]`, with the indel-length cap configuration section: its raw record, validated
+record, and rules (ADR-0069).
+
 See [variant requirements](../../docs/requirements/variants.md),
 [variant-calling method](../../docs/design/variant-calling.md), and
 [scientific-state invariants](../../docs/architecture/invariants/scientific-state.md).

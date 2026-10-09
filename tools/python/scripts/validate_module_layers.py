@@ -1,12 +1,17 @@
-"""Enforce the crate-ready module layering of first-party Rust source (ADR-0064).
+"""Enforce the plugin-family crate map of first-party Rust source (ADR-0069).
 
-Every top-level module under ``src/`` belongs to one layer. Production code may
-depend only on modules in the same or a lower layer, and the module graph must
-be acyclic, so each layer can later become a crate without redesign.
+Every module belongs to one crate of the plugin-first workspace:
 
-Modality-neutral modules (the core caller, the evidence contract, and
-post-calling representation, ADR-0069) must not depend on the Sanger modality:
-neither on its modules nor on the Sanger children of ``model``.
+- ``kernel``: shared contracts;
+- ``core``: the core caller;
+- ``sanger``: the Sanger modality;
+- ``post``: post-calling plugins;
+- ``dna``: the facade that composes them.
+
+``model`` children and ``input`` children are assigned individually. A module
+may depend only on its own crate or on a crate its crate is allowed to depend
+on: the plugin crates depend only on the kernel, and only the facade composes
+them. The module graph must also be acyclic.
 """
 
 from __future__ import annotations
@@ -20,93 +25,80 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE_ROOT = ROOT / "src"
 
-# Layer of every top-level module: 0 core, 1 target data, 2 science,
-# 3 adapters/capabilities, 4 delivery. Keep in sync with ADR-0064.
-LAYERS: dict[str, int] = {
-    "error": 0,
-    "checksum": 0,
-    "model": 0,
-    "locus": 0,
-    "variant": 0,
-    "read_evidence": 0,
-    "plugin": 0,
-    "config": 1,
-    "reference": 1,
-    "profile": 1,
-    "basecalling": 2,
-    "signal_processing": 2,
-    "callability": 2,
-    "quality_control": 2,
-    "read_processing": 2,
-    "alignment": 2,
-    "variant_calling": 2,
-    "sample": 2,
-    "variant_representation": 2,
-    "variant_normalization": 2,
-    "variant_nomenclature": 2,
-    "conformance": 2,
-    "input": 3,
-    "variant_analysis": 3,
-    "report": 4,
-    "operation_log": 4,
-    "pipeline": 4,
-    "cli": 4,
+# Crates each crate may depend on, besides itself.
+ALLOWED: dict[str, frozenset[str]] = {
+    "kernel": frozenset(),
+    "core": frozenset({"kernel"}),
+    "sanger": frozenset({"kernel"}),
+    "post": frozenset({"kernel"}),
+    "dna": frozenset({"kernel", "core", "sanger", "post"}),
 }
 
-# Modules that must stay independent of any sequencing modality (ADR-0069).
-NEUTRAL: frozenset[str] = frozenset(
-    {
-        "plugin",
-        "read_evidence",
-        "variant",
-        "alignment",
-        "variant_calling",
-        "sample",
-        "variant_representation",
-        "variant_normalization",
-        "variant_nomenclature",
-        "conformance",
-    }
-)
-# Modules that implement the Sanger modality.
-SANGER: frozenset[str] = frozenset(
-    {
-        "basecalling",
-        "signal_processing",
-        "callability",
-        "quality_control",
-        "read_processing",
-        "input",
-        "locus",
-    }
-)
-# Children of ``model`` that neutral modules may use; every other child is
-# Sanger-specific or a delivery contract.
-NEUTRAL_MODEL_CHILDREN: frozenset[str] = frozenset(
-    {
-        "alignment",
-        "called_read",
-        "coordinate",
-        "nucleotide",
-        "reference",
-        "reference_call",
-        "sample_evidence",
-        "variant",
-    }
-)
+# Crate of every module path under the source root; the longest matching
+# prefix wins. Keep in sync with PROP-0002 phase 5.
+MODULES: dict[str, str] = {
+    "error": "kernel",
+    "checksum": "kernel",
+    "bounds": "kernel",
+    "read_evidence": "kernel",
+    "plugin": "kernel",
+    "variant": "kernel",
+    "reference": "kernel",
+    "profile": "kernel",
+    "model::nucleotide": "kernel",
+    "model::reference": "kernel",
+    "alignment": "core",
+    "variant_calling": "core",
+    "sample": "core",
+    "read_call": "core",
+    "model::alignment": "core",
+    "model::variant": "core",
+    "model::coordinate": "core",
+    "model::called_read": "core",
+    "model::reference_call": "core",
+    "model::sample_evidence": "core",
+    "locus": "sanger",
+    "basecalling": "sanger",
+    "signal_processing": "sanger",
+    "callability": "sanger",
+    "quality_control": "sanger",
+    "read_processing": "sanger",
+    "input::sanger::abif": "sanger",
+    "model::basecalls": "sanger",
+    "model::callability": "sanger",
+    "model::locus_evidence": "sanger",
+    "model::quality": "sanger",
+    "model::sanger": "sanger",
+    "model::signal": "sanger",
+    "model::attachment": "sanger",
+    "variant_representation": "post",
+    "variant_normalization": "post",
+    "variant_nomenclature": "post",
+    "conformance": "post",
+    "cli": "dna",
+    "pipeline": "dna",
+    "report": "dna",
+    "operation_log": "dna",
+    "config": "dna",
+    "input": "dna",
+    "variant_analysis": "dna",
+    "model::read_observation": "dna",
+    "model::result": "dna",
+    "model::sample_result": "dna",
+    "model::basecall_result": "dna",
+    "model::variants_result": "dna",
+    "model::notation_result": "dna",
+}
 
-# Crate roots compose every module and are not part of any layer.
-CRATE_ROOTS = {"lib.rs", "main.rs"}
+# Files that only declare child modules or compose the crate.
+CONTAINERS = {"lib.rs", "main.rs", "model/mod.rs"}
 
 TEST_MODULE = re.compile(
     r"#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{", re.MULTILINE
 )
 LINE_COMMENT = re.compile(r"//.*$", re.MULTILINE)
-CRATE_PATH = re.compile(r"\bcrate::([a-z_][a-z0-9_]*)")
-CRATE_GROUP = re.compile(r"\bcrate::\{([^}]*)\}")
-GROUP_MEMBER = re.compile(r"(?:^|,)\s*([a-z_][a-z0-9_]*)")
-MODEL_PATH = re.compile(r"\bcrate::model::([a-z_][a-z0-9_]*)")
-MODEL_GROUP = re.compile(r"\bcrate::model::\{([^}]*)\}")
+CRATE_USE = re.compile(r"\bcrate::")
+TOKEN = re.compile(r"\s*([A-Za-z_][A-Za-z0-9_]*|::|\{|\}|,|\*)")
 
 
 @dataclass(frozen=True)
@@ -117,11 +109,21 @@ class Edge:
     line: int
 
 
-def module_of(root: Path, path: Path) -> str | None:
-    relative = path.relative_to(root)
-    if len(relative.parts) == 1:
-        return None if relative.name in CRATE_ROOTS else relative.stem
-    return relative.parts[0]
+def module_path(root: Path, path: Path) -> str:
+    parts = list(path.relative_to(root).with_suffix("").parts)
+    if parts[-1] == "mod":
+        parts.pop()
+    return "::".join(parts)
+
+
+def unit(path: str) -> str | None:
+    """The longest mapped module prefix of a ``::`` path, or None."""
+    segments = path.split("::")
+    for length in range(len(segments), 0, -1):
+        prefix = "::".join(segments[:length])
+        if prefix in MODULES:
+            return prefix
+    return None
 
 
 def production_text(path: Path) -> str:
@@ -133,48 +135,78 @@ def production_text(path: Path) -> str:
     return LINE_COMMENT.sub("", text)
 
 
+def path_tokens(text: str, start: int) -> list[str]:
+    """Tokens of the path that begins at ``start``, through any ``{...}`` group."""
+    tokens: list[str] = []
+    position = start
+    depth = 0
+    expect_segment = True
+    while match := TOKEN.match(text, position):
+        token = match.group(1)
+        if token == "{":
+            depth += 1
+        elif token == "}":
+            if depth == 0:
+                break
+            depth -= 1
+        elif token == "::":
+            expect_segment = True
+        elif token == ",":
+            if depth == 0:
+                break
+            expect_segment = True
+        elif not expect_segment and depth == 0:
+            break
+        else:
+            expect_segment = False
+        tokens.append(token)
+        position = match.end()
+        if depth == 0 and token == "}":
+            break
+    return tokens
+
+
+def expand(tokens: list[str]) -> list[str]:
+    """Full module paths of a path with nested ``{...}`` groups."""
+    paths: list[str] = []
+
+    def walk(index: int, prefix: str) -> int:
+        current = prefix
+        while index < len(tokens):
+            token = tokens[index]
+            if token == "::":
+                index += 1
+            elif token == "{":
+                index += 1
+                while index < len(tokens) and tokens[index] != "}":
+                    index = walk(index, current)
+                    if index < len(tokens) and tokens[index] == ",":
+                        index += 1
+                return index + 1
+            elif token in {",", "}"}:
+                break
+            else:
+                if token not in {"self", "*"}:
+                    current = f"{current}::{token}" if current else token
+                index += 1
+        paths.append(current)
+        return index
+
+    walk(0, "")
+    return [path for path in paths if path]
+
+
 def edges(root: Path) -> list[Edge]:
     found: list[Edge] = []
     for path in sorted(root.rglob("*.rs")):
-        source = module_of(root, path)
-        if source is None or path.name == "tests.rs":
+        if path.relative_to(root).as_posix() in CONTAINERS or path.name == "tests.rs":
             continue
+        source = module_path(root, path)
         text = production_text(path)
-        targets: list[tuple[str, int]] = []
-        for match in CRATE_GROUP.finditer(text):
+        for match in CRATE_USE.finditer(text):
             line = text.count("\n", 0, match.start()) + 1
-            targets.extend(
-                (member.group(1), line)
-                for member in GROUP_MEMBER.finditer(match.group(1))
-            )
-        for match in CRATE_PATH.finditer(text):
-            targets.append((match.group(1), text.count("\n", 0, match.start()) + 1))
-        for target, line in targets:
-            if target != source:
+            for target in expand(path_tokens(text, match.end())):
                 found.append(Edge(source, target, path, line))
-    return found
-
-
-def model_children(root: Path) -> list[Edge]:
-    """References from modules to children of ``model``, as ``model::child`` edges."""
-    found: list[Edge] = []
-    for path in sorted(root.rglob("*.rs")):
-        source = module_of(root, path)
-        if source is None or path.name == "tests.rs":
-            continue
-        text = production_text(path)
-        for match in MODEL_GROUP.finditer(text):
-            line = text.count("\n", 0, match.start()) + 1
-            found.extend(
-                Edge(source, member.group(1), path, line)
-                for member in GROUP_MEMBER.finditer(match.group(1))
-            )
-        for match in MODEL_PATH.finditer(text):
-            found.append(
-                Edge(
-                    source, match.group(1), path, text.count("\n", 0, match.start()) + 1
-                )
-            )
     return found
 
 
@@ -201,60 +233,37 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
     return None
 
 
-def neutral_source(root: Path, edge: Edge) -> bool:
-    """Whether the edge starts in a modality-neutral module or neutral model child."""
-    if edge.source in NEUTRAL:
-        return True
-    parts = edge.path.relative_to(root).parts
-    return (
-        edge.source == "model"
-        and len(parts) > 1
-        and Path(parts[1]).stem in NEUTRAL_MODEL_CHILDREN
-    )
-
-
 def relative(path: Path) -> Path:
     return path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
 
 
 def validate(root: Path = SOURCE_ROOT) -> list[str]:
     failures: list[str] = []
+    for path in sorted(root.rglob("*.rs")):
+        if path.relative_to(root).as_posix() in CONTAINERS or path.name == "tests.rs":
+            continue
+        source = module_path(root, path)
+        if unit(source) is None:
+            failures.append(f"{source}: unmapped module; assign it a crate in MODULES")
     graph: dict[str, set[str]] = {}
-    modules = {
-        module
-        for path in root.rglob("*.rs")
-        if (module := module_of(root, path)) is not None
-    }
-    failures.extend(
-        f"{module}: unmapped module; assign it a layer in LAYERS (ADR-0064)"
-        for module in sorted(modules - LAYERS.keys())
-    )
     for edge in edges(root):
-        graph.setdefault(edge.source, set()).add(edge.target)
-        source_layer = LAYERS.get(edge.source)
-        target_layer = LAYERS.get(edge.target)
-        if target_layer is None:
-            if edge.target in modules:
-                continue
+        source_unit = unit(edge.source)
+        if source_unit is None:
+            continue
+        target_unit = unit(edge.target)
+        if target_unit is None:
             failures.append(
-                f"{relative(edge.path)}:{edge.line}: unknown module crate::{edge.target}"
+                f"{relative(edge.path)}:{edge.line}: unmapped dependency crate::{edge.target}"
             )
-        elif source_layer is not None and target_layer > source_layer:
+            continue
+        if target_unit != source_unit:
+            graph.setdefault(source_unit, set()).add(target_unit)
+        source_crate = MODULES[source_unit]
+        target_crate = MODULES[target_unit]
+        if target_crate != source_crate and target_crate not in ALLOWED[source_crate]:
             failures.append(
-                f"{relative(edge.path)}:{edge.line}: layer {source_layer} module "
-                f"{edge.source} must not depend on layer {target_layer} module {edge.target}"
-            )
-    for edge in edges(root):
-        if neutral_source(root, edge) and edge.target in SANGER:
-            failures.append(
-                f"{relative(edge.path)}:{edge.line}: modality-neutral module {edge.source} "
-                f"must not depend on Sanger module {edge.target} (ADR-0069)"
-            )
-    for edge in model_children(root):
-        if neutral_source(root, edge) and edge.target not in NEUTRAL_MODEL_CHILDREN:
-            failures.append(
-                f"{relative(edge.path)}:{edge.line}: modality-neutral module {edge.source} "
-                f"must not depend on model::{edge.target} (ADR-0069)"
+                f"{relative(edge.path)}:{edge.line}: {source_crate} module {source_unit} "
+                f"must not depend on {target_crate} module {target_unit}"
             )
     if cycle := find_cycle(graph):
         failures.append(f"module dependency cycle: {' -> '.join(cycle)}")
@@ -278,11 +287,11 @@ def main(argv: list[str] | None = None) -> int:
     for failure in failures:
         print(f"FAIL: {failure}", file=sys.stderr)
     if failures:
-        print(f"{len(failures)} module-layering violation(s) found", file=sys.stderr)
+        print(f"{len(failures)} crate-map violation(s) found", file=sys.stderr)
         return 1
     print(
-        "OK: Rust modules depend only on the same or lower layers, without cycles, "
-        "and modality-neutral modules stay independent of Sanger"
+        "OK: every module belongs to a plugin-family crate, depends only on its own "
+        "crate or an allowed one, and the module graph is acyclic"
     )
     return 0
 

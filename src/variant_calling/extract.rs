@@ -1,6 +1,5 @@
 //! Alignment-difference extraction with original-call/reference mappings.
 
-use crate::config::VariantCallingConfig;
 use crate::error::{Result, VariantError};
 use crate::model::alignment::{Alignment, AlignmentColumn};
 use crate::model::nucleotide::is_canonical;
@@ -9,6 +8,7 @@ use crate::model::variant::{
     ExcludedVariant, Variant, VariantCallMapping, VariantCallingResult, VariantExclusionReason,
     VariantKind,
 };
+use crate::variant_calling::VariantCallingConfig;
 use crate::variant_calling::{anchor, mapping};
 
 use super::eligibility::ReadEligibility;

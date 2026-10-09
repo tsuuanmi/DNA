@@ -13,7 +13,7 @@ mod upper_bound;
 mod tests;
 
 use crate::alignment::scoring::{scaled, substitution_scores};
-use crate::config::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
+use crate::alignment::{AlignmentConfig, MAX_ALIGNMENT_CELLS};
 use crate::model::nucleotide::Nucleotide;
 use crate::read_evidence::EvidenceProfile;
 

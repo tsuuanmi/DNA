@@ -19,5 +19,9 @@ The output is `model::sanger::Chromatogram`, the canonical Sanger evidence model
 ABIF directory entries, tag names, and format-specific structures do not cross
 that boundary. In particular, `PLOC.2` is projected to canonical `locus_positions`.
 
+In the plugin-first workspace, `abif/` (ABIF decoding) belongs to the Sanger
+crate, and the input orchestration in `mod.rs` belongs to the composing facade
+(ADR-0069).
+
 See [input requirements](../../../docs/requirements/input.md) and
 [ABIF decoding method](../../../docs/design/abif-decoding.md).

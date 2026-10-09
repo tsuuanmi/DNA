@@ -10,5 +10,8 @@ callable span from [callability](../callability/README.md),
 This module does not decide where a read is callable, perform Phred
 calibration, reference alignment, or variant filtering.
 
+`config.rs` owns the `[quality_control]` configuration section: its raw record, validated
+record, and rules (ADR-0069).
+
 See [quality-control requirements](../../docs/requirements/quality-control.md) and
 [quality-control method](../../docs/design/quality-control.md).
