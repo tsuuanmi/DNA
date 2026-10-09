@@ -5,6 +5,7 @@
 //! the same canonical result contract.
 
 pub(crate) mod observation;
+pub(crate) mod read_call;
 
 use std::path::Path;
 

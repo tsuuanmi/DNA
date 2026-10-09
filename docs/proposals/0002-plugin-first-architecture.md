@@ -80,7 +80,7 @@ criterion.
 | 2 | Static plugin registry: identity, family, method version, provided and required contracts, owned configuration sections. Per-plugin configuration sections. Plugin identities in provenance. | Outputs identical apart from provenance; registry validation rejects missing requirements and shared or unknown sections. |
 | 2b | Sample attachments: core sample records hold neutral facts, and Sanger per-call and per-read extras move to an attachment that the report joins. | Byte-identical sample documents; `sample` imports no Sanger type. |
 | 3 | A sequence adapter (consensus FASTA/FASTQ → `ReadEvidence`) and a core-only `dna call` command. | Reviewer consensus sequences give haplotype-identical calls after normalization and nomenclature. |
-| 4 | `dna.called_variants/v1` JSON, emitted by the core and consumed by `dna normalize` and `dna nomenclature`. A conformance plugin (EMPOP-style notation rules). | JSON round trip gives the same result as in-process composition. |
+| 4 | `dna.variants/v1` JSON, emitted by the core and consumed by `dna normalize` and `dna nomenclature`. A conformance plugin (EMPOP-style notation rules). | JSON round trip gives the same result as in-process composition. |
 | 5 | Workspace split (kernel, core, Sanger, post-calling, CLI crates), with a new ADR superseding ADR-0002. | Each crate builds and tests without the crates it does not depend on. |
 
 Phase 1 is implemented as follows.
@@ -164,3 +164,17 @@ Accepted on 2026-10-09 and recorded by
   aggregation over `CalledRead`, report-side joins of Sanger evidence, and the
   neutrality rule for `sample` and the neutral children of `model`. Every
   result document and the sample aggregation metrics are byte-identical.
+- Phase 3: the `sequence` modality plugin (`input::sequence`), vouched read
+  ends in `ReadEvidence`, the shared `variant_analysis::read_call` path, the
+  `dna call` command, and `dna.variants/v1`. Measured outside the
+  repository (ADR-0065) on the 160 samples of the held-out set that have
+  reviewer consensus FASTA, with only aggregates quoted:
+  - all 160 calls succeed;
+  - after normalization and nomenclature, 158 samples reproduce the
+    reviewer calls exactly (precision 0.999, recall 0.998, ambiguity codes
+    excluded);
+  - in the 2 remaining samples, DNA names the HVS-II 303-315 window as one
+    insertion where the reviewer used a substitution plus an insertion. The
+    reconstructed haplotypes are identical, so this is a nomenclature
+    difference for the phase-4 conformance plugin.
+  - Sanger results stay byte-identical.

@@ -2,6 +2,7 @@
 
 mod analyze;
 mod basecall;
+mod call;
 mod path;
 mod sample;
 mod sample_metrics;
@@ -22,6 +23,16 @@ pub(crate) fn analyze(trace: &Path, reference: &Path, config_path: &Path) -> Res
 /// Runs one reference-free AB1 basecall operation.
 pub(crate) fn basecall(trace: &Path, config_path: &Path) -> Result<()> {
     basecall::run(trace, config_path)
+}
+
+/// Runs one core-only call over consensus sequences.
+pub(crate) fn call(
+    sample_id: &str,
+    sequences: &[PathBuf],
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    call::run(sample_id, sequences, reference, config_path)
 }
 
 /// Runs one multi-read sample evidence operation.

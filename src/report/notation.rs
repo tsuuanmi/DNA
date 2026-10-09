@@ -6,9 +6,85 @@
 //! `<anchor>.<ordinal><base>` after the preceding reference base (`309.1C`,
 //! `309.2C`); an insertion before the first base uses anchor `0`.
 
-use crate::error::RepresentationError;
+use std::collections::BTreeMap;
+
+use crate::error::{ReportError, RepresentationError};
+use crate::model::reference::Reference;
+use crate::model::sample_result::{SampleNotationCallResult, SampleNotationResult};
+use crate::profile::NotationStyle;
 use crate::variant::Variant;
 use crate::variant_representation::{sort_edits, variants_to_edits};
+
+/// Every read's represented calls and the profile style to render them in.
+pub(crate) struct SampleNotation {
+    pub(crate) style: NotationStyle,
+    pub(crate) reads: Vec<ReadRepresentation>,
+}
+
+/// One read's eligible calls in the profile representation.
+pub(crate) struct ReadRepresentation {
+    pub(crate) input_sha256: String,
+    pub(crate) variants: Vec<Variant>,
+}
+
+/// Renders each read's represented calls and lists, per distinct call, the reads
+/// containing it in the document's read order. This is not a consensus: reads
+/// that disagree contribute different calls.
+///
+/// `identities` and `names` give the content identity and reviewer-facing name
+/// of every read, in the document's read order.
+pub(super) fn project(
+    reference: &Reference,
+    identities: &[&str],
+    names: &[String],
+    notation: SampleNotation,
+) -> crate::error::Result<SampleNotationResult> {
+    let SampleNotation { style, reads } = notation;
+    let render = match style {
+        NotationStyle::PerBaseDecimal => render,
+    };
+    let mut calls: BTreeMap<NotationCall, Vec<usize>> = BTreeMap::new();
+    for representation in reads {
+        let read_index = identities
+            .iter()
+            .position(|identity| *identity == representation.input_sha256)
+            .ok_or(ReportError::Inconsistent(
+                "notation references a read missing from the document",
+            ))?;
+        for call in render(
+            &reference.name,
+            &reference.sequence,
+            &representation.variants,
+        )
+        .map_err(ReportError::Representation)?
+        {
+            calls.entry(call).or_default().push(read_index);
+        }
+    }
+    let calls = calls
+        .into_iter()
+        .map(|(call, mut reads)| {
+            reads.sort_unstable();
+            reads.dedup();
+            Ok(SampleNotationCallResult {
+                call: call.text,
+                reads: reads
+                    .into_iter()
+                    .map(|index| {
+                        names
+                            .get(index)
+                            .cloned()
+                            .ok_or(ReportError::MissingRead { index }.into())
+                    })
+                    .collect::<crate::error::Result<_>>()?,
+            })
+        })
+        .collect::<crate::error::Result<_>>()?;
+    Ok(SampleNotationResult {
+        style: style.label(),
+        calls,
+    })
+}
 
 /// One rendered per-base call with its reference-order sort key.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

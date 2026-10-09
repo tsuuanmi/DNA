@@ -43,6 +43,16 @@ FASTA ------> alignment
                        sample evidence --> report joins SangerAttachment
 ```
 
+Reviewed consensus sequences take a shorter path into the same core:
+
+```text
+consensus FASTA --> input::sequence --> ReadEvidence (vouched ends)
+                                             |
+FASTA ---------------------------------> variant_analysis::read_call
+                                             |
+                                         CalledRead --> called variants
+```
+
 `variant_analysis::observation` owns the authoritative reference-guided
 single-read scientific path. The public Rust Variant Analysis capability, CLI
 analysis, and sample processing reuse that path rather than owning duplicate

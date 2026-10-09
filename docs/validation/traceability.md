@@ -4,7 +4,7 @@ This map helps developers and agents move from intent to implementation without 
 
 | Requirement family | Current method / architecture | Owning implementation | Primary tests / evidence | Public contract |
 |---|---|---|---|---|
-| [`SRS-IN-*`](../requirements/input.md) | [`design/pipeline.md`](../design/pipeline.md), [`architecture/overview.md`](../architecture/overview.md) | `src/input/sanger/`, `src/reference/`, `src/cli/` | parser/reference/CLI tests, synthetic ABIF | CLI/config contracts |
+| [`SRS-IN-*`](../requirements/input.md) | [`design/pipeline.md`](../design/pipeline.md), [`architecture/overview.md`](../architecture/overview.md) | `src/input/sanger/`, `src/input/sequence.rs`, `src/reference/`, `src/cli/` | parser/reference/CLI tests, synthetic ABIF, synthetic consensus FASTA (`tests/call.rs`) | CLI/config contracts |
 | [`SRS-CFG-*`](../requirements/configuration.md) | [`reference/configuration.md`](../reference/configuration.md) | `src/config/` | strict TOML/config tests | `config/dna.toml` semantics |
 | [`SRS-PRF-*`](../requirements/profiles.md) | [`reference/profiles.md`](../reference/profiles.md), ADR-0063 | `src/profile/`, `src/input/sanger/` | strict profile validation unit tests, shipped-profile load test, fail-closed reference CLI test, synthetic non-mtDNA window test | `config/profiles/*.toml`; `provenance.profile` in analysis v9 and sample evidence v10 |
 | [`SRS-BC-*`](../requirements/basecalling.md) | [`design/basecalling.md`](../design/basecalling.md) | `src/basecalling/`, `src/model/basecalls.rs` | basecalling unit tests + approved trace comparison | `dna.basecalls/v3`, mapped calls in analysis |

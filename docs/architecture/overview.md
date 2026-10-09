@@ -35,7 +35,7 @@
 | `variant` | 0 | public canonical called-variant contracts | evidence and call mappings |
 | `plugin` | 0 | static plugin registry and workflow compositions, validated at compile time; plugin provenance identities | running stages, configuration values |
 | `read_evidence` | 0 | modality → core per-read evidence contract: bases, profiles, labelled masks, support vetoes, informative interval | modality algorithms, interpreting reason labels |
-| `input` | 3 | source/modality adapters; currently Sanger ABIF | CLI publication paths and scientific algorithms |
+| `input` | 3 | source/modality adapters: Sanger ABIF, and reviewed consensus sequences with their `ReadEvidence` adapter | CLI publication paths and scientific algorithms |
 | `reference` | 1 | validated reference identity/model | alignment |
 | `read_processing` | 2 | shared reference-free Sanger read processing; the Sanger adapter that builds `ReadEvidence` (support vetoes, mask reasons) | reference interpretation |
 | `basecalling` | 2 | signal-derived calls | trimming/reference knowledge |
@@ -59,8 +59,9 @@ CI enforces this with `validate_module_layers.py`.
 
 DNA composes three plugin families
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
-modality plugins (Sanger: `input`, `read_processing`, `basecalling`,
-`signal_processing`, `callability`, `quality_control`), the core caller
+modality plugins (Sanger: `input::sanger`, `read_processing`, `basecalling`,
+`signal_processing`, `callability`, `quality_control`; reviewed consensus
+sequences: `input::sequence`), the core caller
 (`read_evidence`, `alignment`, `variant_calling`, `sample`), and post-calling
 plugins (`variant_representation`, `variant_normalization`,
 `variant_nomenclature`). The same validator rejects any dependency from a

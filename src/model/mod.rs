@@ -18,3 +18,4 @@ pub(crate) mod sample_result;
 pub(crate) mod sanger;
 pub(crate) mod signal;
 pub(crate) mod variant;
+pub(crate) mod variants_result;

@@ -169,3 +169,16 @@ integrity, and callability by read identity and call index. Variant call
 resolution has one implementation: the neutral part picks the calls and their
 bases, and the report adds the Sanger peaks and quality. The validator now also
 applies the neutrality rule to the neutral children of `model`.
+
+## Revision 2026-10-09 (phase 3)
+
+A second modality plugin, `sequence`, turns reviewed consensus FASTA records
+into `ReadEvidence`, and `dna call` runs it with the core alone into
+`dna.variants/v1`. The evidence contract gains one per-read fact: whether
+the modality vouches for the read's calls up to its physical ends. Without that,
+the core's read-end margin would treat the ends of a reviewed consensus like the
+raw ends of a Sanger read and suppress real differences next to them (for
+example the first base of a region). Sanger reads never vouch for their ends,
+so their results are unchanged. Sanger observation and `dna call` share one
+modality-neutral path, `variant_analysis::read_call`, which places the evidence
+and calls its variants.

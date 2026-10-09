@@ -18,6 +18,8 @@ processing lives in `read_processing` (`prepare` through callability, then
 `finish`); reference-guided read observation is owned by `variant_analysis`.
 `sample_reads.rs` processes each trace in those two steps so that a read with
 too few callable calls is recorded as rejected while the others continue.
+`call.rs` runs the core alone over reviewed consensus sequences: the sequence
+adapter, `read_call`, optional notation, and `dna.variants/v1`.
 `sample.rs` splits every read into its `CalledRead`, which the neutral `sample`
 aggregation consumes, and its Sanger attachment, which `sample_metrics.rs` and
 the sample report join by read identity (ADR-0069).

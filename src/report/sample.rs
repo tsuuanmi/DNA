@@ -12,17 +12,16 @@ use crate::model::sample_evidence::SampleEvidence;
 use crate::model::sample_result::{
     ReadRejectionResult, RejectedSampleReadResult, SampleCoverageResult,
     SampleEvidenceProfileResult, SampleEvidenceResult, SampleLocusDifferenceObservationResult,
-    SampleLocusDifferenceResult, SampleLocusSupportTopologyResult, SampleNotationCallResult,
-    SampleNotationResult, SampleOverlapResult, SampleProvenanceResult, SampleReadResult,
-    SampleVariantCallResult, SampleVariantOppositionResult, SampleVariantResult,
-    SampleVariantSupportResult, SampleVariantSupportTopologyResult,
+    SampleLocusDifferenceResult, SampleLocusSupportTopologyResult, SampleOverlapResult,
+    SampleProvenanceResult, SampleReadResult, SampleVariantCallResult,
+    SampleVariantOppositionResult, SampleVariantResult, SampleVariantSupportResult,
+    SampleVariantSupportTopologyResult,
 };
 use crate::plugin::PluginDescriptor;
-use crate::profile::{NotationStyle, ProfileIdentity};
+use crate::profile::ProfileIdentity;
 use crate::report::json::{project_plugins, project_profile};
-use crate::report::notation::{self, NotationCall};
+use crate::report::notation::{self, SampleNotation};
 use crate::report::sanger_call;
-use crate::variant::Variant;
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {
@@ -51,18 +50,6 @@ pub(crate) struct SangerSampleEvidence {
 struct JoinedRead<'a> {
     sanger: &'a SangerAttachment,
     orientation: Orientation,
-}
-
-/// Every read's represented calls and the profile style to render them in.
-pub(crate) struct SampleNotation {
-    pub(crate) style: NotationStyle,
-    pub(crate) reads: Vec<ReadRepresentation>,
-}
-
-/// One read's eligible calls in the profile representation.
-pub(crate) struct ReadRepresentation {
-    pub(crate) input_sha256: String,
-    pub(crate) variants: Vec<Variant>,
 }
 
 /// Builds `dna.sample_evidence/v10` without filesystem side effects.
@@ -123,7 +110,14 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
             })
             .collect::<Result<Vec<_>>>()?;
     let notation = notation
-        .map(|notation| project_notation(&reference, &evidence, &read_names, notation))
+        .map(|notation| {
+            let identities = evidence
+                .reads
+                .iter()
+                .map(|read| read.input_sha256.as_str())
+                .collect::<Vec<_>>();
+            notation::project(&reference, &identities, &read_names, notation)
+        })
         .transpose()?;
     let reads = evidence
         .reads
@@ -335,58 +329,6 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         locus_differences,
         variants,
         notation,
-    })
-}
-
-/// Renders each read's represented calls and lists, per distinct call, the reads
-/// containing it in deterministic read order. This is not a consensus: reads
-/// that disagree contribute different calls, and coverage stays in `coverage`.
-fn project_notation(
-    reference: &Reference,
-    evidence: &SampleEvidence,
-    read_names: &[String],
-    notation: SampleNotation,
-) -> Result<SampleNotationResult> {
-    let SampleNotation { style, reads } = notation;
-    let render = match style {
-        NotationStyle::PerBaseDecimal => notation::render,
-    };
-    let mut calls: BTreeMap<NotationCall, Vec<usize>> = BTreeMap::new();
-    for representation in reads {
-        let read_index = evidence
-            .reads
-            .iter()
-            .position(|read| read.input_sha256 == representation.input_sha256)
-            .ok_or(ReportError::Inconsistent(
-                "notation references a read missing from sample evidence",
-            ))?;
-        for call in render(
-            &reference.name,
-            &reference.sequence,
-            &representation.variants,
-        )
-        .map_err(ReportError::Representation)?
-        {
-            calls.entry(call).or_default().push(read_index);
-        }
-    }
-    let calls = calls
-        .into_iter()
-        .map(|(call, mut reads)| {
-            reads.sort_unstable();
-            reads.dedup();
-            Ok(SampleNotationCallResult {
-                call: call.text,
-                reads: reads
-                    .into_iter()
-                    .map(|index| read_name(read_names, index).map(str::to_owned))
-                    .collect::<Result<_>>()?,
-            })
-        })
-        .collect::<Result<_>>()?;
-    Ok(SampleNotationResult {
-        style: style.label(),
-        calls,
     })
 }
 

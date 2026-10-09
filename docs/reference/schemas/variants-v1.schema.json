@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:variants:v1",
+  "title": "DNA variants v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sample_id",
+    "provenance",
+    "reads"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.variants/v1"
+    },
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "reads": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/read"
+      }
+    },
+    "notation": {
+      "$ref": "#/$defs/notation"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "orientation": {
+      "enum": [
+        "forward",
+        "reverse"
+      ]
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "topology",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topology": {
+          "enum": [
+            "linear",
+            "circular"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "family": {
+            "enum": [
+              "modality",
+              "core",
+              "post_calling"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "configuration_sha256",
+        "profile",
+        "plugins"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/reference"
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile": {
+          "$ref": "#/$defs/profile"
+        },
+        "plugins": {
+          "$ref": "#/$defs/plugins"
+        }
+      }
+    },
+    "readAlignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orientation",
+        "callable_bases",
+        "identity",
+        "gap_opens",
+        "unresolved_bases",
+        "masked_bases",
+        "reference_segments",
+        "callable_reference_segments",
+        "wraps_origin"
+      ],
+      "properties": {
+        "orientation": {
+          "$ref": "#/$defs/orientation"
+        },
+        "callable_bases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "identity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "gap_opens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_bases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "masked_bases": {
+          "description": "Aligned query bases from masked calls, presented to alignment as unresolved; not counted in unresolved_bases or callable_bases.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference_segments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/interval"
+          }
+        },
+        "callable_reference_segments": {
+          "description": "Reference intervals observed by unmasked calls and by deletions between them, in alignment order; each lies inside one reference segment. A covered position outside them is covered by a masked call.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interval"
+          }
+        },
+        "wraps_origin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "notation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "style",
+        "calls"
+      ],
+      "properties": {
+        "style": {
+          "const": "per_base_decimal"
+        },
+        "calls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/notationCall"
+          }
+        }
+      }
+    },
+    "notationCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call",
+        "reads"
+      ],
+      "properties": {
+        "call": {
+          "type": "string",
+          "pattern": "^(?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGT]|[1-9][0-9]*(?:[ACGT]|DEL))$"
+        },
+        "reads": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "exclusionReason": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "A core reason (outside_target_region, indel_length_exceeded, non_canonical_allele, read_end) or a modality reason label reported verbatim."
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "reference",
+        "alternate",
+        "kind",
+        "eligible",
+        "exclusion_reasons"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[ACGT]+$"
+        },
+        "alternate": {
+          "type": "string",
+          "pattern": "^[ACGT]+$"
+        },
+        "kind": {
+          "enum": [
+            "SNV",
+            "INS",
+            "DEL"
+          ]
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "exclusion_reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/exclusionReason"
+          }
+        }
+      }
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256",
+        "alignment",
+        "variants"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "alignment": {
+          "$ref": "#/$defs/readAlignment"
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variant"
+          }
+        }
+      }
+    }
+  }
+}

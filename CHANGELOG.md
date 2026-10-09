@@ -10,6 +10,20 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Core-only calls from reviewed consensus sequences (ADR-0069 phase 3,
+  PROP-0002, SRS-IN-013, SRS-OUT-010, SRS-VAR-015). The command is
+  `dna call <sample-id> <sequences.fasta>... --reference <reference.fasta>`.
+  - Each FASTA record becomes modality-neutral `ReadEvidence` through the new
+    `sequence` modality plugin: one-hot profiles, shared-weight profiles for
+    IUPAC codes, no masks or vetoes, and vouched read ends.
+  - The core caller alone places each record and calls its variants into
+    `results/<sample-id>.variants.json` (`dna.variants/v1`), with per-read
+    alignment summaries, observed variants with eligibility, and optional
+    notation.
+  - Sanger results are unchanged.
+  - **Rust API:** `Error` gains `Sequence(SequenceError)`, and
+    `analyze_sanger` opens a `read_evidence` stage span, for the Sanger
+    evidence adapter, between `quality_control` and `alignment`.
 - Signal-derived read callability (ADR-0067, SRS-CALL-001 to SRS-CALL-008): a
   new `callability` stage derives, from each read's own signal in trace order,
   phase-state segments (`in_phase`, `dephased`, `mixed`, `weak`, `irregular`),

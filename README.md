@@ -39,6 +39,7 @@ Current supported behavior includes:
 - primary-sequence SNVs and supported small insertions/deletions;
 - reviewer-facing reference-oriented A/C/G/T peak and quality evidence for reported variants;
 - run-length total/forward/reverse coverage topology, Tracy-derived pairwise overlap/admission evidence, and factorized normalized-variant support topology across independently placed sample reads;
+- a plugin-first composition (ADR-0069): the Sanger modality and a reviewed-consensus sequence modality feed one modality-neutral core caller, which the `call` command runs alone;
 - closed versioned JSON schemas;
 - atomic no-overwrite result publication;
 - typed failures and bounded resource use.
@@ -112,6 +113,13 @@ cargo run --release -- sample AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
 ```
 
+Core-only calls from reviewed consensus sequences (one FASTA record per read):
+
+```bash
+cargo run --release -- call AB0442 consensus.fasta \
+  --reference references/rCRS.fasta
+```
+
 DNA reads `DNA_CONFIG` or `config/dna.toml` and, for reference-guided commands, the [target profile](docs/reference/profiles.md) it names (`config/profiles/human-mtdna-rcrs.toml` by default).
 
 Successful core commands publish exactly one command-specific JSON result without overwriting an existing result:
@@ -120,9 +128,10 @@ Successful core commands publish exactly one command-specific JSON result withou
 basecall -> results/<trace-stem>.basecalls.json
 analyze  -> results/<trace-stem>.json
 sample   -> results/<sample-id>.sample.json
+call     -> results/<sample-id>.variants.json
 ```
 
-Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` uses one `<sample-id>.log` containing the nested processing events for all traces in that sample.
+Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample` and `call` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
 
 Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066).
 
@@ -132,7 +141,8 @@ Current public result contracts are:
 
 - `dna.basecalls/v3` — reference-free primary/ambiguity/retained read result with the read callability view;
 - `dna.analysis/v9` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence and the read callability view;
-- `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons.
+- `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons;
+- `dna.variants/v1` — the core's per-read placements and observed variants from reviewed consensus sequences, with eligibility and optional notation, and no modality evidence.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 

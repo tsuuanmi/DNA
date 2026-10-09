@@ -1,0 +1,224 @@
+{
+  "schema_version": "dna.variants/v1",
+  "sample_id": "sample-1",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "7c9319627b34b6edaecdba2967d3b31f1be58db86134f2c507eaa28a22eda762",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
+    },
+    "plugins": [
+      {
+        "id": "sequence",
+        "family": "modality",
+        "version": 1
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 1
+      },
+      {
+        "id": "normalization",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "nomenclature",
+        "family": "post_calling",
+        "version": 1
+      }
+    ]
+  },
+  "reads": [
+    {
+      "name": "HV1",
+      "sha256": "7e5f68d080dcaf1805d494ed87be8991e7e53f1553bbebd67dff95494cf1e85f",
+      "alignment": {
+        "orientation": "forward",
+        "callable_bases": 342,
+        "identity": 0.9970760233918129,
+        "unresolved_bases": 0,
+        "masked_bases": 0,
+        "gap_opens": 0,
+        "reference_segments": [
+          {
+            "start": 16023,
+            "end": 16365
+          }
+        ],
+        "callable_reference_segments": [
+          {
+            "start": 16023,
+            "end": 16365
+          }
+        ],
+        "wraps_origin": false
+      },
+      "variants": [
+        {
+          "position": 16223,
+          "reference": "C",
+          "alternate": "T",
+          "kind": "SNV",
+          "eligible": true,
+          "exclusion_reasons": []
+        }
+      ]
+    },
+    {
+      "name": "HV2",
+      "sha256": "05a1958916aa8a773280341e6073f36c5fe2c44a4749c7d6242932c7b3b44150",
+      "alignment": {
+        "orientation": "forward",
+        "callable_bases": 268,
+        "identity": 0.9888059701492538,
+        "unresolved_bases": 0,
+        "masked_bases": 0,
+        "gap_opens": 1,
+        "reference_segments": [
+          {
+            "start": 72,
+            "end": 340
+          }
+        ],
+        "callable_reference_segments": [
+          {
+            "start": 72,
+            "end": 340
+          }
+        ],
+        "wraps_origin": false
+      },
+      "variants": [
+        {
+          "position": 73,
+          "reference": "A",
+          "alternate": "G",
+          "kind": "SNV",
+          "eligible": true,
+          "exclusion_reasons": []
+        },
+        {
+          "position": 263,
+          "reference": "A",
+          "alternate": "G",
+          "kind": "SNV",
+          "eligible": true,
+          "exclusion_reasons": []
+        },
+        {
+          "position": 309,
+          "reference": "C",
+          "alternate": "CCT",
+          "kind": "INS",
+          "eligible": true,
+          "exclusion_reasons": []
+        },
+        {
+          "position": 310,
+          "reference": "T",
+          "alternate": "C",
+          "kind": "SNV",
+          "eligible": true,
+          "exclusion_reasons": []
+        }
+      ]
+    },
+    {
+      "name": "HV3",
+      "sha256": "1b2261bf8ad4b23937cb85f9fa86fe6905fa791cce16bf42b0cc6325e0cd553c",
+      "alignment": {
+        "orientation": "forward",
+        "callable_bases": 139,
+        "identity": 0.9928057553956835,
+        "unresolved_bases": 0,
+        "masked_bases": 0,
+        "gap_opens": 1,
+        "reference_segments": [
+          {
+            "start": 437,
+            "end": 576
+          }
+        ],
+        "callable_reference_segments": [
+          {
+            "start": 437,
+            "end": 576
+          }
+        ],
+        "wraps_origin": false
+      },
+      "variants": [
+        {
+          "position": 489,
+          "reference": "T",
+          "alternate": "C",
+          "kind": "SNV",
+          "eligible": true,
+          "exclusion_reasons": []
+        },
+        {
+          "position": 573,
+          "reference": "C",
+          "alternate": "CC",
+          "kind": "INS",
+          "eligible": true,
+          "exclusion_reasons": []
+        }
+      ]
+    }
+  ],
+  "notation": {
+    "style": "per_base_decimal",
+    "calls": [
+      {
+        "call": "73G",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "263G",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "309.1C",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "315.1C",
+        "reads": [
+          "HV2"
+        ]
+      },
+      {
+        "call": "489C",
+        "reads": [
+          "HV3"
+        ]
+      },
+      {
+        "call": "573.1C",
+        "reads": [
+          "HV3"
+        ]
+      },
+      {
+        "call": "16223T",
+        "reads": [
+          "HV1"
+        ]
+      }
+    ]
+  }
+}

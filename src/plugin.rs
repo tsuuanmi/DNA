@@ -75,6 +75,16 @@ pub(crate) const SANGER: PluginDescriptor = PluginDescriptor {
     ],
 };
 
+/// Reviewed consensus sequences in FASTA.
+pub(crate) const SEQUENCE: PluginDescriptor = PluginDescriptor {
+    id: "sequence",
+    family: PluginFamily::Modality,
+    version: 1,
+    provides: &[Contract::ReadEvidence],
+    requires: &[],
+    config_sections: &[],
+};
+
 /// Core caller: evidence-profile alignment, per-read variant calling, and
 /// sample aggregation.
 pub(crate) const CORE: PluginDescriptor = PluginDescriptor {
@@ -107,7 +117,7 @@ pub(crate) const NOMENCLATURE: PluginDescriptor = PluginDescriptor {
 };
 
 /// Every plugin this build contains.
-const REGISTRY: &[&PluginDescriptor] = &[&SANGER, &CORE, &NORMALIZATION, &NOMENCLATURE];
+const REGISTRY: &[&PluginDescriptor] = &[&SANGER, &SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE];
 
 /// Plugins of the `basecall` workflow, in execution order.
 pub(crate) const BASECALL: &[&PluginDescriptor] = composition(&[&SANGER]);
@@ -115,6 +125,11 @@ pub(crate) const BASECALL: &[&PluginDescriptor] = composition(&[&SANGER]);
 pub(crate) const ANALYZE: &[&PluginDescriptor] = composition(&[&SANGER, &CORE]);
 /// Plugins of the `sample` workflow without notation, in execution order.
 pub(crate) const SAMPLE: &[&PluginDescriptor] = composition(&[&SANGER, &CORE]);
+/// Plugins of the `call` workflow without notation, in execution order.
+pub(crate) const CALL: &[&PluginDescriptor] = composition(&[&SEQUENCE, &CORE]);
+/// Plugins of the `call` workflow with notation, in execution order.
+pub(crate) const CALL_WITH_NOTATION: &[&PluginDescriptor] =
+    composition(&[&SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE]);
 /// Plugins of the `sample` workflow with notation, in execution order.
 pub(crate) const SAMPLE_WITH_NOTATION: &[&PluginDescriptor] =
     composition(&[&SANGER, &CORE, &NORMALIZATION, &NOMENCLATURE]);

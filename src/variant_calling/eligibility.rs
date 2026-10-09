@@ -5,6 +5,7 @@
 //! alignment information. A mapped call within `read_end_margin` calls of an
 //! uninformative call cannot support a variant (`read_end`): the alignment has
 //! no information there, so a difference close to it may be an edge artifact.
+//! The read's ends count as uninformative unless its modality vouches for them.
 //! A masked evidence call — a supporting call, or a flanking call of a
 //! deletion, which has none — contributes its modality's mask reason.
 
@@ -12,7 +13,7 @@ use crate::config::VariantCallingConfig;
 use crate::model::variant::{
     VariantCallMapping, VariantCallRole, VariantExclusionReason, VariantKind,
 };
-use crate::read_evidence::{MaskedAlignment, ReadEvidence};
+use crate::read_evidence::{MaskedAlignment, ReadEnds, ReadEvidence};
 
 /// Trusted calls of one read.
 pub(super) struct ReadEligibility<'a> {
@@ -39,15 +40,20 @@ impl<'a> ReadEligibility<'a> {
             .collect::<Vec<_>>();
         let calls = informative.len();
         let margin = config.read_end_margin;
-        // Informative run lengths ending at and starting at every call.
+        // Informative run lengths ending at and starting at every call; a
+        // vouched read end counts as a full margin of informative calls.
+        let edge = match evidence.ends() {
+            ReadEnds::Unvouched => 0,
+            ReadEnds::Vouched => margin,
+        };
         let mut before = vec![0_usize; calls];
-        let mut run = 0_usize;
+        let mut run = edge;
         for index in 0..calls {
             run = if informative[index] { run + 1 } else { 0 };
             before[index] = run;
         }
         let mut after = vec![0_usize; calls];
-        run = 0;
+        run = edge;
         for index in (0..calls).rev() {
             run = if informative[index] { run + 1 } else { 0 };
             after[index] = run;
@@ -158,6 +164,33 @@ mod tests {
                 "call {index}"
             );
         }
+    }
+
+    #[test]
+    fn trusts_calls_at_vouched_read_ends() {
+        let unvouched = evidence(16, 0..16, &[]);
+        let vouched = unvouched.clone().with_vouched_ends();
+        let masked = evidence(
+            16,
+            0..16,
+            &[(4, 5, MaskedAlignment::Unresolved, "weak_signal")],
+        )
+        .with_vouched_ends();
+        let snv = |read: &ReadEvidence, index| {
+            ReadEligibility::new(read, &settings(3))
+                .reasons(
+                    VariantKind::Snv,
+                    &[mapping(VariantCallRole::Supporting, index)],
+                )
+                .is_empty()
+        };
+        assert!(!snv(&unvouched, 0));
+        assert!(!snv(&unvouched, 15));
+        assert!(snv(&vouched, 0));
+        assert!(snv(&vouched, 15));
+        assert!(snv(&masked, 0));
+        assert!(!snv(&masked, 7));
+        assert!(snv(&masked, 8));
     }
 
     #[test]

@@ -148,12 +148,24 @@ const CORE_REASONS: [&str; 4] = [
     "read_end",
 ];
 
+/// Whether the modality vouches for a read's calls up to its physical ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadEnds {
+    /// The read's ends bound its evidence: like an uninformative call, an end
+    /// keeps the calls within `read_end_margin` of it from supporting a variant.
+    Unvouched,
+    /// The modality vouches for every call up to the read's ends, as for a
+    /// reviewed consensus sequence; only uninformative calls bound the evidence.
+    Vouched,
+}
+
 /// One read's evidence for the core.
 #[derive(Debug, Clone)]
 pub(crate) struct ReadEvidence {
     calls: Vec<CallEvidence>,
     informative: Range<usize>,
     support_vetoes: Vec<SupportVeto>,
+    ends: ReadEnds,
 }
 
 impl ReadEvidence {
@@ -204,7 +216,19 @@ impl ReadEvidence {
             calls,
             informative,
             support_vetoes,
+            ends: ReadEnds::Unvouched,
         })
+    }
+
+    /// The same evidence with the modality vouching for the read's ends.
+    pub(crate) fn with_vouched_ends(mut self) -> Self {
+        self.ends = ReadEnds::Vouched;
+        self
+    }
+
+    /// Whether the modality vouches for the read's calls up to its ends.
+    pub(crate) fn ends(&self) -> ReadEnds {
+        self.ends
     }
 
     /// Every call, in call order.
@@ -247,6 +271,7 @@ impl ReadEvidence {
             calls,
             informative,
             support_vetoes: Vec::new(),
+            ends: ReadEnds::Unvouched,
         }
     }
 

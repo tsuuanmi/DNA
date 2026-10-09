@@ -16,7 +16,20 @@ fn help_succeeds() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Process Sanger sequencing traces"));
+        .stdout(predicate::str::contains(
+            "Call variants from Sanger traces or reviewed consensus sequences",
+        ))
+        .stdout(predicate::str::contains("call"));
+}
+
+#[test]
+fn call_requires_a_sequence_file() {
+    let mut command = Command::new(dna_binary());
+    command
+        .args(["call", "sample-1", "--reference", "reference.fa"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Usage:"));
 }
 
 #[test]

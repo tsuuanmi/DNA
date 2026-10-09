@@ -22,6 +22,7 @@ mod quality_control;
 mod report;
 mod representation;
 mod sample;
+mod sequence;
 mod signal;
 mod variant;
 
@@ -41,6 +42,7 @@ pub use quality_control::QualityControlError;
 pub use report::ReportError;
 pub use representation::{NomenclatureError, NormalizationError, RepresentationError};
 pub use sample::SampleError;
+pub use sequence::SequenceError;
 pub use signal::SignalError;
 pub use variant::VariantError;
 
@@ -108,6 +110,9 @@ pub enum Error {
     /// The reference FASTA is invalid.
     #[error("invalid reference FASTA: {0}")]
     Fasta(FastaError),
+    /// A consensus-sequence FASTA is invalid.
+    #[error("invalid sequence FASTA: {0}")]
+    Sequence(SequenceError),
     /// DNA-derived base re-calling failed.
     #[error("base re-calling failed: {0}")]
     Basecalling(BasecallingError),
@@ -190,6 +195,7 @@ stage_failures!(
     Profile(ProfileError),
     Abif(AbifError),
     Fasta(FastaError),
+    Sequence(SequenceError),
     Basecalling(BasecallingError),
     Signal(SignalError),
     Callability(CallabilityError),
@@ -286,6 +292,14 @@ mod tests {
             (
                 VariantError::ReferenceAlleleMismatch { position: 9 }.into(),
                 "variant calling failed: variant reference allele disagrees with the supplied reference at position 9",
+            ),
+            (
+                SequenceError::UnsupportedSymbol {
+                    name: "HV1".into(),
+                    symbol: '-',
+                }
+                .into(),
+                "invalid sequence FASTA: unsupported sequence symbol '-' in \"HV1\"",
             ),
             (
                 EvidenceError::InvalidReason("read_end").into(),

@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, and sample-evidence result contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, and variants result contracts."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v3.schema.json"
 BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v3.example.json"
 SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v10.schema.json"
 SAMPLE_EXAMPLE = CONTRACTS / "examples" / "sample-evidence-v10.example.json"
+VARIANTS_SCHEMA = CONTRACTS / "schemas" / "variants-v1.schema.json"
+VARIANTS_EXAMPLE = CONTRACTS / "examples" / "variants-v1.example.json"
 
 
 def load_json(path: Path) -> Any:
@@ -198,6 +200,31 @@ def rejected_analysis_shapes(
             alignment_without_callable_segments,
         ),
         *shadow_cases,
+    ]
+
+
+def rejected_variants_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    no_reads = copy.deepcopy(example)
+    no_reads["reads"] = []
+    missing_plugins = copy.deepcopy(example)
+    missing_plugins["provenance"].pop("plugins")
+    modality_field = copy.deepcopy(example)
+    modality_field["reads"][0]["variants"][0]["peaks"] = {"A": 1}
+    invalid_reason = copy.deepcopy(example)
+    invalid_reason["reads"][0]["variants"][0]["exclusion_reasons"] = ["Read End"]
+    invalid_allele = copy.deepcopy(example)
+    invalid_allele["reads"][0]["variants"][0]["alternate"] = "N"
+    old_schema = copy.deepcopy(example)
+    old_schema["schema_version"] = "dna.variants/v0"
+    return [
+        ("variants without reads", no_reads),
+        ("variants without plugin provenance", missing_plugins),
+        ("called variant carrying modality evidence", modality_field),
+        ("called variant with an invalid reason label", invalid_reason),
+        ("called variant with a non-canonical allele", invalid_allele),
+        ("variants using an unknown schema version", old_schema),
     ]
 
 
@@ -861,6 +888,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="sample-evidence result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--variants",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="variants result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
 
 
@@ -870,12 +905,15 @@ def main(argv: list[str] | None = None) -> int:
     analysis_validator = validator(ANALYSIS_SCHEMA, errors)
     basecall_validator = validator(BASECALL_SCHEMA, errors)
     sample_validator = validator(SAMPLE_SCHEMA, errors)
+    variants_validator = validator(VARIANTS_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
+    variants_paths = args.variants or [VARIANTS_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
+    validate_documents(variants_validator, variants_paths, errors)
     validate_sample_support_topology(sample_paths, errors)
     validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
 
@@ -1043,6 +1081,8 @@ def main(argv: list[str] | None = None) -> int:
     assert_rejected(analysis_validator, rejected_analysis, errors)
     assert_rejected(basecall_validator, rejected_basecalls, errors)
     assert_rejected(sample_validator, rejected_samples, errors)
+    rejected_variants = rejected_variants_shapes(load_json(VARIANTS_EXAMPLE))
+    assert_rejected(variants_validator, rejected_variants, errors)
 
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
@@ -1051,9 +1091,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
-        f"and {len(sample_paths)} sample-evidence document(s), {len(valid_shapes)} "
-        f"analysis call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples)} "
+        f"{len(sample_paths)} sample-evidence, and {len(variants_paths)} variants "
+        f"document(s), {len(valid_shapes)} analysis call shapes; rejected "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants)} "
         "invalid shape(s)"
     )
     return 0

@@ -167,6 +167,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
         "event=signal_processing_completed",
         "event=callability_completed",
         "event=quality_control_completed",
+        "event=read_evidence_completed",
         "event=alignment_completed",
         "event=variant_calling_completed",
         "event=result_ready_for_publication",

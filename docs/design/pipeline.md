@@ -12,9 +12,11 @@ FASTA reference ─────────────────────�
                                                                                                         ReadObservation
                                                                                                           ├─► analysis/v9
                                                                                                           └─► sample aggregation
+
+consensus FASTA + TOML ──► input::sequence ──► ReadEvidence ──► alignment ─► variant_calling ──► CalledRead ──► variants/v1
 ```
 
-`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. Each
+`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `variant_analysis::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). Each
 stage consumes the validated output of the previous stage and produces a new
 typed result; no stage mutates shared state.
 

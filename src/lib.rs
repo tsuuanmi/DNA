@@ -60,5 +60,11 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Sample(args) => {
             pipeline::sample(&args.sample_id, &args.traces, &args.reference, &config_path)
         }
+        Command::Call(args) => pipeline::call(
+            &args.sample_id,
+            &args.sequences,
+            &args.reference,
+            &config_path,
+        ),
     }
 }

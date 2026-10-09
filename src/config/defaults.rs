@@ -16,3 +16,7 @@ pub(super) const MAX_INDEL_LENGTH: usize = 50;
 pub(super) const MAX_PEAK_HEIGHT: i32 = i16::MAX as i32;
 /// Maximum number of traceback cells allocated by Gotoh.
 pub(crate) const MAX_ALIGNMENT_CELLS: usize = 100_000_000;
+/// Largest accepted consensus-sequence FASTA file.
+pub(crate) const MAX_SEQUENCE_BYTES: usize = 1024 * 1024;
+/// Largest number of consensus-sequence records in one call.
+pub(crate) const MAX_SEQUENCE_RECORDS: usize = 64;

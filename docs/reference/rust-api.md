@@ -283,6 +283,7 @@ variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported fro
 | `Profile` | `ProfileError` | `invalid target profile:` |
 | `Abif` | `AbifError` | `invalid ABIF input:` |
 | `Fasta` | `FastaError` | `invalid reference FASTA:` |
+| `Sequence` | `SequenceError` | `invalid sequence FASTA:` |
 | `Basecalling` | `BasecallingError` | `base re-calling failed:` |
 | `Signal` | `SignalError` | `signal processing failed:` |
 | `Callability` | `CallabilityError` | `read callability failed:` |
@@ -318,8 +319,8 @@ dependency types never appear in the public API. Stage failures render inline,
 Library capabilities emit `tracing` instrumentation under the `dna` target and
 never install a subscriber, write files, or print. `analyze_sanger` opens one
 `info` span per scientific stage, in order and not nested in one another
-(`basecalling`, `signal_processing`, `callability`, `quality_control`, `alignment`,
-`variant_calling`), and emits one structured completion event per stage plus
+(`basecalling`, `signal_processing`, `callability`, `quality_control`,
+`read_evidence`, `alignment`, `variant_calling`), and emits one structured completion event per stage plus
 `warn` events for removed variant candidates and warning summaries. Span names
 are stable; event fields are operational detail and may grow.
 

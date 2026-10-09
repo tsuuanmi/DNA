@@ -10,7 +10,10 @@ identity and the workflow's plugins.
 
 Core records carry no Sanger evidence
 ([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
-`sanger_call.rs` joins a call's reference-strand peaks and relative quality, and
+`call.rs` projects core-only calls into `dna.variants/v1`,
+and `notation.rs` renders and projects the per-read notation shared by sample
+and call documents. `sanger_call.rs` joins a call's reference-strand peaks and
+relative quality, and
 `sample.rs` joins each read's Sanger attachment (integrity, callability,
 quality, noisy regions) by read identity and call index.
 
