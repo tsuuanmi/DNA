@@ -160,3 +160,7 @@ Accepted on 2026-10-09 and recorded by
   `provenance.plugins` in the analysis, basecall, and sample documents. Apart
   from `configuration_sha256` and `provenance.plugins`, every result document
   of the local corpus and the 320-sample held-out set is unchanged.
+- Phase 2b: `CalledRead` and `SangerAttachment` in `model`, neutral sample
+  aggregation over `CalledRead`, report-side joins of Sanger evidence, and the
+  neutrality rule for `sample` and the neutral children of `model`. Every
+  result document and the sample aggregation metrics are byte-identical.

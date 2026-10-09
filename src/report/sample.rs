@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::error::{ReportError, Result};
+use crate::model::alignment::Orientation;
+use crate::model::read_observation::{SangerAttachment, SangerRejection};
 use crate::model::reference::Reference;
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_evidence::SampleEvidence;
@@ -19,6 +21,7 @@ use crate::plugin::PluginDescriptor;
 use crate::profile::{NotationStyle, ProfileIdentity};
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, NotationCall};
+use crate::report::sanger_call;
 use crate::variant::Variant;
 
 /// Inputs consumed to build one immutable sample-evidence document.
@@ -31,6 +34,23 @@ pub(crate) struct CompletedSampleEvidence {
     pub(crate) notation: Option<SampleNotation>,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
+    /// Sanger evidence joined to the core sample evidence.
+    pub(crate) sanger: SangerSampleEvidence,
+}
+
+/// Sanger evidence of a sample's reads, keyed by read content identity. The
+/// core sample evidence never carries it (ADR-0069).
+pub(crate) struct SangerSampleEvidence {
+    pub(crate) reads: BTreeMap<String, SangerAttachment>,
+    pub(crate) rejected: BTreeMap<String, SangerRejection>,
+}
+
+/// One admitted read's Sanger evidence and selected orientation, in
+/// read-registry order.
+#[derive(Clone, Copy)]
+struct JoinedRead<'a> {
+    sanger: &'a SangerAttachment,
+    orientation: Orientation,
 }
 
 /// Every read's represented calls and the profile style to render them in.
@@ -54,6 +74,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         evidence,
         notation,
         plugins,
+        sanger,
     } = completed;
     if evidence.reference_sha256 != reference.sequence_sha256 {
         return Err(ReportError::Inconsistent(
@@ -67,30 +88,52 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         .rejected_reads
         .iter()
         .zip(rejected_names)
-        .map(|(read, name)| RejectedSampleReadResult {
-            name,
-            sha256: read.input_sha256.clone(),
-            integrity: crate::report::signal::project_integrity(&read.integrity),
-            callability: crate::report::callability::project(&read.callability),
-            rejection: ReadRejectionResult {
-                reason: "callable_calls_below_minimum",
-                callable_calls: read.rejection.callable_calls,
-                minimum_callable_calls: read.rejection.minimum_callable_calls,
-            },
+        .map(|(read, name)| {
+            let rejected =
+                sanger
+                    .rejected
+                    .get(&read.input_sha256)
+                    .ok_or(ReportError::Inconsistent(
+                        "rejected sample read lacks its Sanger evidence",
+                    ))?;
+            Ok(RejectedSampleReadResult {
+                name,
+                sha256: read.input_sha256.clone(),
+                integrity: crate::report::signal::project_integrity(&rejected.integrity),
+                callability: crate::report::callability::project(&rejected.callability),
+                rejection: ReadRejectionResult {
+                    reason: "callable_calls_below_minimum",
+                    callable_calls: rejected.rejection.callable_calls,
+                    minimum_callable_calls: rejected.rejection.minimum_callable_calls,
+                },
+            })
         })
-        .collect();
+        .collect::<Result<_>>()?;
+    let joined =
+        evidence
+            .reads
+            .iter()
+            .map(|read| {
+                Ok(JoinedRead {
+                    sanger: sanger.reads.get(&read.input_sha256).ok_or(
+                        ReportError::Inconsistent("sample read lacks its Sanger evidence"),
+                    )?,
+                    orientation: read.alignment.orientation,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
     let notation = notation
         .map(|notation| project_notation(&reference, &evidence, &read_names, notation))
         .transpose()?;
     let reads = evidence
         .reads
         .into_iter()
-        .zip(read_names.iter())
-        .map(|(read, name)| SampleReadResult {
+        .zip(read_names.iter().zip(&joined))
+        .map(|(read, (name, joined))| SampleReadResult {
             name: name.clone(),
             sha256: read.input_sha256,
-            integrity: crate::report::signal::project_integrity(&read.integrity),
-            callability: crate::report::callability::project(&read.callability),
+            integrity: crate::report::signal::project_integrity(&joined.sanger.signal.integrity),
+            callability: crate::report::callability::project(&joined.sanger.callability),
             alignment: AlignmentResult {
                 orientation: read.alignment.orientation,
                 callable_bases: read.alignment.callable_bases,
@@ -161,22 +204,30 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                 .observations
                 .into_iter()
                 .map(|observation| {
-                    let signal = observation.signal;
+                    let sanger = observation
+                        .call_index_0based
+                        .map(|call| -> Result<(u8, bool)> {
+                            let read = joined_read(&joined, observation.read_index)?;
+                            Ok((
+                                call_quality(read.sanger, call)?,
+                                read.sanger.in_noisy_region(call),
+                            ))
+                        })
+                        .transpose()?;
                     Ok(SampleLocusDifferenceObservationResult {
                         read: read_name(&read_names, observation.read_index)?.into(),
                         state: observation.state,
                         base: observation.base,
-                        quality: observation.quality,
-                        profile: signal
-                            .as_ref()
-                            .and_then(|signal| signal.profile)
+                        quality: sanger.map(|(quality, _)| quality),
+                        profile: observation
+                            .profile
                             .map(|profile| SampleEvidenceProfileResult {
                                 a: profile.weights[0],
                                 c: profile.weights[1],
                                 g: profile.weights[2],
                                 t: profile.weights[3],
                             }),
-                        in_noisy_region: signal.map(|signal| signal.in_noisy_region),
+                        in_noisy_region: sanger.map(|(_, noisy)| noisy),
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -209,6 +260,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                 .support
                 .into_iter()
                 .map(|support| {
+                    let read = joined_read(&joined, support.read_index)?;
                     Ok(SampleVariantSupportResult {
                         read: read_name(&read_names, support.read_index)?.into(),
                         eligible: support.eligible,
@@ -216,13 +268,22 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                         calls: support
                             .calls
                             .into_iter()
-                            .map(|call| SampleVariantCallResult {
-                                role: call.role,
-                                base: call.base,
-                                peaks: PeakHeightsResult::from(call.peak_heights),
-                                quality: call.quality,
+                            .map(|call| {
+                                let sanger = sanger_call::evidence(
+                                    &read.sanger.calls,
+                                    &read.sanger.quality,
+                                    read.orientation,
+                                    call.call_index_0based,
+                                )
+                                .map_err(ReportError::CallEvidence)?;
+                                Ok(SampleVariantCallResult {
+                                    role: call.role,
+                                    base: call.base,
+                                    peaks: PeakHeightsResult::from(sanger.peak_heights),
+                                    quality: sanger.quality,
+                                })
                             })
-                            .collect(),
+                            .collect::<Result<_>>()?,
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -356,6 +417,25 @@ fn reviewer_read_names(evidence: &SampleEvidence) -> Result<(Vec<String>, Vec<St
         .map(|read| name_of(&read.input_name))
         .collect::<Result<Vec<_>>>()?;
     Ok((names, rejected))
+}
+
+fn joined_read<'a>(joined: &[JoinedRead<'a>], index: usize) -> Result<JoinedRead<'a>> {
+    Ok(*joined
+        .get(index)
+        .ok_or(ReportError::MissingRead { index })?)
+}
+
+/// Relative quality of call `index`, whose record must carry that index.
+fn call_quality(sanger: &SangerAttachment, index: usize) -> Result<u8> {
+    Ok(sanger
+        .quality
+        .per_call
+        .get(index)
+        .filter(|quality| quality.index_0based == index)
+        .ok_or(ReportError::Inconsistent(
+            "sample locus call lacks matching quality evidence",
+        ))?
+        .relative_quality_score)
 }
 
 fn read_name(read_names: &[String], index: usize) -> Result<&str> {

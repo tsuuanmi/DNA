@@ -45,7 +45,7 @@
 | `alignment` | 2 | current profile-aware pairwise placement/orientation of `ReadEvidence` | variant extraction, input-format parsing, modality types |
 | `variant_calling` | 2 | evidence-backed differences, mapping, allele anchoring, core eligibility gates, reporting modality vetoes and mask reasons | target nomenclature, genotype/clinical interpretation, modality types |
 | `variant_analysis` | 3 | reference-guided one-read scientific composition and public Variant Analysis capability | CLI logging/JSON publication |
-| `sample` | 2 | multi-read evidence aggregation | input discovery/consensus |
+| `sample` | 2 | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
 | `variant_representation` | 2 | haplotype-preserving edit conversion, application, rendering | policy choices |
 | `variant_normalization` | 2 | optional sequence-equivalent normalization policies | nomenclature windows |
 | `variant_nomenclature` | 2 | profile-driven window representation engine | target knowledge, notation rendering |
@@ -65,9 +65,9 @@ modality plugins (Sanger: `input`, `read_processing`, `basecalling`,
 plugins (`variant_representation`, `variant_normalization`,
 `variant_nomenclature`). The same validator rejects any dependency from a
 modality-neutral module (`plugin`, `read_evidence`, `variant`, `alignment`,
-`variant_calling`, and the post-calling modules) on a Sanger module or a Sanger
-child of `model`. `sample` still reads Sanger read observations until the
-attachment split in [PROP-0002](../proposals/0002-plugin-first-architecture.md).
+`variant_calling`, `sample`, and the post-calling modules) or neutral `model`
+child on a Sanger module or a Sanger child of `model`. `sample` aggregates
+`CalledRead` records, and the report joins each read's Sanger attachment.
 
 Dependencies point toward shared model/config/error and capability boundaries;
 cycles are forbidden.

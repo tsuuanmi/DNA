@@ -6,7 +6,13 @@ deterministic JSON serialization, and atomic no-overwrite publication.
 Key children separate analysis, basecall, sample, signal, variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
 publication concerns. Analysis and sample provenance record the target-profile
-identity.
+identity and the workflow's plugins.
+
+Core records carry no Sanger evidence
+([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+`sanger_call.rs` joins a call's reference-strand peaks and relative quality, and
+`sample.rs` joins each read's Sanger attachment (integrity, callability,
+quality, noisy regions) by read identity and call index.
 
 Scientific decisions remain upstream.
 

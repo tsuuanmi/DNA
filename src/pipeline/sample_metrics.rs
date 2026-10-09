@@ -1,7 +1,10 @@
 //! Operational metrics derived from completed sample evidence.
 
+use std::collections::BTreeMap;
 use std::fmt;
 
+use crate::model::locus_evidence::LocusEvidence;
+use crate::model::read_observation::SangerAttachment;
 use crate::model::sample_evidence::{NucleotideContribution, SampleEvidence};
 
 /// Aggregation metrics rendered as the `key=value` tail of the
@@ -42,7 +45,60 @@ pub(super) struct SampleAggregationMetrics {
     callable_calls_total: usize,
 }
 
-pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
+/// Sanger evidence joined to the core sample evidence by read identity and
+/// call index.
+struct Joined<'a> {
+    evidence: &'a SampleEvidence,
+    sanger: &'a BTreeMap<String, SangerAttachment>,
+}
+
+impl<'a> Joined<'a> {
+    fn attachment(&self, read_index: usize) -> Option<&'a SangerAttachment> {
+        let read = self.evidence.reads.get(read_index)?;
+        self.sanger.get(&read.input_sha256)
+    }
+
+    /// Sanger attachment and call index of every locus observation of a call.
+    fn locus_calls(&self) -> impl Iterator<Item = (&'a SangerAttachment, usize)> + '_ {
+        self.evidence
+            .locus_differences
+            .iter()
+            .flat_map(|difference| &difference.observations)
+            .filter_map(|observation| {
+                let call = observation.call_index_0based?;
+                Some((self.attachment(observation.read_index)?, call))
+            })
+    }
+
+    /// Sanger attachment and call index of every variant call.
+    fn variant_calls(&self) -> impl Iterator<Item = (&'a SangerAttachment, usize)> + '_ {
+        self.evidence
+            .variants
+            .iter()
+            .flat_map(|variant| &variant.support)
+            .flat_map(|support| {
+                support.calls.iter().filter_map(|call| {
+                    Some((self.attachment(support.read_index)?, call.call_index_0based))
+                })
+            })
+    }
+}
+
+fn loci<'a>(
+    calls: impl Iterator<Item = (&'a SangerAttachment, usize)>,
+) -> impl Iterator<Item = &'a LocusEvidence> {
+    calls.filter_map(|(attachment, call)| attachment.locus(call))
+}
+
+fn positive(values: impl Iterator<Item = f64>) -> usize {
+    values.filter(|value| *value > 0.0).count()
+}
+
+pub(super) fn summarize(
+    evidence: &SampleEvidence,
+    sanger: &BTreeMap<String, SangerAttachment>,
+) -> SampleAggregationMetrics {
+    let joined = Joined { evidence, sanger };
     let (
         profile_geometry_loci,
         within_profile_impurity_sum,
@@ -104,30 +160,16 @@ pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
             .iter()
             .map(|difference| difference.support_topology.profile_reverse_reads)
             .sum(),
-        profiled_variant_calls: evidence
-            .variants
-            .iter()
-            .flat_map(|variant| &variant.support)
-            .flat_map(|support| &support.calls)
-            .filter(|call| call.signal.profile.is_some())
+        profiled_variant_calls: loci(joined.variant_calls())
+            .filter(|locus| locus.profile.is_some())
             .count(),
-        noisy_locus_observations: evidence
-            .locus_differences
-            .iter()
-            .flat_map(|difference| &difference.observations)
-            .filter(|observation| {
-                observation
-                    .signal
-                    .as_ref()
-                    .is_some_and(|signal| signal.in_noisy_region)
-            })
+        noisy_locus_observations: joined
+            .locus_calls()
+            .filter(|(attachment, call)| attachment.in_noisy_region(*call))
             .count(),
-        noisy_variant_calls: evidence
-            .variants
-            .iter()
-            .flat_map(|variant| &variant.support)
-            .flat_map(|support| &support.calls)
-            .filter(|call| call.signal.in_noisy_region)
+        noisy_variant_calls: joined
+            .variant_calls()
+            .filter(|(attachment, call)| attachment.in_noisy_region(*call))
             .count(),
         eligible_nucleotide_locus_observations: evidence
             .locus_differences
@@ -179,38 +221,18 @@ pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
         reverse_profile_geometry_loci,
         directional_profile_distance_loci,
         directional_profile_distance_sum,
-        locus_positive_corrected_channels: evidence
-            .locus_differences
-            .iter()
-            .flat_map(|difference| &difference.observations)
-            .filter_map(|observation| observation.signal.as_ref())
-            .flat_map(|signal| signal.corrected_amplitudes)
-            .filter(|value| *value > 0.0)
-            .count(),
-        locus_positive_snr_channels: evidence
-            .locus_differences
-            .iter()
-            .flat_map(|difference| &difference.observations)
-            .filter_map(|observation| observation.signal.as_ref())
-            .flat_map(|signal| signal.snrs)
-            .filter(|value| *value > 0.0)
-            .count(),
-        variant_positive_corrected_channels: evidence
-            .variants
-            .iter()
-            .flat_map(|variant| &variant.support)
-            .flat_map(|support| &support.calls)
-            .flat_map(|call| call.signal.corrected_amplitudes)
-            .filter(|value| *value > 0.0)
-            .count(),
-        variant_positive_snr_channels: evidence
-            .variants
-            .iter()
-            .flat_map(|variant| &variant.support)
-            .flat_map(|support| &support.calls)
-            .flat_map(|call| call.signal.snrs)
-            .filter(|value| *value > 0.0)
-            .count(),
+        locus_positive_corrected_channels: positive(
+            loci(joined.locus_calls()).flat_map(|locus| locus.corrected_amplitudes),
+        ),
+        locus_positive_snr_channels: positive(
+            loci(joined.locus_calls()).flat_map(|locus| locus.snrs),
+        ),
+        variant_positive_corrected_channels: positive(
+            loci(joined.variant_calls()).flat_map(|locus| locus.corrected_amplitudes),
+        ),
+        variant_positive_snr_channels: positive(
+            loci(joined.variant_calls()).flat_map(|locus| locus.snrs),
+        ),
         locus_forward_reads: evidence
             .locus_differences
             .iter()
@@ -242,15 +264,13 @@ pub(super) fn summarize(evidence: &SampleEvidence) -> SampleAggregationMetrics {
             .map(|difference| difference.support_topology.deletion_reads)
             .sum(),
         variants: evidence.variants.len(),
-        masked_calls_total: evidence
-            .reads
-            .iter()
-            .map(|read| read.callability.masked_count())
+        masked_calls_total: (0..evidence.reads.len())
+            .filter_map(|index| joined.attachment(index))
+            .map(|attachment| attachment.callability.masked_count())
             .sum(),
-        callable_calls_total: evidence
-            .reads
-            .iter()
-            .map(|read| read.callability.callable_count())
+        callable_calls_total: (0..evidence.reads.len())
+            .filter_map(|index| joined.attachment(index))
+            .map(|attachment| attachment.callability.callable_count())
             .sum(),
     }
 }

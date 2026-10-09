@@ -34,13 +34,13 @@ FASTA ------> alignment
         variant_calling <-- ReadEvidence
               |
               v
-        ReadObservation
-           /       \
-          v         v
-   analysis result  sample aggregation
-                        |
-                        v
-                  sample evidence
+        ReadObservation = CalledRead + SangerAttachment
+           /                 \
+          v                   v
+   analysis result     sample aggregation (CalledRead only)
+                              |
+                              v
+                       sample evidence --> report joins SangerAttachment
 ```
 
 `variant_analysis::observation` owns the authoritative reference-guided

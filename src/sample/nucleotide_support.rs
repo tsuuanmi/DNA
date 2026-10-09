@@ -2,7 +2,7 @@
 
 use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
-use crate::model::read_observation::ReadObservation;
+use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{
     LocusNucleotideSupport, NucleotideContribution, ProfileHeterogeneity, SampleLocusObservation,
 };
@@ -13,7 +13,7 @@ use super::profile_geometry;
 /// Adds each eligible normalized profile with unit read mass.
 pub(super) fn aggregate(
     observations: &[SampleLocusObservation],
-    reads: &[&ReadObservation],
+    reads: &[&CalledRead],
 ) -> Result<LocusNucleotideSupport> {
     let mut result = LocusNucleotideSupport {
         contributors: 0,
@@ -38,11 +38,9 @@ pub(super) fn aggregate(
         if observation.nucleotide_contribution != NucleotideContribution::Eligible {
             continue;
         }
-        let profile = observation.signal.and_then(|signal| signal.profile).ok_or(
-            SampleError::MissingProfile {
-                read: observation.read_index,
-            },
-        )?;
+        let profile = observation.profile.ok_or(SampleError::MissingProfile {
+            read: observation.read_index,
+        })?;
         let read = reads
             .get(observation.read_index)
             .ok_or(SampleError::MissingRead {

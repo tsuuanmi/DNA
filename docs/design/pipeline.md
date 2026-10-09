@@ -63,7 +63,10 @@ implementation.
 
 ## One-read observation boundary
 
-After selected alignment and variant calling, DNA materializes a `ReadObservation` that owns the input identity, base calls, basecall-independent locus/signal observations, read callability, quality-control result, selected alignment, and read-level variant result for exactly one trace.
+After selected alignment and variant calling, DNA materializes a `ReadObservation` for exactly one trace. It has two parts ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+
+- `CalledRead` is the core's modality-neutral part: input identity, the `ReadEvidence` the core consumed, the selected alignment, and the read-level variant result. Sample aggregation reads only this part.
+- `SangerAttachment` holds the base calls, basecall-independent locus/signal observations, read callability, and quality-control result. Reports join it to core records by read identity and call index.
 
 The read has already located itself at this boundary. Its orientation and covered reference segments come from evidence-driven semi-global alignment and circular projection; filenames or nominal HV/F/R labels are not placement inputs. This same one-read product feeds both the current analysis report and implemented sample-level reconciliation.
 

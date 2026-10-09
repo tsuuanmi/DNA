@@ -1,14 +1,16 @@
 //! Multi-read sample evidence orchestration and publication.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::error::{Result, SampleError};
 use crate::input::sanger;
+use crate::model::sample_evidence::RejectedSampleRead;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::plugin;
-use crate::report::{self, CompletedSampleEvidence};
+use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
 use crate::sample as sample_science;
 
 use super::{Operation, sample_metrics, sample_notation, sample_reads};
@@ -68,15 +70,35 @@ fn sample(
         &inputs.config,
         &inputs.profile,
     )?;
-    let reads = completed_reads.reads;
-    let rejected = completed_reads.rejected;
     let warning_total = completed_reads.warning_total;
+    let mut reads = Vec::with_capacity(completed_reads.reads.len());
+    let mut sanger_reads = BTreeMap::new();
+    for read in completed_reads.reads {
+        sanger_reads.insert(read.called.input_sha256.clone(), read.sanger);
+        reads.push(read.called);
+    }
+    let rejected = completed_reads
+        .rejected
+        .iter()
+        .map(|read| RejectedSampleRead {
+            input_name: read.input_name.clone(),
+            input_sha256: read.input_sha256.clone(),
+        })
+        .collect::<Vec<_>>();
+    let sanger_rejected = completed_reads
+        .rejected
+        .into_iter()
+        .map(|read| (read.input_sha256.clone(), read))
+        .collect();
 
     let stage = tracing::info_span!("sample_aggregation").entered();
     let stage_started = Instant::now();
-    let evidence =
-        sample_science::aggregate(&reads, &rejected, &inputs.config.sample_reconciliation)?;
-    let metrics = sample_metrics::summarize(&evidence);
+    let evidence = sample_science::aggregate(
+        &reads.iter().collect::<Vec<_>>(),
+        &rejected,
+        &inputs.config.sample_reconciliation,
+    )?;
+    let metrics = sample_metrics::summarize(&evidence, &sanger_reads);
     tracing::info!(
         event = "sample_aggregation_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -112,6 +134,10 @@ fn sample(
         evidence,
         notation,
         plugins,
+        sanger: SangerSampleEvidence {
+            reads: sanger_reads,
+            rejected: sanger_rejected,
+        },
     })?;
     let reads = result.reads.len();
     let rejected_reads = result.rejected_reads.len();

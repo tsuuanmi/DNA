@@ -157,3 +157,15 @@ configuration's sections. Results record their workflow's plugins in
 ([versioning](../../governance/versioning.md#plugins)). The Sanger support
 thresholds moved from `[variant_calling]` to the Sanger-owned
 `[sanger_evidence]` section.
+
+## Revision 2026-10-09 (phase 2b)
+
+`sample` joined the neutral modules. Each read after the core is a `CalledRead`
+(identity, `ReadEvidence`, alignment, variants) plus a `SangerAttachment`
+(calls, signal, callability, quality). Sample aggregation consumes only
+`CalledRead`. Locus observations and variant calls keep their source call
+index, and the sample report joins Sanger quality, peaks, noisy-region context,
+integrity, and callability by read identity and call index. Variant call
+resolution has one implementation: the neutral part picks the calls and their
+bases, and the report adds the Sanger peaks and quality. The validator now also
+applies the neutrality rule to the neutral children of `model`.

@@ -73,6 +73,6 @@ A split into crates follows when one of these holds:
 modules `read_evidence` (the modality → core contract) and `plugin` (the static
 plugin registry), and a neutrality rule that
 the validator enforces next to the layer rule. Modality-neutral modules
-(`plugin`, `read_evidence`, `variant`, `alignment`, `variant_calling`,
+(`plugin`, `read_evidence`, `variant`, `alignment`, `variant_calling`, `sample`,
 `variant_representation`, `variant_normalization`, `variant_nomenclature`) must
 not depend on Sanger modules or on the Sanger children of `model`.

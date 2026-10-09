@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use crate::config::SampleReconciliationConfig;
 use crate::error::{Result, SampleError};
+use crate::model::called_read::CalledRead;
 use crate::model::nucleotide::is_canonical;
-use crate::model::read_observation::ReadObservation;
 use crate::model::sample_evidence::{OverlapExclusionReason, ReadOverlapEvidence};
 
 #[derive(Debug, Clone, Copy)]
@@ -16,7 +16,7 @@ struct CoordinateObservation {
 
 /// Builds the sparse pairwise overlap graph used by later sample reconciliation.
 pub(super) fn assess(
-    reads: &[&ReadObservation],
+    reads: &[&CalledRead],
     config: &SampleReconciliationConfig,
 ) -> Result<Vec<ReadOverlapEvidence>> {
     let coordinates = reads
@@ -42,7 +42,7 @@ pub(super) fn assess(
     Ok(overlaps)
 }
 
-fn coordinates(read: &ReadObservation) -> Result<BTreeMap<usize, CoordinateObservation>> {
+fn coordinates(read: &CalledRead) -> Result<BTreeMap<usize, CoordinateObservation>> {
     let mut coordinates = BTreeMap::new();
     for column in &read.alignment.columns {
         let Some(reference_index_0based) = column.reference_index_0based else {

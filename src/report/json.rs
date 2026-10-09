@@ -2,7 +2,8 @@
 
 use crate::error::{Error, ReportError, Result};
 use crate::model::basecalls::BaseCalls;
-use crate::model::read_observation::ReadObservation;
+use crate::model::called_read::CalledRead;
+use crate::model::read_observation::{ReadObservation, SangerAttachment};
 use crate::model::reference::Reference;
 use crate::model::result::{
     AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,
@@ -30,16 +31,17 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         plugins,
     } = completed;
     let ReadObservation {
-        input_name: _,
-        input_sha256,
-        reference_sha256,
-        configuration_sha256,
-        calls,
-        signal,
-        callability: read_callability,
-        quality,
-        alignment,
-        variants,
+        called:
+            CalledRead {
+                input_name: _,
+                input_sha256,
+                reference_sha256,
+                configuration_sha256,
+                evidence,
+                alignment,
+                variants,
+            },
+        sanger,
     } = read;
     if reference_sha256 != reference.sequence_sha256 {
         return Err(ReportError::Inconsistent(
@@ -47,9 +49,15 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         )
         .into());
     }
-    let warnings = warning_summary(&calls, &signal, variants.excluded_count());
+    let warnings = warning_summary(&sanger.calls, &sanger.signal, variants.excluded_count());
     let variant_results =
-        variant::project(variants.reported, &calls, &quality, alignment.orientation)?;
+        variant::project(variants.reported, &evidence, &sanger, alignment.orientation)?;
+    let SangerAttachment {
+        calls,
+        signal,
+        callability: read_callability,
+        quality,
+    } = sanger;
     let signal_quality = signal::project(signal);
     let reference_segments = alignment
         .reference_segments

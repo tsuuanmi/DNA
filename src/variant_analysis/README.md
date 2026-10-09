@@ -8,7 +8,8 @@ filesystem loading is owned by `input::sanger`; Variant Analysis consumes the
 validated trace/reference/configuration models and owns the reference-guided
 one-read observation path: shared read processing, the Sanger
 `ReadEvidence` adapter, alignment, variant calling, warning accounting, and
-assembly of the internal `ReadObservation`. Shared
+assembly of the internal `ReadObservation` (a `CalledRead` plus its
+`SangerAttachment`). Shared
 reference-free read processing is provided by the crate-internal
 `read_processing` module.
 

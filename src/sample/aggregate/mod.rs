@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::config::SampleReconciliationConfig;
 use crate::error::{Result, SampleError};
-use crate::model::read_observation::ReadObservation;
+use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{
     RejectedSampleRead, SampleEvidence, SampleReadAlignmentEvidence, SampleReadEvidence,
 };
@@ -14,7 +14,7 @@ use super::{coverage, loci, overlap, variants};
 /// Aggregates independently processed reads without using filenames or pair
 /// labels as merge keys; rejected reads are recorded but contribute nothing.
 pub(crate) fn aggregate(
-    reads: &[ReadObservation],
+    reads: &[&CalledRead],
     rejected: &[RejectedSampleRead],
     config: &SampleReconciliationConfig,
 ) -> Result<SampleEvidence> {
@@ -46,8 +46,6 @@ pub(crate) fn aggregate(
         .map(|read| SampleReadEvidence {
             input_name: read.input_name.clone(),
             input_sha256: read.input_sha256.clone(),
-            integrity: read.signal.integrity.clone(),
-            callability: read.callability.clone(),
             alignment: SampleReadAlignmentEvidence {
                 orientation: read.alignment.orientation,
                 callable_bases: read.alignment.metrics.callable_columns,
@@ -76,7 +74,7 @@ pub(crate) fn aggregate(
     })
 }
 
-pub(crate) fn validated_ordered_reads(reads: &[ReadObservation]) -> Result<Vec<&ReadObservation>> {
+pub(crate) fn validated_ordered_reads<'a>(reads: &[&'a CalledRead]) -> Result<Vec<&'a CalledRead>> {
     let first = reads.first().ok_or(SampleError::NoReads)?;
 
     let mut identities = BTreeSet::new();
@@ -92,7 +90,7 @@ pub(crate) fn validated_ordered_reads(reads: &[ReadObservation]) -> Result<Vec<&
         }
     }
 
-    let mut ordered = reads.iter().collect::<Vec<_>>();
+    let mut ordered = reads.to_vec();
     ordered.sort_by(|left, right| left.input_sha256.cmp(&right.input_sha256));
     Ok(ordered)
 }

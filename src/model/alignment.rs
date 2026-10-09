@@ -34,14 +34,6 @@ impl Orientation {
             Self::Reverse => [peaks[3], peaks[2], peaks[1], peaks[0]],
         }
     }
-
-    /// Projects A/C/G/T signal metrics from trace strand to reference strand.
-    pub(crate) const fn reference_signal_values(self, values: [f64; 4]) -> [f64; 4] {
-        match self {
-            Self::Forward => values,
-            Self::Reverse => [values[3], values[2], values[1], values[0]],
-        }
-    }
 }
 
 /// One half-open segment on the original reference.

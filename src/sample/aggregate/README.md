@@ -6,7 +6,7 @@ deterministically, and assembles coverage, overlap, locus, and variant evidence
 from the sibling `sample` modules.
 
 - `mod.rs` — validation, ordering, and evidence assembly.
-- `tests.rs` — end-to-end aggregation over synthetic read observations.
+- `tests.rs` — end-to-end aggregation over synthetic `CalledRead` records.
 
 See [sample methods](../../../docs/design/sample-evidence/README.md) and
 [sample invariants](../../../docs/architecture/invariants/sample-boundaries.md).

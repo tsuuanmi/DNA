@@ -83,7 +83,7 @@ The repository-policy job:
 - validates the explicit Rust source policy;
 - validates the module layering of ADR-0064 (no upward dependency, no cycle)
   and the modality neutrality of ADR-0069 (no dependency from a neutral module
-  on a Sanger module or Sanger `model` child);
+  or neutral `model` child on a Sanger module or Sanger `model` child);
 - runs Ruff formatting and lint checks;
 - runs basedpyright;
 - runs Python tooling tests;

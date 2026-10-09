@@ -5,7 +5,8 @@ use std::time::Instant;
 use crate::alignment;
 use crate::config::Config;
 use crate::error::Result;
-use crate::model::read_observation::ReadObservation;
+use crate::model::called_read::CalledRead;
+use crate::model::read_observation::{ReadObservation, SangerAttachment};
 use crate::model::reference::Reference;
 use crate::model::sanger::Chromatogram;
 use crate::model::variant::VariantKind;
@@ -158,16 +159,21 @@ pub(crate) fn observe(
 
     Ok(CompletedObservation {
         read: ReadObservation {
-            input_name: trace.source_name.clone(),
-            input_sha256: trace.source_sha256.clone(),
-            reference_sha256: reference.sequence_sha256.clone(),
-            configuration_sha256: config.source_sha256.clone(),
-            calls,
-            signal,
-            callability,
-            quality,
-            alignment,
-            variants,
+            called: CalledRead {
+                input_name: trace.source_name.clone(),
+                input_sha256: trace.source_sha256.clone(),
+                reference_sha256: reference.sequence_sha256.clone(),
+                configuration_sha256: config.source_sha256.clone(),
+                evidence,
+                alignment,
+                variants,
+            },
+            sanger: SangerAttachment {
+                calls,
+                signal,
+                callability,
+                quality,
+            },
         },
         warning_total,
     })

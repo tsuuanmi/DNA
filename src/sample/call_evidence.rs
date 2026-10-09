@@ -1,39 +1,27 @@
-//! Reference-oriented projection of call-backed signal evidence.
+//! Reference-oriented evidence profile of one source call.
 
 use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
-use crate::model::read_observation::ReadObservation;
-use crate::model::sample_evidence::CallSignalEvidence;
+use crate::model::called_read::CalledRead;
+use crate::read_evidence::EvidenceProfile;
 
-/// Resolves one source call's quantitative signal evidence and projects A/C/G/T
+/// Resolves one source call's evidence profile and projects its A/C/G/T
 /// channels onto the selected reference strand.
-pub(super) fn for_call(
-    read: &ReadObservation,
+pub(super) fn profile(
+    read: &CalledRead,
     call_index_0based: usize,
-) -> Result<CallSignalEvidence> {
-    let locus = read
-        .signal
-        .loci
-        .get(call_index_0based)
-        .filter(|locus| locus.call_index_0based == call_index_0based)
-        .ok_or(SampleError::MissingLocusEvidence {
-            call: call_index_0based,
-        })?;
-
-    let orientation = read.alignment.orientation;
-    let profile = locus.profile.map(|profile| match orientation {
-        Orientation::Forward => profile,
-        Orientation::Reverse => profile.complemented(),
-    });
-    let in_noisy_region = read.signal.noisy_regions.iter().any(|region| {
-        region.call_start_0based <= call_index_0based
-            && call_index_0based < region.call_end_0based_exclusive
-    });
-
-    Ok(CallSignalEvidence {
-        corrected_amplitudes: orientation.reference_signal_values(locus.corrected_amplitudes),
-        snrs: orientation.reference_signal_values(locus.snrs),
-        profile,
-        in_noisy_region,
-    })
+) -> Result<Option<EvidenceProfile>> {
+    let call =
+        read.evidence
+            .calls()
+            .get(call_index_0based)
+            .ok_or(SampleError::MissingLocusEvidence {
+                call: call_index_0based,
+            })?;
+    Ok(call
+        .profile
+        .map(|profile| match read.alignment.orientation {
+            Orientation::Forward => profile,
+            Orientation::Reverse => profile.complemented(),
+        }))
 }

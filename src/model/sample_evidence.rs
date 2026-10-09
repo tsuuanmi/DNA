@@ -3,8 +3,6 @@
 use serde::Serialize;
 
 use crate::model::alignment::{Orientation, ReferenceSegment};
-use crate::model::callability::{ReadCallability, ReadRejection};
-use crate::model::signal::SangerIntegrity;
 use crate::model::variant::{VariantCallRole, VariantExclusionReason, VariantKind};
 use crate::read_evidence::EvidenceProfile;
 
@@ -96,29 +94,16 @@ pub(crate) struct SampleReadAlignmentEvidence {
 pub(crate) struct SampleReadEvidence {
     pub(crate) input_name: String,
     pub(crate) input_sha256: String,
-    pub(crate) integrity: SangerIntegrity,
-    pub(crate) callability: ReadCallability,
     pub(crate) alignment: SampleReadAlignmentEvidence,
 }
 
-/// A read with too few callable calls, recorded at sample scope without
-/// contributing alignment, coverage, overlaps, loci, or variants.
+/// A read its modality rejected before the core, recorded at sample scope
+/// without contributing alignment, coverage, overlaps, loci, or variants. The
+/// modality's reason is joined by the report.
 #[derive(Debug, Clone)]
 pub(crate) struct RejectedSampleRead {
     pub(crate) input_name: String,
     pub(crate) input_sha256: String,
-    pub(crate) integrity: SangerIntegrity,
-    pub(crate) callability: ReadCallability,
-    pub(crate) rejection: ReadRejection,
-}
-
-/// Reference-oriented signal evidence associated with one source call.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CallSignalEvidence {
-    pub(crate) corrected_amplitudes: [f64; 4],
-    pub(crate) snrs: [f64; 4],
-    pub(crate) profile: Option<EvidenceProfile>,
-    pub(crate) in_noisy_region: bool,
 }
 
 /// One read observation at one retained sample reference locus.
@@ -127,8 +112,10 @@ pub(crate) struct SampleLocusObservation {
     pub(crate) read_index: usize,
     pub(crate) state: LocusState,
     pub(crate) base: Option<char>,
-    pub(crate) quality: Option<u8>,
-    pub(crate) signal: Option<CallSignalEvidence>,
+    /// Source call of the read; absent for a deletion.
+    pub(crate) call_index_0based: Option<usize>,
+    /// Reference-oriented evidence profile of the call.
+    pub(crate) profile: Option<EvidenceProfile>,
     pub(crate) nucleotide_contribution: NucleotideContribution,
 }
 
@@ -172,10 +159,10 @@ pub(crate) struct SampleLocusEvidence {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct VariantCallEvidence {
     pub(crate) role: VariantCallRole,
+    /// Reference-strand base.
     pub(crate) base: char,
-    pub(crate) peak_heights: [i32; 4],
-    pub(crate) quality: u8,
-    pub(crate) signal: CallSignalEvidence,
+    /// Source call of the read.
+    pub(crate) call_index_0based: usize,
 }
 
 /// One read observing a normalized variant, with configured eligibility retained.

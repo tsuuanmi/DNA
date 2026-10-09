@@ -65,6 +65,11 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Plugin-first architecture, phase 2b (ADR-0069, PROP-0002): sample
+  aggregation is modality-neutral. It consumes each read's `CalledRead`
+  (identity, evidence, alignment, variants), and the sample report joins the
+  read's Sanger attachment by read identity and call index. Every result
+  document is unchanged.
 - Plugin-first architecture, phase 2 (ADR-0069, PROP-0002): a static plugin
   registry (`sanger` modality, `core`, and the `normalization` and
   `nomenclature` post-calling plugins) and the plugin composition of each

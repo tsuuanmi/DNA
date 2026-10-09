@@ -31,8 +31,8 @@ core unchanged; no trait is introduced until a second adapter exists.
 The stage runs after signal processing and before quality control, reference-,
 profile-, and filename-free, in trace order for both strands. It never modifies
 channels, loci, calls, selected peaks, or locus evidence; a masked position keeps
-its original call and evidence. Quality control and sample
-aggregation consume the mask directly. Alignment and variant eligibility see it
+its original call and evidence. Quality control consumes the
+mask directly. Alignment, variant eligibility, and sample aggregation see it
 only through the Sanger `ReadEvidence` adapter in
 [read_processing](../read_processing/README.md), which maps phase states to
 mask labels. None of them recomputes the mask.

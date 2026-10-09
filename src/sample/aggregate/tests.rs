@@ -3,17 +3,14 @@
 use crate::model::alignment::{
     Alignment, AlignmentColumn, AlignmentMetrics, Orientation, ReferenceSegment,
 };
-use crate::model::basecalls::{BaseCall, BaseCalls, ChannelPeak, PeakSource, PrimaryPeakEvidence};
-use crate::model::callability::ReadCallability;
-use crate::model::locus_evidence::LocusEvidence;
-use crate::model::nucleotide::Nucleotide;
-use crate::model::quality::{CallQuality, QualityControlResult};
-use crate::model::signal::{NoisyRegion, SignalAnalysis};
+use crate::model::sample_evidence::SampleEvidence;
 use crate::model::variant::{
     ObservedVariant, Variant, VariantCallMapping, VariantCallRole, VariantCallingResult,
     VariantExclusionReason, VariantKind,
 };
-use crate::read_evidence::EvidenceProfile;
+use crate::read_evidence::{
+    CallEvidence, CallMask, EvidenceProfile, EvidenceReason, MaskedAlignment, ReadEvidence, VetoSet,
+};
 
 use super::*;
 
@@ -26,26 +23,27 @@ fn sample_config() -> SampleReconciliationConfig {
     }
 }
 
-fn locus(index_0based: usize) -> LocusEvidence {
-    LocusEvidence {
-        call_index_0based: index_0based,
-        locus_position_0based: index_0based * 10,
-        window_start_0based: index_0based * 10,
-        window_end_0based_exclusive: index_0based * 10 + 1,
-        context_call_start_0based: index_0based,
-        context_call_end_0based_exclusive: index_0based + 1,
-        context_sample_start_0based: index_0based * 10,
-        context_sample_end_0based_exclusive: index_0based * 10 + 1,
-        event_position_0based: index_0based * 10,
-        channel_heights: [10, 20, 30, 40],
-        channel_baselines: [0.0; 4],
-        channel_noise_sigmas: [1.0; 4],
-        corrected_amplitudes: [1.0, 2.0, 3.0, 4.0],
-        snrs: [1.0, 2.0, 3.0, 4.0],
-        profile: Some(EvidenceProfile {
-            weights: [0.1, 0.2, 0.3, 0.4],
-        }),
+/// Evidence of a read whose every call is an unmasked `G` with one profile.
+fn evidence(call_count: usize) -> ReadEvidence {
+    let calls = (0..call_count).map(|_| call('G', Some(PROFILE))).collect();
+    ReadEvidence::new(calls, 0..call_count, Vec::new())
+        .unwrap_or_else(|error| panic!("valid synthetic evidence: {error}"))
+}
+
+const PROFILE: [f64; 4] = [0.1, 0.2, 0.3, 0.4];
+
+fn call(base: char, profile: Option<[f64; 4]>) -> CallEvidence {
+    CallEvidence {
+        base,
+        profile: profile.map(|weights| EvidenceProfile { weights }),
+        mask: None,
+        vetoes: VetoSet::default(),
     }
+}
+
+/// Runs aggregation over owned reads with no rejected read.
+fn run(reads: &[CalledRead]) -> Result<SampleEvidence> {
+    aggregate(&reads.iter().collect::<Vec<_>>(), &[], &sample_config())
 }
 
 fn observation(
@@ -55,20 +53,12 @@ fn observation(
     orientation: Orientation,
     columns: Vec<AlignmentColumn>,
     variants: Vec<Variant>,
-) -> ReadObservation {
+) -> CalledRead {
     let call_count = columns
         .iter()
         .filter_map(|column| column.original_call_index_0based)
         .max()
         .map_or(0, |index| index + 1);
-    let per_call = (0..call_count)
-        .map(|index_0based| CallQuality {
-            index_0based,
-            penalty: 0,
-            relative_quality_score: 50,
-            vendor_quality_applies: false,
-        })
-        .collect();
     let observed = variants
         .iter()
         .cloned()
@@ -92,58 +82,12 @@ fn observation(
                 end_0based_exclusive,
             }]
         });
-    ReadObservation {
+    CalledRead {
         input_name: format!("{input_sha256}.ab1"),
         input_sha256: input_sha256.into(),
         reference_sha256: reference_sha256.into(),
         configuration_sha256: configuration_sha256.into(),
-        calls: BaseCalls {
-            calls: (0..call_count)
-                .map(|index_0based| BaseCall {
-                    index_0based,
-                    locus_position_0based: index_0based * 10,
-                    window_start_0based: index_0based * 10,
-                    window_end_0based_exclusive: index_0based * 10 + 1,
-                    peaks: Nucleotide::ALL.map(|base| ChannelPeak {
-                        base,
-                        height: 100,
-                        position_0based: index_0based * 10,
-                        source: PeakSource::LocalMaximum,
-                    }),
-                    primary_peak_evidence: Some(PrimaryPeakEvidence {
-                        position_0based: index_0based * 10,
-                        channel_heights: [10, 20, 100, 30],
-                    }),
-                    primary: 'G',
-                    ambiguity: 'G',
-                    qualifying_channels: vec![Nucleotide::G],
-                    vendor_agrees: None,
-                })
-                .collect(),
-            primary_sequence: "G".repeat(call_count),
-        },
-        signal: SignalAnalysis {
-            integrity: crate::model::signal::SangerIntegrity {
-                locus_count: call_count,
-                vendor_primary_count: None,
-                vendor_quality_count: None,
-                minimum_locus_spacing: None,
-                median_locus_spacing: None,
-                maximum_locus_spacing: None,
-                clipped_channel_samples: 0,
-                maximum_to_median_event_signal_ratio: None,
-            },
-            loci: (0..call_count).map(locus).collect(),
-            windows: Vec::new(),
-            noisy_regions: Vec::new(),
-        },
-        callability: ReadCallability::in_phase(call_count),
-        quality: QualityControlResult {
-            per_call,
-            trim_start_0based: 0,
-            trim_end_0based_exclusive: call_count,
-            retained_sequence: String::new(),
-        },
+        evidence: evidence(call_count),
         alignment: Alignment {
             orientation,
             score: 1,
@@ -200,7 +144,7 @@ fn snv(position_1based: usize, reference: &str, alternate: &str) -> Variant {
 
 #[test]
 fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
-    let mut forward = observation(
+    let forward = observation(
         "a",
         "reference",
         "config",
@@ -208,13 +152,6 @@ fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
         vec![column('G', 'A', Some(0), 72)],
         vec![snv(73, "A", "G")],
     );
-    forward.signal.noisy_regions.push(NoisyRegion {
-        call_start_0based: 0,
-        call_end_0based_exclusive: 1,
-        sample_start_0based: 0,
-        sample_end_0based_exclusive: 10,
-        minimum_primary_snr: 1.0,
-    });
     let reverse = observation(
         "b",
         "reference",
@@ -224,7 +161,7 @@ fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
         vec![snv(73, "A", "G")],
     );
 
-    let evidence = aggregate(&[reverse, forward], &[], &sample_config())?;
+    let evidence = run(&[reverse, forward])?;
 
     assert_eq!(evidence.reads[0].input_name, "a.ab1");
     assert_eq!(evidence.reads[1].input_name, "b.ab1");
@@ -330,34 +267,23 @@ fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
     );
     assert_eq!(evidence.locus_differences[0].observations.len(), 2);
     assert_eq!(evidence.locus_differences[0].observations[0].read_index, 0);
-    let forward_signal = evidence.locus_differences[0].observations[0]
-        .signal
-        .as_ref()
-        .ok_or("forward locus signal is missing")?;
+    let forward_observation = &evidence.locus_differences[0].observations[0];
+    assert_eq!(forward_observation.call_index_0based, Some(0));
     assert_eq!(
-        forward_signal.profile.map(|profile| profile.weights),
+        forward_observation.profile.map(|profile| profile.weights),
         Some([0.1, 0.2, 0.3, 0.4])
     );
-    assert_eq!(forward_signal.corrected_amplitudes, [1.0, 2.0, 3.0, 4.0]);
-    assert_eq!(forward_signal.snrs, [1.0, 2.0, 3.0, 4.0]);
-    assert!(forward_signal.in_noisy_region);
     assert_eq!(
-        evidence.locus_differences[0].observations[0].nucleotide_contribution,
+        forward_observation.nucleotide_contribution,
         crate::model::sample_evidence::NucleotideContribution::Eligible
     );
-    assert!(forward_signal.in_noisy_region);
     assert_eq!(evidence.locus_differences[0].observations[1].read_index, 1);
-    let reverse_signal = evidence.locus_differences[0].observations[1]
-        .signal
-        .as_ref()
-        .ok_or("reverse locus signal is missing")?;
+    let reverse_observation = &evidence.locus_differences[0].observations[1];
+    assert_eq!(reverse_observation.call_index_0based, Some(0));
     assert_eq!(
-        reverse_signal.profile.map(|profile| profile.weights),
+        reverse_observation.profile.map(|profile| profile.weights),
         Some([0.4, 0.3, 0.2, 0.1])
     );
-    assert_eq!(reverse_signal.corrected_amplitudes, [4.0, 3.0, 2.0, 1.0]);
-    assert_eq!(reverse_signal.snrs, [4.0, 3.0, 2.0, 1.0]);
-    assert!(!reverse_signal.in_noisy_region);
     assert_eq!(evidence.variants.len(), 1);
     assert_eq!(evidence.variants[0].support_topology.reads, 2);
     assert_eq!(evidence.variants[0].support_topology.eligible_reads, 2);
@@ -373,42 +299,16 @@ fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
     );
     assert_eq!(evidence.variants[0].support[0].read_index, 0);
     assert_eq!(
-        evidence.variants[0].support[0].calls[0]
-            .signal
-            .profile
-            .map(|profile| profile.weights),
-        Some([0.1, 0.2, 0.3, 0.4])
+        evidence.variants[0].support[0].calls[0].call_index_0based,
+        0
     );
-    assert_eq!(
-        evidence.variants[0].support[0].calls[0]
-            .signal
-            .corrected_amplitudes,
-        [1.0, 2.0, 3.0, 4.0]
-    );
-    assert!(
-        evidence.variants[0].support[0].calls[0]
-            .signal
-            .in_noisy_region
-    );
+    assert_eq!(evidence.variants[0].support[0].calls[0].base, 'G');
     assert_eq!(evidence.variants[0].support[1].read_index, 1);
     assert_eq!(
-        evidence.variants[0].support[1].calls[0]
-            .signal
-            .profile
-            .map(|profile| profile.weights),
-        Some([0.4, 0.3, 0.2, 0.1])
+        evidence.variants[0].support[1].calls[0].call_index_0based,
+        0
     );
-    assert_eq!(
-        evidence.variants[0].support[1].calls[0]
-            .signal
-            .corrected_amplitudes,
-        [4.0, 3.0, 2.0, 1.0]
-    );
-    assert!(
-        !evidence.variants[0].support[1].calls[0]
-            .signal
-            .in_noisy_region
-    );
+    assert_eq!(evidence.variants[0].support[1].calls[0].base, 'C');
     Ok(())
 }
 
@@ -428,9 +328,9 @@ fn omits_reference_matches_but_preserves_non_reference_states() -> Result<()> {
         ],
         Vec::new(),
     );
-    read.signal.loci[2].profile = None;
+    read.evidence = read.evidence.with_call(2, call('N', None));
 
-    let evidence = aggregate(&[read], &[], &sample_config())?;
+    let evidence = run(&[read])?;
 
     assert_eq!(evidence.locus_differences.len(), 3);
     assert_eq!(evidence.locus_differences[0].position_1based, 12);
@@ -535,11 +435,14 @@ fn omits_reference_matches_but_preserves_non_reference_states() -> Result<()> {
         evidence.locus_differences[1].observations[0].state,
         crate::model::sample_evidence::LocusState::Unresolved
     );
+    assert_eq!(
+        evidence.locus_differences[1].observations[0].call_index_0based,
+        Some(2)
+    );
     assert!(
         evidence.locus_differences[1].observations[0]
-            .signal
-            .as_ref()
-            .is_some_and(|signal| signal.profile.is_none())
+            .profile
+            .is_none()
     );
     assert_eq!(
         evidence.locus_differences[1].observations[0].nucleotide_contribution,
@@ -551,7 +454,12 @@ fn omits_reference_matches_but_preserves_non_reference_states() -> Result<()> {
     );
     assert!(
         evidence.locus_differences[2].observations[0]
-            .signal
+            .call_index_0based
+            .is_none()
+    );
+    assert!(
+        evidence.locus_differences[2].observations[0]
+            .profile
             .is_none()
     );
     assert_eq!(
@@ -572,7 +480,7 @@ fn unresolved_call_with_profile_remains_nucleotide_eligible() -> TestResult {
         Vec::new(),
     );
 
-    let evidence = aggregate(&[read], &[], &sample_config())?;
+    let evidence = run(&[read])?;
 
     assert_eq!(evidence.locus_differences.len(), 1);
     assert_eq!(
@@ -638,9 +546,20 @@ fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -
         vec![column('N', 'T', Some(0), 12), column('N', 'C', Some(1), 13)],
         Vec::new(),
     );
-    masked.callability.mask = vec![Some(crate::model::callability::PhaseState::Dephased); 2];
+    for index in 0..2 {
+        masked.evidence = masked.evidence.with_call(
+            index,
+            CallEvidence {
+                mask: Some(CallMask {
+                    alignment: MaskedAlignment::Anchoring,
+                    reason: EvidenceReason::new("dephased_signal"),
+                }),
+                ..call('G', Some(PROFILE))
+            },
+        );
+    }
 
-    let evidence = aggregate(&[differing, masked], &[], &sample_config())?;
+    let evidence = run(&[differing, masked])?;
 
     assert_eq!(evidence.locus_differences.len(), 1);
     let locus = &evidence.locus_differences[0];
@@ -680,7 +599,7 @@ fn differential_locus_retains_reference_support_from_overlapping_reads() -> Resu
         Vec::new(),
     );
 
-    let evidence = aggregate(&[reference, alternate], &[], &sample_config())?;
+    let evidence = run(&[reference, alternate])?;
 
     assert_eq!(evidence.locus_differences.len(), 1);
     let topology = evidence.locus_differences[0].support_topology;
@@ -706,7 +625,7 @@ fn differential_locus_retains_reference_support_from_overlapping_reads() -> Resu
         observations[1].state,
         crate::model::sample_evidence::LocusState::Reference
     );
-    assert_eq!(observations[1].quality, Some(50));
+    assert_eq!(observations[1].call_index_0based, Some(0));
     Ok(())
 }
 
@@ -729,7 +648,7 @@ fn all_reference_overlap_needs_no_per_locus_records() -> Result<()> {
         Vec::new(),
     );
 
-    let evidence = aggregate(&[first, second], &[], &sample_config())?;
+    let evidence = run(&[first, second])?;
 
     assert!(evidence.locus_differences.is_empty());
     Ok(())
@@ -764,7 +683,7 @@ fn records_callable_reads_that_do_not_support_a_variant_as_opposition() -> Resul
     );
     masked.alignment.callable_segments.clear();
 
-    let evidence = aggregate(&[supporting, opposing, masked], &[], &sample_config())?;
+    let evidence = run(&[supporting, opposing, masked])?;
 
     let opposition = &evidence.variants[0].opposition;
     assert_eq!(opposition.read_indices, [1]);
@@ -793,10 +712,10 @@ fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     );
     reverse.variants.reported.clear();
     reverse.variants.observed[0].exclusion_reasons = vec![VariantExclusionReason::Evidence(
-        crate::read_evidence::EvidenceReason::new("peak_below_minimum"),
+        EvidenceReason::new("peak_below_minimum"),
     )];
 
-    let evidence = aggregate(&[forward, reverse], &[], &sample_config())?;
+    let evidence = run(&[forward, reverse])?;
 
     assert_eq!(evidence.variants[0].support.len(), 2);
     assert_eq!(evidence.variants[0].support_topology.reads, 2);
@@ -815,21 +734,20 @@ fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     assert!(!evidence.variants[0].support[1].eligible);
     assert_eq!(
         evidence.variants[0].support[1].exclusion_reasons,
-        vec![VariantExclusionReason::Evidence(
-            crate::read_evidence::EvidenceReason::new("peak_below_minimum")
-        )]
+        vec![VariantExclusionReason::Evidence(EvidenceReason::new(
+            "peak_below_minimum"
+        ))]
     );
     assert_eq!(evidence.variants[0].support[0].calls[0].base, 'G');
     assert_eq!(
-        evidence.variants[0].support[0].calls[0].peak_heights,
-        [10, 20, 100, 30]
+        evidence.variants[0].support[0].calls[0].call_index_0based,
+        0
     );
-    assert_eq!(evidence.variants[0].support[0].calls[0].quality, 50);
     Ok(())
 }
 
 #[test]
-fn rejects_misindexed_locus_evidence() {
+fn rejects_an_aligned_call_missing_from_the_evidence() {
     let mut read = observation(
         "a",
         "reference",
@@ -838,9 +756,10 @@ fn rejects_misindexed_locus_evidence() {
         vec![column('G', 'A', Some(0), 72)],
         Vec::new(),
     );
-    read.signal.loci[0].call_index_0based = 1;
+    read.evidence = ReadEvidence::new(Vec::new(), 0..0, Vec::new())
+        .unwrap_or_else(|error| panic!("valid empty evidence: {error}"));
 
-    assert!(aggregate(&[read], &[], &sample_config()).is_err());
+    assert!(run(&[read]).is_err());
 }
 
 #[test]
@@ -854,7 +773,7 @@ fn rejects_duplicate_reference_coordinate_within_one_read() {
         Vec::new(),
     );
 
-    assert!(aggregate(&[read], &[], &sample_config()).is_err());
+    assert!(run(&[read]).is_err());
 }
 
 #[test]
@@ -869,7 +788,7 @@ fn rejects_duplicate_normalized_variant_identity_within_one_read() {
         vec![variant.clone(), variant],
     );
 
-    assert!(aggregate(&[read], &[], &sample_config()).is_err());
+    assert!(run(&[read]).is_err());
 }
 
 #[test]
@@ -890,7 +809,7 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
         vec![column('A', 'A', Some(0), 0)],
         Vec::new(),
     );
-    assert!(aggregate(&[first.clone(), incompatible], &[], &sample_config()).is_err());
+    assert!(run(&[first.clone(), incompatible]).is_err());
 
     let mut duplicate = observation(
         "a",
@@ -901,5 +820,5 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
         Vec::new(),
     );
     duplicate.input_name = "renamed-copy.ab1".into();
-    assert!(aggregate(&[first, duplicate], &[], &sample_config()).is_err());
+    assert!(run(&[first, duplicate]).is_err());
 }

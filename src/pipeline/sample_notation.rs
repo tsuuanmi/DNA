@@ -6,7 +6,7 @@
 //! reads converge on one notation.
 
 use crate::error::{Error, NomenclatureError, Result};
-use crate::model::read_observation::ReadObservation;
+use crate::model::called_read::CalledRead;
 use crate::model::reference::Reference;
 use crate::model::variant::Variant as CalledVariant;
 use crate::profile::{Notation, Profile};
@@ -18,7 +18,7 @@ use crate::variant_normalization::{NormalizationPolicy, normalize_with};
 /// Represents every read's eligible calls, or `None` when the profile declares
 /// no notation. The reference has already been checked against the profile.
 pub(crate) fn represent(
-    reads: &[ReadObservation],
+    reads: &[CalledRead],
     reference: &Reference,
     profile: &Profile,
 ) -> Result<Option<SampleNotation>> {

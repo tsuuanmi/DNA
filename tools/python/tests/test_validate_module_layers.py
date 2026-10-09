@@ -99,6 +99,25 @@ class ModuleLayerTests(unittest.TestCase):
         self.assertIn("must not depend on Sanger module basecalling", result.stderr)
         self.assertNotIn("model::nucleotide", result.stderr)
 
+    def test_rejects_a_neutral_model_child_depending_on_sanger(self) -> None:
+        result = self.run_layers(
+            {
+                "lib.rs": "mod model;\n",
+                "model/mod.rs": "pub(crate) mod called_read;\npub(crate) mod signal;\n",
+                "model/signal.rs": "pub(crate) struct SignalAnalysis;\n",
+                "model/called_read.rs": (
+                    "use crate::model::signal::SignalAnalysis;\n"
+                    "pub(crate) struct CalledRead(SignalAnalysis);\n"
+                ),
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "model/called_read.rs:1: modality-neutral module model must not depend on "
+            "model::signal",
+            result.stderr,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

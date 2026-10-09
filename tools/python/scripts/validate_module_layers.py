@@ -60,6 +60,7 @@ NEUTRAL: frozenset[str] = frozenset(
         "variant",
         "alignment",
         "variant_calling",
+        "sample",
         "variant_representation",
         "variant_normalization",
         "variant_nomenclature",
@@ -75,13 +76,21 @@ SANGER: frozenset[str] = frozenset(
         "read_processing",
         "input",
         "locus",
-        "sample",
     }
 )
 # Children of ``model`` that neutral modules may use; every other child is
 # Sanger-specific or a delivery contract.
 NEUTRAL_MODEL_CHILDREN: frozenset[str] = frozenset(
-    {"alignment", "coordinate", "nucleotide", "reference", "variant"}
+    {
+        "alignment",
+        "called_read",
+        "coordinate",
+        "nucleotide",
+        "reference",
+        "reference_call",
+        "sample_evidence",
+        "variant",
+    }
 )
 
 # Crate roots compose every module and are not part of any layer.
@@ -190,6 +199,18 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
     return None
 
 
+def neutral_source(root: Path, edge: Edge) -> bool:
+    """Whether the edge starts in a modality-neutral module or neutral model child."""
+    if edge.source in NEUTRAL:
+        return True
+    parts = edge.path.relative_to(root).parts
+    return (
+        edge.source == "model"
+        and len(parts) > 1
+        and Path(parts[1]).stem in NEUTRAL_MODEL_CHILDREN
+    )
+
+
 def relative(path: Path) -> Path:
     return path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
 
@@ -222,13 +243,13 @@ def validate(root: Path = SOURCE_ROOT) -> list[str]:
                 f"{edge.source} must not depend on layer {target_layer} module {edge.target}"
             )
     for edge in edges(root):
-        if edge.source in NEUTRAL and edge.target in SANGER:
+        if neutral_source(root, edge) and edge.target in SANGER:
             failures.append(
                 f"{relative(edge.path)}:{edge.line}: modality-neutral module {edge.source} "
                 f"must not depend on Sanger module {edge.target} (ADR-0069)"
             )
     for edge in model_children(root):
-        if edge.source in NEUTRAL and edge.target not in NEUTRAL_MODEL_CHILDREN:
+        if neutral_source(root, edge) and edge.target not in NEUTRAL_MODEL_CHILDREN:
             failures.append(
                 f"{relative(edge.path)}:{edge.line}: modality-neutral module {edge.source} "
                 f"must not depend on model::{edge.target} (ADR-0069)"

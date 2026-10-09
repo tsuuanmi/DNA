@@ -4,14 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::{Result, SampleError};
 use crate::model::alignment::Orientation;
-use crate::model::read_observation::ReadObservation;
+use crate::model::called_read::CalledRead;
 use crate::model::reference_call;
 use crate::model::sample_evidence::{
     VariantCallEvidence, VariantEvidence, VariantOpposition, VariantSupport, VariantSupportTopology,
 };
 use crate::model::variant::{VariantCallMapping, VariantKind};
-
-use super::call_evidence;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct VariantKey {
@@ -21,7 +19,7 @@ struct VariantKey {
     kind: VariantKind,
 }
 
-pub(super) fn aggregate(reads: &[&ReadObservation]) -> Result<Vec<VariantEvidence>> {
+pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<VariantEvidence>> {
     let mut variants: BTreeMap<VariantKey, Vec<VariantSupport>> = BTreeMap::new();
 
     for (read_index, read) in reads.iter().enumerate() {
@@ -81,7 +79,7 @@ fn evidence_span(key: &VariantKey) -> std::ops::Range<usize> {
 fn opposition(
     key: &VariantKey,
     support: &[VariantSupport],
-    reads: &[&ReadObservation],
+    reads: &[&CalledRead],
 ) -> VariantOpposition {
     let supporting = support
         .iter()
@@ -116,7 +114,7 @@ fn opposition(
 
 fn support_topology(
     support: &[VariantSupport],
-    reads: &[&ReadObservation],
+    reads: &[&CalledRead],
 ) -> Result<VariantSupportTopology> {
     let mut topology = VariantSupportTopology {
         reads: support.len(),
@@ -161,27 +159,20 @@ fn support_topology(
 }
 
 fn variant_calls(
-    read: &ReadObservation,
+    read: &CalledRead,
     mappings: &[VariantCallMapping],
 ) -> Result<Vec<VariantCallEvidence>> {
-    reference_call::resolve_public_calls(
-        &read.calls,
-        &read.quality,
-        read.alignment.orientation,
-        mappings,
+    Ok(
+        reference_call::resolve_public_calls(&read.evidence, read.alignment.orientation, mappings)
+            .map_err(SampleError::CallEvidence)?
+            .into_iter()
+            .map(|call| VariantCallEvidence {
+                role: call.mapping.role,
+                base: call.base,
+                call_index_0based: call.mapping.call_index_0based,
+            })
+            .collect(),
     )
-    .map_err(SampleError::CallEvidence)?
-    .into_iter()
-    .map(|call| {
-        Ok(VariantCallEvidence {
-            role: call.mapping.role,
-            base: call.evidence.base,
-            peak_heights: call.evidence.peak_heights,
-            quality: call.evidence.quality,
-            signal: call_evidence::for_call(read, call.mapping.call_index_0based)?,
-        })
-    })
-    .collect()
 }
 
 #[cfg(test)]

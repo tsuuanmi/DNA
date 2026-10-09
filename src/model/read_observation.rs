@@ -1,28 +1,54 @@
-//! Complete scientific observation produced from one independently processed read.
+//! Complete scientific observation produced from one independently processed Sanger read.
 
-use crate::model::alignment::Alignment;
 use crate::model::basecalls::BaseCalls;
-use crate::model::callability::ReadCallability;
+use crate::model::callability::{ReadCallability, ReadRejection};
+use crate::model::called_read::CalledRead;
+use crate::model::locus_evidence::LocusEvidence;
 use crate::model::quality::QualityControlResult;
-use crate::model::signal::SignalAnalysis;
-use crate::model::variant::VariantCallingResult;
+use crate::model::signal::{SangerIntegrity, SignalAnalysis};
 
-/// Immutable read-level products after evidence-driven reference placement.
-///
-/// This is the boundary between one-read processing and sample-level
-/// reconciliation. Placement is already derived from alignment evidence. The
-/// source filename is retained only as reviewer-facing provenance and never
-/// constrains orientation, covered region, or cross-read reconciliation.
+/// A Sanger read after reference placement: the core's modality-neutral
+/// products and the Sanger evidence that reports join to them.
 #[derive(Debug, Clone)]
 pub(crate) struct ReadObservation {
-    pub(crate) input_name: String,
-    pub(crate) input_sha256: String,
-    pub(crate) reference_sha256: String,
-    pub(crate) configuration_sha256: String,
+    pub(crate) called: CalledRead,
+    pub(crate) sanger: SangerAttachment,
+}
+
+/// Sanger products of one read that the core never reads; reports join them
+/// to core records by read identity and call index (ADR-0069).
+#[derive(Debug, Clone)]
+pub(crate) struct SangerAttachment {
     pub(crate) calls: BaseCalls,
     pub(crate) signal: SignalAnalysis,
     pub(crate) callability: ReadCallability,
     pub(crate) quality: QualityControlResult,
-    pub(crate) alignment: Alignment,
-    pub(crate) variants: VariantCallingResult,
+}
+
+impl SangerAttachment {
+    /// Locus evidence of call `index`, when its record carries that index.
+    pub(crate) fn locus(&self, index: usize) -> Option<&LocusEvidence> {
+        self.signal
+            .loci
+            .get(index)
+            .filter(|locus| locus.call_index_0based == index)
+    }
+
+    /// Whether call `index` lies in a merged candidate-noisy region.
+    pub(crate) fn in_noisy_region(&self, index: usize) -> bool {
+        self.signal.noisy_regions.iter().any(|region| {
+            region.call_start_0based <= index && index < region.call_end_0based_exclusive
+        })
+    }
+}
+
+/// Sanger evidence of a read with too few callable calls, which never reaches
+/// the core.
+#[derive(Debug, Clone)]
+pub(crate) struct SangerRejection {
+    pub(crate) input_name: String,
+    pub(crate) input_sha256: String,
+    pub(crate) integrity: SangerIntegrity,
+    pub(crate) callability: ReadCallability,
+    pub(crate) rejection: ReadRejection,
 }

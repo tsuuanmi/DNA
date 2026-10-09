@@ -2,9 +2,8 @@
 
 use crate::config::Config;
 use crate::error::Result;
-use crate::model::read_observation::ReadObservation;
+use crate::model::read_observation::{ReadObservation, SangerRejection};
 use crate::model::reference::Reference;
-use crate::model::sample_evidence::RejectedSampleRead;
 use crate::model::sanger::Chromatogram;
 use crate::profile::Profile;
 use crate::read_processing;
@@ -12,7 +11,7 @@ use crate::variant_analysis;
 
 pub(crate) struct CompletedSampleReads {
     pub(crate) reads: Vec<ReadObservation>,
-    pub(crate) rejected: Vec<RejectedSampleRead>,
+    pub(crate) rejected: Vec<SangerRejection>,
     pub(crate) warning_total: usize,
 }
 
@@ -45,7 +44,7 @@ pub(crate) fn build(
                 callable_calls = rejection.callable_calls,
                 minimum_callable_calls = rejection.minimum_callable_calls,
             );
-            rejected.push(RejectedSampleRead {
+            rejected.push(SangerRejection {
                 input_name: trace.source_name.clone(),
                 input_sha256: trace.source_sha256.clone(),
                 integrity: prepared.signal.integrity,
@@ -61,10 +60,10 @@ pub(crate) fn build(
         tracing::info!(
             event = "sample_read_completed",
             read_index = index,
-            trace_sha256 = %completed.read.input_sha256,
-            orientation = ?completed.read.alignment.orientation,
-            segments = completed.read.alignment.reference_segments.len(),
-            variants = completed.read.variants.reported.len(),
+            trace_sha256 = %completed.read.called.input_sha256,
+            orientation = ?completed.read.called.alignment.orientation,
+            segments = completed.read.called.alignment.reference_segments.len(),
+            variants = completed.read.called.variants.reported.len(),
         );
         reads.push(completed.read);
     }

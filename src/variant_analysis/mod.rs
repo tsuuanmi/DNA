@@ -77,7 +77,7 @@ pub fn analyze_sanger(
         &inputs.profile,
     )?;
 
-    let read = completed.read;
+    let read = completed.read.called;
     let reference_segments = read
         .alignment
         .reference_segments

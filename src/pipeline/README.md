@@ -14,10 +14,13 @@ profile representation for sample notation (`sample_notation.rs`, which
 composes `variant_normalization` and `variant_nomenclature` when the target
 profile declares notation). Scientific
 Sanger source loading is owned by `input::sanger`; shared reference-free read
-processing lives in `read_processing.rs` (`prepare` through callability, then
+processing lives in `read_processing` (`prepare` through callability, then
 `finish`); reference-guided read observation is owned by `variant_analysis`.
 `sample_reads.rs` processes each trace in those two steps so that a read with
 too few callable calls is recorded as rejected while the others continue.
+`sample.rs` splits every read into its `CalledRead`, which the neutral `sample`
+aggregation consumes, and its Sanger attachment, which `sample_metrics.rs` and
+the sample report join by read identity (ADR-0069).
 
 Scientific input adapters are independent of deterministic CLI publication
 targets. Pipeline validates output naming and overwrite protection separately,
