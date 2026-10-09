@@ -245,8 +245,9 @@ pub fn write_abif_with_background_noise(
 }
 
 /// Adds a slippage "shadow" ladder: from `onset_call` on, every call also
-/// carries `fraction` of the primary height on the channel of the call
-/// `offset` positions away (skipped where that channel is the call's own).
+/// carries, for each `(offset, fraction)`, that fraction of the primary height
+/// on the channel of the call `offset` positions away; shadows on the same
+/// channel add up, and a shadow on the call's own channel is skipped.
 ///
 /// # Errors
 ///
@@ -255,21 +256,25 @@ pub fn write_abif_with_shadow_ladder(
     path: &Path,
     sequence: &str,
     onset_call: usize,
-    offset: isize,
-    fraction: f64,
+    shadows: &[(isize, f64)],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let bases = sequence.as_bytes();
-    let mut secondary_signals = Vec::new();
+    let mut heights = std::collections::BTreeMap::<(usize, u8), f64>::new();
     for call_index in onset_call..bases.len() {
-        let Some(source) = call_index.checked_add_signed(offset) else {
-            continue;
-        };
-        let Some(&shadow) = bases.get(source) else {
-            continue;
-        };
-        if shadow == bases[call_index] {
-            continue;
+        for &(offset, fraction) in shadows {
+            let Some(&shadow) = call_index
+                .checked_add_signed(offset)
+                .and_then(|source| bases.get(source))
+            else {
+                continue;
+            };
+            if shadow != bases[call_index] {
+                *heights.entry((call_index, shadow)).or_default() += fraction;
+            }
         }
+    }
+    let mut secondary_signals = Vec::new();
+    for ((call_index, shadow), fraction) in heights {
         let height = scaled_height(fraction)?;
         if height >= 1 {
             secondary_signals.push((call_index, shadow, height));
@@ -541,7 +546,7 @@ pub fn write_config_with_profile(
     fs::write(
         path,
         format!(
-            "schema_version=7\nprofile='{profile}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nshift_coherence=0.75\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
+            "schema_version=7\nprofile='{profile}'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.10\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.80\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.50\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=0\nhomopolymer_min_length=8\npost_homopolymer_window=0\n"
         ),
     )?;
     Ok(())

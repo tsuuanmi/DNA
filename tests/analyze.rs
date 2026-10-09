@@ -896,7 +896,7 @@ fn publishes_a_dephased_segment_after_a_long_homopolymer() -> Result<(), Box<dyn
         "ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAGCATGCA",
         "C".repeat(9)
     );
-    write_abif_with_shadow_ladder(&trace, &read, 23, -1, 0.4)?;
+    write_abif_with_shadow_ladder(&trace, &read, 23, &[(-1, 0.4)])?;
     write_reference(&reference, &format!("TTTT{read}CCCC"))?;
     write_config_retaining_everything(&config)?;
 
@@ -907,7 +907,7 @@ fn publishes_a_dephased_segment_after_a_long_homopolymer() -> Result<(), Box<dyn
         callability["segments"],
         serde_json::json!([
             {"calls": {"start": 0, "end": 23}, "state": "in_phase", "after_repeat": false},
-            {"calls": {"start": 23, "end": read.len()}, "state": "dephased", "after_repeat": true}
+            {"calls": {"start": 23, "end": read.len()}, "state": "dephased", "after_repeat": true, "shadow_offsets": [-1]}
         ])
     );
     assert_eq!(callability["callable_span"]["start"], 0);
@@ -919,10 +919,47 @@ fn publishes_a_dephased_segment_after_a_long_homopolymer() -> Result<(), Box<dyn
         "repeats=1 segments=2 in_phase_segments=1 dephased_segments=1 mixed_segments=0 weak_segments=0 irregular_segments=0 masked_calls={} callable=0..23",
         read.len() - 23
     )));
-    assert!(log.contains(&format!(
-        "segment_map=0..23:in_phase,23..{}:dephased+repeat",
-        read.len()
-    )));
+    let segment_map = log
+        .split_whitespace()
+        .find(|field| field.starts_with("segment_map="))
+        .ok_or("callability_completed must carry a segment map")?;
+    assert!(
+        segment_map.starts_with("segment_map=0..23:in_phase,23..")
+            && segment_map.contains(":dephased(-1)[")
+            && segment_map.ends_with("]+repeat"),
+        "{segment_map}"
+    );
+    Ok(())
+}
+
+/// Two-sided slippage (shorter and longer length populations) behind a long
+/// homopolymer is dephased with shadows on both sides, not mixed.
+#[test]
+fn publishes_two_sided_shadows_after_a_long_homopolymer() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let read = format!(
+        "ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAGCATGCA",
+        "C".repeat(9)
+    );
+    write_abif_with_shadow_ladder(&trace, &read, 23, &[(-1, 0.4), (1, 0.4)])?;
+    write_reference(&reference, &format!("TTTT{read}CCCC"))?;
+    write_config_retaining_everything(&config)?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+    let value = read_result(directory.path(), &trace)?;
+    let segments = value["read"]["callability"]["segments"]
+        .as_array()
+        .ok_or("segments must be an array")?;
+    let last = segments.last().ok_or("segments must not be empty")?;
+    assert_eq!(last["state"], "dephased");
+    assert_eq!(last["after_repeat"], true);
+    assert_eq!(last["shadow_offsets"], serde_json::json!([-1, 1]));
+    let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+    assert!(log.contains(":dephased(-1,+1)["), "{log}");
     Ok(())
 }
 
@@ -946,6 +983,7 @@ fn publishes_mixed_and_weak_segments_without_a_repeat() -> Result<(), Box<dyn st
     assert_eq!(segments.len(), 2);
     assert_eq!(segments[1]["state"], "mixed");
     assert_eq!(segments[1]["after_repeat"], false);
+    assert!(segments[1].get("shadow_offsets").is_none());
     assert_eq!(segments[1]["calls"]["start"], 30);
 
     let weak = tempdir()?;

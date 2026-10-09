@@ -248,7 +248,6 @@ mod tests {
             secondary_channel: Some(1),
             dominance: 0.5,
             secondary_ratio: ratio,
-            shift_offset: None,
             spacing_deviation: spacing,
             weak,
         };

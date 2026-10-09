@@ -49,9 +49,15 @@ pub(crate) struct CallabilityConfig {
     pub(crate) onset_defect_fraction: f64,
     /// Defect fraction at or below which a masked stretch ends.
     pub(crate) exit_defect_fraction: f64,
-    /// Fraction of a segment's double peaks that must share one shift offset
-    /// for the segment to count as dephased rather than mixed.
-    pub(crate) shift_coherence: f64,
+    /// Smallest main-ladder share of a segment's shadow fit for the segment to
+    /// count as dephased rather than mixed.
+    pub(crate) minimum_main_share: f64,
+    /// Largest far-shadow (offsets of two or three calls) share of a dephased
+    /// segment's shadow fit.
+    pub(crate) maximum_far_share: f64,
+    /// Smallest share for a shadow offset to be reported; a dephased segment
+    /// needs a one-call shadow at or above it.
+    pub(crate) minimum_shadow_share: f64,
     /// Fraction of the read's median primary amplitude below which a position is weak.
     pub(crate) weak_amplitude_fraction: f64,
 }
@@ -133,7 +139,9 @@ struct RawCallabilityConfig {
     window_calls: usize,
     onset_defect_fraction: f64,
     exit_defect_fraction: f64,
-    shift_coherence: f64,
+    minimum_main_share: f64,
+    maximum_far_share: f64,
+    minimum_shadow_share: f64,
     weak_amplitude_fraction: f64,
 }
 
@@ -228,8 +236,18 @@ impl RawConfig {
             .into());
         }
         require_fraction(
-            "callability.shift_coherence",
-            self.callability.shift_coherence,
+            "callability.minimum_main_share",
+            self.callability.minimum_main_share,
+        )?;
+        require_finite_range(
+            "callability.maximum_far_share",
+            self.callability.maximum_far_share,
+            0.0,
+            1.0,
+        )?;
+        require_fraction(
+            "callability.minimum_shadow_share",
+            self.callability.minimum_shadow_share,
         )?;
         require_finite_range(
             "callability.weak_amplitude_fraction",
@@ -347,7 +365,9 @@ impl RawConfig {
                 window_calls: self.callability.window_calls,
                 onset_defect_fraction: self.callability.onset_defect_fraction,
                 exit_defect_fraction: self.callability.exit_defect_fraction,
-                shift_coherence: self.callability.shift_coherence,
+                minimum_main_share: self.callability.minimum_main_share,
+                maximum_far_share: self.callability.maximum_far_share,
+                minimum_shadow_share: self.callability.minimum_shadow_share,
                 weak_amplitude_fraction: self.callability.weak_amplitude_fraction,
             },
             quality_control: QualityControlConfig {
@@ -413,7 +433,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nshift_coherence=0.75\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
+    const VALID: &str = "schema_version=7\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nbest_section_fraction=0.1\nmax_relative_quality_score=60\ntrim_stringency=7.0\nminimum_retained_bases=20\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[variant_calling]\nmax_indel_length=50\nminimum_peak_height=150\nrelative_quality_threshold=30\nread_end_margin=10\nhomopolymer_min_length=8\npost_homopolymer_window=7\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -520,6 +540,32 @@ mod tests {
                 "unexpectedly accepted {invalid}"
             );
         }
+    }
+
+    #[test]
+    fn rejects_invalid_callability_settings() {
+        for invalid in [
+            VALID.replace("window_calls=16", "window_calls=7"),
+            VALID.replace("exit_defect_fraction=0.125", "exit_defect_fraction=0.5"),
+            VALID.replace("minimum_main_share=0.35", "minimum_main_share=0.0"),
+            VALID.replace("minimum_main_share=0.35", "minimum_main_share=1.5"),
+            VALID.replace("maximum_far_share=0.12", "maximum_far_share=-0.1"),
+            VALID.replace("maximum_far_share=0.12", "maximum_far_share=nan"),
+            VALID.replace("minimum_shadow_share=0.1", "minimum_shadow_share=0.0"),
+            VALID.replace("weak_amplitude_fraction=0.1", "weak_amplitude_fraction=0.6"),
+        ] {
+            assert!(
+                validate(&invalid).is_err(),
+                "unexpectedly accepted {invalid}"
+            );
+        }
+        assert!(
+            toml::from_str::<RawConfig>(&VALID.replace(
+                "minimum_shadow_share=0.1\n",
+                "minimum_shadow_share=0.1\nshift_coherence=0.75\n"
+            ))
+            .is_err()
+        );
     }
 
     #[test]

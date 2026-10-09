@@ -5,19 +5,22 @@ segments, the typed mask, and the callable span (`dna.read_callability/v1`).
 
 Key children:
 
-- `features.rs` — dominance, secondary ratio, slippage shift offset, spacing
-  deviation, and weakness per position;
+- `features.rs` — dominance, secondary ratio, spacing deviation, and weakness
+  per position;
 - `runs.rs` — homopolymer and dinucleotide repeat runs in the read's own
   primary calls, used only as priors for the window after each run;
 - `phase.rs` — rolling defect fractions, repeat priors, and the hysteresis
   state machine that decides where the read is callable;
+- `shadow.rs` — the shadow model: a deterministic non-negative least-squares
+  fit of a stretch's normalized amplitudes to the read's own primary calls
+  shifted by up to three calls, and its dephased-versus-mixed decision;
 - `classify.rs` — the phase state of every masked segment and its repeat
   attribution;
 - `mask.rs` — the per-position mask, the callable span, and their invariants;
 - `sanger.rs` — the Sanger adapter that builds the core's evidence records from
   the chromatogram loci, locus evidence, and primary calls.
 
-Dependency rule: `features`, `runs`, `phase`, `classify`, and `mask` form a
+Dependency rule: `features`, `runs`, `phase`, `shadow`, `classify`, and `mask` form a
 modality-generic core that depends only on the plain records in
 `model::callability` (plus the shared metric rounding of `signal_processing`);
 they never import `Chromatogram`, `BaseCalls`, `LocusEvidence`, or any other

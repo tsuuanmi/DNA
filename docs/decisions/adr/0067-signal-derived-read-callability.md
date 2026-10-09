@@ -62,10 +62,12 @@ read's own signal.
 1. A new layer-2 module `callability` derives, per read and reference-,
    profile-, and filename-free, in trace order for both strands, the
    `dna.read_callability/v1` view: per-position features (dominance, secondary
-   ratio, slippage shift offset, spacing deviation, weakness), phase-state
-   segments from a hysteresis state machine over rolling defect fractions,
-   the classification of every masked segment (`dephased`, `mixed`, `weak`,
-   `irregular`), a per-position mask, and the callable span.
+   ratio, spacing deviation, weakness), phase-state segments from a hysteresis
+   state machine over rolling defect fractions, the classification of every
+   masked segment (`weak`, `irregular`, and for double peaks `dephased` or
+   `mixed` from a shadow model of the read's own calls shifted by up to three
+   positions; see the calibration amendment), a per-position mask, and the
+   callable span.
 2. Repeat runs found in the read's own primary calls lower the onset threshold
    right after the run and attribute a segment (`after_repeat`); they never mask
    by themselves. The run itself stays callable while its signal is one ladder.
@@ -97,7 +99,8 @@ read's own signal.
   0.979 to 0.83, and it discards in-phase calls before the run.
 - Deconvolving the shifted ladders to recover the sequence behind the shift:
   rewrites evidence and needs truth-labelled validation (ADR-0013, ADR-0019);
-  it stays deferred.
+  it stays deferred and is studied in
+  [phase recovery](../../research/phase-recovery/README.md).
 - Declaring difficult regions in the target profile: a reference window cannot
   see the run length a sample actually carries, and method parameters do not
   belong in profiles (ADR-0063).
@@ -119,6 +122,49 @@ read's own signal.
 - A slipped population above one half flips the primary inside the run with no
   in-run signature; only cross-strand disagreement at sample scope can reveal
   it ([known limitations](../../validation/known-limitations.md)).
+
+## Calibration amendment (2026-10-09)
+
+Increment 1 labelled a double-peak segment `dephased` when at least 75 % of its
+double peaks shared one modal neighbour offset. On the local corpus that rule
+called most post-run slippage `mixed`, because slippage is usually two-sided:
+shorter and longer length populations leave shadows one call before and one
+call after. Before increment 2, still inside the unreleased cycle, the rule is
+replaced by a shadow model ([callability method](../../design/callability.md),
+substep 4.4):
+
+- each double-peak segment's normalized corrected amplitudes are fitted by
+  exact non-negative least squares to one-hot templates of the read's own
+  primary calls shifted by −3..+3;
+- the segment is `dephased` when the main-ladder share reaches
+  `minimum_main_share` (0.35), the share of shadows two or three calls away
+  stays at or below `maximum_far_share` (0.12), and a one-call shadow reaches
+  `minimum_shadow_share` (0.10); otherwise it is `mixed`;
+- dephased segments publish their `shadow_offsets`; weights and shares are
+  logged in aggregate form only and are never mixture fractions.
+
+Measured outside the repository on the 199 local traces with the Rust
+implementation on top of revision `c91b1bf` (aggregate only):
+
+- segment boundaries, masks, callable spans, exit statuses, and every other
+  output field were identical to `c91b1bf` across all 430 results;
+- `dephased` segments went from 19 to 245 (46 569 calls; median length 129
+  calls) and `mixed` segments from 322 to 96; the 81 fitted mixed segments
+  cover 2 083 calls (median length 14);
+- dephased segments: main share q10/median/q90 0.52/0.68/0.79, far share
+  0.000/0.007/0.065; shadows on both sides in 131 segments, one call before
+  only in 65, one call after only in 46;
+- of the 81 fitted mixed segments, 42 exceeded the far-share limit, 38 had no
+  one-call shadow, and 4 fell below the main-share minimum; 15 were too short
+  to fit.
+
+With baseline-corrected event amplitudes, far shadows are close to zero even
+after long runs and in the globally mixed read class, so `dephased` means
+"explained by shadows of neighbouring calls". It covers slippage and a ladder
+smeared by one call alike; the event amplitudes cannot tell a co-located
+shadow from a neighbour's peak tail. How severe a dephased segment is, and
+whether its sequence can be recovered, is left to the
+[phase-recovery research](../../research/phase-recovery/README.md).
 
 ## Supersession
 

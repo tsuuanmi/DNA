@@ -17,14 +17,16 @@ minimum_noisy_windows = 2
 
 [callability]
 # Signal-derived read callability (ADR-0067): rolling window of calls, the
-# defect fractions that open and close a masked stretch, and the shift-offset
-# coherence that separates dephased (slippage) signal from mixed signal, and
-# the fraction of the read's median primary amplitude below which a position
-# is weak. Observation-only until the mask is allowed to act.
+# defect fractions that open and close a masked stretch, the shadow-fit shares
+# that separate dephased (slippage) signal from mixed signal, and the fraction
+# of the read's median primary amplitude below which a position is weak.
+# Observation-only until the mask is allowed to act.
 window_calls = 16
 onset_defect_fraction = 0.375
 exit_defect_fraction = 0.125
-shift_coherence = 0.75
+minimum_main_share = 0.35
+maximum_far_share = 0.12
+minimum_shadow_share = 0.1
 weak_amplitude_fraction = 0.1
 
 [quality_control]

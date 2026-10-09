@@ -129,8 +129,23 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         .segments
         .iter()
         .map(|segment| {
+            let shadow = segment.shadow.map_or_else(String::new, |shadow| {
+                let offsets = if segment.state == PhaseState::Dephased {
+                    let offsets = shadow
+                        .offsets()
+                        .map(|offset| format!("{offset:+}"))
+                        .collect::<Vec<_>>();
+                    format!("({})", offsets.join(","))
+                } else {
+                    String::new()
+                };
+                format!(
+                    "{offsets}[{:.3},{:.3}]",
+                    shadow.main_share, shadow.far_share
+                )
+            });
             format!(
-                "{}..{}:{}{}",
+                "{}..{}:{}{shadow}{}",
                 segment.call_start_0based,
                 segment.call_end_0based_exclusive,
                 segment.state.label(),
@@ -161,7 +176,9 @@ pub(crate) fn process(trace: &Chromatogram, config: &Config) -> Result<Processed
         window_calls = config.callability.window_calls,
         onset_defect_fraction = %format_args!("{:.4}", config.callability.onset_defect_fraction),
         exit_defect_fraction = %format_args!("{:.4}", config.callability.exit_defect_fraction),
-        shift_coherence = %format_args!("{:.4}", config.callability.shift_coherence),
+        minimum_main_share = %format_args!("{:.4}", config.callability.minimum_main_share),
+        maximum_far_share = %format_args!("{:.4}", config.callability.maximum_far_share),
+        minimum_shadow_share = %format_args!("{:.4}", config.callability.minimum_shadow_share),
         weak_amplitude_fraction = %format_args!("{:.4}", config.callability.weak_amplitude_fraction),
     );
 

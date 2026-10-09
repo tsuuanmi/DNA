@@ -17,7 +17,9 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | `callability` | `window_calls` | `16` | integer `8..=64` |
 | | `onset_defect_fraction` | `0.375` | finite `(0,1]` |
 | | `exit_defect_fraction` | `0.125` | finite `[0,1]`, below `onset_defect_fraction` |
-| | `shift_coherence` | `0.75` | finite `(0,1]` |
+| | `minimum_main_share` | `0.35` | finite `(0,1]` |
+| | `maximum_far_share` | `0.12` | finite `[0,1]` |
+| | `minimum_shadow_share` | `0.1` | finite `(0,1]` |
 | | `weak_amplitude_fraction` | `0.1` | finite `[0,0.5]`; `0` disables the weak defect |
 | `quality_control` | `penalty_window_size` | `10` | positive |
 | | `best_section_fraction` | `0.10` | finite `(0,1]` |

@@ -71,6 +71,9 @@ pub(crate) struct CallabilitySegmentResult {
     pub(crate) calls: IntervalResult,
     pub(crate) state: PhaseState,
     pub(crate) after_repeat: bool,
+    /// Reported shadow offsets of a dephased segment, ascending.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) shadow_offsets: Option<Vec<i8>>,
 }
 
 /// A shared 0-based half-open result interval.

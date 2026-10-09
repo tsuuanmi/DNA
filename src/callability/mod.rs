@@ -6,7 +6,7 @@
 //! masked segment, and reports a typed mask with its callable span. Decoded
 //! channels, loci, calls, and locus evidence are never modified.
 //!
-//! The core (`features`, `runs`, `phase`, `classify`, `mask`) depends only on
+//! The core (`features`, `runs`, `phase`, `shadow`, `classify`, `mask`) depends only on
 //! the plain records of `model::callability`; `sanger` is the one adapter that
 //! reads Sanger types.
 
@@ -16,6 +16,7 @@ mod mask;
 mod phase;
 mod runs;
 mod sanger;
+mod shadow;
 
 use crate::config::Config;
 use crate::error::Result;
@@ -29,7 +30,7 @@ use crate::model::signal::SignalAnalysis;
 struct Settings {
     weak_amplitude_fraction: f64,
     repeat_min_length: usize,
-    shift_coherence: f64,
+    shadow: shadow::Rules,
     thresholds: phase::Thresholds,
 }
 
@@ -38,7 +39,11 @@ impl Settings {
         Self {
             weak_amplitude_fraction: config.callability.weak_amplitude_fraction,
             repeat_min_length: config.variant_calling.homopolymer_min_length,
-            shift_coherence: config.callability.shift_coherence,
+            shadow: shadow::Rules {
+                main_minimum: config.callability.minimum_main_share,
+                far_maximum: config.callability.maximum_far_share,
+                shadow_minimum: config.callability.minimum_shadow_share,
+            },
             thresholds: phase::Thresholds {
                 window: config.callability.window_calls,
                 onset: config.callability.onset_defect_fraction,
@@ -73,11 +78,14 @@ fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCall
     let callable = phase::segment(&defects, &prior, &settings.thresholds);
     let segments = classify::segments(
         &callable,
-        &defects,
-        &features,
-        &repeats,
-        settings.thresholds.window,
-        settings.shift_coherence,
+        &classify::Context {
+            evidence,
+            features: &features,
+            defects: &defects,
+            repeats: &repeats,
+            window: settings.thresholds.window,
+            rules: settings.shadow,
+        },
     );
     mask::build(repeats, segments, features.len())
 }
@@ -91,7 +99,11 @@ mod tests {
     const SETTINGS: Settings = Settings {
         weak_amplitude_fraction: 0.1,
         repeat_min_length: 8,
-        shift_coherence: 0.75,
+        shadow: shadow::Rules {
+            main_minimum: 0.35,
+            far_maximum: 0.12,
+            shadow_minimum: 0.1,
+        },
         thresholds: phase::Thresholds {
             window: 8,
             onset: 0.375,
@@ -111,8 +123,13 @@ mod tests {
     }
 
     /// A clean ladder spelling `sequence`; from `shadow_from` on, every
-    /// position also carries `fraction` of the previous position's base.
-    fn ladder(sequence: &str, shadow_from: usize, fraction: f64) -> Vec<PositionEvidence> {
+    /// position also carries each `(offset, fraction)` shadow: that fraction of
+    /// the base `offset` calls away, added to its channel.
+    fn ladder(
+        sequence: &str,
+        shadow_from: usize,
+        shadows: &[(isize, f64)],
+    ) -> Vec<PositionEvidence> {
         let bases = sequence.chars().collect::<Vec<_>>();
         bases
             .iter()
@@ -120,10 +137,14 @@ mod tests {
             .map(|(index, &base)| {
                 let mut amplitudes = [0.0; 4];
                 amplitudes[channel(base)] = 1_000.0;
-                if index >= shadow_from && index > 0 {
-                    let shadow = channel(bases[index - 1]);
-                    if shadow != channel(base) {
-                        amplitudes[shadow] = 1_000.0 * fraction;
+                if index >= shadow_from {
+                    for &(offset, fraction) in shadows {
+                        if let Some(&shadow) = index
+                            .checked_add_signed(offset)
+                            .and_then(|neighbour| bases.get(neighbour))
+                        {
+                            amplitudes[channel(shadow)] += 1_000.0 * fraction;
+                        }
                     }
                 }
                 PositionEvidence {
@@ -137,7 +158,7 @@ mod tests {
 
     #[test]
     fn keeps_a_clean_read_entirely_in_phase() -> Result<()> {
-        let evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGA", usize::MAX, 0.0);
+        let evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGA", usize::MAX, &[]);
         let callability = derive(&evidence, &SETTINGS)?;
         assert_eq!(callability.segments.len(), 1);
         assert_eq!(callability.segments[0].state, PhaseState::InPhase);
@@ -156,7 +177,7 @@ mod tests {
     #[test]
     fn masks_a_shadow_ladder_after_a_long_homopolymer_as_dephased() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
-        let evidence = ladder(&sequence, 23, 0.4);
+        let evidence = ladder(&sequence, 23, &[(-1, 0.4)]);
         let callability = derive(&evidence, &SETTINGS)?;
         assert_eq!(
             callability.repeats,
@@ -171,15 +192,69 @@ mod tests {
         assert_eq!(callability.segments[0].call_end_0based_exclusive, 23);
         assert_eq!(callability.segments[1].state, PhaseState::Dephased);
         assert!(callability.segments[1].after_repeat);
-        assert_eq!(callability.segments[1].coherence, Some(1.0));
-        assert_eq!(callability.segments[1].modal_offset, Some(-1));
+        assert_eq!(
+            callability.segments[1]
+                .shadow
+                .map(|shadow| shadow.offsets().collect::<Vec<_>>()),
+            Some(vec![-1])
+        );
         assert_eq!(callability.callable_end_0based_exclusive, 23);
         Ok(())
     }
 
     #[test]
+    fn masks_a_two_sided_shadow_ladder_after_a_long_homopolymer_as_dephased() -> Result<()> {
+        let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
+        let evidence = ladder(&sequence, 23, &[(-1, 0.4), (1, 0.4)]);
+        let callability = derive(&evidence, &SETTINGS)?;
+        let last = callability.segments.last().copied();
+        assert_eq!(
+            last.map(|segment| segment.state),
+            Some(PhaseState::Dephased)
+        );
+        assert_eq!(last.map(|segment| segment.after_repeat), Some(true));
+        assert_eq!(
+            last.and_then(|segment| segment.shadow)
+                .map(|shadow| shadow.offsets().collect::<Vec<_>>()),
+            Some(vec![-1, 1])
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn relabels_without_moving_segment_boundaries() -> Result<()> {
+        let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
+        let evidence = ladder(&sequence, 23, &[(-1, 0.4), (1, 0.4)]);
+        let strict = Settings {
+            shadow: shadow::Rules {
+                main_minimum: 1.0,
+                far_maximum: 0.0,
+                shadow_minimum: 1.0,
+            },
+            ..SETTINGS
+        };
+        let relaxed = derive(&evidence, &SETTINGS)?;
+        let strict = derive(&evidence, &strict)?;
+        let bounds = |callability: &ReadCallability| {
+            callability
+                .segments
+                .iter()
+                .map(|segment| (segment.call_start_0based, segment.call_end_0based_exclusive))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bounds(&relaxed), bounds(&strict));
+        assert_eq!(relaxed.mask.len(), strict.mask.len());
+        assert_eq!(relaxed.masked_count(), strict.masked_count());
+        assert_eq!(
+            strict.segments.last().map(|segment| segment.state),
+            Some(PhaseState::Mixed)
+        );
+        Ok(())
+    }
+
+    #[test]
     fn masks_scattered_double_peaks_as_mixed_without_a_repeat() -> Result<()> {
-        let mut evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGATCGATCGTAGCT", usize::MAX, 0.0);
+        let mut evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGATCGATCGTAGCT", usize::MAX, &[]);
         for (offset, position) in evidence.iter_mut().enumerate().skip(20) {
             // A secondary channel unrelated to the neighbours' primaries.
             let primary = position.primary.unwrap_or(0);
@@ -201,7 +276,7 @@ mod tests {
 
     #[test]
     fn masks_a_weak_tail() -> Result<()> {
-        let mut evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGATCGA", usize::MAX, 0.0);
+        let mut evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGATCGA", usize::MAX, &[]);
         for position in evidence.iter_mut().skip(24) {
             position.amplitudes = position.amplitudes.map(|amplitude| amplitude / 100.0);
         }

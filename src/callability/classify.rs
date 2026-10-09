@@ -1,22 +1,28 @@
 //! Segment classification: the phase state of every masked run of positions
 //! and whether it follows a repeat run.
 
-use crate::model::callability::{PhaseSegment, PhaseState, PositionFeatures, RepeatRun};
-use crate::signal_processing::round_metric;
+use std::ops::Range;
 
-use super::features::SHIFT_OFFSETS;
+use crate::model::callability::{
+    PhaseSegment, PhaseState, PositionEvidence, PositionFeatures, RepeatRun, ShadowSummary,
+};
+
 use super::phase::Defect;
+use super::shadow::{self, Rules, ShadowFit};
+
+/// Everything classification reads besides the callable flags.
+pub(super) struct Context<'a> {
+    pub(super) evidence: &'a [PositionEvidence],
+    pub(super) features: &'a [PositionFeatures],
+    pub(super) defects: &'a [Defect],
+    pub(super) repeats: &'a [RepeatRun],
+    pub(super) window: usize,
+    pub(super) rules: Rules,
+}
 
 /// Turns per-position callable flags into ordered segments, classifying every
 /// masked run by its dominant defect class.
-pub(super) fn segments(
-    callable: &[bool],
-    defects: &[Defect],
-    features: &[PositionFeatures],
-    repeats: &[RepeatRun],
-    window: usize,
-    shift_coherence: f64,
-) -> Vec<PhaseSegment> {
+pub(super) fn segments(callable: &[bool], context: &Context<'_>) -> Vec<PhaseSegment> {
     let mut segments = Vec::new();
     let mut start = 0;
     while start < callable.len() {
@@ -32,19 +38,10 @@ pub(super) fn segments(
                 call_end_0based_exclusive: end,
                 state: PhaseState::InPhase,
                 after_repeat: false,
-                coherence: None,
-                modal_offset: None,
+                shadow: None,
             }
         } else {
-            classify(
-                start,
-                end,
-                defects,
-                features,
-                repeats,
-                window,
-                shift_coherence,
-            )
+            classify(start..end, context)
         });
         start = end;
     }
@@ -54,80 +51,57 @@ pub(super) fn segments(
 /// Classifies one masked run.
 ///
 /// The dominant defect class wins, with ties resolved in the order weak,
-/// double, spacing. A double-peak run is dephased when at least
-/// `shift_coherence` of its double peaks share the modal shift offset, and
-/// mixed otherwise.
-fn classify(
-    start: usize,
-    end: usize,
-    defects: &[Defect],
-    features: &[PositionFeatures],
-    repeats: &[RepeatRun],
-    window: usize,
-    shift_coherence: f64,
-) -> PhaseSegment {
+/// double, spacing. A double-peak run is dephased when its shadow fit explains
+/// it as the main ladder plus near shadows, and mixed otherwise.
+fn classify(calls: Range<usize>, context: &Context<'_>) -> PhaseSegment {
     let mut weak = 0_usize;
     let mut double = 0_usize;
     let mut spacing = 0_usize;
-    let mut offsets = [0_usize; SHIFT_OFFSETS.len()];
-    for index in start..end {
-        match defects[index] {
+    for defect in &context.defects[calls.clone()] {
+        match defect {
             Defect::Weak => weak += 1,
-            Defect::Double => {
-                double += 1;
-                if let Some(slot) = features[index]
-                    .shift_offset
-                    .and_then(|offset| SHIFT_OFFSETS.iter().position(|&known| known == offset))
-                {
-                    offsets[slot] += 1;
-                }
-            }
+            Defect::Double => double += 1,
             Defect::Spacing => spacing += 1,
             Defect::None => {}
         }
     }
-    let (coherence, modal_offset) = if double == 0 {
-        (None, None)
-    } else {
-        // Ties favour the nearest offset, which comes first in the fixed order.
-        let (slot, count) =
-            offsets
-                .iter()
-                .copied()
-                .enumerate()
-                .fold(
-                    (0, 0),
-                    |best, (slot, count)| {
-                        if count > best.1 { (slot, count) } else { best }
-                    },
-                );
-        (
-            Some(round_metric(count as f64 / double as f64)),
-            (count > 0).then_some(SHIFT_OFFSETS[slot]),
-        )
-    };
-    let state = if weak >= double && weak >= spacing {
-        PhaseState::Weak
+    let (state, shadow) = if weak >= double && weak >= spacing {
+        (PhaseState::Weak, None)
     } else if double >= spacing {
-        if coherence.is_some_and(|coherence| coherence >= shift_coherence) {
-            PhaseState::Dephased
-        } else {
-            PhaseState::Mixed
-        }
+        double_state(
+            shadow::fit(context.evidence, context.features, calls.clone()),
+            &context.rules,
+        )
     } else {
-        PhaseState::Irregular
+        (PhaseState::Irregular, None)
     };
-    let after_repeat = repeats.iter().any(|run| {
+    let after_repeat = context.repeats.iter().any(|run| {
         let first = run.call_end_0based_exclusive;
-        start >= first && start < first.saturating_add(window)
+        calls.start >= first && calls.start < first.saturating_add(context.window)
     });
     PhaseSegment {
-        call_start_0based: start,
-        call_end_0based_exclusive: end,
+        call_start_0based: calls.start,
+        call_end_0based_exclusive: calls.end,
         state,
         after_repeat,
-        coherence,
-        modal_offset,
+        shadow,
+    }
+}
+
+/// State of a double-peak run from its shadow fit; a run without a fit is
+/// mixed.
+fn double_state(fit: Option<ShadowFit>, rules: &Rules) -> (PhaseState, Option<ShadowSummary>) {
+    match fit {
+        Some(fit) => {
+            let (dephased, summary) = shadow::summarize(&fit, rules);
+            let state = if dephased {
+                PhaseState::Dephased
+            } else {
+                PhaseState::Mixed
+            };
+            (state, Some(summary))
+        }
+        None => (PhaseState::Mixed, None),
     }
 }
 
@@ -137,78 +111,51 @@ mod tests {
 
     use super::*;
 
-    fn feature(shift_offset: Option<i8>) -> PositionFeatures {
+    const RULES: Rules = Rules {
+        main_minimum: 0.35,
+        far_maximum: 0.12,
+        shadow_minimum: 0.1,
+    };
+
+    fn feature() -> PositionFeatures {
         PositionFeatures {
             primary_channel: Some(0),
             secondary_channel: Some(1),
             dominance: 0.2,
             secondary_ratio: 0.6,
-            shift_offset,
             spacing_deviation: 0.0,
             weak: false,
         }
     }
 
-    #[test]
-    fn labels_coherent_doubles_dephased_and_scattered_doubles_mixed() {
-        let callable = [
-            true, true, true, false, false, false, false, true, true, true,
-        ];
-        let defects = [
-            Defect::None,
-            Defect::None,
-            Defect::None,
-            Defect::Double,
-            Defect::Double,
-            Defect::Double,
-            Defect::Double,
-            Defect::None,
-            Defect::None,
-            Defect::None,
-        ];
-        let coherent = [
-            feature(None),
-            feature(None),
-            feature(None),
-            feature(Some(1)),
-            feature(Some(1)),
-            feature(Some(1)),
-            feature(Some(-1)),
-            feature(None),
-            feature(None),
-            feature(None),
-        ];
-        let coherent = segments(&callable, &defects, &coherent, &[], 4, 0.75);
-        assert_eq!(coherent.len(), 3);
-        assert_eq!(coherent[0].state, PhaseState::InPhase);
-        assert_eq!(coherent[1].state, PhaseState::Dephased);
-        assert_eq!(coherent[1].coherence, Some(0.75));
-        assert_eq!(coherent[1].modal_offset, Some(1));
-        assert!(!coherent[1].after_repeat);
-        assert_eq!(
-            (
-                coherent[2].call_start_0based,
-                coherent[2].call_end_0based_exclusive
-            ),
-            (7, 10)
-        );
+    fn evidence(positions: usize) -> Vec<PositionEvidence> {
+        (0..positions)
+            .map(|index| PositionEvidence {
+                amplitudes: [1_000.0, 0.0, 0.0, 0.0],
+                coordinate: index * 12,
+                primary: Some(0),
+            })
+            .collect()
+    }
 
-        let scattered = [
-            feature(None),
-            feature(None),
-            feature(None),
-            feature(Some(1)),
-            feature(Some(-2)),
-            feature(None),
-            feature(Some(3)),
-            feature(None),
-            feature(None),
-            feature(None),
-        ];
-        let scattered = segments(&callable, &defects, &scattered, &[], 4, 0.75);
-        assert_eq!(scattered[1].state, PhaseState::Mixed);
-        assert_eq!(scattered[1].coherence, Some(0.25));
-        assert_eq!(scattered[1].modal_offset, Some(1));
+    #[test]
+    fn labels_double_peak_runs_from_their_shadow_fit() {
+        let dephased = ShadowFit {
+            weights: [0.0, 0.0, 0.2, 0.6, 0.2, 0.0, 0.0],
+        };
+        let (state, summary) = double_state(Some(dephased), &RULES);
+        assert_eq!(state, PhaseState::Dephased);
+        assert_eq!(
+            summary.map(|summary| summary.offsets().collect::<Vec<_>>()),
+            Some(vec![-1, 1])
+        );
+        let mixed = ShadowFit {
+            weights: [0.04, 0.08, 0.11, 0.39, 0.08, 0.05, 0.07],
+        };
+        let (state, summary) = double_state(Some(mixed), &RULES);
+        assert_eq!(state, PhaseState::Mixed);
+        assert!(summary.is_some());
+        assert_eq!(double_state(None, &RULES), (PhaseState::Mixed, None));
     }
 
     #[test]
@@ -225,18 +172,55 @@ mod tests {
             Defect::Spacing,
             Defect::None,
         ];
-        let features = vec![feature(None); callable.len()];
+        let features = vec![feature(); callable.len()];
+        let evidence = evidence(callable.len());
         let repeats = [RepeatRun {
             call_start_0based: 3,
             call_end_0based_exclusive: 7,
             unit: RepeatUnit::Homopolymer(2),
         }];
-        let labelled = segments(&callable, &defects, &features, &repeats, 4, 0.75);
+        let context = Context {
+            evidence: &evidence,
+            features: &features,
+            defects: &defects,
+            repeats: &repeats,
+            window: 4,
+            rules: RULES,
+        };
+        let labelled = segments(&callable, &context);
+        assert_eq!(labelled.len(), 3);
         assert_eq!(labelled[0].state, PhaseState::Weak);
-        assert_eq!(labelled[0].coherence, Some(0.0));
-        assert_eq!(labelled[0].modal_offset, None);
+        assert_eq!(labelled[0].shadow, None);
         assert!(!labelled[0].after_repeat);
+        assert_eq!(labelled[1].state, PhaseState::InPhase);
         assert_eq!(labelled[2].state, PhaseState::Irregular);
         assert!(labelled[2].after_repeat);
+    }
+
+    #[test]
+    fn labels_a_short_double_peak_run_mixed() {
+        let callable = [true, true, false, false, false, true, true];
+        let defects = [
+            Defect::None,
+            Defect::None,
+            Defect::Double,
+            Defect::Double,
+            Defect::Double,
+            Defect::None,
+            Defect::None,
+        ];
+        let features = vec![feature(); callable.len()];
+        let evidence = evidence(callable.len());
+        let context = Context {
+            evidence: &evidence,
+            features: &features,
+            defects: &defects,
+            repeats: &[],
+            window: 4,
+            rules: RULES,
+        };
+        let labelled = segments(&callable, &context);
+        assert_eq!(labelled[1].state, PhaseState::Mixed);
+        assert_eq!(labelled[1].shadow, None);
     }
 }

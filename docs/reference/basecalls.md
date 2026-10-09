@@ -27,7 +27,7 @@ at the input boundary and scientific stages use locus terminology.
 - `read.ambiguity`: canonical/IUPAC ambiguity symbol at each locus.
 - `read.retained`: the primary sequence inside `read.trim` after end trimming.
 - `read.trim`: 0-based half-open call interval `[start, end)`.
-- `read.callability`: the `dna.read_callability/v1` view ([method](../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call, empty when everything is masked), `segments` (ordered 0-based half-open call intervals partitioning the read, each with `state` `in_phase`/`dephased`/`mixed`/`weak`/`irregular` and `after_repeat`), and `masked_calls`. It is observation only: it does not change `trim` or `retained`.
+- `read.callability`: the `dna.read_callability/v1` view ([method](../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call, empty when everything is masked), `segments` (ordered 0-based half-open call intervals partitioning the read, each with `state` `in_phase`/`dephased`/`mixed`/`weak`/`irregular`, `after_repeat`, and `shadow_offsets` on dephased segments), and `masked_calls`. It is observation only: it does not change `trim` or `retained`.
 - `signal_quality.integrity`: ABIF-origin locus/vendor-series cardinality evidence, adjacent
   locus-spacing summary, exact signed-16-bit clipping count, and optional
   maximum-to-median corrected event-signal ratio. These observations do not

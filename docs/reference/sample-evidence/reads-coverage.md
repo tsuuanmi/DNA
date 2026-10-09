@@ -17,7 +17,8 @@ Each record contains:
   pipeline; this evidence remains read-local and does not by itself admit/reject
   a read;
 - `callability`: the read's `dna.read_callability/v1` view — callable span,
-  ordered phase-state segments with repeat attribution, and masked-call count —
+  ordered phase-state segments with repeat attribution and the shadow offsets of
+  dephased segments, and masked-call count —
   exactly as the one-read contracts publish it ([method](../../design/callability.md));
   in v10 it is observation only and does not by itself admit/reject a read;
 - `alignment`: the evidence-derived orientation, callable-base count and

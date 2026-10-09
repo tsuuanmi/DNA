@@ -19,7 +19,8 @@ remain independently versioned and are never silently changed in place.
   `dna.analysis/v8` → `v9`, and `dna.sample_evidence/v9` → `v10` gain the
   required `read.callability` / `reads[].callability` view; configuration
   schema 6 → 7 adds `[callability]` (`window_calls`, `onset_defect_fraction`,
-  `exit_defect_fraction`, `shift_coherence`, `weak_amplitude_fraction`) and
+  `exit_defect_fraction`, `minimum_main_share`, `maximum_far_share`,
+  `minimum_shadow_share`, `weak_amplitude_fraction`) and
   renames `quality_control.trim_window_size` to `penalty_window_size`.
   **Breaking (Rust API):** `Error` gains `Callability(CallabilityError)`, and
   `analyze_sanger` opens a `callability` stage span between
@@ -64,6 +65,16 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Read callability separates dephased from mixed double-peak segments with a
+  shadow model (ADR-0067 calibration amendment): a non-negative least-squares
+  fit of each segment's normalized amplitudes to the read's own primary calls
+  shifted by −3..+3 calls replaces the single modal shift offset, so two-sided
+  slippage is dephased rather than mixed. Segment boundaries, the mask, and the
+  callable span are unchanged. **Breaking (unreleased, revised in place):**
+  `callabilitySegment` in `dna.basecalls/v3`, `dna.analysis/v9`, and
+  `dna.sample_evidence/v10` gains `shadow_offsets`, present exactly on dephased
+  segments; configuration schema 7 replaces `callability.shift_coherence` with
+  `minimum_main_share`, `maximum_far_share`, and `minimum_shadow_share`.
 - **Removed:** the Python batch runner `tools/python/scripts/analyze_samples.py`,
   its `SRS-BAT-*` requirements, and the batch runbook. Python in DNA is limited
   to repository checks, tests, measurement, and research (ADR-0066); running

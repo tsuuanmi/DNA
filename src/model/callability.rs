@@ -38,10 +38,6 @@ pub(crate) struct PositionFeatures {
     pub(crate) dominance: f64,
     /// Secondary amplitude divided by primary amplitude, in `[0, 1]`.
     pub(crate) secondary_ratio: f64,
-    /// Smallest call offset whose primary channel equals this position's
-    /// secondary channel (the slippage "shadow"), searched in the fixed order
-    /// `+1, -1, +2, -2, +3, -3`.
-    pub(crate) shift_offset: Option<i8>,
     /// Larger relative deviation of the two neighbouring spacings from the
     /// local median spacing.
     pub(crate) spacing_deviation: f64,
@@ -56,10 +52,10 @@ pub(crate) struct PositionFeatures {
 pub(crate) enum PhaseState {
     /// One dominant ladder; the positions are callable.
     InPhase,
-    /// Double peaks whose secondary channel follows a neighbouring primary
-    /// channel: superimposed ladders offset by a few positions (slippage).
+    /// Double peaks explained by the main ladder plus shadows of neighbouring
+    /// primary calls one call away: superimposed ladders offset by slippage.
     Dephased,
-    /// Double peaks without a consistent neighbour offset: mixed signal.
+    /// Double peaks the shadow model does not explain: mixed signal.
     Mixed,
     /// Absent or low primary signal.
     Weak,
@@ -88,10 +84,37 @@ pub(crate) struct PhaseSegment {
     pub(crate) state: PhaseState,
     /// The segment starts in the window that follows a long repeat run.
     pub(crate) after_repeat: bool,
-    /// Fraction of the segment's double peaks sharing the modal shift offset.
-    pub(crate) coherence: Option<f64>,
-    /// Most frequent shift offset among the segment's double peaks.
-    pub(crate) modal_offset: Option<i8>,
+    /// Shadow-model summary of a fitted double-peak segment.
+    pub(crate) shadow: Option<ShadowSummary>,
+}
+
+/// Shadow offsets of the shadow model in ascending order. Offset `k` means
+/// that the shadow at call `i` copies the primary call at `i + k`.
+pub(crate) const SHADOW_OFFSETS: [i8; 6] = [-3, -2, -1, 1, 2, 3];
+
+/// Shares of a segment's shadow fit, rounded to six decimals.
+///
+/// The shares are model coefficients normalized to their sum, not mixture or
+/// heteroplasmy fractions.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ShadowSummary {
+    /// Share of the main ladder (offset zero).
+    pub(crate) main_share: f64,
+    /// Combined share of the shadows two or three calls away.
+    pub(crate) far_share: f64,
+    /// Per [`SHADOW_OFFSETS`] entry: the offset's share reaches the reporting
+    /// threshold.
+    pub(crate) offsets: [bool; 6],
+}
+
+impl ShadowSummary {
+    /// Reported shadow offsets in ascending order.
+    pub(crate) fn offsets(&self) -> impl Iterator<Item = i8> + '_ {
+        SHADOW_OFFSETS
+            .iter()
+            .zip(self.offsets)
+            .filter_map(|(&offset, reported)| reported.then_some(offset))
+    }
 }
 
 /// Unit of a repeat run found in the read's own primary calls.
@@ -155,8 +178,7 @@ impl ReadCallability {
                 call_end_0based_exclusive: positions,
                 state: PhaseState::InPhase,
                 after_repeat: false,
-                coherence: None,
-                modal_offset: None,
+                shadow: None,
             }],
             mask: vec![None; positions],
             callable_start_0based: 0,

@@ -145,6 +145,25 @@ Observations:
   segments. True sample differences are included in both counts, and the result has not
   yet been checked against reviewer truth.
 
+### Production amplitudes
+
+The callability shadow model (ADR-0067 calibration amendment) fits the
+baseline-corrected event amplitudes of locus evidence and the basecaller's
+primary calls instead of the raw values above. With those inputs the far
+shadows almost vanish:
+
+- dephased segments: main share q10/median/q90 0.52/0.68/0.79, far share
+  0.000/0.007/0.065;
+- the long-run segments and the globally mixed read class are explained by
+  one-call shadows as well (main share about 0.4–0.7, far share about 0.03).
+
+The far shares in the table above therefore mostly measured background, which
+the corrected amplitudes remove. The production label `dephased` means
+"explained by shadows of neighbouring calls". It does not measure severity,
+and event amplitudes cannot tell a co-located slippage shadow from a
+neighbour's peak tail. Severity, and whether a segment can be recovered, are
+what the spike below must establish; the main share is the first candidate.
+
 ## Limitations
 
 - **Templates come from the read's own calls.** Where the near shadows land on the main

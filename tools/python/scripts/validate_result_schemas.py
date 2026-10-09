@@ -124,6 +124,33 @@ def rejected_analysis_shapes(
     callability_with_mask_array["read"]["callability"]["mask"] = [False]
     callability_without_segments = copy.deepcopy(example)
     callability_without_segments["read"]["callability"]["segments"] = []
+    segments = example["read"]["callability"]["segments"]
+    dephased = next(
+        index
+        for index, segment in enumerate(segments)
+        if segment["state"] == "dephased"
+    )
+    in_phase = next(
+        index
+        for index, segment in enumerate(segments)
+        if segment["state"] == "in_phase"
+    )
+    shadow_cases: list[tuple[str, dict[str, Any]]] = []
+    for description, index, offsets in [
+        ("dephased segment without shadow offsets", dephased, None),
+        ("in-phase segment with shadow offsets", in_phase, [-1]),
+        ("shadow offset zero", dephased, [0]),
+        ("duplicate shadow offsets", dephased, [-1, -1]),
+        ("empty shadow offsets", dephased, []),
+        ("shadow offsets without a one-call shadow", dephased, [2]),
+    ]:
+        mutated = copy.deepcopy(example)
+        segment = mutated["read"]["callability"]["segments"][index]
+        if offsets is None:
+            segment.pop("shadow_offsets")
+        else:
+            segment["shadow_offsets"] = offsets
+        shadow_cases.append((f"analysis callability {description}", mutated))
 
     return [
         ("SNV with no calls", document("SNV", [])),
@@ -155,6 +182,7 @@ def rejected_analysis_shapes(
         ),
         ("analysis callability with per-position mask", callability_with_mask_array),
         ("analysis callability without segments", callability_without_segments),
+        *shadow_cases,
     ]
 
 
@@ -232,6 +260,9 @@ def validate_callability_view(
             errors.append(f"{label}: callability segments do not partition the read")
             return
         expected_start = end
+        offsets = segment.get("shadow_offsets")
+        if isinstance(offsets, list) and offsets != sorted(offsets):
+            errors.append(f"{label}: callability shadow offsets are not ascending")
         if segment.get("state") == "in_phase":
             unmasked.extend((start, end))
         else:
@@ -766,6 +797,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not callability_errors:
         errors.append("expected inconsistent callability counts to be rejected")
+
+    unsorted_offsets = copy.deepcopy(analysis_example)
+    for segment in unsorted_offsets["read"]["callability"]["segments"]:
+        if segment["state"] == "dephased":
+            segment["shadow_offsets"] = [1, -1]
+    offset_errors: list[str] = []
+    validate_callability_view(
+        unsorted_offsets["read"]["callability"],
+        unsorted_offsets["read"]["call_count"],
+        "synthetic unsorted shadow offsets",
+        offset_errors,
+    )
+    if not offset_errors:
+        errors.append("expected unsorted shadow offsets to be rejected")
 
     assert_rejected(analysis_validator, rejected_analysis, errors)
     assert_rejected(basecall_validator, rejected_basecalls, errors)

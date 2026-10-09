@@ -157,8 +157,57 @@
         },
         "after_repeat": {
           "type": "boolean"
+        },
+        "shadow_offsets": {
+          "description": "Reported shadow offsets of a dephased segment in ascending order; offset k means the shadow at a call copies the primary call k positions away. Present exactly when state is dephased and then includes a one-call offset.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "enum": [
+              -3,
+              -2,
+              -1,
+              1,
+              2,
+              3
+            ]
+          },
+          "contains": {
+            "enum": [
+              -1,
+              1
+            ]
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "dephased"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "shadow_offsets"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "shadow_offsets"
+              ]
+            }
+          }
+        }
+      ]
     },
     "phaseState": {
       "enum": [

@@ -7,8 +7,6 @@ use crate::error::{CallabilityError, Result};
 use crate::model::callability::{PositionEvidence, PositionFeatures};
 use crate::signal_processing::round_metric;
 
-/// Call offsets searched for a slippage shadow, nearest first.
-pub(super) const SHIFT_OFFSETS: [i8; 6] = [1, -1, 2, -2, 3, -3];
 /// Half-width, in calls, of the window whose median spacing anchors the
 /// spacing deviation of one position.
 const SPACING_HALF_WINDOW: usize = 8;
@@ -62,7 +60,6 @@ pub(super) fn calculate(
                 secondary_channel,
                 dominance,
                 secondary_ratio,
-                shift_offset: shift_offset(index, position, &ranked),
                 spacing_deviation: spacing_deviation(index, &spacings),
                 weak,
             }
@@ -107,28 +104,6 @@ fn rank(amplitudes: [f64; 4]) -> (Option<usize>, Option<usize>) {
     } else {
         (None, None)
     }
-}
-
-/// Nearest offset whose primary channel equals this position's secondary
-/// channel while differing from its own primary channel.
-fn shift_offset(
-    index: usize,
-    position: &PositionEvidence,
-    ranked: &[(Option<usize>, Option<usize>)],
-) -> Option<i8> {
-    let (Some(primary), Some(secondary)) = ranked[index] else {
-        return None;
-    };
-    if position.amplitudes[secondary] <= 0.0 {
-        return None;
-    }
-    SHIFT_OFFSETS.into_iter().find(|&offset| {
-        index
-            .checked_add_signed(isize::from(offset))
-            .and_then(|neighbour| ranked.get(neighbour))
-            .and_then(|neighbour| neighbour.0)
-            .is_some_and(|channel| channel == secondary && channel != primary)
-    })
 }
 
 /// Relative deviation of the position's neighbouring spacings from the median
@@ -201,42 +176,6 @@ mod tests {
         assert!(features[2].weak);
         // Median primary amplitude is 500; 40 is below one tenth of it.
         assert!(features[3].weak);
-        Ok(())
-    }
-
-    #[test]
-    fn finds_the_nearest_shadow_offset_in_fixed_order() -> Result<()> {
-        // Primary ladder A C G T; the secondary channel at each position copies
-        // the previous position's primary, i.e. a +0/-1 shadow.
-        let evidence = [
-            position([1_000.0, 0.0, 0.0, 0.0], 10),
-            position([400.0, 1_000.0, 0.0, 0.0], 22),
-            position([0.0, 400.0, 1_000.0, 0.0], 34),
-            position([0.0, 0.0, 400.0, 1_000.0], 46),
-        ];
-        let features = calculate(&evidence, 0.1)?;
-        assert_eq!(features[0].shift_offset, None);
-        assert_eq!(features[1].shift_offset, Some(-1));
-        assert_eq!(features[2].shift_offset, Some(-1));
-        assert_eq!(features[3].shift_offset, Some(-1));
-        Ok(())
-    }
-
-    #[test]
-    fn ignores_shadows_matching_the_own_primary_channel() -> Result<()> {
-        // Inside a homopolymer the secondary channel never equals a neighbour's
-        // primary channel unless it differs from the own primary.
-        let evidence = [
-            position([1_000.0, 300.0, 0.0, 0.0], 10),
-            position([1_000.0, 300.0, 0.0, 0.0], 22),
-            position([1_000.0, 300.0, 0.0, 0.0], 34),
-        ];
-        let features = calculate(&evidence, 0.1)?;
-        assert!(
-            features
-                .iter()
-                .all(|feature| feature.shift_offset.is_none())
-        );
         Ok(())
     }
 

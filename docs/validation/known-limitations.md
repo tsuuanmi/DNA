@@ -4,7 +4,7 @@ These are current interpretation/validation boundaries, not future promises.
 
 - A single chromatogram does not establish genotype, quantitative heteroplasmy, phase, contamination, pathogenicity, or clinical significance.
 - Rolling SNR and relative quality are observational/relative measures, not calibrated Phred error probabilities.
-- Read callability detects where a read's signal stops being one ladder and masks it; it does not recover the sequence behind a phase shift, and a slipped population above one half flips the primary inside a run with no in-run signature, so only cross-strand disagreement at sample scope can reveal it.
+- Read callability detects where a read's signal stops being one ladder and masks it; it does not recover the sequence behind a phase shift, and a slipped population above one half flips the primary inside a run with no in-run signature, so only cross-strand disagreement at sample scope can reveal it. Its `dephased` label means that shadows of neighbouring calls explain the double peaks; it does not separate slippage from a ladder smeared by one call, and dinucleotide slippage, whose shadows lie two calls away, is labelled `mixed`.
 - Mixed or secondary signal remains evidence; it is not automatically biological heteroplasmy.
 - Unresolved evidence remains unresolved rather than being forced into a definitive biological claim.
 - External-tool agreement is differential evidence, not a compatibility requirement or ground-truth substitute.

@@ -49,7 +49,11 @@
             "end": 28
           },
           "state": "dephased",
-          "after_repeat": true
+          "after_repeat": true,
+          "shadow_offsets": [
+            -1,
+            1
+          ]
         }
       ],
       "masked_calls": 4

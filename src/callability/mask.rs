@@ -57,8 +57,7 @@ mod tests {
             call_end_0based_exclusive: end,
             state,
             after_repeat: false,
-            coherence: None,
-            modal_offset: None,
+            shadow: None,
         }
     }
 
