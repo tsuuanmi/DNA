@@ -324,6 +324,13 @@
         "reverse_reads": 0,
         "eligible_forward_reads": 1,
         "eligible_reverse_reads": 0
+      },
+      "opposition": {
+        "reads": [
+          "read-b"
+        ],
+        "forward_reads": 0,
+        "reverse_reads": 1
       }
     },
     {
@@ -378,6 +385,11 @@
         "reverse_reads": 1,
         "eligible_forward_reads": 1,
         "eligible_reverse_reads": 0
+      },
+      "opposition": {
+        "reads": [],
+        "forward_reads": 0,
+        "reverse_reads": 0
       }
     }
   ],

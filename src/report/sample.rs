@@ -12,8 +12,8 @@ use crate::model::sample_result::{
     SampleEvidenceProfileResult, SampleEvidenceResult, SampleLocusDifferenceObservationResult,
     SampleLocusDifferenceResult, SampleLocusSupportTopologyResult, SampleNotationCallResult,
     SampleNotationResult, SampleOverlapResult, SampleProvenanceResult, SampleReadResult,
-    SampleVariantCallResult, SampleVariantResult, SampleVariantSupportResult,
-    SampleVariantSupportTopologyResult,
+    SampleVariantCallResult, SampleVariantOppositionResult, SampleVariantResult,
+    SampleVariantSupportResult, SampleVariantSupportTopologyResult,
 };
 use crate::profile::{NotationStyle, ProfileIdentity};
 use crate::report::json::project_profile;
@@ -236,6 +236,16 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                     eligible_reverse_reads: variant.support_topology.eligible_reverse_reads,
                 },
                 support,
+                opposition: SampleVariantOppositionResult {
+                    reads: variant
+                        .opposition
+                        .read_indices
+                        .iter()
+                        .map(|&index| read_name(&read_names, index).map(str::to_owned))
+                        .collect::<Result<Vec<_>>>()?,
+                    forward_reads: variant.opposition.forward_reads,
+                    reverse_reads: variant.opposition.reverse_reads,
+                },
             })
         })
         .collect::<Result<Vec<_>>>()?;

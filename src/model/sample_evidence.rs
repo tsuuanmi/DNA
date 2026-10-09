@@ -198,6 +198,18 @@ pub(crate) struct VariantSupportTopology {
     pub(crate) eligible_reverse_reads: usize,
 }
 
+/// Admitted reads that callably observe a variant's reference span without
+/// supporting the variant, in read-registry order.
+///
+/// Opposition is evidence, not a vote or a verdict: a forward and a reverse
+/// read can share an assay artifact, and a read can oppose a true minor allele.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VariantOpposition {
+    pub(crate) read_indices: Vec<usize>,
+    pub(crate) forward_reads: usize,
+    pub(crate) reverse_reads: usize,
+}
+
 /// One normalized observed variant with factorized read support.
 #[derive(Debug, Clone)]
 pub(crate) struct VariantEvidence {
@@ -207,6 +219,7 @@ pub(crate) struct VariantEvidence {
     pub(crate) kind: VariantKind,
     pub(crate) support_topology: VariantSupportTopology,
     pub(crate) support: Vec<VariantSupport>,
+    pub(crate) opposition: VariantOpposition,
 }
 
 /// Complete compact evidence for one sample.

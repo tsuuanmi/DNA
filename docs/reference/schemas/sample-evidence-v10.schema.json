@@ -560,7 +560,8 @@
         "alternate",
         "kind",
         "support_topology",
-        "support"
+        "support",
+        "opposition"
       ],
       "properties": {
         "position": {
@@ -592,6 +593,9 @@
         },
         "support_topology": {
           "$ref": "#/$defs/variantSupportTopology"
+        },
+        "opposition": {
+          "$ref": "#/$defs/variantOpposition"
         }
       }
     },
@@ -989,6 +993,34 @@
           "minimum": 0
         },
         "eligible_reverse_reads": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "variantOpposition": {
+      "description": "Admitted reads whose callable reference segments cover the variant's anchored reference allele (and, for an insertion, the base after it) without a support record for this variant, in read-registry order. Evidence only: not a vote, verdict, or confidence.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reads",
+        "forward_reads",
+        "reverse_reads"
+      ],
+      "properties": {
+        "reads": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forward_reads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reverse_reads": {
           "type": "integer",
           "minimum": 0
         }

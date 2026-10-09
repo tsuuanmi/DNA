@@ -208,6 +208,11 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     assert_eq!(variant["support_topology"]["reverse_reads"], 1);
     assert_eq!(variant["support_topology"]["eligible_forward_reads"], 0);
     assert_eq!(variant["support_topology"]["eligible_reverse_reads"], 1);
+    // The forward read observes the same position callably without the variant.
+    assert_eq!(
+        variant["opposition"],
+        serde_json::json!({"reads": ["read-forward"], "forward_reads": 1, "reverse_reads": 0})
+    );
     let support = variant["support"]
         .as_array()
         .ok_or("variant support must be an array")?;

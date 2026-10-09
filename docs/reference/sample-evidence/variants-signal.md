@@ -36,8 +36,20 @@ the existing per-read support records:
 
 The counts are recomputed from `support[]` and the read registry by contract
 validation. They do not include covering reads that support the reference, are
-unresolved, or observe another event. Those local denominator/opposition states
-remain in `coverage[]` and `locus_differences[]`.
+unresolved, or observe another event; those reads appear in `opposition`.
+
+Each variant also contains `opposition` (ADR-0068):
+
+- `reads`: admitted reads, in read-registry order, whose
+  `callable_reference_segments` cover the variant's evidence span and that have
+  no `support[]` record for this variant. The evidence span is the anchored
+  reference allele (the SNV position; a deletion's anchor and deleted bases)
+  and, for an insertion, the anchor and the base after it;
+- `forward_reads` / `reverse_reads`: those reads by selected orientation.
+
+A read that supports a different event at the same place opposes this one.
+Opposition is evidence, not a vote, verdict, weight, or confidence, and contract
+validation recomputes it from the read registry and `support[]`.
 
 Orientation support is not a claim of assay independence, and eligible-read
 count is not a probability, confidence score, vote weight, genotype, or

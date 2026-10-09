@@ -735,6 +735,43 @@ fn all_reference_overlap_needs_no_per_locus_records() -> Result<()> {
 }
 
 #[test]
+fn records_callable_reads_that_do_not_support_a_variant_as_opposition() -> Result<()> {
+    let variant = snv(73, "A", "G");
+    let supporting = observation(
+        "a",
+        "reference",
+        "config",
+        Orientation::Forward,
+        vec![column('G', 'A', Some(0), 72)],
+        vec![variant],
+    );
+    let opposing = observation(
+        "b",
+        "reference",
+        "config",
+        Orientation::Reverse,
+        vec![column('A', 'A', Some(0), 72)],
+        Vec::new(),
+    );
+    let mut masked = observation(
+        "c",
+        "reference",
+        "config",
+        Orientation::Reverse,
+        vec![column('A', 'A', Some(0), 72)],
+        Vec::new(),
+    );
+    masked.alignment.callable_segments.clear();
+
+    let evidence = aggregate(&[supporting, opposing, masked], &[], &sample_config())?;
+
+    let opposition = &evidence.variants[0].opposition;
+    assert_eq!(opposition.read_indices, [1]);
+    assert_eq!((opposition.forward_reads, opposition.reverse_reads), (0, 1));
+    Ok(())
+}
+
+#[test]
 fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     let variant = snv(73, "A", "G");
     let forward = observation(

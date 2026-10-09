@@ -375,6 +375,55 @@ def validate_rejection(read: dict[str, Any], label: str, errors: list[str]) -> N
         errors.append(f"{label}: rejected read reaches minimum_callable_calls")
 
 
+def expected_opposition(
+    document: dict[str, Any], variant: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Recompute a variant's opposition from the read registry and its support."""
+    reads = document.get("reads")
+    support = variant.get("support")
+    position = variant.get("position")
+    reference = variant.get("reference")
+    if not (
+        isinstance(reads, list)
+        and isinstance(support, list)
+        and isinstance(position, int)
+        and isinstance(reference, str)
+    ):
+        return None
+    supporting = {item.get("read") for item in support if isinstance(item, dict)}
+    start = position - 1
+    end = start + len(reference) + (1 if variant.get("kind") == "INS" else 0)
+    names: list[str] = []
+    counts = {"forward": 0, "reverse": 0}
+    for read in reads:
+        if not isinstance(read, dict) or read.get("name") in supporting:
+            continue
+        alignment = read.get("alignment")
+        if not isinstance(alignment, dict):
+            return None
+        segments = alignment.get("callable_reference_segments")
+        orientation = alignment.get("orientation")
+        if not isinstance(segments, list) or orientation not in counts:
+            return None
+        if all(
+            any(
+                isinstance(segment, dict)
+                and isinstance(segment.get("start"), int)
+                and isinstance(segment.get("end"), int)
+                and segment["start"] <= reference_index < segment["end"]
+                for segment in segments
+            )
+            for reference_index in range(start, end)
+        ):
+            names.append(str(read.get("name")))
+            counts[orientation] += 1
+    return {
+        "reads": names,
+        "forward_reads": counts["forward"],
+        "reverse_reads": counts["reverse"],
+    }
+
+
 def validate_sample_support_topology_document(
     document: dict[str, Any], label: str, errors: list[str]
 ) -> None:
@@ -496,6 +545,11 @@ def validate_sample_support_topology_document(
     for index, variant in enumerate(variants):
         if not isinstance(variant, dict):
             continue
+        opposition = expected_opposition(document, variant)
+        if opposition is not None and variant.get("opposition") != opposition:
+            errors.append(
+                f"{label}: variant {index} opposition does not match callable coverage and support"
+            )
         support = variant.get("support")
         topology = variant.get("support_topology")
         if not isinstance(support, list) or not isinstance(topology, dict):
@@ -644,6 +698,8 @@ def rejected_sample_shapes(
         observation["state"] = "masked"
     missing_masked_bases = copy.deepcopy(example)
     missing_masked_bases["reads"][0]["alignment"].pop("masked_bases")
+    missing_opposition = copy.deepcopy(example)
+    missing_opposition["variants"][0].pop("opposition")
     missing_masked_reads = copy.deepcopy(example)
     missing_masked_reads["locus_differences"][0]["support_topology"].pop("masked_reads")
 
@@ -725,6 +781,7 @@ def rejected_sample_shapes(
         ("sample without rejected reads", missing_rejected_reads),
         ("sample read alignment without masked bases", missing_masked_bases),
         ("sample locus topology without masked reads", missing_masked_reads),
+        ("sample variant without opposition", missing_opposition),
         ("sample evidence with invalid sample id", invalid_sample_id),
         (
             "sparse difference locus with only reference observations",
@@ -896,6 +953,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not duplicate_read_errors:
         errors.append("expected duplicate sample read name to be rejected")
+
+    wrong_opposition = copy.deepcopy(sample_example)
+    wrong_opposition["variants"][0]["opposition"] = {
+        "reads": [],
+        "forward_reads": 0,
+        "reverse_reads": 0,
+    }
+    opposition_errors: list[str] = []
+    validate_sample_support_topology_document(
+        wrong_opposition, "synthetic opposition", opposition_errors
+    )
+    if not opposition_errors:
+        errors.append(
+            "expected an opposition that omits a callable read to be rejected"
+        )
 
     for description, mutate in [
         (

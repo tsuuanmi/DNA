@@ -65,6 +65,12 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Sample variants publish opposition evidence (ADR-0068, SRS-SAMPLE-028): the
+  admitted reads whose callable reference segments cover the variant's evidence
+  span without supporting it, with orientation counts. It is evidence only;
+  variant calling and notation are unchanged. **Breaking (unreleased, revised
+  in place):** `variants[].opposition` is required in
+  `dna.sample_evidence/v10`.
 - The read-callability mask acts (ADR-0067 increment 2, SRS-CALL-009 to
   SRS-CALL-012). The trim interval is the callable span plus up to
   `read_end_margin` adjacent dephased calls (`dna.callable_span_trim/v1`

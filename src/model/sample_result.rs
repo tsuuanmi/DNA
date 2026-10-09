@@ -161,6 +161,16 @@ pub(crate) struct SampleVariantResult {
     pub(crate) kind: VariantKind,
     pub(crate) support_topology: SampleVariantSupportTopologyResult,
     pub(crate) support: Vec<SampleVariantSupportResult>,
+    pub(crate) opposition: SampleVariantOppositionResult,
+}
+
+/// Admitted reads that callably observe the variant's reference span without
+/// supporting it.
+#[derive(Debug, Serialize)]
+pub(crate) struct SampleVariantOppositionResult {
+    pub(crate) reads: Vec<String>,
+    pub(crate) forward_reads: usize,
+    pub(crate) reverse_reads: usize,
 }
 
 /// Factorized read/orientation topology for one observed normalized variant.

@@ -29,7 +29,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
 | signal-derived read callability | ADR-0067 | SRS-CALL-* + callability method + evidence/pipeline invariants |
 | sample boundary and sparse evidence | ADR-0023, ADR-0025 | sample SRS/method + sample contract |
-| overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035 | sample SRS/method + sample contract |
+| overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035, ADR-0068 | sample SRS/method + sample contract |
 | sample call-signal projection | ADR-0037 (partially supersedes ADR-0034 and ADR-0036) | sample method + sample contract |
 | nucleotide contribution/profile geometry | ADR-0038 through ADR-0043 | sample SRS/method; public subset in sample contract |
 | reviewer-facing public signal evidence | ADR-0026, ADR-0053 | analysis/sample contracts |
@@ -101,3 +101,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Accepted |
 | [0066](0066-python-limited-to-repository-tooling.md) | Python in DNA is limited to repository tooling | Accepted |
 | [0067](0067-signal-derived-read-callability.md) | Signal-derived read callability | Accepted |
+| [0068](0068-variant-opposition-evidence.md) | Variant opposition evidence | Accepted |
