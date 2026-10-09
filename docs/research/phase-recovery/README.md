@@ -1,6 +1,6 @@
 # Research: phase-shift classification and recovery behind homopolymer runs
 
-**Status:** active. This note is exploratory evidence and has no production authority.
+**Status:** concluded for recovered calls as variant evidence (not promoted); open follow-ups are listed at the end. This note is exploratory evidence and has no production authority.
 
 ## Question
 
@@ -187,6 +187,67 @@ what the spike below must establish; the main share is the first candidate.
    strand. Measure per-position accuracy, created and destroyed differences, behaviour
    at known 309/315/16189 length variants, and ±2 shadows in the AC repeat.
 3. Quote aggregates against a named revision.
+
+## Spike results (2026-10-09)
+
+The spike was run outside the repository against revision `4d50d84`. It used
+the production segment maps and the primary calls published by
+`dna.basecalls/v3`, raw analysed amplitudes at the basecaller peak position
+±2 samples, and the method above. The reference for each sample was the
+reviewer haplotype: rCRS with the reviewer's calls applied, IUPAC codes as
+wildcards. Each segment was aligned together with the 40 in-phase calls before
+it (semi-global; mismatches and gaps counted). All results are in aggregate.
+
+| segments | calls | primary errors | peeled errors | improved / worse / same |
+|---|---:|---:|---:|---|
+| `in_phase` control | 1 543 | 6.3 % | 6.0 % | – |
+| `dephased`, first 150 calls | 12 099 | 23.3 % | 15.6 % | 81 / 0 / 11 |
+| `dephased`, first 40 calls | 3 554 | 21.4 % | 14.9 % | 70 / 7 / 15 |
+| `dephased` after a repeat run | 1 994 | 16.6 % | 10.8 % | – |
+
+- **Control.** 28 of 31 in-phase control segments align with at most two
+  differences. The control rate is dominated by one misplaced segment and by
+  sample differences outside the reviewed ranges.
+- **Severity.** The benefit grows with the main-ladder share. At main share
+  0.6–0.7, errors fall from 22.0 % to 13.2 %; above 0.8, from 12.1 % to 10.3 %.
+  Below 0.5, peeled calls still carry about 24 % errors.
+- **Poly-C 303–315.** The forward reads of the four samples whose 309
+  insertions are still missed lose the T at 310 entirely: the primary reads
+  17 C. Their fits show three length populations in proportions near
+  1 : 2 : 1 (main share 0.32–0.36). Peeling does not bring the T back, and the
+  reverse reads dephase before they reach the run, so no strand reads the run
+  length. In two forward reads with the same loss but a larger main share,
+  peeling restored T310 and the run lengths. In one of them the run read
+  one C longer than the reviewer call, matching the length DNA already reports
+  there.
+- **After the run.** Where dephasing is moderate, peeling restored the
+  sequence after the run that the primary calls had filled with shadow bases.
+
+### Conclusion
+
+- Peeling is a consistent improvement (about a third fewer errors, no segment
+  worse over 150 calls), but about 15 % residual errors are far from what
+  variant evidence requires. Recovered calls are therefore **not promoted**
+  as variant evidence, and dephased calls stay masked.
+- The remaining 309 misses are not a recovery problem. With three length
+  populations of similar size, a single read has no dominant ladder at the
+  run. Reporting the reviewer's length is a length-heteroplasmy
+  interpretation, which needs its own ADR under
+  [ADR-0009](../../decisions/adr/0009-biological-semantics.md).
+
+### Open follow-ups
+
+- **Peeled profiles as alignment anchors.** Dephased context already anchors
+  the alignment with its profiles (ADR-0067 increment 2). Shadow-subtracted
+  profiles might anchor better without ever becoming variant evidence. This
+  needs its own measurement of concordance and false calls.
+- **Base-specific peak heights.** T peaks after C runs are systematically
+  lower than C peaks. A fit that normalises per-base peak height could tell a
+  T from C shadows at 310 more reliably.
+- **Length-mixture estimation.** The fitted near-shadow weights describe the
+  length populations around a run. Turning them into a reported dominant
+  length or mixture is quantitative heteroplasmy and stays out of scope until
+  decided.
 
 ## Success criterion and promotion
 
