@@ -6,7 +6,7 @@
 Sanger ABIF
     |
     v
-input::sanger::abif
+dna_sanger::abif
     |
     v
 model::sanger::Chromatogram
@@ -48,7 +48,7 @@ Reviewed consensus sequences take a shorter path into the same core:
 ```text
 consensus FASTA --> input::sequence --> ReadEvidence (vouched ends)
                                              |
-FASTA ---------------------------------> variant_analysis::read_call
+FASTA ---------------------------------> dna_core::read_call
                                              |
                                          CalledRead --> called variants
 ```
@@ -82,7 +82,8 @@ has actually been called or imported. The common convergence point is
 `CalledVariantSet`, not a universal raw-alignment object.
 
 ```text
-Sanger evidence --> Sanger caller --------------------+
+Sanger evidence --> ReadEvidence --> core caller -----+
+consensus FASTA --> ReadEvidence --> core caller -----+
                                                       |
 NGS evidence ----> NGS caller ------------------------+--> CalledVariantSet
                                                       |       /     |      \
@@ -97,8 +98,8 @@ The source-specific paths are intentionally different:
 
 | Source | Path to called variants |
 |---|---|
-| Sanger ABIF | chromatogram -> base calling/signal/callability/QC -> selected pairwise alignment -> Sanger caller |
-| assembled/consensus FASTA | reference alignment -> sequence-difference caller |
+| Sanger ABIF | chromatogram -> base calling/signal/callability/QC -> `ReadEvidence` -> core caller (implemented) |
+| assembled/consensus FASTA | `ReadEvidence` -> core caller (implemented, `call`) |
 | FASTQ / NGS reads | read QC/preprocessing -> mapping -> NGS caller |
 | BAM / CRAM | validated aligned-read evidence -> NGS caller |
 | VCF / BCF | validated variant importer; raw calling is bypassed |

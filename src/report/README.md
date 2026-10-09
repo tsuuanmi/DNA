@@ -5,8 +5,9 @@ deterministic JSON serialization, and atomic no-overwrite publication.
 
 Key children separate analysis, basecall, sample, signal, variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
-publication concerns. Analysis and sample provenance record the target-profile
-identity and the workflow's plugins.
+publication concerns. Every document's provenance records the workflow's
+plugins; analysis, sample, variants, and notation provenance also record the
+target-profile identity.
 
 Core records carry no Sanger evidence
 ([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).

@@ -218,6 +218,8 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 uv run python scripts/validate_docs_structure.py
+uv run python scripts/validate_module_layers.py
+uv run python scripts/validate_workflow_policy.py
 ```
 
 CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust-only production source, dependency/source hygiene, dependency policy/review, RustSec, CodeQL, schemas/reference data, an ABIF fuzz smoke campaign, and a release-package smoke. Mandatory CI jobs feed an aggregate `CI success` check for branch protection. Third-party Actions are pinned to immutable commits and Dependabot maintains those pins.

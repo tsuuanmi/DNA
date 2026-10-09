@@ -1,10 +1,11 @@
 # Error
 
 Owns the typed `Error` boundary, the shared `Result<T>` alias, and one failure
-vocabulary per stage (`AbifError`, `FastaError`, `ConfigError`, `ProfileError`,
-`BasecallingError`, `SignalError`, `CallabilityError`, `QualityControlError`, `AlignmentError`,
-`VariantError`, `SampleError`, `ReportError`, and the representation,
-normalization, and nomenclature errors), plus shared `LocusWindowError` and
+vocabulary per stage (`AbifError`, `FastaError`, `SequenceError`,
+`VariantsError`, `ConfigError`, `ProfileError`, `BasecallingError`,
+`SignalError`, `CallabilityError`, `QualityControlError`, `EvidenceError`,
+`AlignmentError`, `VariantError`, `SampleError`, `ReportError`, and the
+representation, normalization, and nomenclature errors), plus shared `LocusWindowError` and
 `CallEvidenceError`.
 
 `Error` names the failing stage; the wrapped stage failure carries observed

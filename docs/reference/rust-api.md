@@ -102,7 +102,7 @@ identify the exact source artifact, reference sequence, validated configuration
 content, and target profile used for the result.
 
 The canonical contract types `ReferenceIdentity`, `Variant`, `VariantKind`, and
-`CalledVariantSet` live in the core module `dna::variant` (ADR-0064), so
+`CalledVariantSet` live in `dna::variant`, re-exported from `dna_kernel::variant` (ADR-0070), so
 normalization, nomenclature, and future modalities share them without depending
 on the Sanger capability. `VariantAnalysisResult` and `ReferenceSegment` live in
 `dna::variant_analysis`.
@@ -329,7 +329,8 @@ dependency types never appear in the public API. Stage failures render inline,
 
 ## Instrumentation
 
-Library capabilities emit `tracing` instrumentation under the `dna` target and
+Library capabilities emit `tracing` instrumentation under the targets of the
+crates that run each stage (`dna`, `dna_core`, `dna_sanger`) and
 never install a subscriber, write files, or print. `analyze_sanger` opens one
 `info` span per scientific stage, in order and not nested in one another
 (`basecalling`, `signal_processing`, `callability`, `quality_control`,

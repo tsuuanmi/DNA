@@ -105,9 +105,9 @@ call: `post_homopolymer` when the segment starts in the window after a long
 repeat run in the read's sequencing direction, otherwise `dephased_signal`,
 `mixed_signal`, `weak_signal`, or `irregular_spacing`.
 
-## Differential-locus signal evidence in v8
+## Differential-locus signal evidence
 
-v8 promotes the smallest reviewer-useful part of the internal sample signal
+Sample evidence promotes the smallest reviewer-useful part of the internal sample signal
 evidence into `locus_differences[]`: the normalized A/C/G/T
 `EvidenceProfile`, existing noisy-region membership, and factorized support
 topology.

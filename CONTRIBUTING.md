@@ -14,8 +14,8 @@ documented lifecycle.
 ## Source boundaries
 
 - Executable production source under `src/` and `crates/*/src/` is Rust; source-local `README.md` files are the only non-Rust files allowed there.
-- Python under `tools/python/` is for research, validation, orchestration, and
-  tests only and must not become a runtime dependency of the `dna` binary.
+- Python under `tools/python/` is for repository checks, measurement, and tests
+  only (ADR-0066; batch orchestration belongs to downstream pipelines) and must not become a runtime dependency of the `dna` binary.
 - Scientific behavior changes require matching tests and documentation.
 - Breaking JSON output changes require a new contract/schema version.
 
@@ -40,6 +40,11 @@ uv run ruff format --check scripts tests
 uv run ruff check scripts tests
 uv run basedpyright scripts tests
 uv run python -m unittest discover -s tests -p 'test_*.py'
+uv run python scripts/validate_result_schemas.py
+uv run python scripts/validate_rust_source_policy.py
+uv run python scripts/validate_docs_structure.py
+uv run python scripts/validate_module_layers.py
+uv run python scripts/validate_workflow_policy.py
 ```
 
 CI additionally runs workflow security analysis, dependency policy/review, MSRV checks,

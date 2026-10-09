@@ -11,7 +11,7 @@ These documents describe **current mechanisms**: how DNA implements its scientif
 - [Alignment](alignment.md): profile-aware Gotoh placement, traceback, orientation, and circular mapping.
 - [Variant calling](variant-calling.md): difference extraction, allele anchoring, eligibility, and deterministic ordering.
 - [Variant normalization](variant-normalization.md): optional haplotype-preserving post-calling representation movement.
-- [Variant nomenclature](variant-nomenclature.md): optional target-specific representation policy; currently HVS-II 309/315.
+- [Variant nomenclature](variant-nomenclature.md): optional target-specific representation policy (the shipped profile's HVS-I, HVS-II, and HVS-III windows) and notation-convention conformance.
 - [Sample evidence](sample-evidence/README.md): aggregation after independent read placement.
 
 Normative behavior lives in [requirements](../requirements/README.md), rationale in [decisions](../decisions/README.md), exact public/configuration shapes in [reference](../reference/README.md), and exploratory work in [research](../research/README.md).

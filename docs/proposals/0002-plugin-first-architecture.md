@@ -165,7 +165,7 @@ Accepted on 2026-10-09 and recorded by
   neutrality rule for `sample` and the neutral children of `model`. Every
   result document and the sample aggregation metrics are byte-identical.
 - Phase 3: the `sequence` modality plugin (`input::sequence`), vouched read
-  ends in `ReadEvidence`, the shared `variant_analysis::read_call` path, the
+  ends in `ReadEvidence`, the shared `variant_analysis::read_call` path (now `dna_core::read_call`), the
   `dna call` command, and `dna.variants/v1`. Measured outside the
   repository (ADR-0065) on the 160 samples of the held-out set that have
   reviewer consensus FASTA, with only aggregates quoted:

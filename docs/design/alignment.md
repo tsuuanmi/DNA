@@ -95,7 +95,7 @@ Three dynamic-programming matrices track match, insertion, and deletion states. 
 
 The traceback internally decodes the selected path into equal-length gapped query and
 gapped reference strings, an operation-run string (e.g. `5M`, `3M1I1M`), and
-alignment metrics. Compact analysis v8 emits only the selected alignment summary and
+alignment metrics. Compact analysis v9 emits only the selected alignment summary and
 reference segments, not the rows, operation runs, or score. When multiple paths tie, a documented state order
 (match > deletion > insertion) makes the result deterministic. Metrics are:
 

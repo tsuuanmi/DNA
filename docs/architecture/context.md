@@ -12,7 +12,8 @@ DNA separates four orthogonal concerns:
 
 - **biological target** — for example mitochondrial DNA, nuclear/genomic DNA, or
   targeted loci/panels;
-- **sequencing modality** — currently Sanger, with NGS as a future modality;
+- **sequencing modality** — currently Sanger traces and reviewed consensus
+  sequences, with NGS as a future modality;
 - **external format** — for example ABIF, FASTA/FASTQ, BAM/CRAM, or VCF/BCF;
 - **analysis capability** — for example base calling, alignment/mapping, variant
   analysis, SNP/genotyping analysis, haplogroup, or nomenclature.
@@ -23,6 +24,8 @@ modality.
 ## Current production inputs
 
 - Sanger sequencing traces encoded as ABIF (commonly named `.ab1`);
+- reviewed consensus sequences in FASTA, one record per read (`call`);
+- `dna.variants/v1` documents for post-calling notation (`notation`);
 - one short FASTA reference for reference-guided operations;
 - strict TOML configuration and the target profile it names;
 - explicit sample identifiers and trace paths for sample aggregation.

@@ -1,6 +1,6 @@
 # DNA Notation JSON
 
-`signal notation <sample-id> <sample-id>.variants.json --reference <reference.fasta>`
+`dna notation <sample-id> <sample-id>.variants.json --reference <reference.fasta>`
 runs the post-calling plugins over one variants document
 ([`dna.variants/v1`](variants.md),
 [ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md))

@@ -12,7 +12,11 @@ DNA is a local scientific CLI. Its primary security boundary is processing untru
 
 ## Trust boundaries and threats
 
-### Untrusted ABIF/FASTA/TOML bytes
+### Untrusted ABIF/FASTA/TOML/JSON bytes
+
+Inputs are ABIF traces, reference and consensus FASTA, configuration and
+profile TOML, and `dna.variants/v1` JSON documents (`notation`, at most
+16 MiB).
 
 Threats include malformed offsets/lengths, oversized allocation requests, parser ambiguity, and invalid cardinality.
 

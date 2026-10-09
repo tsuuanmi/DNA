@@ -36,7 +36,7 @@ origin-spanning representation preserves the alignment-selected side of the
 rCRS seam.
 
 Internally each variant retains its contig, 1-based position, reference/alternate
-alleles, kind, and direct call mappings. Compact v8 emits only `position`,
+alleles, kind, and direct call mappings. Compact analysis v9 emits only `position`,
 `reference`, `alternate`, `kind`, and `calls`. Every public call contains
 only its supporting/flanking `role`, reference-oriented called `base`,
 co-located reference-oriented A/C/G/T primary-event channel heights in `peaks`,
@@ -102,8 +102,8 @@ A variant's reasons are reported in this order:
 Each removed candidate increments `excluded_variant_candidates` once, even when
 it fails more than one eligibility condition. The pure variant stage also returns
 a concise exclusion diagnostic containing kind, contig, caller position when
-available, and all failed rules. Pipeline orchestration writes one WARN record per
-diagnostic without reference/alternate alleles. Sample aggregation logs aggregate
+available, and all failed rules. The core's one-read path (`dna_core::read_call`)
+writes one WARN record per diagnostic without reference/alternate alleles. Sample aggregation logs aggregate
 counts of differential-locus observations and variant-associated calls that
 retain a basecall-independent profile; those operational counts do not alter the
 scientific result.

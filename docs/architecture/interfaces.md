@@ -32,7 +32,7 @@ future non-CLI callers.
 
 The current Sanger filesystem adapter owns validation and loading of Sanger
 sequencing traces, FASTA references, and explicit configuration into validated
-internal models. Its current format layer is `input::sanger::abif`; support is
+internal models. Its current format layer is `dna_sanger::abif`; support is
 determined by the ABIF container and required sequencing tags rather than a
 filename suffix. `PLOC.2` is decoded at that format boundary and projected to
 canonical Sanger `locus_positions`; downstream scientific modules do not depend
@@ -47,8 +47,8 @@ destination selection, record rendering, terminal error logging, and
 synchronization stay in the outer operation layer.
 
 The production `pipeline` composes scientific capabilities but does not own
-their implementations. Reference-free read processing is crate-internal shared
-science; reference-guided one-read observation is owned by
+their implementations. Reference-free read processing is shared Sanger science
+in `dna_sanger::read_processing`; reference-guided one-read observation is owned by
 `variant_analysis` and is reused by CLI analysis, sample evidence, and the
 public Rust API.
 

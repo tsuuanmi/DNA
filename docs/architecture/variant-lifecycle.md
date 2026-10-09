@@ -90,15 +90,17 @@ scientific paths.
 
 | Input/source | Source-specific evidence path | Variant boundary |
 |---|---|---|
-| Sanger ABIF | ABIF -> chromatogram -> base calling / signal / callability / QC -> selected pairwise alignment | Sanger alignment caller -> `CalledVariantSet` |
-| assembled/consensus FASTA sequence | sequence -> reference alignment | sequence-difference caller -> `CalledVariantSet` |
+| Sanger ABIF | ABIF -> chromatogram -> base calling / signal / callability / QC -> `ReadEvidence` | core caller (`dna_core::read_call`) -> `CalledVariantSet` |
+| assembled/consensus FASTA sequence | sequence -> `ReadEvidence` (vouched ends) | core caller (`dna_core::read_call`) -> `CalledVariantSet` |
 | FASTQ / NGS reads | reads -> QC/preprocessing -> mapping -> read/depth evidence | NGS caller -> `CalledVariantSet` |
 | BAM / CRAM | validated aligned-read input -> read/depth/mapping evidence | NGS caller -> `CalledVariantSet` |
 | VCF / BCF | validated external called-variant representation | variant importer/adapter -> `CalledVariantSet`; raw calling is bypassed |
 | future evidence source | source-specific adapter/analysis | source-specific caller or importer -> `CalledVariantSet` |
 
 These rows are architectural paths, not claims that all sources are currently
-implemented. Current production support is Sanger ABIF plus FASTA reference.
+implemented. Current production support is Sanger ABIF and reviewed consensus
+FASTA through the shared core caller, plus `dna.variants/v1` documents imported
+by `notation`.
 
 ### Why there is no universal raw-alignment contract
 
@@ -229,11 +231,10 @@ biological call.
 Today DNA implements:
 
 ~~~text
-Sanger ABIF
-  -> Sanger evidence
-  -> selected pairwise alignment
-  -> variant_calling
-  -> current Variant Analysis result
+Sanger ABIF            -> Sanger evidence -> ReadEvidence -+
+reviewed consensus FASTA ----------------> ReadEvidence -+-> core caller (alignment, variant_calling)
+                                                          -> analysis / sample / variants documents
+dna.variants/v1 -> notation (normalization, nomenclature, conformance)
 ~~~
 
 The current Sanger aligner also selects deterministic right-most

@@ -1,7 +1,7 @@
 # Pipeline
 
-Owns production operation orchestration for `analyze`, `basecall`, and
-`sample`.
+Owns production operation orchestration for `analyze`, `basecall`, `sample`,
+`call`, and `notation`.
 
 Pipeline entry points accept operation values such as trace/reference paths,
 sample identifiers, and an explicit configuration path rather than CLI/`clap`

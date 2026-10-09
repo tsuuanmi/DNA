@@ -18,7 +18,7 @@ consensus FASTA + TOML ──► input::sequence ──► ReadEvidence ──�
 variants/v1 + TOML + FASTA ──► input::variants ──► normalization ─► nomenclature ─► conformance ──► notation/v1
 ```
 
-`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `variant_analysis::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. Each
+`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_core::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. Each
 stage consumes the validated output of the previous stage and produces a new
 typed result; no stage mutates shared state.
 
@@ -28,7 +28,7 @@ typed result; no stage mutates shared state.
   channels, basecall positions (`PLOC.2`), and optional vendor evidence
   (`PBAS.2`, `PCON.2`). `P2BA.1` is ignored. Vendor base strings retain uppercase
   IUPAC symbols, and PCON accepts the ABIF one-byte byte or char representation.
-- **Reference (`analyze` and `sample`):** one plain FASTA record of A/C/G/T/N bases, up to 50,000 bases, interpreted as linear or circular per configuration. `basecall` does not accept or load a reference.
+- **Reference (`analyze`, `sample`, `call`, and `notation`):** one plain FASTA record of A/C/G/T/N bases, up to 50,000 bases, loaded with the target profile's linear or circular topology. `basecall` does not accept or load a reference.
 - **Configuration:** one strict TOML file selected by `DNA_CONFIG` or
   `config/dna.toml`. Unknown keys, missing sections, and out-of-range values
   are errors.
@@ -51,9 +51,10 @@ typed result; no stage mutates shared state.
 The stage sequence is shared across multiple application surfaces, but ownership
 does not follow the CLI command tree:
 
-- `input::sanger` owns Sanger source validation/loading into validated
-  trace/reference/configuration models;
-- crate-internal `read_processing` owns the shared reference-free
+- `input` owns source validation and loading of the configuration, target
+  profile, and reference; `input::sanger` decodes traces through
+  `dna_sanger::abif`;
+- `dna_sanger::read_processing` owns the shared reference-free
   basecalling/signal/callability/QC path used by basecall and Variant Analysis;
 - `variant_analysis` owns the reference-guided one-read observation path,
   including alignment and variant calling;
@@ -76,7 +77,7 @@ The read has already located itself at this boundary. Its orientation and covere
 
 ## Output boundary
 
-Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, and `dna.sample_evidence/v10`, including schemas, examples, coordinate semantics, and publication-visible fields.
+Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, `dna.sample_evidence/v10`, `dna.variants/v1`, and `dna.notation/v1`, including schemas, examples, coordinate semantics, and publication-visible fields.
 
 ## Interpretation boundary
 

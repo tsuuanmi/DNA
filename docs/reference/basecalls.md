@@ -1,6 +1,6 @@
 # DNA Reference-Free Basecall Output
 
-`signal basecall <trace.ab1>` reads the strict configuration selected by
+`dna basecall <trace.ab1>` reads the strict configuration selected by
 `DNA_CONFIG` or `config/dna.toml`, runs canonical ABIF decode, signal-derived
 base re-calling, observational signal analysis, read callability, relative quality, and the trim interval,
 then atomically creates `results/<trace-stem>.basecalls.json`. It does not load a

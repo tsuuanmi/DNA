@@ -35,8 +35,10 @@
 | `variant` | kernel | public canonical called-variant contracts | evidence and call mappings |
 | `plugin` | kernel | plugin descriptor types and their compile-time validation; each plugin declares its own descriptor, and `pipeline::plugins` lists the registry and workflow compositions | running stages, configuration values |
 | `read_evidence` | kernel | modality → core per-read evidence contract: bases, profiles, labelled masks, support vetoes, informative interval | modality algorithms, interpreting reason labels |
-| `input` | dna, sanger | loading orchestration (configuration, profile, reference) and source adapters: Sanger ABIF decoding (`sanger`), reviewed consensus sequences with their `ReadEvidence` adapter, and variants documents | CLI publication paths and scientific algorithms |
+| `input` | dna | loading orchestration (configuration, profile, reference) and source adapters: Sanger traces (`sanger`, decoding through `dna_sanger::abif`), reviewed consensus sequences with their `ReadEvidence` adapter, and variants documents | CLI publication paths and scientific algorithms |
 | `reference` | kernel | validated reference identity/model | alignment |
+| `abif` | sanger | bounds-checked ABIF decoding into a chromatogram | scientific interpretation |
+| `bounds` | kernel | shared configuration range checks | section rules |
 | `read_processing` | sanger | shared reference-free Sanger read processing; the Sanger adapter that builds `ReadEvidence` (support vetoes, mask reasons) | reference interpretation |
 | `basecalling` | sanger | signal-derived calls | trimming/reference knowledge |
 | `signal_processing` | sanger | observation-only Sanger signal evidence | reference interpretation |
@@ -52,7 +54,7 @@
 | `variant_nomenclature` | post | profile-driven window representation engine | target knowledge, notation rendering |
 | `conformance` | post | reporting represented calls that break the profile's notation conventions | rewriting calls, target knowledge |
 | `report` | dna | contract projection, serialization, atomic publish | scientific decisions |
-| `pipeline` | dna | CLI/sample orchestration, path/log/publication lifecycle | scientific implementation ownership |
+| `pipeline` | dna | CLI orchestration of every command (analyze, basecall, sample, call, notation), path/log/publication lifecycle | scientific implementation ownership |
 
 DNA is a Cargo workspace of plugin-family crates
 ([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),

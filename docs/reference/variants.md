@@ -1,6 +1,6 @@
 # DNA Variants JSON
 
-`signal call <sample-id> <sequences.fasta>... --reference <reference.fasta>`
+`dna call <sample-id> <sequences.fasta>... --reference <reference.fasta>`
 runs the core caller alone over reviewed consensus sequences
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md))
 and writes one deterministic `results/<sample-id>.variants.json` document

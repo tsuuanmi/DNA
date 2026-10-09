@@ -25,8 +25,8 @@ roots carry no lint attributes. CI runs Clippy with `-D warnings`, so every
   `rust_2018_idioms` are enforced.
 - Clippy: `unwrap_used` and `expect_used` are denied and the `pedantic` group is
   enforced, except three lints allowed crate-wide with a recorded rationale:
-  `cast_precision_loss` (counts are bounded by the input limits in
-  `src/config/defaults.rs`), `float_cmp` (byte-deterministic outputs make exact
+  `cast_precision_loss` (counts are bounded by the input limits declared next to
+  each loader), `float_cmp` (byte-deterministic outputs make exact
   float assertions intentional), and `too_many_lines` (stage functions mirror
   one documented stage record).
 - A site that is provably safe but still trips a lint uses a targeted

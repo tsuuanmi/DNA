@@ -19,8 +19,9 @@ check the reference against it; `variant_calling` receives its regions;
 normalization and notation choices; `conformance` checks its rules; `report`
 records its identity.
 
-This module is in the target-data layer (ADR-0064): it depends only on `model`,
-`error`, `checksum`, and the reference-length cap in `config`. It names its own
+This module is part of `dna-kernel` (ADR-0070): it depends only on the
+kernel's `model`, `error`, `checksum`, and the reference-length cap in
+`reference`. It names its own
 vocabulary (`IndelPlacement`, `NotationStyle`, `ConformanceRule`); `variant_normalization` maps
 the placement to its `NormalizationPolicy`. It does not run any rule, load
 references, or read the scientific configuration.

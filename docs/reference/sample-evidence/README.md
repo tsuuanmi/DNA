@@ -1,6 +1,6 @@
 # DNA Sample Evidence JSON
 
-`signal sample <sample-id> <trace.ab1>... --reference <reference.fasta>`
+`dna sample <sample-id> <trace.ab1>... --reference <reference.fasta>`
 writes one deterministic `results/<sample-id>.sample.json` document identified as
 `dna.sample_evidence/v10`. The authoritative schema is
 [`schemas/sample-evidence-v10.schema.json`](../schemas/sample-evidence-v10.schema.json)

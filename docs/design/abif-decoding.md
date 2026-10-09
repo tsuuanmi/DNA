@@ -2,7 +2,7 @@
 
 Part of the canonical [DNA pipeline](pipeline.md).
 
-Within the source architecture, ABIF is a **format layer** under the Sanger input adapter (`input::sanger::abif`). Applied Biosystems Sanger sequencing sample files commonly use the `.ab1` extension, but decoding is determined by the ABIF container signature and required sequencing tags rather than the filename suffix.
+Within the source architecture, ABIF is a **format layer** in the Sanger modality crate (`dna_sanger::abif`), which the facade's Sanger input adapter (`input::sanger`) calls. Applied Biosystems Sanger sequencing sample files commonly use the `.ab1` extension, but decoding is determined by the ABIF container signature and required sequencing tags rather than the filename suffix.
 
 ## Implementation sourcing
 

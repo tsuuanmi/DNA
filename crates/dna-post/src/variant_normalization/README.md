@@ -11,7 +11,7 @@ identical.
 
 `right.rs` owns the 3'/right-most policy (`RightAligned`). Shared target-independent
 sequence-edit conversion, haplotype application, edit ordering, and anchored
-variant rendering live in crate-internal `variant_representation.rs` and are
+variant rendering live in this crate's `variant_representation.rs` and are
 reused by both normalization and nomenclature.
 
 The implemented policy is 3'/right-most indel placement with the FASTA

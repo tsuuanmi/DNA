@@ -11,7 +11,7 @@ DNA compares behaviors only where the scientific preconditions match. Current DN
 | Apollo area | DNA | Treatment |
 |---|---|---|
 | `preprocessing/abif.h` | `trace` | strict bounds and canonical DATA.9-12/FWO/PLOC decode |
-| ABIF `basecall` | `basecalling`; `signal basecall` | PLOC-window signal re-calling with corrected ties/ambiguity and one versioned JSON result; no Apollo FASTA/FASTQ/TSV compatibility surface |
+| ABIF `basecall` | `basecalling`; `dna basecall` | PLOC-window signal re-calling with corrected ties/ambiguity and one versioned JSON result; no Apollo FASTA/FASTQ/TSV compatibility surface |
 | no Apollo equivalent | `signal_processing` | observation-only rolling SNR and candidate-noisy regions |
 | no Apollo equivalent | `callability` | signal-derived phase-state segments, mask, and callable span (ADR-0067) |
 | quality helpers/`trim.h` | `quality_control` | safe penalty arithmetic; score named relative; the trim interval comes from the callable span, not Apollo's best-section walk-out |

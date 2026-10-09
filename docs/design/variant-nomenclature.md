@@ -101,14 +101,14 @@ never reaches the engine.
 
 Sequence-edit conversion, whole-haplotype application, deterministic edit
 ordering, and anchored public-variant rendering are target-independent mechanics
-owned by the crate-internal `variant_representation` module.
+owned by the `variant_representation` module of `dna-post`.
 
 `variant_normalization` and `variant_nomenclature` both reuse those mechanics
 while owning separate policy and error boundaries.
 
-## Sample workflow composition and notation
+## Workflow composition and notation
 
-The `sample` command composes this per read when the profile declares notation
+The `sample`, `call`, and `notation` commands compose this per read when the profile declares notation
 (SRS-NOM-010). Each read's eligible variants are normalized under the profile's
 indel placement by `variant_normalization` and then passed through the profile
 windows, so that, for example, the HV2F and HV3R descriptions of one poly-C
@@ -123,11 +123,12 @@ identical calls with their supporting reads (SRS-NOM-012). The same chain
 (Tracy alignment → right alignment → mtDNA policy → per-base rendering) is the
 approach of the legacy `mtdna_raw` pipeline.
 
-On the 54-sample reviewed Sequencher test set (44 samples with output), the
-published notation reaches precision 0.885 / recall 0.979 and matches 21
-samples exactly, against 0.73 / 0.86 and no exact matches for raw
-alignment-placed calls. Most remaining disagreements are HV2F poly-C phase
-artifacts and HVS-I 16189/16193 forms, both still non-goals below.
+Measured outside the repository (ADR-0065) on 160 held-out samples with
+reviewer consensus sequences, the notation reproduces the reviewer calls
+exactly for 158 samples. The other two differ only in how the HVS-II window
+names the same haplotype, which the conformance checks below report. Remaining
+disagreements on Sanger traces come from the Sanger evidence, not from this
+representation layer.
 
 ## Notation command and conformance
 

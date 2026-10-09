@@ -2,7 +2,7 @@
 
 This document covers reference-guided analysis. Reference-free output is the separate [`dna.basecalls/v3` contract](../basecalls.md).
 
-`signal analyze <trace.ab1> --reference <reference.fasta>` writes one deterministic file named `results/<trace-stem>.json`. The `results/` directory is created when publication begins. The core CLI never overwrites an existing result. After validating a non-empty UTF-8 trace stem, Rust separately appends nondeterministic operational records to `$DNA_LOG_DIR/<trace-stem>.log` (default `logs/`); that sidecar is outside the JSON contract.
+`dna analyze <trace.ab1> --reference <reference.fasta>` writes one deterministic file named `results/<trace-stem>.json`. The `results/` directory is created when publication begins. The core CLI never overwrites an existing result. After validating a non-empty UTF-8 trace stem, Rust separately appends nondeterministic operational records to `$DNA_LOG_DIR/<trace-stem>.log` (default `logs/`); that sidecar is outside the JSON contract.
 
 The authoritative contract is [`schemas/analysis-v9.schema.json`](../schemas/analysis-v9.schema.json); a synthetic example is [`examples/analysis-v9.example.json`](../examples/analysis-v9.example.json). DNA emits `dna.analysis/v9` only; v9 adds the read callability view to `read`. Earlier result versions, compatibility documents, and duplicate legacy fields are not emitted. The strict scientific configuration remains schema version 7.
 
@@ -11,7 +11,7 @@ The authoritative contract is [`schemas/analysis-v9.schema.json`](../schemas/ana
 | Field | Meaning |
 |---|---|
 | `schema_version` | Always `dna.analysis/v9`. |
-| `provenance` | Input, reference, configuration, and target-profile identities. |
+| `provenance` | Input, reference, configuration, target-profile, and plugin identities. |
 | `read` | Original call count, the retained 0-based half-open trim interval, and the read callability view. |
 | `signal_quality` | Merged candidate-noisy call/sample regions only. |
 | `alignment` | Selected-orientation alignment summary and reference segments. |

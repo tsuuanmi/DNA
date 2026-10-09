@@ -10,11 +10,9 @@ one-read observation path: shared read processing, the Sanger
 `ReadEvidence` adapter, alignment, variant calling, warning accounting, and
 assembly of the internal `ReadObservation` (a `CalledRead` plus its
 `SangerAttachment`). Shared
-reference-free read processing is provided by the crate-internal
-`read_processing` module.
+reference-free read processing is `dna_sanger::read_processing`.
 
-The core's modality-neutral one-read path is the top-level `read_call`
-module; Sanger observation composes it after the Sanger evidence adapter,
+The core's modality-neutral one-read path is `dna_core::read_call`; Sanger observation composes it after the Sanger evidence adapter,
 passing the Sanger and core configuration sections separately.
 
 CLI and sample pipelines consume this capability through a crate-private
@@ -23,8 +21,8 @@ projection, or result-file publication.
 
 Public result types belong to this capability boundary and must not expose
 private pipeline/report DTOs. The canonical called-variant contracts
-(`Variant`, `VariantKind`, `ReferenceIdentity`, `CalledVariantSet`) live in the
-core `dna::variant` module (ADR-0064); `VariantAnalysisResult::called_variants()`
+(`Variant`, `VariantKind`, `ReferenceIdentity`, `CalledVariantSet`) live in
+`dna::variant`, re-exported from `dna_kernel::variant` (ADR-0070); `VariantAnalysisResult::called_variants()`
 projects the current Sanger result into that cross-modality boundary. New input modalities such as NGS should expose
 compatible called-variant semantics without teaching downstream consumers about
 source-specific implementation types.
