@@ -67,6 +67,7 @@ mod tests {
                 vec![0, 1, 2, 3, 4, 5, 6],
             ],
             locus_positions: vec![3, 5],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
         let selected = peaks(&trace, LocusWindow { start: 1, end: 6 }, 3);

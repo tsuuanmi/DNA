@@ -5,8 +5,10 @@ use crate::model::locus_evidence::LocusEvidence;
 /// Observation-only structural and amplitude integrity evidence for one trace.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SangerIntegrity {
-    /// Canonical locus count from `PLOC.2`.
+    /// Canonical locus count from `PLOC.2`, after merging repeated positions.
     pub locus_count: usize,
+    /// Source peak locations merged into an equal predecessor.
+    pub duplicate_locus_count: usize,
     /// Vendor base count, when present.
     pub vendor_primary_count: Option<usize>,
     /// Vendor quality count, when present.

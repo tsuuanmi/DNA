@@ -43,6 +43,7 @@
   "signal_quality": {
     "integrity": {
       "ploc_count": 28,
+      "duplicate_ploc_positions": 0,
       "vendor_primary_count": 28,
       "vendor_quality_count": 28,
       "minimum_ploc_spacing": 4,

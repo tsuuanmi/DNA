@@ -259,6 +259,7 @@ mod tests {
             SignalAnalysis {
                 integrity: SangerIntegrity {
                     locus_count: count,
+                    duplicate_locus_count: 0,
                     vendor_primary_count: None,
                     vendor_quality_count: None,
                     minimum_locus_spacing: None,

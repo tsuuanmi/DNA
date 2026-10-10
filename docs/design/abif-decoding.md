@@ -27,8 +27,11 @@ size, and element count before access. It extracts:
 
 - the four `DATA.9`–`DATA.12` channels as signed 16-bit samples, reordered into
   canonical A/C/G/T order using the `FWO_.1` channel-order string;
-- the `PLOC.2` basecall positions (strictly increasing, within the sample
-  range), projected to canonical Sanger `locus_positions`;
+- the `PLOC.2` basecall positions (non-decreasing, within the sample range),
+  projected to canonical Sanger `locus_positions`. A position equal to its
+  predecessor names the same signal event, so it is merged into one locus and
+  the vendor entries at its index are dropped; the merged count is kept as
+  trace-integrity evidence ([ADR-0031](../decisions/adr/0031-trace-integrity-evidence.md));
 - optional vendor base strings and quality values. Their decoded cardinality may
   differ from PLOC and is retained as trace-integrity evidence rather than
   changing the PLOC-defined call series.

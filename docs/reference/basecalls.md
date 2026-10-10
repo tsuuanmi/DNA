@@ -30,7 +30,7 @@ at the input boundary and scientific stages use locus terminology.
 - `read.trim`: 0-based half-open call interval `[start, end)`: the callable span
   plus at most `variant_calling.read_end_margin` adjacent dephased calls per side.
 - `read.callability`: the `dna.read_callability/v1` view ([method](../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call, empty when everything is masked), `segments` (ordered 0-based half-open call intervals partitioning the read, each with `state` `in_phase`/`dephased`/`mixed`/`weak`/`irregular`, `after_repeat`, and `shadow_offsets` on dephased segments), and `masked_calls`. It sets `trim` and therefore `retained`.
-- `signal_quality.integrity`: ABIF-origin locus/vendor-series cardinality evidence, adjacent
+- `signal_quality.integrity`: ABIF-origin locus/vendor-series cardinality evidence, merged repeated-position count, adjacent
   locus-spacing summary, exact signed-16-bit clipping count, and optional
   maximum-to-median corrected event-signal ratio. These observations do not
   reclassify artifacts or alter the read.

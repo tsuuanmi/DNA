@@ -139,6 +139,7 @@ mod tests {
                     .iter()
                     .map(|call| call.locus_position_0based)
                     .collect(),
+                duplicate_loci: 0,
                 vendor: VendorEvidence::default(),
             },
             BaseCalls {

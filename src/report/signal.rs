@@ -33,6 +33,7 @@ pub(super) fn project(signal: SignalAnalysis) -> SignalQualityResult {
 pub(super) fn project_integrity(integrity: &SangerIntegrity) -> TraceIntegrityResult {
     TraceIntegrityResult {
         ploc_count: integrity.locus_count,
+        duplicate_ploc_positions: integrity.duplicate_locus_count,
         vendor_primary_count: integrity.vendor_primary_count,
         vendor_quality_count: integrity.vendor_quality_count,
         minimum_ploc_spacing: integrity.minimum_locus_spacing,

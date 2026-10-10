@@ -96,6 +96,7 @@ pub(crate) struct IntervalResult {
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct TraceIntegrityResult {
     pub(crate) ploc_count: usize,
+    pub(crate) duplicate_ploc_positions: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) vendor_primary_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]

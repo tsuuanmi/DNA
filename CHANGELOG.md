@@ -232,6 +232,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- A trace whose `PLOC.2` repeats one position (seen at the first or last
+  locus of production traces) no longer fails the whole `analyze`,
+  `basecall`, or `sample` operation (SRS-IN-003, ADR-0031). Decode merges the
+  repeated position into its predecessor and drops the vendor entries at its
+  index; a decreasing position is still rejected, now with "PLOC.2 positions
+  must not decrease". **Breaking:** trace integrity in `dna.analysis/v9`,
+  `dna.basecalls/v3`, and `dna.sample_evidence/v10` gains the required
+  `duplicate_ploc_positions` count (revised in place).
 - An indel flanking call whose primary base is unresolved (`N`) is omitted from
   public calls (SRS-VAR-006). Previously a tied flank aborted `analyze` or a
   whole `sample` operation, and a mixed-signal flank was published with the
