@@ -81,14 +81,14 @@ fn sample(
         .rejected
         .iter()
         .map(|read| RejectedSampleRead {
-            input_name: read.input_name.clone(),
-            input_sha256: read.input_sha256.clone(),
+            input_name: read.sanger.input_name.clone(),
+            input_sha256: read.sanger.input_sha256.clone(),
         })
         .collect::<Vec<_>>();
     let sanger_rejected = completed_reads
         .rejected
         .into_iter()
-        .map(|read| (read.input_sha256.clone(), read))
+        .map(|read| (read.sanger.input_sha256.clone(), read))
         .collect();
 
     let stage = tracing::info_span!("sample_aggregation").entered();

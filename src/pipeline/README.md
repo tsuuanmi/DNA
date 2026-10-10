@@ -17,7 +17,9 @@ Sanger source loading is owned by `input::sanger`; shared reference-free read
 processing lives in `read_processing` (`prepare` through callability, then
 `finish`); reference-guided read observation is owned by `variant_analysis`.
 `sample_reads.rs` processes each trace in those two steps so that a read with
-too few callable calls is recorded as rejected while the others continue.
+too few callable calls, or one the core cannot place
+(`dna_core::read_call::PlacementRejection`), is recorded as rejected while the
+others continue.
 `notation.rs` runs the post-calling plugins over one variants document:
 representation, conformance, and `dna.notation/v1`. `call.rs` runs the core
 alone over reviewed consensus sequences: the sequence

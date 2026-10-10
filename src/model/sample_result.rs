@@ -58,7 +58,7 @@ pub(crate) struct SampleReadResult {
     pub(crate) alignment: AlignmentResult,
 }
 
-/// One read with too few callable calls; it contributes nothing else.
+/// One read set aside before aggregation; it contributes nothing else.
 #[derive(Debug, Serialize)]
 pub(crate) struct RejectedSampleReadResult {
     pub(crate) name: String,
@@ -68,12 +68,24 @@ pub(crate) struct RejectedSampleReadResult {
     pub(crate) rejection: ReadRejectionResult,
 }
 
-/// Why a read was not analyzed.
+/// Why a read was not analyzed, with the measured value and its minimum.
 #[derive(Debug, Serialize)]
-pub(crate) struct ReadRejectionResult {
-    pub(crate) reason: &'static str,
-    pub(crate) callable_calls: usize,
-    pub(crate) minimum_callable_calls: usize,
+#[serde(tag = "reason", rename_all = "snake_case")]
+pub(crate) enum ReadRejectionResult {
+    CallableCallsBelowMinimum {
+        callable_calls: usize,
+        minimum_callable_calls: usize,
+    },
+    CallableColumnsBelowMinimum {
+        callable_columns: usize,
+        minimum_callable_columns: usize,
+    },
+    IdentityBelowMinimum {
+        identity: f64,
+        minimum_identity: f64,
+    },
+    AmbiguousPlacement,
+    OrientationTie,
 }
 
 /// One maximal reference interval with constant read/orientation depth.

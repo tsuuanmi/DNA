@@ -1,7 +1,7 @@
 ---
 id: PROP-0003
 type: proposal
-status: accepted
+status: implementing
 owners: []
 created: 2026-10-10
 related-requirements: [SRS-SAMPLE-027, SRS-VAR-009, SRS-VAR-015]
@@ -246,4 +246,5 @@ Increment 0 needs no such ADR. It extends SRS-SAMPLE-027.
 
 ## Implementation
 
-None yet.
+- **Increment 0** (read-failure tolerance): an unplaceable read becomes a rejected
+  read in `sample` (SRS-SAMPLE-029; `dna_core::read_call::PlacementRejection`).

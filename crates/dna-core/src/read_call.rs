@@ -8,9 +8,71 @@ use crate::model::called_read::CalledRead;
 use crate::model::variant::VariantKind;
 use crate::sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use crate::variant_calling::{self, RawVariantCallingConfig, VariantCallingConfig};
-use dna_kernel::error::Result;
+use dna_kernel::error::{AlignmentError, Error, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::read_evidence::ReadEvidence;
+
+/// Why a read could not be placed on the reference.
+///
+/// A multi-read operation rejects such a read and continues with the others;
+/// every other failure still fails the operation (SRS-SAMPLE-029).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlacementRejection {
+    /// Fewer callable columns than `alignment.minimum_callable_bases`.
+    CallableColumnsBelowMinimum {
+        /// Callable columns of the selected placement.
+        callable_columns: usize,
+        /// Configured minimum.
+        minimum: usize,
+    },
+    /// Callable identity below `alignment.minimum_identity`.
+    IdentityBelowMinimum {
+        /// Callable identity of the selected placement.
+        identity: f64,
+        /// Configured minimum.
+        minimum: f64,
+    },
+    /// The selected orientation has more than one best placement.
+    AmbiguousPlacement,
+    /// Forward and reverse orientations score equally.
+    OrientationTie,
+}
+
+impl PlacementRejection {
+    /// The placement rejection an error reports, or `None` for any other
+    /// failure.
+    #[must_use]
+    pub const fn of(error: &Error) -> Option<Self> {
+        match error {
+            Error::Alignment(AlignmentError::TooFewCallableColumns { found, minimum }) => {
+                Some(Self::CallableColumnsBelowMinimum {
+                    callable_columns: *found,
+                    minimum: *minimum,
+                })
+            }
+            Error::Alignment(AlignmentError::LowIdentity { identity, minimum }) => {
+                Some(Self::IdentityBelowMinimum {
+                    identity: *identity,
+                    minimum: *minimum,
+                })
+            }
+            Error::Alignment(AlignmentError::AmbiguousPlacement) => Some(Self::AmbiguousPlacement),
+            Error::Alignment(AlignmentError::OrientationTie) => Some(Self::OrientationTie),
+            _ => None,
+        }
+    }
+
+    /// Stable published reason label.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::CallableColumnsBelowMinimum { .. } => "callable_columns_below_minimum",
+            Self::IdentityBelowMinimum { .. } => "identity_below_minimum",
+            Self::AmbiguousPlacement => "ambiguous_placement",
+            Self::OrientationTie => "orientation_tie",
+        }
+    }
+}
 
 /// Every configuration section the core plugin owns.
 #[derive(Debug, Clone)]

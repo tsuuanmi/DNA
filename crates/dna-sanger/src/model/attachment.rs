@@ -2,7 +2,7 @@
 //! by read identity and call index (ADR-0069).
 
 use crate::model::basecalls::BaseCalls;
-use crate::model::callability::{ReadCallability, ReadRejection};
+use crate::model::callability::ReadCallability;
 use crate::model::locus_evidence::LocusEvidence;
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::{SangerIntegrity, SignalAnalysis};
@@ -40,8 +40,8 @@ impl SangerAttachment {
     }
 }
 
-/// Sanger evidence of a read with too few callable calls, which never reaches
-/// the core.
+/// Sanger evidence of a rejected read: one with too few callable calls, which
+/// never reaches the core, or one the core could not place.
 #[derive(Debug, Clone)]
 pub struct SangerRejection {
     /// Reviewer-facing name of the rejected trace.
@@ -52,6 +52,4 @@ pub struct SangerRejection {
     pub integrity: SangerIntegrity,
     /// Callability of the rejected read.
     pub callability: ReadCallability,
-    /// Why the read was rejected.
-    pub rejection: ReadRejection,
 }

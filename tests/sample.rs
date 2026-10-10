@@ -17,6 +17,8 @@ use support::{
 };
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
+/// A read unrelated to `TTTT{QUERY}CCCC`, so no placement reaches the identity floor.
+const UNPLACEABLE: &str = "AGCATGAGTCCATGCTAGCATGACTGCA";
 const SAMPLE_ID: &str = "sample-1";
 
 fn dna_binary() -> String {
@@ -467,6 +469,46 @@ fn records_a_read_with_too_few_callable_calls_as_rejected() -> Result<(), Box<dy
     Ok(())
 }
 
+/// A read the core cannot place is recorded as rejected and the remaining
+/// reads are still aggregated (SRS-SAMPLE-029).
+#[test]
+fn records_an_unplaceable_read_as_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    let foreign = directory.path().join("read-foreign.ab1");
+    write_config(&config, "linear")?;
+    write_abif(&foreign, UNPLACEABLE)?;
+
+    run(
+        &[&forward, &foreign, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+    )
+    .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["reads"].as_array().map(Vec::len), Some(2));
+    let rejected = value["rejected_reads"]
+        .as_array()
+        .ok_or("rejected_reads must be an array")?;
+    assert_eq!(rejected.len(), 1);
+    assert_eq!(rejected[0]["name"], "read-foreign");
+    assert_eq!(rejected[0]["rejection"]["reason"], "identity_below_minimum");
+    assert!(
+        rejected[0]["rejection"]["identity"]
+            .as_f64()
+            .is_some_and(|identity| identity < 0.8)
+    );
+    assert_eq!(rejected[0]["rejection"]["minimum_identity"], 0.8);
+    let log = log_text(directory.path())?;
+    assert!(log.contains("event=sample_read_rejected read_index=1"));
+    assert!(log.contains("reason=identity_below_minimum"));
+    Ok(())
+}
+
 /// A sample whose every read is rejected fails typed and publishes nothing.
 #[test]
 fn fails_when_every_read_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
@@ -483,7 +525,7 @@ fn fails_when_every_read_is_rejected() -> Result<(), Box<dyn std::error::Error>>
     run(&[&first, &second], &reference, &config, directory.path())
         .failure()
         .stderr(predicate::str::contains(
-            "all 2 reads have too few callable calls to be analyzed",
+            "all 2 reads were rejected and none could be analyzed",
         ));
     assert!(!sample_output_path(directory.path()).exists());
     Ok(())

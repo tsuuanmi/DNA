@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use crate::model::read_observation::{RejectedRead, RejectionCause};
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_result::{
     ReadRejectionResult, RejectedSampleReadResult, SampleCoverageResult,
@@ -17,11 +18,12 @@ use crate::report::notation::{self, SampleNotation};
 use crate::report::sanger_call;
 use dna_core::model::alignment::Orientation;
 use dna_core::model::sample_evidence::SampleEvidence;
+use dna_core::read_call::PlacementRejection;
 use dna_kernel::error::{ReportError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
-use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
+use dna_sanger::model::attachment::SangerAttachment;
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {
@@ -41,7 +43,7 @@ pub(crate) struct CompletedSampleEvidence {
 /// core sample evidence never carries it (ADR-0069).
 pub(crate) struct SangerSampleEvidence {
     pub(crate) reads: BTreeMap<String, SangerAttachment>,
-    pub(crate) rejected: BTreeMap<String, SangerRejection>,
+    pub(crate) rejected: BTreeMap<String, RejectedRead>,
 }
 
 /// One admitted read's Sanger evidence and selected orientation, in
@@ -86,13 +88,9 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
             Ok(RejectedSampleReadResult {
                 name,
                 sha256: read.input_sha256.clone(),
-                integrity: crate::report::signal::project_integrity(&rejected.integrity),
-                callability: crate::report::callability::project(&rejected.callability),
-                rejection: ReadRejectionResult {
-                    reason: "callable_calls_below_minimum",
-                    callable_calls: rejected.rejection.callable_calls,
-                    minimum_callable_calls: rejected.rejection.minimum_callable_calls,
-                },
+                integrity: crate::report::signal::project_integrity(&rejected.sanger.integrity),
+                callability: crate::report::callability::project(&rejected.sanger.callability),
+                rejection: project_rejection(rejected.cause),
             })
         })
         .collect::<Result<_>>()?;
@@ -385,4 +383,33 @@ fn read_name(read_names: &[String], index: usize) -> Result<&str> {
         .get(index)
         .map(String::as_str)
         .ok_or(ReportError::MissingRead { index })?)
+}
+
+fn project_rejection(cause: RejectionCause) -> ReadRejectionResult {
+    match cause {
+        RejectionCause::Callability(rejection) => ReadRejectionResult::CallableCallsBelowMinimum {
+            callable_calls: rejection.callable_calls,
+            minimum_callable_calls: rejection.minimum_callable_calls,
+        },
+        RejectionCause::Placement(PlacementRejection::CallableColumnsBelowMinimum {
+            callable_columns,
+            minimum,
+        }) => ReadRejectionResult::CallableColumnsBelowMinimum {
+            callable_columns,
+            minimum_callable_columns: minimum,
+        },
+        RejectionCause::Placement(PlacementRejection::IdentityBelowMinimum {
+            identity,
+            minimum,
+        }) => ReadRejectionResult::IdentityBelowMinimum {
+            identity,
+            minimum_identity: minimum,
+        },
+        RejectionCause::Placement(PlacementRejection::AmbiguousPlacement) => {
+            ReadRejectionResult::AmbiguousPlacement
+        }
+        RejectionCause::Placement(PlacementRejection::OrientationTie) => {
+            ReadRejectionResult::OrientationTie
+        }
+    }
 }

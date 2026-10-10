@@ -322,7 +322,7 @@ mod tests {
             ),
             (
                 SampleError::NoAdmittedReads { rejected: 2 }.into(),
-                "sample evidence failed: all 2 reads have too few callable calls to be analyzed",
+                "sample evidence failed: all 2 reads were rejected and none could be analyzed",
             ),
             (
                 SampleError::CallEvidence(CallEvidenceError::MissingPeakEvidence { index: 7 })

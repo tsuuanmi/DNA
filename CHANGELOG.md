@@ -95,6 +95,20 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- A read the core cannot place no longer fails `dna sample` (SRS-SAMPLE-029,
+  PROP-0003 increment 0).
+  - The covered cases are too few callable columns, identity below
+    `alignment.minimum_identity`, more than one best placement, and tied
+    orientations.
+  - Such a read is recorded in `rejected_reads[]` with its own reason and
+    measured values, and the other reads are still aggregated.
+  - On a fresh 320-sample held-out subset, this lets 5 samples that failed
+    before produce evidence.
+  - **Breaking:** the `rejection` object of `dna.sample_evidence/v10` gains
+    four reasons (revised in place), and the error for a sample whose every
+    read is rejected now reads "all N reads were rejected and none could be
+    analyzed".
+
 - The core re-expresses masked repeat stretches of the selected alignment
   (ADR-0072, SRS-ALN-016).
   - A stretch qualifies when its read calls spell the reference's runs in

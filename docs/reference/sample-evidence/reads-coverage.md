@@ -49,14 +49,25 @@ position 0 to the mapped end. A normal non-crossing read has
 
 ## Rejected reads
 
-`rejected_reads[]` lists reads whose callability left fewer than
-`callability.minimum_callable_calls` unmasked calls (ADR-0067). Records are
-sorted by SHA-256 and contain `name`, `sha256`, `integrity`, and `callability`
-as in `reads[]`, plus `rejection`:
+`rejected_reads[]` lists the reads a sample sets aside. Records are sorted by
+SHA-256 and contain `name`, `sha256`, `integrity`, and `callability` as in
+`reads[]`, plus `rejection`. Its `reason` is one of the following:
 
-- `reason`: `callable_calls_below_minimum`;
-- `callable_calls`: the read's unmasked call count;
-- `minimum_callable_calls`: the configured minimum.
+- `callable_calls_below_minimum`: read callability left fewer than
+  `callability.minimum_callable_calls` unmasked calls (ADR-0067). Also
+  carries `callable_calls` and `minimum_callable_calls`.
+- `callable_columns_below_minimum`: the selected placement has fewer callable
+  columns than `alignment.minimum_callable_bases`. Also carries
+  `callable_columns` and `minimum_callable_columns`.
+- `identity_below_minimum`: the selected placement's callable identity is
+  below `alignment.minimum_identity`. Also carries `identity` and
+  `minimum_identity`.
+- `ambiguous_placement`: the selected orientation has more than one best
+  placement.
+- `orientation_tie`: forward and reverse orientations score equally.
+
+The last four are placement failures (SRS-SAMPLE-029); any other failure still
+fails the operation.
 
 A rejected read has no `alignment` and contributes nothing to `coverage[]`,
 `overlaps[]`, `locus_differences[]`, `variants[]`, or `notation`. Names are
