@@ -2,7 +2,7 @@
 
 This document is the canonical index for DNA's normative Software Requirements Specification (SRS).
 
-DNA is a deterministic Rust library and CLI for DNA analysis. The current normative production requirements cover the implemented Sanger ABIF path, reviewed consensus sequences (`call`), and variants documents (`notation`) against short references; future mtDNA, nuclear/genomic DNA, targeted/SNP, NGS, or downstream capabilities become normative only when their requirement families are added. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
+DNA is a deterministic Rust library and CLI for DNA analysis. The current normative production requirements cover the implemented Sanger ABIF path, reviewed consensus sequences (`call`), sample consensus (`consensus`), and variants documents (`notation`) against short references; future mtDNA, nuclear/genomic DNA, targeted/SNP, NGS, or downstream capabilities become normative only when their requirement families are added. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
 
 ## Requirement families
 
@@ -18,6 +18,7 @@ DNA is a deterministic Rust library and CLI for DNA analysis. The current normat
 | `SRS-QC-*` | quality control and trimming | [quality-control.md](quality-control.md) |
 | `SRS-ALN-*` | reference alignment and placement | [alignment.md](alignment.md) |
 | `SRS-SAMPLE-*` | multi-read sample evidence | [sample-evidence](sample-evidence/README.md) |
+| `SRS-CONS-*` | sample consensus | [consensus.md](consensus.md) |
 | `SRS-VAR-*` | primary-sequence differences / calling | [variants.md](variants.md) |
 | `SRS-VN-*` | optional post-calling variant normalization | [variant-normalization.md](variant-normalization.md) |
 | `SRS-NOM-*` | optional target-specific variant nomenclature | [variant-nomenclature.md](variant-nomenclature.md) |

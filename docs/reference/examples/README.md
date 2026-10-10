@@ -7,5 +7,6 @@ This directory contains synthetic, non-identifying examples for the current publ
 - [sample-evidence-v10.example.json](sample-evidence-v10.example.json)
 - [variants-v1.example.json](variants-v1.example.json)
 - [notation-v1.example.json](notation-v1.example.json)
+- [consensus-v1.example.json](consensus-v1.example.json)
 
 Examples illustrate valid shape; they do not override schemas or human-readable contract semantics.

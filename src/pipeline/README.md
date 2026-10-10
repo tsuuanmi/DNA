@@ -1,7 +1,7 @@
 # Pipeline
 
 Owns production operation orchestration for `analyze`, `basecall`, `sample`,
-`call`, and `notation`.
+`consensus`, `call`, and `notation`.
 
 Pipeline entry points accept operation values such as trace/reference paths,
 sample identifiers, and an explicit configuration path rather than CLI/`clap`
@@ -20,6 +20,8 @@ processing lives in `read_processing` (`prepare` through callability, then
 too few callable calls, or one the core cannot place
 (`dna_core::read_call::PlacementRejection`), is recorded as rejected while the
 others continue.
+`consensus.rs` runs the sample read path, then `dna_core::consensus`, and
+publishes `dna.consensus/v1` with its FASTA.
 `notation.rs` runs the post-calling plugins over one variants document:
 representation, conformance, and `dna.notation/v1`. `call.rs` runs the core
 alone over reviewed consensus sequences: the sequence

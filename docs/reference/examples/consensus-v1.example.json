@@ -1,0 +1,98 @@
+{
+  "schema_version": "dna.consensus/v1",
+  "sample_id": "sample-1",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "7c9319627b34b6edaecdba2967d3b31f1be58db86134f2c507eaa28a22eda762",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
+    },
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 1
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 1
+      },
+      {
+        "id": "consensus",
+        "family": "core",
+        "version": 1
+      }
+    ]
+  },
+  "reads": [
+    {
+      "name": "A12_HV2F_03",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "name": "A12_HV3R_03",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  ],
+  "rejected_reads": [
+    {
+      "name": "A12_HV1F_03",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "rejection": {
+        "reason": "identity_below_minimum",
+        "identity": 0.62,
+        "minimum_identity": 0.8
+      }
+    }
+  ],
+  "segments": [
+    {
+      "name": "sample-1_73-79",
+      "reference": {
+        "start": 72,
+        "end": 79
+      },
+      "sequence": "GTGCACG"
+    }
+  ],
+  "sites": [
+    {
+      "start": 73,
+      "end": 73,
+      "reference": "A",
+      "call": "G",
+      "state": "called",
+      "supporting_reads": [
+        "A12_HV2F_03",
+        "A12_HV3R_03"
+      ],
+      "opposing_reads": [],
+      "uninformative_reads": []
+    },
+    {
+      "start": 77,
+      "end": 77,
+      "reference": "A",
+      "call": "A",
+      "state": "contested",
+      "supporting_reads": [
+        "A12_HV2F_03"
+      ],
+      "opposing_reads": [
+        "A12_HV3R_03"
+      ],
+      "uninformative_reads": []
+    }
+  ],
+  "summary": {
+    "called_positions": 6,
+    "contested_sites": 1,
+    "unresolved_positions": 0
+  }
+}

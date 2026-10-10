@@ -332,7 +332,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
 
 /// Reviewer-facing names of the admitted and the rejected reads, unique
 /// across both.
-fn reviewer_read_names(evidence: &SampleEvidence) -> Result<(Vec<String>, Vec<String>)> {
+pub(super) fn reviewer_read_names(evidence: &SampleEvidence) -> Result<(Vec<String>, Vec<String>)> {
     let mut unique = BTreeSet::new();
     let mut name_of = |input_name: &str| -> Result<String> {
         let name = Path::new(input_name)
@@ -385,7 +385,7 @@ fn read_name(read_names: &[String], index: usize) -> Result<&str> {
         .ok_or(ReportError::MissingRead { index })?)
 }
 
-fn project_rejection(cause: RejectionCause) -> ReadRejectionResult {
+pub(super) fn project_rejection(cause: RejectionCause) -> ReadRejectionResult {
     match cause {
         RejectionCause::Callability(rejection) => ReadRejectionResult::CallableCallsBelowMinimum {
             callable_calls: rejection.callable_calls,

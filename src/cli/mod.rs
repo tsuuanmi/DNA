@@ -35,6 +35,8 @@ pub enum Command {
     Basecall(BasecallArgs),
     /// Aggregate independently analyzed AB1 traces into sample evidence.
     Sample(SampleArgs),
+    /// Adjudicate a sample's AB1 traces into a consensus sequence.
+    Consensus(SampleArgs),
     /// Call variants from reviewed consensus sequences with the core alone.
     Call(CallArgs),
     /// Derive notation and conformance findings from a variants document.

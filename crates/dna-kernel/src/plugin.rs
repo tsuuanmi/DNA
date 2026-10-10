@@ -46,6 +46,8 @@ pub enum Contract {
     Nomenclature,
     /// Notation-convention findings.
     Conformance,
+    /// An adjudicated sample consensus sequence.
+    Consensus,
 }
 
 /// Identity, interface, and configuration ownership of one plugin.

@@ -10,6 +10,7 @@ These documents describe **current mechanisms**: how DNA implements its scientif
 - [Quality control](quality-control.md): penalty, relative quality, and the trim interval derived from the callable span.
 - [Alignment](alignment.md): profile-aware Gotoh placement, traceback, orientation, and circular mapping.
 - [Variant calling](variant-calling.md): difference extraction, allele anchoring, eligibility, and deterministic ordering.
+- [Sample consensus](consensus.md): adjudication between a sample's reads into a consensus sequence (`dna consensus`).
 - [Variant normalization](variant-normalization.md): optional haplotype-preserving post-calling representation movement.
 - [Variant nomenclature](variant-nomenclature.md): optional target-specific representation policy (the shipped profile's HVS-I, HVS-II, and HVS-III windows) and notation-convention conformance.
 - [Sample evidence](sample-evidence/README.md): aggregation after independent read placement.

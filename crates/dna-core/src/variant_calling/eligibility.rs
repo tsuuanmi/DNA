@@ -18,7 +18,7 @@ use crate::variant_calling::VariantCallingConfig;
 use dna_kernel::read_evidence::{MaskedAlignment, ReadEnds, ReadEvidence};
 
 /// Trusted calls of one read.
-pub(super) struct ReadEligibility<'a> {
+pub(crate) struct ReadEligibility<'a> {
     /// Per call: at least `read_end_margin` informative calls separate it from
     /// the nearest uninformative call on both sides.
     trusted: Vec<bool>,
@@ -27,7 +27,7 @@ pub(super) struct ReadEligibility<'a> {
 
 impl<'a> ReadEligibility<'a> {
     /// Derives the trusted calls of one read from its evidence.
-    pub(super) fn new(evidence: &'a ReadEvidence, config: &VariantCallingConfig) -> Self {
+    pub(crate) fn new(evidence: &'a ReadEvidence, config: &VariantCallingConfig) -> Self {
         let interval = evidence.informative();
         let informative = evidence
             .calls()
@@ -148,6 +148,12 @@ impl<'a> ReadEligibility<'a> {
             && call
                 .mask
                 .is_none_or(|mask| mask.alignment == MaskedAlignment::Anchoring)
+    }
+
+    /// Whether the call at `index` has at least `read_end_margin` informative
+    /// calls between it and the nearest uninformative call on both sides.
+    pub(crate) fn trusted(&self, index: usize) -> bool {
+        self.trusted.get(index).copied().unwrap_or(false)
     }
 
     /// The exclusion reason of a masked call, or `None` for an unmasked one.

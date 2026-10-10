@@ -47,6 +47,16 @@ pub(super) fn sample_output(sample_id: &str) -> Result<PathBuf> {
     Ok(output)
 }
 
+/// Returns and validates the deterministic CLI publication paths for the
+/// consensus document and its FASTA.
+pub(super) fn consensus_outputs(sample_id: &str) -> Result<(PathBuf, PathBuf)> {
+    let document = PathBuf::from("results").join(format!("{sample_id}.consensus.json"));
+    let fasta = PathBuf::from("results").join(format!("{sample_id}.consensus.fasta"));
+    validate_output(&document)?;
+    validate_output(&fasta)?;
+    Ok((document, fasta))
+}
+
 /// Returns and validates the deterministic CLI publication path for the variants document.
 pub(super) fn call_output(sample_id: &str) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{sample_id}.variants.json"));
