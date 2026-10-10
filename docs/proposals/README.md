@@ -19,6 +19,7 @@ Accepted/Implemented -> Superseded
 ## Active proposals
 
 - [PROP-0001 — Modular DNA Analysis Platform](0001-modular-dna-analysis-platform.md) — **Implementing**; public Rust API, canonical contracts, multiple input modalities, replaceable scientific implementations and data providers, and downstream analysis modules.
+- [PROP-0003 — Sample consensus](0003-sample-consensus.md) — **Accepted**; a modality-neutral consensus layer above sample evidence that adjudicates between reads, emits a consensus sequence, and calls it through the core.
 
 ## Implemented proposals
 
