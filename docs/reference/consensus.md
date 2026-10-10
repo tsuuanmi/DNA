@@ -41,16 +41,36 @@ The method is described in [design](../design/consensus.md).
   - `supporting_reads`, `opposing_reads`, `uninformative_reads`: reads whose
     clean sequence matches the call, whose clean sequence differs, and that
     cover the interval without a clean sequence.
+  - `runs`: for a stretch decided by its run structure
+    ([ADR-0074](../decisions/adr/0074-run-structure-consensus.md)), the call's
+    runs in order, each with `base`, `length`, and `length_evidence`. The list
+    is empty for a single position, an undecided stretch, or one decided
+    position by position.
+    - `in_phase`: a read shows both ends of the run with unmasked calls.
+    - `anchored_end`: a read shows both ends, one only through a masked call
+      that still reads the next base. This is at most the dominant length of
+      a mixture.
+    - `phase_loss`: no read shows both ends, and no reads locate both. The
+      length is the longest run read in phase before a read loses phase. It
+      is an estimate near the dominant length.
+    - `reference_frame`: no read shows both ends, but reads locate each end on
+      the reference and read every base between cleanly. The length is the
+      number of reference positions between them. It assumes no length
+      change and is not observed.
 - **`summary`:** counts over the segments:
   - `called_positions`;
   - `contested_sites`;
-  - `unresolved_positions` (the `N` count).
+  - `unresolved_positions` (the `N` count);
+  - `phase_loss_runs`, `reference_frame_runs`: runs whose length is an
+    estimate or an assumption rather than shown by a read.
 
 ## FASTA
 
 The FASTA has one record per segment, with 70-column lines. It is valid input
 for `dna call <sample-id> results/<sample-id>.consensus.fasta --reference
 <reference.fasta>`, which writes the consensus's `dna.variants/v1` document.
+It carries only the sequence: a length labelled `phase_loss` or
+`reference_frame` reads there like any other, so review it in `sites[].runs`.
 
 ## Workflow
 

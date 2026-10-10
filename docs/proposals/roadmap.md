@@ -62,9 +62,12 @@ The following remain outside the current production interpretation boundary unti
 - new or substantially more complex indel models;
 - phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067; research under `docs/research/phase-recovery/`);
 - signal denoising and baseline correction (research spike under `docs/research/denoising/`);
-- consensus refinements beyond [PROP-0003](0003-sample-consensus.md): run lengths that reads meet only near their ends, and contested sites decided by richer evidence than the one-read reference tie-break;
+- consensus refinements beyond [PROP-0003](0003-sample-consensus.md) and [ADR-0074](../decisions/adr/0074-run-structure-consensus.md):
+  - run lengths that no read reads;
+  - contested sites decided by richer evidence than the one-read reference tie-break;
+  - a post-calling profile policy that classifies, never drops, length calls the target's convention does not record (the HVS-I C-tract is noted as length heteroplasmy in the `C5TC4` frame);
 - quantitative heteroplasmy, and point-heteroplasmy evidence as labelled IUPAC sites; this first needs accurate primary calls, a shadow-corrected minor channel, and cross-strand confirmation ([research](../research/point-heteroplasmy/README.md));
-- mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [known limitations](../validation/known-limitations.md));
+- mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [known limitations](../validation/known-limitations.md)). A run-exit annotation on `ReadEvidence` from the trace's exit survival curve ([research](../research/phase-recovery/README.md)) would turn `phase_loss` estimates into measured dominant lengths;
 - haplogroup-based QC or inference;
 - calibrated quality/error probabilities;
 - ML-based calling, correction, or training export;

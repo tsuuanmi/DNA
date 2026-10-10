@@ -89,11 +89,21 @@ fn agreeing_reads_call_their_difference() -> Result<(), Box<dyn std::error::Erro
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0]["sequence"], alternate());
     assert_eq!(segments[0]["reference"]["start"], 4);
+    // The substituted A joins the A after it: the site is that whole run.
     let sites = value["sites"].as_array().ok_or("sites must be an array")?;
     assert_eq!(sites.len(), 1);
-    assert_eq!(sites[0]["start"], 15);
-    assert_eq!(sites[0]["call"], "A");
+    assert_eq!(
+        (&sites[0]["start"], &sites[0]["end"]),
+        (&15.into(), &16.into())
+    );
+    assert_eq!(sites[0]["reference"], "GA");
+    assert_eq!(sites[0]["call"], "AA");
     assert_eq!(sites[0]["state"], "called");
+    assert_eq!(
+        sites[0]["runs"],
+        serde_json::json!([{"base": "A", "length": 2, "length_evidence": "in_phase"}])
+    );
+    assert_eq!(value["summary"]["reference_frame_runs"], 0);
     assert_eq!(
         sites[0]["supporting_reads"],
         serde_json::json!(["read-forward", "read-reverse"])
@@ -128,7 +138,7 @@ fn a_lone_difference_against_a_reference_read_is_contested()
     let value = document(directory.path())?;
     assert_eq!(value["segments"][0]["sequence"], QUERY);
     assert_eq!(value["sites"][0]["state"], "contested");
-    assert_eq!(value["sites"][0]["call"], "G");
+    assert_eq!(value["sites"][0]["call"], "GA");
     assert_eq!(
         value["sites"][0]["opposing_reads"],
         serde_json::json!(["read-forward"])

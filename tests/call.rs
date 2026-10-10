@@ -103,7 +103,7 @@ fn calls_variants_from_consensus_sequences_with_the_core_alone()
         value["provenance"]["plugins"],
         json!([
             {"id": "sequence", "family": "modality", "version": 1},
-            {"id": "core", "family": "core", "version": 1},
+            {"id": "core", "family": "core", "version": 2},
         ])
     );
     assert!(value.get("notation").is_none());

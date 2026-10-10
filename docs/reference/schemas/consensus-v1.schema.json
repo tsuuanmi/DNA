@@ -339,7 +339,8 @@
         "state",
         "supporting_reads",
         "opposing_reads",
-        "uninformative_reads"
+        "uninformative_reads",
+        "runs"
       ],
       "properties": {
         "start": {
@@ -391,6 +392,43 @@
             "minLength": 1
           },
           "uniqueItems": true
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/run"
+          }
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base",
+        "length",
+        "length_evidence"
+      ],
+      "properties": {
+        "base": {
+          "enum": [
+            "A",
+            "C",
+            "G",
+            "T"
+          ]
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "length_evidence": {
+          "enum": [
+            "in_phase",
+            "anchored_end",
+            "phase_loss",
+            "reference_frame"
+          ]
         }
       }
     },
@@ -400,7 +438,9 @@
       "required": [
         "called_positions",
         "contested_sites",
-        "unresolved_positions"
+        "unresolved_positions",
+        "phase_loss_runs",
+        "reference_frame_runs"
       ],
       "properties": {
         "called_positions": {
@@ -412,6 +452,14 @@
           "minimum": 0
         },
         "unresolved_positions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase_loss_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference_frame_runs": {
           "type": "integer",
           "minimum": 0
         }
