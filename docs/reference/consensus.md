@@ -52,6 +52,23 @@ The FASTA has one record per segment, with 70-column lines. It is valid input
 for `dna call <sample-id> results/<sample-id>.consensus.fasta --reference
 <reference.fasta>`, which writes the consensus's `dna.variants/v1` document.
 
+## Workflow
+
+To turn a sample's traces into variants:
+
+1. `dna consensus <id> <trace>... --reference <fasta>` writes the consensus
+   and its FASTA.
+2. `dna call <id> results/<id>.consensus.fasta --reference <fasta>` writes
+   `results/<id>.variants.json` (`dna.variants/v1`) with its notation.
+3. Optionally, `dna notation <id> results/<id>.variants.json --reference
+   <fasta>` adds the conformance findings.
+
+`dna sample` remains the read-level evidence used to review a decision: per
+read placement, callability, loci, support and opposition. Its notation lists
+every read's calls and makes no decision. On two disjoint 320-sample held-out
+subsets, the consensus path matched more samples exactly and was more precise
+than that union ([ADR-0073](../decisions/adr/0073-sample-consensus.md)).
+
 ## Interpretation boundary
 
 - The consensus is an adjudicated sequence. It is not a genotype, and it

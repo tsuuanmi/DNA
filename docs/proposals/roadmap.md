@@ -62,7 +62,7 @@ The following remain outside the current production interpretation boundary unti
 - new or substantially more complex indel models;
 - phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067; research under `docs/research/phase-recovery/`);
 - signal denoising and baseline correction (research spike under `docs/research/denoising/`);
-- sample-level consensus and adjudicated sample variants (proposed in [PROP-0003](0003-sample-consensus.md));
+- consensus refinements beyond [PROP-0003](0003-sample-consensus.md): run lengths that reads meet only near their ends, and contested sites decided by richer evidence than the one-read reference tie-break;
 - quantitative heteroplasmy, and point-heteroplasmy evidence as labelled IUPAC sites; this first needs accurate primary calls, a shadow-corrected minor channel, and cross-strand confirmation ([research](../research/point-heteroplasmy/README.md));
 - mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [known limitations](../validation/known-limitations.md));
 - haplogroup-based QC or inference;
