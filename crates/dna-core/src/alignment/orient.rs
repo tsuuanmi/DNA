@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use crate::alignment::AlignmentConfig;
 use crate::alignment::exact::{self, UpperBoundPlacement};
 use crate::alignment::gotoh;
+use crate::alignment::runs;
 use crate::alignment::traceback::RawAlignment;
 use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, ReferenceSegment};
 use dna_kernel::error::{AlignmentError, Result};
@@ -247,6 +248,16 @@ fn finish_alignment(
         }
         .into());
     }
+    let mut raw = raw.clone();
+    let masked = |query: usize| {
+        selected
+            .mapping
+            .get(query)
+            .and_then(|&call| calls.get(call))
+            .is_some_and(|call| call.mask.is_some())
+    };
+    runs::reexpress(&mut raw, reference, &masked);
+    let raw = &raw;
     let (segments, wraps_origin) = segments(raw, reference);
     let columns = raw
         .columns
@@ -407,6 +418,7 @@ fn segments(alignment: &RawAlignment, reference: &Reference) -> (Vec<ReferenceSe
 mod tests {
     use crate::model::alignment::AlignmentMetrics;
     use dna_kernel::model::reference::ReferenceTopology;
+    use dna_kernel::read_evidence::EvidenceReason;
 
     use super::*;
 
@@ -569,5 +581,51 @@ mod tests {
         let right = raw(100, 10, 0, 0);
         assert_eq!(compare(&left, &right), Ordering::Equal);
         assert_eq!(compare(&raw(101, 0, 10, 10), &right), Ordering::Greater);
+    }
+
+    #[test]
+    fn re_expresses_a_masked_repeat_stretch_one_length_edit_per_run() -> Result<()> {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "TTGACCCCCCCTCCCCCGTAGG".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let clean = ReadEvidence::clean("TTGACCCCCCCCTCCCCCCGTAGG");
+        let mut call = clean.calls()[12];
+        call.mask = Some(CallMask {
+            alignment: MaskedAlignment::Anchoring,
+            reason: EvidenceReason::new("dephased_signal"),
+        });
+        let masked = clean.clone().with_call(12, call);
+        let inserted_after = |alignment: &Alignment| {
+            alignment
+                .columns
+                .windows(2)
+                .filter(|pair| pair[1].reference_base == '-')
+                .filter_map(|pair| pair[0].reference_index_0based)
+                .collect::<Vec<_>>()
+        };
+
+        // Unmasked evidence keeps the optimal path: one merged gap and a
+        // substitution.
+        let optimal = align_best(&clean, &reference, &config())?;
+        assert_eq!(optimal.metrics.mismatches, 1);
+        // With the T masked, each C run gains one base at its 3' end.
+        let realigned = align_best(&masked, &reference, &config())?;
+        assert_eq!(realigned.metrics.mismatches, 0);
+        assert_eq!(inserted_after(&realigned), [10, 16]);
+        assert_eq!(realigned.score, optimal.score);
+        // A reverse read lands on the same reference coordinates.
+        let reverse = ReadEvidence::clean(&reverse_complement("TTGACCCCCCCCTCCCCCCGTAGG"));
+        let mut call = reverse.calls()[11];
+        call.mask = Some(CallMask {
+            alignment: MaskedAlignment::Anchoring,
+            reason: EvidenceReason::new("dephased_signal"),
+        });
+        let reverse = align_best(&reverse.clone().with_call(11, call), &reference, &config())?;
+        assert_eq!(reverse.orientation, Orientation::Reverse);
+        assert_eq!(inserted_after(&reverse), [10, 16]);
+        Ok(())
     }
 }

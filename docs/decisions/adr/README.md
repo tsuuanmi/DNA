@@ -24,7 +24,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | Concern | Current decision chain | Current production authority |
 |---|---|---|
 | biological claim boundary | ADR-0009, ADR-0019 | SRS + scientific-state invariants |
-| circular/reference placement | ADR-0010, ADR-0029, ADR-0047 | alignment SRS/method + alignment invariants |
+| circular/reference placement | ADR-0010, ADR-0029, ADR-0047, ADR-0072 | alignment SRS/method + alignment invariants |
 | variant calling / canonicalization / nomenclature | ADR-0047 → ADR-0057 → ADR-0060 | current variant SRS/method; platform direction in ADR-0060 |
 | signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
 | signal-derived read callability | ADR-0067 | SRS-CALL-* + callability method + evidence/pipeline invariants |
@@ -107,3 +107,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0069](0069-plugin-first-modality-core-post-calling.md) | Plugin-first composition of modality, core, and post-calling plugins | Accepted |
 | [0070](0070-workspace-split-by-plugin-family.md) | Workspace split by plugin family | Accepted |
 | [0071](0071-run-length-edits-need-resolved-run-ends.md) | Run-length edits need resolved run ends | Accepted |
+| [0072](0072-run-structure-re-expression-of-masked-repeat-stretches.md) | Run-structure re-expression of masked repeat stretches | Accepted |

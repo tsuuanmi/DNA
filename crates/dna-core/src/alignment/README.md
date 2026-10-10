@@ -8,12 +8,14 @@ Entry point: `align_best` from `mod.rs`, over the read's `ReadEvidence`
 The module imports no Sanger type.
 
 Key children: `scoring.rs`, [`exact/`](exact/README.md), `gotoh.rs`,
-`traceback.rs`, `canonical.rs`, and `orient.rs`.
+`traceback.rs`, `canonical.rs`, `runs.rs`, and `orient.rs`.
 
 The query is the evidence's informative interval. Calls with an *unresolved*
 mask enter it as `N` without a profile; calls with an *anchoring* mask keep
 their base and profile. `orient.rs` also derives the masked-base counts and the
-callable reference segments from the masks.
+callable reference segments from the masks. Before that, `runs.rs`
+re-expresses masked repeat stretches of the selected alignment as one length
+edit per run (ADR-0072).
 
 This module does not extract variants or mutate upstream signal evidence.
 
