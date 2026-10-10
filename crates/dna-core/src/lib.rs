@@ -4,6 +4,7 @@
 //! It depends only on the kernel; no modality is visible here.
 
 pub mod alignment;
+pub mod consensus;
 pub mod model;
 pub mod read_call;
 pub mod sample;

@@ -10,6 +10,24 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Sample consensus (PROP-0003 increment 1, ADR-0073, SRS-CONS).
+  - **Command:** `dna consensus <sample-id> <trace>... --reference
+    <reference.fasta>` adjudicates between a sample's placed reads.
+  - **Outputs:** `results/<sample-id>.consensus.json` (`dna.consensus/v1`:
+    segments, notable sites with their supporting, opposing and
+    uninformative reads, and decision counts) and
+    `results/<sample-id>.consensus.fasta`. The FASTA is ready for `dna call`.
+  - **Rule:** only clean observations decide. Differences are decided as
+    stretches of whole reference runs (as a whole, run by run, or position by
+    position). One read against one read takes the reference and is marked
+    `contested`.
+  - **Measured on two disjoint 320-sample held-out subsets** (fair scale):
+    exact samples rise from 288 to 290 and from 290 to 292 against the union
+    of reads, and precision from 0.9924 to 0.9967 and from 0.9934 to 0.9964.
+  - `dna sample` and `dna call` are unchanged.
+  - **Rust API:** `dna_core::consensus` and `dna_core::model::consensus` are
+    new; `dna_kernel::plugin::Contract` gains `Consensus`.
+
 - Post-calling notation of a variants document (ADR-0069 phase 4, PROP-0002,
   SRS-IN-014, SRS-OUT-011, SRS-NOM-016, SRS-PRF-008). The command is
   `dna notation <sample-id> <variants.json> --reference <reference.fasta>`.

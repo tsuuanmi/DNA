@@ -4,6 +4,7 @@ mod atomic;
 mod basecall;
 mod call;
 mod callability;
+mod consensus;
 mod json;
 mod notation;
 mod sample;
@@ -14,6 +15,9 @@ mod variant;
 pub(crate) use atomic::publish;
 pub(crate) use basecall::{CompletedBasecall, build as build_basecall};
 pub(crate) use call::{CompletedCall, build as build_call};
+pub(crate) use consensus::{
+    CompletedConsensus, build as build_consensus, fasta as consensus_fasta,
+};
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
 pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,

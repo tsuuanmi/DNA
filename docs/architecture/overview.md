@@ -10,7 +10,7 @@
   implementations provide commodity bioinformatics machinery when they satisfy
   those contracts.
 - One strict configuration and one command-specific JSON result per CLI
-  invocation.
+  invocation; `consensus` also writes its FASTA.
 - Untrusted binary/text input is checked before slicing, conversion, and large
   allocation.
 - Models enforce cardinality and coordinate invariants; scientific stages avoid
@@ -49,12 +49,13 @@
 | `variant_analysis` | dna | Sanger one-read composition (modality plus core) and the public Variant Analysis capability | CLI logging/JSON publication |
 | `read_call` | core | the core's one-read path from `ReadEvidence` to a `CalledRead`, and the core-owned configuration | modality types |
 | `sample` | core | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
+| `consensus` | core | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |
 | `variant_representation` | post | haplotype-preserving edit conversion, application, rendering | policy choices |
 | `variant_normalization` | post | optional sequence-equivalent normalization policies | nomenclature windows |
 | `variant_nomenclature` | post | profile-driven window representation engine | target knowledge, notation rendering |
 | `conformance` | post | reporting represented calls that break the profile's notation conventions | rewriting calls, target knowledge |
 | `report` | dna | contract projection, serialization, atomic publish | scientific decisions |
-| `pipeline` | dna | CLI orchestration of every command (analyze, basecall, sample, call, notation), path/log/publication lifecycle | scientific implementation ownership |
+| `pipeline` | dna | CLI orchestration of every command (analyze, basecall, sample, consensus, call, notation), path/log/publication lifecycle | scientific implementation ownership |
 
 DNA is a Cargo workspace of plugin-family crates
 ([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),

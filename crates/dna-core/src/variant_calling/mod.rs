@@ -5,7 +5,7 @@ mod config;
 pub use config::{RawVariantCallingConfig, VariantCallingConfig};
 
 mod anchor;
-mod eligibility;
+pub(crate) mod eligibility;
 mod extract;
 mod filter;
 mod mapping;

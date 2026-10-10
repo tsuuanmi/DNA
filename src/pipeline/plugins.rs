@@ -2,6 +2,7 @@
 //! validated at compile time (ADR-0069).
 
 use crate::input::sequence::PLUGIN as SEQUENCE;
+use dna_core::consensus::PLUGIN as CONSENSUS_PLUGIN;
 use dna_core::read_call::PLUGIN as CORE;
 use dna_kernel::plugin::{Contract, PluginDescriptor, composition, validate_registry};
 use dna_post::conformance::PLUGIN as CONFORMANCE;
@@ -14,6 +15,7 @@ const REGISTRY: &[&PluginDescriptor] = &[
     &SANGER,
     &SEQUENCE,
     &CORE,
+    &CONSENSUS_PLUGIN,
     &NORMALIZATION,
     &NOMENCLATURE,
     &CONFORMANCE,
@@ -25,6 +27,9 @@ pub(crate) const BASECALL: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&
 pub(crate) const ANALYZE: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&SANGER, &CORE]);
 /// Plugins of the `sample` workflow without notation, in execution order.
 pub(crate) const SAMPLE: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&SANGER, &CORE]);
+/// Plugins of the `consensus` workflow, in execution order.
+pub(crate) const CONSENSUS: &[&PluginDescriptor] =
+    composition(REGISTRY, &[], &[&SANGER, &CORE, &CONSENSUS_PLUGIN]);
 /// Plugins of the `call` workflow without notation, in execution order.
 pub(crate) const CALL: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&SEQUENCE, &CORE]);
 /// Plugins of the `call` workflow with notation, in execution order.

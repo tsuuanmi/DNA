@@ -5,6 +5,7 @@ This directory contains **normative current requirements**: what DNA must, shoul
 Start with [SRS.md](SRS.md). Requirement families remain split by stable domain boundary so the specification is navigable without duplicating requirements.
 
 - [SRS index](SRS.md)
+- [Sample consensus](consensus.md)
 - [Variant normalization](variant-normalization.md)
 - [Variant nomenclature](variant-nomenclature.md)
 - [Quality attributes](quality-attributes.md)

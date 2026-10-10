@@ -1,0 +1,421 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:consensus:v1",
+  "title": "DNA consensus v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sample_id",
+    "provenance",
+    "reads",
+    "rejected_reads",
+    "segments",
+    "sites",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.consensus/v1"
+    },
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "reads": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/read"
+      }
+    },
+    "rejected_reads": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejectedRead"
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/segment"
+      }
+    },
+    "sites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/site"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "topology",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "topology": {
+          "enum": [
+            "linear",
+            "circular"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "family": {
+            "enum": [
+              "modality",
+              "core",
+              "post_calling"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "configuration_sha256",
+        "profile",
+        "plugins"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/reference"
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile": {
+          "$ref": "#/$defs/profile"
+        },
+        "plugins": {
+          "$ref": "#/$defs/plugins"
+        }
+      }
+    },
+    "readRejection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "callable_calls",
+            "minimum_callable_calls"
+          ],
+          "properties": {
+            "reason": {
+              "const": "callable_calls_below_minimum"
+            },
+            "callable_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minimum_callable_calls": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "callable_columns",
+            "minimum_callable_columns"
+          ],
+          "properties": {
+            "reason": {
+              "const": "callable_columns_below_minimum"
+            },
+            "callable_columns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minimum_callable_columns": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "identity",
+            "minimum_identity"
+          ],
+          "properties": {
+            "reason": {
+              "const": "identity_below_minimum"
+            },
+            "identity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "minimum_identity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "const": "ambiguous_placement"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "const": "orientation_tie"
+            }
+          }
+        }
+      ]
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rejectedRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256",
+        "rejection"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rejection": {
+          "$ref": "#/$defs/readRejection"
+        }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "reference",
+        "sequence"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "$ref": "#/$defs/interval"
+        },
+        "sequence": {
+          "type": "string",
+          "pattern": "^[ACGTN]+$"
+        }
+      }
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "reference",
+        "call",
+        "state",
+        "supporting_reads",
+        "opposing_reads",
+        "uninformative_reads"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[ACGTN]+$"
+        },
+        "call": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[ACGTN]*$"
+        },
+        "state": {
+          "enum": [
+            "called",
+            "contested",
+            "unresolved"
+          ]
+        },
+        "supporting_reads": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "opposing_reads": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "uninformative_reads": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "called_positions",
+        "contested_sites",
+        "unresolved_positions"
+      ],
+      "properties": {
+        "called_positions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contested_sites": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_positions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -248,3 +248,9 @@ Increment 0 needs no such ADR. It extends SRS-SAMPLE-027.
 
 - **Increment 0** (read-failure tolerance): an unplaceable read becomes a rejected
   read in `sample` (SRS-SAMPLE-029; `dna_core::read_call::PlacementRejection`).
+- **Increment 1** (`dna consensus`, ADR-0073, SRS-CONS):
+  - **Scope change:** increment 1 also covers insertions and run lengths,
+    because the HVS-II calls depend on them. It decides them by stretches of
+    whole reference runs rather than per junction.
+  - **Variants:** they come from `dna call` over the consensus FASTA, not from
+    the consensus command itself.

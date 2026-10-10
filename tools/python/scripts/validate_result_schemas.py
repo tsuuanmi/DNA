@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, sample-evidence, variants, and notation result contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, variants, notation, and consensus result contracts."""
 
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ VARIANTS_SCHEMA = CONTRACTS / "schemas" / "variants-v1.schema.json"
 VARIANTS_EXAMPLE = CONTRACTS / "examples" / "variants-v1.example.json"
 NOTATION_SCHEMA = CONTRACTS / "schemas" / "notation-v1.schema.json"
 NOTATION_EXAMPLE = CONTRACTS / "examples" / "notation-v1.example.json"
+CONSENSUS_SCHEMA = CONTRACTS / "schemas" / "consensus-v1.schema.json"
+CONSENSUS_EXAMPLE = CONTRACTS / "examples" / "consensus-v1.example.json"
 
 
 def load_json(path: Path) -> Any:
@@ -886,6 +888,28 @@ def assert_rejected(
         errors.append(f"expected {label} to be rejected, but it validated")
 
 
+def rejected_consensus_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    unknown_state = copy.deepcopy(example)
+    unknown_state["sites"][0]["state"] = "adjudicated"
+    lowercase_sequence = copy.deepcopy(example)
+    lowercase_sequence["segments"][0]["sequence"] = "gtattt"
+    iupac_call = copy.deepcopy(example)
+    iupac_call["sites"][0]["call"] = "R"
+    no_reads = copy.deepcopy(example)
+    no_reads["reads"] = []
+    missing_summary = copy.deepcopy(example)
+    missing_summary.pop("summary")
+    return [
+        ("consensus site with an unknown state", unknown_state),
+        ("consensus segment with lower-case bases", lowercase_sequence),
+        ("consensus site with an IUPAC call", iupac_call),
+        ("consensus without admitted reads", no_reads),
+        ("consensus without a summary", missing_summary),
+    ]
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -928,6 +952,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="notation result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--consensus",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="consensus result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
 
 
@@ -939,16 +971,19 @@ def main(argv: list[str] | None = None) -> int:
     sample_validator = validator(SAMPLE_SCHEMA, errors)
     variants_validator = validator(VARIANTS_SCHEMA, errors)
     notation_validator = validator(NOTATION_SCHEMA, errors)
+    consensus_validator = validator(CONSENSUS_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
     variants_paths = args.variants or [VARIANTS_EXAMPLE]
     notation_paths = args.notation or [NOTATION_EXAMPLE]
+    consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
     validate_documents(variants_validator, variants_paths, errors)
     validate_documents(notation_validator, notation_paths, errors)
+    validate_documents(consensus_validator, consensus_paths, errors)
     validate_sample_support_topology(sample_paths, errors)
     validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
 
@@ -1120,6 +1155,8 @@ def main(argv: list[str] | None = None) -> int:
     assert_rejected(variants_validator, rejected_variants, errors)
     rejected_notation = rejected_notation_shapes(load_json(NOTATION_EXAMPLE))
     assert_rejected(notation_validator, rejected_notation, errors)
+    rejected_consensus = rejected_consensus_shapes(load_json(CONSENSUS_EXAMPLE))
+    assert_rejected(consensus_validator, rejected_consensus, errors)
 
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
@@ -1128,10 +1165,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
-        f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, and "
-        f"{len(notation_paths)} notation document(s), {len(valid_shapes)} analysis "
+        f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
+        f"{len(notation_paths)} notation, and {len(consensus_paths)} consensus document(s), "
+        f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation)} "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus)} "
         "invalid shape(s)"
     )
     return 0

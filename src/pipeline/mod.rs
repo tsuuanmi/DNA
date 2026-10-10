@@ -3,6 +3,7 @@
 mod analyze;
 mod basecall;
 mod call;
+mod consensus;
 mod notation;
 mod path;
 mod plugins;
@@ -25,6 +26,16 @@ pub(crate) fn analyze(trace: &Path, reference: &Path, config_path: &Path) -> Res
 /// Runs one reference-free AB1 basecall operation.
 pub(crate) fn basecall(trace: &Path, config_path: &Path) -> Result<()> {
     basecall::run(trace, config_path)
+}
+
+/// Runs one sample consensus operation (PROP-0003).
+pub(crate) fn consensus(
+    sample_id: &str,
+    traces: &[PathBuf],
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    consensus::run(sample_id, traces, reference, config_path)
 }
 
 /// Runs one core-only call over consensus sequences.

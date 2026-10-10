@@ -113,6 +113,13 @@ cargo run --release -- sample AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
 ```
 
+Sample consensus (adjudicated sequence plus a FASTA ready for `call`):
+
+```bash
+cargo run --release -- consensus AB0442 read1.ab1 read2.ab1 \
+  --reference references/rCRS.fasta
+```
+
 Core-only calls from reviewed consensus sequences (one FASTA record per read):
 
 ```bash
@@ -129,17 +136,18 @@ cargo run --release -- notation AB0442 results/AB0442.variants.json \
 
 DNA reads `DNA_CONFIG` or `config/dna.toml` and, for reference-guided commands, the [target profile](docs/reference/profiles.md) it names (`config/profiles/human-mtdna-rcrs.toml` by default).
 
-Successful core commands publish exactly one command-specific JSON result without overwriting an existing result:
+Successful core commands publish exactly one command-specific JSON result without overwriting an existing result; `consensus` also publishes its FASTA:
 
 ```text
-basecall -> results/<trace-stem>.basecalls.json
-analyze  -> results/<trace-stem>.json
-sample   -> results/<sample-id>.sample.json
-call     -> results/<sample-id>.variants.json
-notation -> results/<sample-id>.notation.json
+basecall  -> results/<trace-stem>.basecalls.json
+analyze   -> results/<trace-stem>.json
+sample    -> results/<sample-id>.sample.json
+consensus -> results/<sample-id>.consensus.json, results/<sample-id>.consensus.fasta
+call      -> results/<sample-id>.variants.json
+notation  -> results/<sample-id>.notation.json
 ```
 
-Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
+Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
 
 Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066).
 
