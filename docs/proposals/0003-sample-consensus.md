@@ -1,7 +1,7 @@
 ---
 id: PROP-0003
 type: proposal
-status: implementing
+status: implemented
 owners: []
 created: 2026-10-10
 related-requirements: [SRS-SAMPLE-027, SRS-VAR-009, SRS-VAR-015]
@@ -254,3 +254,13 @@ Increment 0 needs no such ADR. It extends SRS-SAMPLE-027.
     whole reference runs rather than per junction.
   - **Variants:** they come from `dna call` over the consensus FASTA, not from
     the consensus command itself.
+- **Increments 2 and 3: deferred** (closed 2026-10-10 by review).
+  - **Run lengths:** after increment 1, the HVS-II misses that remain are
+    mostly runs that no read reads. The union misses them too. Downstream
+    probes (aggregates only, ADR-0065) found little more to gain:
+    - dropping the `read_end` trust requirement for consensus bases gained 8
+      calls on one 320-sample subset and none on the other;
+    - restricting that change to runs with both ends visible gained 2.
+  - **IUPAC point heteroplasmy** stays future work under ADR-0009
+    ([research](../research/point-heteroplasmy/README.md)).
+  - Both are listed in the [roadmap](roadmap.md).

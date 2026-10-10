@@ -19,11 +19,11 @@ Accepted/Implemented -> Superseded
 ## Active proposals
 
 - [PROP-0001 — Modular DNA Analysis Platform](0001-modular-dna-analysis-platform.md) — **Implementing**; public Rust API, canonical contracts, multiple input modalities, replaceable scientific implementations and data providers, and downstream analysis modules.
-- [PROP-0003 — Sample consensus](0003-sample-consensus.md) — **Implementing**; a modality-neutral consensus layer above sample evidence that adjudicates between reads, emits a consensus sequence, and calls it through the core.
 
 ## Implemented proposals
 
 - [PROP-0002 — Plugin-first architecture](0002-plugin-first-architecture.md) — **Implemented**; modality plugins, a standalone core over per-read evidence, and post-calling plugins, delivered in phases with exit criteria.
+- [PROP-0003 — Sample consensus](0003-sample-consensus.md) — **Implemented**; `dna consensus` adjudicates between a sample's reads into a consensus sequence that `dna call` calls (ADR-0073). Run-length refinement and IUPAC heteroplasmy are deferred.
 
 Use [0000-template.md](0000-template.md) for new proposals. The [roadmap](roadmap.md) is a non-normative queue of future directions, not a substitute for a reviewed proposal.
 

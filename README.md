@@ -113,12 +113,19 @@ cargo run --release -- sample AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
 ```
 
-Sample consensus (adjudicated sequence plus a FASTA ready for `call`):
+Variants of a sample from its traces (recommended): build the consensus, then call it.
 
 ```bash
 cargo run --release -- consensus AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
+cargo run --release -- call AB0442 results/AB0442.consensus.fasta \
+  --reference references/rCRS.fasta
 ```
+
+The consensus adjudicates between the reads, and `call` names its variants in
+`results/AB0442.variants.json`. `sample` remains the per-read evidence for
+review; its notation is the union of the reads' calls, not a decision
+([workflow](docs/reference/consensus.md#workflow)).
 
 Core-only calls from reviewed consensus sequences (one FASTA record per read):
 
