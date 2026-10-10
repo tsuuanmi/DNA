@@ -29,7 +29,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | signal/locus evidence | ADR-0013, ADR-0028, ADR-0031, ADR-0046 | signal-processing SRS/method + evidence invariants |
 | signal-derived read callability | ADR-0067 | SRS-CALL-* + callability method + evidence/pipeline invariants |
 | sample boundary and sparse evidence | ADR-0023, ADR-0025 | sample SRS/method + sample contract |
-| sample consensus (adjudication above sample evidence) | ADR-0073 (fulfils the pre-consensus notes of ADR-0023/0033/0035/0041) | SRS-CONS + consensus method + consensus contract |
+| sample consensus (adjudication above sample evidence) | ADR-0073 (fulfils the pre-consensus notes of ADR-0023/0033/0035/0041) → ADR-0074 (run-structure decisions) | SRS-CONS + consensus method + consensus contract |
 | overlap/coverage/support topology | ADR-0030, ADR-0032, ADR-0033, ADR-0035, ADR-0068 | sample SRS/method + sample contract |
 | sample call-signal projection | ADR-0037 (partially supersedes ADR-0034 and ADR-0036) | sample method + sample contract |
 | nucleotide contribution/profile geometry | ADR-0038 through ADR-0043 | sample SRS/method; public subset in sample contract |
@@ -110,3 +110,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0071](0071-run-length-edits-need-resolved-run-ends.md) | Run-length edits need resolved run ends | Accepted |
 | [0072](0072-run-structure-re-expression-of-masked-repeat-stretches.md) | Run-structure re-expression of masked repeat stretches | Accepted |
 | [0073](0073-sample-consensus.md) | Sample consensus as the adjudication layer | Accepted |
+| [0074](0074-run-structure-consensus.md) | Run-structure consensus and how a run length is known | Accepted |

@@ -57,6 +57,17 @@ pub(crate) struct ConsensusSiteResult {
     pub(crate) supporting_reads: Vec<String>,
     pub(crate) opposing_reads: Vec<String>,
     pub(crate) uninformative_reads: Vec<String>,
+    /// The call's runs and how each length is known, for a stretch decided
+    /// run by run (ADR-0074); empty otherwise.
+    pub(crate) runs: Vec<ConsensusRunResult>,
+}
+
+/// One run of a call: its base, its length, and how the length is known.
+#[derive(Debug, Serialize)]
+pub(crate) struct ConsensusRunResult {
+    pub(crate) base: char,
+    pub(crate) length: usize,
+    pub(crate) length_evidence: &'static str,
 }
 
 /// Decision counts over the segments.
@@ -65,4 +76,6 @@ pub(crate) struct ConsensusSummaryResult {
     pub(crate) called_positions: usize,
     pub(crate) contested_sites: usize,
     pub(crate) unresolved_positions: usize,
+    pub(crate) phase_loss_runs: usize,
+    pub(crate) reference_frame_runs: usize,
 }

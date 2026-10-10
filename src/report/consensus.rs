@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use crate::model::consensus_result::{
-    ConsensusReadResult, ConsensusRejectedReadResult, ConsensusResult, ConsensusSegmentResult,
-    ConsensusSiteResult, ConsensusSummaryResult,
+    ConsensusReadResult, ConsensusRejectedReadResult, ConsensusResult, ConsensusRunResult,
+    ConsensusSegmentResult, ConsensusSiteResult, ConsensusSummaryResult,
 };
 use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
@@ -93,6 +93,15 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
                 supporting_reads: rename(&site.supporting)?,
                 opposing_reads: rename(&site.opposing)?,
                 uninformative_reads: rename(&site.uninformative)?,
+                runs: site
+                    .runs
+                    .iter()
+                    .map(|run| ConsensusRunResult {
+                        base: run.base,
+                        length: run.length,
+                        length_evidence: run.evidence.label(),
+                    })
+                    .collect(),
             })
         })
         .collect::<Result<_>>()?;
@@ -141,6 +150,8 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
             called_positions: consensus.summary.called_positions,
             contested_sites: consensus.summary.contested_sites,
             unresolved_positions: consensus.summary.unresolved_positions,
+            phase_loss_runs: consensus.summary.phase_loss_runs,
+            reference_frame_runs: consensus.summary.reference_frame_runs,
         },
     })
 }

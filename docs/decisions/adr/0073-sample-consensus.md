@@ -10,7 +10,8 @@
   [ADR-0065](0065-result-comparison-downstream.md),
   [ADR-0068](0068-variant-opposition-evidence.md),
   [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md)
+  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
+  [ADR-0074](0074-run-structure-consensus.md)
 
 ## Context
 
@@ -36,7 +37,10 @@ consumes.
 - Every read observes each reference position it covers, and the inserted
   bases at each junction between two covered positions.
 - An observation is *clean* when its calls are unmasked, trusted
-  (`read_end`), and raise no support veto.
+  (`read_end`), and raise no support veto. An insertion or deletion that
+  changes the length of a run the read does not bound (ADR-0071) is not
+  clean, because the read does not show how long that run is (method
+  version 2).
 - A base shows where a neighbouring run ends (ADR-0071) when it is canonical,
   informative, and unmasked or anchoring.
 - Only clean observations decide.
@@ -44,21 +48,17 @@ consumes.
 **Stretches.** Each place where a read cleanly differs from the reference is
 grown to whole reference runs on both sides. Overlapping or touching
 stretches merge, and a stretch never crosses the origin. Unclean differences
-decide nothing and do not widen a stretch. A stretch is decided in this order
-of preference:
+decide nothing and do not widen a stretch. Method version 1 decided a stretch:
 
-1. **As a whole.** A read observes the whole stretch cleanly with a run
-   structure other than the reference's, for example a substitution inside a
-   run. Each such read contributes its sequence over the stretch.
-2. **Run by run.** Reads with the reference run structure each contribute the
-   length of a run, when the run's calls are clean and the bases on both
-   sides show where it ends. An unresolved call (`N`) removes that evidence
-   from the bases next to it. One read can decide one run and another read
-   the next.
-3. **Position by position.** This applies only when no read shares the
-   reference run structure, or when run-by-run decides nothing. Reads without
-   a clean indel inside the stretch contribute the base their alignment
-   places on each position.
+1. **As a whole**, from reads that observe it cleanly with a run structure
+   other than the reference's;
+2. otherwise **run by run**, from reads with the reference run structure that
+   show both ends of a run;
+3. otherwise **position by position**, from reads without a clean indel
+   inside it.
+
+Method version 2 decides a stretch by its run structure and labels how each
+run length is known ([ADR-0074](0074-run-structure-consensus.md)).
 
 Positions outside stretches are decided one by one.
 
@@ -105,7 +105,7 @@ it raises that version.
 ## Consequences
 
 **Measured downstream.** These figures are on the fair scale, with IUPAC
-truth scored separately.
+truth scored separately, for method version 1; ADR-0074 gives version 2.
 
 | Set | Rule | Exact samples | Precision | Recall |
 |---|---|---|---|---|

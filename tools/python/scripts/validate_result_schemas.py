@@ -901,12 +901,20 @@ def rejected_consensus_shapes(
     no_reads["reads"] = []
     missing_summary = copy.deepcopy(example)
     missing_summary.pop("summary")
+    unknown_evidence = copy.deepcopy(example)
+    unknown_evidence["sites"][0]["runs"] = [
+        {"base": "C", "length": 9, "length_evidence": "dominant"}
+    ]
+    missing_runs = copy.deepcopy(example)
+    missing_runs["sites"][0].pop("runs")
     return [
         ("consensus site with an unknown state", unknown_state),
         ("consensus segment with lower-case bases", lowercase_sequence),
         ("consensus site with an IUPAC call", iupac_call),
         ("consensus without admitted reads", no_reads),
         ("consensus without a summary", missing_summary),
+        ("consensus run with an unknown length evidence", unknown_evidence),
+        ("consensus site without runs", missing_runs),
     ]
 
 

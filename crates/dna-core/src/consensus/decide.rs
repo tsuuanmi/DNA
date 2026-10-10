@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::model::consensus::SiteState;
+use crate::model::consensus::{ConsensusRun, SiteState};
 
 /// The decision at one site or stretch and the reads behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,6 +12,8 @@ pub(super) struct Decision {
     pub(super) supporting: Vec<String>,
     pub(super) opposing: Vec<String>,
     pub(super) uninformative: Vec<String>,
+    /// The decided runs, for a stretch decided run by run.
+    pub(super) runs: Vec<ConsensusRun>,
 }
 
 /// Decides over clean observations only; each observation is a read's name
@@ -63,6 +65,7 @@ pub(super) fn decide(observations: &[(&str, Option<String>)], reference: &str) -
         supporting,
         opposing,
         uninformative,
+        runs: Vec::new(),
     }
 }
 

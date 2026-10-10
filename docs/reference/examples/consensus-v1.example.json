@@ -21,12 +21,12 @@
       {
         "id": "core",
         "family": "core",
-        "version": 1
+        "version": 2
       },
       {
         "id": "consensus",
         "family": "core",
-        "version": 1
+        "version": 2
       }
     ]
   },
@@ -73,7 +73,8 @@
         "A12_HV3R_03"
       ],
       "opposing_reads": [],
-      "uninformative_reads": []
+      "uninformative_reads": [],
+      "runs": []
     },
     {
       "start": 77,
@@ -87,12 +88,15 @@
       "opposing_reads": [
         "A12_HV3R_03"
       ],
-      "uninformative_reads": []
+      "uninformative_reads": [],
+      "runs": []
     }
   ],
   "summary": {
     "called_positions": 6,
     "contested_sites": 1,
-    "unresolved_positions": 0
+    "unresolved_positions": 0,
+    "phase_loss_runs": 0,
+    "reference_frame_runs": 0
   }
 }

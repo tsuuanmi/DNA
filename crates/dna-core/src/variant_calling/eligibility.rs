@@ -66,27 +66,26 @@ impl<'a> ReadEligibility<'a> {
         Self { trusted, evidence }
     }
 
-    /// Whether `variant` changes the length of a run of one base at an end of
-    /// that run the read does not resolve.
+    /// Whether an edit of `kind` changes the length of a run of one base at an
+    /// end of that run the read does not resolve.
     ///
-    /// The run is the read's maximal stretch of the edited base around the
-    /// edit: the substituted base, the inserted bases, or what a deletion
-    /// leaves of a run. An insertion or deletion needs both ends resolved and
-    /// every call of the run unmasked; a substitution needs the ends it lies
-    /// on. Edits of more than one distinct base, a lone substituted or
-    /// inserted base, and a deletion of a whole run change no run's length.
-    fn unbounded_run(
+    /// `edited` holds the edit's reference-strand bases: the substituted base,
+    /// the inserted bases, or the deleted ones. `evidence` holds the edit's
+    /// calls: the supporting calls, or a deletion's flanking calls. The run is
+    /// the read's maximal stretch of the edited base around the edit: the
+    /// substituted base, the inserted bases, or what a deletion leaves of a
+    /// run. An insertion or deletion needs both ends resolved and every call
+    /// of the run unmasked; a substitution needs the ends it lies on. Edits of
+    /// more than one distinct base, a lone substituted or inserted base, and a
+    /// deletion of a whole run change no run's length.
+    pub(crate) fn unbounded_run(
         &self,
-        variant: &Variant,
+        kind: VariantKind,
+        edited: &str,
         orientation: Orientation,
         evidence: &[usize],
     ) -> bool {
         let calls = self.evidence.calls();
-        let edited = match variant.kind {
-            VariantKind::Snv => &variant.alternate[..],
-            VariantKind::Ins => variant.alternate.get(1..).unwrap_or_default(),
-            VariantKind::Del => variant.reference.get(1..).unwrap_or_default(),
-        };
         let mut bases = edited.chars();
         let Some(reference_base) = bases.next() else {
             return false;
@@ -101,7 +100,7 @@ impl<'a> ReadEligibility<'a> {
         };
         let reads = |index: usize| calls.get(index).is_some_and(|call| call.base == base);
         // A deletion's run is the rest of the run, read by a flank.
-        let (mut start, mut end) = match variant.kind {
+        let (mut start, mut end) = match kind {
             VariantKind::Del if reads(first) => (first, first),
             VariantKind::Del if reads(last) => (last, last),
             VariantKind::Del => return false,
@@ -114,7 +113,7 @@ impl<'a> ReadEligibility<'a> {
             end += 1;
         }
         // A lone substituted or inserted base starts no run.
-        if variant.kind != VariantKind::Del && start == end {
+        if kind != VariantKind::Del && start == end {
             return false;
         }
         let before = start
@@ -125,7 +124,7 @@ impl<'a> ReadEligibility<'a> {
         } else {
             self.vouched()
         };
-        if variant.kind == VariantKind::Snv {
+        if kind == VariantKind::Snv {
             return (first == start && !before) || (first == end && !after);
         }
         !(before && after && calls[start..=end].iter().all(|call| call.mask.is_none()))
@@ -196,7 +195,12 @@ impl<'a> ReadEligibility<'a> {
         }) {
             reasons.push(VariantExclusionReason::ReadEnd);
         }
-        if self.unbounded_run(variant, orientation, &evidence) {
+        let edited = match kind {
+            VariantKind::Snv => &variant.alternate[..],
+            VariantKind::Ins => variant.alternate.get(1..).unwrap_or_default(),
+            VariantKind::Del => variant.reference.get(1..).unwrap_or_default(),
+        };
+        if self.unbounded_run(kind, edited, orientation, &evidence) {
             reasons.push(VariantExclusionReason::RunBoundary);
         }
         for reason in evidence.iter().filter_map(|&index| self.mask_reason(index)) {

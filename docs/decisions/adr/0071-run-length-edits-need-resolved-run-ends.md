@@ -82,3 +82,8 @@ that the edit touches.
   ([known limitations](../../validation/known-limitations.md)).
 - **Contracts:** the sample-evidence and variants contracts gain the core
   reason label `run_boundary`.
+- **Sample consensus:** the same test keeps an unbounded insertion or deletion
+  from deciding a run's length in `dna consensus` (ADR-0073). The consensus
+  applies it to runs rather than edits ([ADR-0074](0074-run-structure-consensus.md)).
+  It counts a run end as resolved only when the call beyond the run reads
+  another base, and it labels how each length is known.

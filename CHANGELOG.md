@@ -113,6 +113,39 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- `consensus` method version 2 decides a stretch by its run structure and
+  labels how each run length is known (ADR-0074, SRS-CONS-003/004/008).
+  - **Stretches.** A stretch also takes in a neighbouring run that a
+    substituted base or a deletion joins, as `16189C` does with the HVS-I
+    C-tract.
+  - **Composition, then lengths.** The ordered run bases are decided first.
+    Run lengths follow, voted as whole sequences when reads show every run's
+    length. A length comes only from reads that show both ends of the run
+    (ADR-0071); an insertion or deletion of a run the read does not bound is
+    never clean.
+  - **A run no read shows both ends of** takes one of two lengths:
+    - `reference_frame`: the reference positions between the ends that reads
+      locate, when every base between is read cleanly;
+    - otherwise `phase_loss`: the in-phase length before a read loses phase.
+  - **Measured** on the fair scale against method version 1:
+    - exact samples rise from 290 to 297 and from 292 to 299 on the two
+      320-sample subsets;
+    - recall rises from 0.9866 to 0.9899 and from 0.9901 to 0.9928;
+    - precision moves from 0.9967 to 0.9970 and from 0.9964 to 0.9967;
+    - reviewer-consensus calls identical on 145 of 160 samples (was 142);
+    - the local Sequencher set has 28 exact samples (was 26).
+    - The false `16182.1C` that a phase-lost read added in HVS-I is gone, and
+      HVS-II dominant lengths (`309.1C`, `309.2C`) are kept.
+  - **Breaking:** `dna.consensus/v1` is revised in place. Each site gains
+    `runs` (`base`, `length`, `length_evidence`), and the summary gains
+    `phase_loss_runs` and `reference_frame_runs`.
+  - `dna sample` and `dna call` are unchanged apart from the `core` version.
+
+- The `core` plugin method version rises to 2. It records the output changes
+  of `run_boundary` (ADR-0071) and run-structure re-expression (ADR-0072),
+  which earlier entries in this cycle made without raising it
+  ([versioning](docs/governance/versioning.md#plugins)).
+
 - A read the core cannot place no longer fails `dna sample` (SRS-SAMPLE-029,
   PROP-0003 increment 0).
   - The covered cases are too few callable columns, identity below

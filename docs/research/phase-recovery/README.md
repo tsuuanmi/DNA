@@ -247,7 +247,74 @@ it (semi-global; mismatches and gaps counted). All results are in aggregate.
 - **Length-mixture estimation.** The fitted near-shadow weights describe the
   length populations around a run. Turning them into a reported dominant
   length or mixture is quantitative heteroplasmy and stays out of scope until
-  decided.
+  decided. The [exit survival curve](#exit-survival-curve-2026-10-10) is a
+  simpler, reference-free view of the same populations.
+
+## Exit survival curve (2026-10-10)
+
+**Question.** What does a read's own signal say about a run's length at the
+run's exit, where the read loses phase? This informs how the consensus labels
+a length it cannot see both ends of
+([ADR-0074](../../decisions/adr/0074-run-structure-consensus.md)).
+
+**Model.** At its entry every molecule reads the run in phase, because they
+share the primer and the 5′ flank.
+- Let `N` be the run length counted from the entry, and `f_n` the fraction of
+  molecules with `N = n`.
+- At the `m`-th call of the run, the run base's share of the four channels is
+  the survival curve `r(m) = P(N ≥ m)`.
+- Hence `f_n = r(n) − r(n+1)`, and the mode of `f_n` is the dominant length.
+
+No reference and no control trace are needed. This differs from TIDE, ICE,
+DECODR, or Tracy `decompose`, which all fit a control or reference trace
+shifted against the test trace. The estimate holds until the run base recurs
+downstream.
+
+**Spike** (outside the repository, ADR-0065/0066).
+- **Signal:** raw `DATA9–12` amplitudes at `PLOC 2`, with the run taken as the
+  read's longest run of the run base.
+- **Samples:** both held-out 320-sample subsets.
+- **Truth:** the run length implied by the merged reviewer calls (IUPAC
+  samples excluded).
+
+| Region | Reads | Mode = truth | Basecaller's run = truth | Strands agree on the mode |
+|---|---|---|---|---|
+| HVS-II 303–309 run, forward | 571 | 514 (90 %) | 516 | 508 of 571 samples |
+| HVS-II 303–309 run, reverse | 571 | 534 (94 %) | 531 | |
+| HVS-I C-tract with `16189C`, forward | 187 | 59 (32 %) | 41 | 108 of 187 samples |
+| HVS-I C-tract with `16189C`, reverse | 187 | 90 (48 %) | 119 | |
+
+**Reading.**
+- **HVS-II.** The mode is the dominant length that reviewers record. The
+  basecaller's in-phase run reads the same length almost as often, so the
+  consensus's `phase_loss` estimate is grounded in the signal.
+- **HVS-I.** The mode is usually one or two Cs longer than the reviewer
+  length, and the two strands disagree on it far more often. The tract holds a
+  broad mixture whose dominant length is real but not what reviewers record:
+  their convention keeps the reference `C5TC4` frame (forensic SOP). This is
+  why the consensus labels the HVS-I length `reference_frame`.
+
+**Limits.**
+- Amplitudes are raw, without baseline correction or per-dye calibration.
+- PCR and cycle-sequencing stutter cannot be told apart from heteroplasmy in
+  vivo.
+- Spread beyond about ±3 calls meets the recurring run base.
+- The longest-run heuristic sometimes picks a merged or wrong run, which
+  produces the outliers at +3.
+
+**Implication.** A run-exit annotation exported by the Sanger plugin would
+make an `anchored_end` or `phase_loss` length measurable, as call indices and
+without fractions (SRS-CALL-007). It would need its own decision under
+[ADR-0009](../../decisions/adr/0009-biological-semantics.md). Until then it
+stays research ([roadmap](../../proposals/roadmap.md)).
+
+**Sources.**
+- [TIDE](https://pmc.ncbi.nlm.nih.gov/articles/PMC4267669/)
+- [ICE](https://www.biorxiv.org/content/10.1101/251082v3)
+- [DECODR](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7898406/)
+- [Tracy](https://doi.org/10.1186/s12864-020-6635-8)
+- [Bendall & Sykes 1995 on the 16189 tract](https://pmc.ncbi.nlm.nih.gov/articles/PMC1801530)
+- [the NYC OCME nomenclature SOP](https://www.nyc.gov/assets/ocme/downloads/pdf/technical-manuals/forensic-biology-technical-manuals/sequence_nomenclature_and_alignment_091517.pdf)
 
 ## Success criterion and promotion
 
