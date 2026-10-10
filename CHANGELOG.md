@@ -95,6 +95,21 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- The core re-expresses masked repeat stretches of the selected alignment
+  (ADR-0072, SRS-ALN-016).
+  - A stretch qualifies when its read calls spell the reference's runs in
+    order, with every changed run longer or every changed run shorter, and
+    it holds a masked call.
+  - It is rewritten as one length edit at the 3' end of each changed run.
+  - This recovers HVS-II length insertions that the optimal path split into
+    a substitution next to a masked insertion.
+  - On the 320-sample held-out set, 6 true `309.1C`/`309.2C` calls are
+    gained and one false `310C` is removed; precision rises from 0.9894 to
+    0.9897 and recall from 0.9800 to 0.9816.
+  - Consensus calls from `dna call` are unchanged.
+  - Alignment summaries (`identity`, `gap_opens`) and observed evidence
+    change for reads with a rewritten stretch.
+
 - A variant that changes the length of a run of one base is ineligible with
   the new core reason `run_boundary` when the read does not show where that
   run ends on the side the edit touches (ADR-0071, SRS-VAR-016).

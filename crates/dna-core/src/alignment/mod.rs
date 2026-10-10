@@ -8,6 +8,7 @@ mod canonical;
 mod exact;
 mod gotoh;
 mod orient;
+mod runs;
 mod scoring;
 mod traceback;
 

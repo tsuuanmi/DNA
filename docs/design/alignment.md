@@ -111,7 +111,34 @@ reference segments, not the rows, operation runs, or score. When multiple paths 
 
 The forward and reverse candidates are compared by fixed-point profile score only. The strictly better orientation is selected; an exact score tie is an error and primary-sequence exact/mismatch metrics do not break it. After placement, `callable_columns`, `callable_identity`, exact/mismatch counts, and unresolved-query count are still computed from the retained primary sequence on the selected traceback. The selected orientation must meet the existing `minimum_callable_bases` and `minimum_identity` primary-sequence admission gates, otherwise analysis fails.
 
-### Substep 6.6 — Reference segments
+### Substep 6.6 — Run-structure re-expression
+
+Dephased calls anchor the alignment with their mixed profiles (SRS-ALN-015),
+so the optimal path can split one run-length change into a substitution next
+to an insertion, or merge two of them into one gap. After the admission gates,
+the selected alignment's masked repeat stretches are therefore re-expressed
+(ADR-0072, SRS-ALN-016):
+
+1. Each maximal block of columns that are not exact canonical matches grows
+   to whole reference runs (a run may be one base). It keeps growing run by
+   run until each side ends at an anchor: an exact canonical match whose base
+   the read's adjacent call inside the stretch does not repeat. A stretch
+   never crosses the circular origin or exceeds 64 reference bases; growth
+   that reaches the alignment end leaves the block unchanged.
+2. The stretch is rewritten only when all of these hold:
+   - every read call in it is canonical;
+   - one of them is masked;
+   - the read's run bases equal the reference's in order;
+   - the changed runs are all longer or all shorter.
+3. Each run becomes its paired matches followed by one length edit at its 3'
+   end.
+
+The placement, its span and score, and every column outside the stretch are
+kept, and the metrics are recomputed from the rewritten columns. A read
+without masked calls, such as a reviewed consensus sequence, is never
+changed.
+
+### Substep 6.7 — Reference segments
 
 For a linear reference, the alignment maps to one half-open reference segment.
 For a circular reference, the aligned span is projected back onto the reference;

@@ -64,7 +64,7 @@ The following remain outside the current production interpretation boundary unti
 - signal denoising and baseline correction (research spike under `docs/research/denoising/`);
 - sample-level consensus and adjudicated sample variants;
 - quantitative heteroplasmy;
-- mixed-template or length-mixture decomposition;
+- mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [known limitations](../validation/known-limitations.md));
 - haplogroup-based QC or inference;
 - calibrated quality/error probabilities;
 - ML-based calling, correction, or training export;
