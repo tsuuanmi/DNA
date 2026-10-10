@@ -28,8 +28,9 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
   - `variants[]`: every observed variant of the read, sorted by `position`,
     `reference`, and `alternate`. Each has the anchored `reference` and
     `alternate` alleles, its `kind` (`SNV`, `INS`, or `DEL`), `eligible`, and
-    its `exclusion_reasons`. These are core reasons, or modality labels
-    reported verbatim.
+    its `exclusion_reasons`. These are core reasons (`outside_target_region`,
+    `indel_length_exceeded`, `non_canonical_allele`, `read_end`,
+    `run_boundary`), or modality labels reported verbatim.
 - `notation` (only when the profile declares notation): the same per-read view
   as in [sample evidence](sample-evidence/notation.md). Each rendered call
   lists the reads whose represented eligible calls contain it.

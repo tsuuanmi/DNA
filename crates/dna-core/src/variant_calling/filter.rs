@@ -1,6 +1,7 @@
 //! Profile-region and modality support-veto eligibility filters.
 
 use super::eligibility::ReadEligibility;
+use crate::model::alignment::Orientation;
 use crate::model::variant::{
     ExcludedVariant, ObservedVariant, Variant, VariantCallRole, VariantCallingResult,
     VariantExclusionReason, VariantKind,
@@ -12,11 +13,12 @@ use dna_kernel::read_evidence::{ReadEvidence, VetoScope, VetoSet};
 /// supporting calls' modality evidence, or ineligible for their read.
 ///
 /// Reasons are ordered: region, support vetoes in the read's vocabulary order,
-/// then `read_end`, then mask reasons.
+/// then `read_end`, then `run_boundary`, then mask reasons.
 pub(super) fn apply(
     extracted: VariantCallingResult,
     evidence: &ReadEvidence,
     eligibility: &ReadEligibility<'_>,
+    orientation: Orientation,
     regions: &[[usize; 2]],
 ) -> Result<VariantCallingResult> {
     let mut reported = Vec::with_capacity(extracted.reported.len());
@@ -28,7 +30,7 @@ pub(super) fn apply(
             reasons.push(VariantExclusionReason::OutsideTargetRegion);
         }
         reasons.extend(support_vetoes(&variant, evidence)?);
-        reasons.extend(eligibility.reasons(variant.kind, &variant.calls));
+        reasons.extend(eligibility.reasons(&variant, orientation));
         observed.push(ObservedVariant {
             variant: variant.clone(),
             exclusion_reasons: reasons.clone(),
@@ -138,8 +140,14 @@ mod tests {
         }
     }
 
-    /// Evidence whose call `i` raises the vetoes listed at `vetoes[i]`.
+    /// Evidence whose call `i` raises the vetoes listed at `vetoes[i]`; its
+    /// ends are vouched, so they bound every run.
     fn evidence(vetoes: &[&[usize]]) -> Result<ReadEvidence> {
+        Ok(unvouched(vetoes)?.with_vouched_ends())
+    }
+
+    /// Like [`evidence`], with ends that bound nothing.
+    fn unvouched(vetoes: &[&[usize]]) -> Result<ReadEvidence> {
         let calls = vetoes
             .iter()
             .map(|raised| {
@@ -167,7 +175,13 @@ mod tests {
     ) -> Result<VariantCallingResult> {
         let config = config(read_end_margin);
         let eligibility = ReadEligibility::new(evidence, &config);
-        apply(extracted, evidence, &eligibility, regions)
+        apply(
+            extracted,
+            evidence,
+            &eligibility,
+            Orientation::Forward,
+            regions,
+        )
     }
 
     fn mapping(role: VariantCallRole, index: usize) -> VariantCallMapping {
@@ -343,7 +357,7 @@ mod tests {
     #[test]
     fn marks_a_variant_supported_at_the_read_end_ineligible() -> Result<()> {
         let none: &[usize] = &[];
-        let read = evidence(&[none; 6])?;
+        let read = unvouched(&[none; 6])?;
 
         let result = filter(snvs(3), &read, 2, &[[1, 100]])?;
 

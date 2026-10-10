@@ -10,8 +10,10 @@ Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
 and imports no Sanger type.
 - `eligibility.rs` decides which calls of a read can support a variant. Calls
   near an uninformative call (outside the informative interval, or masked as
-  unresolved) give `read_end` (ADR-0062). Masked evidence calls give their
-  mask reason, verbatim.
+  unresolved) give `read_end` (ADR-0062). An edit that changes the length of
+  a run of one base whose end the read does not resolve gives
+  `run_boundary` (ADR-0071). Masked evidence calls give their mask reason,
+  verbatim.
 - `filter.rs` applies the region gate and reports the union of the supporting
   calls' modality vetoes, in vocabulary order and filtered by scope.
 - A masked call is no SNV candidate in `extract.rs`.

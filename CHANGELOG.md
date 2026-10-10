@@ -95,6 +95,19 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- A variant that changes the length of a run of one base is ineligible with
+  the new core reason `run_boundary` when the read does not show where that
+  run ends on the side the edit touches (ADR-0071, SRS-VAR-016).
+  - This targets Sanger reads that dephase right after a poly-C run and
+    miscount it by one base. A dephased call that still reads the next base
+    resolves the run end.
+  - On the 320-sample held-out set, 9 false length calls are removed and
+    none is gained; precision rises from 0.9870 to 0.9894, and recall stays
+    at 0.9800. Consensus calls from `dna call` are unchanged.
+  - **Breaking:** the exclusion-reason vocabulary of
+    `dna.sample_evidence/v10` and `dna.variants/v1` gains `run_boundary`
+    (revised in place).
+
 - Plugin-first architecture, phase 5b (ADR-0070, PROP-0002): DNA is a Cargo
   workspace.
   - `dna-kernel` (shared contracts), `dna-core` (the core caller),

@@ -456,6 +456,7 @@
         "relative_quality_not_above_threshold",
         "mixed_supporting_dna",
         "read_end",
+        "run_boundary",
         "post_homopolymer",
         "dephased_signal",
         "mixed_signal",

@@ -40,7 +40,7 @@ Use this map to find current rationale without treating the chronological ADR li
 | plugin families and the modality → core evidence contract | ADR-0069 (supersedes ADR-0058 §4 and ADR-0060 §1/§6 in part) | PROP-0002 + interface architecture + variant-calling method |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
 | operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
-| Sanger variant eligibility | ADR-0027, ADR-0062 → ADR-0067 | SRS-VAR-012/013 + variant-calling method |
+| Sanger variant eligibility | ADR-0027, ADR-0062 → ADR-0067, ADR-0071 | SRS-VAR-012/013/016 + variant-calling method |
 
 The production authority column describes **current truth**. ADRs explain why that truth exists; they should not be copied into new production docs verbatim.
 
@@ -106,3 +106,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0068](0068-variant-opposition-evidence.md) | Variant opposition evidence | Accepted |
 | [0069](0069-plugin-first-modality-core-post-calling.md) | Plugin-first composition of modality, core, and post-calling plugins | Accepted |
 | [0070](0070-workspace-split-by-plugin-family.md) | Workspace split by plugin family | Accepted |
+| [0071](0071-run-length-edits-need-resolved-run-ends.md) | Run-length edits need resolved run ends | Accepted |

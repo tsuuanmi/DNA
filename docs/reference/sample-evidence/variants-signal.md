@@ -88,7 +88,7 @@ given fabricated peaks.
 
 An eligible support has an empty exclusion list. An ineligible support retains one
 or more reasons such as `outside_target_region`, `peak_below_minimum`,
-`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`,
+`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`, `run_boundary`,
 `post_homopolymer`, `dephased_signal`, `mixed_signal`, `weak_signal`, or
 `irregular_spacing`.
 `mixed_supporting_dna` means an SNV's supporting call retained more than one
@@ -96,6 +96,11 @@ co-localized qualifying channel under the authoritative basecalling rule; the
 normalized observation remains evidence, but it is not presented as a clean SNV. The latter name remains explicit because
 the configured gate still operates on the internal relative-quality method even
 though the public numeric field is simply `quality`.
+
+`run_boundary` (ADR-0071) means the variant changes the length of a run of
+one base, and the read does not show where that run ends on the side the edit
+touches: the call beyond the run is masked without reading another base, is
+outside the read's trim, or is the read's end.
 
 `read_end` (ADR-0062) means a mapped call of the variant lies within the
 configured margin of an uninformative call: beyond the read's trim interval or

@@ -68,7 +68,7 @@ pub struct Variant {
 
 /// Stable reason a primary-difference candidate was not reportable.
 ///
-/// The core owns the first four reasons. Every other reason comes from the
+/// The core owns the first five reasons. Every other reason comes from the
 /// read's modality evidence and is reported verbatim; the core never
 /// interprets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +81,8 @@ pub enum VariantExclusionReason {
     OutsideTargetRegion,
     /// A mapped call lies within the read-end margin of an uninformative call.
     ReadEnd,
+    /// A run-length edit at an end of the run the read does not resolve.
+    RunBoundary,
     /// A support veto or mask reason supplied by the read's modality.
     Evidence(EvidenceReason),
 }
@@ -93,6 +95,7 @@ impl VariantExclusionReason {
             Self::IndelLengthExceeded => "indel_length_exceeded",
             Self::OutsideTargetRegion => "outside_target_region",
             Self::ReadEnd => "read_end",
+            Self::RunBoundary => "run_boundary",
             Self::Evidence(reason) => reason.label(),
         }
     }

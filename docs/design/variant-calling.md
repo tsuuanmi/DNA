@@ -79,12 +79,26 @@ or `irregular_spacing`. Trace order is the sequencing direction for both
 strands, so forward and reverse reads are handled alike without primer
 knowledge.
 
+A read must also resolve the end of any run of one base whose length a
+variant changes (ADR-0071, SRS-VAR-016), or the variant gets `run_boundary`.
+The run is the read's maximal stretch of the edited base around the edit: the
+substituted base, inserted bases that are all one base, or what a deletion of
+one repeated base leaves of its run. The call beyond the run resolves its end
+when it is informative and reads another non-`N` base, either unmasked or
+dephased: a read that dephases right after a run still shows where the run
+ends. An unvouched physical read end resolves nothing; a vouched one does.
+Insertions and deletions need both ends resolved and the whole run unmasked;
+a substitution needs only the ends it lies on. A lone substituted or inserted
+base, an edit of several distinct bases, and the deletion of a whole run
+change no run's length. The variant's reference-strand alleles are compared
+with the read's trace-strand calls through the read's placement.
+
 Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as an observed called difference but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
 
 The caller reads each read only as `ReadEvidence`
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
-The region gate, `indel_length_exceeded`, `non_canonical_allele`, and
-`read_end` are core rules. Everything else arrives from the modality as data:
+The region gate, `indel_length_exceeded`, `non_canonical_allele`,
+`read_end`, and `run_boundary` are core rules. Everything else arrives from the modality as data:
 - the Sanger adapter (`read_processing::evidence`) raises the support vetoes
   `peak_below_minimum` and `relative_quality_not_above_threshold`, which apply
   to SNVs and insertions, and `mixed_supporting_dna`, which applies to SNVs
@@ -96,7 +110,8 @@ A variant's reasons are reported in this order:
 2. the union of its supporting calls' vetoes, in the adapter's vocabulary
    order (the order listed above);
 3. `read_end`;
-4. the mask reasons of its evidence calls, in mapping order and without
+4. `run_boundary`;
+5. the mask reasons of its evidence calls, in mapping order and without
    duplicates.
 
 Each removed candidate increments `excluded_variant_candidates` once, even when
