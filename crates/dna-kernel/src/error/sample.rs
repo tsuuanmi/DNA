@@ -15,8 +15,8 @@ pub enum SampleError {
     /// Aggregation received no read observation.
     #[error("at least one read observation is required")]
     NoReads,
-    /// Every read had too few callable calls.
-    #[error("all {rejected} reads have too few callable calls to be analyzed")]
+    /// Every read was rejected: too few callable calls, or no placement.
+    #[error("all {rejected} reads were rejected and none could be analyzed")]
     NoAdmittedReads {
         /// Rejected read count.
         rejected: usize,

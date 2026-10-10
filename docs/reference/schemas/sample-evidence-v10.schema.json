@@ -228,26 +228,100 @@
       }
     },
     "readRejection": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "reason",
-        "callable_calls",
-        "minimum_callable_calls"
-      ],
-      "properties": {
-        "reason": {
-          "const": "callable_calls_below_minimum"
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "callable_calls",
+            "minimum_callable_calls"
+          ],
+          "properties": {
+            "reason": {
+              "const": "callable_calls_below_minimum"
+            },
+            "callable_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minimum_callable_calls": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         },
-        "callable_calls": {
-          "type": "integer",
-          "minimum": 0
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "callable_columns",
+            "minimum_callable_columns"
+          ],
+          "properties": {
+            "reason": {
+              "const": "callable_columns_below_minimum"
+            },
+            "callable_columns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minimum_callable_columns": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         },
-        "minimum_callable_calls": {
-          "type": "integer",
-          "minimum": 1
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "identity",
+            "minimum_identity"
+          ],
+          "properties": {
+            "reason": {
+              "const": "identity_below_minimum"
+            },
+            "identity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "minimum_identity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "const": "ambiguous_placement"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "const": "orientation_tie"
+            }
+          }
         }
-      }
+      ]
     },
     "callability": {
       "type": "object",
