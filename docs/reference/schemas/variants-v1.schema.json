@@ -262,7 +262,7 @@
     "exclusionReason": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*$",
-      "description": "A core reason (outside_target_region, indel_length_exceeded, non_canonical_allele, read_end) or a modality reason label reported verbatim."
+      "description": "A core reason (outside_target_region, indel_length_exceeded, non_canonical_allele, read_end, run_boundary) or a modality reason label reported verbatim."
     },
     "variant": {
       "type": "object",

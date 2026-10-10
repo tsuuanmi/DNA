@@ -20,7 +20,7 @@ The v9 serialized integrity object retains `ploc_*` field names because those
 names are part of the current closed JSON contract. Internally, `PLOC.2` is
 projected to canonical Sanger locus positions at the ABIF boundary.
 
-`read.call_count` is the number of canonical Sanger call loci decoded from `PLOC.2`. `read.trim.start` and `read.trim.end` delimit the retained calls as a 0-based half-open interval: the callable span plus at most `read_end_margin` adjacent dephased calls per side ([quality control](../../design/quality-control.md)). No sequence string is emitted.
+`read.call_count` is the number of canonical Sanger call loci decoded from `PLOC.2`, after merging repeated positions. `read.trim.start` and `read.trim.end` delimit the retained calls as a 0-based half-open interval: the callable span plus at most `read_end_margin` adjacent dephased calls per side ([quality control](../../design/quality-control.md)). No sequence string is emitted.
 
 `read.callability` is the `dna.read_callability/v1` view ([method](../../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call; empty when every call is masked), `segments` (ordered 0-based half-open call intervals that partition the read, each with `state` `in_phase`, `dephased`, `mixed`, `weak`, or `irregular`, `after_repeat`, true when the segment starts in the window after a long repeat run, and, exactly on `dephased` segments, `shadow_offsets`: the ascending call offsets whose shadow the segment carries, always including `-1` or `1`), and `masked_calls`. The view sets the trim interval, the masked alignment query, and variant eligibility (ADR-0067). Phase states are read-level signal states, not error probabilities or artifact classes.
 
@@ -31,6 +31,8 @@ projected to canonical Sanger locus positions at the ABIF boundary.
 `signal_quality.integrity` preserves concise evidence about the trace foundation:
 
 - serialized `ploc_count`, representing canonical locus count;
+- `duplicate_ploc_positions`: `PLOC.2` positions equal to their predecessor,
+  merged into that locus with their vendor entries;
 - optional PBAS/PCON counts;
 - serialized `*_ploc_spacing`, representing adjacent canonical locus spacing when at least two loci exist;
 - exact signed-16-bit clipped channel-sample count;

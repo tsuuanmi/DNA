@@ -122,6 +122,7 @@ mod tests {
             source_sha256: String::new(),
             channels,
             locus_positions,
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         }
     }

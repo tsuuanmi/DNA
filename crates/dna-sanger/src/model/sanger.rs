@@ -18,6 +18,8 @@ pub struct Chromatogram {
     pub source_sha256: String,
     pub(crate) channels: [Vec<i32>; 4],
     pub(crate) locus_positions: Vec<usize>,
+    /// Source peak locations merged into their equal predecessor.
+    pub(crate) duplicate_loci: usize,
     /// Optional vendor evidence, never authoritative.
     pub vendor: VendorEvidence,
 }

@@ -95,6 +95,19 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- A variant that changes the length of a run of one base is ineligible with
+  the new core reason `run_boundary` when the read does not show where that
+  run ends on the side the edit touches (ADR-0071, SRS-VAR-016).
+  - This targets Sanger reads that dephase right after a poly-C run and
+    miscount it by one base. A dephased call that still reads the next base
+    resolves the run end.
+  - On the 320-sample held-out set, 9 false length calls are removed and
+    none is gained; precision rises from 0.9870 to 0.9894, and recall stays
+    at 0.9800. Consensus calls from `dna call` are unchanged.
+  - **Breaking:** the exclusion-reason vocabulary of
+    `dna.sample_evidence/v10` and `dna.variants/v1` gains `run_boundary`
+    (revised in place).
+
 - Plugin-first architecture, phase 5b (ADR-0070, PROP-0002): DNA is a Cargo
   workspace.
   - `dna-kernel` (shared contracts), `dna-core` (the core caller),
@@ -232,6 +245,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- A trace whose `PLOC.2` repeats one position (seen at the first or last
+  locus of production traces) no longer fails the whole `analyze`,
+  `basecall`, or `sample` operation (SRS-IN-003, ADR-0031). Decode merges the
+  repeated position into its predecessor and drops the vendor entries at its
+  index; a decreasing position is still rejected, now with "PLOC.2 positions
+  must not decrease". **Breaking:** trace integrity in `dna.analysis/v9`,
+  `dna.basecalls/v3`, and `dna.sample_evidence/v10` gains the required
+  `duplicate_ploc_positions` count (revised in place).
 - An indel flanking call whose primary base is unresolved (`N`) is omitted from
   public calls (SRS-VAR-006). Previously a tied flank aborted `analyze` or a
   whole `sample` operation, and a mixed-signal flank was published with the

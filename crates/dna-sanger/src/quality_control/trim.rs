@@ -120,6 +120,7 @@ mod tests {
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 16]),
             locus_positions: locations.to_vec(),
+            duplicate_loci: 0,
             vendor: VendorEvidence {
                 primary: Some("AAAA".into()),
                 qualities: Some(vec![40; 4]),

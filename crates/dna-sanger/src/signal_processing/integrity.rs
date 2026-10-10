@@ -57,6 +57,7 @@ pub(super) fn assess(trace: &Chromatogram, loci: &[LocusEvidence]) -> Result<San
 
     Ok(SangerIntegrity {
         locus_count: trace.call_count(),
+        duplicate_locus_count: trace.duplicate_loci,
         vendor_primary_count: trace.vendor.primary.as_ref().map(String::len),
         vendor_quality_count: trace.vendor.qualities.as_ref().map(Vec::len),
         minimum_locus_spacing,
@@ -102,6 +103,7 @@ mod tests {
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
             locus_positions: vec![2, 6, 10],
+            duplicate_loci: 0,
             vendor: VendorEvidence {
                 primary: Some("AAAA".into()),
                 qualities: Some(vec![40; 2]),
@@ -130,6 +132,7 @@ mod tests {
             source_sha256: String::new(),
             channels,
             locus_positions: vec![2, 6, 10],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
 

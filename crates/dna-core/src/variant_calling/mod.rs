@@ -28,5 +28,11 @@ pub(crate) fn call(
 ) -> Result<VariantCallingResult> {
     let eligibility = eligibility::ReadEligibility::new(evidence, config);
     let extracted = extract::call(alignment, reference, &eligibility, config)?;
-    filter::apply(extracted, evidence, &eligibility, regions)
+    filter::apply(
+        extracted,
+        evidence,
+        &eligibility,
+        alignment.orientation,
+        regions,
+    )
 }

@@ -29,7 +29,8 @@ basecall results, single-read analysis results, and each sample read summary.
 ### PLOC remains mandatory
 
 `PLOC.2` remains a hard dependency of the current re-calling method. Decode
-still requires a non-empty, strictly increasing, in-range PLOC series.
+still requires a non-empty, non-decreasing, in-range PLOC series; a position
+equal to its predecessor is merged into it (see the revision below).
 
 DNA does **not** add a PLOC-independent event detector or fallback.
 
@@ -46,6 +47,7 @@ additional DNA calls.
 The integrity record retains:
 
 - `ploc_count`;
+- `duplicate_ploc_positions`;
 - optional `vendor_primary_count`;
 - optional `vendor_quality_count`.
 
@@ -124,3 +126,18 @@ retained.
 - Future PLOC-independent event detection, dye-blob classification, baseline
   shift detection, and neighbor-interference classification remain separate
   methods.
+
+## Revision 2026-10-10 (repeated PLOC positions)
+
+Production traces occasionally repeat one `PLOC.2` position, at the first or
+last locus. Rejecting such a trace failed every sample that contained it,
+although one sample position is one signal event and the repeat carries no
+second base.
+
+Decode now merges a position equal to its predecessor into one locus and
+drops the vendor `PBAS.2`/`PCON.2` entries at the same index, so the vendor
+series stay index-aligned with the canonical loci. The integrity record
+counts the merged positions as `duplicate_ploc_positions`; `ploc_count` is the
+canonical count after merging. A decreasing position is still rejected.
+`dna.analysis/v9`, `dna.basecalls/v3`, and `dna.sample_evidence/v10` were
+revised in place under the unreleased-cycle rule.

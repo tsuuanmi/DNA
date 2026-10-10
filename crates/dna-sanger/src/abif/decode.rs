@@ -101,23 +101,28 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
 
     let ploc_entry = abif.required(*b"PLOC", 2)?;
     require_layout(ploc_entry, TYPE_SHORT, 2)?;
-    let locus_positions: Vec<usize> = decode_i16(abif, ploc_entry)?
+    let peak_locations: Vec<usize> = decode_i16(abif, ploc_entry)?
         .into_iter()
         .map(|value| {
             usize::try_from(value)
                 .map_err(|_| AbifError::PeakLocations("PLOC.2 contains a negative position"))
         })
         .collect::<std::result::Result<_, AbifError>>()?;
-    if locus_positions.is_empty() {
+    if peak_locations.is_empty() {
         return Err(AbifError::PeakLocations("PLOC.2 is empty").into());
     }
-    for pair in locus_positions.windows(2) {
-        if pair[0] >= pair[1] {
-            return Err(
-                AbifError::PeakLocations("PLOC.2 positions must be strictly increasing").into(),
-            );
+    // A position equal to its predecessor names the same signal event twice:
+    // it is merged into one locus, and the vendor entries at the same index
+    // are dropped so the vendor series stay aligned with the loci.
+    let mut repeated = vec![false; peak_locations.len()];
+    for (index, pair) in peak_locations.windows(2).enumerate() {
+        if pair[0] > pair[1] {
+            return Err(AbifError::PeakLocations("PLOC.2 positions must not decrease").into());
         }
+        repeated[index + 1] = pair[0] == pair[1];
     }
+    let duplicate_loci = repeated.iter().filter(|&&dropped| dropped).count();
+    let locus_positions = kept(peak_locations, &repeated);
     if locus_positions
         .iter()
         .any(|position| *position >= sample_count)
@@ -127,8 +132,12 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
         );
     }
 
-    let primary = decode_optional_string(abif, *b"PBAS", 2)?;
-    let qualities = decode_optional_bytes(abif, *b"PCON", 2)?;
+    let primary = decode_optional_string(abif, *b"PBAS", 2)?.map(|bases| {
+        kept(bases.chars().collect(), &repeated)
+            .into_iter()
+            .collect()
+    });
+    let qualities = decode_optional_bytes(abif, *b"PCON", 2)?.map(|values| kept(values, &repeated));
     let source_name = path
         .file_name()
         .and_then(|name| name.to_str())
@@ -140,8 +149,20 @@ fn decode(path: &Path, abif: &AbifFile, source_sha256: String) -> Result<Chromat
         source_sha256,
         channels,
         locus_positions,
+        duplicate_loci,
         vendor: VendorEvidence { primary, qualities },
     })
+}
+
+/// The elements whose index is not marked as a repeated peak location; a
+/// series longer than the marks keeps its unmarked tail.
+fn kept<T>(values: Vec<T>, repeated: &[bool]) -> Vec<T> {
+    values
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| !repeated.get(*index).copied().unwrap_or(false))
+        .map(|(_, value)| value)
+        .collect()
 }
 
 fn require_layout(entry: &AbifEntry, element_type: u16, element_size: usize) -> Result<()> {

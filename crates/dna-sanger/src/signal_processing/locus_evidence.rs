@@ -264,6 +264,7 @@ mod tests {
             source_sha256: String::new(),
             channels,
             locus_positions: vec![1, 3, 5, 7, 9],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         }
     }
@@ -324,6 +325,7 @@ mod tests {
             source_sha256: String::new(),
             channels,
             locus_positions: vec![2, 10, 18, 26, 34],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
 
@@ -344,6 +346,7 @@ mod tests {
             source_sha256: String::new(),
             channels,
             locus_positions: vec![2, 6, 10, 14, 18],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
         let window = LocusWindow { start: 3, end: 9 };
@@ -364,6 +367,7 @@ mod tests {
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
             locus_positions: vec![1, 3, 5, 7, 9],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
 

@@ -456,6 +456,7 @@
         "relative_quality_not_above_threshold",
         "mixed_supporting_dna",
         "read_end",
+        "run_boundary",
         "post_homopolymer",
         "dephased_signal",
         "mixed_signal",
@@ -836,12 +837,17 @@
       "additionalProperties": false,
       "required": [
         "ploc_count",
+        "duplicate_ploc_positions",
         "clipped_channel_samples"
       ],
       "properties": {
         "ploc_count": {
           "type": "integer",
           "minimum": 1
+        },
+        "duplicate_ploc_positions": {
+          "type": "integer",
+          "minimum": 0
         },
         "vendor_primary_count": {
           "type": "integer",

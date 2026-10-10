@@ -275,21 +275,47 @@ fn ignores_unused_p2ba_content() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn rejects_non_increasing_ploc_without_output() -> Result<(), Box<dyn std::error::Error>> {
+fn rejects_decreasing_ploc_without_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace = directory.path().join("trace.ab1");
     let reference = directory.path().join("reference.fa");
     let config = directory.path().join("dna.toml");
     let mut ploc: Vec<usize> = (0..QUERY.len()).map(|index| 2 + 4 * index).collect();
-    ploc[5] = ploc[4];
+    ploc[5] = ploc[4] - 1;
     write_abif_with_ploc(&trace, QUERY, ploc)?;
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
 
     run(&trace, &reference, &config, directory.path())
         .failure()
-        .stderr(predicate::str::contains("strictly increasing"));
+        .stderr(predicate::str::contains("must not decrease"));
     assert!(!analysis_output_path(directory.path(), &trace).exists());
+    Ok(())
+}
+
+#[test]
+fn merges_a_repeated_ploc_position_with_its_vendor_entries()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let mut ploc: Vec<usize> = (0..QUERY.len()).map(|index| 2 + 4 * index).collect();
+    let last = ploc.len() - 1;
+    ploc[last] = ploc[last - 1];
+    write_abif_with_ploc(&trace, QUERY, ploc)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+    let value = read_result(directory.path(), &trace)?;
+    let integrity = &value["signal_quality"]["integrity"];
+    assert_eq!(value["read"]["call_count"], QUERY.len() - 1);
+    assert_eq!(integrity["ploc_count"], QUERY.len() - 1);
+    assert_eq!(integrity["duplicate_ploc_positions"], 1);
+    assert_eq!(integrity["vendor_primary_count"], QUERY.len() - 1);
+    assert_eq!(integrity["vendor_quality_count"], QUERY.len() - 1);
+    assert_eq!(value["warnings"]["ploc_vendor_length_mismatches"], 0);
     Ok(())
 }
 

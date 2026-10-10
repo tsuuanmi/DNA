@@ -14,7 +14,7 @@ Each record contains:
 - `name`: the AB1 filename stem, for example
   `D11_20260404_LN_26_AB0442_HV1F_11`;
 - `sha256`: stable content identity;
-- `integrity`: the same concise PLOC/vendor cardinality, PLOC-spacing,
+- `integrity`: the same concise PLOC/vendor cardinality, merged repeated-PLOC count, PLOC-spacing,
   exact-clipping, and event-signal-scale observations retained by the one-read
   pipeline; this evidence remains read-local and does not by itself admit/reject
   a read;

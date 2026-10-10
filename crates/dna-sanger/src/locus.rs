@@ -71,6 +71,7 @@ mod tests {
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
             locus_positions: vec![2],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
 
@@ -85,6 +86,7 @@ mod tests {
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 14]),
             locus_positions: vec![2, 3, 10],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
 
@@ -106,6 +108,7 @@ mod tests {
             source_sha256: String::new(),
             channels: std::array::from_fn(|_| vec![0; 12]),
             locus_positions: vec![2, 6, 10],
+            duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
 
