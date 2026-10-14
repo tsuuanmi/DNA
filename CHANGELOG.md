@@ -113,6 +113,15 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Faster per-sample analysis with byte-identical results (SRS-ALN-014).
+  - **Seeded pruning** now covers reads with masked or mixed calls (wildcard
+    loci) and windows across the circular origin, and an orientation
+    evaluated exactly sets the threshold that rejects the other. On 1,197
+    real reads, 96 % avoid full-reference Gotoh, up from none. A read whose
+    seed probes cover most of the reference goes straight to Gotoh.
+  - **Gotoh** fills its matrix in one pass per row with one traceback write
+    per cell; **signal statistics** take medians by selection.
+  - `dna consensus` drops from about 4 s to 0.13 s per four-trace sample.
 - `consensus` method version 2 decides a stretch by its run structure and
   labels how each run length is known (ADR-0074, SRS-CONS-003/004/008).
   - **Stretches.** A stretch also takes in a neighbouring run that a
