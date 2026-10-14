@@ -7,9 +7,10 @@
 pub(crate) mod reads;
 
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
-use tracing::Dispatch;
+use tracing::{Dispatch, Span};
 
 use crate::config::Config;
 use crate::input::sanger;
@@ -54,19 +55,28 @@ pub struct SampleAnalysis {
 /// and placed once, then the reads are aggregated into the sample evidence
 /// and adjudicated into the consensus.
 ///
-/// Reads are processed concurrently on scoped threads; the result does not
-/// depend on scheduling. Instrumentation of each read goes to the caller's
-/// current `tracing` dispatcher, so events of different reads may interleave.
+/// Reads are processed on up to `workers` scoped threads; with one worker
+/// they run one after another on the calling thread. The result does not
+/// depend on the number of workers or on scheduling. Each read's
+/// instrumentation goes to the caller's current `tracing` dispatcher, inside
+/// the caller's current span, so with more than one worker the events of
+/// different reads may interleave.
 ///
 /// # Errors
 ///
 /// Returns [`Error`](dna_kernel::error::Error) when an input or configuration
 /// file is unreadable or invalid, when a read fails other than by rejection
 /// (the first such read in trace order), or when no read is admitted.
+///
+/// # Panics
+///
+/// Resumes a panic of a read's processing, a defect, when it is the first
+/// failure in trace order.
 pub fn analyze_sanger(
     traces: &[PathBuf],
     reference: &Path,
     config: &Path,
+    workers: NonZeroUsize,
 ) -> Result<SampleAnalysis> {
     let inputs = sanger::load_sample(traces, reference, config)?;
     let placed = reads::place(
@@ -75,14 +85,12 @@ pub fn analyze_sanger(
         &inputs.config,
         &inputs.profile,
         &CallerScope::current(),
+        workers,
     )?;
     let evidence = aggregate(&placed, &inputs.config)?;
     let consensus = build_consensus(&placed, &evidence, &inputs.reference, &inputs.config);
     Ok(SampleAnalysis {
-        reference: ReferenceIdentity {
-            name: inputs.reference.name.clone(),
-            sha256: inputs.reference.sequence_sha256.clone(),
-        },
+        reference: inputs.reference.identity(),
         profile: inputs.profile.identity().clone(),
         evidence,
         consensus,
@@ -137,16 +145,19 @@ pub(crate) fn by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, Rejec
         .collect()
 }
 
-/// Sends each read's instrumentation to the dispatcher that was current on
-/// the caller's thread.
+/// Sends each read's instrumentation to the dispatcher and span that were
+/// current on the caller's thread, so a read's spans have the same parent on
+/// every worker.
 struct CallerScope {
     dispatch: Dispatch,
+    span: Span,
 }
 
 impl CallerScope {
     fn current() -> Self {
         Self {
             dispatch: tracing::dispatcher::get_default(Dispatch::clone),
+            span: Span::current(),
         }
     }
 }
@@ -155,7 +166,8 @@ impl ReadScope for CallerScope {
     type Records = ();
 
     fn record<T>(&self, work: impl FnOnce() -> T) -> (T, ()) {
-        (tracing::dispatcher::with_default(&self.dispatch, work), ())
+        let value = tracing::dispatcher::with_default(&self.dispatch, || self.span.in_scope(work));
+        (value, ())
     }
 
     fn replay(&self, (): ()) {}

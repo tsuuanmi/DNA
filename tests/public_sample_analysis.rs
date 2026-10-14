@@ -5,6 +5,7 @@
 pub mod support;
 
 use std::fs;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
@@ -17,6 +18,10 @@ use support::{write_abif, write_config, write_reference};
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 const UNPLACEABLE: &str = "AGCATGAGTCCATGCTAGCATGACTGCA";
 const SAMPLE_ID: &str = "sample-1";
+const FOUR: NonZeroUsize = match NonZeroUsize::new(4) {
+    Some(workers) => workers,
+    None => NonZeroUsize::MIN,
+};
 
 fn reverse_complement(sequence: &str) -> String {
     sequence
@@ -88,7 +93,7 @@ fn one_pass_returns_sample_evidence_and_consensus_without_cli_side_effects()
     let [reference, config, forward, foreign, reverse] = write_sample(directory.path())?;
 
     let result =
-        sample_analysis::analyze_sanger(&[forward, foreign, reverse], &reference, &config)?;
+        sample_analysis::analyze_sanger(&[forward, foreign, reverse], &reference, &config, FOUR)?;
 
     assert_eq!(result.reference.name, "synthetic");
     assert_eq!(result.evidence.reference_sha256, result.reference.sha256);
@@ -125,7 +130,7 @@ fn one_pass_matches_the_sample_and_consensus_commands() -> Result<(), Box<dyn st
     let [reference, config, forward, foreign, reverse] = write_sample(directory.path())?;
     let traces = [forward, foreign, reverse];
 
-    let result = sample_analysis::analyze_sanger(&traces, &reference, &config)?;
+    let result = sample_analysis::analyze_sanger(&traces, &reference, &config, FOUR)?;
     let sample = run_command("sample", &traces, &reference, &config, &workdir)?;
     let consensus = run_command("consensus", &traces, &reference, &config, &workdir)?;
 
@@ -167,5 +172,19 @@ fn one_pass_matches_the_sample_and_consensus_commands() -> Result<(), Box<dyn st
         consensus["sites"].as_array().map(Vec::len),
         Some(result.consensus.sites.len())
     );
+    Ok(())
+}
+
+/// One worker and several give the same result.
+#[test]
+fn the_result_does_not_depend_on_the_number_of_workers() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let [reference, config, forward, foreign, reverse] = write_sample(directory.path())?;
+    let traces = [forward, foreign, reverse];
+
+    let one = sample_analysis::analyze_sanger(&traces, &reference, &config, NonZeroUsize::MIN)?;
+    let many = sample_analysis::analyze_sanger(&traces, &reference, &config, FOUR)?;
+
+    assert_eq!(format!("{one:?}"), format!("{many:?}"));
     Ok(())
 }

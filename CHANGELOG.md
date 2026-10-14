@@ -12,7 +12,7 @@ remain independently versioned and are never silently changed in place.
 
 - Sample analysis in one placement pass (PROP-0005, SRS-API-009/010/011).
   - **Rust API:** `dna::sample_analysis::analyze_sanger(traces, reference,
-    config)` places each trace once and returns a typed `SampleAnalysis`: the
+    config, workers)` places each trace once on up to `workers` threads and returns a typed `SampleAnalysis`: the
     core sample evidence, the consensus, each admitted read's Sanger evidence,
     and each rejected read with its cause. A caller that needs both no longer
     places every trace twice.
@@ -137,8 +137,9 @@ remain independently versioned and are never silently changed in place.
     shared by the windowed SNR features and the locus contexts: signal
     processing takes about half the time.
   - **Reads run concurrently** in `dna sample` and `dna consensus`, up to the
-    available parallelism. The operation log still lists each read's records
-    in trace order, through the first failed read.
+    available parallelism. The first failing read in trace order still decides
+    the failure, and the operation log still lists each read's records in
+    trace order, through that read.
   - On 2,618 panel samples every `consensus` JSON and FASTA and every `sample`
     JSON is byte-identical to the previous release. On a shared server, mean
     `dna consensus` wall time per sample drops from about 134 ms to 72 ms, and

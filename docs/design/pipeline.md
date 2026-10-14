@@ -86,18 +86,24 @@ read (SRS-SAMPLE-027, SRS-SAMPLE-029). Aggregation into the sample evidence and
 the consensus both start from that pass, so one call yields both
 (SRS-API-009); each command still publishes only its own documents.
 
-Reads are independent, so the pass runs them on scoped threads, up to the
-available parallelism, and gathers the outcomes in trace order. A read failure
-that is not a rejection fails the pass with the first such read in trace order
-(SRS-SAMPLE-001). A one-CPU affinity runs the reads one after another on the
-calling thread.
+Reads are independent, so the pass runs them on up to a given number of
+scoped threads and gathers the outcomes in trace order. The CLI gives the
+available parallelism, read once per process, so a one-CPU affinity runs the
+reads one after another on the calling thread; a library caller chooses the
+number (SRS-API-009). Each read's typed error or panic is kept as its outcome.
+The outcomes are then taken in trace order up to the first failure that is not
+a rejection, which fails the pass as it would a sequential one: its error is
+returned, or its panic resumed (SRS-SAMPLE-001). Workers stop taking reads
+after the lowest failed one; every read before it has run.
 
 Instrumentation does not depend on scheduling either (SRS-OUT-008). Under a CLI
 operation, each read records its stage spans and events into a buffer under
-the operation's run id; the operation then appends the buffers to its log in
-trace order, through the first failed read, as a sequential pass would have
-written them. Only timestamps and timings differ between runs. The library call
-instead sends each read's instrumentation to the caller's dispatcher as it
+the operation's run id: one capture dispatcher per operation keeps one buffer
+per thread, and each read takes its buffer back when it ends. The operation
+then appends the buffers to its log in trace order, through the first failed
+read, as a sequential pass would have written them. Only timestamps and
+timings differ between runs. The library call instead sends each read's
+instrumentation to the caller's dispatcher, inside the caller's span, as it
 happens.
 
 ## Output boundary

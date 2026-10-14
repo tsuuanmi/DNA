@@ -2,6 +2,7 @@
 
 Owns the vocabulary every plugin family shares. `nucleotide` is the single
 authority for canonical-base parsing and A/C/G/T channel order. `reference` is
-the validated reference model.
+the validated reference model and the one place that derives its
+`ReferenceIdentity` (`Reference::identity`).
 
 See [dna-kernel](../README.md).

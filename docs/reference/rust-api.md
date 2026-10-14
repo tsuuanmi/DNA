@@ -185,6 +185,7 @@ pub fn analyze_sanger(
     traces: &[PathBuf],
     reference: &Path,
     config: &Path,
+    workers: NonZeroUsize,
 ) -> dna::error::Result<SampleAnalysis>
 ```
 
@@ -201,11 +202,15 @@ admitted reads, and builds their consensus. The two commands run this same
 pass, so the result describes exactly what they publish. A caller that needs
 both no longer places every trace twice.
 
-Reads are processed concurrently on scoped threads, up to the available
-parallelism; the result does not depend on scheduling. When a read fails other
-than by rejection, the error of the first such read in trace order is
-returned. Like `analyze_sanger` for one read, it opens no log, derives no
-output path, serializes nothing, and publishes nothing.
+Reads are processed on up to `workers` scoped threads; with one worker they run
+one after another on the calling thread. A caller that already runs many
+samples in parallel passes `NonZeroUsize::MIN`; the CLI passes the available
+parallelism. The result does not depend on the number of workers or on
+scheduling. When a read fails other than by rejection, the failure of the
+first such read in trace order is reported, as a sequential pass would: its
+error is returned, or its panic (a defect) resumed. Workers stop taking reads
+after the lowest failed one. Like `analyze_sanger` for one read, it opens no
+log, derives no output path, serializes nothing, and publishes nothing.
 
 ```rust
 #[non_exhaustive]
@@ -420,9 +425,10 @@ never install a subscriber, write files, or print. `analyze_sanger` opens one
 are stable; event fields are operational detail and may grow.
 
 `sample_analysis::analyze_sanger` runs each read's stages, with the same spans,
-on a worker thread under the dispatcher that was current on the calling thread.
-Each read's spans and events keep their order, but those of different reads may
-interleave.
+under the dispatcher and inside the span that were current on the calling
+thread, so the stage spans of every read have the caller's span as parent on
+any worker. Each read's spans and events keep their order; with more than one
+worker those of different reads may interleave.
 
 ## Boundary rules
 

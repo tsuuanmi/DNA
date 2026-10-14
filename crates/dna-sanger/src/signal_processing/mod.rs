@@ -26,9 +26,9 @@ pub(crate) fn analyze(
     calls: &BaseCalls,
     config: &SignalProcessingConfig,
 ) -> Result<SignalAnalysis> {
-    let mut estimates = statistics::SpanEstimates::new(&trace.channels);
-    let windows = features::calculate(trace, calls, config, &mut estimates)?;
-    let loci = locus_evidence::calculate(trace, config, &mut estimates)?;
+    let mut estimates = statistics::SpanEstimates::new(trace);
+    let windows = features::calculate(calls, config, &mut estimates)?;
+    let loci = locus_evidence::calculate(config, &mut estimates)?;
     let noisy_regions = regions::merge(&windows, config.minimum_noisy_windows);
     let integrity = integrity::assess(trace, &loci)?;
     Ok(SignalAnalysis {

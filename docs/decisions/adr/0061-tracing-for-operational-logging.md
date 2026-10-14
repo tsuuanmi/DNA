@@ -41,9 +41,10 @@ Operational logging uses the `tracing` ecosystem.
   dispatcher of their own. Under a CLI operation each read runs under a
   capturing dispatcher with the operation's run id, and the operation appends
   the captured records and stage entries in trace order, through the first
-  failed read, so the log reads as a sequential pass (SRS-OUT-008). A library
-  call runs each read under the dispatcher current on the calling thread;
-  different reads may then interleave.
+  failed read, so the log reads as a sequential pass (SRS-OUT-008). One
+  capture dispatcher per operation keeps a buffer per thread. A library call
+  runs each read under the dispatcher and inside the span current on the
+  calling thread; different reads may then interleave.
 - A layer cannot return errors, so the first failed record write is captured
   together with the stage it occurred in, and surfaced as `Error::Log` when the
   operation checks or synchronizes the log: immediately after the start

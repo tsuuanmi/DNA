@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::model::sanger::Chromatogram;
 use dna_kernel::error::{Result, SignalError};
 
 const NORMAL_MAD_SCALE: f64 = 0.674_489_75;
@@ -16,26 +17,33 @@ pub(super) struct SpanStatistics {
     pub(super) noise_sigmas: [f64; 4],
 }
 
-/// Channel statistics of one trace's sample spans, each estimated once.
+/// One trace and the channel statistics of its sample spans, each estimated
+/// once.
 ///
 /// The windowed features and the locus contexts both span runs of whole
 /// locus windows, so most spans recur; a recurring span reuses the first
-/// estimate, which is exactly what a fresh estimate would return.
+/// estimate, which is exactly what a fresh estimate would return. The
+/// calculators reach the trace only through this record, so its statistics
+/// always belong to the trace they read.
 pub(super) struct SpanEstimates<'a> {
-    channels: &'a [Vec<i32>; 4],
+    trace: &'a Chromatogram,
     estimated: BTreeMap<(usize, usize), SpanStatistics>,
 }
 
 impl<'a> SpanEstimates<'a> {
-    pub(super) fn new(channels: &'a [Vec<i32>; 4]) -> Self {
+    pub(super) fn new(trace: &'a Chromatogram) -> Self {
         Self {
-            channels,
+            trace,
             estimated: BTreeMap::new(),
         }
     }
 
-    /// Statistics of the samples `start..end`, a non-empty span the caller
-    /// has validated against the channel length.
+    /// The trace whose spans this record estimates.
+    pub(super) fn trace(&self) -> &'a Chromatogram {
+        self.trace
+    }
+
+    /// Statistics of the samples `start..end`.
     pub(super) fn span(&mut self, start: usize, end: usize) -> Result<SpanStatistics> {
         if let Some(statistics) = self.estimated.get(&(start, end)) {
             return Ok(*statistics);
@@ -44,8 +52,11 @@ impl<'a> SpanEstimates<'a> {
             baselines: [0.0; 4],
             noise_sigmas: [0.0; 4],
         };
-        for (channel, samples) in self.channels.iter().enumerate() {
-            let local = estimate(&samples[start..end])?;
+        for (channel, samples) in self.trace.channels.iter().enumerate() {
+            let samples = samples
+                .get(start..end)
+                .ok_or(SignalError::InvalidContextInterval { start, end })?;
+            let local = estimate(samples)?;
             statistics.baselines[channel] = local.baseline;
             statistics.noise_sigmas[channel] = local.noise_sigma;
         }
@@ -157,6 +168,7 @@ fn median_selected_f64(values: &mut [f64]) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::sanger::VendorEvidence;
     use dna_kernel::error::{Error, SignalError};
 
     use super::*;
@@ -206,11 +218,26 @@ mod tests {
             vec![4, 1, 3, 2, 5, 9],
             vec![0, 0, 9, 0, 0, 0],
         ];
-        let mut estimates = SpanEstimates::new(&channels);
+        let trace = Chromatogram {
+            source_name: "synthetic.ab1".into(),
+            source_sha256: String::new(),
+            channels: channels.clone(),
+            locus_positions: vec![1, 3, 5],
+            duplicate_loci: 0,
+            vendor: VendorEvidence::default(),
+        };
+        let mut estimates = SpanEstimates::new(&trace);
         let first = estimates.span(0, 5)?;
         let other = estimates.span(1, 6)?;
         let again = estimates.span(0, 5)?;
         assert_eq!(estimates.estimated.len(), 2);
+        assert!(matches!(
+            estimates.span(4, 7),
+            Err(Error::Signal(SignalError::InvalidContextInterval {
+                start: 4,
+                end: 7
+            }))
+        ));
         for (channel, samples) in channels.iter().enumerate() {
             for (span, start, end) in [(first, 0, 5), (again, 0, 5), (other, 1, 6)] {
                 let fresh = estimate(&samples[start..end])?;

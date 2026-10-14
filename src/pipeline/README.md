@@ -20,7 +20,9 @@ processing lives in `read_processing` (`prepare` through callability, then
 `sample_analysis`, which records a read with too few callable calls, or one the
 core cannot place (`dna_core::read_call::PlacementRejection`), as rejected while
 the others continue; the operation log implements its `ReadScope`, so records
-of concurrently processed reads land in trace order.
+of concurrently processed reads land in trace order. They run the reads on as
+many workers as the available parallelism, which `mod.rs` reads once per
+process.
 `consensus.rs` then builds the consensus and publishes `dna.consensus/v1` with
 its FASTA.
 `notation.rs` runs the post-calling plugins over one variants document:

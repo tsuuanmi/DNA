@@ -68,6 +68,7 @@ fn sample(
         &inputs.config,
         &inputs.profile,
         log,
+        super::read_workers(),
     )?;
 
     let stage = tracing::info_span!("sample_aggregation").entered();

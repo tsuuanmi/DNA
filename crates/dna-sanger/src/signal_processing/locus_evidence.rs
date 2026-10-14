@@ -9,17 +9,18 @@ use dna_kernel::read_evidence::EvidenceProfile;
 
 use super::statistics::{self, SpanEstimates};
 
-/// Calculates one immutable signal-evidence record per vendor-defined locus.
+/// Calculates one immutable signal-evidence record per vendor-defined locus
+/// of the trace that `estimates` holds.
 ///
 /// Event refinement, local statistics, and profile construction use analyzed
 /// channel evidence plus canonical locus geometry directly. They do not consume basecall
 /// records, primary/ambiguity calls, selected basecall peaks, or qualifying
 /// channels.
 pub(super) fn calculate(
-    trace: &Chromatogram,
     config: &SignalProcessingConfig,
     estimates: &mut SpanEstimates<'_>,
 ) -> Result<Vec<LocusEvidence>> {
+    let trace = estimates.trace();
     let locus_count = trace.call_count();
     if locus_count < config.window_size_bases {
         return Err(SignalError::TooFewLoci {
@@ -50,7 +51,7 @@ pub(super) fn calculate(
         let context_sample_start = locus_windows[context_start].start;
         let context_sample_end = locus_windows[context_end - 1].end;
         let (channel_baselines, channel_noise_sigmas) =
-            local_statistics(trace, estimates, context_sample_start, context_sample_end)?;
+            local_statistics(estimates, context_sample_start, context_sample_end)?;
         let event_position =
             select_event_position(trace, locus_window, locus_position, channel_baselines)?;
         let channel_heights =
@@ -147,12 +148,11 @@ fn validate_evidence(evidence: &LocusEvidence, context_width: usize) -> Result<(
 }
 
 fn local_statistics(
-    trace: &Chromatogram,
     estimates: &mut SpanEstimates<'_>,
     sample_start: usize,
     sample_end: usize,
 ) -> Result<([f64; 4], [f64; 4])> {
-    if sample_start >= sample_end || sample_end > trace.sample_count() {
+    if sample_start >= sample_end || sample_end > estimates.trace().sample_count() {
         return Err(SignalError::InvalidContextInterval {
             start: sample_start,
             end: sample_end,
@@ -254,7 +254,7 @@ mod tests {
         trace: &Chromatogram,
         config: &SignalProcessingConfig,
     ) -> Result<Vec<LocusEvidence>> {
-        calculate(trace, config, &mut SpanEstimates::new(&trace.channels))
+        calculate(config, &mut SpanEstimates::new(trace))
     }
 
     fn trace() -> Chromatogram {

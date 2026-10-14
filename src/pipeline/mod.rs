@@ -11,7 +11,10 @@ mod represent;
 mod sample;
 mod sample_metrics;
 
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::thread;
 use std::time::Instant;
 
 use crate::operation_log::{OperationLog, Records};
@@ -66,6 +69,13 @@ pub(crate) fn sample(
     config_path: &Path,
 ) -> Result<()> {
     sample::run(sample_id, traces, reference, config_path)
+}
+
+/// Worker threads for a sample's reads: the available parallelism, read once
+/// per process.
+fn read_workers() -> NonZeroUsize {
+    static WORKERS: OnceLock<NonZeroUsize> = OnceLock::new();
+    *WORKERS.get_or_init(|| thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
 }
 
 /// Reads processed on worker threads write to the operation log in read

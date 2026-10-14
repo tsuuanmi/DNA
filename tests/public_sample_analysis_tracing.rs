@@ -1,5 +1,6 @@
 //! Public `sample_analysis` capability reporting each read's stages to the
-//! caller's `tracing` dispatcher, although reads run on worker threads.
+//! caller's `tracing` dispatcher, inside the caller's span, although reads run
+//! on worker threads.
 //!
 //! This test lives in its own binary: `tracing` caches callsite interest
 //! process-wide, so a concurrent test that runs the same capability without a
@@ -7,6 +8,7 @@
 
 pub mod support;
 
+use std::num::NonZeroUsize;
 use std::sync::{Arc, Mutex};
 
 use tempfile::tempdir;
@@ -21,22 +23,29 @@ use support::{write_abif, write_config, write_reference};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 
-/// Records the name of each span a capability opens.
-struct SpanNames(Arc<Mutex<Vec<&'static str>>>);
+/// A span name and the name of the span it was opened inside, if any.
+type OpenedSpan = (&'static str, Option<&'static str>);
 
-impl<S> Layer<S> for SpanNames
+/// Records each span a capability opens with the span it was opened inside.
+struct SpanParents(Arc<Mutex<Vec<OpenedSpan>>>);
+
+impl<S> Layer<S> for SpanParents
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
-    fn on_new_span(&self, attributes: &Attributes<'_>, _id: &Id, _context: Context<'_, S>) {
-        if let Ok(mut names) = self.0.lock() {
-            names.push(attributes.metadata().name());
+    fn on_new_span(&self, attributes: &Attributes<'_>, _id: &Id, context: Context<'_, S>) {
+        let parent = context
+            .current_span()
+            .metadata()
+            .map(tracing::Metadata::name);
+        if let Ok(mut spans) = self.0.lock() {
+            spans.push((attributes.metadata().name(), parent));
         }
     }
 }
 
 #[test]
-fn sample_analysis_reports_every_reads_stages_to_the_callers_subscriber()
+fn sample_analysis_reports_every_reads_stages_inside_the_callers_span()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference = directory.path().join("reference.fa");
@@ -60,19 +69,26 @@ fn sample_analysis_reports_every_reads_stages_to_the_callers_subscriber()
     }
     write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
     write_config(&config, "linear")?;
-    let names = Arc::new(Mutex::new(Vec::new()));
-    let subscriber = Registry::default().with(SpanNames(Arc::clone(&names)));
+    let workers = NonZeroUsize::new(traces.len()).ok_or("at least one trace")?;
+    let spans = Arc::new(Mutex::new(Vec::new()));
+    let subscriber = Registry::default().with(SpanParents(Arc::clone(&spans)));
 
     tracing::subscriber::with_default(subscriber, || {
-        sample_analysis::analyze_sanger(&traces, &reference, &config)
+        let _caller = tracing::info_span!("caller").entered();
+        sample_analysis::analyze_sanger(&traces, &reference, &config, workers)
     })?;
 
-    let names = names.lock().map_err(|_| "span-name lock poisoned")?.clone();
+    let spans = spans.lock().map_err(|_| "span lock poisoned")?.clone();
     for stage in ["basecalling", "signal_processing", "alignment"] {
+        let parents = spans
+            .iter()
+            .filter(|(name, _)| *name == stage)
+            .map(|(_, parent)| *parent)
+            .collect::<Vec<_>>();
         assert_eq!(
-            names.iter().filter(|name| **name == stage).count(),
-            traces.len(),
-            "every read reports its {stage} stage"
+            parents,
+            vec![Some("caller"); traces.len()],
+            "every read opens its {stage} stage inside the caller's span"
         );
     }
     assert!(!directory.path().join("logs").exists());

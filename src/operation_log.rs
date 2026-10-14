@@ -20,15 +20,18 @@
 //! its records in memory; the operation then writes them with
 //! [`OperationLog::append`] in an order it chooses, such as read order, so
 //! the log content does not depend on thread scheduling. Captured records keep
-//! the time they were made.
+//! the time they were made. One capture dispatcher serves every thread of an
+//! operation and keeps one buffer per thread.
 
+use std::collections::HashMap;
 use std::env;
 use std::fmt::{self, Write as _};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::thread::{self, ThreadId};
 
 use chrono::Local;
 use tracing::field::{Field, Visit};
@@ -57,7 +60,16 @@ pub(crate) struct OperationLog {
     run_id: String,
     state: Arc<Mutex<LogState>>,
     dispatch: Dispatch,
+    /// Records captured on each thread, until the capture that made them
+    /// takes them back.
+    captured: Arc<Mutex<Captured>>,
+    /// The dispatcher of every capture, built on first use.
+    capture: OnceLock<Dispatch>,
 }
+
+/// Captured records by the thread that made them. Only looked up by the
+/// current thread, never iterated, so its order does not matter.
+type Captured = HashMap<ThreadId, Vec<Entry>>;
 
 /// Records captured on another thread, in the order they were made, for
 /// [`OperationLog::append`].
@@ -73,8 +85,8 @@ enum Entry {
 enum Sink {
     /// The operation's log file.
     File(Arc<Mutex<LogState>>),
-    /// A buffer the operation replays into its log file later.
-    Buffer(Arc<Mutex<Vec<Entry>>>),
+    /// Per-thread buffers the operation appends to its log file later.
+    Buffer(Arc<Mutex<Captured>>),
 }
 
 /// Mutable state shared between the operation and its layer.
@@ -143,6 +155,8 @@ impl OperationLog {
             run_id,
             state,
             dispatch,
+            captured: Arc::default(),
+            capture: OnceLock::new(),
         })
     }
 
@@ -154,14 +168,17 @@ impl OperationLog {
     /// Runs `operation` on the current thread, which may be a worker thread,
     /// and captures its records instead of writing them.
     pub(crate) fn capture<T>(&self, operation: impl FnOnce() -> T) -> (T, Records) {
-        let buffer = Arc::new(Mutex::new(Vec::new()));
-        let layer = RecordLayer {
-            run_id: self.run_id.clone(),
-            sink: Sink::Buffer(Arc::clone(&buffer)),
-        };
-        let dispatch = Dispatch::new(Registry::default().with(layer));
-        let value = tracing::dispatcher::with_default(&dispatch, operation);
-        let entries = std::mem::take(&mut *lock(&buffer));
+        let dispatch = self.capture.get_or_init(|| {
+            let layer = RecordLayer {
+                run_id: self.run_id.clone(),
+                sink: Sink::Buffer(Arc::clone(&self.captured)),
+            };
+            Dispatch::new(Registry::default().with(layer))
+        });
+        let value = tracing::dispatcher::with_default(dispatch, operation);
+        let entries = lock(&self.captured)
+            .remove(&thread::current().id())
+            .unwrap_or_default();
         (value, Records(entries))
     }
 
@@ -229,7 +246,10 @@ where
         if let Some(span) = context.span(id) {
             match &self.sink {
                 Sink::File(state) => lock(state).stage = Some(span.name()),
-                Sink::Buffer(buffer) => lock(buffer).push(Entry::Stage(span.name())),
+                Sink::Buffer(captured) => lock(captured)
+                    .entry(thread::current().id())
+                    .or_default()
+                    .push(Entry::Stage(span.name())),
             }
         }
     }
@@ -238,7 +258,10 @@ where
         let record = self.render(event);
         match &self.sink {
             Sink::File(state) => lock(state).write(&record),
-            Sink::Buffer(buffer) => lock(buffer).push(Entry::Line(record)),
+            Sink::Buffer(captured) => lock(captured)
+                .entry(thread::current().id())
+                .or_default()
+                .push(Entry::Line(record)),
         }
     }
 }
@@ -452,7 +475,7 @@ mod tests {
     fn appends_records_captured_on_worker_threads_in_the_order_given() -> TestResult {
         let directory = tempdir()?;
         let log = OperationLog::open_in(directory.path(), "trace")?;
-        let (first, second) = std::thread::scope(|threads| {
+        let (first, second) = thread::scope(|threads| {
             let first = threads.spawn(|| {
                 log.capture(|| {
                     let _stage = tracing::info_span!("alignment").entered();
