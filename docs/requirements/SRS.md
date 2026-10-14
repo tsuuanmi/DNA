@@ -4,6 +4,47 @@ This document is the canonical index for DNA's normative Software Requirements S
 
 DNA is a deterministic Rust library and CLI for DNA analysis. The current normative production requirements cover the implemented Sanger ABIF path, reviewed consensus sequences (`call`), sample consensus (`consensus`), and variants documents (`notation`) against short references; future mtDNA, nuclear/genomic DNA, targeted/SNP, NGS, or downstream capabilities become normative only when their requirement families are added. Normative terms **MUST**, **SHOULD**, and **MAY** apply to every `SRS-*` item.
 
+## Purpose
+
+DNA exists to shrink the manual review of sequencing results without
+lowering their accuracy. No system is perfect, so DNA sorts the work instead
+of hiding it.
+
+The sorting starts from a catalogue of the errors that occur in the data.
+Each error class has one outcome:
+
+- **pass** — DNA resolves the error from the evidence, or the error is
+  absent, and nobody needs to review the result;
+- **review** — DNA cannot resolve the error by itself, but a reviewer can
+  settle the result from the traces; DNA says where and why;
+- **rerun** — the trace is too poor or unreliable to settle anything; DNA
+  names the trace and the cause, so the lab can rerun it quickly.
+
+DNA makes these decisions at four levels, worked on from the bottom up:
+
+- **region** — a stretch of the target;
+- **trace** — one read;
+- **sample** — the whole result;
+- **batch** — a run or plate, aggregated by downstream pipelines (ADR-0065).
+
+The levels are not a tree. A trace covers several regions, and several traces
+cover a region. A sample passes only when all its regions pass, and a region
+normally needs both strands to pass.
+
+Success is measured on the share of work in each outcome. If the input is
+100 %, A % passes, B % goes to review, and C % goes to rerun. The lab's
+chemistry sets C; DNA decides it quickly and names the cause. DNA aims to:
+
+- raise A as far as the evidence allows;
+- lower B step by step, class by class;
+- keep passed results free of errors. A wrong pass costs more than a review.
+  The error rate of passed results is measured against ground truth.
+
+Today DNA reports the evidence for these decisions (callability, rejected
+reads, eligibility reasons, consensus `N` and `contested` marks), but not the
+decisions themselves. [PROP-0004](../proposals/0004-review-triage.md) proposes
+how DNA could make them.
+
 ## Requirement families
 
 | Namespace | Scope | Specification |

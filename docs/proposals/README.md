@@ -19,6 +19,7 @@ Accepted/Implemented -> Superseded
 ## Active proposals
 
 - [PROP-0001 — Modular DNA Analysis Platform](0001-modular-dna-analysis-platform.md) — **Implementing**; public Rust API, canonical contracts, multiple input modalities, replaceable scientific implementations and data providers, and downstream analysis modules.
+- [PROP-0004 — Review triage](0004-review-triage.md) — **Draft**; catalogue errors and sort regions, traces, and samples into pass, review, and rerun with typed reasons, as DNA's [purpose](../requirements/SRS.md#purpose) states.
 
 ## Implemented proposals
 
