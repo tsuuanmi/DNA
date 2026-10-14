@@ -3,8 +3,10 @@
 Owns proof-based shortcuts that return exactly the placements full-reference
 Gotoh would return, or report that no proof applies so the caller runs Gotoh.
 
-- `mod.rs` — the shared per-locus profile bound (optimal sequence, score upper
-  bound, minimum edit loss) and the provability preconditions.
+- `mod.rs` — the working reference (with its non-canonical symbol count) and
+  one orientation's `Problem`: the provability preconditions and the shared
+  per-locus profile bound (seed and upper-bound optimal sequences, score upper
+  bound, minimum edit loss), derived once and passed to both tiers.
 - `upper_bound.rs` — direct placement of reads that attain the profile-score
   upper bound, located by exact substring search.
 - `seeded.rs` — score-bounded q-gram pruning: a seed-derived lower bound sets
@@ -15,7 +17,7 @@ Gotoh would return, or report that no proof applies so the caller runs Gotoh.
 
 Seeds never exclude reference space or an orientation on their own; only a
 completeness proof may. Too few seed loci, too many seed hits, and
-uneconomical window sets fall back to Gotoh.
+uneconomical probe or certified window sets fall back to Gotoh.
 
 See [alignment method](../../../../../docs/design/alignment.md) and
 [alignment invariants](../../../../../docs/architecture/invariants/alignment.md).

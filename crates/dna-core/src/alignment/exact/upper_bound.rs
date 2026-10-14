@@ -2,11 +2,9 @@
 
 use memchr::memmem::Finder;
 
-use crate::alignment::AlignmentConfig;
 use crate::alignment::traceback::{RawAlignment, RawColumn, metrics};
-use dna_kernel::read_evidence::EvidenceProfile;
 
-use super::{problem_is_provable, profile_bound, unique_optimum};
+use super::Problem;
 
 /// Outcome of the upper-bound proof for one orientation.
 #[derive(Debug)]
@@ -29,30 +27,22 @@ pub(crate) enum UpperBoundPlacement {
 /// conditions, the concatenated per-locus best bases define the only possible gapless
 /// sequence that can attain the upper bound. Exact occurrences of that sequence therefore
 /// identify every maximum-score placement for this orientation.
-pub(crate) fn classify(
-    query: &str,
-    profiles: &[Option<EvidenceProfile>],
-    reference: &str,
-    config: &AlignmentConfig,
-    modulo_length: Option<usize>,
-) -> UpperBoundPlacement {
-    if !problem_is_provable(query, profiles, reference, config, modulo_length) {
-        return UpperBoundPlacement::Unproven;
-    }
-    let Some(bound) = profile_bound(profiles, config) else {
+pub(crate) fn classify(problem: &Problem<'_>) -> UpperBoundPlacement {
+    let Some(optimal_sequence) = &problem.bound.unique_optimum else {
         return UpperBoundPlacement::Unproven;
     };
-    let Some(optimal_sequence) = unique_optimum(profiles, config) else {
-        return UpperBoundPlacement::Unproven;
-    };
-    let Some(limit) = occurrence_start_limit(reference, optimal_sequence.len(), modulo_length)
-    else {
+    let reference = problem.reference.sequence;
+    let Some(limit) = occurrence_start_limit(
+        reference,
+        optimal_sequence.len(),
+        problem.reference.modulo_length,
+    ) else {
         return UpperBoundPlacement::Unproven;
     };
 
     let haystack_end = limit + optimal_sequence.len() - 1;
     let haystack = &reference.as_bytes()[..haystack_end];
-    let finder = Finder::new(&optimal_sequence);
+    let finder = Finder::new(optimal_sequence);
     let mut search_start = 0;
     let mut found = None;
     while search_start < limit {
@@ -74,10 +64,10 @@ pub(crate) fn classify(
         return UpperBoundPlacement::Unattained;
     };
     UpperBoundPlacement::Unique(gapless_alignment(
-        query,
-        &optimal_sequence,
+        problem.query,
+        optimal_sequence,
         start_reference,
-        bound.upper_bound,
+        problem.bound.upper_bound,
     ))
 }
 

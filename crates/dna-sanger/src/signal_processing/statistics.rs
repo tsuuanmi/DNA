@@ -71,15 +71,9 @@ fn median_i32(values: &[i32]) -> Result<f64> {
         )
         .into());
     }
-    let even = values.len().is_multiple_of(2);
-    let mut values = values.to_vec();
-    let middle = values.len() / 2;
-    let (lower, upper, _) = values.select_nth_unstable(middle);
-    let upper = f64::from(*upper);
-    Ok(match lower.iter().max() {
-        Some(lower) if even => f64::midpoint(f64::from(*lower), upper),
-        _ => upper,
-    })
+    // Every `i32` is exact in `f64`, so the median is the integer one.
+    let mut values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
+    Ok(median_selected_f64(&mut values))
 }
 
 fn noise_sigma(samples: &[i32]) -> Result<f64> {

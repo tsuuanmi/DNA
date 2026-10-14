@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 
 use crate::alignment::AlignmentConfig;
-use crate::alignment::exact::{self, Pruned, UpperBoundPlacement};
+use crate::alignment::exact::{self, Problem, Pruned, UpperBoundPlacement, WorkingReference};
 use crate::alignment::gotoh;
 use crate::alignment::runs;
 use crate::alignment::traceback::RawAlignment;
@@ -66,96 +66,70 @@ pub(crate) fn align_best(
             Some(reference.len()),
         ),
     };
-    let forward_proof = exact::classify(
+    let target = WorkingReference::new(&working_reference, modulo_length);
+    let forward = Query::new(
+        Orientation::Forward,
         &forward_query,
         &forward_profiles,
-        &working_reference,
+        forward_mapping,
+        &target,
         config,
-        modulo_length,
     );
-    let reverse_proof = exact::classify(
+    let reverse = Query::new(
+        Orientation::Reverse,
         &reverse_query,
         &reverse_profiles,
-        &working_reference,
+        reverse_mapping,
+        &target,
         config,
-        modulo_length,
     );
     if let Some(selected) = select_proven_candidate(
-        forward_proof,
-        reverse_proof,
-        &forward_mapping,
-        &reverse_mapping,
+        forward.classify(),
+        reverse.classify(),
+        &forward.mapping,
+        &reverse.mapping,
     )? {
         return finish_alignment(&selected, reference, config, masked);
     }
 
-    let forward = Query {
-        orientation: Orientation::Forward,
-        bases: &forward_query,
-        profiles: &forward_profiles,
-        mapping: forward_mapping,
-    };
-    let reverse = Query {
-        orientation: Orientation::Reverse,
-        bases: &reverse_query,
-        profiles: &reverse_profiles,
-        mapping: reverse_mapping,
-    };
-    let forward_pruned = forward.pruned(&working_reference, config, modulo_length)?;
-    let reverse_pruned = reverse.pruned(&working_reference, config, modulo_length)?;
-
     // Evaluate one orientation exactly, preferring a proven one, then the one
     // with the better seed lower bound; its optimum is a threshold the other
     // orientation must reach.
-    let (first, first_placements, second, second_pruned) = match (forward_pruned, reverse_pruned) {
-        (Pruned::Proven(placements), other) => (forward, placements, reverse, other),
-        (other, Pruned::Proven(placements)) => (reverse, placements, forward, other),
-        (
-            Pruned::Unproven {
-                lower_bound: forward_lower,
-            },
-            Pruned::Unproven {
-                lower_bound: reverse_lower,
-            },
-        ) => {
-            if reverse_lower > forward_lower {
-                let placements = reverse.gotoh(&working_reference, config, modulo_length)?;
-                (
-                    reverse,
-                    placements,
-                    forward,
-                    Pruned::Unproven { lower_bound: None },
-                )
-            } else {
-                let placements = forward.gotoh(&working_reference, config, modulo_length)?;
-                (
-                    forward,
-                    placements,
-                    reverse,
-                    Pruned::Unproven { lower_bound: None },
-                )
+    let (first, first_placements, second, second_proven) =
+        match (forward.pruned()?, reverse.pruned()?) {
+            (Pruned::Proven(placements), other) => {
+                (forward, placements, reverse, other.into_proven())
             }
-        }
-    };
+            (Pruned::Unproven { .. }, Pruned::Proven(placements)) => {
+                (reverse, placements, forward, None)
+            }
+            (
+                Pruned::Unproven {
+                    lower_bound: forward_lower,
+                },
+                Pruned::Unproven {
+                    lower_bound: reverse_lower,
+                },
+            ) => {
+                let (first, second) = if reverse_lower > forward_lower {
+                    (reverse, forward)
+                } else {
+                    (forward, reverse)
+                };
+                let placements = first.gotoh()?;
+                (first, placements, second, None)
+            }
+        };
     let first = first.candidate(first_placements);
-    let second_placements = match second_pruned {
-        Pruned::Proven(placements) => placements,
-        Pruned::Unproven { .. } => {
-            match exact::align_at_or_above(
-                second.bases,
-                second.profiles,
-                &working_reference,
-                config,
-                modulo_length,
-                first.placements[0].score,
-            )? {
-                Some(placements) if placements.is_empty() => {
-                    return finish_alignment(&first, reference, config, masked);
-                }
-                Some(placements) => placements,
-                None => second.gotoh(&working_reference, config, modulo_length)?,
+    let second_placements = match second_proven {
+        Some(placements) => placements,
+        None => match second.at_or_above(first.placements[0].score)? {
+            Some(placements) if placements.is_empty() => {
+                return finish_alignment(&first, reference, config, masked);
             }
-        }
+            Some(placements) => placements,
+            None => second.gotoh()?,
+        },
     };
     let second = second.candidate(second_placements);
     let (forward, reverse) = if first.orientation == Orientation::Forward {
@@ -174,31 +148,65 @@ pub(crate) fn align_best(
     finish_alignment(selected, reference, config, masked)
 }
 
-/// One orientation's alignment query.
+/// One orientation's alignment query, with its proof problem when one applies.
 struct Query<'a> {
     orientation: Orientation,
     bases: &'a str,
     profiles: &'a [Option<EvidenceProfile>],
     mapping: Vec<usize>,
+    reference: &'a WorkingReference<'a>,
+    config: &'a AlignmentConfig,
+    problem: Option<Problem<'a>>,
 }
 
-impl Query<'_> {
-    fn pruned(
-        &self,
-        reference: &str,
-        config: &AlignmentConfig,
-        modulo_length: Option<usize>,
-    ) -> Result<Pruned> {
-        exact::align_pruned(self.bases, self.profiles, reference, config, modulo_length)
+impl<'a> Query<'a> {
+    fn new(
+        orientation: Orientation,
+        bases: &'a str,
+        profiles: &'a [Option<EvidenceProfile>],
+        mapping: Vec<usize>,
+        reference: &'a WorkingReference<'a>,
+        config: &'a AlignmentConfig,
+    ) -> Self {
+        Self {
+            orientation,
+            bases,
+            profiles,
+            mapping,
+            reference,
+            config,
+            problem: Problem::new(bases, profiles, reference, config),
+        }
     }
 
-    fn gotoh(
-        &self,
-        reference: &str,
-        config: &AlignmentConfig,
-        modulo_length: Option<usize>,
-    ) -> Result<Vec<RawAlignment>> {
-        gotoh::align(self.bases, self.profiles, reference, config, modulo_length)
+    fn classify(&self) -> UpperBoundPlacement {
+        self.problem
+            .as_ref()
+            .map_or(UpperBoundPlacement::Unproven, exact::classify)
+    }
+
+    fn pruned(&self) -> Result<Pruned> {
+        match &self.problem {
+            Some(problem) => exact::align_pruned(problem),
+            None => Ok(Pruned::Unproven { lower_bound: None }),
+        }
+    }
+
+    fn at_or_above(&self, threshold: i64) -> Result<Option<Vec<RawAlignment>>> {
+        match &self.problem {
+            Some(problem) => exact::align_at_or_above(problem, threshold),
+            None => Ok(None),
+        }
+    }
+
+    fn gotoh(&self) -> Result<Vec<RawAlignment>> {
+        gotoh::align(
+            self.bases,
+            self.profiles,
+            self.reference.sequence(),
+            self.config,
+            self.reference.modulo_length(),
+        )
     }
 
     fn candidate(self, placements: Vec<RawAlignment>) -> Candidate {
@@ -554,6 +562,224 @@ mod tests {
             error.as_deref(),
             Some("alignment failed: selected orientation has multiple equally scoring placements")
         );
+    }
+
+    /// Deterministic xorshift bases.
+    fn random_bases(mut state: u64, length: usize) -> String {
+        (0..length)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                ['A', 'C', 'G', 'T'][usize::from(u8::try_from(state % 4).unwrap_or(0))]
+            })
+            .collect()
+    }
+
+    fn working(reference: &Reference) -> (String, Option<usize>) {
+        match reference.topology {
+            ReferenceTopology::Linear => (reference.sequence.clone(), None),
+            ReferenceTopology::Circular => (
+                format!("{}{}", reference.sequence, reference.sequence),
+                Some(reference.len()),
+            ),
+        }
+    }
+
+    /// Both orientations' unmasked queries.
+    fn queries(evidence: &ReadEvidence) -> [(String, Vec<Option<EvidenceProfile>>); 2] {
+        let forward = evidence
+            .calls()
+            .iter()
+            .map(|call| call.base)
+            .collect::<String>();
+        let profiles = evidence
+            .calls()
+            .iter()
+            .map(|call| call.profile)
+            .collect::<Vec<_>>();
+        let reverse = (reverse_complement(&forward), reverse_profiles(&profiles));
+        [(forward, profiles), reverse]
+    }
+
+    /// Seeded pruning of both orientations of unmasked evidence.
+    fn pruned_orientations(
+        evidence: &ReadEvidence,
+        reference: &Reference,
+        config: &AlignmentConfig,
+    ) -> Result<Vec<Pruned>> {
+        let (sequence, modulo_length) = working(reference);
+        let target = WorkingReference::new(&sequence, modulo_length);
+        queries(evidence)
+            .iter()
+            .map(|(query, profiles)| {
+                Problem::new(query, profiles, &target, config)
+                    .map_or(Ok(Pruned::Unproven { lower_bound: None }), |problem| {
+                        exact::align_pruned(&problem)
+                    })
+            })
+            .collect()
+    }
+
+    /// The selection full-reference Gotoh in both orientations makes for
+    /// unmasked evidence.
+    fn gotoh_selection(
+        evidence: &ReadEvidence,
+        reference: &Reference,
+        config: &AlignmentConfig,
+    ) -> Result<Alignment> {
+        let (sequence, modulo_length) = working(reference);
+        let [
+            (forward_query, forward_profiles),
+            (reverse_query, reverse_profiles),
+        ] = queries(evidence);
+        let forward = gotoh::align(
+            &forward_query,
+            &forward_profiles,
+            &sequence,
+            config,
+            modulo_length,
+        )?;
+        let reverse = gotoh::align(
+            &reverse_query,
+            &reverse_profiles,
+            &sequence,
+            config,
+            modulo_length,
+        )?;
+        let length = evidence.calls().len();
+        let selected = match compare(&forward[0], &reverse[0]) {
+            Ordering::Greater => Candidate {
+                orientation: Orientation::Forward,
+                mapping: (0..length).collect(),
+                placements: forward,
+            },
+            Ordering::Less => Candidate {
+                orientation: Orientation::Reverse,
+                mapping: (0..length).rev().collect(),
+                placements: reverse,
+            },
+            Ordering::Equal => return Err(AlignmentError::OrientationTie.into()),
+        };
+        finish_alignment(&selected, reference, config, evidence.calls())
+    }
+
+    fn assert_matches_gotoh_selection(
+        evidence: &ReadEvidence,
+        reference: &Reference,
+        config: &AlignmentConfig,
+    ) -> Result<Alignment> {
+        let expected = gotoh_selection(evidence, reference, config)?;
+        let actual = align_best(evidence, reference, config)?;
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+        Ok(actual)
+    }
+
+    /// Neither orientation is proven when the read's probe windows cover most
+    /// of the reference: three near copies of the read's source. Forward,
+    /// first on equal lower bounds, runs full Gotoh, and its optimum proves
+    /// that reverse cannot reach it.
+    #[test]
+    fn both_unproven_orientations_reject_the_other_by_threshold_proof() -> Result<()> {
+        let source = random_bases(0x0dd5_eed5, 300);
+        let copy = |substitutions: &[usize]| {
+            let mut copy = source.clone().into_bytes();
+            for &position in substitutions {
+                copy[position] = if copy[position] == b'A' { b'C' } else { b'A' };
+            }
+            String::from_utf8(copy).unwrap_or_default()
+        };
+        let sequence = format!(
+            "{}{}{}{}{}{}",
+            random_bases(1, 100),
+            source,
+            random_bases(2, 50),
+            copy(&[60, 200]),
+            random_bases(3, 50),
+            copy(&[70, 220]),
+        );
+        let reference = Reference {
+            name: "ref".into(),
+            sequence,
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let evidence = ReadEvidence::clean(&copy(&[40]));
+
+        let pruned = pruned_orientations(&evidence, &reference, &config())?;
+        assert!(matches!(
+            pruned.as_slice(),
+            [
+                Pruned::Unproven { lower_bound: None },
+                Pruned::Unproven { lower_bound: None }
+            ]
+        ));
+        let forward = gotoh_selection(&evidence, &reference, &config())?;
+        let (sequence, modulo_length) = working(&reference);
+        let target = WorkingReference::new(&sequence, modulo_length);
+        let [_, (reverse_query, reverse_profiles)] = queries(&evidence);
+        let reverse = Problem::new(&reverse_query, &reverse_profiles, &target, &config())
+            .map(|problem| exact::align_at_or_above(&problem, forward.score))
+            .transpose()?;
+        assert!(matches!(reverse, Some(Some(placements)) if placements.is_empty()));
+
+        let selected = assert_matches_gotoh_selection(&evidence, &reference, &config())?;
+        assert_eq!(selected.orientation, Orientation::Forward);
+        assert_eq!(selected.reference_segments[0].start_0based, 100);
+        Ok(())
+    }
+
+    /// Neither orientation is proven when most read loci are weak calls that
+    /// the reference contradicts: too many seeds would be needed. The reverse
+    /// read's seeds give a lower bound, so reverse runs full Gotoh first, and
+    /// forward, unable to prove the threshold, runs full Gotoh too.
+    #[test]
+    fn both_unproven_orientations_start_from_the_higher_lower_bound() -> Result<()> {
+        let sequence = random_bases(0xfeed_beef, 600);
+        let source = &sequence[150..450];
+        let clean = |index: usize| (20..40).contains(&(index % 75));
+        let mut evidence = ReadEvidence::clean(&reverse_complement(source));
+        for (index, base) in source.bytes().enumerate() {
+            if clean(index) {
+                continue;
+            }
+            let channel = "ACGT".find(char::from(base)).unwrap_or(0);
+            let wrong = (channel + 1) % 4;
+            let mut weights = [0.0; 4];
+            weights[wrong] = 0.85;
+            weights[channel] = 0.15;
+            let call_index = source.len() - 1 - index;
+            let mut call = evidence.calls()[call_index];
+            call.base = reverse_complement(&"ACGT"[wrong..=wrong])
+                .chars()
+                .next()
+                .unwrap_or('N');
+            call.profile = Some(EvidenceProfile { weights }.complemented());
+            evidence = evidence.with_call(call_index, call);
+        }
+        let reference = Reference {
+            name: "ref".into(),
+            sequence,
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let mut config = config();
+        config.minimum_identity = 0.0;
+
+        let pruned = pruned_orientations(&evidence, &reference, &config)?;
+        assert!(matches!(
+            pruned.as_slice(),
+            [
+                Pruned::Unproven { lower_bound: None },
+                Pruned::Unproven {
+                    lower_bound: Some(_)
+                }
+            ]
+        ));
+
+        let selected = assert_matches_gotoh_selection(&evidence, &reference, &config)?;
+        assert_eq!(selected.orientation, Orientation::Reverse);
+        Ok(())
     }
 
     #[test]

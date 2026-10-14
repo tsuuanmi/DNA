@@ -39,6 +39,47 @@ fn profiles(sequence: &str) -> Vec<Option<EvidenceProfile>> {
         .collect()
 }
 
+fn upper_bound_on(
+    query: &str,
+    query_profiles: &[Option<EvidenceProfile>],
+    reference: &str,
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
+) -> UpperBoundPlacement {
+    let reference = WorkingReference::new(reference, modulo_length);
+    Problem::new(query, query_profiles, &reference, config)
+        .map_or(UpperBoundPlacement::Unproven, |problem| classify(&problem))
+}
+
+fn pruned_on(
+    query: &str,
+    query_profiles: &[Option<EvidenceProfile>],
+    reference: &str,
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
+) -> dna_kernel::error::Result<Pruned> {
+    let reference = WorkingReference::new(reference, modulo_length);
+    match Problem::new(query, query_profiles, &reference, config) {
+        Some(problem) => align_pruned(&problem),
+        None => Ok(Pruned::Unproven { lower_bound: None }),
+    }
+}
+
+fn at_or_above_on(
+    query: &str,
+    query_profiles: &[Option<EvidenceProfile>],
+    reference: &str,
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
+    threshold: i64,
+) -> dna_kernel::error::Result<Option<Vec<RawAlignment>>> {
+    let reference = WorkingReference::new(reference, modulo_length);
+    match Problem::new(query, query_profiles, &reference, config) {
+        Some(problem) => align_at_or_above(&problem, threshold),
+        None => Ok(None),
+    }
+}
+
 fn unique(result: UpperBoundPlacement) -> RawAlignment {
     match result {
         UpperBoundPlacement::Unique(alignment) => alignment,
@@ -49,7 +90,7 @@ fn unique(result: UpperBoundPlacement) -> RawAlignment {
 #[test]
 fn proves_unique_gapless_upper_bound_placement() {
     let query = "ACGT";
-    let alignment = unique(classify(
+    let alignment = unique(upper_bound_on(
         query,
         &profiles(query),
         "TTACGTGG",
@@ -66,7 +107,7 @@ fn proves_unique_gapless_upper_bound_placement() {
 
 #[test]
 fn proof_follows_profile_optimum_not_primary_sequence() {
-    let alignment = unique(classify(
+    let alignment = unique(upper_bound_on(
         "TCGT",
         &profiles("ACGT"),
         "TTACGTGG",
@@ -83,7 +124,7 @@ fn proof_follows_profile_optimum_not_primary_sequence() {
 #[test]
 fn reports_multiple_upper_bound_placements_as_ambiguous() {
     assert!(matches!(
-        classify("AAA", &profiles("AAA"), "AAAAA", &config(), None),
+        upper_bound_on("AAA", &profiles("AAA"), "AAAAA", &config(), None),
         UpperBoundPlacement::Ambiguous
     ));
 }
@@ -91,7 +132,7 @@ fn reports_multiple_upper_bound_placements_as_ambiguous() {
 #[test]
 fn distinguishes_unattained_bound_from_unprovable_bound() {
     assert!(matches!(
-        classify("ACGT", &profiles("ACGT"), "TTTT", &config(), None),
+        upper_bound_on("ACGT", &profiles("ACGT"), "TTTT", &config(), None),
         UpperBoundPlacement::Unattained
     ));
 
@@ -102,7 +143,7 @@ fn distinguishes_unattained_bound_from_unprovable_bound() {
         profiles("C")[0],
     ];
     assert!(matches!(
-        classify("AC", &tied, "AC", &config(), None),
+        upper_bound_on("AC", &tied, "AC", &config(), None),
         UpperBoundPlacement::Unproven
     ));
 
@@ -113,7 +154,7 @@ fn distinguishes_unattained_bound_from_unprovable_bound() {
         weights: [0.4, 0.3, 0.2, 0.1],
     })];
     assert!(matches!(
-        classify("A", &weak_profiles, "A", &weak, None),
+        upper_bound_on("A", &weak_profiles, "A", &weak, None),
         UpperBoundPlacement::Unproven
     ));
 }
@@ -123,7 +164,7 @@ fn over_limit_problem_falls_back_to_authoritative_gotoh() {
     let query = "A".repeat(2_000);
     let reference = "A".repeat(50_000);
     assert!(matches!(
-        classify(&query, &profiles(&query), &reference, &config(), None),
+        upper_bound_on(&query, &profiles(&query), &reference, &config(), None),
         UpperBoundPlacement::Unproven
     ));
 }
@@ -176,7 +217,7 @@ fn seeded_pruning_matches_gotoh_for_one_snv() -> TestResult {
 
     let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
     let actual = require_pruned(
-        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        pruned_on(&query, &query_profiles, &reference, &config(), None)?,
         "one-SNV alignment",
     )?;
 
@@ -193,7 +234,7 @@ fn seeded_pruning_matches_gotoh_for_one_insertion() -> TestResult {
 
     let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
     let actual = require_pruned(
-        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        pruned_on(&query, &query_profiles, &reference, &config(), None)?,
         "one-insertion alignment",
     )?;
 
@@ -210,7 +251,7 @@ fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> TestResult {
 
     let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
     let actual = require_pruned(
-        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        pruned_on(&query, &query_profiles, &reference, &config(), None)?,
         "homopolymer deletion alignment",
     )?;
 
@@ -234,7 +275,7 @@ fn seeded_pruning_preserves_distinct_equal_placements() -> TestResult {
 
     let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
     let actual = require_pruned(
-        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        pruned_on(&query, &query_profiles, &reference, &config(), None)?,
         "repeated SNV alignment",
     )?;
 
@@ -260,7 +301,7 @@ fn seeded_pruning_supports_circular_non_origin_windows() -> TestResult {
         Some(reference.len()),
     )?;
     let actual = require_pruned(
-        align_pruned(
+        pruned_on(
             &query,
             &query_profiles,
             &working_reference,
@@ -288,6 +329,25 @@ fn reverse_complement(sequence: &str) -> String {
         .collect()
 }
 
+/// The seed lower bound is the score of a valid alignment, so a complete
+/// proof at that threshold that finds no placement is an internal fault, not a
+/// reason to fall back.
+#[test]
+fn empty_proof_at_the_seed_lower_bound_is_inconsistent() {
+    assert!(matches!(
+        seeded::proven_at_lower_bound(Some(Vec::new()), 7),
+        Err(dna_kernel::error::Error::Alignment(
+            dna_kernel::error::AlignmentError::Inconsistent(_)
+        ))
+    ));
+    assert!(matches!(
+        seeded::proven_at_lower_bound(None, 7),
+        Ok(Pruned::Unproven {
+            lower_bound: Some(7)
+        })
+    ));
+}
+
 #[test]
 fn threshold_proof_can_exclude_opposite_orientation() -> TestResult {
     let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -296,14 +356,14 @@ fn threshold_proof_can_exclude_opposite_orientation() -> TestResult {
     let reference = format!("TTTT{reference_query}CCCC");
     let query_profiles = profiles(&query);
     let forward = require_pruned(
-        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        pruned_on(&query, &query_profiles, &reference, &config(), None)?,
         "forward threshold source",
     )?;
     let threshold = forward[0].score;
 
     let reverse_query = reverse_complement(&query);
     let reverse_profiles = profiles(&reverse_query);
-    let reverse = align_at_or_above(
+    let reverse = at_or_above_on(
         &reverse_query,
         &reverse_profiles,
         &reference,
@@ -334,7 +394,7 @@ fn seeded_pruning_matches_gotoh_across_circular_origin() -> TestResult {
             Some(length),
         )?;
         let actual = require_pruned(
-            align_pruned(
+            pruned_on(
                 &query,
                 &query_profiles,
                 &working_reference,
@@ -345,6 +405,47 @@ fn seeded_pruning_matches_gotoh_across_circular_origin() -> TestResult {
         )?;
         assert_same_alignments(&actual, &expected);
     }
+    Ok(())
+}
+
+/// A read spanning the whole circle whose last probe seed lands just after the
+/// origin needs a probe window reaching further back than one circle, which
+/// must start at the doubled reference's beginning rather than underflow.
+#[test]
+fn seeded_pruning_clamps_a_window_reaching_past_the_doubled_reference_start() -> TestResult {
+    let mut generator = Generator(0x05ee_d0fc_1c1e);
+    let reference = (0..100)
+        .map(|_| char::from(b"ACGT"[generator.below(4)]))
+        .collect::<String>();
+    let working_reference = format!("{reference}{reference}");
+    // The last of four probe seeds starts at query locus 79 with a margin of
+    // 25, so its window reaches 104 bases back from reference position 1.
+    let start = 22;
+    let mut query = working_reference[start..start + 100].to_owned();
+    query.replace_range(10..11, if &query[10..11] == "A" { "C" } else { "A" });
+    let query_profiles = profiles(&query);
+    let seed = &query[79..95];
+    assert_eq!(working_reference[..100].matches(seed).count(), 1);
+    assert_eq!(working_reference.find(seed), Some(1));
+
+    let expected = gotoh::align(
+        &query,
+        &query_profiles,
+        &working_reference,
+        &config(),
+        Some(100),
+    )?;
+    let actual = require_pruned(
+        pruned_on(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            Some(100),
+        )?,
+        "whole-circle rotation",
+    )?;
+    assert_same_alignments(&actual, &expected);
     Ok(())
 }
 
@@ -364,7 +465,7 @@ fn seeded_pruning_matches_gotoh_with_unresolved_and_mixed_loci() -> TestResult {
 
     let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
     let actual = require_pruned(
-        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        pruned_on(&query, &query_profiles, &reference, &config(), None)?,
         "alignment with unresolved and mixed loci",
     )?;
 
@@ -414,17 +515,28 @@ fn random_profile(generator: &mut Generator, base: u8) -> Option<EvidenceProfile
 }
 
 /// Randomized reads with substitutions, indels, unresolved and mixed loci,
-/// against linear and circular references with an `N`, must prune to exactly
-/// the whole-reference Gotoh placements whenever a proof applies.
+/// against linear and circular references with an `N` or a repeated unit,
+/// must prune to exactly the whole-reference Gotoh placements whenever a proof
+/// applies, at the seed lower bound and at explicit thresholds.
 #[test]
 fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
+    const UNIT: usize = 130;
     let mut generator = Generator(0x9e37_79b9_7f4a_7c15);
     let mut pruned = 0;
+    let mut ambiguous = 0;
+    let mut thresholded = 0;
     for case in 0..400 {
-        let length = 200 + generator.below(200);
+        let repeated = case % 4 == 1;
+        let length = 2 * UNIT + generator.below(140);
         let mut reference = (0..length)
             .map(|_| char::from(b"ACGT"[generator.below(4)]))
             .collect::<String>();
+        if repeated {
+            // The reference ends with a copy of its first unit, and the read
+            // comes from that unit, so it has two equal placements.
+            let unit = reference[..UNIT].to_owned();
+            reference.replace_range(length - UNIT.., &unit);
+        }
         if case % 3 == 0 {
             let position = generator.below(length);
             reference.replace_range(position..=position, "N");
@@ -436,8 +548,10 @@ fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
             reference.clone()
         };
         let modulo_length = circular.then_some(length);
-        let span = 40 + generator.below(80);
-        let start = if circular {
+        let span = 40 + generator.below(UNIT - 50);
+        let start = if repeated {
+            generator.below(UNIT - span)
+        } else if circular {
             generator.below(length)
         } else {
             generator.below(length - span)
@@ -478,7 +592,7 @@ fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
         ) else {
             continue;
         };
-        if let Pruned::Proven(actual) = align_pruned(
+        if let Pruned::Proven(actual) = pruned_on(
             &query,
             &query_profiles,
             &working_reference,
@@ -486,22 +600,51 @@ fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
             modulo_length,
         )? {
             pruned += 1;
-            assert_eq!(actual.len(), expected.len(), "case {case}");
-            if expected.len() == 1 {
+            ambiguous += usize::from(expected.len() == 2);
+            assert_same_alignments(&actual, &expected);
+        }
+        // At or below the optimum a proof yields exactly Gotoh's placements;
+        // above it, a proof yields none.
+        let optimum = expected[0].score;
+        for threshold in [
+            optimum - 5 * SCORE_SCALE,
+            optimum - SCORE_SCALE,
+            optimum - 1,
+            optimum,
+        ] {
+            if let Some(actual) = at_or_above_on(
+                &query,
+                &query_profiles,
+                &working_reference,
+                &config(),
+                modulo_length,
+                threshold,
+            )? {
+                thresholded += 1;
                 assert_same_alignments(&actual, &expected);
             }
         }
-        if let Some(actual) = align_at_or_above(
-            &query,
-            &query_profiles,
-            &working_reference,
-            &config(),
-            modulo_length,
-            expected[0].score + 1,
-        )? {
-            assert!(actual.is_empty(), "case {case}");
+        for threshold in [optimum + 1, optimum + SCORE_SCALE] {
+            if let Some(actual) = at_or_above_on(
+                &query,
+                &query_profiles,
+                &working_reference,
+                &config(),
+                modulo_length,
+                threshold,
+            )? {
+                assert!(actual.is_empty(), "case {case}");
+            }
         }
     }
+    assert!(
+        ambiguous > 20,
+        "only {ambiguous} pruned cases were ambiguous"
+    );
+    assert!(
+        thresholded > 800,
+        "only {thresholded} thresholds at or below the optimum were proven"
+    );
     assert!(pruned > 200, "only {pruned} random cases were pruned");
     Ok(())
 }
@@ -510,7 +653,7 @@ fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
 fn proves_unique_circular_origin_crossing_placement() {
     let reference = "ACGT";
     let working_reference = format!("{reference}{reference}");
-    let alignment = unique(classify(
+    let alignment = unique(upper_bound_on(
         "GTAC",
         &profiles("GTAC"),
         &working_reference,
