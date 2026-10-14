@@ -356,6 +356,35 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- A trace with fewer calls than one signal window no longer fails a whole
+  `dna sample` or `dna consensus` (SRS-SIG-007, SRS-SAMPLE-030).
+  - Read processing checks the call count before any stage runs. Such a read
+    is recorded in `rejected_reads[]` with the new reason `too_short`
+    (`calls`, `minimum_calls`), and the other reads continue.
+  - `analyze` and `basecall` still fail typed with "N calls are fewer than
+    window_size_bases W". A one-locus trace now fails the same way, instead
+    of in locus-window geometry during basecalling.
+  - On the 2620-sample dev panel, the 2 samples that failed now produce
+    results (3 reads rejected as `too_short`); every other consensus
+    document and FASTA differs only in the `sanger` plugin version.
+  - The `sanger` plugin method version rises to 2, because a short read
+    that produced an error now produces a rejection
+    ([versioning](docs/governance/versioning.md#plugins)). Every document
+    that lists plugins in its provenance records it.
+  - **Breaking:** `dna.sample_evidence/v10` and `dna.consensus/v1` are
+    revised in place. The rejection reasons gain `too_short`, and a
+    `too_short` record in sample evidence has no `integrity` or
+    `callability`.
+  - **Rust API:** `dna_sanger::model::signal::ShortRead` (with
+    `ShortRead::of`, which reads the short-read error) is new;
+    `SignalError::TooFewLoci` is removed, because the one length check runs
+    before signal processing;
+    `dna_sanger::model::attachment::SangerRejection` no longer carries the
+    trace name and SHA-256. In `dna::sample_analysis` (new in this cycle),
+    `RejectedRead` carries `input_name` and `input_sha256` beside its
+    `cause`, and `RejectionCause` gains `TooShort(ShortRead)`; its
+    `Callability` and `Placement` variants carry the read's `sanger`
+    evidence and their `rejection`, which `RejectionCause::sanger` returns.
 - A trace whose `PLOC.2` repeats one position (seen at the first or last
   locus of production traces) no longer fails the whole `analyze`,
   `basecall`, or `sample` operation (SRS-IN-003, ADR-0031). Decode merges the

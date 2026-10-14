@@ -6,6 +6,11 @@ channels.
 It coordinates rolling features, basecall-independent locus evidence,
 Sanger-integrity observations, and candidate-noisy region merging.
 
+`mod.rs` owns the one length rule (SRS-SIG-007): `check_length` fails a read
+with fewer calls than one window. Read processing applies it before
+basecalling, so the feature and locus-context code assumes a full window and
+keeps no length guard of its own.
+
 This module does not mutate channels, perform reference interpretation, or decide
 variant eligibility.
 

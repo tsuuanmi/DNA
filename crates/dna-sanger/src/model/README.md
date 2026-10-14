@@ -3,7 +3,8 @@
 Owns canonical Sanger evidence:
 - `sanger`: the chromatogram;
 - `basecalls`;
-- `signal`: locus evidence, integrity, noisy regions;
+- `signal`: locus evidence, integrity, noisy regions, and the short-read
+  rejection;
 - `locus_evidence`;
 - `callability`;
 - `quality`;

@@ -197,7 +197,7 @@ dna::sample_analysis::analyze_sanger(...)
 
 It loads the traces, reference, configuration, and target profile as the
 `sample` and `consensus` commands do, processes and places every trace once,
-sets aside rejected reads (SRS-SAMPLE-027, SRS-SAMPLE-029), aggregates the
+sets aside rejected reads (SRS-SAMPLE-027, SRS-SAMPLE-029, SRS-SAMPLE-030), aggregates the
 admitted reads, and builds their consensus. The two commands run this same
 pass, so the result describes exactly what they publish. A caller that needs
 both no longer places every trace twice.
@@ -225,14 +225,20 @@ pub struct SampleAnalysis {
 
 #[non_exhaustive]
 pub struct RejectedRead {
-    pub sanger: SangerRejection,
+    pub input_name: String,
+    pub input_sha256: String,
     pub cause: RejectionCause,
 }
 
 #[non_exhaustive]
 pub enum RejectionCause {
-    Callability(ReadRejection),
-    Placement(PlacementRejection),
+    TooShort(ShortRead),
+    Callability { sanger: SangerRejection, rejection: ReadRejection },
+    Placement { sanger: SangerRejection, rejection: PlacementRejection },
+}
+
+impl RejectionCause {
+    pub const fn sanger(&self) -> Option<&SangerRejection>;
 }
 ```
 
@@ -244,9 +250,10 @@ pub enum RejectionCause {
   summary; each site names its reads in registry order.
 - `reads` holds each admitted read's Sanger evidence (`dna_sanger`): calls,
   signal analysis, callability, and quality control.
-- `rejected` holds each rejected read's name, identity, integrity,
-  callability, and cause: too few callable calls, or a placement the core
-  rejected.
+- `rejected` holds each rejected read's name, identity, and cause: fewer
+  calls than one signal window, too few callable calls, or a placement the
+  core rejected. The last two carry the read's integrity and callability
+  (`SangerRejection`); a read too short to process has none.
 
 `reads` and `rejected` are keyed by read content SHA-256, the identity the
 core records use. Every coordinate field names its base (`_0based`,

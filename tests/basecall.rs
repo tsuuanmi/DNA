@@ -65,7 +65,7 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
     );
     assert_eq!(
         value["provenance"]["plugins"],
-        serde_json::json!([{"id": "sanger", "family": "modality", "version": 1}])
+        serde_json::json!([{"id": "sanger", "family": "modality", "version": 2}])
     );
     assert_object_keys(
         &value["read"],

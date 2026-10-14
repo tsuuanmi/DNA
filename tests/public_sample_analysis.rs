@@ -109,8 +109,9 @@ fn one_pass_returns_sample_evidence_and_consensus_without_cli_side_effects()
     );
     assert_eq!(result.rejected.len(), 1);
     let rejected = result.rejected.values().next().ok_or("one rejected read")?;
-    assert_eq!(rejected.sanger.input_name, "read-foreign.ab1");
-    assert!(matches!(rejected.cause, RejectionCause::Placement(_)));
+    assert_eq!(rejected.input_name, "read-foreign.ab1");
+    assert!(matches!(rejected.cause, RejectionCause::Placement { .. }));
+    assert!(rejected.cause.sanger().is_some());
     assert_eq!(result.consensus.segments.len(), 1);
     assert_eq!(result.consensus.segments[0].sequence, alternate());
     assert_eq!(result.consensus.sites.len(), 1);
@@ -186,5 +187,36 @@ fn the_result_does_not_depend_on_the_number_of_workers() -> Result<(), Box<dyn s
     let many = sample_analysis::analyze_sanger(&traces, &reference, &config, FOUR)?;
 
     assert_eq!(format!("{one:?}"), format!("{many:?}"));
+    Ok(())
+}
+
+/// A read shorter than one signal window is a rejection, not a failure: the
+/// reads after it are still placed, on one worker or several (SRS-SAMPLE-030).
+#[test]
+fn a_too_short_read_is_rejected_without_stopping_the_other_reads()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let [reference, config, forward, foreign, reverse] = write_sample(directory.path())?;
+    let short = directory.path().join("read-short.ab1");
+    write_abif(&short, &QUERY[..5])?;
+    let traces = [short, forward, foreign, reverse];
+
+    let one = sample_analysis::analyze_sanger(&traces, &reference, &config, NonZeroUsize::MIN)?;
+    let many = sample_analysis::analyze_sanger(&traces, &reference, &config, FOUR)?;
+
+    assert_eq!(format!("{one:?}"), format!("{many:?}"));
+    assert_eq!(many.evidence.reads.len(), 2);
+    assert_eq!(many.rejected.len(), 2);
+    let short = many
+        .rejected
+        .values()
+        .find(|read| read.input_name == "read-short.ab1")
+        .ok_or("the short read is rejected")?;
+    assert!(matches!(
+        short.cause,
+        RejectionCause::TooShort(rejection)
+            if rejection.calls == 5 && rejection.minimum_calls == 10
+    ));
+    assert!(short.cause.sanger().is_none());
     Ok(())
 }

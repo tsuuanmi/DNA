@@ -51,8 +51,13 @@ position 0 to the mapped end. A normal non-crossing read has
 
 `rejected_reads[]` lists the reads a sample sets aside. Records are sorted by
 SHA-256 and contain `name`, `sha256`, `integrity`, and `callability` as in
-`reads[]`, plus `rejection`. Its `reason` is one of the following:
+`reads[]`, plus `rejection`; a `too_short` read has no `integrity` or
+`callability`, because no stage processed it. Its `reason` is one of the
+following:
 
+- `too_short`: the read has fewer calls than one signal window,
+  `signal_processing.window_size_bases` (SRS-SAMPLE-030). Also carries
+  `calls` and `minimum_calls`.
 - `callable_calls_below_minimum`: read callability left fewer than
   `callability.minimum_callable_calls` unmasked calls (ADR-0067). Also
   carries `callable_calls` and `minimum_callable_calls`.
@@ -66,8 +71,8 @@ SHA-256 and contain `name`, `sha256`, `integrity`, and `callability` as in
   placement.
 - `orientation_tie`: forward and reverse orientations score equally.
 
-The last four are placement failures (SRS-SAMPLE-029); any other failure still
-fails the operation.
+The last four are placement failures (SRS-SAMPLE-029); any other failure,
+including a trace that cannot be decoded, still fails the operation.
 
 A rejected read has no `alignment` and contributes nothing to `coverage[]`,
 `overlaps[]`, `locus_differences[]`, `variants[]`, or `notation`. Names are

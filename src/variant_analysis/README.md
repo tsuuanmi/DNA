@@ -17,7 +17,8 @@ passing the Sanger and core configuration sections separately.
 
 CLI analysis and the sample placement pass (`sample_analysis`) consume this
 capability through a crate-private
-observation seam. Variant Analysis does not own file-backed CLI logging, JSON
+observation seam; it returns a read the core cannot place as `Unplaced`, with
+the read's integrity and callability, rather than as an error. Variant Analysis does not own file-backed CLI logging, JSON
 projection, or result-file publication.
 
 Public result types belong to this capability boundary and must not expose

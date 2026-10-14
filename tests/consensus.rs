@@ -118,6 +118,45 @@ fn agreeing_reads_call_their_difference() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+/// A read with fewer calls than one signal window is listed as rejected and
+/// the consensus is built from the other reads (SRS-CONS-001, SRS-SAMPLE-030).
+#[test]
+fn a_read_shorter_than_the_signal_window_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    let short = directory.path().join("read-short.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif(&forward, &alternate())?;
+    write_abif(&reverse, &reverse_complement(&alternate()))?;
+    write_abif(&short, &QUERY[..5])?;
+
+    run(
+        &[&forward, &short, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+    )
+    .success();
+
+    let value = document(directory.path())?;
+    assert_eq!(value["reads"].as_array().map(Vec::len), Some(2));
+    let rejected = value["rejected_reads"]
+        .as_array()
+        .ok_or("rejected_reads must be an array")?;
+    assert_eq!(rejected.len(), 1);
+    assert_eq!(rejected[0]["name"], "read-short");
+    assert_eq!(
+        rejected[0]["rejection"],
+        serde_json::json!({"reason": "too_short", "calls": 5, "minimum_calls": 10})
+    );
+    assert_eq!(value["sites"][0]["state"], "called");
+    Ok(())
+}
+
 /// One read against one read keeps the reference base and marks the site
 /// contested.
 #[test]

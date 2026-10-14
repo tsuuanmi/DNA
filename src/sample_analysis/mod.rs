@@ -46,8 +46,9 @@ pub struct SampleAnalysis {
     pub consensus: Consensus,
     /// Sanger evidence of each admitted read, by read content SHA-256.
     pub reads: BTreeMap<String, SangerAttachment>,
-    /// Each rejected read with its Sanger evidence and cause, by read content
-    /// SHA-256.
+    /// Each rejected read with its cause, by read content SHA-256; the cause
+    /// carries the read's Sanger evidence unless the read was too short to
+    /// process.
     pub rejected: BTreeMap<String, RejectedRead>,
 }
 
@@ -106,8 +107,8 @@ pub(crate) fn aggregate(placed: &PlacedReads, config: &Config) -> Result<SampleE
         .rejected
         .iter()
         .map(|read| RejectedSampleRead {
-            input_name: read.sanger.input_name.clone(),
-            input_sha256: read.sanger.input_sha256.clone(),
+            input_name: read.input_name.clone(),
+            input_sha256: read.input_sha256.clone(),
         })
         .collect::<Vec<_>>();
     sample::aggregate(
@@ -141,7 +142,7 @@ pub(crate) fn build_consensus(
 pub(crate) fn by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, RejectedRead> {
     rejected
         .into_iter()
-        .map(|read| (read.sanger.input_sha256.clone(), read))
+        .map(|read| (read.input_sha256.clone(), read))
         .collect()
 }
 

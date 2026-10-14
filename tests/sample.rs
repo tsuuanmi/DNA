@@ -95,7 +95,7 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "sanger", "family": "modality", "version": 2},
             {"id": "core", "family": "core", "version": 2},
         ])
     );
@@ -352,7 +352,7 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "sanger", "family": "modality", "version": 2},
             {"id": "core", "family": "core", "version": 2},
             {"id": "normalization", "family": "post_calling", "version": 1},
             {"id": "nomenclature", "family": "post_calling", "version": 1},
@@ -519,6 +519,55 @@ fn records_an_unplaceable_read_as_rejected() -> Result<(), Box<dyn std::error::E
     grouped.dedup();
     assert_eq!(grouped, ["0", "1", "2"]);
     assert!(read_indexes.len() > grouped.len());
+    Ok(())
+}
+
+/// A read with fewer calls than one signal window is recorded as rejected
+/// without signal evidence, and the remaining reads are still aggregated
+/// (SRS-SAMPLE-030). A read of exactly one window reaches callability.
+#[test]
+fn records_a_read_shorter_than_the_signal_window_as_rejected()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    let short = directory.path().join("read-short.ab1");
+    let window = directory.path().join("read-window.ab1");
+    write_config(&config, "linear")?;
+    write_abif(&short, &QUERY[..9])?;
+    write_abif(&window, &QUERY[..10])?;
+
+    run(
+        &[&forward, &short, &window, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+    )
+    .success();
+
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["reads"].as_array().map(Vec::len), Some(2));
+    let rejected = value["rejected_reads"]
+        .as_array()
+        .ok_or("rejected_reads must be an array")?;
+    assert_eq!(rejected.len(), 2);
+    let short = read_by_name(rejected, "read-short")?;
+    assert_object_keys(short, &["name", "sha256", "rejection"])?;
+    assert_eq!(
+        short["rejection"],
+        serde_json::json!({"reason": "too_short", "calls": 9, "minimum_calls": 10})
+    );
+    let window = read_by_name(rejected, "read-window")?;
+    assert_eq!(
+        window["rejection"]["reason"],
+        "callable_calls_below_minimum"
+    );
+    assert_eq!(window["integrity"]["ploc_count"], 10);
+    let log = log_text(directory.path())?;
+    assert!(log.contains("event=sample_read_rejected read_index=1 trace_sha256="));
+    assert!(log.contains("reason=too_short calls=9 minimum_calls=10"));
+    assert!(log.contains("rejected_reads=2"));
     Ok(())
 }
 

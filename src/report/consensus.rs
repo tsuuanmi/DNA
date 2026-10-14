@@ -76,7 +76,7 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
             Ok(ConsensusRejectedReadResult {
                 name,
                 sha256: read.input_sha256.clone(),
-                rejection: project_rejection(cause.cause),
+                rejection: project_rejection(&cause.cause),
             })
         })
         .collect::<Result<_>>()?;

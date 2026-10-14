@@ -15,18 +15,10 @@ pub(super) fn calculate(
     estimates: &mut SpanEstimates<'_>,
 ) -> Result<Vec<SignalWindow>> {
     let trace = estimates.trace();
-    if calls.len() < config.window_size_bases {
-        return Err(SignalError::TooFewCalls {
-            calls: calls.len(),
-            window: config.window_size_bases,
-        }
-        .into());
-    }
-
-    let mut windows = Vec::with_capacity(calls.len() - config.window_size_bases + 1);
-    for call_start in 0..=calls.len() - config.window_size_bases {
-        let call_end = call_start + config.window_size_bases;
-        let selected = &calls.calls[call_start..call_end];
+    let width = config.window_size_bases;
+    let mut windows = Vec::with_capacity((calls.len() + 1).saturating_sub(width));
+    for (call_start, selected) in calls.calls.windows(width).enumerate() {
+        let call_end = call_start + width;
         let sample_start = selected[0].window_start_0based;
         let sample_end = selected[selected.len() - 1].window_end_0based_exclusive;
         if sample_start >= sample_end || sample_end > trace.sample_count() {
@@ -83,7 +75,6 @@ pub(super) fn calculate(
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
     use crate::model::sanger::{Chromatogram, VendorEvidence};
-    use dna_kernel::error::{Error, SignalError};
     use dna_kernel::model::nucleotide::Nucleotide;
 
     use super::*;
@@ -168,25 +159,5 @@ mod tests {
                 .all(|window| window.minimum_primary_snr.is_finite())
         );
         Ok(())
-    }
-
-    #[test]
-    fn rejects_a_trace_shorter_than_the_configured_window() {
-        let (trace, calls) = evidence(4);
-        assert!(matches!(
-            calculate(
-                &calls,
-                &SignalProcessingConfig {
-                    window_size_bases: 5,
-                    minimum_primary_snr: 3.0,
-                    minimum_noisy_windows: 2,
-                },
-                &mut SpanEstimates::new(&trace),
-            ),
-            Err(Error::Signal(SignalError::TooFewCalls {
-                calls: 4,
-                window: 5
-            }))
-        ));
     }
 }

@@ -9,13 +9,14 @@ use std::thread;
 use crate::config::Config;
 use crate::model::read_observation::{ReadObservation, RejectedRead, RejectionCause};
 use crate::variant_analysis;
+use crate::variant_analysis::observation::Observation;
 use dna_core::model::called_read::CalledRead;
-use dna_core::read_call::PlacementRejection;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::sanger::Chromatogram;
+use dna_sanger::model::signal::ShortRead;
 use dna_sanger::read_processing;
 
 /// Where the instrumentation of a read processed on a worker thread goes.
@@ -57,8 +58,9 @@ enum Placement {
 }
 
 /// Processes every trace independently on up to `workers` threads; a read
-/// with too few callable calls, or one the core cannot place, is recorded as
-/// rejected and the remaining reads continue.
+/// shorter than one signal window, one with too few callable calls, or one
+/// the core cannot place is recorded as rejected and the remaining reads
+/// continue.
 ///
 /// The outcome equals a sequential pass: the first other failure in trace
 /// order, a typed error or a panic, fails the pass, and only the records of
@@ -194,7 +196,30 @@ fn place_one(
         trace_name = ?trace.source_name,
         trace_sha256 = %trace.source_sha256,
     );
-    let prepared = read_processing::prepare(trace, &config.sanger)?;
+    let reject = |cause| {
+        Ok(Placement::Rejected(Box::new(RejectedRead {
+            input_name: trace.source_name.clone(),
+            input_sha256: trace.source_sha256.clone(),
+            cause,
+        })))
+    };
+    let prepared = match read_processing::prepare(trace, &config.sanger) {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            let Some(short) = ShortRead::of(&error) else {
+                return Err(error);
+            };
+            tracing::warn!(
+                event = "sample_read_rejected",
+                read_index = index,
+                trace_sha256 = %trace.source_sha256,
+                reason = "too_short",
+                calls = short.calls,
+                minimum_calls = short.minimum_calls,
+            );
+            return reject(RejectionCause::TooShort(short));
+        }
+    };
     if let Some(rejection) = prepared.rejection(&config.sanger) {
         tracing::warn!(
             event = "sample_read_rejected",
@@ -204,15 +229,11 @@ fn place_one(
             callable_calls = rejection.callable_calls,
             minimum_callable_calls = rejection.minimum_callable_calls,
         );
-        return Ok(Placement::Rejected(Box::new(RejectedRead {
-            sanger: SangerRejection {
-                input_name: trace.source_name.clone(),
-                input_sha256: trace.source_sha256.clone(),
-                integrity: prepared.signal.integrity,
-                callability: prepared.callability,
-            },
-            cause: RejectionCause::Callability(rejection),
-        })));
+        let sanger = SangerRejection {
+            integrity: prepared.signal.integrity,
+            callability: prepared.callability,
+        };
+        return reject(RejectionCause::Callability { sanger, rejection });
     }
     let processed = read_processing::finish(
         trace,
@@ -220,33 +241,28 @@ fn place_one(
         &config.sanger,
         config.core.variant_calling.read_end_margin,
     )?;
-    let sanger = SangerRejection {
-        input_name: trace.source_name.clone(),
-        input_sha256: trace.source_sha256.clone(),
-        integrity: processed.signal.integrity.clone(),
-        callability: processed.callability.clone(),
-    };
-    let completed = match variant_analysis::observation::observe(
-        trace, processed, reference, config, profile,
-    ) {
-        Ok(completed) => completed,
-        Err(error) => {
-            let Some(placement) = PlacementRejection::of(&error) else {
-                return Err(error);
-            };
-            tracing::warn!(
-                event = "sample_read_rejected",
-                read_index = index,
-                trace_sha256 = %trace.source_sha256,
-                reason = placement.label(),
-                detail = %error,
-            );
-            return Ok(Placement::Rejected(Box::new(RejectedRead {
+    let completed =
+        match variant_analysis::observation::observe(trace, processed, reference, config, profile)?
+        {
+            Observation::Placed(completed) => *completed,
+            Observation::Unplaced {
+                rejection,
+                error,
                 sanger,
-                cause: RejectionCause::Placement(placement),
-            })));
-        }
-    };
+            } => {
+                tracing::warn!(
+                    event = "sample_read_rejected",
+                    read_index = index,
+                    trace_sha256 = %trace.source_sha256,
+                    reason = rejection.label(),
+                    detail = %error,
+                );
+                return reject(RejectionCause::Placement {
+                    sanger: *sanger,
+                    rejection,
+                });
+            }
+        };
     tracing::info!(
         event = "sample_read_completed",
         read_index = index,

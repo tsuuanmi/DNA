@@ -73,8 +73,8 @@ impl PreparedRead {
 }
 
 /// Runs the scientific stages that require no reference, emitting one
-/// `tracing` stage span and completion event per stage; a read with too few
-/// callable calls fails typed.
+/// `tracing` stage span and completion event per stage; a read shorter than
+/// one signal window, or with too few callable calls, fails typed.
 ///
 /// `context_margin` is the most calls of an adjacent dephased segment the trim
 /// keeps beyond the callable span; the composer passes the core's read-end
@@ -83,7 +83,7 @@ impl PreparedRead {
 /// # Errors
 ///
 /// Returns the failure of the first stage that fails, including
-/// `CallabilityError::TooFewCallableCalls`.
+/// `SignalError::TooFewCalls` and `CallabilityError::TooFewCallableCalls`.
 pub fn process(
     trace: &Chromatogram,
     config: &SangerConfig,
@@ -93,12 +93,22 @@ pub fn process(
     finish(trace, prepared, config, context_margin)
 }
 
-/// Runs basecalling, signal processing, and callability.
+/// Runs basecalling, signal processing, and callability; a read shorter than
+/// one signal window fails typed before basecalling, and
+/// [`ShortRead::of`](crate::model::signal::ShortRead::of) reads that failure.
 ///
 /// # Errors
 ///
-/// Returns the failure of basecalling, signal processing, or callability.
+/// Returns `SignalError::TooFewCalls` for a read shorter than one signal
+/// window, or the failure of basecalling, signal processing, or callability.
 pub fn prepare(trace: &Chromatogram, config: &SangerConfig) -> Result<PreparedRead> {
+    if let Err(error) =
+        signal_processing::check_length(trace.call_count(), &config.signal_processing)
+    {
+        // The rule belongs to signal processing, which the failure names.
+        let _stage = tracing::info_span!("signal_processing").entered();
+        return Err(error);
+    }
     let stage = tracing::info_span!("basecalling").entered();
     let stage_started = Instant::now();
     let calls = basecalling::call(trace, &config.basecalling)?;
@@ -374,7 +384,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 1,
+    version: 2,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[

@@ -16,7 +16,7 @@
       {
         "id": "sanger",
         "family": "modality",
-        "version": 1
+        "version": 2
       },
       {
         "id": "core",
@@ -144,6 +144,15 @@
     }
   ],
   "rejected_reads": [
+    {
+      "name": "read-d",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "rejection": {
+        "reason": "too_short",
+        "calls": 5,
+        "minimum_calls": 10
+      }
+    },
     {
       "name": "read-c",
       "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
