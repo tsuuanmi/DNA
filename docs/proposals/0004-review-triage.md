@@ -56,6 +56,9 @@ Across all three:
   results against ground truth;
 - use these numbers to rank further work.
 
+The evaluation method and the fast feedback loop are in
+[PROP-0005](0005-evaluation-feedback-loop.md).
+
 ## Non-goals
 
 - Biological interpretation rules. They plug into this system later as
@@ -87,36 +90,116 @@ Across all three:
 
 | Concept | Meaning |
 |---|---|
-| **finding** | A typed fact DNA detects at one level and location, with the evidence values that triggered it. Example: "trace HV2F has 38 % callable calls, threshold 60 %". |
-| **rule** | A named, versioned check. It either raises a finding, or clears one with evidence. Each rule has a lifecycle state. |
-| **policy** | The set of active rules and their thresholds, with a version. It belongs to the configuration or target profile. |
+| **error** | A difference between DNA's final result and the ground truth at one site or interval. Only an evaluation can see it, because it needs the truth. |
+| **unreliable region** | An interval where DNA's own evidence does not support a confident answer. DNA detects it without the truth. |
+| **finding** | A typed record that a rule raised: level, location, cause (possibly `unknown`), and the evidence values against their thresholds. |
+| **rule** | A named, versioned, deterministic function from evidence to findings (a *detector*), or from a finding and its evidence to a clearance (a *resolver*). |
+| **policy** | The active rules, their parameters, and their outcome mapping, with one version. |
 | **outcome** | `pass`, `review`, or `rerun` for a region, trace, or sample, with its findings and the policy version. |
 
 **Pass is an allow-list.** A region passes only when positive evidence is
 present (every position read cleanly from both strands) and every finding is
-cleared by an active rule. A finding type that no rule clears goes to review,
-so a new or unknown problem can never pass silently.
+cleared by an active resolver. A finding that no resolver clears goes to
+review, so a new or unknown problem can never pass silently.
+
+### Error model: detect first, diagnose later
+
+DNA does not need to know what went wrong before it knows *where* it cannot
+be trusted. The model has two stages.
+
+1. **Detection.** Detectors mark unreliable regions and poor traces. Every
+   such region carries the cause `unknown` unless a detector knows better. A
+   region that no detector marks is reliable.
+2. **Diagnosis.** Once an unreliable region is caught, more specific
+   detectors give it a cause (dephasing, a single strand, conflicting reads,
+   and so on). A cause makes the review packet richer and may let a resolver
+   clear the region. It never makes an unmarked region unreliable after the
+   fact.
+
+Stage 1 alone already reaches the purpose:
+
+- reliable regions pass;
+- unreliable regions go to review;
+- poor traces that a region needs go to rerun.
+
+Stage 2 lowers B over time.
+
+The evaluation scores the stages separately ([PROP-0005](0005-evaluation-feedback-loop.md)):
+
+- **Detection quality.** Every error must lie inside an unreliable region.
+  An error outside is a *leak*. Unreliable regions without an error are review
+  burden.
+- **Diagnosis quality.** The cause assigned to a caught error matches the
+  cause found by inspection.
+
+**Error classes.** An error is classified on three independent axes, not one
+flat list.
+
+| Axis | Values | Who sets it |
+|---|---|---|
+| level | trace, region, sample (batch downstream) | the detector |
+| origin | `signal` (chemistry, input), `method` (a DNA limit or bug), `biology` (a real state such as heteroplasmy), `truth` (reviewer convention or reviewer error), `unknown` | diagnosis; `unknown` until known |
+| action | `resolvable` (a resolver can clear it), `reviewable` (a reviewer can settle it), `rerun` (no one can settle it from this trace) | the policy, per cause |
+
+Notes on the axes:
+
+- **Origin `method`** errors are DNA's own work list. They are fixed in DNA,
+  not in triage.
+- **Origin `truth`** errors are not counted against DNA after adjudication.
+- **A representation-only difference** (the same haplotype written another
+  way) is not an error. The evaluation normalises notation first.
+
+### Rule model
+
+A rule is Rust code with a declarative description. A text rule language
+would add an interpreter and still need Rust for the evidence types, so there
+is none.
+
+| Part | Content |
+|---|---|
+| identity | stable `id` (`region.one_strand`), integer `version`, owning crate (Sanger plugin for chemistry, core otherwise) |
+| kind | `detector` (evidence → findings) or `resolver` (finding + evidence → clearance) |
+| level | trace, region, or sample |
+| inputs | the evidence fields it reads; only typed evidence, never file paths or truth |
+| parameters | named thresholds with type, unit, allowed range, and comparison (`>=` or `>`), loaded from strict configuration |
+| output | findings with cause, location, and for every parameter the measured value, threshold, and margin |
+| status | `draft`, `shadow`, `validated`, `active`, or `retired`, set by the policy, not by the code |
+| tests | synthetic-evidence unit tests at, just above, and just below each threshold |
+
+Contract for every rule:
+
+- **Pure and deterministic.** No I/O, clock, randomness, or global state. The
+  result does not depend on trace order.
+- **Bounded.** Work grows linearly with the evidence it reads.
+- **Cheap.** Rules run on evidence that is already computed, never on raw
+  signal again. Rule iteration then needs no re-alignment
+  ([PROP-0005](0005-evaluation-feedback-loop.md)).
+- **Bumped on change.** A changed rule gets a new version, and a changed
+  parameter value gets a new policy version. Each outcome records both.
+
+The registry lists every rule once, like the plugin registry (ADR-0069), and
+is checked at compile time: ids are unique, and a parameter belongs to exactly
+one rule. The policy file only switches status and sets parameter values.
 
 ### Finding catalogue
 
-The catalogue is the first deliverable. Names are illustrative. Each finding
-has a default outcome, and a rule may change that outcome only after it is
-approved.
+The catalogue is the first deliverable. Names are illustrative. Each
+detector starts with cause `unknown` or a cause it can see directly.
 
-| Level | Finding | Detected from (today) | Default |
-|---|---|---|---|
-| trace | `unreadable` | ABIF decode failure | poor |
-| trace | `weak` | too few callable calls (SRS-CALL-009) | poor |
-| trace | `short` | callable span below threshold | poor |
-| trace | `mixed_start` | mixed segment from the first callable call | poor |
-| trace | `unplaced` | placement rejection (SRS-SAMPLE-029) | poor |
-| region | `gap` | target position with no clean observation (consensus `N`) | review, or rerun if a poor trace was meant to cover it |
-| region | `one_strand` | position read cleanly by one strand only | review, or rerun if the other strand's trace is poor |
-| region | `conflict` | contested site, or a call opposed by a clean observation | review |
-| region | `unread_run` | masked run, `phase_loss` or `reference_frame` length | review |
-| region | `minor_signal` | second allele signal above threshold | review |
-| region | `convention` | conformance finding | review |
-| sample | `mixture` | traces of the sample disagree beyond a threshold | set by policy |
+| Stage | Level | Finding | Detected from (today) | Default outcome |
+|---|---|---|---|---|
+| 1 | trace | `trace.unreadable` | ABIF decode failure | poor |
+| 1 | trace | `trace.weak` | too few callable calls (SRS-CALL-009) | poor |
+| 1 | trace | `trace.short` | callable span below threshold | poor |
+| 1 | trace | `trace.unplaced` | placement rejection (SRS-SAMPLE-029) | poor |
+| 1 | region | `region.unreliable` | masked call, consensus `N`, `contested`, `phase_loss`, or `reference_frame`, with cause `unknown` | review |
+| 1 | region | `region.one_strand` | position read cleanly by one strand only | review, or rerun if the other strand's trace is poor |
+| 2 | trace | `trace.mixed_start` | mixed segment from the first callable call | poor |
+| 2 | region | `region.conflict` | a call opposed by a clean observation | review |
+| 2 | region | `region.unread_run` | a run whose length no read shows | review |
+| 2 | region | `region.minor_signal` | second allele signal above threshold | review |
+| 2 | region | `region.convention` | conformance finding | review |
+| 2 | sample | `sample.mixture` | traces of the sample disagree beyond a threshold | set by policy |
 
 A *poor* trace is a diagnostic, not yet a rerun. A rerun is required only when
 a region cannot pass or be reviewed without a better trace.
@@ -160,11 +243,11 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  R[Region] --> G{Every position read cleanly?}
-  G -- no --> GP{Was a poor trace meant to cover the gap?}
+  R[Region] --> G{Any unreliable interval?}
+  G -- yes --> GP{Was a poor trace meant to cover it?}
   GP -- yes --> RR[rerun: trace and cause]
-  GP -- no --> V1[review: gap]
-  G -- yes --> B{Both strands clean everywhere?}
+  GP -- no --> V1[review: unreliable, cause or unknown]
+  G -- no --> B{Both strands clean everywhere?}
   B -- no --> BP{Is the other strand's trace poor?}
   BP -- yes --> RR
   BP -- no --> V2[review: one_strand]
@@ -215,15 +298,9 @@ Approval targets differ by outcome:
 | rerun (marks a trace poor) | precision at or above the target: a flagged trace truly could not settle its region | recall; C |
 | review (raises a finding) | none needed, because review is the safe default | share of items where DNA's leading candidate matched the reviewer |
 
-Data discipline:
-
-- **Tune** thresholds on a development set.
-- **Approve** on a disjoint held-out set. Today these are the evaluation and
-  fresh subsets.
-- **Never tune on the approval set.** With zero errors in *n* passed samples,
-  the 95 % upper bound on the error rate is about 3/*n*.
-- **Audit after go-live.** Sample a share of passed results for audit review,
-  so drift shows up as defects.
+Datasets, splits, and the metrics behind these targets are defined in
+[PROP-0005](0005-evaluation-feedback-loop.md). After go-live, a share of
+passed results is sampled for audit review, so drift shows up as defects.
 
 Each approval is a record of:
 
@@ -297,7 +374,11 @@ Agreed in review on 2026-10-14:
 - the levels are region, trace, sample, and batch, worked from the bottom up;
 - a pass normally needs both strands, with exceptions to be discussed;
 - sample swaps and missing traces are out of scope;
-- mixtures are detectable when the traces of a sample differ too much.
+- mixtures are detectable when the traces of a sample differ too much;
+- when the error is not yet known, detect the unreliable region first and
+  diagnose the error later;
+- rules are measured against about 100,000 samples with reviewer results,
+  with a fast feedback loop (PROP-0005).
 
 ## Alternatives considered
 
@@ -315,16 +396,9 @@ Agreed in review on 2026-10-14:
 
 ## Validation plan
 
-- **Phase 0, before any code.**
-  - Build the finding catalogue from the ground-truth disagreements and the
-    rejected reads of the evaluation and fresh subsets, with counts per
-    finding.
-  - A downstream research script applies the draft flow to the existing
-    `dna consensus` and `dna sample` results. It reports A, B, and C, flagged
-    sites per sample, errors that leak into pass, and truth sites that a pass
-    would hide.
-
-  This decides whether the system is worth building.
+- **Phase 0, before any code.** Stage 1 detectors from today's evidence,
+  measured with the method of [PROP-0005](0005-evaluation-feedback-loop.md).
+  The leak and A/B/C numbers decide whether the system is worth building.
 - **Per rule.** The approval targets above, on held-out ground truth.
 - **System.** Property tests for determinism and order independence, and a
   regression check that the outcomes of the approval set do not change
