@@ -63,8 +63,12 @@ pub(crate) struct SampleReadResult {
 pub(crate) struct RejectedSampleReadResult {
     pub(crate) name: String,
     pub(crate) sha256: String,
-    pub(crate) integrity: TraceIntegrityResult,
-    pub(crate) callability: CallabilityResult,
+    /// Absent exactly for a `too_short` read, which no stage processed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) integrity: Option<TraceIntegrityResult>,
+    /// Absent exactly for a `too_short` read, which no stage processed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) callability: Option<CallabilityResult>,
     pub(crate) rejection: ReadRejectionResult,
 }
 
@@ -72,6 +76,10 @@ pub(crate) struct RejectedSampleReadResult {
 #[derive(Debug, Serialize)]
 #[serde(tag = "reason", rename_all = "snake_case")]
 pub(crate) enum ReadRejectionResult {
+    TooShort {
+        calls: usize,
+        minimum_calls: usize,
+    },
     CallableCallsBelowMinimum {
         callable_calls: usize,
         minimum_callable_calls: usize,

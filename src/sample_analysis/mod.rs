@@ -106,8 +106,8 @@ pub(crate) fn aggregate(placed: &PlacedReads, config: &Config) -> Result<SampleE
         .rejected
         .iter()
         .map(|read| RejectedSampleRead {
-            input_name: read.sanger.input_name.clone(),
-            input_sha256: read.sanger.input_sha256.clone(),
+            input_name: read.input_name.clone(),
+            input_sha256: read.input_sha256.clone(),
         })
         .collect::<Vec<_>>();
     sample::aggregate(
@@ -141,7 +141,7 @@ pub(crate) fn build_consensus(
 pub(crate) fn by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, RejectedRead> {
     rejected
         .into_iter()
-        .map(|read| (read.sanger.input_sha256.clone(), read))
+        .map(|read| (read.input_sha256.clone(), read))
         .collect()
 }
 

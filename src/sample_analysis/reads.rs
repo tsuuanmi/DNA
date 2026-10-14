@@ -57,8 +57,9 @@ enum Placement {
 }
 
 /// Processes every trace independently on up to `workers` threads; a read
-/// with too few callable calls, or one the core cannot place, is recorded as
-/// rejected and the remaining reads continue.
+/// shorter than one signal window, one with too few callable calls, or one
+/// the core cannot place is recorded as rejected and the remaining reads
+/// continue.
 ///
 /// The outcome equals a sequential pass: the first other failure in trace
 /// order, a typed error or a panic, fails the pass, and only the records of
@@ -194,6 +195,24 @@ fn place_one(
         trace_name = ?trace.source_name,
         trace_sha256 = %trace.source_sha256,
     );
+    let reject = |cause| {
+        Ok(Placement::Rejected(Box::new(RejectedRead {
+            input_name: trace.source_name.clone(),
+            input_sha256: trace.source_sha256.clone(),
+            cause,
+        })))
+    };
+    if let Some(short) = read_processing::too_short(trace, &config.sanger) {
+        tracing::warn!(
+            event = "sample_read_rejected",
+            read_index = index,
+            trace_sha256 = %trace.source_sha256,
+            reason = "too_short",
+            calls = short.calls,
+            minimum_calls = short.minimum_calls,
+        );
+        return reject(RejectionCause::TooShort(short));
+    }
     let prepared = read_processing::prepare(trace, &config.sanger)?;
     if let Some(rejection) = prepared.rejection(&config.sanger) {
         tracing::warn!(
@@ -204,15 +223,11 @@ fn place_one(
             callable_calls = rejection.callable_calls,
             minimum_callable_calls = rejection.minimum_callable_calls,
         );
-        return Ok(Placement::Rejected(Box::new(RejectedRead {
-            sanger: SangerRejection {
-                input_name: trace.source_name.clone(),
-                input_sha256: trace.source_sha256.clone(),
-                integrity: prepared.signal.integrity,
-                callability: prepared.callability,
-            },
-            cause: RejectionCause::Callability(rejection),
-        })));
+        let sanger = SangerRejection {
+            integrity: prepared.signal.integrity,
+            callability: prepared.callability,
+        };
+        return reject(RejectionCause::Callability { sanger, rejection });
     }
     let processed = read_processing::finish(
         trace,
@@ -221,8 +236,6 @@ fn place_one(
         config.core.variant_calling.read_end_margin,
     )?;
     let sanger = SangerRejection {
-        input_name: trace.source_name.clone(),
-        input_sha256: trace.source_sha256.clone(),
         integrity: processed.signal.integrity.clone(),
         callability: processed.callability.clone(),
     };
@@ -241,10 +254,10 @@ fn place_one(
                 reason = placement.label(),
                 detail = %error,
             );
-            return Ok(Placement::Rejected(Box::new(RejectedRead {
+            return reject(RejectionCause::Placement {
                 sanger,
-                cause: RejectionCause::Placement(placement),
-            })));
+                rejection: placement,
+            });
         }
     };
     tracing::info!(

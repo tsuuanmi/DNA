@@ -85,12 +85,15 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                     .ok_or(ReportError::Inconsistent(
                         "rejected sample read lacks its Sanger evidence",
                     ))?;
+            let sanger = rejected.cause.sanger();
             Ok(RejectedSampleReadResult {
                 name,
                 sha256: read.input_sha256.clone(),
-                integrity: crate::report::signal::project_integrity(&rejected.sanger.integrity),
-                callability: crate::report::callability::project(&rejected.sanger.callability),
-                rejection: project_rejection(rejected.cause),
+                integrity: sanger
+                    .map(|sanger| crate::report::signal::project_integrity(&sanger.integrity)),
+                callability: sanger
+                    .map(|sanger| crate::report::callability::project(&sanger.callability)),
+                rejection: project_rejection(&rejected.cause),
             })
         })
         .collect::<Result<_>>()?;
@@ -385,31 +388,34 @@ fn read_name(read_names: &[String], index: usize) -> Result<&str> {
         .ok_or(ReportError::MissingRead { index })?)
 }
 
-pub(super) fn project_rejection(cause: RejectionCause) -> ReadRejectionResult {
-    match cause {
-        RejectionCause::Callability(rejection) => ReadRejectionResult::CallableCallsBelowMinimum {
-            callable_calls: rejection.callable_calls,
-            minimum_callable_calls: rejection.minimum_callable_calls,
+pub(super) const fn project_rejection(cause: &RejectionCause) -> ReadRejectionResult {
+    match *cause {
+        RejectionCause::TooShort(short) => ReadRejectionResult::TooShort {
+            calls: short.calls,
+            minimum_calls: short.minimum_calls,
         },
-        RejectionCause::Placement(PlacementRejection::CallableColumnsBelowMinimum {
-            callable_columns,
-            minimum,
-        }) => ReadRejectionResult::CallableColumnsBelowMinimum {
-            callable_columns,
-            minimum_callable_columns: minimum,
-        },
-        RejectionCause::Placement(PlacementRejection::IdentityBelowMinimum {
-            identity,
-            minimum,
-        }) => ReadRejectionResult::IdentityBelowMinimum {
-            identity,
-            minimum_identity: minimum,
-        },
-        RejectionCause::Placement(PlacementRejection::AmbiguousPlacement) => {
-            ReadRejectionResult::AmbiguousPlacement
+        RejectionCause::Callability { rejection, .. } => {
+            ReadRejectionResult::CallableCallsBelowMinimum {
+                callable_calls: rejection.callable_calls,
+                minimum_callable_calls: rejection.minimum_callable_calls,
+            }
         }
-        RejectionCause::Placement(PlacementRejection::OrientationTie) => {
-            ReadRejectionResult::OrientationTie
-        }
+        RejectionCause::Placement { rejection, .. } => match rejection {
+            PlacementRejection::CallableColumnsBelowMinimum {
+                callable_columns,
+                minimum,
+            } => ReadRejectionResult::CallableColumnsBelowMinimum {
+                callable_columns,
+                minimum_callable_columns: minimum,
+            },
+            PlacementRejection::IdentityBelowMinimum { identity, minimum } => {
+                ReadRejectionResult::IdentityBelowMinimum {
+                    identity,
+                    minimum_identity: minimum,
+                }
+            }
+            PlacementRejection::AmbiguousPlacement => ReadRejectionResult::AmbiguousPlacement,
+            PlacementRejection::OrientationTie => ReadRejectionResult::OrientationTie,
+        },
     }
 }

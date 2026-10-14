@@ -15,10 +15,10 @@ use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
-use crate::model::signal::SignalAnalysis;
+use crate::model::signal::{ShortRead, SignalAnalysis};
 use crate::quality_control;
 use crate::signal_processing;
-use dna_kernel::error::{CallabilityError, Result};
+use dna_kernel::error::{CallabilityError, Result, SignalError};
 
 /// Warning counts shared by command-level operational summaries.
 pub struct ReadWarnings {
@@ -72,9 +72,23 @@ impl PreparedRead {
     }
 }
 
+/// Why the trace is too short to analyze, or `None` when it has at least one
+/// signal window of calls (SRS-SIG-007). It is decided before any stage runs;
+/// the window of 5 to 10 calls also covers the two loci that locus-window
+/// geometry needs.
+#[must_use]
+pub fn too_short(trace: &Chromatogram, config: &SangerConfig) -> Option<ShortRead> {
+    let calls = trace.call_count();
+    let minimum_calls = config.signal_processing.window_size_bases;
+    (calls < minimum_calls).then_some(ShortRead {
+        calls,
+        minimum_calls,
+    })
+}
+
 /// Runs the scientific stages that require no reference, emitting one
-/// `tracing` stage span and completion event per stage; a read with too few
-/// callable calls fails typed.
+/// `tracing` stage span and completion event per stage; a read shorter than
+/// one signal window, or with too few callable calls, fails typed.
 ///
 /// `context_margin` is the most calls of an adjacent dephased segment the trim
 /// keeps beyond the callable span; the composer passes the core's read-end
@@ -83,7 +97,7 @@ impl PreparedRead {
 /// # Errors
 ///
 /// Returns the failure of the first stage that fails, including
-/// `CallabilityError::TooFewCallableCalls`.
+/// `SignalError::TooFewCalls` and `CallabilityError::TooFewCallableCalls`.
 pub fn process(
     trace: &Chromatogram,
     config: &SangerConfig,
@@ -93,12 +107,23 @@ pub fn process(
     finish(trace, prepared, config, context_margin)
 }
 
-/// Runs basecalling, signal processing, and callability.
+/// Runs basecalling, signal processing, and callability; a read shorter than
+/// one signal window ([`too_short`]) fails typed before basecalling.
 ///
 /// # Errors
 ///
-/// Returns the failure of basecalling, signal processing, or callability.
+/// Returns `SignalError::TooFewCalls` for a read shorter than one signal
+/// window, or the failure of basecalling, signal processing, or callability.
 pub fn prepare(trace: &Chromatogram, config: &SangerConfig) -> Result<PreparedRead> {
+    if let Some(short) = too_short(trace, config) {
+        // The window belongs to signal processing, which the failure names.
+        let _stage = tracing::info_span!("signal_processing").entered();
+        return Err(SignalError::TooFewCalls {
+            calls: short.calls,
+            window: short.minimum_calls,
+        }
+        .into());
+    }
     let stage = tracing::info_span!("basecalling").entered();
     let stage_started = Instant::now();
     let calls = basecalling::call(trace, &config.basecalling)?;
@@ -374,7 +399,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 1,
+    version: 2,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[

@@ -40,14 +40,11 @@ impl SangerAttachment {
     }
 }
 
-/// Sanger evidence of a rejected read: one with too few callable calls, which
-/// never reaches the core, or one the core could not place.
+/// Sanger evidence of a rejected read that reached callability: one with too
+/// few callable calls, which never reaches the core, or one the core could
+/// not place. A read too short for signal processing has none.
 #[derive(Debug, Clone)]
 pub struct SangerRejection {
-    /// Reviewer-facing name of the rejected trace.
-    pub input_name: String,
-    /// SHA-256 content identity of the rejected trace.
-    pub input_sha256: String,
     /// Trace-integrity evidence of the rejected read.
     pub integrity: SangerIntegrity,
     /// Callability of the rejected read.

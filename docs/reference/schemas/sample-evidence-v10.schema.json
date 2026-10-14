@@ -199,33 +199,58 @@
       }
     },
     "rejectedRead": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "sha256",
-        "integrity",
-        "callability",
-        "rejection"
-      ],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256",
+            "integrity",
+            "callability",
+            "rejection"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "integrity": {
+              "$ref": "#/$defs/integrity"
+            },
+            "callability": {
+              "$ref": "#/$defs/callability"
+            },
+            "rejection": {
+              "$ref": "#/$defs/readRejection"
+            }
+          }
         },
-        "sha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "integrity": {
-          "$ref": "#/$defs/integrity"
-        },
-        "callability": {
-          "$ref": "#/$defs/callability"
-        },
-        "rejection": {
-          "$ref": "#/$defs/readRejection"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256",
+            "rejection"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "rejection": {
+              "$ref": "#/$defs/tooShortRejection"
+            }
+          }
         }
-      }
+      ]
     },
     "readRejection": {
       "oneOf": [
@@ -322,6 +347,28 @@
           }
         }
       ]
+    },
+    "tooShortRejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "calls",
+        "minimum_calls"
+      ],
+      "properties": {
+        "reason": {
+          "const": "too_short"
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum_calls": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     },
     "callability": {
       "type": "object",

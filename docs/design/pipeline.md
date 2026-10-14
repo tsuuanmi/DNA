@@ -82,7 +82,7 @@ The read has already located itself at this boundary. Its orientation and covere
 `sample`, `consensus`, and the public `sample_analysis::analyze_sanger` share one
 pass over a sample's traces (`sample_analysis::reads::place`). Each trace runs
 the one-read path once and becomes an admitted `ReadObservation` or a rejected
-read (SRS-SAMPLE-027, SRS-SAMPLE-029). Aggregation into the sample evidence and
+read (SRS-SAMPLE-027, SRS-SAMPLE-029, SRS-SAMPLE-030). Aggregation into the sample evidence and
 the consensus both start from that pass, so one call yields both
 (SRS-API-009); each command still publishes only its own documents.
 

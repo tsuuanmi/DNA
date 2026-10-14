@@ -89,7 +89,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 1},
+            {"id": "sanger", "family": "modality", "version": 2},
             {"id": "core", "family": "core", "version": 2},
         ])
     );
@@ -290,6 +290,33 @@ fn rejects_decreasing_ploc_without_output() -> Result<(), Box<dyn std::error::Er
         .failure()
         .stderr(predicate::str::contains("must not decrease"));
     assert!(!analysis_output_path(directory.path(), &trace).exists());
+    Ok(())
+}
+
+/// A trace shorter than one signal window fails typed in signal processing,
+/// before basecalling, and publishes nothing (SRS-SIG-007); a single locus
+/// fails the same way rather than in locus-window geometry.
+#[test]
+fn rejects_a_trace_shorter_than_the_signal_window() -> Result<(), Box<dyn std::error::Error>> {
+    for calls in [1, 5, 9] {
+        let directory = tempdir()?;
+        let trace = directory.path().join("trace.ab1");
+        let reference = directory.path().join("reference.fa");
+        let config = directory.path().join("dna.toml");
+        write_abif(&trace, &QUERY[..calls])?;
+        write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+        write_config(&config, "linear")?;
+
+        run(&trace, &reference, &config, directory.path())
+            .failure()
+            .stderr(predicate::str::contains(format!(
+                "signal processing failed: {calls} calls are fewer than window_size_bases 10"
+            )));
+        assert!(!analysis_output_path(directory.path(), &trace).exists());
+        let log = fs::read_to_string(directory.path().join("logs/trace.log"))?;
+        assert!(log.contains("event=analysis_failed stage=signal_processing"));
+        assert!(!log.contains("event=basecalling_completed"));
+    }
     Ok(())
 }
 

@@ -17,9 +17,10 @@ Sanger source loading is owned by `input::sanger`; shared reference-free read
 processing lives in `read_processing` (`prepare` through callability, then
 `finish`); reference-guided read observation is owned by `variant_analysis`.
 `sample.rs` and `consensus.rs` run the sample placement pass of
-`sample_analysis`, which records a read with too few callable calls, or one the
-core cannot place (`dna_core::read_call::PlacementRejection`), as rejected while
-the others continue; the operation log implements its `ReadScope`, so records
+`sample_analysis`, which records a read shorter than one signal window
+(`read_processing::too_short`, checked first), one with too few callable calls,
+or one the core cannot place (`dna_core::read_call::PlacementRejection`) as
+rejected while the others continue; the operation log implements its `ReadScope`, so records
 of concurrently processed reads land in trace order. They run the reads on as
 many workers as the available parallelism, which `mod.rs` reads once per
 process.

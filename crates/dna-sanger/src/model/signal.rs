@@ -37,6 +37,16 @@ impl SangerIntegrity {
     }
 }
 
+/// Why a read is not analyzed: it has fewer calls than one signal window
+/// (SRS-SIG-007), so no stage runs on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShortRead {
+    /// Call count of the read.
+    pub calls: usize,
+    /// Fewest calls a read needs: `signal_processing.window_size_bases`.
+    pub minimum_calls: usize,
+}
+
 /// Signal-quality features for one rolling base-call window.
 #[derive(Debug, Clone)]
 pub(crate) struct SignalWindow {

@@ -410,6 +410,16 @@ def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
 def validate_rejection(read: dict[str, Any], label: str, errors: list[str]) -> None:
     """Check that a rejected read's counts agree with its callability view."""
     rejection = read.get("rejection")
+    if isinstance(rejection, dict) and rejection.get("reason") == "too_short":
+        calls = rejection.get("calls")
+        minimum_calls = rejection.get("minimum_calls")
+        if (
+            isinstance(calls, int)
+            and isinstance(minimum_calls, int)
+            and calls >= minimum_calls
+        ):
+            errors.append(f"{label}: too-short read reaches minimum_calls")
+        return
     callability = read.get("callability")
     integrity = read.get("integrity")
     if not (
@@ -758,6 +768,24 @@ def rejected_sample_shapes(
     rejected_with_unknown_reason["rejected_reads"][0]["rejection"]["reason"] = "noisy"
     missing_rejected_reads = copy.deepcopy(example)
     missing_rejected_reads.pop("rejected_reads")
+    short_index, callable_index = (
+        next(
+            index
+            for index, read in enumerate(example["rejected_reads"])
+            if read["rejection"]["reason"] == reason
+        )
+        for reason in ("too_short", "callable_calls_below_minimum")
+    )
+    short_with_integrity = copy.deepcopy(example)
+    short_with_integrity["rejected_reads"][short_index]["integrity"] = copy.deepcopy(
+        example["rejected_reads"][callable_index]["integrity"]
+    )
+    short_with_callable_calls = copy.deepcopy(example)
+    short_with_callable_calls["rejected_reads"][short_index]["rejection"][
+        "callable_calls"
+    ] = 0
+    callable_without_callability = copy.deepcopy(example)
+    callable_without_callability["rejected_reads"][callable_index].pop("callability")
 
     all_masked_locus = copy.deepcopy(example)
     for observation in all_masked_locus["locus_differences"][0]["observations"]:
@@ -847,6 +875,12 @@ def rejected_sample_shapes(
         ("sample rejected read with an alignment", rejected_with_alignment),
         ("sample rejected read with an unknown reason", rejected_with_unknown_reason),
         ("sample without rejected reads", missing_rejected_reads),
+        ("sample too-short read with integrity", short_with_integrity),
+        ("sample too-short rejection with callable calls", short_with_callable_calls),
+        (
+            "sample callable-calls rejection without callability",
+            callable_without_callability,
+        ),
         ("sample read alignment without masked bases", missing_masked_bases),
         ("sample locus topology without masked reads", missing_masked_reads),
         ("sample variant without opposition", missing_opposition),
@@ -907,6 +941,10 @@ def rejected_consensus_shapes(
     ]
     missing_runs = copy.deepcopy(example)
     missing_runs["sites"][0].pop("runs")
+    short_without_minimum = copy.deepcopy(example)
+    for read in short_without_minimum["rejected_reads"]:
+        if read["rejection"]["reason"] == "too_short":
+            read["rejection"].pop("minimum_calls")
     return [
         ("consensus site with an unknown state", unknown_state),
         ("consensus segment with lower-case bases", lowercase_sequence),
@@ -915,6 +953,7 @@ def rejected_consensus_shapes(
         ("consensus without a summary", missing_summary),
         ("consensus run with an unknown length evidence", unknown_evidence),
         ("consensus site without runs", missing_runs),
+        ("consensus too-short rejection without minimum", short_without_minimum),
     ]
 
 
@@ -1100,16 +1139,34 @@ def main(argv: list[str] | None = None) -> int:
             "expected an opposition that omits a callable read to be rejected"
         )
 
-    for description, mutate in [
+    rejected_index = {
+        read["rejection"]["reason"]: index
+        for index, read in enumerate(sample_example["rejected_reads"])
+    }
+    for description, reason, mutate in [
         (
             "admitted name",
+            "callable_calls_below_minimum",
             lambda read: read.update(name=sample_example["reads"][0]["name"]),
         ),
-        ("callable count", lambda read: read["rejection"].update(callable_calls=3)),
-        ("minimum", lambda read: read["rejection"].update(minimum_callable_calls=0)),
+        (
+            "callable count",
+            "callable_calls_below_minimum",
+            lambda read: read["rejection"].update(callable_calls=3),
+        ),
+        (
+            "minimum",
+            "callable_calls_below_minimum",
+            lambda read: read["rejection"].update(minimum_callable_calls=0),
+        ),
+        (
+            "too-short call count",
+            "too_short",
+            lambda read: read["rejection"].update(calls=10),
+        ),
     ]:
         inconsistent_rejection = copy.deepcopy(sample_example)
-        mutate(inconsistent_rejection["rejected_reads"][0])
+        mutate(inconsistent_rejection["rejected_reads"][rejected_index[reason]])
         rejection_errors: list[str] = []
         validate_sample_support_topology_document(
             inconsistent_rejection, "synthetic rejected read", rejection_errors

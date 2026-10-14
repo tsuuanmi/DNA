@@ -179,6 +179,28 @@
           "additionalProperties": false,
           "required": [
             "reason",
+            "calls",
+            "minimum_calls"
+          ],
+          "properties": {
+            "reason": {
+              "const": "too_short"
+            },
+            "calls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minimum_calls": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
             "callable_calls",
             "minimum_callable_calls"
           ],

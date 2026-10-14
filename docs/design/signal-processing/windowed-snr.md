@@ -2,7 +2,7 @@
 
 Part of the canonical [signal-processing method](README.md).
 
-Configuration chooses `window_size_bases` in `5..=10`, a positive finite `minimum_primary_snr`, and `minimum_noisy_windows` of at least `2`. The default window is 10 bases. Windows have that complete width and stride one; short partial windows are never emitted. A noisy interval is emitted only when a consecutive run contains at least the configured number of candidate-noisy windows.
+Configuration chooses `window_size_bases` in `5..=10`, a positive finite `minimum_primary_snr`, and `minimum_noisy_windows` of at least `2`. The default window is 10 bases. Windows have that complete width and stride one; short partial windows are never emitted. A read with fewer calls than one window is therefore not processed at all: read processing checks its call count before basecalling (`read_processing::too_short`), so `analyze` and `basecall` fail typed in the `signal_processing` stage and `sample` and `consensus` record the read as rejected with reason `too_short` ([read registry](../sample-evidence/read-registry.md)). The window of at least 5 calls also covers the two loci that locus-window geometry needs. A noisy interval is emitted only when a consecutive run contains at least the configured number of candidate-noisy windows.
 
 For each channel in a rolling sample span:
 

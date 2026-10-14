@@ -16,7 +16,7 @@
       {
         "id": "sanger",
         "family": "modality",
-        "version": 1
+        "version": 2
       },
       {
         "id": "core",
@@ -48,6 +48,15 @@
         "reason": "identity_below_minimum",
         "identity": 0.62,
         "minimum_identity": 0.8
+      }
+    },
+    {
+      "name": "A12_HV1F_04",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "rejection": {
+        "reason": "too_short",
+        "calls": 5,
+        "minimum_calls": 10
       }
     }
   ],
