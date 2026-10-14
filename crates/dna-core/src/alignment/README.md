@@ -20,7 +20,7 @@ edit per run (ADR-0072).
 This module does not extract variants or mutate upstream signal evidence.
 
 The evidence-profile Gotoh implementation is intentionally first-party after reuse evaluation rather
-than by default. `exact/` owns proof-based acceleration: direct upper-bound placement for exact profile-optimal reads and score-bounded q-gram pruning for low-edit reads. Candidate seeds can provide a lower bound, but only a completeness proof may exclude reference space or an orientation. Both tiers reuse `memchr` for maintained SIMD substring localization and fall back to full Gotoh whenever proof, circular-seam, or cost conditions are not satisfied. Current `rust-bio` pairwise alignment does not directly satisfy
+than by default. `exact/` owns proof-based acceleration: direct upper-bound placement for exact profile-optimal reads and score-bounded q-gram pruning for low-edit reads. Candidate seeds can provide a lower bound, but only a completeness proof may exclude reference space or an orientation. Both tiers reuse `memchr` for maintained SIMD substring localization and fall back to full Gotoh whenever proof or cost conditions are not satisfied; an orientation evaluated exactly, by proof or by full Gotoh, sets the threshold that can reject the other. Current `rust-bio` pairwise alignment does not directly satisfy
 DNA's required evidence-profile scoring and `open + k * extension` gap contract;
 DNA also requires deterministic repeat-equivalent placement, explicit placement
 ambiguity handling, and circular-reference span semantics. The owning method

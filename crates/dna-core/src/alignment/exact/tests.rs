@@ -157,11 +157,13 @@ fn assert_same_alignments(actual: &[RawAlignment], expected: &[RawAlignment]) {
     assert_eq!(actual, expected);
 }
 
-fn require_pruned(
-    value: Option<Vec<RawAlignment>>,
-    scenario: &str,
-) -> TestResult<Vec<RawAlignment>> {
-    value.ok_or_else(|| format!("expected exact seeded pruning for {scenario}").into())
+fn require_pruned(value: Pruned, scenario: &str) -> TestResult<Vec<RawAlignment>> {
+    match value {
+        Pruned::Proven(placements) => Ok(placements),
+        Pruned::Unproven { .. } => {
+            Err(format!("expected exact seeded pruning for {scenario}").into())
+        }
+    }
 }
 
 #[test]
@@ -315,23 +317,192 @@ fn threshold_proof_can_exclude_opposite_orientation() -> TestResult {
 }
 
 #[test]
-fn seeded_pruning_falls_back_for_circular_origin_crossing() -> TestResult {
-    let reference = "ACGTCAGTACGATCGTACCTGAGTACGA";
-    let mut query = format!("{}{}", &reference[18..], &reference[..18]);
-    query.replace_range(5..6, "A");
+fn seeded_pruning_matches_gotoh_across_circular_origin() -> TestResult {
+    let reference = "ACGTCAGTACGATCGTACCTGAGTACGATTGGCCAATGCATGCAAGTTCCAGTCGATGGCATCTAGGACT";
+    let length = reference.len();
     let working_reference = format!("{reference}{reference}");
-    let query_profiles = profiles(&query);
+    for start in [length - 20, length - 3, 2] {
+        let mut query = working_reference[start..start + 30].to_owned();
+        query.replace_range(12..13, if &query[12..13] == "A" { "C" } else { "A" });
+        let query_profiles = profiles(&query);
 
-    assert!(
-        align_pruned(
+        let expected = gotoh::align(
             &query,
             &query_profiles,
             &working_reference,
             &config(),
-            Some(reference.len()),
-        )?
-        .is_none()
-    );
+            Some(length),
+        )?;
+        let actual = require_pruned(
+            align_pruned(
+                &query,
+                &query_profiles,
+                &working_reference,
+                &config(),
+                Some(length),
+            )?,
+            "origin-adjacent circular alignment",
+        )?;
+        assert_same_alignments(&actual, &expected);
+    }
+    Ok(())
+}
+
+#[test]
+fn seeded_pruning_matches_gotoh_with_unresolved_and_mixed_loci() -> TestResult {
+    let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGATTGGCCAATGCATG";
+    let query = reference_query.to_owned();
+    let mut query_profiles = profiles(&query);
+    query_profiles[5] = None;
+    query_profiles[17] = Some(EvidenceProfile {
+        weights: [0.5, 0.5, 0.0, 0.0],
+    });
+    query_profiles[30] = Some(EvidenceProfile {
+        weights: [0.3, 0.3, 0.2, 0.2],
+    });
+    let reference = format!("TTTT{reference_query}CCCC");
+
+    let expected = gotoh::align(&query, &query_profiles, &reference, &config(), None)?;
+    let actual = require_pruned(
+        align_pruned(&query, &query_profiles, &reference, &config(), None)?,
+        "alignment with unresolved and mixed loci",
+    )?;
+
+    assert_same_alignments(&actual, &expected);
+    Ok(())
+}
+
+/// Deterministic xorshift generator for the randomized equivalence check.
+struct Generator(u64);
+
+impl Generator {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+
+    fn below(&mut self, bound: usize) -> usize {
+        usize::try_from(self.next() % u64::try_from(bound).unwrap_or(1)).unwrap_or(0)
+    }
+}
+
+fn random_profile(generator: &mut Generator, base: u8) -> Option<EvidenceProfile> {
+    let index = match base {
+        b'A' => 0,
+        b'C' => 1,
+        b'G' => 2,
+        b'T' => 3,
+        _ => return None,
+    };
+    let mut weights = [0.0; 4];
+    match generator.below(10) {
+        0 => return None,
+        1 => {
+            weights[index] = 0.5;
+            weights[(index + 1) % 4] = 0.5;
+        }
+        2 => {
+            let first = generator.below(1_000) as f64 / 1_000.0;
+            weights[index] = first;
+            weights[(index + 2) % 4] = 1.0 - first;
+        }
+        _ => weights[index] = 1.0,
+    }
+    Some(EvidenceProfile { weights })
+}
+
+/// Randomized reads with substitutions, indels, unresolved and mixed loci,
+/// against linear and circular references with an `N`, must prune to exactly
+/// the whole-reference Gotoh placements whenever a proof applies.
+#[test]
+fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
+    let mut generator = Generator(0x9e37_79b9_7f4a_7c15);
+    let mut pruned = 0;
+    for case in 0..400 {
+        let length = 200 + generator.below(200);
+        let mut reference = (0..length)
+            .map(|_| char::from(b"ACGT"[generator.below(4)]))
+            .collect::<String>();
+        if case % 3 == 0 {
+            let position = generator.below(length);
+            reference.replace_range(position..=position, "N");
+        }
+        let circular = case % 2 == 0;
+        let working_reference = if circular {
+            format!("{reference}{reference}")
+        } else {
+            reference.clone()
+        };
+        let modulo_length = circular.then_some(length);
+        let span = 40 + generator.below(80);
+        let start = if circular {
+            generator.below(length)
+        } else {
+            generator.below(length - span)
+        };
+        let mut read = working_reference.as_bytes()[start..start + span].to_vec();
+        for _ in 0..generator.below(4) {
+            let position = generator.below(read.len());
+            match generator.below(3) {
+                0 => read[position] = b"ACGT"[generator.below(4)],
+                1 => read.insert(position, b"ACGT"[generator.below(4)]),
+                _ => {
+                    read.remove(position);
+                }
+            }
+        }
+        let query_profiles = read
+            .iter()
+            .map(|base| random_profile(&mut generator, *base))
+            .collect::<Vec<_>>();
+        let query = read
+            .iter()
+            .zip(&query_profiles)
+            .map(|(base, profile)| {
+                if profile.is_some() {
+                    char::from(*base)
+                } else {
+                    'N'
+                }
+            })
+            .collect::<String>();
+
+        let Ok(expected) = gotoh::align(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            modulo_length,
+        ) else {
+            continue;
+        };
+        if let Pruned::Proven(actual) = align_pruned(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            modulo_length,
+        )? {
+            pruned += 1;
+            assert_eq!(actual.len(), expected.len(), "case {case}");
+            if expected.len() == 1 {
+                assert_same_alignments(&actual, &expected);
+            }
+        }
+        if let Some(actual) = align_at_or_above(
+            &query,
+            &query_profiles,
+            &working_reference,
+            &config(),
+            modulo_length,
+            expected[0].score + 1,
+        )? {
+            assert!(actual.is_empty(), "case {case}");
+        }
+    }
+    assert!(pruned > 200, "only {pruned} random cases were pruned");
     Ok(())
 }
 

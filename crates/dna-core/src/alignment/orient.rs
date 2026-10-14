@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 
 use crate::alignment::AlignmentConfig;
-use crate::alignment::exact::{self, UpperBoundPlacement};
+use crate::alignment::exact::{self, Pruned, UpperBoundPlacement};
 use crate::alignment::gotoh;
 use crate::alignment::runs;
 use crate::alignment::traceback::RawAlignment;
@@ -89,100 +89,79 @@ pub(crate) fn align_best(
         return finish_alignment(&selected, reference, config, masked);
     }
 
-    let mut forward_fast = exact::align_pruned(
-        &forward_query,
-        &forward_profiles,
-        &working_reference,
-        config,
-        modulo_length,
-    )?;
-    let mut reverse_fast = exact::align_pruned(
-        &reverse_query,
-        &reverse_profiles,
-        &working_reference,
-        config,
-        modulo_length,
-    )?;
-
-    if reverse_fast.is_none()
-        && let Some(forward_placements) = forward_fast.as_ref()
-    {
-        let threshold = forward_placements[0].score;
-        if let Some(reverse_placements) = exact::align_at_or_above(
-            &reverse_query,
-            &reverse_profiles,
-            &working_reference,
-            config,
-            modulo_length,
-            threshold,
-        )? {
-            if reverse_placements.is_empty() {
-                let selected = Candidate {
-                    orientation: Orientation::Forward,
-                    mapping: forward_mapping,
-                    placements: forward_fast.take().ok_or(AlignmentError::Inconsistent(
-                        "missing proven forward placement",
-                    ))?,
-                };
-                return finish_alignment(&selected, reference, config, masked);
-            }
-            reverse_fast = Some(reverse_placements);
-        }
-    }
-
-    if forward_fast.is_none()
-        && let Some(reverse_placements) = reverse_fast.as_ref()
-    {
-        let threshold = reverse_placements[0].score;
-        if let Some(forward_placements) = exact::align_at_or_above(
-            &forward_query,
-            &forward_profiles,
-            &working_reference,
-            config,
-            modulo_length,
-            threshold,
-        )? {
-            if forward_placements.is_empty() {
-                let selected = Candidate {
-                    orientation: Orientation::Reverse,
-                    mapping: reverse_mapping,
-                    placements: reverse_fast.take().ok_or(AlignmentError::Inconsistent(
-                        "missing proven reverse placement",
-                    ))?,
-                };
-                return finish_alignment(&selected, reference, config, masked);
-            }
-            forward_fast = Some(forward_placements);
-        }
-    }
-
-    let forward = Candidate {
+    let forward = Query {
         orientation: Orientation::Forward,
+        bases: &forward_query,
+        profiles: &forward_profiles,
         mapping: forward_mapping,
-        placements: match forward_fast {
-            Some(placements) => placements,
-            None => gotoh::align(
-                &forward_query,
-                &forward_profiles,
-                &working_reference,
-                config,
-                modulo_length,
-            )?,
-        },
     };
-    let reverse = Candidate {
+    let reverse = Query {
         orientation: Orientation::Reverse,
+        bases: &reverse_query,
+        profiles: &reverse_profiles,
         mapping: reverse_mapping,
-        placements: match reverse_fast {
-            Some(placements) => placements,
-            None => gotoh::align(
-                &reverse_query,
-                &reverse_profiles,
+    };
+    let forward_pruned = forward.pruned(&working_reference, config, modulo_length)?;
+    let reverse_pruned = reverse.pruned(&working_reference, config, modulo_length)?;
+
+    // Evaluate one orientation exactly, preferring a proven one, then the one
+    // with the better seed lower bound; its optimum is a threshold the other
+    // orientation must reach.
+    let (first, first_placements, second, second_pruned) = match (forward_pruned, reverse_pruned) {
+        (Pruned::Proven(placements), other) => (forward, placements, reverse, other),
+        (other, Pruned::Proven(placements)) => (reverse, placements, forward, other),
+        (
+            Pruned::Unproven {
+                lower_bound: forward_lower,
+            },
+            Pruned::Unproven {
+                lower_bound: reverse_lower,
+            },
+        ) => {
+            if reverse_lower > forward_lower {
+                let placements = reverse.gotoh(&working_reference, config, modulo_length)?;
+                (
+                    reverse,
+                    placements,
+                    forward,
+                    Pruned::Unproven { lower_bound: None },
+                )
+            } else {
+                let placements = forward.gotoh(&working_reference, config, modulo_length)?;
+                (
+                    forward,
+                    placements,
+                    reverse,
+                    Pruned::Unproven { lower_bound: None },
+                )
+            }
+        }
+    };
+    let first = first.candidate(first_placements);
+    let second_placements = match second_pruned {
+        Pruned::Proven(placements) => placements,
+        Pruned::Unproven { .. } => {
+            match exact::align_at_or_above(
+                second.bases,
+                second.profiles,
                 &working_reference,
                 config,
                 modulo_length,
-            )?,
-        },
+                first.placements[0].score,
+            )? {
+                Some(placements) if placements.is_empty() => {
+                    return finish_alignment(&first, reference, config, masked);
+                }
+                Some(placements) => placements,
+                None => second.gotoh(&working_reference, config, modulo_length)?,
+            }
+        }
+    };
+    let second = second.candidate(second_placements);
+    let (forward, reverse) = if first.orientation == Orientation::Forward {
+        (first, second)
+    } else {
+        (second, first)
     };
     let ordering = compare(&forward.placements[0], &reverse.placements[0]);
     let selected = match ordering {
@@ -193,6 +172,42 @@ pub(crate) fn align_best(
         }
     };
     finish_alignment(selected, reference, config, masked)
+}
+
+/// One orientation's alignment query.
+struct Query<'a> {
+    orientation: Orientation,
+    bases: &'a str,
+    profiles: &'a [Option<EvidenceProfile>],
+    mapping: Vec<usize>,
+}
+
+impl Query<'_> {
+    fn pruned(
+        &self,
+        reference: &str,
+        config: &AlignmentConfig,
+        modulo_length: Option<usize>,
+    ) -> Result<Pruned> {
+        exact::align_pruned(self.bases, self.profiles, reference, config, modulo_length)
+    }
+
+    fn gotoh(
+        &self,
+        reference: &str,
+        config: &AlignmentConfig,
+        modulo_length: Option<usize>,
+    ) -> Result<Vec<RawAlignment>> {
+        gotoh::align(self.bases, self.profiles, reference, config, modulo_length)
+    }
+
+    fn candidate(self, placements: Vec<RawAlignment>) -> Candidate {
+        Candidate {
+            orientation: self.orientation,
+            mapping: self.mapping,
+            placements,
+        }
+    }
 }
 
 fn select_proven_candidate(

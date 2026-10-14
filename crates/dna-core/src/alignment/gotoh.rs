@@ -1,5 +1,7 @@
 //! Bounded semi-global Gotoh dynamic programming.
 
+use std::ops::Range;
+
 use crate::alignment::canonical;
 use crate::alignment::scoring::{
     NEGATIVE_INFINITY, State, add, scaled, substitution_index, substitution_scores,
@@ -17,6 +19,36 @@ pub(crate) fn align(
     config: &AlignmentConfig,
     modulo_length: Option<usize>,
 ) -> Result<Vec<RawAlignment>> {
+    align_window(
+        query,
+        profiles,
+        reference,
+        0..reference.len(),
+        config,
+        modulo_length,
+    )
+}
+
+/// Returns up to two distinct equally scoring placements inside one
+/// reference window, in whole-reference coordinates.
+///
+/// Placements start and end inside the window. Canonicalization and the
+/// circular span bound see whole-reference coordinates, so a window gives the
+/// same placements as the whole reference whenever it contains every
+/// optimal one.
+pub(crate) fn align_window(
+    query: &str,
+    profiles: &[Option<EvidenceProfile>],
+    reference: &str,
+    window: Range<usize>,
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
+) -> Result<Vec<RawAlignment>> {
+    let reference = reference
+        .get(window.clone())
+        .ok_or(AlignmentError::Inconsistent(
+            "alignment window is outside the reference",
+        ))?;
     if query.is_empty() || reference.is_empty() {
         return Err(AlignmentError::EmptyInput.into());
     }
@@ -48,73 +80,14 @@ pub(crate) fn align(
         .into());
     }
     let mut trace = vec![0_u8; cells];
-    let mut previous_match = vec![0_i64; width];
-    let mut previous_insertion = vec![NEGATIVE_INFINITY; width];
-    let mut previous_deletion = vec![NEGATIVE_INFINITY; width];
-    let mut current_match = vec![NEGATIVE_INFINITY; width];
-    let mut current_insertion = vec![NEGATIVE_INFINITY; width];
-    let mut current_deletion = vec![NEGATIVE_INFINITY; width];
-    let gap_extension = scaled(config.gap_extension_score);
-    let open_and_extend = scaled(config.gap_open_score) + gap_extension;
-
-    for row in 1..rows {
-        current_match[0] = NEGATIVE_INFINITY;
-        current_deletion[0] = NEGATIVE_INFINITY;
-        let row_substitution = substitution_scores(profiles[row - 1], config);
-        let open = add(previous_match[0], open_and_extend);
-        let extend = add(previous_insertion[0], gap_extension);
-        if extend >= open {
-            current_insertion[0] = extend;
-            trace[row * width] |= 0b100;
-        } else {
-            current_insertion[0] = open;
-        }
-
-        for column in 1..width {
-            let diagonal = [
-                (previous_match[column - 1], State::Match),
-                (previous_deletion[column - 1], State::Deletion),
-                (previous_insertion[column - 1], State::Insertion),
-            ];
-            let (best_diagonal, predecessor) = diagonal
-                .into_iter()
-                .max_by_key(|(score, state)| (*score, state_priority(*state)))
-                .ok_or(AlignmentError::Inconsistent("missing diagonal state"))?;
-            current_match[column] = add(
-                best_diagonal,
-                row_substitution[substitution_index(reference_bytes[column - 1])],
-            );
-            trace[row * width + column] |= predecessor as u8;
-
-            let open = add(previous_match[column], open_and_extend);
-            let extend = add(previous_insertion[column], gap_extension);
-            if extend >= open {
-                current_insertion[column] = extend;
-                trace[row * width + column] |= 0b100;
-            } else {
-                current_insertion[column] = open;
-            }
-
-            let open = add(current_match[column - 1], open_and_extend);
-            let extend = add(current_deletion[column - 1], gap_extension);
-            if extend >= open {
-                current_deletion[column] = extend;
-                trace[row * width + column] |= 0b1000;
-            } else {
-                current_deletion[column] = open;
-            }
-        }
-        std::mem::swap(&mut previous_match, &mut current_match);
-        std::mem::swap(&mut previous_insertion, &mut current_insertion);
-        std::mem::swap(&mut previous_deletion, &mut current_deletion);
-    }
+    let last_row = fill(profiles, reference_bytes, config, width, &mut trace);
 
     let mut endpoints = Vec::with_capacity(width);
-    for column in 0..width {
+    for (column, cell) in last_row.iter().enumerate() {
         let (score, state) = [
-            (previous_match[column], State::Match),
-            (previous_deletion[column], State::Deletion),
-            (previous_insertion[column], State::Insertion),
+            (cell.matched, State::Match),
+            (cell.deletion, State::Deletion),
+            (cell.insertion, State::Insertion),
         ]
         .into_iter()
         .max_by_key(|(score, state)| (*score, state_priority(*state)))
@@ -141,6 +114,7 @@ pub(crate) fn align(
             state,
             score,
         })?;
+        raw.shift_reference(window.start);
         canonical::right_align(&mut raw, profiles, config, modulo_length)?;
         if let Some(length) = modulo_length
             && raw.end_reference - raw.start_reference > length
@@ -162,6 +136,116 @@ pub(crate) fn align(
         return Err(AlignmentError::NoTraceback.into());
     }
     Ok(placements)
+}
+
+/// Scores of the three Gotoh states at one cell.
+#[derive(Debug, Clone, Copy)]
+struct Cell {
+    matched: i64,
+    insertion: i64,
+    deletion: i64,
+}
+
+/// Fills the traceback matrix row by row and returns the last row's scores.
+///
+/// Each cell's packed traceback byte is written once: bits 0-1 hold the
+/// diagonal predecessor state, bit 2 records insertion extension, and bit 3
+/// records deletion extension. Equal scores keep the documented state order
+/// Match > Deletion > Insertion and prefer extension over opening.
+fn fill(
+    profiles: &[Option<EvidenceProfile>],
+    reference: &[u8],
+    config: &AlignmentConfig,
+    width: usize,
+    trace: &mut [u8],
+) -> Vec<Cell> {
+    let reference_slots = reference
+        .iter()
+        .map(|base| substitution_index(*base))
+        .collect::<Vec<_>>();
+    let gap_extension = scaled(config.gap_extension_score);
+    let open_and_extend = scaled(config.gap_open_score) + gap_extension;
+    let unreachable = Cell {
+        matched: NEGATIVE_INFINITY,
+        insertion: NEGATIVE_INFINITY,
+        deletion: NEGATIVE_INFINITY,
+    };
+    let mut previous = vec![
+        Cell {
+            matched: 0,
+            ..unreachable
+        };
+        width
+    ];
+    let mut current = vec![unreachable; width];
+
+    for (profile, trace_row) in profiles.iter().zip(trace.chunks_exact_mut(width).skip(1)) {
+        let substitution = substitution_scores(*profile, config);
+        let (first_trace, trace_cells) = trace_row.split_at_mut(1);
+        let (insertion, extended) = gap(
+            previous[0].matched,
+            previous[0].insertion,
+            open_and_extend,
+            gap_extension,
+        );
+        current[0] = Cell {
+            insertion,
+            ..unreachable
+        };
+        first_trace[0] = if extended { 0b100 } else { 0 };
+
+        let mut left = current[0];
+        for (((diagonal_and_above, cell), slot), packed) in previous
+            .windows(2)
+            .zip(current.iter_mut().skip(1))
+            .zip(&reference_slots)
+            .zip(trace_cells.iter_mut())
+        {
+            let diagonal = diagonal_and_above[0];
+            let above = diagonal_and_above[1];
+            let (best_diagonal, predecessor) = if diagonal.matched >= diagonal.deletion
+                && diagonal.matched >= diagonal.insertion
+            {
+                (diagonal.matched, State::Match)
+            } else if diagonal.deletion >= diagonal.insertion {
+                (diagonal.deletion, State::Deletion)
+            } else {
+                (diagonal.insertion, State::Insertion)
+            };
+            let matched = add(best_diagonal, substitution[*slot]);
+            let (insertion, insertion_extended) = gap(
+                above.matched,
+                above.insertion,
+                open_and_extend,
+                gap_extension,
+            );
+            let (deletion, deletion_extended) =
+                gap(left.matched, left.deletion, open_and_extend, gap_extension);
+            *cell = Cell {
+                matched,
+                insertion,
+                deletion,
+            };
+            left = *cell;
+            *packed = predecessor as u8
+                | if insertion_extended { 0b100 } else { 0 }
+                | if deletion_extended { 0b1000 } else { 0 };
+        }
+        std::mem::swap(&mut previous, &mut current);
+    }
+    previous
+}
+
+/// Scores entering a gap state by extension or by opening from Match,
+/// preferring extension on equal scores.
+fn gap(matched: i64, gapped: i64, open_and_extend: i64, gap_extension: i64) -> (i64, bool) {
+    let open = add(matched, open_and_extend);
+    let extend = add(gapped, gap_extension);
+    if extend >= open {
+        (extend, true)
+    } else {
+        (open, false)
+    }
 }
 
 const fn state_priority(state: State) -> u8 {

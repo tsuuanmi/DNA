@@ -6,7 +6,7 @@ use crate::alignment::AlignmentConfig;
 use crate::alignment::traceback::{RawAlignment, RawColumn, metrics};
 use dna_kernel::read_evidence::EvidenceProfile;
 
-use super::{problem_is_provable, profile_bound};
+use super::{problem_is_provable, profile_bound, unique_optimum};
 
 /// Outcome of the upper-bound proof for one orientation.
 #[derive(Debug)]
@@ -42,15 +42,17 @@ pub(crate) fn classify(
     let Some(bound) = profile_bound(profiles, config) else {
         return UpperBoundPlacement::Unproven;
     };
-    let Some(limit) =
-        occurrence_start_limit(reference, bound.optimal_sequence.len(), modulo_length)
+    let Some(optimal_sequence) = unique_optimum(profiles, config) else {
+        return UpperBoundPlacement::Unproven;
+    };
+    let Some(limit) = occurrence_start_limit(reference, optimal_sequence.len(), modulo_length)
     else {
         return UpperBoundPlacement::Unproven;
     };
 
-    let haystack_end = limit + bound.optimal_sequence.len() - 1;
+    let haystack_end = limit + optimal_sequence.len() - 1;
     let haystack = &reference.as_bytes()[..haystack_end];
-    let finder = Finder::new(&bound.optimal_sequence);
+    let finder = Finder::new(&optimal_sequence);
     let mut search_start = 0;
     let mut found = None;
     while search_start < limit {
@@ -73,7 +75,7 @@ pub(crate) fn classify(
     };
     UpperBoundPlacement::Unique(gapless_alignment(
         query,
-        &bound.optimal_sequence,
+        &optimal_sequence,
         start_reference,
         bound.upper_bound,
     ))

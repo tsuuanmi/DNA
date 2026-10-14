@@ -23,6 +23,28 @@ pub(crate) struct RawAlignment {
 }
 
 impl RawAlignment {
+    /// Moves every reference coordinate `offset` bases to the right.
+    pub(crate) fn shift_reference(&mut self, offset: usize) {
+        self.start_reference += offset;
+        self.end_reference += offset;
+        for column in &mut self.columns {
+            if let Some(index) = &mut column.reference_index {
+                *index += offset;
+            }
+        }
+    }
+
+    /// Moves every reference coordinate `offset` bases to the left.
+    pub(crate) fn unshift_reference(&mut self, offset: usize) {
+        self.start_reference -= offset;
+        self.end_reference -= offset;
+        for column in &mut self.columns {
+            if let Some(index) = &mut column.reference_index {
+                *index -= offset;
+            }
+        }
+    }
+
     /// Whether both alignments place the same aligned symbols at the same
     /// start, comparing starts modulo `modulo_length` for circular references.
     pub(crate) fn same_placement(&self, other: &Self, modulo_length: Option<usize>) -> bool {

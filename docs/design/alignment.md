@@ -66,26 +66,21 @@ For a qualifying read this first tier changes the placement search from `O(query
 
 Reads containing ordinary SNVs or short indels usually cannot attain the substitution upper bound, so DNA has a second proof tier before full-reference Gotoh.
 
-Let `U` be the same per-locus substitution upper bound and let `S` be the score of any valid alignment found in a small seed-derived reference window. Because that local alignment is also a valid alignment against the complete semi-global reference, `S` is a safe lower bound on the global optimum.
+Let `U` be the sum over query loci of each locus's best substitution score over all reference symbols, and let `S` be the score of any valid alignment found in a small seed-derived reference window. Because that local alignment is also a valid alignment against the complete semi-global reference, `S` is a safe lower bound on the global optimum.
 
-DNA derives a positive score-loss floor `lambda` from the same scoring contract:
+Every alignment scores `U` minus non-negative losses: an aligned locus loses its best score minus the substitution it receives, an inserted locus loses its best score minus one gap extension, and a deletion run loses its opening plus one extension per base. DNA derives a positive edit-loss floor `lambda` as the smaller of the least best-minus-extension over all loci and one negated gap open plus extension. A locus is a *wildcard* when it has no profile, or when its best canonical base does not beat every other canonical base by at least `lambda`; seeds never contain wildcards.
 
-- substituting a non-optimal reference base loses at least the difference between the best and second-best per-locus substitution score;
-- inserting one query locus loses at least the difference between that locus's best substitution score and one gap-extension score;
-- deleting one reference base loses at least one negated gap-extension score;
-- a gap open adds an additional negative penalty, so ignoring it cannot underestimate the loss floor.
-
-Therefore any alignment with score at least `S` contains at most
+A seed is a wildcard-free query interval. It stays exact when the alignment places it without gaps and puts every locus on its optimal base. Breaking a seed costs at least `lambda`, charged to that seed alone: an inserted locus, a deletion run between two of its loci, or a non-optimal canonical base at one of its loci. A non-canonical reference symbol can break one seed at no edit cost; an alignment covers at most `A` of them (one circle of a circular reference). Therefore any alignment with score at least `S` breaks at most `E + A` seeds, where
 
 ```text
 E = floor((U - S) / lambda)
 ```
 
-substitution/insertion/deletion edit units. DNA partitions the profile-optimal sequence into `E + 1` disjoint q-grams. By the q-gram/pigeonhole argument, an alignment with at most `E` edit units must preserve at least one complete seed exactly. DNA searches every occurrence of every certified seed and builds windows wide enough for the maximum `E`-base alignment drift on both sides. Gotoh then evaluates the unchanged evidence-profile scoring and traceback contract only inside the union of those windows.
+DNA chooses `E + A + 1` disjoint wildcard-free seeds whose shortest is as long as possible, so by the pigeonhole argument every alignment with score at least `S` preserves at least one seed exactly. DNA searches every occurrence of every seed, including occurrences across the circular origin, and builds windows covering the query on both sides of each hit plus `floor((U - S) / -gap_extension)` deleted bases. A circular window that would start before the origin is taken one circle later in the doubled reference, so windows may cross the origin. Gotoh then evaluates the unchanged evidence-profile scoring and traceback contract only inside the union of those windows, with canonicalization and the one-circle span bound in whole-reference coordinates; a placement found one circle later is reported at its first-circle coordinates, as the whole-reference search reports it.
 
-The pruned result is used only when the proof is complete and the certified window set is materially smaller than the reference. Excessive seed count, excessive seed hits, broad windows, unsupported arithmetic, or any circular candidate whose certified window can cross the origin seam returns to full-reference Gotoh. In particular, this tier does not use HV labels, expected amplicons, primer metadata, or a best-effort heuristic locator.
+The pruned result is used only when the proof is complete and the certified window set is materially smaller than the reference. Excessive seed count, excessive seed hits, too few seed loci, broad windows, or unsupported arithmetic return to full-reference Gotoh. In particular, this tier does not use HV labels, expected amplicons, primer metadata, or a best-effort heuristic locator.
 
-A proven score in one orientation is also a valid threshold for the opposite orientation. If the same q-gram proof establishes that the opposite orientation has no placement able to reach that threshold, DNA can reject that orientation without allocating its full Gotoh matrix. Otherwise the ordinary orientation comparison remains unchanged.
+An orientation's exact optimum is also a valid threshold for the opposite orientation. DNA evaluates one orientation exactly first: a proven one, otherwise the one whose seed lower bound is higher (forward on ties), by full Gotoh. If the same proof establishes that the opposite orientation has no placement able to reach that optimum, DNA rejects that orientation without allocating its full Gotoh matrix. Otherwise the ordinary orientation comparison remains unchanged.
 
 ### Substep 6.3 — Gotoh scoring
 
