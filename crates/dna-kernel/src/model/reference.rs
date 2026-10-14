@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::variant::ReferenceIdentity;
+
 /// Reference topology used by alignment and normalization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -48,5 +50,15 @@ impl Reference {
     #[must_use]
     pub fn base(&self, index: usize) -> Option<u8> {
         base_at(&self.sequence, index)
+    }
+
+    /// The identity that called-variant results carry: record name and
+    /// normalized-sequence SHA-256.
+    #[must_use]
+    pub fn identity(&self) -> ReferenceIdentity {
+        ReferenceIdentity {
+            name: self.name.clone(),
+            sha256: self.sequence_sha256.clone(),
+        }
     }
 }

@@ -1,5 +1,8 @@
 //! Shared local baseline, noise, amplitude, and SNR primitives.
 
+use std::collections::BTreeMap;
+
+use crate::model::sanger::Chromatogram;
 use dna_kernel::error::{Result, SignalError};
 
 const NORMAL_MAD_SCALE: f64 = 0.674_489_75;
@@ -7,15 +10,70 @@ const FIRST_DIFFERENCE_SCALE: f64 = std::f64::consts::SQRT_2;
 const MINIMUM_NOISE_SIGMA: f64 = 1.0;
 const OUTPUT_PRECISION: f64 = 1_000_000.0;
 
+/// Baseline and noise of each A/C/G/T channel over one sample span.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct SpanStatistics {
+    pub(super) baselines: [f64; 4],
+    pub(super) noise_sigmas: [f64; 4],
+}
+
+/// One trace and the channel statistics of its sample spans, each estimated
+/// once.
+///
+/// The windowed features and the locus contexts both span runs of whole
+/// locus windows, so most spans recur; a recurring span reuses the first
+/// estimate, which is exactly what a fresh estimate would return. The
+/// calculators reach the trace only through this record, so its statistics
+/// always belong to the trace they read.
+pub(super) struct SpanEstimates<'a> {
+    trace: &'a Chromatogram,
+    estimated: BTreeMap<(usize, usize), SpanStatistics>,
+}
+
+impl<'a> SpanEstimates<'a> {
+    pub(super) fn new(trace: &'a Chromatogram) -> Self {
+        Self {
+            trace,
+            estimated: BTreeMap::new(),
+        }
+    }
+
+    /// The trace whose spans this record estimates.
+    pub(super) fn trace(&self) -> &'a Chromatogram {
+        self.trace
+    }
+
+    /// Statistics of the samples `start..end`.
+    pub(super) fn span(&mut self, start: usize, end: usize) -> Result<SpanStatistics> {
+        if let Some(statistics) = self.estimated.get(&(start, end)) {
+            return Ok(*statistics);
+        }
+        let mut statistics = SpanStatistics {
+            baselines: [0.0; 4],
+            noise_sigmas: [0.0; 4],
+        };
+        for (channel, samples) in self.trace.channels.iter().enumerate() {
+            let samples = samples
+                .get(start..end)
+                .ok_or(SignalError::InvalidContextInterval { start, end })?;
+            let local = estimate(samples)?;
+            statistics.baselines[channel] = local.baseline;
+            statistics.noise_sigmas[channel] = local.noise_sigma;
+        }
+        self.estimated.insert((start, end), statistics);
+        Ok(statistics)
+    }
+}
+
 /// Local statistics for one analyzed channel sample span.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct ChannelStatistics {
-    pub(super) baseline: f64,
-    pub(super) noise_sigma: f64,
+struct ChannelStatistics {
+    baseline: f64,
+    noise_sigma: f64,
 }
 
 /// Estimates the median baseline and first-difference-MAD noise scale.
-pub(super) fn estimate(samples: &[i32]) -> Result<ChannelStatistics> {
+fn estimate(samples: &[i32]) -> Result<ChannelStatistics> {
     Ok(ChannelStatistics {
         baseline: median_i32(samples)?,
         noise_sigma: noise_sigma(samples)?,
@@ -110,6 +168,7 @@ fn median_selected_f64(values: &mut [f64]) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::sanger::VendorEvidence;
     use dna_kernel::error::{Error, SignalError};
 
     use super::*;
@@ -148,6 +207,44 @@ mod tests {
             statistics.noise_sigma,
             2.0 / (NORMAL_MAD_SCALE * FIRST_DIFFERENCE_SCALE)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_recurring_span_reuses_the_estimate_a_fresh_one_would_give() -> Result<()> {
+        let channels = [
+            vec![0, 2, 0, 2, 0, 7],
+            vec![1, 1, 1, 1, 1, 1],
+            vec![4, 1, 3, 2, 5, 9],
+            vec![0, 0, 9, 0, 0, 0],
+        ];
+        let trace = Chromatogram {
+            source_name: "synthetic.ab1".into(),
+            source_sha256: String::new(),
+            channels: channels.clone(),
+            locus_positions: vec![1, 3, 5],
+            duplicate_loci: 0,
+            vendor: VendorEvidence::default(),
+        };
+        let mut estimates = SpanEstimates::new(&trace);
+        let first = estimates.span(0, 5)?;
+        let other = estimates.span(1, 6)?;
+        let again = estimates.span(0, 5)?;
+        assert_eq!(estimates.estimated.len(), 2);
+        assert!(matches!(
+            estimates.span(4, 7),
+            Err(Error::Signal(SignalError::InvalidContextInterval {
+                start: 4,
+                end: 7
+            }))
+        ));
+        for (channel, samples) in channels.iter().enumerate() {
+            for (span, start, end) in [(first, 0, 5), (again, 0, 5), (other, 1, 6)] {
+                let fresh = estimate(&samples[start..end])?;
+                assert_eq!(span.baselines[channel], fresh.baseline);
+                assert_eq!(span.noise_sigmas[channel], fresh.noise_sigma);
+            }
+        }
         Ok(())
     }
 

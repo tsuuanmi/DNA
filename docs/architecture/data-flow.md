@@ -64,7 +64,10 @@ variants document --> input::variants --> normalization --> nomenclature
 `variant_analysis::observation` owns the authoritative reference-guided
 single-read scientific path. The public Rust Variant Analysis capability, CLI
 analysis, and sample processing reuse that path rather than owning duplicate
-implementations.
+implementations. Sample processing is one pass, `sample_analysis::reads`, that
+places each trace once; the sample evidence and the consensus both start from
+it, in the `sample` and `consensus` commands and in the public Sample Analysis
+capability alike.
 
 Alignment and variant calling see the read only as `ReadEvidence`
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):

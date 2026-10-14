@@ -1,6 +1,5 @@
 //! Multi-read sample evidence orchestration and publication.
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -9,11 +8,10 @@ use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
-use dna_core::model::sample_evidence::RejectedSampleRead;
-use dna_core::sample as sample_science;
+use crate::sample_analysis::{self, reads};
 use dna_kernel::error::{Result, SampleError};
 
-use super::{Operation, represent, sample_metrics, sample_reads};
+use super::{Operation, represent, sample_metrics};
 
 /// Runs one sample-evidence operation with one sample-level append-only log.
 pub(crate) fn run(
@@ -64,41 +62,19 @@ fn sample(
     );
 
     drop(stage);
-    let completed_reads = sample_reads::build(
+    let placed = reads::place(
         &inputs.traces,
         &inputs.reference,
         &inputs.config,
         &inputs.profile,
+        log,
+        super::read_workers(),
     )?;
-    let warning_total = completed_reads.warning_total;
-    let mut reads = Vec::with_capacity(completed_reads.reads.len());
-    let mut sanger_reads = BTreeMap::new();
-    for read in completed_reads.reads {
-        sanger_reads.insert(read.called.input_sha256.clone(), read.sanger);
-        reads.push(read.called);
-    }
-    let rejected = completed_reads
-        .rejected
-        .iter()
-        .map(|read| RejectedSampleRead {
-            input_name: read.sanger.input_name.clone(),
-            input_sha256: read.sanger.input_sha256.clone(),
-        })
-        .collect::<Vec<_>>();
-    let sanger_rejected = completed_reads
-        .rejected
-        .into_iter()
-        .map(|read| (read.sanger.input_sha256.clone(), read))
-        .collect();
 
     let stage = tracing::info_span!("sample_aggregation").entered();
     let stage_started = Instant::now();
-    let evidence = sample_science::aggregate(
-        &reads.iter().collect::<Vec<_>>(),
-        &rejected,
-        &inputs.config.core.sample_reconciliation,
-    )?;
-    let metrics = sample_metrics::summarize(&evidence, &sanger_reads);
+    let evidence = sample_analysis::aggregate(&placed, &inputs.config)?;
+    let metrics = sample_metrics::summarize(&evidence, &placed.sanger);
     tracing::info!(
         event = "sample_aggregation_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -117,7 +93,7 @@ fn sample(
 
     drop(stage);
     let stage = tracing::info_span!("nomenclature").entered();
-    let notation = represent::represent(&reads, &inputs.reference, &inputs.profile)?;
+    let notation = represent::represent(&placed.called, &inputs.reference, &inputs.profile)?;
 
     drop(stage);
     let stage = tracing::info_span!("reporting").entered();
@@ -135,8 +111,8 @@ fn sample(
         notation,
         plugins,
         sanger: SangerSampleEvidence {
-            reads: sanger_reads,
-            rejected: sanger_rejected,
+            reads: placed.sanger,
+            rejected: sample_analysis::by_identity(placed.rejected),
         },
     })?;
     let reads = result.reads.len();
@@ -161,7 +137,7 @@ fn sample(
         overlaps,
         locus_differences,
         variants,
-        read_warnings = warning_total,
+        read_warnings = placed.warning_total,
         output_path = ?output.display().to_string(),
         bytes = bytes.len(),
     );

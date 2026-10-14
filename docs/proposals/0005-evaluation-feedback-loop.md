@@ -376,4 +376,12 @@ yet reviewed.
 
 ## Implementation
 
-None.
+- **Placement once per trace** (rollout step 3, SRS-API-009..011):
+  `dna::sample_analysis::analyze_sanger` returns the typed sample evidence and
+  consensus from one placement pass; `sample` and `consensus` run the same
+  pass. The evidence record (open question 1) is not decided.
+- **Rollout step 4:** signal statistics are shared between the windowed
+  features and the locus contexts, and a sample's reads run concurrently
+  with the operation log kept in trace order. On 2,618 development-panel
+  samples every `consensus` and `sample` output is byte-identical to the
+  previous release.

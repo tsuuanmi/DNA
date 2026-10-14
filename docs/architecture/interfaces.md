@@ -54,6 +54,13 @@ public Rust API.
 
 The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns stable typed called-variant evidence directly and does not open logs or publish JSON. Optional post-calling normalization and nomenclature belong to separate capabilities; see [variant lifecycle](variant-lifecycle.md). Its exact current contract is owned by [Rust public API](../reference/rust-api.md).
 
+`sample_analysis::analyze_sanger` is the sample-level capability: one placement
+pass over a sample's traces returns the typed sample evidence and consensus. The
+`sample` and `consensus` commands run the same pass. Its reads run on worker
+threads; a `ReadScope` carries their instrumentation either into the
+operation log in trace order or to the caller's dispatcher, so the library still
+selects no destination.
+
 Exact syntax and serialized shapes are owned by
 [reference](../reference/README.md). Module responsibilities are colocated under
 [src](../../src/README.md). Cross-cutting rules that must hold across interfaces

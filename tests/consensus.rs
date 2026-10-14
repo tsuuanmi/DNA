@@ -146,3 +146,84 @@ fn a_lone_difference_against_a_reference_read_is_contested()
     assert_eq!(value["summary"]["contested_sites"], 1);
     Ok(())
 }
+
+/// A log line without what differs between runs: the timestamp, the run id,
+/// and timings.
+#[cfg(target_os = "linux")]
+fn stable_record(line: &str) -> String {
+    let mut parts = line.splitn(3, " | ");
+    let (_time, level, rest) = (parts.next(), parts.next(), parts.next());
+    let fields = rest
+        .unwrap_or_default()
+        .split(' ')
+        .filter(|field| !field.starts_with("run_id="))
+        .map(|field| match field.split_once('=') {
+            Some((name, _)) if name.ends_with("elapsed_ms") => format!("{name}=_"),
+            _ => field.to_owned(),
+        })
+        .collect::<Vec<_>>();
+    format!("{} | {}", level.unwrap_or_default(), fields.join(" "))
+}
+
+/// Reads on one CPU and on every available CPU give the same documents and the
+/// same log, apart from timestamps, run ids, and timings (SRS-SAMPLE-001,
+/// SRS-OUT-008).
+#[cfg(target_os = "linux")]
+#[test]
+fn one_worker_and_many_publish_the_same_documents_and_log() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    let mut traces = Vec::new();
+    for (name, sequence) in [
+        ("read-forward", alternate()),
+        ("read-foreign", "AGCATGAGTCCATGCTAGCATGACTGCA".to_owned()),
+        ("read-reverse", reverse_complement(&alternate())),
+        ("read-reference", QUERY.to_owned()),
+        ("read-reference-reverse", reverse_complement(QUERY)),
+    ] {
+        let trace = directory.path().join(format!("{name}.ab1"));
+        write_abif(&trace, &sequence)?;
+        traces.push(trace);
+    }
+    let mut outputs = Vec::new();
+    for pinned in [true, false] {
+        let workdir = directory.path().join(if pinned { "one" } else { "many" });
+        fs::create_dir(&workdir)?;
+        let mut command = if pinned {
+            let mut taskset = Command::new("taskset");
+            taskset.arg("-c").arg("0").arg(dna_binary());
+            taskset
+        } else {
+            Command::new(dna_binary())
+        };
+        command
+            .current_dir(&workdir)
+            .env("DNA_CONFIG", &config)
+            .arg("consensus")
+            .arg(SAMPLE_ID)
+            .args(&traces)
+            .arg("--reference")
+            .arg(&reference)
+            .assert()
+            .success();
+        let results = workdir.join("results");
+        let log = fs::read_to_string(workdir.join("logs").join(format!("{SAMPLE_ID}.log")))?;
+        outputs.push((
+            fs::read(results.join(format!("{SAMPLE_ID}.consensus.json")))?,
+            fs::read(results.join(format!("{SAMPLE_ID}.consensus.fasta")))?,
+            log.lines().map(stable_record).collect::<Vec<_>>(),
+        ));
+    }
+    assert_eq!(outputs[0], outputs[1]);
+    assert!(
+        outputs[0]
+            .2
+            .iter()
+            .any(|line| line.contains("read_index=4"))
+    );
+    Ok(())
+}

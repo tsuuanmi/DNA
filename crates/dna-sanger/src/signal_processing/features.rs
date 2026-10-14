@@ -1,19 +1,20 @@
 //! Rolling sample-domain baseline, noise, and peak-SNR features.
 
 use crate::model::basecalls::BaseCalls;
-use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalWindow;
 use crate::signal_processing::SignalProcessingConfig;
 use dna_kernel::error::{Result, SignalError};
 
-use super::statistics;
+use super::statistics::{self, SpanEstimates};
 
-/// Computes one feature record per full-width, stride-one base window.
+/// Computes one feature record per full-width, stride-one base window of the
+/// trace that `estimates` holds.
 pub(super) fn calculate(
-    trace: &Chromatogram,
     calls: &BaseCalls,
     config: &SignalProcessingConfig,
+    estimates: &mut SpanEstimates<'_>,
 ) -> Result<Vec<SignalWindow>> {
+    let trace = estimates.trace();
     if calls.len() < config.window_size_bases {
         return Err(SignalError::TooFewCalls {
             calls: calls.len(),
@@ -38,14 +39,8 @@ pub(super) fn calculate(
             .into());
         }
 
-        let mut baselines = [0.0; 4];
-        let mut noise_sigmas = [0.0; 4];
-        for channel in 0..4 {
-            let statistics =
-                statistics::estimate(&trace.channels[channel][sample_start..sample_end])?;
-            baselines[channel] = statistics.baseline;
-            noise_sigmas[channel] = statistics.noise_sigma;
-        }
+        let span = estimates.span(sample_start, sample_end)?;
+        let (baselines, noise_sigmas) = (span.baselines, span.noise_sigmas);
 
         let mut minimum_primary_snr = f64::INFINITY;
         let mut maximum_secondary_snr = 0.0_f64;
@@ -87,7 +82,7 @@ pub(super) fn calculate(
 #[cfg(test)]
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
-    use crate::model::sanger::VendorEvidence;
+    use crate::model::sanger::{Chromatogram, VendorEvidence};
     use dna_kernel::error::{Error, SignalError};
     use dna_kernel::model::nucleotide::Nucleotide;
 
@@ -153,13 +148,13 @@ mod tests {
     fn computes_full_windows_and_keeps_exact_threshold_clean() -> Result<()> {
         let (trace, calls) = evidence(7);
         let windows = calculate(
-            &trace,
             &calls,
             &SignalProcessingConfig {
                 window_size_bases: 5,
                 minimum_primary_snr: 1_000.0,
                 minimum_noisy_windows: 2,
             },
+            &mut SpanEstimates::new(&trace),
         )?;
         assert_eq!(windows.len(), 3);
         assert_eq!(windows[0].call_start_0based, 0);
@@ -180,13 +175,13 @@ mod tests {
         let (trace, calls) = evidence(4);
         assert!(matches!(
             calculate(
-                &trace,
                 &calls,
                 &SignalProcessingConfig {
                     window_size_bases: 5,
                     minimum_primary_snr: 3.0,
                     minimum_noisy_windows: 2,
                 },
+                &mut SpanEstimates::new(&trace),
             ),
             Err(Error::Signal(SignalError::TooFewCalls {
                 calls: 4,

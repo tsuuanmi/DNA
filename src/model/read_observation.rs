@@ -14,15 +14,21 @@ pub(crate) struct ReadObservation {
 }
 
 /// A Sanger read a sample operation set aside, with its Sanger evidence.
+///
+/// Public through [`sample_analysis`](crate::sample_analysis).
 #[derive(Debug, Clone)]
-pub(crate) struct RejectedRead {
-    pub(crate) sanger: SangerRejection,
-    pub(crate) cause: RejectionCause,
+#[non_exhaustive]
+pub struct RejectedRead {
+    /// Name, identity, integrity, and callability of the rejected trace.
+    pub sanger: SangerRejection,
+    /// Why the read was set aside.
+    pub cause: RejectionCause,
 }
 
 /// Why a read was set aside.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum RejectionCause {
+#[non_exhaustive]
+pub enum RejectionCause {
     /// Too few callable calls (SRS-SAMPLE-027).
     Callability(ReadRejection),
     /// The core could not place the read (SRS-SAMPLE-029).

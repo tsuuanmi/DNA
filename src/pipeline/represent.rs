@@ -11,7 +11,7 @@ use dna_core::model::called_read::CalledRead;
 use dna_kernel::error::{Error, NomenclatureError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Notation, Profile};
-use dna_kernel::variant::{CalledVariantSet, ReferenceIdentity, Variant};
+use dna_kernel::variant::{CalledVariantSet, Variant};
 use dna_post::variant_nomenclature::{self, from_normalization};
 use dna_post::variant_normalization::{NormalizationPolicy, normalize_with};
 
@@ -71,10 +71,7 @@ fn represent_read(
     variants: Vec<Variant>,
 ) -> Result<Vec<Variant>> {
     let called = CalledVariantSet {
-        reference: ReferenceIdentity {
-            name: reference.name.clone(),
-            sha256: reference.sequence_sha256.clone(),
-        },
+        reference: reference.identity(),
         variants,
     };
     let normalized = normalize_with(reference, &called, policy)?;
@@ -159,10 +156,7 @@ mod tests {
         let normalized = normalize_with(
             &reference,
             &CalledVariantSet {
-                reference: ReferenceIdentity {
-                    name: reference.name.clone(),
-                    sha256: reference.sequence_sha256.clone(),
-                },
+                reference: reference.identity(),
                 variants: vec![crossing.clone()],
             },
             NormalizationPolicy::RightAligned,

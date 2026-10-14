@@ -66,10 +66,7 @@ pub fn analyze_sanger(
 ) -> Result<VariantAnalysisResult> {
     let prepared = sanger::prepare_analysis(trace, reference, config)?;
     let inputs = sanger::load_analysis(prepared)?;
-    let reference_identity = ReferenceIdentity {
-        name: inputs.reference.name.clone(),
-        sha256: inputs.reference.sequence_sha256.clone(),
-    };
+    let reference_identity = inputs.reference.identity();
     let completed = observation::build(
         &inputs.trace,
         &inputs.reference,

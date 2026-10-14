@@ -10,12 +10,15 @@ mod plugins;
 mod represent;
 mod sample;
 mod sample_metrics;
-mod sample_reads;
 
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::thread;
 use std::time::Instant;
 
-use crate::operation_log::OperationLog;
+use crate::operation_log::{OperationLog, Records};
+use crate::sample_analysis::reads::ReadScope;
 use dna_kernel::error::{Error, Result};
 
 /// Runs one AB1-to-reference analysis.
@@ -66,6 +69,27 @@ pub(crate) fn sample(
     config_path: &Path,
 ) -> Result<()> {
     sample::run(sample_id, traces, reference, config_path)
+}
+
+/// Worker threads for a sample's reads: the available parallelism, read once
+/// per process.
+fn read_workers() -> NonZeroUsize {
+    static WORKERS: OnceLock<NonZeroUsize> = OnceLock::new();
+    *WORKERS.get_or_init(|| thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
+}
+
+/// Reads processed on worker threads write to the operation log in read
+/// order, so its content does not depend on scheduling.
+impl ReadScope for OperationLog {
+    type Records = Records;
+
+    fn record<T>(&self, work: impl FnOnce() -> T) -> (T, Records) {
+        self.capture(work)
+    }
+
+    fn replay(&self, records: Records) {
+        self.append(records);
+    }
 }
 
 /// One CLI operation bound to its own append-only operation log.

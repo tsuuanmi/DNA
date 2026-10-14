@@ -15,14 +15,23 @@
 //! delimiters and control characters are escaped so one event is one line.
 //! Write failures are captured and surfaced by [`OperationLog::check`] or
 //! [`OperationLog::sync`], because a `tracing` layer cannot return errors.
+//!
+//! Work on a worker thread runs under [`OperationLog::capture`], which keeps
+//! its records in memory; the operation then writes them with
+//! [`OperationLog::append`] in an order it chooses, such as read order, so
+//! the log content does not depend on thread scheduling. Captured records keep
+//! the time they were made. One capture dispatcher serves every thread of an
+//! operation and keeps one buffer per thread.
 
+use std::collections::HashMap;
 use std::env;
 use std::fmt::{self, Write as _};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::thread::{self, ThreadId};
 
 use chrono::Local;
 use tracing::field::{Field, Visit};
@@ -48,8 +57,36 @@ static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 /// One append-only log file and the dispatcher that writes to it.
 pub(crate) struct OperationLog {
     path: PathBuf,
+    run_id: String,
     state: Arc<Mutex<LogState>>,
     dispatch: Dispatch,
+    /// Records captured on each thread, until the capture that made them
+    /// takes them back.
+    captured: Arc<Mutex<Captured>>,
+    /// The dispatcher of every capture, built on first use.
+    capture: OnceLock<Dispatch>,
+}
+
+/// Captured records by the thread that made them. Only looked up by the
+/// current thread, never iterated, so its order does not matter.
+type Captured = HashMap<ThreadId, Vec<Entry>>;
+
+/// Records captured on another thread, in the order they were made, for
+/// [`OperationLog::append`].
+pub(crate) struct Records(Vec<Entry>);
+
+/// One captured record: a stage span entered, or one rendered event line.
+enum Entry {
+    Stage(&'static str),
+    Line(String),
+}
+
+/// Where a [`RecordLayer`] puts what it records.
+enum Sink {
+    /// The operation's log file.
+    File(Arc<Mutex<LogState>>),
+    /// Per-thread buffers the operation appends to its log file later.
+    Buffer(Arc<Mutex<Captured>>),
 }
 
 /// Mutable state shared between the operation and its layer.
@@ -58,6 +95,18 @@ struct LogState {
     write_error: Option<io::Error>,
     stage: Option<&'static str>,
     failed_stage: Option<&'static str>,
+}
+
+impl LogState {
+    /// Appends one record, keeping the first write failure and its stage.
+    fn write(&mut self, record: &str) {
+        if let Err(error) = self.file.write_all(record.as_bytes())
+            && self.write_error.is_none()
+        {
+            self.write_error = Some(error);
+            self.failed_stage = self.failed_stage.or(self.stage);
+        }
+    }
 }
 
 impl OperationLog {
@@ -95,21 +144,54 @@ impl OperationLog {
             stage: None,
             failed_stage: None,
         }));
+        let run_id = new_run_id();
         let layer = RecordLayer {
-            run_id: new_run_id(),
-            state: Arc::clone(&state),
+            run_id: run_id.clone(),
+            sink: Sink::File(Arc::clone(&state)),
         };
         let dispatch = Dispatch::new(Registry::default().with(layer));
         Ok(Self {
             path,
+            run_id,
             state,
             dispatch,
+            captured: Arc::default(),
+            capture: OnceLock::new(),
         })
     }
 
     /// Runs `operation` with this log as the current thread's subscriber.
     pub(crate) fn in_scope<T>(&self, operation: impl FnOnce() -> T) -> T {
         tracing::dispatcher::with_default(&self.dispatch, operation)
+    }
+
+    /// Runs `operation` on the current thread, which may be a worker thread,
+    /// and captures its records instead of writing them.
+    pub(crate) fn capture<T>(&self, operation: impl FnOnce() -> T) -> (T, Records) {
+        let dispatch = self.capture.get_or_init(|| {
+            let layer = RecordLayer {
+                run_id: self.run_id.clone(),
+                sink: Sink::Buffer(Arc::clone(&self.captured)),
+            };
+            Dispatch::new(Registry::default().with(layer))
+        });
+        let value = tracing::dispatcher::with_default(dispatch, operation);
+        let entries = lock(&self.captured)
+            .remove(&thread::current().id())
+            .unwrap_or_default();
+        (value, Records(entries))
+    }
+
+    /// Writes captured records in their order as if they were made now, so
+    /// stage tracking and write-failure attribution follow them too.
+    pub(crate) fn append(&self, records: Records) {
+        let mut state = lock(&self.state);
+        for entry in records.0 {
+            match entry {
+                Entry::Stage(name) => state.stage = Some(name),
+                Entry::Line(record) => state.write(&record),
+            }
+        }
     }
 
     /// The stage an operation failure belongs to: the stage whose record first
@@ -145,10 +227,11 @@ impl OperationLog {
     }
 }
 
-/// `tracing` layer rendering crate events into the operation's log file.
+/// `tracing` layer rendering crate events into the operation's log file or a
+/// capture buffer.
 struct RecordLayer {
     run_id: String,
-    state: Arc<Mutex<LogState>>,
+    sink: Sink,
 }
 
 impl<S> Layer<S> for RecordLayer
@@ -161,18 +244,24 @@ where
 
     fn on_enter(&self, id: &Id, context: Context<'_, S>) {
         if let Some(span) = context.span(id) {
-            lock(&self.state).stage = Some(span.name());
+            match &self.sink {
+                Sink::File(state) => lock(state).stage = Some(span.name()),
+                Sink::Buffer(captured) => lock(captured)
+                    .entry(thread::current().id())
+                    .or_default()
+                    .push(Entry::Stage(span.name())),
+            }
         }
     }
 
     fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
         let record = self.render(event);
-        let mut state = lock(&self.state);
-        if let Err(error) = state.file.write_all(record.as_bytes())
-            && state.write_error.is_none()
-        {
-            state.write_error = Some(error);
-            state.failed_stage = state.failed_stage.or(state.stage);
+        match &self.sink {
+            Sink::File(state) => lock(state).write(&record),
+            Sink::Buffer(captured) => lock(captured)
+                .entry(thread::current().id())
+                .or_default()
+                .push(Entry::Line(record)),
         }
     }
 }
@@ -298,7 +387,7 @@ fn escape_record_field(value: &str) -> String {
 
 /// Locks shared log state; no code path panics while holding the lock, so a
 /// poisoned lock still guards consistent state.
-fn lock(state: &Mutex<LogState>) -> MutexGuard<'_, LogState> {
+fn lock<T>(state: &Mutex<T>) -> MutexGuard<'_, T> {
     state.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -379,6 +468,45 @@ mod tests {
 
         let lines = records(&directory.path().join("trace.log"))?;
         assert!(lines[0].ends_with(" event=summary reads=2 a=1 b=2"));
+        Ok(())
+    }
+
+    #[test]
+    fn appends_records_captured_on_worker_threads_in_the_order_given() -> TestResult {
+        let directory = tempdir()?;
+        let log = OperationLog::open_in(directory.path(), "trace")?;
+        let (first, second) = thread::scope(|threads| {
+            let first = threads.spawn(|| {
+                log.capture(|| {
+                    let _stage = tracing::info_span!("alignment").entered();
+                    tracing::info!(event = "first");
+                })
+            });
+            let second = threads.spawn(|| log.capture(|| tracing::info!(event = "second")));
+            (first.join(), second.join())
+        });
+        let ((), first) = first.map_err(|_| "first worker panicked")?;
+        let ((), second) = second.map_err(|_| "second worker panicked")?;
+        log.sync()?;
+        assert!(records(&directory.path().join("trace.log"))?.is_empty());
+
+        log.append(second);
+        assert_eq!(log.stage(), None);
+        log.append(first);
+        log.in_scope(|| tracing::info!(event = "third"));
+        log.sync()?;
+
+        let lines = records(&directory.path().join("trace.log"))?;
+        assert_eq!(lines.len(), 3);
+        assert!(lines[0].ends_with(" event=second"));
+        assert!(lines[1].ends_with(" event=first"));
+        assert!(lines[2].ends_with(" event=third"));
+        let run_ids = lines
+            .iter()
+            .filter_map(|line| line.split("run_id=").nth(1)?.split(' ').next())
+            .collect::<Vec<_>>();
+        assert_eq!(run_ids, [log.run_id.as_str(); 3]);
+        assert_eq!(log.stage(), Some("alignment"));
         Ok(())
     }
 
