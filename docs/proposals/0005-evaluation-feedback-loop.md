@@ -59,8 +59,8 @@ recomputing everything on every change is.
 
 ## Non-goals
 
-- Moving truth formats or comparison into DNA without a decision. ADR-0065
-  keeps them out today. The options below make that choice explicit.
+- Truth formats or comparison anywhere outside the harness crate. The `dna`
+  binary and the plugin crates stay free of them.
 - A review user interface.
 - Biological rules. They are the subject of the loop, not of this proposal.
 
@@ -102,8 +102,8 @@ The loop then splits by what changed:
 
 ### What DNA provides
 
-DNA stays free of truth and comparison. To make the loop possible it
-provides:
+The `dna` facade and the plugin crates stay free of truth and comparison. To
+make the loop possible they provide:
 
 - **Library calls.** A public call that computes a sample's triage evidence
   in process, and a separate call that runs the rule layer on such evidence
@@ -123,8 +123,8 @@ provides:
 
 | Option | For | Against |
 |---|---|---|
-| **A. Separate Rust repository** (chosen), depending on DNA's crates by path or git revision | Keeps ADR-0065 and ADR-0066. Calls DNA in process with no process start or JSON parse per stage. Owns truth adapters, manifests, cache, the parallel runner, and reports. | DNA and the harness are versioned separately. Local work needs a path dependency on the DNA checkout. |
-| **B. Crate in the DNA workspace**, outside the `dna` binary | One change spans both, and the loop is the tightest. | Brings lab truth formats and comparison into DNA, so it needs an ADR that supersedes ADR-0065. |
+| **A. Separate Rust repository**, depending on DNA's crates by path or git revision | Keeps ADR-0065 and ADR-0066. Calls DNA in process with no process start or JSON parse per stage. Owns truth adapters, manifests, cache, the parallel runner, and reports. | DNA and the harness are versioned separately. Local work needs a path dependency on the DNA checkout. |
+| **B. Crate in the DNA workspace** (chosen), outside the `dna` binary | One change spans both, and the loop is the tightest. | Brings lab truth formats and comparison into DNA, so it needs an ADR that supersedes ADR-0065. |
 | **C. `mtdna_raw` (Python) drives the CLI** | Nothing new to build. | A process per sample, JSON on every stage, and every rule change re-runs the CLI, so the loop budgets cannot be met. |
 
 ### Evaluation method
@@ -324,7 +324,7 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 ## Rollout
 
 1. **Inventory and panel v1.** Done, outside the repository (see *Panel
-   v1*). The panel scripts move to the harness repository.
+   v1*). The panel scripts move into the harness crate.
 2. **Harness v0.** Stage E reads existing CLI result JSON as its evidence, so
    DNA needs no change. Stage R reproduces the stage-1 detectors from that
    JSON for the phase-0 numbers of PROP-0004.
@@ -358,9 +358,21 @@ are unchanged unless the record reuses them.
 
 ## Decision
 
-The harness lives in a separate Rust repository (option A), decided
-2026-10-14. ADR-0065 and ADR-0066 stand unchanged. The rest of the proposal
-is not yet reviewed.
+Decided 2026-10-14: the harness is a crate in the DNA workspace
+(`crates/`), outside the `dna` binary (option B). This reverses the
+earlier choice of a separate repository.
+
+ADR-0065 stays current until the crate lands. The implementation change must
+then also deliver:
+
+- a successor ADR that supersedes ADR-0065, so that truth adapters and
+  comparison may live in that crate and nowhere else;
+- the matching revision of SRS-COMPAT-003;
+- a crate-graph rule in `validate_module_layers.py`: the harness may depend on
+  `dna` and the plugin crates, and nothing may depend on the harness.
+
+ADR-0066 is unaffected; the harness is Rust. The rest of the proposal is not
+yet reviewed.
 
 ## Implementation
 

@@ -64,8 +64,9 @@ The evaluation method and the fast feedback loop are in
 - Biological interpretation rules. They plug into this system later as
   individual rules.
 - Setting the lab's rerun rate. The chemistry sets it; DNA only detects it.
-- Comparing results with reviewers or other tools. Downstream pipelines own
-  comparison (ADR-0065).
+- Comparing results with reviewers or other tools inside the triage rules.
+  Comparison belongs to the evaluation harness
+  ([PROP-0005](0005-evaluation-feedback-loop.md)).
 - Batch decisions. Batch is the top level and comes last, and downstream
   pipelines aggregate it.
 - Sample swaps. The data cannot show a swap.
