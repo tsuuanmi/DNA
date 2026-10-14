@@ -13,6 +13,7 @@ mod model;
 mod operation_log;
 mod pipeline;
 mod report;
+pub mod sample_analysis;
 pub mod variant_analysis;
 
 pub use dna_kernel::{error, variant};

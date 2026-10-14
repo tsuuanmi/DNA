@@ -18,13 +18,17 @@ use crate::model::signal::SignalAnalysis;
 use dna_kernel::error::Result;
 
 /// Calculates rolling SNR features, basecall-independent locus evidence, and merged noisy regions.
+///
+/// Both feature windows and locus contexts estimate channel statistics over
+/// runs of whole locus windows; each distinct span is estimated once.
 pub(crate) fn analyze(
     trace: &Chromatogram,
     calls: &BaseCalls,
     config: &SignalProcessingConfig,
 ) -> Result<SignalAnalysis> {
-    let windows = features::calculate(trace, calls, config)?;
-    let loci = locus_evidence::calculate(trace, config)?;
+    let mut estimates = statistics::SpanEstimates::new(&trace.channels);
+    let windows = features::calculate(trace, calls, config, &mut estimates)?;
+    let loci = locus_evidence::calculate(trace, config, &mut estimates)?;
     let noisy_regions = regions::merge(&windows, config.minimum_noisy_windows);
     let integrity = integrity::assess(trace, &loci)?;
     Ok(SignalAnalysis {

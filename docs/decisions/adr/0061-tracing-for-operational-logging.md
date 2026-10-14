@@ -36,7 +36,14 @@ Operational logging uses the `tracing` ecosystem.
 - The public Rust API installs no subscriber. Library callers observe stage
   spans and events through their own subscriber, or not at all.
 - Stages follow one another: each stage span is closed before the next opens,
-  so subscribers see sequential, non-nested stages.
+  so subscribers see sequential, non-nested stages for each read.
+- A sample's reads may run on worker threads, which have no thread-scoped
+  dispatcher of their own. Under a CLI operation each read runs under a
+  capturing dispatcher with the operation's run id, and the operation appends
+  the captured records and stage entries in trace order, through the first
+  failed read, so the log reads as a sequential pass (SRS-OUT-008). A library
+  call runs each read under the dispatcher current on the calling thread;
+  different reads may then interleave.
 - A layer cannot return errors, so the first failed record write is captured
   together with the stage it occurred in, and surfaced as `Error::Log` when the
   operation checks or synchronizes the log: immediately after the start
@@ -49,6 +56,8 @@ Operational logging uses the `tracing` ecosystem.
 - One mechanism replaces the custom trait, its no-op implementation, and the
   threaded stage label; module and line come from `tracing` metadata.
 - The record format, file layout, and failure-stage attribution are unchanged.
+- Captured records keep the time they were made, so timestamps of
+  concurrently processed reads need not increase from line to line.
 - A write failure after the start record is reported at the next durability
   point instead of at the failing record, so the remaining stages still run.
   No result is published in either case.

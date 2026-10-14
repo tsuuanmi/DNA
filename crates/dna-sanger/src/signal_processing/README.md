@@ -9,6 +9,11 @@ Sanger-integrity observations, and candidate-noisy region merging.
 This module does not mutate channels, perform reference interpretation, or decide
 variant eligibility.
 
+`statistics.rs` owns the baseline, noise, and SNR primitives and `SpanEstimates`,
+which estimates the channel statistics of each sample span once per read: the
+rolling feature windows (`features.rs`) and the locus contexts
+(`locus_evidence.rs`) span the same runs of locus windows and share them.
+
 `config.rs` owns the `[signal_processing]` configuration section: its raw record, validated
 record, and rules (ADR-0069).
 

@@ -5,11 +5,11 @@ This document defines the current stable Rust library boundary exposed by the
 
 ## Crate surface
 
-The public modules are `cli`, `error`, `profile`, `variant`, `variant_analysis`,
-`variant_normalization`, and `variant_nomenclature`, plus the CLI dispatcher
-`dna::run(cli::Cli) -> dna::error::Result<()>`. All other modules, including
-configuration, internal models, scientific stages, and reporting, are private
-implementation detail.
+The public modules are `cli`, `error`, `profile`, `sample_analysis`, `variant`,
+`variant_analysis`, `variant_normalization`, and `variant_nomenclature`, plus
+the CLI dispatcher `dna::run(cli::Cli) -> dna::error::Result<()>`. All other
+modules, including configuration, internal models, scientific stages, and
+reporting, are private implementation detail.
 
 The workspace plugin crates (`dna-kernel`, `dna-core`, `dna-sanger`,
 `dna-post`; [ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md))
@@ -18,6 +18,9 @@ facade re-exports exactly these public items from them:
 - `error` is `dna_kernel::error`;
 - `variant` is `dna_kernel::variant`;
 - `profile` exposes `Profile` and `ProfileIdentity`;
+- `sample_analysis` exposes `SampleEvidence` and `Consensus` (`dna-core`) and
+  `SangerAttachment` and `SangerRejection` (`dna-sanger`), the records of a
+  [sample analysis](#sample-analysis);
 - `variant_normalization` exposes `normalize`, `NormalizationPolicy`, and
   `VariantNormalizationResult`;
 - `variant_nomenclature` exposes `apply`, `from_normalization`,
@@ -26,10 +29,14 @@ facade re-exports exactly these public items from them:
 Types follow one evolution rule:
 
 - results that only the library produces (`VariantAnalysisResult`,
-  `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
-  `VariantKind`, `NormalizationPolicy`, `cli::Command`, and `error::Error` are
+  `SampleAnalysis`, `RejectedRead`, `VariantNormalizationResult`,
+  `VariantNomenclatureResult`) and the enums `VariantKind`, `RejectionCause`,
+  `NormalizationPolicy`, `cli::Command`, and `error::Error` are
   `#[non_exhaustive]`, so fields and variants can be added without a breaking
   change; callers read their fields and match enums with a wildcard arm;
+- the plugin-crate records re-exported by `sample_analysis` are the crates'
+  own evidence records with exhaustive public fields; they evolve with the
+  crates, and their field types are named through the crates;
 - input types that callers construct (`CalledVariantSet`, `Variant`,
   `ReferenceIdentity`, `ReferenceSegment`, `NomenclatureInput`) and the
   identity record `ProfileIdentity` keep exhaustive public fields;
@@ -167,6 +174,80 @@ A `CalledVariantSet` means that the variants are evidence-backed calls against
 one identified reference. It does **not** mean that the variants have been
 right-aligned, left-aligned, VCF-normalized, HGVS-formatted, or passed through
 target nomenclature.
+
+## Sample Analysis
+
+One placement pass over a sample's Sanger traces yields both the sample
+evidence and the consensus:
+
+```rust
+pub fn analyze_sanger(
+    traces: &[PathBuf],
+    reference: &Path,
+    config: &Path,
+) -> dna::error::Result<SampleAnalysis>
+```
+
+through:
+
+```rust
+dna::sample_analysis::analyze_sanger(...)
+```
+
+It loads the traces, reference, configuration, and target profile as the
+`sample` and `consensus` commands do, processes and places every trace once,
+sets aside rejected reads (SRS-SAMPLE-027, SRS-SAMPLE-029), aggregates the
+admitted reads, and builds their consensus. The two commands run this same
+pass, so the result describes exactly what they publish. A caller that needs
+both no longer places every trace twice.
+
+Reads are processed concurrently on scoped threads, up to the available
+parallelism; the result does not depend on scheduling. When a read fails other
+than by rejection, the error of the first such read in trace order is
+returned. Like `analyze_sanger` for one read, it opens no log, derives no
+output path, serializes nothing, and publishes nothing.
+
+```rust
+#[non_exhaustive]
+pub struct SampleAnalysis {
+    pub reference: ReferenceIdentity,
+    pub profile: ProfileIdentity,
+    pub evidence: SampleEvidence,
+    pub consensus: Consensus,
+    pub reads: BTreeMap<String, SangerAttachment>,
+    pub rejected: BTreeMap<String, RejectedRead>,
+}
+
+#[non_exhaustive]
+pub struct RejectedRead {
+    pub sanger: SangerRejection,
+    pub cause: RejectionCause,
+}
+
+#[non_exhaustive]
+pub enum RejectionCause {
+    Callability(ReadRejection),
+    Placement(PlacementRejection),
+}
+```
+
+- `evidence` is the core's sample evidence (`dna_core`): the read registry in
+  content-SHA-256 order, the rejected reads, coverage, overlaps, locus
+  differences, and normalized variants with support and opposition. It carries
+  the reference and configuration SHA-256.
+- `consensus` is the core's consensus (`dna_core`): segments, sites, and
+  summary; each site names its reads in registry order.
+- `reads` holds each admitted read's Sanger evidence (`dna_sanger`): calls,
+  signal analysis, callability, and quality control.
+- `rejected` holds each rejected read's name, identity, integrity,
+  callability, and cause: too few callable calls, or a placement the core
+  rejected.
+
+`reads` and `rejected` are keyed by read content SHA-256, the identity the
+core records use. Every coordinate field names its base (`_0based`,
+`_1based`, `_0based_exclusive`). The published projections of these records
+are `dna.sample_evidence/v10` and `dna.consensus/v1`; notation is not part of
+this result and stays a separate capability.
 
 ## Variant Normalization
 
@@ -338,11 +419,18 @@ never install a subscriber, write files, or print. `analyze_sanger` opens one
 `warn` events for removed variant candidates and warning summaries. Span names
 are stable; event fields are operational detail and may grow.
 
+`sample_analysis::analyze_sanger` runs each read's stages, with the same spans,
+on a worker thread under the dispatcher that was current on the calling thread.
+Each read's spans and events keep their order, but those of different reads may
+interleave.
+
 ## Boundary rules
 
-The Rust API returns stable typed data for the current Variant Analysis capability. The versioned JSON documents under
+The Rust API returns stable typed data for the current Variant Analysis and
+Sample Analysis capabilities. The versioned JSON documents under
 this reference directory remain separate serialization/publication contracts;
-`dna.analysis/v9` is not the Rust API result model.
+`dna.analysis/v9`, `dna.sample_evidence/v10`, and `dna.consensus/v1` are not
+Rust API result models.
 
 The Sanger adapter name is source-specific by design. Future input modalities
 may provide additional adapters while converging on compatible

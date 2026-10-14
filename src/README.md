@@ -17,9 +17,10 @@ This is the `dna` facade crate. The plugin crates live in
 - [model](model/README.md) — the Sanger read observation and the serializable result contracts.
 - [pipeline](pipeline/README.md) — operation orchestration, the plugin registry, and workflow compositions.
 - [report](report/README.md) — contract projection, serialization, publication.
+- [sample_analysis](sample_analysis/README.md) — the sample placement pass and the public typed Sanger sample capability (sample evidence and consensus from one pass).
 - [variant_analysis](variant_analysis/README.md) — public typed Sanger raw-to-variant capability.
-- `operation_log.rs` — append-only operational records rendered from `tracing` events.
-- `lib.rs` — the public API: `cli`, `run`, `variant_analysis`, and re-exports of `error`, `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
+- `operation_log.rs` — append-only operational records rendered from `tracing` events, including records captured on worker threads and appended in read order.
+- `lib.rs` — the public API: `cli`, `run`, `sample_analysis`, `variant_analysis`, and re-exports of `error`, `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
 
 File-only modules use rustdoc/source comments. Do not create directories solely
 to attach README files.
@@ -48,7 +49,8 @@ configuration, profile, and reference, and its Sanger adapter decodes traces,
 without knowing CLI publication paths. Reference-free read processing (basecalling, signal processing, callability,
 quality control) is a shared scientific core used by both basecall and Variant
 Analysis. Reference-guided observation
-ownership belongs to `variant_analysis`; `pipeline` consumes these
+ownership belongs to `variant_analysis`, and the sample placement pass with its
+aggregation and consensus to `sample_analysis`; `pipeline` consumes these
 capabilities rather than owning their implementations.
 
 Cross-cutting invariants are canonical in

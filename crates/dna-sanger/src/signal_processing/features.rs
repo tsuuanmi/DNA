@@ -6,13 +6,14 @@ use crate::model::signal::SignalWindow;
 use crate::signal_processing::SignalProcessingConfig;
 use dna_kernel::error::{Result, SignalError};
 
-use super::statistics;
+use super::statistics::{self, SpanEstimates};
 
 /// Computes one feature record per full-width, stride-one base window.
 pub(super) fn calculate(
     trace: &Chromatogram,
     calls: &BaseCalls,
     config: &SignalProcessingConfig,
+    estimates: &mut SpanEstimates<'_>,
 ) -> Result<Vec<SignalWindow>> {
     if calls.len() < config.window_size_bases {
         return Err(SignalError::TooFewCalls {
@@ -38,14 +39,8 @@ pub(super) fn calculate(
             .into());
         }
 
-        let mut baselines = [0.0; 4];
-        let mut noise_sigmas = [0.0; 4];
-        for channel in 0..4 {
-            let statistics =
-                statistics::estimate(&trace.channels[channel][sample_start..sample_end])?;
-            baselines[channel] = statistics.baseline;
-            noise_sigmas[channel] = statistics.noise_sigma;
-        }
+        let span = estimates.span(sample_start, sample_end)?;
+        let (baselines, noise_sigmas) = (span.baselines, span.noise_sigmas);
 
         let mut minimum_primary_snr = f64::INFINITY;
         let mut maximum_secondary_snr = 0.0_f64;
@@ -160,6 +155,7 @@ mod tests {
                 minimum_primary_snr: 1_000.0,
                 minimum_noisy_windows: 2,
             },
+            &mut SpanEstimates::new(&trace.channels),
         )?;
         assert_eq!(windows.len(), 3);
         assert_eq!(windows[0].call_start_0based, 0);
@@ -187,6 +183,7 @@ mod tests {
                     minimum_primary_snr: 3.0,
                     minimum_noisy_windows: 2,
                 },
+                &mut SpanEstimates::new(&trace.channels),
             ),
             Err(Error::Signal(SignalError::TooFewCalls {
                 calls: 4,

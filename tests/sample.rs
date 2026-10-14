@@ -506,6 +506,19 @@ fn records_an_unplaceable_read_as_rejected() -> Result<(), Box<dyn std::error::E
     let log = log_text(directory.path())?;
     assert!(log.contains("event=sample_read_rejected read_index=1"));
     assert!(log.contains("reason=identity_below_minimum"));
+    // Reads run concurrently, but each read's records stay together in trace
+    // order (SRS-OUT-008).
+    let read_indexes = log
+        .lines()
+        .filter_map(|line| {
+            let index = line.split(" read_index=").nth(1)?.split(' ').next()?;
+            Some(index.to_owned())
+        })
+        .collect::<Vec<_>>();
+    let mut grouped = read_indexes.clone();
+    grouped.dedup();
+    assert_eq!(grouped, ["0", "1", "2"]);
+    assert!(read_indexes.len() > grouped.len());
     Ok(())
 }
 

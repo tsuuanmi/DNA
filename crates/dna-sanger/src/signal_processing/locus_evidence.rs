@@ -7,7 +7,7 @@ use crate::signal_processing::SignalProcessingConfig;
 use dna_kernel::error::{Result, SignalError};
 use dna_kernel::read_evidence::EvidenceProfile;
 
-use super::statistics;
+use super::statistics::{self, SpanEstimates};
 
 /// Calculates one immutable signal-evidence record per vendor-defined locus.
 ///
@@ -18,6 +18,7 @@ use super::statistics;
 pub(super) fn calculate(
     trace: &Chromatogram,
     config: &SignalProcessingConfig,
+    estimates: &mut SpanEstimates<'_>,
 ) -> Result<Vec<LocusEvidence>> {
     let locus_count = trace.call_count();
     if locus_count < config.window_size_bases {
@@ -49,7 +50,7 @@ pub(super) fn calculate(
         let context_sample_start = locus_windows[context_start].start;
         let context_sample_end = locus_windows[context_end - 1].end;
         let (channel_baselines, channel_noise_sigmas) =
-            local_statistics(trace, context_sample_start, context_sample_end)?;
+            local_statistics(trace, estimates, context_sample_start, context_sample_end)?;
         let event_position =
             select_event_position(trace, locus_window, locus_position, channel_baselines)?;
         let channel_heights =
@@ -147,6 +148,7 @@ fn validate_evidence(evidence: &LocusEvidence, context_width: usize) -> Result<(
 
 fn local_statistics(
     trace: &Chromatogram,
+    estimates: &mut SpanEstimates<'_>,
     sample_start: usize,
     sample_end: usize,
 ) -> Result<([f64; 4], [f64; 4])> {
@@ -157,14 +159,8 @@ fn local_statistics(
         }
         .into());
     }
-    let mut baselines = [0.0; 4];
-    let mut noise_sigmas = [0.0; 4];
-    for channel in 0..4 {
-        let local = statistics::estimate(&trace.channels[channel][sample_start..sample_end])?;
-        baselines[channel] = local.baseline;
-        noise_sigmas[channel] = local.noise_sigma;
-    }
-    Ok((baselines, noise_sigmas))
+    let span = estimates.span(sample_start, sample_end)?;
+    Ok((span.baselines, span.noise_sigmas))
 }
 
 /// Refines the locus event without consulting a basecall verdict.
@@ -254,6 +250,13 @@ mod tests {
         }
     }
 
+    fn evidence_of(
+        trace: &Chromatogram,
+        config: &SignalProcessingConfig,
+    ) -> Result<Vec<LocusEvidence>> {
+        calculate(trace, config, &mut SpanEstimates::new(&trace.channels))
+    }
+
     fn trace() -> Chromatogram {
         let mut channels = std::array::from_fn(|_| vec![0; 12]);
         for (index, position) in [1_usize, 3, 5, 7, 9].into_iter().enumerate() {
@@ -287,7 +290,7 @@ mod tests {
 
     #[test]
     fn produces_profile_without_any_basecall_input() -> Result<()> {
-        let evidence = calculate(&trace(), &config(5))?;
+        let evidence = evidence_of(&trace(), &config(5))?;
         assert_eq!(evidence.len(), 5);
         let locus = &evidence[2];
         assert_eq!(locus.call_index_0based, 2);
@@ -307,7 +310,7 @@ mod tests {
     fn profile_retains_mixed_channel_mass_without_threshold_membership() -> TestResult {
         let mut trace = trace();
         trace.channels[1][5] = 40;
-        let evidence = calculate(&trace, &config(5))?;
+        let evidence = evidence_of(&trace, &config(5))?;
         let profile = evidence[2].profile.as_ref().ok_or("missing profile")?;
         assert_eq!(evidence[2].event_position_0based, 5);
         assert_eq!(evidence[2].corrected_amplitudes, [0.0, 40.0, 100.0, 0.0]);
@@ -329,7 +332,7 @@ mod tests {
             vendor: VendorEvidence::default(),
         };
 
-        let evidence = calculate(&trace, &config(5))?;
+        let evidence = evidence_of(&trace, &config(5))?;
         assert_eq!(evidence[2].locus_position_0based, 18);
         assert_eq!(evidence[2].event_position_0based, 18);
         assert_eq!(evidence[2].channel_heights, [0, 0, 120, 0]);
@@ -384,7 +387,7 @@ mod tests {
         for channel in &mut trace.channels {
             channel.fill(0);
         }
-        let evidence = calculate(&trace, &config(5))?;
+        let evidence = evidence_of(&trace, &config(5))?;
         assert!(evidence.iter().all(|locus| locus.profile.is_none()));
         Ok(())
     }

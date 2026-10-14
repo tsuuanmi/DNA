@@ -47,6 +47,7 @@
 | `alignment` | core | current profile-aware pairwise placement/orientation of `ReadEvidence` | variant extraction, input-format parsing, modality types |
 | `variant_calling` | core | evidence-backed differences, mapping, allele anchoring, core eligibility gates, reporting modality vetoes and mask reasons | target nomenclature, genotype/clinical interpretation, modality types |
 | `variant_analysis` | dna | Sanger one-read composition (modality plus core) and the public Variant Analysis capability | CLI logging/JSON publication |
+| `sample_analysis` | dna | the sample placement pass (each trace placed once, reads run concurrently), its aggregation and consensus, and the public Sample Analysis capability | CLI logging/JSON publication, notation |
 | `read_call` | core | the core's one-read path from `ReadEvidence` to a `CalledRead`, and the core-owned configuration | modality types |
 | `sample` | core | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
 | `consensus` | core | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |

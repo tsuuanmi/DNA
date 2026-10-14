@@ -1,0 +1,24 @@
+# Sample Analysis
+
+Owns the sample placement pass and the public capability built on it.
+
+`reads.rs` runs every trace of a sample once through the one-read path of
+`variant_analysis`: an admitted read keeps its `CalledRead` and Sanger
+attachment; a read with too few callable calls, or one the core cannot place,
+becomes a `RejectedRead`. Reads run concurrently on scoped threads and their
+outcomes are gathered in trace order. A `ReadScope` decides where each read's
+`tracing` instrumentation goes: the CLI operation log captures it per read and
+appends it in trace order, and the public call sends it to the caller's
+dispatcher.
+
+`mod.rs` aggregates the placed reads into the core sample evidence, builds the
+consensus in the evidence's read order, and exposes `analyze_sanger`, which
+returns both as a typed `SampleAnalysis` from one pass. The `sample` and
+`consensus` pipelines call the same pass, aggregation, and consensus, then add
+their own logging, notation, projection, and publication.
+
+It does not open logs, derive output paths, serialize JSON, or publish files.
+
+See [Rust API contract](../../docs/reference/rust-api.md#sample-analysis),
+[pipeline method](../../docs/design/pipeline.md#sample-placement-pass), and
+[sample evidence requirements](../../docs/requirements/sample-evidence/README.md).

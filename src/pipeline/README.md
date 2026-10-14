@@ -9,19 +9,20 @@ argument structs or process environment. This keeps orchestration independent of
 the command-line frontend and prepares the same boundary for non-CLI callers.
 
 Key children own CLI/application filesystem naming, overwrite protection,
-logging/publication, sample-read orchestration, sample metrics, and per-read
+logging/publication, sample metrics, and per-read
 profile representation for the notation view of sample, call, and notation
 documents (`represent.rs`, which composes `variant_normalization` and
 `variant_nomenclature` when the target profile declares notation). Scientific
 Sanger source loading is owned by `input::sanger`; shared reference-free read
 processing lives in `read_processing` (`prepare` through callability, then
 `finish`); reference-guided read observation is owned by `variant_analysis`.
-`sample_reads.rs` processes each trace in those two steps so that a read with
-too few callable calls, or one the core cannot place
-(`dna_core::read_call::PlacementRejection`), is recorded as rejected while the
-others continue.
-`consensus.rs` runs the sample read path, then `dna_core::consensus`, and
-publishes `dna.consensus/v1` with its FASTA.
+`sample.rs` and `consensus.rs` run the sample placement pass of
+`sample_analysis`, which records a read with too few callable calls, or one the
+core cannot place (`dna_core::read_call::PlacementRejection`), as rejected while
+the others continue; the operation log implements its `ReadScope`, so records
+of concurrently processed reads land in trace order.
+`consensus.rs` then builds the consensus and publishes `dna.consensus/v1` with
+its FASTA.
 `notation.rs` runs the post-calling plugins over one variants document:
 representation, conformance, and `dna.notation/v1`. `call.rs` runs the core
 alone over reviewed consensus sequences: the sequence

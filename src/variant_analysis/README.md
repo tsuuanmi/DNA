@@ -15,7 +15,8 @@ reference-free read processing is `dna_sanger::read_processing`.
 The core's modality-neutral one-read path is `dna_core::read_call`; Sanger observation composes it after the Sanger evidence adapter,
 passing the Sanger and core configuration sections separately.
 
-CLI and sample pipelines consume this capability through a crate-private
+CLI analysis and the sample placement pass (`sample_analysis`) consume this
+capability through a crate-private
 observation seam. Variant Analysis does not own file-backed CLI logging, JSON
 projection, or result-file publication.
 

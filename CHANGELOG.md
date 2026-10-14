@@ -10,6 +10,15 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Sample analysis in one placement pass (PROP-0005, SRS-API-009/010/011).
+  - **Rust API:** `dna::sample_analysis::analyze_sanger(traces, reference,
+    config)` places each trace once and returns a typed `SampleAnalysis`: the
+    core sample evidence, the consensus, each admitted read's Sanger evidence,
+    and each rejected read with its cause. A caller that needs both no longer
+    places every trace twice.
+  - `dna sample` and `dna consensus` run the same pass; their documents and
+    FASTA are unchanged.
+
 - Sample consensus (PROP-0003 increment 1, ADR-0073, SRS-CONS).
   - **Command:** `dna consensus <sample-id> <trace>... --reference
     <reference.fasta>` adjudicates between a sample's placed reads.
@@ -122,6 +131,18 @@ remain independently versioned and are never silently changed in place.
   - **Gotoh** fills its matrix in one pass per row with one traceback write
     per cell; **signal statistics** take medians by selection.
   - `dna consensus` drops from about 4 s to 0.13 s per four-trace sample.
+- Faster sample commands with byte-identical results (SRS-SAMPLE-001,
+  SRS-OUT-008).
+  - **Signal statistics** of each sample span are estimated once per read and
+    shared by the windowed SNR features and the locus contexts: signal
+    processing takes about half the time.
+  - **Reads run concurrently** in `dna sample` and `dna consensus`, up to the
+    available parallelism. The operation log still lists each read's records
+    in trace order, through the first failed read.
+  - On 2,618 panel samples every `consensus` JSON and FASTA and every `sample`
+    JSON is byte-identical to the previous release. On a shared server, mean
+    `dna consensus` wall time per sample drops from about 134 ms to 72 ms, and
+    from 123 ms to 102 ms when pinned to one CPU.
 - `consensus` method version 2 decides a stretch by its run structure and
   labels how each run length is known (ADR-0074, SRS-CONS-003/004/008).
   - **Stretches.** A stretch also takes in a neighbouring run that a
