@@ -2,7 +2,9 @@
 //! and traces.
 //!
 //! A manifest starts with `#` comment lines of `key=value` fields (panel,
-//! version, salt, truth and body hashes), then one tab-separated column
+//! version, salt, truth and body hashes; in a value `%`, `=`, and white space
+//! are written as `%XX` escapes of their UTF-8 bytes), then one tab-separated
+//! column
 //! header, then one row per sample. `body_sha256` is the SHA-256 of every byte
 //! after the column header line and must match. From version 2 a `retired`
 //! column marks samples kept for continuity but left out of estimates; a
@@ -11,6 +13,7 @@
 //! the header's `truth_digest` the panel's.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use sha2::{Digest, Sha256};
@@ -96,7 +99,11 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Manifest, ManifestError> {
                 .split_whitespace()
                 .filter_map(|field| field.split_once('='))
             {
-                header.insert(key.to_owned(), value.to_owned());
+                let value = decode(value).ok_or_else(|| ManifestError::HeaderValue {
+                    line: line_number,
+                    value: value.to_owned(),
+                })?;
+                header.insert(key.to_owned(), value);
             }
         } else {
             break line.split('\t').collect::<Vec<_>>();
@@ -171,6 +178,40 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Manifest, ManifestError> {
         columns: columns.iter().map(|column| (*column).to_owned()).collect(),
         samples,
     })
+}
+
+/// A header value as `parse` reads it back: `%`, `=`, and white space become
+/// `%XX` escapes of their UTF-8 bytes.
+pub(crate) fn encode(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for symbol in value.chars() {
+        if symbol == '%' || symbol == '=' || symbol.is_whitespace() {
+            let mut bytes = [0; 4];
+            for byte in symbol.encode_utf8(&mut bytes).bytes() {
+                let _ = write!(encoded, "%{byte:02X}");
+            }
+        } else {
+            encoded.push(symbol);
+        }
+    }
+    encoded
+}
+
+/// The value of an encoded header value, or `None` for a malformed escape.
+fn decode(value: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(value.len());
+    let mut rest = value.as_bytes();
+    while let Some((&byte, tail)) = rest.split_first() {
+        if byte == b'%' {
+            let hex = std::str::from_utf8(tail.get(..2)?).ok()?;
+            bytes.push(u8::from_str_radix(hex, 16).ok()?);
+            rest = tail.get(2..)?;
+        } else {
+            bytes.push(byte);
+            rest = tail;
+        }
+    }
+    String::from_utf8(bytes).ok()
 }
 
 /// The line that starts at `offset`, with its line ending.
@@ -424,6 +465,31 @@ pub(crate) mod tests {
             assert_eq!(parse(text.as_bytes()), Err(expected));
         }
         assert_eq!(parse(&[0xff, b'\n']), Err(ManifestError::NotUtf8));
+    }
+
+    #[test]
+    fn header_values_round_trip_through_escapes() -> Result<(), ManifestError> {
+        let value = "/data/my stats=v1/100%\tdone é";
+        let encoded = encode(value);
+        assert!(!encoded.contains([' ', '=', '\t']));
+        let body = "S1\tb\tclean\t1\t1\t0\t/t/a.ab1\n";
+        let text = format!(
+            "# truth={encoded} body_sha256={:x}\n{COLUMNS}{body}",
+            Sha256::digest(body.as_bytes())
+        );
+        assert_eq!(parse(text.as_bytes())?.header["truth"], value);
+        let text = format!(
+            "# truth=100%G body_sha256={:x}\n{COLUMNS}{body}",
+            Sha256::digest(body.as_bytes())
+        );
+        assert_eq!(
+            parse(text.as_bytes()),
+            Err(ManifestError::HeaderValue {
+                line: 1,
+                value: "100%G".into(),
+            })
+        );
+        Ok(())
     }
 
     #[test]

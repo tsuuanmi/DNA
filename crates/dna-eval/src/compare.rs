@@ -10,8 +10,10 @@
 //! - `N/A` when either side has no allele;
 //! - insertions and deletions at 309, 455, 463, and 573 (and their `.n`
 //!   insertion positions) are left out ("special" positions);
-//! - `N` when a position both sides call holds different allele sets
-//!   (except 309.1, 309.2, 573.1);
+//! - `N` when a position both sides call holds different allele sets;
+//!   `comparison.py` also never compares 309.1, 309.2, and 573.1, but the
+//!   insertions there are special positions already, so that rule adds
+//!   nothing and is not repeated here;
 //! - `N` when DNA alone calls an allele inside HV1, HV2, or HV3;
 //! - `N` when the truth alone calls an allele inside HV1, HV2, or HV3 and
 //!   inside DNA's callable intervals (or DNA has none);
@@ -38,8 +40,6 @@ use std::path::PathBuf;
 
 /// Positions whose insertions and deletions are left out of the comparison.
 const SPECIAL_POSITIONS: [&str; 4] = ["455", "463", "573", "309"];
-/// Shared positions never compared.
-const ALWAYS_CONCORDANT: [&str; 3] = ["573.1", "309.1", "309.2"];
 /// Hypervariable regions, closed at both ends.
 const HV_REGIONS: [(&str, i64, i64); 3] =
     [("HV1", 16024, 16365), ("HV2", 73, 340), ("HV3", 438, 576)];
@@ -345,9 +345,6 @@ pub(crate) fn compare(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Compa
     let mut positions = BTreeSet::new();
     let truth_by_position = by_position(&truth_kept);
     for (position, alleles) in &dna_by_position {
-        if ALWAYS_CONCORDANT.contains(&position.as_str()) {
-            continue;
-        }
         let Some(others) = truth_by_position.get(position) else {
             continue;
         };
@@ -630,6 +627,14 @@ mod tests {
         let comparison = primary(&alleles(&["263G"]), &FULL, &truth);
         assert_eq!(comparison.concordance, Concordance::Discordant);
         assert_eq!(comparison.reasons, BTreeSet::from([Reason::TruthOnly]));
+        // The positions `comparison.py` never compares (309.1, 309.2, 573.1)
+        // hold insertions, which are special, so differing alleles there stay
+        // concordant without a rule of their own.
+        let dna = alleles(&["263G", "309.1T", "309.2T", "573.1T"]);
+        let truth = alleles(&["263G", "309.1C", "309.2C", "573.1C"]);
+        let comparison = primary(&dna, &FULL, &truth);
+        assert_eq!(comparison.concordance, Concordance::Concordant);
+        assert!(comparison.positions.is_empty());
     }
 
     #[test]

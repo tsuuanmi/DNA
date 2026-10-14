@@ -104,8 +104,8 @@ pub(crate) struct TruthCheck {
     pub(crate) recorded: Option<String>,
     /// The panel digest of the current database.
     pub(crate) current: String,
-    /// Samples whose recorded digest differs from the current one, in panel
-    /// order.
+    /// Samples whose recorded digest differs from the current one, or that
+    /// record none in a manifest whose header records one, in panel order.
     pub(crate) changed: Vec<ChangedSample>,
 }
 
@@ -115,6 +115,7 @@ pub(crate) struct ChangedSample {
     pub(crate) sample: String,
     pub(crate) stratum: String,
     pub(crate) retired: bool,
+    /// The recorded digest; `-` when the row records none.
     pub(crate) recorded: String,
     pub(crate) current: String,
 }
@@ -149,23 +150,28 @@ impl TruthCheck {
             .iter()
             .map(|sample| digest(database.samples.get(&sample.id)))
             .collect::<Vec<_>>();
+        let recorded = manifest.header.get("truth_digest").cloned();
         let changed = manifest
             .samples
             .iter()
             .zip(&digests)
             .filter_map(|(sample, current)| {
-                let recorded = sample.truth_digest.as_ref()?;
-                (recorded != current).then(|| ChangedSample {
+                let row = match &sample.truth_digest {
+                    Some(row) => row.as_str(),
+                    None if recorded.is_some() => "-",
+                    None => return None,
+                };
+                (row != current).then(|| ChangedSample {
                     sample: sample.id.clone(),
                     stratum: sample.stratum.clone(),
                     retired: sample.retired,
-                    recorded: recorded.clone(),
+                    recorded: row.to_owned(),
                     current: current.clone(),
                 })
             })
             .collect();
         Self {
-            recorded: manifest.header.get("truth_digest").cloned(),
+            recorded,
             current: panel_digest(
                 manifest
                     .samples

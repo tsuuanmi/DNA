@@ -1,16 +1,15 @@
 //! The call of a sample analysis's consensus, in process (SRS-API-012).
 //!
 //! It is the public [`SampleAnalysis::call`]: it lives here because it
-//! composes the `consensus` report, the consensus FASTA, and the `call`
-//! pipeline, which depend on `sample_analysis`.
+//! composes the consensus FASTA of `report` and the scientific step of the
+//! `call` pipeline, which depend on `sample_analysis`.
 
-use crate::input::sequence::{self, CallInputs};
-use crate::pipeline::plugins as plugin;
-use crate::report::{self, CompletedConsensus};
+use crate::input::sequence;
+use crate::report;
 use crate::sample_analysis::{ConsensusCall, NotationCall, ReferenceSegment, SampleAnalysis};
 use dna_kernel::error::Result;
 
-use super::call;
+use super::call::{self, Called};
 use super::sample::validate_sample_id;
 
 impl SampleAnalysis {
@@ -26,44 +25,33 @@ impl SampleAnalysis {
     /// example when the consensus has no segment.
     pub fn call(&self, sample_id: &str) -> Result<ConsensusCall> {
         validate_sample_id(sample_id)?;
-        let document = report::build_consensus(CompletedConsensus {
-            sample_id: sample_id.to_owned(),
-            reference: self.inputs.reference.clone(),
-            profile: self.profile.clone(),
-            evidence: self.evidence.clone(),
-            rejected: self.rejected.clone(),
-            consensus: self.consensus.clone(),
-            plugins: plugin::CONSENSUS,
-        })?;
-        let reads = sequence::from_fasta(&report::consensus_fasta(&document))?;
-        let completed = call::complete(
+        let loaded = &self.loaded;
+        let sequences = sequence::from_fasta(&report::consensus_segments_fasta(
             sample_id,
-            CallInputs {
-                config: self.inputs.config.clone(),
-                profile: self.inputs.profile.clone(),
-                reads,
-                reference: self.inputs.reference.clone(),
-            },
+            &self.consensus,
+        ))?;
+        let Called { reads, notation } = call::call_sequences(
+            &sequences,
+            &loaded.config,
+            &loaded.profile,
+            &loaded.reference,
         )?;
-        let notation = completed
-            .notation
+        let calls = notation
             .as_ref()
-            .map(|notation| report::notation_calls(&completed.reference, notation))
+            .map(|notation| report::notation_calls(&loaded.reference, notation))
             .transpose()?;
-        let variants = report::build_call(completed)?;
         Ok(ConsensusCall {
-            callable_segments: variants
-                .reads
+            callable_segments: reads
                 .iter()
-                .flat_map(|read| &read.alignment.callable_reference_segments)
+                .flat_map(|read| &read.alignment.callable_segments)
                 .map(|segment| ReferenceSegment {
-                    start_0based: segment.start,
-                    end_0based_exclusive: segment.end,
+                    start_0based: segment.start_0based,
+                    end_0based_exclusive: segment.end_0based_exclusive,
                 })
                 .collect(),
-            notation: notation.map(|calls| {
+            notation: calls.map(|calls| {
                 calls
-                    .into_iter()
+                    .into_keys()
                     .map(|call| NotationCall {
                         position: call.position,
                         ordinal: call.ordinal,

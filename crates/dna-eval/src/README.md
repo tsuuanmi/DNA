@@ -26,6 +26,9 @@ part of the release.
   Markdown summary.
 - `error.rs` — failures that stop a run.
 
+`build.rs` records the git revision the harness is built from, and whether
+tracked files differed from it, for `run.json`.
+
 Formats, comparison rules, and outputs are specified in the
 [evaluation harness](../../../docs/validation/evaluation-harness.md) document.
 Tests use synthetic manifests, traces, and SQLite databases built from SQL in

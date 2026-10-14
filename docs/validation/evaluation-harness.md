@@ -63,16 +63,19 @@ present.
 
 - membership is frozen: every parent row is kept, in order;
 - a sample the database has no record of is retired (`retired = 1`, both
-  weights `0`), and the other samples of its stratum share the stratum's
-  weight total (written with four decimals), so each stratum still sums to its
-  population; strata without a newly retired sample keep their weights as
-  written;
+  weights `0`), and the weights of the other samples of its stratum are scaled
+  in proportion, `w' = w · total / Σ staying w` (written with four decimals),
+  so each stratum still sums to its population and keeps its differences
+  within; a zero weight stays zero. When every staying weight of a stratum is
+  zero, its weights stay zero and `panel` reports the stratum as having lost
+  weight. Strata without a newly retired sample keep their weights as written;
 - each row records its sample's truth digest (`truth_digest`), and the header
   the panel truth digest;
 - the header records the panel, the new version, the salt, the creation date,
   the row and retired counts, and the parent version and body hash; the
   database path, file SHA-256 (`truth_database_sha256`), `created_at`, and
-  sample count are recorded as provenance only.
+  sample count are recorded as provenance only. Header values escape `%`, `=`,
+  and white space, so any path reads back.
 
 Earlier versions stay runnable; report results on the rows both versions
 share.
@@ -96,7 +99,9 @@ truth it was built against as digests of exactly what the harness uses:
 equals the manifest's, the truth is `unchanged` and the database's file hash
 and `created_at` are recorded in `run.json` for provenance only. Otherwise the
 run is marked `truth changed`: the summary starts with a notice, the samples
-whose digest differs are listed in `truth_changes.tsv`, and a new panel
+whose digest differs, or that record none under a header that does, are
+listed in `truth_changes.tsv` (written whenever the truth changed, with only
+its header when no row differs; the notice then says so), and a new panel
 version is due. A manifest without a digest (versions 1 and 2) reports
 `not_recorded`.
 
@@ -110,7 +115,8 @@ process, with the configuration and reference given. Its notation calls become a
 callable reference segments become DNA's intervals. Samples run on a pool of
 scoped threads (`--threads`). A sample whose traces cannot be read, that DNA
 rejects, or on which DNA panics gets a failure row; the others continue. The
-truth loads on its own thread while DNA runs.
+truth of the whole panel loads before DNA runs, so a database that cannot be
+opened, has another schema, or fails a query stops the run first.
 
 ## Measures
 
@@ -128,8 +134,9 @@ and the truth as tool B:
 - insertions and deletions at 309, 455, 463, and 573, and at their `.n`
   insertion positions, are left out ("special" positions); substitutions
   there count;
-- `N` when a position both sides call holds different allele sets, except at
-  309.1, 309.2, and 573.1;
+- `N` when a position both sides call holds different allele sets
+  (`comparison.py` also skips 309.1, 309.2, and 573.1, which hold insertions
+  and are special already);
 - `N` when DNA alone calls an allele inside HV1 (16024–16365), HV2 (73–340),
   or HV3 (438–576);
 - `N` when the truth alone calls an allele inside an HV region and inside
@@ -191,12 +198,14 @@ Statuses fall into classes so that runs of other conventions stay comparable:
 | `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
-| `diff.tsv` | with a baseline: per measure, the samples whose status class changed |
-| `truth_changes.tsv` | when the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded and current digests |
+| `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
+| `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
 | `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
-| `run.json` | the run header: harness version, source revision, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings |
+| `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings |
 
-Every file except `run.json` depends only on the panel, the truth, and DNA's
-calls, so it is byte-identical whatever the thread count. Run outputs and
+Every file except `run.json` depends only on the panel, the truth, DNA's
+calls, and the configuration, reference, profile, and baseline the summary
+names, so it is byte-identical whatever the thread count and whatever revision
+or database file it ran on. Run outputs and
 panel manifests hold sample identifiers and stay outside the repository under
 the [data policy](../governance/data.md); DNA documents quote aggregates only.

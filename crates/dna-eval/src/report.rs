@@ -285,7 +285,8 @@ impl<'a> Report<'a> {
     /// The change under `measure`, or `None` without a baseline or when the
     /// baseline does not report the measure.
     fn change(&self, row: &Row<'_>, measure: Measure) -> Option<Change> {
-        let Some(before) = self.baseline?.get(&row.sample.id) else {
+        let baseline = self.baseline.filter(|baseline| baseline.reports(measure))?;
+        let Some(before) = baseline.get(&row.sample.id) else {
             return Some(Change::Added);
         };
         let before = Class::of(before.get(&measure)?);
@@ -310,14 +311,14 @@ impl<'a> Report<'a> {
             .collect::<BTreeSet<_>>();
         self.baseline
             .into_iter()
-            .flatten()
+            .flat_map(|baseline| &baseline.samples)
             .filter(|(sample, _)| !present.contains(sample.as_str()))
             .map(|(sample, statuses)| (sample.as_str(), statuses))
             .collect()
     }
 
     /// Every deterministic output file, by name; `diff.tsv` only with a
-    /// baseline, `truth_changes.tsv` only when the panel's truth changed.
+    /// baseline, `truth_changes.tsv` whenever the panel's truth changed.
     /// `context` heads the summary.
     pub(crate) fn files(&self, context: &[(&str, String)]) -> Vec<(&'static str, String)> {
         let mut files = vec![
@@ -328,7 +329,7 @@ impl<'a> Report<'a> {
         if let Some(diff) = self.diff() {
             files.push(("diff.tsv", diff));
         }
-        if !self.check.changed.is_empty() {
+        if self.check.state() == TruthState::Changed {
             files.push(("truth_changes.tsv", self.check.changes()));
         }
         files.push(("summary.md", self.summary(context)));
@@ -488,9 +489,6 @@ impl<'a> Report<'a> {
                 else {
                     continue;
                 };
-                if change == Change::Added && measure != Measure::Primary {
-                    continue;
-                }
                 let before = baseline
                     .get(&row.sample.id)
                     .and_then(|statuses| statuses.get(&measure))
@@ -533,12 +531,21 @@ impl<'a> Report<'a> {
     fn summary(&self, context: &[(&str, String)]) -> String {
         let mut text = String::from("# Evaluation run\n\n");
         if self.check.state() == TruthState::Changed {
-            let _ = writeln!(
-                text,
-                "**Truth changed:** the truth of {} panel samples differs from the panel's \
-                 record (`truth_changes.tsv`); derive a new panel version.\n",
-                self.check.changed.len()
-            );
+            if self.check.changed.is_empty() {
+                text.push_str(
+                    "**Truth changed:** the panel truth digest differs from the panel's \
+                     record although no sample's recorded digest does, so the manifest's \
+                     header and rows disagree (`truth_changes.tsv` lists no sample); derive a \
+                     new panel version.\n\n",
+                );
+            } else {
+                let _ = writeln!(
+                    text,
+                    "**Truth changed:** the truth of {} panel samples differs from the \
+                     panel's record (`truth_changes.tsv`); derive a new panel version.\n",
+                    self.check.changed.len()
+                );
+            }
         }
         text.push_str("| Item | Value |\n|---|---|\n");
         for (item, value) in context {
@@ -1059,7 +1066,35 @@ mod tests {
         }
         assert!(!diff.contains("S00\thard\tprimary"));
         assert!(!diff.contains("S01\tclean\tstrict"));
-        assert!(!diff.contains("S03\thard\tstrict"));
+        // Added and removed samples count under every measure the baseline
+        // reports, and under no other.
+        assert!(diff.contains("S03\thard\tstrict\t\tnot_applicable\tadded\n"));
+        assert!(!diff.contains("\tiupac_compatible\t"));
+        let summary_counts = |summary: &str, change: &str| {
+            summary
+                .lines()
+                .find(|line| line.starts_with(&format!("| {change} |")))
+                .map(str::to_owned)
+        };
+        for (change, line) in [
+            ("added", "| added | 27 | 27 | 0 |"),
+            ("removed", "| removed | 1 | 1 | 0 |"),
+            ("regression", "| regression | 1 | 1 | 0 |"),
+        ] {
+            assert_eq!(summary_counts(&one[4].1, change).as_deref(), Some(line));
+            for (measure, column) in [("primary", 2), ("strict", 3), ("iupac_compatible", 4)] {
+                let rows = diff
+                    .lines()
+                    .filter(|row| row.contains(&format!("\t{measure}\t")) && row.ends_with(change))
+                    .count();
+                let summary = line.split(" | ").nth(column - 1).unwrap_or_default();
+                assert_eq!(
+                    rows.to_string(),
+                    summary.trim_end_matches(" |"),
+                    "{measure} {change}"
+                );
+            }
+        }
         let anchors = &one[2].1;
         assert!(anchors.contains("S00\thard\tconcordant\tdiscordant\tconcordant\texact\tsame\n"));
         let estimates = &one[1].1;
@@ -1132,5 +1167,23 @@ mod tests {
         let files = Report::new(&[], None, &unchanged).files(&[]);
         assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
         assert!(files[3].1.contains("Panel truth: unchanged"));
+        // The header digest differs while no row does: the file is still
+        // written, and the notice says why it lists nothing.
+        let header_only = TruthCheck {
+            recorded: Some(digest("a")),
+            changed: Vec::new(),
+            ..unchanged
+        };
+        let files = Report::new(&[], None, &header_only).files(&[]);
+        let tsv = files
+            .iter()
+            .find(|(name, _)| *name == "truth_changes.tsv")
+            .map(|(_, text)| text.as_str());
+        assert_eq!(
+            tsv,
+            Some("sample_id\tstratum\tretired\trecorded_digest\tcurrent_digest\n")
+        );
+        let summary = &files[files.len() - 1].1;
+        assert!(summary.contains("although no sample's recorded digest does"));
     }
 }

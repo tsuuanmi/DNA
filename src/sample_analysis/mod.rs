@@ -53,13 +53,15 @@ pub struct SampleAnalysis {
     /// carries the read's Sanger evidence unless the read was too short to
     /// process.
     pub rejected: BTreeMap<String, RejectedRead>,
-    /// The loaded inputs [`SampleAnalysis::call`] calls the consensus with.
-    pub(crate) inputs: CallInputs,
+    /// The configuration, profile, and reference the analysis ran with; the
+    /// identities above derive from them, and [`SampleAnalysis::call`] calls
+    /// the consensus with them.
+    pub(crate) loaded: Loaded,
 }
 
 /// The configuration, profile, and reference an analysis ran with.
 #[derive(Debug, Clone)]
-pub(crate) struct CallInputs {
+pub(crate) struct Loaded {
     pub(crate) config: Config,
     pub(crate) profile: Profile,
     pub(crate) reference: Reference,
@@ -134,18 +136,19 @@ pub fn analyze_sanger(
     )?;
     let evidence = aggregate(&placed, &inputs.config)?;
     let consensus = build_consensus(&placed, &evidence, &inputs.reference, &inputs.config);
+    let loaded = Loaded {
+        config: inputs.config,
+        profile: inputs.profile,
+        reference: inputs.reference,
+    };
     Ok(SampleAnalysis {
-        reference: inputs.reference.identity(),
-        profile: inputs.profile.identity().clone(),
+        reference: loaded.reference.identity(),
+        profile: loaded.profile.identity().clone(),
         evidence,
         consensus,
         reads: placed.sanger,
         rejected: by_identity(placed.rejected),
-        inputs: CallInputs {
-            config: inputs.config,
-            profile: inputs.profile,
-            reference: inputs.reference,
-        },
+        loaded,
     })
 }
 

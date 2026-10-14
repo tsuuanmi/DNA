@@ -27,11 +27,11 @@ many workers as the available parallelism, which `mod.rs` reads once per
 process.
 `consensus.rs` then builds the consensus and publishes `dna.consensus/v1` with
 its FASTA.
-`sample_call.rs` implements the public `SampleAnalysis::call`: it rebuilds an
-analysis's consensus document and FASTA, reads the FASTA with `call`'s record
-rules, and runs the scientific step of `call.rs` (`complete`, which the `call`
-command shares) with the analysis's configuration, profile, and reference,
-without paths, logs, or publication. It lives here, not in `sample_analysis`,
+`sample_call.rs` implements the public `SampleAnalysis::call`: it renders an
+analysis's consensus FASTA from its segments, reads it with `call`'s record
+rules, and runs the scientific step of `call.rs` (`call_sequences`, which the
+`call` command shares) with the analysis's configuration, profile, and
+reference, without paths, logs, or publication. It lives here, not in `sample_analysis`,
 because it composes `report` and the `call` pipeline, which depend on
 `sample_analysis`.
 `notation.rs` runs the post-calling plugins over one variants document:

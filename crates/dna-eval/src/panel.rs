@@ -2,9 +2,12 @@
 //!
 //! Membership is frozen: the new manifest keeps every row of the parent, in
 //! order. A sample the database has no record of is retired (`retired = 1`,
-//! both weights `0`), and the other samples of its stratum share the
-//! stratum's weight, so each stratum still sums to its population. Strata
-//! without a newly retired sample keep their weights as written. Each row
+//! both weights `0`), and the weights of the other samples of its stratum are
+//! scaled in proportion, `w' = w · total / Σ staying w`, so each stratum still
+//! sums to its population and keeps its differences within; a zero weight
+//! stays zero. When every staying weight is zero the retired weight cannot be
+//! carried, the weights stay zero, and the stratum is reported. Strata without
+//! a newly retired sample keep their weights as written. Each row
 //! records its sample's truth digest (`truth_digest`), and the header the
 //! panel's, so a run can tell whether the truth of the panel changed; the
 //! database path, file SHA-256, and creation time are recorded as provenance
@@ -16,7 +19,7 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::manifest::{Manifest, RETIRED, Sample, TRUTH_DIGEST};
+use crate::manifest::{Manifest, RETIRED, Sample, TRUTH_DIGEST, encode};
 use crate::truth::{self, TruthDatabase};
 
 /// The text of the new manifest and what changed.
@@ -31,6 +34,17 @@ pub(crate) struct Derived {
     pub(crate) retired: usize,
     /// Samples whose database batch differs from the panel's.
     pub(crate) batch_differs: usize,
+    /// Strata that lost weight because every staying sample weighs zero.
+    pub(crate) stranded: Vec<String>,
+}
+
+/// One stratum's weight totals, over all samples and over the staying ones,
+/// per weight column, and whether a sample in it is newly retired.
+#[derive(Default)]
+struct Stratum {
+    total: [f64; 2],
+    staying: [f64; 2],
+    changed: bool,
 }
 
 /// The truth a new version is built against.
@@ -70,17 +84,19 @@ pub(crate) fn derive(
     let weight_columns =
         ["weight", "weight_corpus"].map(|name| columns.iter().position(|column| column == name));
 
-    // Per stratum: the weight total, the samples that stay, and whether a
-    // sample is newly retired.
-    let mut strata = BTreeMap::<&str, ([f64; 2], usize, bool)>::new();
+    let mut strata = BTreeMap::<&str, Stratum>::new();
     for sample in &parent.samples {
-        let entry = strata.entry(sample.stratum.as_str()).or_default();
-        entry.0[0] += sample.weight.value;
-        entry.0[1] += sample.weight_corpus.value;
+        let stratum = strata.entry(sample.stratum.as_str()).or_default();
+        let weights = [sample.weight.value, sample.weight_corpus.value];
+        for (total, weight) in stratum.total.iter_mut().zip(weights) {
+            *total += weight;
+        }
         if retired(sample) {
-            entry.2 |= !sample.retired;
+            stratum.changed |= !sample.retired;
         } else {
-            entry.1 += 1;
+            for (staying, weight) in stratum.staying.iter_mut().zip(weights) {
+                *staying += weight;
+            }
         }
     }
 
@@ -96,15 +112,22 @@ pub(crate) fn derive(
         let gone = retired(sample);
         fields[retired_column] = u8::from(gone).to_string();
         fields[digest_column].clone_from(digest);
-        if let Some((totals, staying, changed)) = strata.get(sample.stratum.as_str())
-            && *changed
+        if let Some(stratum) = strata.get(sample.stratum.as_str())
+            && stratum.changed
         {
-            for (index, total) in weight_columns.iter().zip(totals) {
+            let weights = [sample.weight.value, sample.weight_corpus.value];
+            for (column, index) in weight_columns.iter().enumerate() {
                 if let Some(index) = index {
-                    fields[*index] = if gone || *staying == 0 {
+                    let staying = stratum.staying[column];
+                    let weight = if gone || staying <= 0.0 {
+                        0.0
+                    } else {
+                        weights[column] * stratum.total[column] / staying
+                    };
+                    fields[*index] = if weight == 0.0 {
                         "0".to_owned()
                     } else {
-                        format!("{:.4}", total / *staying as f64)
+                        format!("{weight:.4}")
                     };
                 }
             }
@@ -121,8 +144,9 @@ pub(crate) fn derive(
             .map(|(sample, digest)| (sample.id.as_str(), digest.as_str())),
     );
 
-    let field = |key: &str| parent.header.get(key).map_or("-", String::as_str);
-    let info = |key: &str| truth.database.info.get(key).map_or("-", String::as_str);
+    let field = |key: &str| encode(parent.header.get(key).map_or("-", String::as_str));
+    let info = |key: &str| encode(truth.database.info.get(key).map_or("-", String::as_str));
+    let (version, created) = (encode(version), encode(created));
     let total_retired = parent
         .samples
         .iter()
@@ -143,7 +167,7 @@ pub(crate) fn derive(
         text,
         "# truth={} truth_digest={truth_digest} truth_database_sha256={} truth_created={} \
          truth_samples={}",
-        truth.path.display(),
+        encode(&truth.path.display().to_string()),
         truth.sha256,
         info("created_at"),
         info("samples"),
@@ -173,6 +197,15 @@ pub(crate) fn derive(
                     .is_some_and(|record| record.batch != sample.batch)
             })
             .count(),
+        stranded: strata
+            .iter()
+            .filter(|(_, stratum)| {
+                stratum.changed
+                    && (0..2)
+                        .any(|column| stratum.total[column] > 0.0 && stratum.staying[column] <= 0.0)
+            })
+            .map(|(name, _)| (*name).to_owned())
+            .collect(),
     }
 }
 
@@ -205,7 +238,7 @@ mod tests {
         let path = truth::tests::database(directory.path(), &sql)?;
         let database = truth::load(&path, &BTreeSet::from(["S1", "S2", "S3", "S4"]))?;
         let source = Source {
-            path: Path::new("/data/statistics.sqlite"),
+            path: Path::new("/data/lab stats=v1/statistics.sqlite"),
             sha256: "abc",
             database: &database,
         };
@@ -221,6 +254,11 @@ mod tests {
         assert_eq!(child.header["parent_version"], "v1");
         assert_eq!(child.header["parent_body_sha256"], parent.body_sha256);
         assert_eq!(child.header["truth_database_sha256"], "abc");
+        // The path with a space and '=' reads back.
+        assert_eq!(
+            child.header["truth"],
+            "/data/lab stats=v1/statistics.sqlite"
+        );
         assert_eq!(child.header["truth_digest"], derived.truth_digest);
         assert_eq!(
             child.samples[1].truth_digest.as_deref(),
@@ -255,6 +293,8 @@ mod tests {
         assert_eq!(child.samples[0].weight_corpus.text, "9.0000");
         assert_eq!(child.samples[0].traces, parent.samples[0].traces);
 
+        assert!(derived.stranded.is_empty());
+
         // Deriving again keeps the retired sample retired and the weights.
         let again = derive(&child, &source, "v3", "2026-10-16");
         assert_eq!(again.retired, 0);
@@ -263,6 +303,62 @@ mod tests {
         assert!(grandchild.samples[1].retired);
         assert_eq!(grandchild.columns, child.columns);
         assert_eq!(again.truth_digest, derived.truth_digest);
+        Ok(())
+    }
+
+    #[test]
+    fn scales_staying_weights_in_proportion() -> Result<(), Box<dyn std::error::Error>> {
+        // Weights 3, 3, 0 in one stratum and 0 in another; the second 3 and
+        // the lone zero-weight sample have no truth.
+        let parent = manifest::parse(
+            manifest::tests::manifest(&[
+                "S1\tb1\tclean\t3\t3\t0\t/t/a.ab1",
+                "S2\tb1\tclean\t3\t3\t0\t/t/b.ab1",
+                "S3\tb1\tclean\t0\t0\t0\t/t/c.ab1",
+                "S4\tb1\thard\t2\t2\t0\t/t/d.ab1",
+                "S5\tb1\thard\t0\t0\t0\t/t/e.ab1",
+            ])
+            .as_bytes(),
+        )?;
+        let directory = tempfile::tempdir()?;
+        let mut sql = String::from(truth::tests::FIXTURE);
+        sql.push_str(
+            "DELETE FROM samples; INSERT INTO samples VALUES ('S1', 'b1', 0, 0, 0, 0, 0),
+             ('S3', 'b1', 0, 0, 0, 0, 0), ('S5', 'b1', 0, 0, 0, 0, 0);",
+        );
+        let path = truth::tests::database(directory.path(), &sql)?;
+        let database = truth::load(&path, &BTreeSet::from(["S1", "S2", "S3", "S4", "S5"]))?;
+        let source = Source {
+            path: Path::new("/data/statistics.sqlite"),
+            sha256: "abc",
+            database: &database,
+        };
+        let derived = derive(&parent, &source, "v2", "2026-10-15");
+        let child = manifest::parse(derived.text.as_bytes())?;
+        let weights = child
+            .samples
+            .iter()
+            .map(|sample| {
+                (
+                    sample.id.as_str(),
+                    sample.retired,
+                    sample.weight.text.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        // The clean total 6 moves to S1; S3 stays zero. In hard nothing stays
+        // with weight, so the weight is lost and the stratum reported.
+        assert_eq!(
+            weights,
+            [
+                ("S1", false, "6.0000"),
+                ("S2", true, "0"),
+                ("S3", false, "0"),
+                ("S4", true, "0"),
+                ("S5", false, "0"),
+            ]
+        );
+        assert_eq!(derived.stranded, ["hard"]);
         Ok(())
     }
 }

@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{self, ExitCode};
+use std::process::ExitCode;
 use std::thread;
 use std::time::Instant;
 
@@ -138,25 +138,19 @@ fn run(cli: &RunArgs) -> Result<String> {
         })
         .transpose()?;
 
-    // The truth loads on its own thread while DNA runs; a missing or oversized
-    // database fails before the run.
-    check_size(&cli.truth, "truth database", truth::MAX_TRUTH_BYTES)?;
-    prepare_output(&cli.output)?;
+    // The whole truth of the panel loads before DNA runs, so a database that
+    // cannot be opened, has another schema, or fails a query stops the run
+    // before any sample is called.
     let wanted = manifest
         .samples
         .iter()
         .map(|sample| sample.id.as_str())
         .collect::<BTreeSet<_>>();
-    let (truth, outcomes, dna_seconds) = thread::scope(|scope| {
-        let truth = scope.spawn(|| load_truth(&cli.truth, &wanted));
-        let dna_started = Instant::now();
-        let outcomes = runner::run(&manifest.samples, &cli.reference, &cli.config, threads);
-        let dna_seconds = dna_started.elapsed().as_secs_f64();
-        let truth = truth.join().map_err(|_| Error::Worker);
-        (truth, outcomes, dna_seconds)
-    });
-    let truth = truth??;
-    let outcomes = outcomes?;
+    let truth = load_truth(&cli.truth, &wanted)?;
+    prepare_output(&cli.output)?;
+    let dna_started = Instant::now();
+    let outcomes = runner::run(&manifest.samples, &cli.reference, &cli.config, threads)?;
+    let dna_seconds = dna_started.elapsed().as_secs_f64();
 
     let rows = report::rows(&manifest.samples, &outcomes, &truth.database.samples);
     let check = TruthCheck::new(&manifest, &truth.database);
@@ -212,7 +206,6 @@ fn derive_panel(args: &PanelArgs) -> Result<String> {
         }
     }
     let parent = manifest::parse(&read(&args.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
-    check_size(&args.truth, "truth database", truth::MAX_TRUTH_BYTES)?;
     let wanted = parent
         .samples
         .iter()
@@ -244,6 +237,12 @@ fn derive_panel(args: &PanelArgs) -> Result<String> {
         "dna-eval: {} rows, {} newly retired, {} with another batch in the database",
         derived.rows, derived.retired, derived.batch_differs
     );
+    if !derived.stranded.is_empty() {
+        eprintln!(
+            "dna-eval: no staying sample carries weight in {}; their retired weight is lost",
+            derived.stranded.join(", ")
+        );
+    }
     let name = args
         .output
         .file_name()
@@ -261,6 +260,7 @@ struct Truth {
 
 fn load_truth(path: &Path, wanted: &BTreeSet<&str>) -> Result<Truth> {
     let started = Instant::now();
+    check_size(path, "truth database", truth::MAX_TRUTH_BYTES)?;
     let (sha256, database) = thread::scope(|scope| {
         let sha256 = scope.spawn(|| {
             runner::sha256_file(path).map_err(|source| Error::Read {
@@ -353,7 +353,7 @@ struct Header {
 struct Source {
     /// Git revision of the checkout the harness was built from, if available.
     revision: Option<String>,
-    /// Whether that checkout had uncommitted changes.
+    /// Whether tracked files of that checkout differed from the revision.
     dirty: Option<bool>,
 }
 
@@ -511,14 +511,6 @@ fn context(header: &Header) -> Vec<(&'static str, String)> {
             ),
         ),
         (
-            "source revision",
-            match (&header.source.revision, header.source.dirty) {
-                (Some(revision), Some(true)) => format!("{revision} with uncommitted changes"),
-                (Some(revision), _) => revision.clone(),
-                (None, _) => "unavailable".to_owned(),
-            },
-        ),
-        (
             "configuration sha256",
             identity
                 .map_or("-", |identity| identity.configuration_sha256.as_str())
@@ -553,21 +545,18 @@ fn context(header: &Header) -> Vec<(&'static str, String)> {
     ]
 }
 
-/// The git revision of the checkout the harness was built from.
+/// The git revision of the checkout the harness was built from, recorded by
+/// the build script.
 fn source() -> Source {
-    let git = |arguments: &[&str]| {
-        process::Command::new("git")
-            .arg("-C")
-            .arg(env!("CARGO_MANIFEST_DIR"))
-            .args(arguments)
-            .output()
-            .ok()
-            .filter(|output| output.status.success())
-            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-    };
     Source {
-        revision: git(&["rev-parse", "HEAD"]),
-        dirty: git(&["status", "--porcelain"]).map(|status| !status.is_empty()),
+        revision: option_env!("DNA_EVAL_REVISION")
+            .filter(|revision| !revision.is_empty())
+            .map(str::to_owned),
+        dirty: match option_env!("DNA_EVAL_DIRTY") {
+            Some("1") => Some(true),
+            Some("0") => Some(false),
+            _ => None,
+        },
     }
 }
 

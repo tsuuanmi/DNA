@@ -11,7 +11,7 @@ use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::sample_result::SampleProvenanceResult;
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::sample::{project_rejection, reviewer_read_names};
-use dna_core::model::consensus::Consensus;
+use dna_core::model::consensus::{Consensus, ConsensusSegment};
 use dna_core::model::sample_evidence::SampleEvidence;
 use dna_kernel::error::{ReportError, Result};
 use dna_kernel::model::reference::Reference;
@@ -109,11 +109,7 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
         .segments
         .iter()
         .map(|segment| ConsensusSegmentResult {
-            name: format!(
-                "{sample_id}_{}-{}",
-                segment.start_0based + 1,
-                segment.end_0based + 1
-            ),
+            name: segment_name(&sample_id, segment),
             reference: IntervalResult {
                 start: segment.start_0based,
                 end: segment.end_0based + 1,
@@ -159,13 +155,47 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
 /// The consensus segments as FASTA, one record per segment, usable as
 /// `dna call` input.
 pub(crate) fn fasta(result: &ConsensusResult) -> Vec<u8> {
+    fasta_records(
+        result
+            .segments
+            .iter()
+            .map(|segment| (segment.name.as_str(), segment.sequence.as_str())),
+    )
+}
+
+/// The consensus FASTA `fasta` renders from the sample's consensus document,
+/// built from the consensus alone.
+pub(crate) fn segments_fasta(sample_id: &str, consensus: &Consensus) -> Vec<u8> {
+    let names = consensus
+        .segments
+        .iter()
+        .map(|segment| segment_name(sample_id, segment))
+        .collect::<Vec<_>>();
+    fasta_records(
+        names
+            .iter()
+            .zip(&consensus.segments)
+            .map(|(name, segment)| (name.as_str(), segment.sequence.as_str())),
+    )
+}
+
+/// The FASTA record identifier of a consensus segment: the sample and the
+/// segment's 1-based reference interval.
+fn segment_name(sample_id: &str, segment: &ConsensusSegment) -> String {
+    format!(
+        "{sample_id}_{}-{}",
+        segment.start_0based + 1,
+        segment.end_0based + 1
+    )
+}
+
+fn fasta_records<'a>(records: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<u8> {
     let mut text = String::new();
-    for segment in &result.segments {
+    for (name, sequence) in records {
         text.push('>');
-        text.push_str(&segment.name);
+        text.push_str(name);
         text.push('\n');
-        let bytes = segment.sequence.as_bytes();
-        for line in bytes.chunks(FASTA_WIDTH) {
+        for line in sequence.as_bytes().chunks(FASTA_WIDTH) {
             text.push_str(&String::from_utf8_lossy(line));
             text.push('\n');
         }

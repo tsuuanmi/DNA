@@ -57,7 +57,7 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
                 .iter()
                 .map(|read| read.input_sha256.as_str())
                 .collect::<Vec<_>>();
-            notation::project(&reference, &identities, &names, notation)
+            notation::project(&reference, &identities, &names, &notation)
         })
         .transpose()?;
     let reads = reads.into_iter().map(project_read).collect();

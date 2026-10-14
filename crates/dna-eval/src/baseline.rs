@@ -12,8 +12,26 @@ use std::collections::BTreeMap;
 use crate::compare::Measure;
 use crate::error::BaselineError;
 
-/// Each sample's status under every measure the baseline reports.
-pub(crate) type Statuses = BTreeMap<String, BTreeMap<Measure, String>>;
+/// The measures a baseline reports, and each sample's status under them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Statuses {
+    /// Measures with a status column, in [`Measure::ALL`] order.
+    pub(crate) measures: Vec<Measure>,
+    /// Each sample's status under every reported measure.
+    pub(crate) samples: BTreeMap<String, BTreeMap<Measure, String>>,
+}
+
+impl Statuses {
+    /// The statuses of one sample.
+    pub(crate) fn get(&self, sample: &str) -> Option<&BTreeMap<Measure, String>> {
+        self.samples.get(sample)
+    }
+
+    /// Whether the baseline has a status column for `measure`.
+    pub(crate) fn reports(&self, measure: Measure) -> bool {
+        self.measures.contains(&measure)
+    }
+}
 
 /// Name of the scores file in a run directory.
 pub(crate) const SCORES: &str = "scores.tsv";
@@ -71,7 +89,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
                 .map(|index| (measure, index))
         })
         .collect::<Vec<_>>();
-    let mut statuses = BTreeMap::new();
+    let mut samples = BTreeMap::new();
     for (offset, line) in lines.enumerate() {
         let line_number = offset + 2;
         let fields = line.split('\t').collect::<Vec<_>>();
@@ -86,14 +104,17 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
             .iter()
             .map(|(measure, index)| (*measure, fields[*index].to_owned()))
             .collect();
-        if statuses.insert(fields[sample].to_owned(), row).is_some() {
+        if samples.insert(fields[sample].to_owned(), row).is_some() {
             return Err(BaselineError::DuplicateSample {
                 line: line_number,
                 sample: fields[sample].to_owned(),
             });
         }
     }
-    Ok(statuses)
+    Ok(Statuses {
+        measures: measures.iter().map(|(measure, _)| *measure).collect(),
+        samples,
+    })
 }
 
 #[cfg(test)]
@@ -107,11 +128,17 @@ mod tests {
               S1\tclean\t1\texact\t0\t0\t\n\
               S2\tclean\t1\tfailed\t\t\t\n",
         )?;
-        assert_eq!(statuses["S1"][&Measure::Primary], "exact");
-        assert!(!statuses["S1"].contains_key(&Measure::Strict));
-        assert_eq!(Class::of(&statuses["S2"][&Measure::Primary]), Class::Failed);
+        assert_eq!(statuses.samples["S1"][&Measure::Primary], "exact");
+        assert!(!statuses.samples["S1"].contains_key(&Measure::Strict));
+        assert_eq!(statuses.measures, [Measure::Primary]);
+        assert!(!statuses.reports(Measure::Strict));
+        assert_eq!(
+            Class::of(&statuses.samples["S2"][&Measure::Primary]),
+            Class::Failed
+        );
         let statuses = parse(b"sample_id\tstatus\tstrict_status\nS1\tconcordant\tdiscordant\n")?;
-        assert_eq!(statuses["S1"][&Measure::Strict], "discordant");
+        assert_eq!(statuses.samples["S1"][&Measure::Strict], "discordant");
+        assert_eq!(statuses.measures, [Measure::Primary, Measure::Strict]);
         assert_eq!(Class::of("concordant"), Class::of("exact"));
         assert_eq!(Class::of("discordant"), Class::Bad);
         assert_eq!(Class::of("unknown"), Class::Other);

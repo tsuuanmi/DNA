@@ -70,6 +70,9 @@ pub(crate) enum ManifestError {
     /// The manifest is not UTF-8.
     #[error("the manifest is not UTF-8")]
     NotUtf8,
+    /// A header value has a malformed `%` escape.
+    #[error("line {line} has a malformed header value {value:?}")]
+    HeaderValue { line: usize, value: String },
     /// No column header follows the comment header.
     #[error("the column header is missing")]
     MissingColumns,

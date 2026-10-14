@@ -6,7 +6,7 @@
 //! `<anchor>.<ordinal><base>` after the preceding reference base (`309.1C`,
 //! `309.2C`); an insertion before the first base uses anchor `0`.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::model::notation_result::{
     ConformanceResult, FindingResult, NotationProvenanceResult, NotationResult, SourceResult,
@@ -113,7 +113,7 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
             },
         )
         .transpose()?;
-    let notation = project(&reference, &identities, &names, notation)?;
+    let notation = project(&reference, &identities, &names, &notation)?;
     Ok(NotationResult {
         schema_version: "dna.notation/v1",
         sample_id,
@@ -146,33 +146,26 @@ pub(super) fn project(
     reference: &Reference,
     identities: &[&str],
     names: &[String],
-    notation: SampleNotation,
+    notation: &SampleNotation,
 ) -> dna_kernel::error::Result<SampleNotationResult> {
-    let SampleNotation { style, reads } = notation;
-    let render = match style {
-        NotationStyle::PerBaseDecimal => render,
-    };
-    let mut calls: BTreeMap<NotationCall, Vec<usize>> = BTreeMap::new();
-    for representation in reads {
-        let read_index = identities
+    let index = |identity: &str| {
+        identities
             .iter()
-            .position(|identity| *identity == representation.input_sha256)
+            .position(|candidate| *candidate == identity)
             .ok_or(ReportError::Inconsistent(
                 "notation references a read missing from the document",
-            ))?;
-        for call in render(
-            &reference.name,
-            &reference.sequence,
-            &representation.variants,
-        )
-        .map_err(ReportError::Representation)?
-        {
-            calls.entry(call).or_default().push(read_index);
-        }
+            ))
+    };
+    for representation in &notation.reads {
+        index(&representation.input_sha256)?;
     }
-    let calls = calls
+    let calls = calls(reference, notation)?
         .into_iter()
-        .map(|(call, mut reads)| {
+        .map(|(call, reads)| {
+            let mut reads = reads
+                .into_iter()
+                .map(index)
+                .collect::<Result<Vec<_>, _>>()?;
             reads.sort_unstable();
             reads.dedup();
             Ok(SampleNotationCallResult {
@@ -190,7 +183,7 @@ pub(super) fn project(
         })
         .collect::<dna_kernel::error::Result<_>>()?;
     Ok(SampleNotationResult {
-        style: style.label(),
+        style: notation.style.label(),
         calls,
     })
 }
@@ -211,26 +204,32 @@ pub(crate) struct NotationCall {
 }
 
 /// The distinct calls of every read's represented variants, in reference
-/// order; the calls `project` lists.
-pub(crate) fn calls(
+/// order, each with the content identities of the reads containing it, in the
+/// notation's read order: the one rendering `project` and the in-process
+/// consensus call build on.
+pub(crate) fn calls<'a>(
     reference: &Reference,
-    notation: &SampleNotation,
-) -> dna_kernel::error::Result<Vec<NotationCall>> {
+    notation: &'a SampleNotation,
+) -> dna_kernel::error::Result<BTreeMap<NotationCall, Vec<&'a str>>> {
     let render = match notation.style {
         NotationStyle::PerBaseDecimal => render,
     };
-    let mut calls = BTreeSet::new();
+    let mut calls = BTreeMap::<NotationCall, Vec<&str>>::new();
     for representation in &notation.reads {
-        calls.extend(
-            render(
-                &reference.name,
-                &reference.sequence,
-                &representation.variants,
-            )
-            .map_err(ReportError::Representation)?,
-        );
+        for call in render(
+            &reference.name,
+            &reference.sequence,
+            &representation.variants,
+        )
+        .map_err(ReportError::Representation)?
+        {
+            calls
+                .entry(call)
+                .or_default()
+                .push(&representation.input_sha256);
+        }
     }
-    Ok(calls.into_iter().collect())
+    Ok(calls)
 }
 
 /// Renders represented variants as per-base calls in reference order.

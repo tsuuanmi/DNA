@@ -3,13 +3,17 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::input::sequence::{self, CallInputs};
+use crate::config::Config;
+use crate::input::sequence::{self, CallInputs, SequenceRead};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
-use crate::report::{self, CompletedCall};
+use crate::report::{self, CompletedCall, SampleNotation};
+use dna_core::model::called_read::CalledRead;
 use dna_core::read_call::{self, CoreRun, ReadIdentity};
 use dna_kernel::error::Result;
+use dna_kernel::model::reference::Reference;
+use dna_kernel::profile::Profile;
 
 use super::sample::validate_sample_id;
 use super::{Operation, represent};
@@ -89,13 +93,48 @@ fn call(
 /// Calls every consensus sequence and derives the notation over loaded inputs,
 /// without output paths, operation logs, or publication.
 pub(super) fn complete(sample_id: &str, inputs: CallInputs) -> Result<CompletedCall> {
-    let run = CoreRun {
-        config: &inputs.config.core,
-        configuration_sha256: &inputs.config.source_sha256,
-        regions: &inputs.profile.regions,
+    let Called { reads, notation } = call_sequences(
+        &inputs.reads,
+        &inputs.config,
+        &inputs.profile,
+        &inputs.reference,
+    )?;
+    let plugins = if notation.is_some() {
+        plugin::CALL_WITH_NOTATION
+    } else {
+        plugin::CALL
     };
-    let reads = inputs
-        .reads
+    Ok(CompletedCall {
+        sample_id: sample_id.to_owned(),
+        reference: inputs.reference,
+        profile: inputs.profile.identity().clone(),
+        reads,
+        notation,
+        plugins,
+    })
+}
+
+/// The called reads of a set of consensus sequences and their notation.
+pub(super) struct Called {
+    pub(super) reads: Vec<CalledRead>,
+    /// `None` when the profile declares no notation.
+    pub(super) notation: Option<SampleNotation>,
+}
+
+/// The scientific step of `call`: calls every consensus sequence with the
+/// core, then derives the notation.
+pub(super) fn call_sequences(
+    sequences: &[SequenceRead],
+    config: &Config,
+    profile: &Profile,
+    reference: &Reference,
+) -> Result<Called> {
+    let run = CoreRun {
+        config: &config.core,
+        configuration_sha256: &config.source_sha256,
+        regions: &profile.regions,
+    };
+    let reads = sequences
         .iter()
         .map(|read| {
             tracing::info!(
@@ -110,25 +149,13 @@ pub(super) fn complete(sample_id: &str, inputs: CallInputs) -> Result<CompletedC
                     input_sha256: read.sha256.clone(),
                 },
                 sequence::read_evidence(read)?,
-                &inputs.reference,
+                reference,
                 &run,
             )
         })
         .collect::<Result<Vec<_>>>()?;
 
     let _stage = tracing::info_span!("nomenclature").entered();
-    let notation = represent::represent(&reads, &inputs.reference, &inputs.profile)?;
-    let plugins = if notation.is_some() {
-        plugin::CALL_WITH_NOTATION
-    } else {
-        plugin::CALL
-    };
-    Ok(CompletedCall {
-        sample_id: sample_id.to_owned(),
-        reference: inputs.reference,
-        profile: inputs.profile.identity().clone(),
-        reads,
-        notation,
-        plugins,
-    })
+    let notation = represent::represent(&reads, reference, profile)?;
+    Ok(Called { reads, notation })
 }
