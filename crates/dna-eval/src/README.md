@@ -11,10 +11,11 @@ part of the release.
 - `main.rs` — command line (`run`, `panel`), run orchestration, output
   directory, and the `run.json` header.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
-  the optional `retired` column.
+  the optional `retired` and `truth_digest` columns.
 - `panel.rs` — a new panel version from a parent and the truth database.
 - `truth.rs` — reviewer truth from the lab's statistics database, opened
-  read-only with `rusqlite`.
+  read-only with `rusqlite`; the sample and panel truth digests and the check
+  of a panel's recorded truth.
 - `runner.rs` — the scoped thread pool that removes repeated traces and runs
   DNA per sample, with typed failures, in sample order.
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary

@@ -6,7 +6,9 @@
 //! header, then one row per sample. `body_sha256` is the SHA-256 of every byte
 //! after the column header line and must match. From version 2 a `retired`
 //! column marks samples kept for continuity but left out of estimates; a
-//! manifest without it retires nothing.
+//! manifest without it retires nothing. From version 3 a `truth_digest`
+//! column records each sample's truth digest when the panel was built, and
+//! the header's `truth_digest` the panel's.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -30,6 +32,8 @@ const ANCHOR: &str = "anchor_candidate";
 const TRACES: &str = "trace_paths";
 /// Optional column: `1` for a retired sample.
 pub(crate) const RETIRED: &str = "retired";
+/// Optional column: the sample's truth digest when the panel was built.
+pub(crate) const TRUTH_DIGEST: &str = "truth_digest";
 
 /// One parsed and verified panel manifest.
 #[derive(Debug, Clone, PartialEq)]
@@ -61,6 +65,8 @@ pub(crate) struct Sample {
     pub(crate) traces: Vec<PathBuf>,
     /// Whether the sample is retired: kept, but left out of estimates.
     pub(crate) retired: bool,
+    /// The sample's truth digest when the panel was built, if recorded.
+    pub(crate) truth_digest: Option<String>,
     /// The row's fields as written, in column order.
     pub(crate) fields: Vec<String>,
 }
@@ -122,7 +128,10 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Manifest, ManifestError> {
         index(ANCHOR)?,
         index(TRACES)?,
     ];
-    let retired = columns.iter().position(|name| *name == RETIRED);
+    let optional = [
+        columns.iter().position(|name| *name == RETIRED),
+        columns.iter().position(|name| *name == TRUTH_DIGEST),
+    ];
 
     let mut samples = Vec::new();
     let mut seen = BTreeSet::new();
@@ -139,7 +148,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Manifest, ManifestError> {
                 expected: columns.len(),
             });
         }
-        let sample = row(&fields, positions, retired, line_number)?;
+        let sample = row(&fields, positions, optional, line_number)?;
         if !seen.insert(sample.id.clone()) {
             return Err(ManifestError::DuplicateSample {
                 line: line_number,
@@ -173,7 +182,7 @@ fn next_line(text: &str, offset: usize) -> Option<&str> {
 fn row(
     fields: &[&str],
     positions: [usize; 7],
-    retired: Option<usize>,
+    [retired, truth_digest]: [Option<usize>; 2],
     line: usize,
 ) -> Result<Sample, ManifestError> {
     let [id, batch, stratum, weight, weight_corpus, anchor, traces] =
@@ -195,6 +204,24 @@ fn row(
         .map(|index| flag(fields[index], RETIRED))
         .transpose()?
         .unwrap_or(false);
+    let truth_digest = truth_digest
+        .map(|index| {
+            let value = fields[index];
+            if value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+            {
+                Ok(value.to_owned())
+            } else {
+                Err(ManifestError::Value {
+                    line,
+                    column: TRUTH_DIGEST,
+                    value: value.to_owned(),
+                })
+            }
+        })
+        .transpose()?;
     let traces = traces
         .split(';')
         .filter(|path| !path.is_empty())
@@ -216,6 +243,7 @@ fn row(
         anchor,
         traces,
         retired,
+        truth_digest,
         fields: fields.iter().map(|field| (*field).to_owned()).collect(),
     })
 }
@@ -289,6 +317,7 @@ pub(crate) mod tests {
         let parsed = parse(text.as_bytes())?;
         assert!(parsed.samples[0].retired);
         assert!(!parsed.samples[1].retired);
+        assert_eq!(parsed.samples[0].truth_digest, None);
         let body = "S1\tb\tclean\t0\t0\t0\t/t/a.ab1\tyes\n";
         let text = format!(
             "# body_sha256={:x}\n{columns}{body}",
@@ -395,5 +424,34 @@ pub(crate) mod tests {
             assert_eq!(parse(text.as_bytes()), Err(expected));
         }
         assert_eq!(parse(&[0xff, b'\n']), Err(ManifestError::NotUtf8));
+    }
+
+    #[test]
+    fn reads_the_optional_truth_digest_column() -> Result<(), ManifestError> {
+        let columns = "sample_id\tbatch\tstratum\tweight\tweight_corpus\tanchor_candidate\ttrace_paths\ttruth_digest\n";
+        let digest = "a".repeat(64);
+        let body = format!("S1\tb\tclean\t1\t1\t0\t/t/a.ab1\t{digest}\n");
+        let text = format!(
+            "# body_sha256={:x}\n{columns}{body}",
+            Sha256::digest(body.as_bytes())
+        );
+        assert_eq!(
+            parse(text.as_bytes())?.samples[0].truth_digest,
+            Some(digest)
+        );
+        let body = "S1\tb\tclean\t1\t1\t0\t/t/a.ab1\tABC\n";
+        let text = format!(
+            "# body_sha256={:x}\n{columns}{body}",
+            Sha256::digest(body.as_bytes())
+        );
+        assert_eq!(
+            parse(text.as_bytes()),
+            Err(ManifestError::Value {
+                line: 3,
+                column: TRUTH_DIGEST,
+                value: "ABC".into(),
+            })
+        );
+        Ok(())
     }
 }

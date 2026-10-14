@@ -4,8 +4,11 @@
 //! order. A sample the database has no record of is retired (`retired = 1`,
 //! both weights `0`), and the other samples of its stratum share the
 //! stratum's weight, so each stratum still sums to its population. Strata
-//! without a newly retired sample keep their weights as written. The header
-//! names the database and its SHA-256 as the truth.
+//! without a newly retired sample keep their weights as written. Each row
+//! records its sample's truth digest (`truth_digest`), and the header the
+//! panel's, so a run can tell whether the truth of the panel changed; the
+//! database path, file SHA-256, and creation time are recorded as provenance
+//! only.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -13,14 +16,16 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::manifest::{Manifest, RETIRED, Sample};
-use crate::truth::TruthDatabase;
+use crate::manifest::{Manifest, RETIRED, Sample, TRUTH_DIGEST};
+use crate::truth::{self, TruthDatabase};
 
 /// The text of the new manifest and what changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Derived {
     pub(crate) text: String,
     pub(crate) body_sha256: String,
+    /// The panel's truth digest.
+    pub(crate) truth_digest: String,
     pub(crate) rows: usize,
     /// Samples retired in this version.
     pub(crate) retired: usize,
@@ -51,13 +56,17 @@ pub(crate) fn derive(
         .count();
 
     let mut columns = parent.columns.clone();
-    let retired_column = columns
-        .iter()
-        .position(|column| column == RETIRED)
-        .unwrap_or_else(|| {
-            columns.push(RETIRED.to_owned());
-            columns.len() - 1
-        });
+    let mut column = |name: &str| {
+        columns
+            .iter()
+            .position(|column| column == name)
+            .unwrap_or_else(|| {
+                columns.push(name.to_owned());
+                columns.len() - 1
+            })
+    };
+    let retired_column = column(RETIRED);
+    let digest_column = column(TRUTH_DIGEST);
     let weight_columns =
         ["weight", "weight_corpus"].map(|name| columns.iter().position(|column| column == name));
 
@@ -75,12 +84,18 @@ pub(crate) fn derive(
         }
     }
 
+    let digests = parent
+        .samples
+        .iter()
+        .map(|sample| truth::digest(truth.database.samples.get(&sample.id)))
+        .collect::<Vec<_>>();
     let mut body = String::new();
-    for sample in &parent.samples {
+    for (sample, digest) in parent.samples.iter().zip(&digests) {
         let mut fields = sample.fields.clone();
         fields.resize(columns.len(), String::new());
         let gone = retired(sample);
         fields[retired_column] = u8::from(gone).to_string();
+        fields[digest_column].clone_from(digest);
         if let Some((totals, staying, changed)) = strata.get(sample.stratum.as_str())
             && *changed
         {
@@ -98,6 +113,13 @@ pub(crate) fn derive(
         body.push('\n');
     }
     let body_sha256 = format!("{:x}", Sha256::digest(body.as_bytes()));
+    let truth_digest = truth::panel_digest(
+        parent
+            .samples
+            .iter()
+            .zip(&digests)
+            .map(|(sample, digest)| (sample.id.as_str(), digest.as_str())),
+    );
 
     let field = |key: &str| parent.header.get(key).map_or("-", String::as_str);
     let info = |key: &str| truth.database.info.get(key).map_or("-", String::as_str);
@@ -119,7 +141,8 @@ pub(crate) fn derive(
     );
     let _ = writeln!(
         text,
-        "# truth={} truth_sha256={} truth_created={} truth_samples={}",
+        "# truth={} truth_digest={truth_digest} truth_database_sha256={} truth_created={} \
+         truth_samples={}",
         truth.path.display(),
         truth.sha256,
         info("created_at"),
@@ -136,6 +159,7 @@ pub(crate) fn derive(
     Derived {
         text,
         body_sha256,
+        truth_digest,
         rows: parent.samples.len(),
         retired: newly,
         batch_differs: parent
@@ -173,13 +197,13 @@ mod tests {
         )?;
         // S2 is not in the database; S4's batch differs.
         let directory = tempfile::tempdir()?;
-        let mut sql = String::from(crate::truth::tests::FIXTURE);
+        let mut sql = String::from(truth::tests::FIXTURE);
         sql.push_str(
             "DELETE FROM samples; INSERT INTO samples VALUES ('S1', 'b1', 0, 0, 0, 0, 0),
              ('S3', 'b1', 0, 0, 0, 0, 0), ('S4', 'b9', 0, 0, 0, 0, 0);",
         );
-        let path = crate::truth::tests::database(directory.path(), &sql)?;
-        let database = crate::truth::load(&path, &BTreeSet::from(["S1", "S2", "S3", "S4"]))?;
+        let path = truth::tests::database(directory.path(), &sql)?;
+        let database = truth::load(&path, &BTreeSet::from(["S1", "S2", "S3", "S4"]))?;
         let source = Source {
             path: Path::new("/data/statistics.sqlite"),
             sha256: "abc",
@@ -196,7 +220,16 @@ mod tests {
         assert_eq!(child.header["version"], "v2");
         assert_eq!(child.header["parent_version"], "v1");
         assert_eq!(child.header["parent_body_sha256"], parent.body_sha256);
-        assert_eq!(child.header["truth_sha256"], "abc");
+        assert_eq!(child.header["truth_database_sha256"], "abc");
+        assert_eq!(child.header["truth_digest"], derived.truth_digest);
+        assert_eq!(
+            child.samples[1].truth_digest.as_deref(),
+            Some(truth::digest(None).as_str())
+        );
+        assert_eq!(
+            child.samples[0].truth_digest.as_deref(),
+            Some(truth::digest(database.samples.get("S1")).as_str())
+        );
         assert_eq!(child.header["truth_samples"], "3");
         assert_eq!(child.header["retired"], "1");
         let ids = child
@@ -229,6 +262,7 @@ mod tests {
         assert_eq!(grandchild.samples[0].weight.text, "4.5000");
         assert!(grandchild.samples[1].retired);
         assert_eq!(grandchild.columns, child.columns);
+        assert_eq!(again.truth_digest, derived.truth_digest);
         Ok(())
     }
 }

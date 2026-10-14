@@ -239,6 +239,7 @@ mod tests {
             anchor: false,
             traces,
             retired: false,
+            truth_digest: None,
             fields: Vec::new(),
         }
     }

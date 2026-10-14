@@ -30,7 +30,9 @@ remain independently versioned and are never silently changed in place.
     sample `Y`, `N`, or `N/A` with the lab's comparison rules, plus a strict
     measure that counts DNA's coverage gaps and an IUPAC-compatible measure.
   - **Panel versions:** `dna-eval panel` derives a new panel version against
-    the database, keeping every row and retiring samples without truth.
+    the database, keeping every row, retiring samples without truth, and
+    recording per-sample and panel truth digests; a run reports the samples
+    whose truth changed since the panel was built.
   - **Outputs:** per-sample comparisons, stratified weighted estimates with
     95 % intervals, anchors, the diff against a baseline run, a Markdown
     summary, and a run header

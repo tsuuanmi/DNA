@@ -33,12 +33,15 @@ one tab-separated column header, then one row per sample.
 
 - `body_sha256` is required: the SHA-256 of every byte after the column header
   line. A mismatch stops the run. `rows`, when present, must equal the row
-  count. `panel`, `version`, `salt`, and `truth_sha256` are recorded.
+  count. `panel`, `version`, `salt`, and from version 3 `truth_digest` (the
+  panel truth digest) are recorded.
 - The columns `sample_id`, `batch`, `stratum`, `weight`, `weight_corpus`,
   `anchor_candidate` (`0` or `1`), and `trace_paths` (`;`-separated) are read.
   The optional `retired` column (`0` or `1`, from panel version 2) marks
-  samples kept for continuity but left out of the estimates. Other columns are
-  ignored. Sample identifiers are unique.
+  samples kept for continuity but left out of the estimates. The optional
+  `truth_digest` column (from version 3, 64 lowercase hexadecimal digits)
+  records each sample's truth digest when the panel was built. Other columns
+  are ignored. Sample identifiers are unique.
 - Bounds: 256 MiB, 1,000,000 rows, and 64 traces per sample.
 
 **Truth.** The lab's statistics database (`statistics.sqlite`, at most
@@ -64,12 +67,38 @@ present.
   weight total (written with four decimals), so each stratum still sums to its
   population; strata without a newly retired sample keep their weights as
   written;
+- each row records its sample's truth digest (`truth_digest`), and the header
+  the panel truth digest;
 - the header records the panel, the new version, the salt, the creation date,
-  the row and retired counts, the parent version and body hash, and the
-  database path, SHA-256, `created_at`, and sample count as the truth.
+  the row and retired counts, and the parent version and body hash; the
+  database path, file SHA-256 (`truth_database_sha256`), `created_at`, and
+  sample count are recorded as provenance only.
 
 Earlier versions stay runnable; report results on the rows both versions
 share.
+
+## Panel truth digest
+
+The lab rebuilds the database in place, so its file hash changes with every
+refresh even when no panel sample changes. A panel therefore records the
+truth it was built against as digests of exactly what the harness uses:
+
+- a sample's digest is the SHA-256 of a canonical text: `batch\t<batch>`,
+  `status\t<status>` (empty when unrecorded), one `allele\t<pos>\t<ref>\t<seq>`
+  line per allele with the position normalised, and one
+  `interval\t<start>\t<end>` line per analysed interval, the alleles and
+  intervals sorted, each line ending in a newline; a sample without a record
+  digests `missing\n`;
+- the panel's digest is the SHA-256 of one `<sample_id>\t<digest>` line per
+  sample, in panel order.
+
+`run` computes the digests of the current database. When the panel digest
+equals the manifest's, the truth is `unchanged` and the database's file hash
+and `created_at` are recorded in `run.json` for provenance only. Otherwise the
+run is marked `truth changed`: the summary starts with a notice, the samples
+whose digest differs are listed in `truth_changes.tsv`, and a new panel
+version is due. A manifest without a digest (versions 1 and 2) reports
+`not_recorded`.
 
 ## Running DNA
 
@@ -163,8 +192,9 @@ Statuses fall into classes so that runs of other conventions stay comparable:
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure, the samples whose status class changed |
-| `summary.md` | the run in aggregate: the panel checked against the truth (retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
-| `run.json` | the run header: harness version, source revision, threads, manifest fields and hash, the database's hash and `info` and whether the manifest names it, paths, DNA's configuration, reference, and profile identities, counts per measure, timings |
+| `truth_changes.tsv` | when the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded and current digests |
+| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
+| `run.json` | the run header: harness version, source revision, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings |
 
 Every file except `run.json` depends only on the panel, the truth, and DNA's
 calls, so it is byte-identical whatever the thread count. Run outputs and

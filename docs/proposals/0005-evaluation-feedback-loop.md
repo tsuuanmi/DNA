@@ -424,6 +424,12 @@ yet reviewed.
   the stratum weight among the remaining samples. Dev: 2,620 rows, 2 retired.
   Validation: 10,109 rows, 7 retired. No batch differs from the database. The
   v1 files are unchanged.
+- **Panel v3** (`dna-eval panel`, 2026-10-15). It adds each sample's truth
+  digest and the panel truth digest, so a database refresh that changes no
+  panel sample needs no new version; a run lists the samples whose truth
+  changed and marks itself `truth changed` otherwise. Dev and validation keep
+  the v2 rows and weights; v1 and v2 files are unchanged. On dev v3 every
+  per-sample result equals the v2 run.
 - **Dev panel v2** (2026-10-15, revision 56424be plus this change; the
   same per-sample results as on revision 348cf13 before the one-pass sample
   analysis, and as on the database refresh of 2026-10-14 17:31, which changed
@@ -452,6 +458,13 @@ yet reviewed.
   - **Same rules as the lab's code.** Run through `SampleComparator` on the
     same DNA calls and truth, every one of the 2,616 compared samples gets the
     same `Y`, `N`, or `N/A` on the primary measure.
+- **Dev panel v3 after the too-short rejection** (revision d171ce3 plus this
+  change, truth unchanged): the 2 samples that failed on a trace too short
+  for signal processing now set that trace aside and are concordant on all
+  three measures; no other sample changes. Primary 1,960 `Y`, 656 `N`, 2
+  `N/A`, 2 failed (the retired samples), rate 0.1779 ± 0.0138; strict 1,820
+  `Y`, rate 0.2057 ± 0.0152; IUPAC-compatible 2,221 `Y`, rate 0.1010 ±
+  0.0143.
 - **Speed.** The dev panel takes 5.5–7 s wall on 64 or 128 threads of the
   shared server (about 320–800 CPU-seconds, with the one-pass sample analysis
   at the low end); a first run under a load spike took 20 s.

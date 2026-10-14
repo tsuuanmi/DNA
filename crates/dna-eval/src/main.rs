@@ -35,6 +35,7 @@ use crate::error::{Error, Result};
 use crate::manifest::Manifest;
 use crate::report::{Report, Row, Status};
 use crate::runner::{Identity, Outcome, Threads};
+use crate::truth::TruthCheck;
 
 /// Largest accepted panel manifest.
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
@@ -158,16 +159,20 @@ fn run(cli: &RunArgs) -> Result<String> {
     let outcomes = outcomes?;
 
     let rows = report::rows(&manifest.samples, &outcomes, &truth.database.samples);
-    let report = Report::new(&rows, baseline.as_ref());
+    let check = TruthCheck::new(&manifest, &truth.database);
+    let report = Report::new(&rows, baseline.as_ref(), &check);
 
     let header = header(
         cli,
         &manifest,
         &truth,
+        &check,
         &rows,
         &outcomes,
-        dna_seconds,
-        started,
+        Times {
+            started,
+            dna: dna_seconds,
+        },
     );
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
@@ -178,8 +183,10 @@ fn run(cli: &RunArgs) -> Result<String> {
 
     let count = |measure: Measure, status: Status| count(&rows, measure, status);
     Ok(format!(
-        "dna-eval: {} samples; primary {} concordant, {} discordant, {} not applicable, {} \
+        "dna-eval: truth {} ({} samples changed); {} samples; primary {} concordant, {} discordant, {} not applicable, {} \
          failed; strict {} concordant; IUPAC-compatible {} concordant; {:.1} s; outputs in {}",
+        check.state().label(),
+        check.changed.len(),
         rows.len(),
         count(Measure::Primary, Status::Concordant),
         count(Measure::Primary, Status::Discordant),
@@ -361,13 +368,18 @@ struct ManifestHeader {
 #[derive(Debug, Serialize)]
 struct TruthHeader {
     path: PathBuf,
+    /// The database file's SHA-256, for provenance only.
     sha256: String,
-    /// The database's `info` table.
+    /// The database's `info` table, for provenance only.
     info: BTreeMap<String, String>,
-    /// The truth file the manifest was built from, as its header declares.
-    manifest_truth_sha256: Option<String>,
-    /// Whether the truth is that file; `None` when the manifest does not say.
-    matches_manifest: Option<bool>,
+    /// The panel truth digest of the current database.
+    digest: String,
+    /// The panel truth digest the manifest records.
+    recorded_digest: Option<String>,
+    /// `unchanged`, `changed`, or `not_recorded`.
+    state: &'static str,
+    /// Samples whose truth differs from the manifest's record.
+    changed_samples: usize,
     panel_samples_found: usize,
 }
 
@@ -397,14 +409,21 @@ struct Seconds {
     sample_sum: f64,
 }
 
+/// When the run started and how long DNA took, in seconds.
+#[derive(Debug, Clone, Copy)]
+struct Times {
+    started: Instant,
+    dna: f64,
+}
+
 fn header(
     cli: &RunArgs,
     manifest: &Manifest,
     truth: &Truth,
+    check: &TruthCheck,
     rows: &[Row<'_>],
     outcomes: &[Outcome],
-    dna_seconds: f64,
-    started: Instant,
+    times: Times,
 ) -> Header {
     let counts = |measure: Measure| Counts {
         total: rows.len(),
@@ -443,11 +462,10 @@ fn header(
             path: absolute(&cli.truth),
             sha256: truth.sha256.clone(),
             info: truth.database.info.clone(),
-            manifest_truth_sha256: manifest.header.get("truth_sha256").cloned(),
-            matches_manifest: manifest
-                .header
-                .get("truth_sha256")
-                .map(|declared| *declared == truth.sha256),
+            digest: check.current.clone(),
+            recorded_digest: check.recorded.clone(),
+            state: check.state().label(),
+            changed_samples: check.changed.len(),
             panel_samples_found: truth.database.samples.len(),
         },
         configuration_path: absolute(&cli.config),
@@ -459,9 +477,9 @@ fn header(
             .map(|measure| (measure.label(), counts(measure)))
             .collect(),
         seconds: Seconds {
-            total: started.elapsed().as_secs_f64(),
+            total: times.started.elapsed().as_secs_f64(),
             truth: truth.seconds,
-            dna: dna_seconds,
+            dna: times.dna,
             sample_median: seconds(millis.len() / 2),
             sample_p95: seconds(millis.len() * 95 / 100),
             sample_max: seconds(millis.len().saturating_sub(1)),
@@ -490,36 +508,6 @@ fn context(header: &Header) -> Vec<(&'static str, String)> {
                 field("version"),
                 header.manifest.rows,
                 header.manifest.body_sha256
-            ),
-        ),
-        (
-            "truth",
-            format!(
-                "statistics database, schema {}, created {}, {} samples, sha256 {}",
-                header
-                    .truth
-                    .info
-                    .get("schema_version")
-                    .map_or("-", String::as_str),
-                header
-                    .truth
-                    .info
-                    .get("created_at")
-                    .map_or("-", String::as_str),
-                header.truth.info.get("samples").map_or("-", String::as_str),
-                header.truth.sha256
-            ),
-        ),
-        (
-            "manifest built from truth",
-            format!(
-                "{} ({})",
-                header.truth.manifest_truth_sha256.as_deref().unwrap_or("-"),
-                match header.truth.matches_manifest {
-                    Some(true) => "this database",
-                    Some(false) => "another truth file",
-                    None => "not declared",
-                }
             ),
         ),
         (

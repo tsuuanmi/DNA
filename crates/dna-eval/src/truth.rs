@@ -12,14 +12,23 @@
 //!   status in its batch (`OK` when its reviewed result is complete).
 //!
 //! Only the panel's samples are read.
+//!
+//! A sample's truth digest is the SHA-256 of a canonical text of exactly what
+//! the harness uses: the batch, the status, the alleles, and the analysed
+//! intervals, each sorted. A panel's truth digest is the SHA-256 of its
+//! samples' digests in panel order, so a database refresh that changes no
+//! panel sample keeps it.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
+use sha2::{Digest, Sha256};
 
 use crate::compare::Allele;
 use crate::error::TruthError;
+use crate::manifest::Manifest;
 
 /// Largest accepted database file.
 pub(crate) const MAX_TRUTH_BYTES: u64 = 4 * 1024 * 1024 * 1024;
@@ -44,6 +53,157 @@ pub(crate) struct TruthSample {
 pub(crate) struct TruthDatabase {
     pub(crate) info: BTreeMap<String, String>,
     pub(crate) samples: BTreeMap<String, TruthSample>,
+}
+
+/// The truth digest of one sample; a sample without a record has the digest
+/// of `missing`.
+pub(crate) fn digest(record: Option<&TruthSample>) -> String {
+    let mut text = String::new();
+    match record {
+        None => text.push_str("missing\n"),
+        Some(record) => {
+            let mut alleles = record.alleles.iter().collect::<Vec<_>>();
+            alleles.sort();
+            let mut intervals = record.intervals.clone();
+            intervals.sort_unstable();
+            let _ = write!(
+                text,
+                "batch\t{}\nstatus\t{}\n",
+                record.batch,
+                record.status.as_deref().unwrap_or("")
+            );
+            for allele in alleles {
+                let _ = writeln!(
+                    text,
+                    "allele\t{}\t{}\t{}",
+                    allele.position, allele.reference, allele.alternate
+                );
+            }
+            for (start, end) in intervals {
+                let _ = writeln!(text, "interval\t{start}\t{end}");
+            }
+        }
+    }
+    format!("{:x}", Sha256::digest(text.as_bytes()))
+}
+
+/// The truth digest of a panel from its samples' identifiers and digests,
+/// in panel order.
+pub(crate) fn panel_digest<'a>(samples: impl IntoIterator<Item = (&'a str, &'a str)>) -> String {
+    let mut hasher = Sha256::new();
+    for (sample, digest) in samples {
+        hasher.update(format!("{sample}\t{digest}\n").as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
+}
+
+/// How the panel's truth compares with the digests its manifest records.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TruthCheck {
+    /// The panel digest the manifest header records, if any.
+    pub(crate) recorded: Option<String>,
+    /// The panel digest of the current database.
+    pub(crate) current: String,
+    /// Samples whose recorded digest differs from the current one, in panel
+    /// order.
+    pub(crate) changed: Vec<ChangedSample>,
+}
+
+/// One sample whose truth changed since the panel was built.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ChangedSample {
+    pub(crate) sample: String,
+    pub(crate) stratum: String,
+    pub(crate) retired: bool,
+    pub(crate) recorded: String,
+    pub(crate) current: String,
+}
+
+/// Whether the truth of the panel is the one its manifest records.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TruthState {
+    /// The panel digest equals the recorded one.
+    Unchanged,
+    /// The panel digest differs: a new panel version is due.
+    Changed,
+    /// The manifest records no truth digest (panel versions 1 and 2).
+    NotRecorded,
+}
+
+impl TruthState {
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Unchanged => "unchanged",
+            Self::Changed => "changed",
+            Self::NotRecorded => "not_recorded",
+        }
+    }
+}
+
+impl TruthCheck {
+    /// Compares the database's truth of the manifest's samples with the
+    /// digests the manifest records.
+    pub(crate) fn new(manifest: &Manifest, database: &TruthDatabase) -> Self {
+        let digests = manifest
+            .samples
+            .iter()
+            .map(|sample| digest(database.samples.get(&sample.id)))
+            .collect::<Vec<_>>();
+        let changed = manifest
+            .samples
+            .iter()
+            .zip(&digests)
+            .filter_map(|(sample, current)| {
+                let recorded = sample.truth_digest.as_ref()?;
+                (recorded != current).then(|| ChangedSample {
+                    sample: sample.id.clone(),
+                    stratum: sample.stratum.clone(),
+                    retired: sample.retired,
+                    recorded: recorded.clone(),
+                    current: current.clone(),
+                })
+            })
+            .collect();
+        Self {
+            recorded: manifest.header.get("truth_digest").cloned(),
+            current: panel_digest(
+                manifest
+                    .samples
+                    .iter()
+                    .zip(&digests)
+                    .map(|(sample, digest)| (sample.id.as_str(), digest.as_str())),
+            ),
+            changed,
+        }
+    }
+
+    pub(crate) fn state(&self) -> TruthState {
+        match &self.recorded {
+            None => TruthState::NotRecorded,
+            Some(recorded) if *recorded == self.current && self.changed.is_empty() => {
+                TruthState::Unchanged
+            }
+            Some(_) => TruthState::Changed,
+        }
+    }
+
+    /// `truth_changes.tsv`: the samples whose truth changed.
+    pub(crate) fn changes(&self) -> String {
+        let mut text =
+            String::from("sample_id\tstratum\tretired\trecorded_digest\tcurrent_digest\n");
+        for change in &self.changed {
+            let _ = writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}",
+                change.sample,
+                change.stratum,
+                u8::from(change.retired),
+                change.recorded,
+                change.current
+            );
+        }
+        text
+    }
 }
 
 /// Reads the records of the `wanted` samples from the database at `path`.
@@ -205,6 +365,112 @@ pub(crate) mod tests {
         // The connection cannot write.
         let connection = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         assert!(connection.execute("DELETE FROM variants", []).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn digests_exactly_the_truth_the_harness_uses() {
+        let record = TruthSample {
+            batch: "b1".into(),
+            status: Some("OK".into()),
+            alleles: vec![
+                Allele::new("263", "A", "G"),
+                Allele::new("16189.0", "T", "C"),
+            ],
+            intervals: vec![(16024, 16365), (73, 340)],
+        };
+        let reordered = TruthSample {
+            alleles: vec![Allele::new("16189", "T", "C"), Allele::new("263", "A", "G")],
+            intervals: vec![(73, 340), (16024, 16365)],
+            ..record.clone()
+        };
+        // Row order and position writing do not matter; every field does.
+        assert_eq!(digest(Some(&record)), digest(Some(&reordered)));
+        let changes = [
+            TruthSample {
+                batch: "b2".into(),
+                ..record.clone()
+            },
+            TruthSample {
+                status: None,
+                ..record.clone()
+            },
+            TruthSample {
+                alleles: vec![Allele::new("263", "A", "G")],
+                ..record.clone()
+            },
+            TruthSample {
+                intervals: vec![(73, 341), (16024, 16365)],
+                ..record.clone()
+            },
+        ];
+        for changed in &changes {
+            assert_ne!(digest(Some(&record)), digest(Some(changed)));
+        }
+        assert_ne!(digest(None), digest(Some(&record)));
+        assert_eq!(digest(None).len(), 64);
+        let first = digest(Some(&record));
+        let second = digest(None);
+        assert_ne!(
+            panel_digest([("S1", first.as_str()), ("S2", second.as_str())]),
+            panel_digest([("S2", second.as_str()), ("S1", first.as_str())])
+        );
+    }
+
+    #[test]
+    fn finds_the_samples_whose_truth_changed() -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let wanted = BTreeSet::from(["S1", "S2", "S3"]);
+        let path = database(directory.path(), FIXTURE)?;
+        let built = load(&path, &wanted)?;
+        let parent = crate::manifest::parse(
+            crate::manifest::tests::manifest(&[
+                "S1\tb1\tclean\t1\t1\t0\t/t/a.ab1",
+                "S2\tb2\tclean\t1\t1\t0\t/t/b.ab1",
+                "S3\tb1\tclean\t1\t1\t0\t/t/c.ab1",
+            ])
+            .as_bytes(),
+        )?;
+        let source = crate::panel::Source {
+            path: &path,
+            sha256: "abc",
+            database: &built,
+        };
+        let panel = crate::manifest::parse(
+            crate::panel::derive(&parent, &source, "v3", "2026-10-15")
+                .text
+                .as_bytes(),
+        )?;
+        assert_eq!(
+            TruthCheck::new(&parent, &built).state(),
+            TruthState::NotRecorded
+        );
+        let same = TruthCheck::new(&panel, &built);
+        assert_eq!(same.state(), TruthState::Unchanged);
+        assert!(same.changed.is_empty());
+
+        // A refresh that changes S3's status and one of S1's alleles.
+        let refreshed = directory.path().join("refreshed");
+        std::fs::create_dir(&refreshed)?;
+        let sql = format!(
+            "{FIXTURE} UPDATE variants SET seq = 'C' WHERE sample_id = 'S1' AND pos = '263';
+             INSERT INTO sample_status VALUES ('b1', 'S3', 'x', 'HOLD', 1, 1, '', 1, 1);"
+        );
+        let refreshed = load(&database(&refreshed, &sql)?, &wanted)?;
+        let check = TruthCheck::new(&panel, &refreshed);
+        assert_eq!(check.state(), TruthState::Changed);
+        let changed = check
+            .changed
+            .iter()
+            .map(|change| change.sample.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(changed, ["S1", "S3"]);
+        assert!(
+            check
+                .changes()
+                .starts_with("sample_id\tstratum\tretired\trecorded_digest")
+        );
+        assert_eq!(check.changes().lines().count(), 3);
         Ok(())
     }
 

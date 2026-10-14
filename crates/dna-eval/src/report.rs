@@ -14,7 +14,7 @@ use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Re
 use crate::estimate::{self, Estimate, Observation};
 use crate::manifest::Sample;
 use crate::runner::Outcome;
-use crate::truth::TruthSample;
+use crate::truth::{TruthCheck, TruthSample, TruthState};
 
 /// One compared panel sample.
 pub(crate) struct Row<'a> {
@@ -244,12 +244,17 @@ impl Change {
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
     baseline: Option<&'a Statuses>,
+    check: &'a TruthCheck,
     estimates: Vec<(Weighting, Metric, Estimate)>,
 }
 
 impl<'a> Report<'a> {
     /// Derives the estimates of `rows`, which are sorted by sample identifier.
-    pub(crate) fn new(rows: &'a [Row<'a>], baseline: Option<&'a Statuses>) -> Self {
+    pub(crate) fn new(
+        rows: &'a [Row<'a>],
+        baseline: Option<&'a Statuses>,
+        check: &'a TruthCheck,
+    ) -> Self {
         let estimates = Weighting::ALL
             .into_iter()
             .flat_map(|weighting| {
@@ -272,6 +277,7 @@ impl<'a> Report<'a> {
         Self {
             rows,
             baseline,
+            check,
             estimates,
         }
     }
@@ -311,7 +317,8 @@ impl<'a> Report<'a> {
     }
 
     /// Every deterministic output file, by name; `diff.tsv` only with a
-    /// baseline. `context` heads the summary.
+    /// baseline, `truth_changes.tsv` only when the panel's truth changed.
+    /// `context` heads the summary.
     pub(crate) fn files(&self, context: &[(&str, String)]) -> Vec<(&'static str, String)> {
         let mut files = vec![
             ("scores.tsv", self.scores()),
@@ -320,6 +327,9 @@ impl<'a> Report<'a> {
         ];
         if let Some(diff) = self.diff() {
             files.push(("diff.tsv", diff));
+        }
+        if !self.check.changed.is_empty() {
+            files.push(("truth_changes.tsv", self.check.changes()));
         }
         files.push(("summary.md", self.summary(context)));
         files
@@ -521,7 +531,16 @@ impl<'a> Report<'a> {
 
     /// `summary.md`: the run in aggregate.
     fn summary(&self, context: &[(&str, String)]) -> String {
-        let mut text = String::from("# Evaluation run\n\n| Item | Value |\n|---|---|\n");
+        let mut text = String::from("# Evaluation run\n\n");
+        if self.check.state() == TruthState::Changed {
+            let _ = writeln!(
+                text,
+                "**Truth changed:** the truth of {} panel samples differs from the panel's \
+                 record (`truth_changes.tsv`); derive a new panel version.\n",
+                self.check.changed.len()
+            );
+        }
+        text.push_str("| Item | Value |\n|---|---|\n");
         for (item, value) in context {
             let _ = writeln!(text, "| {item} | {value} |");
         }
@@ -553,12 +572,18 @@ impl<'a> Report<'a> {
             |keep: &dyn Fn(&Row<'_>) -> bool| self.rows.iter().filter(|row| keep(row)).count();
         let _ = write!(
             text,
-            "\n## Panel against the truth\n\n| Check | Samples |\n|---|---:|\n\
-             | panel samples | {} |\n| retired (left out of the estimates) | {} |\n\
+            "\n## Panel against the truth\n\nPanel truth: {} (digest {}, recorded {}).\n\n\
+             | Check | Samples |\n|---|---:|\n\
+             | panel samples | {} |\n| truth changed since the panel was built | {} |\n\
+             | retired (left out of the estimates) | {} |\n\
              | without a truth record | {} |\n\
              | truth batch differs from the panel batch | {} |\n\
              | truth status not `OK` in its batch | {} |\n",
+            self.check.state().label(),
+            self.check.current,
+            self.check.recorded.as_deref().unwrap_or("-"),
             self.rows.len(),
+            self.check.changed.len(),
             count(&|row| row.sample.retired),
             count(&|row| row.truth.is_none()),
             count(&|row| row
@@ -971,11 +996,14 @@ mod tests {
             b"sample_id\tstatus\tstrict_status\nS00\texact\tconcordant\nS01\texact\tdiscordant\n\
               S02\terror\terror\nGONE\texact\texact\n",
         )?;
+        let check = TruthCheck::new(&manifest, &truth);
+        assert_eq!(check.state(), TruthState::NotRecorded);
         let outputs = |threads: usize| -> Result<Vec<(&str, String)>, Box<dyn std::error::Error>> {
             let outcomes =
                 crate::runner::run_with(&manifest.samples, Threads::new(threads)?, call)?;
             let rows = rows(&manifest.samples, &outcomes, &truth.samples);
-            Ok(Report::new(&rows, Some(&baseline)).files(&[("panel", "synthetic".to_owned())]))
+            Ok(Report::new(&rows, Some(&baseline), &check)
+                .files(&[("panel", "synthetic".to_owned())]))
         };
         let one = outputs(1)?;
         assert_eq!(one, outputs(8)?);
@@ -1060,5 +1088,49 @@ mod tests {
         assert_eq!(Weighting::Corpus.of(&sample), 0.0);
         assert_eq!(Weighting::Pool.of(&sample), 0.0);
         Ok(())
+    }
+
+    #[test]
+    fn a_changed_truth_is_reported_and_listed() {
+        let digest = |text: &str| text.repeat(64);
+        let check = TruthCheck {
+            recorded: Some(digest("a")),
+            current: digest("b"),
+            changed: vec![crate::truth::ChangedSample {
+                sample: "S1".into(),
+                stratum: "clean".into(),
+                retired: false,
+                recorded: digest("c"),
+                current: digest("d"),
+            }],
+        };
+        let files = Report::new(&[], None, &check).files(&[]);
+        let names = files.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            [
+                "scores.tsv",
+                "estimates.tsv",
+                "anchors.tsv",
+                "truth_changes.tsv",
+                "summary.md"
+            ]
+        );
+        assert!(
+            files[3]
+                .1
+                .contains(&format!("S1\tclean\t0\t{}\t{}\n", digest("c"), digest("d")))
+        );
+        let summary = &files[4].1;
+        assert!(summary.starts_with("# Evaluation run\n\n**Truth changed:** the truth of 1 panel"));
+        assert!(summary.contains("| truth changed since the panel was built | 1 |"));
+        let unchanged = TruthCheck {
+            recorded: Some(digest("b")),
+            changed: Vec::new(),
+            ..check
+        };
+        let files = Report::new(&[], None, &unchanged).files(&[]);
+        assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
+        assert!(files[3].1.contains("Panel truth: unchanged"));
     }
 }
