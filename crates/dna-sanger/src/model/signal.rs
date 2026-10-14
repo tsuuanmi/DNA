@@ -1,6 +1,7 @@
 //! Observation-only signal-quality windows, locus evidence, and noisy regions.
 
 use crate::model::locus_evidence::LocusEvidence;
+use dna_kernel::error::{Error, SignalError};
 
 /// Observation-only structural and amplitude integrity evidence for one trace.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,12 +40,30 @@ impl SangerIntegrity {
 
 /// Why a read is not analyzed: it has fewer calls than one signal window
 /// (SRS-SIG-007), so no stage runs on it.
+///
+/// A multi-read operation rejects such a read and continues with the others;
+/// single-read operations fail with the error it is read from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ShortRead {
     /// Call count of the read.
     pub calls: usize,
     /// Fewest calls a read needs: `signal_processing.window_size_bases`.
     pub minimum_calls: usize,
+}
+
+impl ShortRead {
+    /// The short read an error reports, or `None` for any other failure.
+    #[must_use]
+    pub const fn of(error: &Error) -> Option<Self> {
+        match error {
+            Error::Signal(SignalError::TooFewCalls { calls, window }) => Some(Self {
+                calls: *calls,
+                minimum_calls: *window,
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// Signal-quality features for one rolling base-call window.

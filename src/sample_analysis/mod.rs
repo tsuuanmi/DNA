@@ -46,8 +46,9 @@ pub struct SampleAnalysis {
     pub consensus: Consensus,
     /// Sanger evidence of each admitted read, by read content SHA-256.
     pub reads: BTreeMap<String, SangerAttachment>,
-    /// Each rejected read with its Sanger evidence and cause, by read content
-    /// SHA-256.
+    /// Each rejected read with its cause, by read content SHA-256; the cause
+    /// carries the read's Sanger evidence unless the read was too short to
+    /// process.
     pub rejected: BTreeMap<String, RejectedRead>,
 }
 

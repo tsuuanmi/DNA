@@ -2,20 +2,33 @@
 
 use crate::config::Config;
 use crate::model::read_observation::ReadObservation;
-use dna_kernel::error::Result;
+use dna_kernel::error::{Error, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_kernel::read_evidence::VetoSet;
-use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::sanger::Chromatogram;
 use dna_sanger::read_processing::{self, ProcessedRead};
 
-use dna_core::read_call::{self, CoreRun, ReadIdentity};
+use dna_core::read_call::{self, CoreRun, PlacementRejection, ReadIdentity};
 
 /// Completed one-read observation plus operational warning total.
 pub(crate) struct CompletedObservation {
     pub(crate) read: ReadObservation,
     pub(crate) warning_total: usize,
+}
+
+/// What the core made of one processed read.
+pub(crate) enum Observation {
+    /// The core placed the read.
+    Placed(Box<CompletedObservation>),
+    /// The core could not place the read (SRS-SAMPLE-029); its integrity and
+    /// callability are kept for a rejection record.
+    Unplaced {
+        rejection: PlacementRejection,
+        error: Error,
+        sanger: Box<SangerRejection>,
+    },
 }
 
 /// Runs the shared read, alignment, and variant stages for one trace.
@@ -30,17 +43,21 @@ pub(crate) fn build(
         &config.sanger,
         config.core.variant_calling.read_end_margin,
     )?;
-    observe(trace, processed, reference, config, profile)
+    match observe(trace, processed, reference, config, profile)? {
+        Observation::Placed(completed) => Ok(*completed),
+        Observation::Unplaced { error, .. } => Err(error),
+    }
 }
 
-/// Runs the alignment and variant stages for one processed read.
+/// Runs the alignment and variant stages for one processed read; a read the
+/// core cannot place is an [`Observation::Unplaced`] rather than an error.
 pub(crate) fn observe(
     trace: &Chromatogram,
     processed: ProcessedRead,
     reference: &Reference,
     config: &Config,
     profile: &Profile,
-) -> Result<CompletedObservation> {
+) -> Result<Observation> {
     let ProcessedRead {
         calls,
         signal,
@@ -71,7 +88,7 @@ pub(crate) fn observe(
         relative_quality_threshold = config.sanger.sanger_evidence.relative_quality_threshold,
     );
     drop(stage);
-    let called = read_call::call_read(
+    let called = match read_call::call_read(
         ReadIdentity {
             input_name: trace.source_name.clone(),
             input_sha256: trace.source_sha256.clone(),
@@ -83,7 +100,22 @@ pub(crate) fn observe(
             configuration_sha256: &config.source_sha256,
             regions: &profile.regions,
         },
-    )?;
+    ) {
+        Ok(called) => called,
+        Err(error) => {
+            let Some(rejection) = PlacementRejection::of(&error) else {
+                return Err(error);
+            };
+            return Ok(Observation::Unplaced {
+                rejection,
+                error,
+                sanger: Box::new(SangerRejection {
+                    integrity: signal.integrity,
+                    callability,
+                }),
+            });
+        }
+    };
 
     let excluded_variant_candidates = called.variants.excluded_count();
     let reference_origin_wrap = called.alignment.wraps_origin;
@@ -108,7 +140,7 @@ pub(crate) fn observe(
         );
     }
 
-    Ok(CompletedObservation {
+    Ok(Observation::Placed(Box::new(CompletedObservation {
         read: ReadObservation {
             called,
             sanger: SangerAttachment {
@@ -119,5 +151,5 @@ pub(crate) fn observe(
             },
         },
         warning_total,
-    })
+    })))
 }

@@ -9,19 +9,11 @@ pub enum SignalError {
     /// Locus windows could not be built.
     #[error("{0}")]
     LocusWindow(LocusWindowError),
-    /// The read has fewer calls than one feature window.
+    /// The read has fewer calls than one feature window (SRS-SIG-007).
     #[error("{calls} calls are fewer than window_size_bases {window}")]
     TooFewCalls {
         /// Call count.
         calls: usize,
-        /// Configured window size in bases.
-        window: usize,
-    },
-    /// The trace has fewer loci than one feature window.
-    #[error("{loci} loci are fewer than window_size_bases {window}")]
-    TooFewLoci {
-        /// Locus count.
-        loci: usize,
         /// Configured window size in bases.
         window: usize,
     },

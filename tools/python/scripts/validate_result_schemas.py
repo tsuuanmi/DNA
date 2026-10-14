@@ -407,18 +407,38 @@ def validate_read_callability(paths: list[Path], errors: list[str]) -> None:
                 )
 
 
+def validate_short_rejection(
+    rejection: dict[str, Any], label: str, errors: list[str]
+) -> None:
+    """Check that a too-short read has fewer calls than its minimum."""
+    calls = rejection.get("calls")
+    minimum_calls = rejection.get("minimum_calls")
+    if (
+        isinstance(calls, int)
+        and isinstance(minimum_calls, int)
+        and calls >= minimum_calls
+    ):
+        errors.append(f"{label}: too-short read reaches minimum_calls")
+
+
+def validate_consensus_rejections(
+    document: dict[str, Any], label: str, errors: list[str]
+) -> None:
+    """Check the counts of a consensus document's too-short rejected reads."""
+    rejected = document.get("rejected_reads")
+    if not isinstance(rejected, list):
+        return
+    for read in rejected:
+        rejection = read.get("rejection") if isinstance(read, dict) else None
+        if isinstance(rejection, dict) and rejection.get("reason") == "too_short":
+            validate_short_rejection(rejection, label, errors)
+
+
 def validate_rejection(read: dict[str, Any], label: str, errors: list[str]) -> None:
     """Check that a rejected read's counts agree with its callability view."""
     rejection = read.get("rejection")
     if isinstance(rejection, dict) and rejection.get("reason") == "too_short":
-        calls = rejection.get("calls")
-        minimum_calls = rejection.get("minimum_calls")
-        if (
-            isinstance(calls, int)
-            and isinstance(minimum_calls, int)
-            and calls >= minimum_calls
-        ):
-            errors.append(f"{label}: too-short read reaches minimum_calls")
+        validate_short_rejection(rejection, label, errors)
         return
     callability = read.get("callability")
     integrity = read.get("integrity")
@@ -760,14 +780,6 @@ def rejected_sample_shapes(
         observation["state"] = "reference"
         observation["base"] = all_reference_locus["locus_differences"][0]["reference"]
 
-    rejected_with_alignment = copy.deepcopy(example)
-    rejected_with_alignment["rejected_reads"][0]["alignment"] = copy.deepcopy(
-        example["reads"][0]["alignment"]
-    )
-    rejected_with_unknown_reason = copy.deepcopy(example)
-    rejected_with_unknown_reason["rejected_reads"][0]["rejection"]["reason"] = "noisy"
-    missing_rejected_reads = copy.deepcopy(example)
-    missing_rejected_reads.pop("rejected_reads")
     short_index, callable_index = (
         next(
             index
@@ -776,6 +788,20 @@ def rejected_sample_shapes(
         )
         for reason in ("too_short", "callable_calls_below_minimum")
     )
+    rejected_with_alignment = copy.deepcopy(example)
+    rejected_with_alignment["rejected_reads"][callable_index]["alignment"] = (
+        copy.deepcopy(example["reads"][0]["alignment"])
+    )
+    rejected_with_unknown_reason = copy.deepcopy(example)
+    rejected_with_unknown_reason["rejected_reads"][callable_index]["rejection"][
+        "reason"
+    ] = "noisy"
+    short_with_alignment = copy.deepcopy(example)
+    short_with_alignment["rejected_reads"][short_index]["alignment"] = copy.deepcopy(
+        example["reads"][0]["alignment"]
+    )
+    missing_rejected_reads = copy.deepcopy(example)
+    missing_rejected_reads.pop("rejected_reads")
     short_with_integrity = copy.deepcopy(example)
     short_with_integrity["rejected_reads"][short_index]["integrity"] = copy.deepcopy(
         example["rejected_reads"][callable_index]["integrity"]
@@ -874,6 +900,7 @@ def rejected_sample_shapes(
         ("sample locus retained only by masked observations", all_masked_locus),
         ("sample rejected read with an alignment", rejected_with_alignment),
         ("sample rejected read with an unknown reason", rejected_with_unknown_reason),
+        ("sample too-short read with an alignment", short_with_alignment),
         ("sample without rejected reads", missing_rejected_reads),
         ("sample too-short read with integrity", short_with_integrity),
         ("sample too-short rejection with callable calls", short_with_callable_calls),
@@ -1031,6 +1058,10 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(variants_validator, variants_paths, errors)
     validate_documents(notation_validator, notation_paths, errors)
     validate_documents(consensus_validator, consensus_paths, errors)
+    for path in consensus_paths:
+        document = load_json(path)
+        if isinstance(document, dict):
+            validate_consensus_rejections(document, str(path), errors)
     validate_sample_support_topology(sample_paths, errors)
     validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
 
@@ -1175,6 +1206,19 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(
                 f"expected a rejected read with inconsistent {description} to fail"
             )
+
+    short_consensus = load_json(CONSENSUS_EXAMPLE)
+    for read in short_consensus["rejected_reads"]:
+        if read["rejection"]["reason"] == "too_short":
+            read["rejection"]["calls"] = read["rejection"]["minimum_calls"]
+    short_consensus_errors: list[str] = []
+    validate_consensus_rejections(
+        short_consensus, "synthetic consensus too-short read", short_consensus_errors
+    )
+    if not short_consensus_errors:
+        errors.append(
+            "expected a consensus too-short read reaching its minimum to fail"
+        )
 
     inconsistent_callability = copy.deepcopy(analysis_example)
     inconsistent_callability["read"]["callability"]["masked_calls"] += 1

@@ -22,14 +22,6 @@ pub(super) fn calculate(
 ) -> Result<Vec<LocusEvidence>> {
     let trace = estimates.trace();
     let locus_count = trace.call_count();
-    if locus_count < config.window_size_bases {
-        return Err(SignalError::TooFewLoci {
-            loci: locus_count,
-            window: config.window_size_bases,
-        }
-        .into());
-    }
-
     let locus_windows = locus::windows(trace).map_err(SignalError::LocusWindow)?;
     if locus_windows.len() != locus_count {
         return Err(SignalError::WindowCountMismatch {
@@ -48,8 +40,16 @@ pub(super) fn calculate(
     {
         let context_start = context_start(locus_index, locus_count, config.window_size_bases);
         let context_end = context_start + config.window_size_bases;
-        let context_sample_start = locus_windows[context_start].start;
-        let context_sample_end = locus_windows[context_end - 1].end;
+        let (Some(first), Some(last)) = (
+            locus_windows.get(context_start),
+            context_end
+                .checked_sub(1)
+                .and_then(|end| locus_windows.get(end)),
+        ) else {
+            return Err(SignalError::InconsistentLocus { call: locus_index }.into());
+        };
+        let context_sample_start = first.start;
+        let context_sample_end = last.end;
         let (channel_baselines, channel_noise_sigmas) =
             local_statistics(estimates, context_sample_start, context_sample_end)?;
         let event_position =
@@ -230,7 +230,7 @@ fn context_start(locus_index: usize, locus_count: usize, window_size_bases: usiz
     let left_context = (window_size_bases - 1) / 2;
     locus_index
         .saturating_sub(left_context)
-        .min(locus_count - window_size_bases)
+        .min(locus_count.saturating_sub(window_size_bases))
 }
 
 #[cfg(test)]

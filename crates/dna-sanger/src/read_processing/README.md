@@ -5,7 +5,7 @@ modality-neutral core.
 
 - `mod.rs` runs basecalling, signal processing, callability, and quality
   control for one chromatogram. It decides whether the read can be analyzed at
-  all (rejected reads: `too_short` before any stage, too few callable calls
+  all (rejected reads: the signal-window length check before any stage, too few callable calls
   after callability) and returns the read products with their warning counts.
   Basecall and Variant Analysis both reuse it.
 - `evidence.rs` is the Sanger modality adapter

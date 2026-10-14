@@ -83,7 +83,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                     .rejected
                     .get(&read.input_sha256)
                     .ok_or(ReportError::Inconsistent(
-                        "rejected sample read lacks its Sanger evidence",
+                        "rejected sample read lacks its rejection record",
                     ))?;
             let sanger = rejected.cause.sanger();
             Ok(RejectedSampleReadResult {

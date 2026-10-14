@@ -375,8 +375,10 @@ remain independently versioned and are never silently changed in place.
     revised in place. The rejection reasons gain `too_short`, and a
     `too_short` record in sample evidence has no `integrity` or
     `callability`.
-  - **Rust API:** `dna_sanger::read_processing::too_short` and
-    `dna_sanger::model::signal::ShortRead` are new;
+  - **Rust API:** `dna_sanger::model::signal::ShortRead` (with
+    `ShortRead::of`, which reads the short-read error) is new;
+    `SignalError::TooFewLoci` is removed, because the one length check runs
+    before signal processing;
     `dna_sanger::model::attachment::SangerRejection` no longer carries the
     trace name and SHA-256. In `dna::sample_analysis` (new in this cycle),
     `RejectedRead` carries `input_name` and `input_sha256` beside its
