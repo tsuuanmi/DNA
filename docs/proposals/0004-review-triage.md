@@ -14,242 +14,333 @@ implementation: []
 ## Problem
 
 DNA's [purpose](../requirements/SRS.md#purpose) is to sort sequencing work
-into three outcomes: pass, review, and rerun. It sorts at four levels:
-region, trace, sample, and batch, worked on from the bottom up. Today DNA
-reports the evidence for each decision, but never the decision.
+into pass, review, and rerun. Today DNA reports the evidence for each
+decision but never the decision:
 
-- **Trace evidence.** Callability segments, the callable span, rejected reads
-  with a typed cause, and integrity and SNR annotations.
-- **Region evidence.** Masked calls, eligibility reasons, opposition, and the
-  consensus marks `N`, `contested`, `phase_loss`, and `reference_frame`.
-- **Sample evidence.** Coverage, overlaps, and the variants of the consensus.
+- **trace evidence** — callability, the callable span, rejected reads with a
+  typed cause;
+- **region evidence** — masked calls, eligibility reasons, opposition, and the
+  consensus marks `N`, `contested`, `phase_loss`, `reference_frame`;
+- **sample evidence** — coverage, overlaps, and the consensus variants.
 
 So a reviewer still opens every sample. Nothing says which samples need no
-look, which regions need one, and which traces should go back to the lab.
+look, which regions need one and why, and which traces should go back to the
+lab.
+
+This proposal designs the *system*: concepts, decision flow, rule approval,
+determinism, and what each outcome must deliver. Biological rules such as
+heteroplasmy and run lengths come later, as rules inside this system.
 
 ## Goals
 
-- Build a catalogue of the errors that occur in the data. Give each error
-  class one outcome:
-  - errors DNA can resolve from the evidence → `pass`;
-  - errors DNA cannot resolve, but a reviewer can settle from the traces →
-    `review`;
-  - errors nobody can settle because the trace is too poor or unreliable →
-    `rerun`.
-- Give every sample, trace, and region exactly one outcome: `pass`, `review`,
-  or `rerun`. Attach typed reasons and locations to every outcome.
-- Pass a result only when its evidence meets an explicit, versioned policy.
-- Make rerun decisions from the trace and its coverage. Name the cause, so the
-  lab can choose the action.
-- Measure A % (pass), B % (review), C % (rerun), and the error rate of passed
-  results against ground truth. Use these numbers to rank further work.
+Each outcome carries its own obligation:
+
+- **Pass.** DNA resolves the result by itself. Every pass rests on evidence,
+  and the rule behind it must be tested against ground truth and approved
+  above a set threshold before it may act.
+- **Review.** DNA cannot resolve the result, but a reviewer can settle it from
+  the traces. DNA gives the reviewer the information and insight to decide:
+  - what is uncertain;
+  - the candidate answers;
+  - the evidence for each candidate;
+  - why no rule cleared it.
+
+  A bare list of regions is not enough.
+- **Rerun.** A trace is too poor or unreliable to settle anything. DNA
+  detects the problem from evidence, against thresholds, and
+  deterministically: the same trace always gets the same verdict and cause.
+
+Across all three:
+
+- measure A % (pass), B % (review), C % (rerun), and the error rate of passed
+  results against ground truth;
+- use these numbers to rank further work.
 
 ## Non-goals
 
+- Biological interpretation rules. They plug into this system later as
+  individual rules.
 - Setting the lab's rerun rate. The chemistry sets it; DNA only detects it.
 - Comparing results with reviewers or other tools. Downstream pipelines own
-  that (ADR-0065).
-- Batch, plate, and control decisions across samples. Batch is the top
-  level and comes last; downstream pipelines aggregate it from DNA's
-  per-trace outcomes.
-- Sample swaps. The data cannot show that a sample was swapped.
-- Checking that a sample has all its expected traces. Samples normally do,
-  so DNA needs no primer design for this.
-- Clinical or forensic interpretation of a passed result.
+  comparison (ADR-0065).
+- Batch decisions. Batch is the top level and comes last, and downstream
+  pipelines aggregate it.
+- Sample swaps. The data cannot show a swap.
+- Checking that a sample has all its expected traces. Samples normally do.
 
 ## Evidence and research
 
-Current DNA measurements on held-out reviewer truth (see
-[phase-recovery](../research/phase-recovery/README.md) and
-[point-heteroplasmy](../research/point-heteroplasmy/README.md)):
-
-- **Most remaining errors are in known places.** Calls that are not masked are
-  about 99.98 % right. Remaining errors cluster in dephased poly-C windows
-  (HVS-I 16184–16193, HVS-II 303–315) and at sites with a single callable
-  read. These places can already be told apart, so a cautious pass rule can
-  route them to review.
-- **Point heteroplasmy is common enough to matter.** Reviewers wrote IUPAC
-  codes at about 70 sites in 69 of 640 samples. DNA's consensus never writes
-  them. A pass rule must therefore check for minor signal, or a heteroplasmic
-  sample passes as homoplasmic.
-- **Consensus exactness bounds A.** On the 320-sample evaluation subset, the
-  consensus matches reviewers exactly on 297 samples. A passed sample must be
-  exact, so A is at most that share until the consensus improves.
-
-External practice:
-
-- **Both strands.** Forensic mtDNA guidelines that follow SWGDAM ask for
-  concordant data from both strands across HVS-I and HVS-II. They accept
-  single-strand data only when it is confirmed.
-- **Fit the rerun to the failure.** Core facilities match the rerun to the
-  cause:
-  - off-scale signal → re-inject;
-  - dye blobs → clean up again;
-  - failed or weak reaction → fix the template and sequence again;
-  - mixed template from the first base → PCR again, or extract again.
-
-  Repeating the same reaction rarely fixes a failure.
-
-## Brainstorm and review outcome
-
-The draft was reviewed on 2026-10-14. The points below record what was
-agreed, what was dropped, and what is still open.
-
-### The error catalogue comes first
-
-Not every error can be fixed, and a rerun does not fix every error. So the
-first step is a catalogue of error classes, each with an outcome:
-
-- **Resolved by DNA → pass.** For example, a call that one read gets wrong but
-  clean reads from both strands oppose.
-- **Settled by review.** Biological states belong here, because running them
-  again gives the same picture: length heteroplasmy in the C-tracts and point
-  heteroplasmy. So do technical limits that a reviewer can settle from the
-  traces, such as a run length that no read shows.
-- **Rerun.** A trace too poor or unreliable to settle anything: a failed or
-  weak reaction, a read with too few callable calls, a read that cannot be
-  placed.
-
-A `review` reason therefore carries a class: technical, biological, or
-convention. A `rerun` names its cause, and the lab chooses the action
-(re-inject, clean up again, sequence again, PCR again). Core facilities match
-the action to the cause, and repeating the same reaction rarely helps.
-
-### A bad trace does not always need a rerun
-
-A rejected read whose regions other reads already cover cleanly needs no
-rerun. DNA keeps two things apart:
-
-- `trace quality` — a diagnostic for lab QC;
-- `rerun required` — the sample cannot pass or be reviewed without a better
-  trace.
-
-### Mixed samples
-
-DNA cannot see a sample swap, so swaps are out of scope. It can see a mixed
-sample when the traces of one sample disagree too much: reads that disagree
-outside the repeat windows, or a read mixed from its first base. A mixed
-sample goes to review or rerun with its own reason.
-
-### Levels, bottom up
-
-The levels form a matrix, not a tree: traces cut across regions. The work goes
-from the lowest level up:
-
-1. **Region.** Decided from all clean observations of the region: pass,
-   review with reasons and positions, or rerun naming the traces that would
-   close the gap. Regions are the profile's reportable regions (HVS-I, -II,
-   -III), with flagged intervals and sites inside them.
-2. **Trace.** Decided from one trace's signal and placement, and from whether
-   its regions need it.
-3. **Sample.** Pass only if every region passes and no sample-level reason
-   such as mixing fires. Otherwise review or rerun, carrying the reasons up.
-4. **Batch.** Many failing traces in one run, plate, or capillary point at the
-   run. Downstream pipelines aggregate this. DNA can help by carrying the
-   ABIF run and well identity in its trace result.
-
-Reviewers work at site level, so B is counted as flagged sites per sample as
-well as flagged samples.
-
-### "Not called" is not "reference"
-
-A region passes only when every target position is read cleanly. Rejected
-reads and masked calls can leave a position with no clean reading. A silent
-gap must never pass as "no variant".
-
-### What "pass" must mean
-
-A region normally needs clean, concordant data from both strands to pass, as
-in forensic mtDNA practice. Exceptions are still to be discussed. A starting
-policy, to be validated and never weakened silently:
-
-- every target position in the region is in the consensus, with no `N` and
-  no `contested` site;
-- clean, concordant observations from both strands;
-- no masked, `phase_loss`, or `reference_frame` run in the region;
-- no minor-channel signal above the heteroplasmy threshold after shadow
-  correction;
-- no opposition from a clean observation, and no conformance finding.
-
-Rules that cost passes but catch no errors can be relaxed later, with
-evidence, one class at a time. That is how B goes down.
-
-### Error rate of passed results
-
-This is the main safety metric; A, B, and C come second. It is measured
-against ground truth.
-
-- **Sample size.** If no errors appear in *n* passed samples, the 95 % upper
-  bound on the error rate is about 3/*n*. Showing below 1 % takes at least
-  300 passed, error-free samples; below 0.1 % takes about 3,000. The current
-  evaluation sets can support the first claim, not the second.
-- **Imperfect truth.** Reviewer truth is not perfect. Where DNA and reviewers
-  disagree, a third read is needed before the case counts against a pass.
-- **Reason codes.** Every flag has a reason code. B can then be split by
-  reason and worked on by count ([ROI ranking](roadmap.md)). Reviewer
-  decisions on flagged regions, collected downstream, become the next
-  evaluation truth.
+- **[Review-triage research](../research/review-triage/README.md).** Clinical
+  autoverification, selective classification, vendor trace metrics, and lab
+  rerun practice.
+- **DNA measurements on held-out reviewer truth.**
+  - Unmasked calls are about 99.98 % right; errors cluster where reads
+    dephase and where only one read is callable. Those places can already be
+    told apart, so a cautious system can route them to review.
+  - The consensus matches reviewers exactly on 297 of 320 evaluation samples.
+    A passed sample must be exact, so A is at most that share until the
+    consensus improves.
 
 ## Proposed design
 
-Sketch only; an ADR fixes it.
+### Concepts
 
-- **Outcome type.** An outcome is `pass`, `review`, or `rerun`, with a list of
-  typed reasons. Each reason carries:
-  - a level and a location;
-  - a class (technical, biological, convention);
-  - for a rerun, the cause.
-- **Ownership.**
-  - **Sanger plugin:** trace-intrinsic reasons that are about the chemistry.
-  - **Core:** region and sample outcomes over the consensus and `ReadEvidence`,
-    with no modality types.
-  - **Policy:** the target profile and configuration, versioned with the
-    result.
-- **Contract.** Two options are open:
-  - a `triage` section in `dna.consensus`;
-  - a separate `dna.triage/v1` document from a `triage` command over the
-    sample's results.
-- **Determinism.** The same inputs and policy always give the same outcome.
+| Concept | Meaning |
+|---|---|
+| **finding** | A typed fact DNA detects at one level and location, with the evidence values that triggered it. Example: "trace HV2F has 38 % callable calls, threshold 60 %". |
+| **rule** | A named, versioned check. It either raises a finding, or clears one with evidence. Each rule has a lifecycle state. |
+| **policy** | The set of active rules and their thresholds, with a version. It belongs to the configuration or target profile. |
+| **outcome** | `pass`, `review`, or `rerun` for a region, trace, or sample, with its findings and the policy version. |
+
+**Pass is an allow-list.** A region passes only when positive evidence is
+present (every position read cleanly from both strands) and every finding is
+cleared by an active rule. A finding type that no rule clears goes to review,
+so a new or unknown problem can never pass silently.
+
+### Finding catalogue
+
+The catalogue is the first deliverable. Names are illustrative. Each finding
+has a default outcome, and a rule may change that outcome only after it is
+approved.
+
+| Level | Finding | Detected from (today) | Default |
+|---|---|---|---|
+| trace | `unreadable` | ABIF decode failure | poor |
+| trace | `weak` | too few callable calls (SRS-CALL-009) | poor |
+| trace | `short` | callable span below threshold | poor |
+| trace | `mixed_start` | mixed segment from the first callable call | poor |
+| trace | `unplaced` | placement rejection (SRS-SAMPLE-029) | poor |
+| region | `gap` | target position with no clean observation (consensus `N`) | review, or rerun if a poor trace was meant to cover it |
+| region | `one_strand` | position read cleanly by one strand only | review, or rerun if the other strand's trace is poor |
+| region | `conflict` | contested site, or a call opposed by a clean observation | review |
+| region | `unread_run` | masked run, `phase_loss` or `reference_frame` length | review |
+| region | `minor_signal` | second allele signal above threshold | review |
+| region | `convention` | conformance finding | review |
+| sample | `mixture` | traces of the sample disagree beyond a threshold | set by policy |
+
+A *poor* trace is a diagnostic, not yet a rerun. A rerun is required only when
+a region cannot pass or be reviewed without a better trace.
+
+### Decision flow
+
+The work goes from the lowest level up: region, then trace, then sample. The
+batch level is aggregated downstream.
+
+```mermaid
+flowchart TD
+  IN[Traces of one sample] --> TC[Trace checks]
+  TC -->|usable| EV[Consensus and region evidence]
+  TC -->|poor| PL[Poor traces with cause]
+  EV --> RD[Region decisions]
+  PL --> RD
+  RD --> SD[Sample decision]
+  SD --> OUT[Outcome, findings, review packet, rerun list]
+  OUT -.-> BA[Batch aggregation, downstream]
+```
+
+**Trace checks** run on one trace alone, so they can run as soon as the trace
+exists:
+
+```mermaid
+flowchart TD
+  T[Trace] --> D{Decodes?}
+  D -- no --> P1[poor: unreadable]
+  D -- yes --> C{Callable calls above threshold?}
+  C -- no --> P2[poor: weak]
+  C -- yes --> S{Callable span above threshold?}
+  S -- no --> P3[poor: short]
+  S -- yes --> M{Mixed from the first callable call?}
+  M -- yes --> P4[poor: mixed_start]
+  M -- no --> L{Placed on the reference?}
+  L -- no --> P5[poor: unplaced]
+  L -- yes --> U[usable: callable span and masks]
+```
+
+**Region decision:**
+
+```mermaid
+flowchart TD
+  R[Region] --> G{Every position read cleanly?}
+  G -- no --> GP{Was a poor trace meant to cover the gap?}
+  GP -- yes --> RR[rerun: trace and cause]
+  GP -- no --> V1[review: gap]
+  G -- yes --> B{Both strands clean everywhere?}
+  B -- no --> BP{Is the other strand's trace poor?}
+  BP -- yes --> RR
+  BP -- no --> V2[review: one_strand]
+  B -- yes --> F{Open findings?}
+  F -- none --> OK[pass]
+  F -- some --> A{Is every finding cleared by an active rule?}
+  A -- yes --> OK2[pass, with clearances recorded]
+  A -- no --> V3[review: findings and packet]
+```
+
+**Sample decision.** The worst outcome wins, in the order
+rerun > review > pass. Every finding is kept, so review items survive a rerun
+request.
+
+```mermaid
+flowchart TD
+  S[Sample] --> MX{Mixture finding?}
+  MX -- yes --> PM[outcome set by the mixture rule]
+  MX -- no --> R1{Any region needs a rerun?}
+  R1 -- yes --> O1[rerun: listed traces; review items kept]
+  R1 -- no --> R2{Any region needs review?}
+  R2 -- yes --> O2[review: ordered packet]
+  R2 -- no --> O3[pass]
+```
+
+### Rule lifecycle and approval
+
+Only an `active` rule changes an outcome. Every other state is reported but
+does not act. DNA already worked this way when callability was observation
+only first and acted only after measurement (ADR-0067).
+
+```mermaid
+stateDiagram-v2
+  [*] --> draft
+  draft --> shadow: implemented, reported only
+  shadow --> validated: meets its target on held-out ground truth
+  validated --> active: signed off, policy version bumped
+  active --> shadow: audit or regression finds a defect
+  active --> retired
+  shadow --> retired
+```
+
+Approval targets differ by outcome:
+
+| Rule kind | Approval target on held-out ground truth | Also reported |
+|---|---|---|
+| pass (clears a finding) | zero known errors, and an upper bound on the error rate at or below the policy target | gain in A |
+| rerun (marks a trace poor) | precision at or above the target: a flagged trace truly could not settle its region | recall; C |
+| review (raises a finding) | none needed, because review is the safe default | share of items where DNA's leading candidate matched the reviewer |
+
+Data discipline:
+
+- **Tune** thresholds on a development set.
+- **Approve** on a disjoint held-out set. Today these are the evaluation and
+  fresh subsets.
+- **Never tune on the approval set.** With zero errors in *n* passed samples,
+  the 95 % upper bound on the error rate is about 3/*n*.
+- **Audit after go-live.** Sample a share of passed results for audit review,
+  so drift shows up as defects.
+
+Each approval is a record of:
+
+- the rule and its version;
+- the dataset identity;
+- the metrics;
+- the approver and the date.
+
+The record belongs with the release evidence (ADR-0018).
+
+### Determinism
+
+- **Reproducible.** The same traces, configuration, policy version, and DNA
+  version give a byte-identical outcome.
+- **Order-free.** The outcome does not depend on the order or file names of
+  the traces. Property tests check this.
+- **Exact thresholds.** Thresholds are fixed values with a documented
+  comparison (`>=` or `>`) and rounding. A finding records the measured
+  value, the threshold, and the margin between them, so near misses are
+  visible.
+- **Canonical order.** Findings and reasons are listed in a canonical order.
+
+### Review packet
+
+A review item tells the reviewer what to decide and gives the evidence for
+it:
+
+- **Question.** The location (region, site, or interval), and what is
+  uncertain.
+- **Candidates.** The possible answers, with DNA's leading candidate if it
+  has one.
+- **Evidence per candidate.** Which reads and strands support it, their
+  quality, peak ratios, and callability state.
+- **Why not passed.** Which finding is open, and which rules did not clear it
+  and by what margin.
+- **Where to look.** Trace names and scan positions, so a viewer can jump to
+  the chromatogram.
+- **Priority.** Items ordered by expected impact, for example a site that
+  changes the haplotype before a convention note.
+
+Reviewer answers, collected downstream as structured choices among the
+candidates, become ground truth. That truth is what later promotes a review
+rule to a pass rule, which is how B goes down.
+
+### Rerun request
+
+A rerun names:
+
+- the trace;
+- the cause (a finding code that the lab can map to an action such as
+  re-inject, clean up again, or PCR again);
+- the evidence values and thresholds;
+- the regions that need the trace.
+
+### Ownership and contract
+
+- **Sanger plugin:** trace findings that depend on the chemistry.
+- **Core:** region and sample decisions over the consensus and
+  `ReadEvidence`, with no modality types.
+- **Policy:** configuration or the target profile, versioned and recorded in
+  every outcome.
+- **Contract:** open. Either a `triage` section in `dna.consensus`, or a
+  separate `dna.triage/v1` document from a `triage` command over a sample's
+  results.
+
+### Decisions so far
+
+Agreed in review on 2026-10-14:
+
+- the error catalogue comes first;
+- the levels are region, trace, sample, and batch, worked from the bottom up;
+- a pass normally needs both strands, with exceptions to be discussed;
+- sample swaps and missing traces are out of scope;
+- mixtures are detectable when the traces of a sample differ too much.
 
 ## Alternatives considered
 
-- **Leave triage to downstream pipelines.** Rejected as the main path. The
-  pass decision needs DNA's evidence types (masks, run structure, profiles),
-  and downstream rules would copy them. Downstream still owns batch rules,
-  controls, and comparison.
+- **Leave triage to downstream pipelines.** Rejected as the main path. A pass
+  needs DNA's evidence types (masks, run structure, profiles), and downstream
+  rules would copy them. Downstream still owns batch, controls, and
+  comparison.
 - **One score with a threshold.** Rejected. A score hides the reason, cannot
-  name a rerun cause, and is not calibrated (SRS-QC-002).
-- **Sample-level outcomes only.** Rejected. Reviewers and the lab act on
-  regions and traces.
+  name a rerun cause, cannot be approved rule by rule, and DNA's quality is
+  not calibrated (SRS-QC-002).
+- **Pass as "no finding raised" (deny-list).** Rejected. An unknown problem
+  would pass. Pass needs positive evidence plus clearance (allow-list).
+- **Sample-level outcomes only.** Rejected. Reviewers act on regions and the
+  lab acts on traces.
 
 ## Validation plan
 
 - **Phase 0, before any code.**
-  - Build the error catalogue from the ground-truth disagreements and the
-    rejected reads of the evaluation and fresh subsets. Give each class an
-    outcome and a count.
-  - A downstream research script then applies the draft pass policy to the
-    existing `dna consensus` and `dna sample` results of the same subsets. It
-    reports A, B, and C with flagged sites per sample, the errors that leak
-    into pass, and the truth sites that a pass would hide.
+  - Build the finding catalogue from the ground-truth disagreements and the
+    rejected reads of the evaluation and fresh subsets, with counts per
+    finding.
+  - A downstream research script applies the draft flow to the existing
+    `dna consensus` and `dna sample` results. It reports A, B, and C, flagged
+    sites per sample, errors that leak into pass, and truth sites that a pass
+    would hide.
 
-  This decides whether the policy is worth building.
-- **Acceptance.** Zero known errors in passed results on the ground-truth
-  held-out sets.
-  Report the upper bound with the set size, and keep the result stable on a
-  disjoint set.
-- **Rerun decisions.** Compare with lab rerun records, where available, for
-  the precision and recall of `rerun`.
+  This decides whether the system is worth building.
+- **Per rule.** The approval targets above, on held-out ground truth.
+- **System.** Property tests for determinism and order independence, and a
+  regression check that the outcomes of the approval set do not change
+  without a policy version bump.
+- **After go-live.** An audit sample of passed results.
 
 ## Rollout and rollback
 
-To be decided after phase 0. Outcomes are new output and do not change any
-call. Rollback means not emitting them.
+Outcomes are new output and do not change any call. Rules start in `shadow`
+and act only after approval. Rollback means returning a rule to `shadow`, or
+not emitting outcomes.
 
 ## Observability and operations
 
-Outcome counts and reason counts per run go to the operational log. Batch
-summaries belong to downstream pipelines.
+Outcome and finding counts go to the operational log. Batch summaries and
+audit sampling belong to downstream pipelines.
 
 ## Security and privacy
 
@@ -262,14 +353,16 @@ New contract fields or a new document version; no migration is needed.
 
 ## Open questions
 
-1. Which exceptions, if any, allow a region with single-strand data to pass?
-   Both strands are the default.
-2. Should a pass ever cover length heteroplasmy recorded by convention (the
-   HVS-I C-tract), or must that always go to review?
-3. How far must the traces of one sample disagree before the sample counts as
-   mixed?
-4. What error rate of passed results is acceptable for this lab, and how many
-   ground-truth samples are needed to show it?
+1. What error-rate target and confidence should pass rules meet, and how many
+   ground-truth samples does that need?
+2. Who signs off a rule, and where does the approval record live?
+3. Which share of passed results goes to audit after go-live?
+4. A triage section in `dna.consensus`, or a separate document and command?
+5. Should trace checks run before the sample is complete, as a trace-level
+   command?
+6. Which exceptions, if any, allow a region read by one strand to pass?
+7. How far must the traces of one sample disagree to count as a mixture, and
+   is a mixture a review or a rerun?
 
 ## Decision
 
