@@ -29,9 +29,10 @@ facade re-exports exactly these public items from them:
 Types follow one evolution rule:
 
 - results that only the library produces (`VariantAnalysisResult`,
-  `SampleAnalysis`, `RejectedRead`, `VariantNormalizationResult`,
-  `VariantNomenclatureResult`) and the enums `VariantKind`, `RejectionCause`,
-  `NormalizationPolicy`, `cli::Command`, and `error::Error` are
+  `SampleAnalysis`, `RejectedRead`, `ConsensusCall`, `NotationCall`,
+  `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
+  `VariantKind`, `RejectionCause`, `NormalizationPolicy`, `cli::Command`, and
+  `error::Error` are
   `#[non_exhaustive]`, so fields and variants can be added without a breaking
   change; callers read their fields and match enums with a wildcard arm;
 - the plugin-crate records re-exported by `sample_analysis` are the crates'
@@ -258,8 +259,58 @@ impl RejectionCause {
 `reads` and `rejected` are keyed by read content SHA-256, the identity the
 core records use. Every coordinate field names its base (`_0based`,
 `_1based`, `_0based_exclusive`). The published projections of these records
-are `dna.sample_evidence/v10` and `dna.consensus/v1`; notation is not part of
-this result and stays a separate capability.
+are `dna.sample_evidence/v10` and `dna.consensus/v1`. Notation is not part of
+this result; the consensus call below derives it.
+
+### Consensus call
+
+`SampleAnalysis::call` completes the recommended per-sample workflow,
+`consensus` then `call` ([workflow](consensus.md#workflow)), in process:
+
+```rust
+impl SampleAnalysis {
+    pub fn call(&self, sample_id: &str) -> dna::error::Result<ConsensusCall>;
+}
+```
+
+It validates the sample identifier, renders the consensus FASTA `dna
+consensus` would publish for that sample, and calls its records as `dna call`
+reads them from that file, with the configuration, profile, and reference of
+the analysis. It fails where `call` would fail, for example when the consensus
+has no segment. Like `analyze_sanger`, it opens no log, derives no output path,
+serializes nothing, and publishes nothing. A caller that runs many samples in
+parallel calls `analyze_sanger` with `NonZeroUsize::MIN` workers, then `call`.
+
+```rust
+#[non_exhaustive]
+pub struct ConsensusCall {
+    pub callable_segments: Vec<ReferenceSegment>,
+    pub notation: Option<Vec<NotationCall>>,
+}
+
+#[non_exhaustive]
+pub struct NotationCall {
+    pub position: usize,
+    pub ordinal: usize,
+    pub reference: Option<char>,
+    pub alternate: Option<char>,
+    pub text: String,
+}
+```
+
+- `callable_segments` holds the reference intervals the consensus sequences
+  cover with callable bases (zero-based, half-open), in consensus read order:
+  the `callable_reference_segments` of the `dna.variants/v1` reads.
+  `ReferenceSegment` is the type of `variant_analysis`, re-exported from
+  `sample_analysis`.
+- `notation` holds the sample's calls in the profile notation, distinct and in
+  reference order: the `notation.calls[].call` values of the `dna.variants/v1`
+  document `dna call` would publish. It is `None` when the profile declares no
+  notation. Each call gives the 1-based `position` of the changed base (or of
+  the base an insertion follows), the insertion `ordinal` (`0` for a
+  substitution or deletion), the `reference` base (`None` for an inserted
+  base), the called `alternate` base (`None` for a deleted base), and the
+  rendered `text` (`16189C`, `309.1C`, `249DEL`).
 
 ## Variant Normalization
 
@@ -428,7 +479,9 @@ never install a subscriber, write files, or print. `analyze_sanger` opens one
 `info` span per scientific stage, in order and not nested in one another
 (`basecalling`, `signal_processing`, `callability`, `quality_control`,
 `read_evidence`, `alignment`, `variant_calling`), and emits one structured completion event per stage plus
-`warn` events for removed variant candidates and warning summaries. Span names
+`warn` events for removed variant candidates and warning summaries.
+`SampleAnalysis::call` emits the stage events and the `nomenclature` span of
+the `call` command, without its `input_loading` and `reporting` spans. Span names
 are stable; event fields are operational detail and may grow.
 
 `sample_analysis::analyze_sanger` runs each read's stages, with the same spans,

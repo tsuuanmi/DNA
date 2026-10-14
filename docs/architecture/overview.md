@@ -47,7 +47,7 @@
 | `alignment` | core | current profile-aware pairwise placement/orientation of `ReadEvidence` | variant extraction, input-format parsing, modality types |
 | `variant_calling` | core | evidence-backed differences, mapping, allele anchoring, core eligibility gates, reporting modality vetoes and mask reasons | target nomenclature, genotype/clinical interpretation, modality types |
 | `variant_analysis` | dna | Sanger one-read composition (modality plus core) and the public Variant Analysis capability | CLI logging/JSON publication |
-| `sample_analysis` | dna | the sample placement pass (each trace placed once, reads run concurrently), its aggregation and consensus, and the public Sample Analysis capability | CLI logging/JSON publication, notation |
+| `sample_analysis` | dna | the sample placement pass (each trace placed once, reads run concurrently), its aggregation and consensus, and the public Sample Analysis capability, whose consensus call (`SampleAnalysis::call`, implemented in `pipeline`) completes the `consensus` then `call` workflow in process | CLI logging/JSON publication, comparison with truth |
 | `read_call` | core | the core's one-read path from `ReadEvidence` to a `CalledRead`, and the core-owned configuration | modality types |
 | `sample` | core | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
 | `consensus` | core | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |
@@ -66,13 +66,19 @@ DNA is a Cargo workspace of plugin-family crates
 - `dna-core` is the core caller;
 - `dna-sanger` is the Sanger modality;
 - `dna-post` holds the post-calling plugins;
-- the `dna` facade at the repository root composes them.
+- the `dna` facade at the repository root composes them;
+- `dna-eval` is the evaluation harness: it runs DNA over a test panel through
+  the facade's library and compares the calls with reviewer truth
+  ([ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md)). It is
+  not part of the `dna` binary or the release.
 
 The Crate column above uses the short names. The plugin crates depend only on
-`dna-kernel`, and only `dna` composes them. Each plugin owns its configuration
-sections and its descriptor. CI enforces the crate graph and an acyclic module
-graph within each crate with `validate_module_layers.py`, and tests each plugin
-crate on its own.
+`dna-kernel`, and only `dna` composes them. The harness may depend on `dna` and
+the plugin crates; no crate depends on the harness, and truth formats and
+comparison live nowhere else (SRS-COMPAT-003). Each plugin owns its
+configuration sections and its descriptor. CI enforces the crate graph and an
+acyclic module graph within each crate with `validate_module_layers.py`, and
+tests each plugin crate on its own.
 
 Dependencies point toward shared model/config/error and capability boundaries;
 cycles are forbidden.

@@ -37,7 +37,8 @@ Use this map to find current rationale without treating the chronological ADR li
 | release/readiness | ADR-0018, ADR-0021 | release operations + roadmap/validation evidence |
 | documentation governance | ADR-0006 → ADR-0022 | documentation governance + source-local README policy |
 | modular analysis/public API boundaries | ADR-0058 → ADR-0069 → ADR-0070 | proposals + architecture/design/reference as implemented |
-| crate structure | ADR-0002 → ADR-0064 → ADR-0070 | `crates/README.md` + engineering docs |
+| crate structure | ADR-0002 → ADR-0064 → ADR-0070, ADR-0075 (evaluation harness crate) | `crates/README.md` + engineering docs |
+| comparison with reviewer truth and other tools | ADR-0065 → ADR-0075 | SRS-COMPAT-003 + [evaluation harness](../../validation/evaluation-harness.md) |
 | plugin families and the modality → core evidence contract | ADR-0069 (supersedes ADR-0058 §4 and ADR-0060 §1/§6 in part) | PROP-0002 + interface architecture + variant-calling method |
 | ecosystem reuse / dependency implementation policy | ADR-0059 | SRS-NFR + dependency policy + owning design |
 | operational logging mechanism | ADR-0007 → ADR-0061 | SRS-OUT-008 + interface architecture |
@@ -101,7 +102,7 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0062](0062-read-callability.md) | Read callability from the read's own calls | Superseded in part by ADR-0067 |
 | [0063](0063-target-profiles.md) | Target knowledge in versioned profiles | Accepted |
 | [0064](0064-crate-ready-module-layering.md) | Crate-ready module layering | Superseded in part by ADR-0070 |
-| [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Accepted |
+| [0065](0065-result-comparison-downstream.md) | Result comparison belongs to downstream pipelines | Superseded in part by ADR-0075 |
 | [0066](0066-python-limited-to-repository-tooling.md) | Python in DNA is limited to repository tooling | Accepted |
 | [0067](0067-signal-derived-read-callability.md) | Signal-derived read callability | Accepted |
 | [0068](0068-variant-opposition-evidence.md) | Variant opposition evidence | Accepted |
@@ -111,3 +112,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0072](0072-run-structure-re-expression-of-masked-repeat-stretches.md) | Run-structure re-expression of masked repeat stretches | Accepted |
 | [0073](0073-sample-consensus.md) | Sample consensus as the adjudication layer | Accepted |
 | [0074](0074-run-structure-consensus.md) | Run-structure consensus and how a run length is known | Accepted |
+| [0075](0075-evaluation-harness-in-workspace.md) | Evaluation harness as a workspace crate | Accepted |

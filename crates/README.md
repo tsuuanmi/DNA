@@ -13,7 +13,12 @@ registry, and the reports.
 | [dna-core](dna-core/src/README.md) | the core caller: alignment, variant calling, sample aggregation | `dna-kernel` |
 | [dna-sanger](dna-sanger/src/README.md) | the Sanger modality: ABIF decoding to `ReadEvidence` | `dna-kernel` |
 | [dna-post](dna-post/src/README.md) | post-calling plugins: representation, normalization, nomenclature, conformance | `dna-kernel` |
+| [dna-eval](dna-eval/src/README.md) | the evaluation harness: panel manifests, reviewer truth, comparison, and reports ([ADR-0075](../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)) | `dna` |
 
 The plugin crates never depend on one another, and only the facade composes
-them. `tools/python/scripts/validate_module_layers.py` enforces this in source
-paths and manifests, and CI tests each crate on its own.
+them. The evaluation harness may depend on the facade and the plugin crates,
+and no crate depends on it; it is the only place for truth formats and
+comparison (SRS-COMPAT-003). It is tested with the workspace but not built for
+or shipped in a release. `tools/python/scripts/validate_module_layers.py`
+enforces this graph in source paths and manifests, and CI tests each plugin
+crate on its own.

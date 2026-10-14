@@ -12,8 +12,10 @@ target-profile identity.
 Core records carry no Sanger evidence
 ([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 `call.rs` projects core-only calls into `dna.variants/v1`, `consensus.rs`
-projects a sample consensus into `dna.consensus/v1` and its FASTA,
-and `notation.rs` renders and projects the per-read notation shared by sample,
+projects a sample consensus into `dna.consensus/v1` and its FASTA (also
+rendered from the consensus alone, with the same record names),
+and `notation.rs` renders the per-read notation once (`calls`, with each call's
+reference and called base and the reads containing it) and projects it for sample,
 call, and notation documents and builds `dna.notation/v1`. `sanger_call.rs` joins a call's reference-strand peaks and
 relative quality, and
 `sample.rs` joins each read's Sanger attachment (integrity, callability,

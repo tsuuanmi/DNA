@@ -156,7 +156,7 @@ notation  -> results/<sample-id>.notation.json
 
 Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
 
-Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066).
+Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066). The library offers the same workflow in process: `dna::sample_analysis::analyze_sanger`, then `SampleAnalysis::call` ([Rust API](docs/reference/rust-api.md#sample-analysis)). For validation, the workspace's evaluation harness `dna-eval` runs DNA over a fixed test panel in process and compares its calls with reviewer truth; it is not part of the `dna` binary or the release ([evaluation harness](docs/validation/evaluation-harness.md), ADR-0075).
 
 ## Output contracts
 
@@ -241,7 +241,7 @@ CI additionally verifies GitHub Actions syntax/security, the declared MSRV, Rust
 
 Tagged `v*` releases rerun required Rust/security gates, require the tagged commit to belong to `main`, build the explicit `x86_64-unknown-linux-gnu` target as an auditable Rust binary, preserve and verify embedded dependency metadata after stripping, bundle the authoritative config, target profiles, and rCRS reference with checksums, generate an SPDX SBOM and SHA-256 checksums, attest the verified artifacts, then publish the supported Linux artifact.
 
-Longer scientific validation—approved real-AB1 ground-truth comparison (run by downstream pipelines on DNA's published results), extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
+Longer scientific validation—approved real-AB1 ground-truth comparison (run by the evaluation harness or by downstream pipelines on DNA's published results), extended fuzzing, and runtime/resource evidence—remains release evidence rather than being conflated with ordinary software CI.
 
 See [CI/CD](docs/engineering/ci-cd.md), [repository governance](docs/governance/repository.md), [release evidence](docs/operations/release-evidence-template.md), [production readiness](docs/operations/production-readiness.md), and [ADR-0018](docs/decisions/adr/0018-production-readiness-release-contract.md).
 

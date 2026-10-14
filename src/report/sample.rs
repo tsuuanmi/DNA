@@ -117,7 +117,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                 .iter()
                 .map(|read| read.input_sha256.as_str())
                 .collect::<Vec<_>>();
-            notation::project(&reference, &identities, &read_names, notation)
+            notation::project(&reference, &identities, &read_names, &notation)
         })
         .transpose()?;
     let reads = evidence

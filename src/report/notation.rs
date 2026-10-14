@@ -113,7 +113,7 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
             },
         )
         .transpose()?;
-    let notation = project(&reference, &identities, &names, notation)?;
+    let notation = project(&reference, &identities, &names, &notation)?;
     Ok(NotationResult {
         schema_version: "dna.notation/v1",
         sample_id,
@@ -146,33 +146,26 @@ pub(super) fn project(
     reference: &Reference,
     identities: &[&str],
     names: &[String],
-    notation: SampleNotation,
+    notation: &SampleNotation,
 ) -> dna_kernel::error::Result<SampleNotationResult> {
-    let SampleNotation { style, reads } = notation;
-    let render = match style {
-        NotationStyle::PerBaseDecimal => render,
-    };
-    let mut calls: BTreeMap<NotationCall, Vec<usize>> = BTreeMap::new();
-    for representation in reads {
-        let read_index = identities
+    let index = |identity: &str| {
+        identities
             .iter()
-            .position(|identity| *identity == representation.input_sha256)
+            .position(|candidate| *candidate == identity)
             .ok_or(ReportError::Inconsistent(
                 "notation references a read missing from the document",
-            ))?;
-        for call in render(
-            &reference.name,
-            &reference.sequence,
-            &representation.variants,
-        )
-        .map_err(ReportError::Representation)?
-        {
-            calls.entry(call).or_default().push(read_index);
-        }
+            ))
+    };
+    for representation in &notation.reads {
+        index(&representation.input_sha256)?;
     }
-    let calls = calls
+    let calls = calls(reference, notation)?
         .into_iter()
-        .map(|(call, mut reads)| {
+        .map(|(call, reads)| {
+            let mut reads = reads
+                .into_iter()
+                .map(index)
+                .collect::<Result<Vec<_>, _>>()?;
             reads.sort_unstable();
             reads.dedup();
             Ok(SampleNotationCallResult {
@@ -190,20 +183,53 @@ pub(super) fn project(
         })
         .collect::<dna_kernel::error::Result<_>>()?;
     Ok(SampleNotationResult {
-        style: style.label(),
+        style: notation.style.label(),
         calls,
     })
 }
 
 /// One rendered per-base call with its reference-order sort key.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct NotationCall {
+pub(crate) struct NotationCall {
     /// 1-based position of the changed base, or of the base an insertion follows.
-    pub(super) position: usize,
+    pub(crate) position: usize,
     /// `0` for substitutions and deletions, `1..` for successive inserted bases.
-    pub(super) ordinal: usize,
+    pub(crate) ordinal: usize,
     /// The rendered call, for example `309.1C`.
-    pub(super) text: String,
+    pub(crate) text: String,
+    /// The reference base; `None` for an inserted base.
+    pub(crate) reference: Option<char>,
+    /// The called base; `None` for a deleted base.
+    pub(crate) alternate: Option<char>,
+}
+
+/// The distinct calls of every read's represented variants, in reference
+/// order, each with the content identities of the reads containing it, in the
+/// notation's read order: the one rendering `project` and the in-process
+/// consensus call build on.
+pub(crate) fn calls<'a>(
+    reference: &Reference,
+    notation: &'a SampleNotation,
+) -> dna_kernel::error::Result<BTreeMap<NotationCall, Vec<&'a str>>> {
+    let render = match notation.style {
+        NotationStyle::PerBaseDecimal => render,
+    };
+    let mut calls = BTreeMap::<NotationCall, Vec<&str>>::new();
+    for representation in &notation.reads {
+        for call in render(
+            &reference.name,
+            &reference.sequence,
+            &representation.variants,
+        )
+        .map_err(ReportError::Representation)?
+        {
+            calls
+                .entry(call)
+                .or_default()
+                .push(&representation.input_sha256);
+        }
+    }
+    Ok(calls)
 }
 
 /// Renders represented variants as per-base calls in reference order.
@@ -214,16 +240,19 @@ pub(super) fn render(
 ) -> Result<Vec<NotationCall>, RepresentationError> {
     let mut edits = variants_to_edits(contig, reference, variants)?;
     sort_edits(&mut edits);
+    let base = |index: usize| reference.as_bytes().get(index).copied().map(char::from);
     let mut calls = Vec::new();
     for edit in edits {
         let deleted = edit.end - edit.start;
         match (deleted, edit.alternate.len()) {
             (0, _) => {
-                calls.extend(edit.alternate.chars().enumerate().map(|(index, base)| {
+                calls.extend(edit.alternate.chars().enumerate().map(|(index, inserted)| {
                     NotationCall {
                         position: edit.start,
                         ordinal: index + 1,
-                        text: format!("{}.{}{base}", edit.start, index + 1),
+                        text: format!("{}.{}{inserted}", edit.start, index + 1),
+                        reference: None,
+                        alternate: Some(inserted),
                     }
                 }));
             }
@@ -231,11 +260,15 @@ pub(super) fn render(
                 position: index + 1,
                 ordinal: 0,
                 text: format!("{}DEL", index + 1),
+                reference: base(index),
+                alternate: None,
             })),
             (1, 1) => calls.push(NotationCall {
                 position: edit.start + 1,
                 ordinal: 0,
                 text: format!("{}{}", edit.start + 1, edit.alternate),
+                reference: base(edit.start),
+                alternate: edit.alternate.chars().next(),
             }),
             _ => return Err(RepresentationError::UnsupportedReplacement),
         }
@@ -278,6 +311,28 @@ mod tests {
         ];
 
         assert_eq!(texts(&variants)?, ["2C", "4.1C", "4.2C", "6DEL", "7DEL"]);
+        Ok(())
+    }
+
+    #[test]
+    fn renders_the_alleles_of_each_call() -> Result<(), RepresentationError> {
+        let variants = [
+            variant(4, "T", "TC", VariantKind::Ins),
+            variant(2, "A", "C", VariantKind::Snv),
+            variant(5, "AC", "A", VariantKind::Del),
+        ];
+        let alleles = render("synthetic", REFERENCE, &variants)?
+            .into_iter()
+            .map(|call| (call.text, call.reference, call.alternate))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            alleles,
+            [
+                ("2C".to_owned(), Some('A'), Some('C')),
+                ("4.1C".to_owned(), None, Some('C')),
+                ("6DEL".to_owned(), Some('C'), None),
+            ]
+        );
         Ok(())
     }
 

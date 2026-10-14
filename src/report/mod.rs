@@ -17,9 +17,11 @@ pub(crate) use basecall::{CompletedBasecall, build as build_basecall};
 pub(crate) use call::{CompletedCall, build as build_call};
 pub(crate) use consensus::{
     CompletedConsensus, build as build_consensus, fasta as consensus_fasta,
+    segments_fasta as consensus_segments_fasta,
 };
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
 pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,
+    calls as notation_calls,
 };
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

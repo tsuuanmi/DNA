@@ -5,7 +5,7 @@ status: draft
 owners: []
 created: 2026-10-14
 related-requirements: [SRS-NFR-003, SRS-NFR-006]
-related-decisions: [ADR-0018, ADR-0065, ADR-0066, ADR-0069]
+related-decisions: [ADR-0018, ADR-0065, ADR-0066, ADR-0069, ADR-0075]
 implementation: []
 ---
 
@@ -131,11 +131,12 @@ make the loop possible they provide:
 
 **Truth and normalisation.**
 
-- **What counts.** The reviewer variants of each sample, inside the analysed
-  intervals. IUPAC sites are scored on their own.
-- **Same notation on both sides.** Both sides pass through DNA's notation
-  plugin, called as a library. A difference in writing alone is then never
-  an error.
+- **What counts.** The reviewer variants of each sample, compared by the
+  lab's concordance rules (primary measure), with a stricter measure on the
+  truth's analysed intervals and an IUPAC-compatible measure beside it
+  ([evaluation harness](../validation/evaluation-harness.md#measures)).
+- **Notation.** The truth side is compared as stored in the database,
+  following `comparison.py`'s rules; DNA's side uses its notation.
 
 **Labels.**
 
@@ -325,9 +326,10 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 
 1. **Inventory and panel v1.** Done, outside the repository (see *Panel
    v1*). The panel scripts move into the harness crate.
-2. **Harness v0.** Stage E reads existing CLI result JSON as its evidence, so
-   DNA needs no change. Stage R reproduces the stage-1 detectors from that
-   JSON for the phase-0 numbers of PROP-0004.
+2. **Harness v0.** Comparison and the run are done (see *Implementation*):
+   stage E calls DNA in process instead of reading CLI result JSON. Next,
+   stage R reproduces the stage-1 detectors for the phase-0 numbers of
+   PROP-0004.
 3. **DNA library calls and evidence record.** Placement once per trace.
 4. **Placement speed-up.** PR #51, measured (see *Panel v1*); review and
    land it, then run a combined `sample` and `consensus` pass, share signal
@@ -362,14 +364,11 @@ Decided 2026-10-14: the harness is a crate in the DNA workspace
 (`crates/`), outside the `dna` binary (option B). This reverses the
 earlier choice of a separate repository.
 
-ADR-0065 stays current until the crate lands. The implementation change must
-then also deliver:
-
-- a successor ADR that supersedes ADR-0065, so that truth adapters and
-  comparison may live in that crate and nowhere else;
-- the matching revision of SRS-COMPAT-003;
-- a crate-graph rule in `validate_module_layers.py`: the harness may depend on
-  `dna` and the plugin crates, and nothing may depend on the harness.
+The crate landed with
+[ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md), which
+supersedes ADR-0065 in part, the matching revision of SRS-COMPAT-003, and the
+crate-graph rule in `validate_module_layers.py`: the harness may depend on
+`dna` and the plugin crates, and nothing may depend on the harness.
 
 ADR-0066 is unaffected; the harness is Rust. The rest of the proposal is not
 yet reviewed.
@@ -385,3 +384,89 @@ yet reviewed.
   with the operation log kept in trace order. On 2,618 development-panel
   samples every `consensus` and `sample` output is byte-identical to the
   previous release.
+
+**Harness v0** (`crates/dna-eval`,
+[evaluation harness](../validation/evaluation-harness.md)):
+
+- **Scope.** It runs DNA, compares the calls with reviewer truth, and
+  reports weighted estimates, anchors, and the diff against a baseline run.
+  The stage-R detectors, the evidence cache, rerun labels, and leaks are not
+  built yet.
+- **Stage E.** Instead of reading CLI result JSON (rollout step 2), it calls
+  the library: `dna::sample_analysis::analyze_sanger` with one worker per
+  sample, then `SampleAnalysis::call`, which completes `consensus` then `call`
+  in process; the harness runs samples on its own scoped thread pool.
+- **Truth.** The lab's statistics database (`statistics.sqlite`, read-only
+  through `rusqlite`), the indexed copy of the merged reviewer results; it is
+  the harness's single truth source.
+- **Comparison.** It adapts the lab's comparison rules (`mtdna_raw`
+  `comparison.py`), DNA as the automated tool A and the truth as tool B, as
+  the primary measure. A strict measure also counts truth alleles inside the
+  truth's analysed intervals where DNA has no callable base, and an
+  IUPAC-compatible measure lets DNA's base match a truth IUPAC code that
+  admits it. This replaces the panel's research scoring ("fair scale"); the
+  differences of the primary measure:
+  - the research scoring kept only tokens inside the truth's analysed
+    intervals on both sides; the lab's rules count every DNA-only allele in
+    HV1–HV3, and a truth-only allele only inside DNA's callable intervals;
+  - the research scoring left out every token at a truth IUPAC position; the
+    lab's rules compare IUPAC alleles like any other, so DNA's major-allele
+    call is discordant;
+  - the lab's rules leave out insertions and deletions at 309, 455, 463, and
+    573 and never compare 309.1, 309.2, and 573.1;
+  - the lab's rules key an allele by position, reference, and alternate, so a
+    truth reference that differs from rCRS (25 truth rows) is a difference;
+  - an empty side is `N/A` rather than exact; insertions belong to their
+    anchor base.
+- **Panel v2** (`dna-eval panel`, 2026-10-15). It keeps every v1 row and
+  names the statistics database and its SHA-256 as the truth. Samples the
+  database lacks are retired and left out of the estimates; their strata share
+  the stratum weight among the remaining samples. Dev: 2,620 rows, 2 retired.
+  Validation: 10,109 rows, 7 retired. No batch differs from the database. The
+  v1 files are unchanged.
+- **Panel v3** (`dna-eval panel`, 2026-10-15). It adds each sample's truth
+  digest and the panel truth digest, so a database refresh that changes no
+  panel sample needs no new version; a run lists the samples whose truth
+  changed and marks itself `truth changed` otherwise. Dev and validation keep
+  the v2 rows and weights; v1 and v2 files are unchanged. On dev v3 every
+  per-sample result equals the v2 run.
+- **Dev panel v2** (2026-10-15, revision 56424be plus this change; the
+  same per-sample results as on revision 348cf13 before the one-pass sample
+  analysis, and as on the database refresh of 2026-10-14 17:31, which changed
+  no panel allele):
+  - **Panel against the truth.** The 2,618 active samples have the same
+    alleles as in the truth file v1 was built from; 2 are not `OK` in their
+    batch.
+  - **Primary.** 1,958 `Y`, 656 `N`, 2 `N/A`, 4 failed (2 traces too short
+    for signal processing, 2 retired without truth). Corpus-weighted
+    not-concordant rate 0.1783 ± 0.0138 (95 %), unweighted 0.2852. 295 of 297
+    anchor candidates are concordant.
+  - **Strict.** 1,818 `Y`, 796 `N`; rate 0.2061 ± 0.0152. 201 samples have
+    666 truth alleles where DNA has no callable base, and 140 samples
+    concordant on the primary measure are not on the strict one; partial
+    traces go from 0.375 to 0.933 not concordant.
+  - **IUPAC-compatible.** 2,219 `Y`, 395 `N`; rate 0.1013 ± 0.0143. It
+    turns exactly the 261 samples whose primary discordance lies only at
+    truth IUPAC alleles concordant; the IUPAC stratum goes from 1.000 to
+    0.130.
+  - **Against the research baseline** (0.1350 ± 0.0159 not exact): 278
+    exact samples are discordant, 247 of them only at truth IUPAC alleles (the
+    whole IUPAC stratum is discordant) and 29 at DNA alleles outside the
+    truth's analysed intervals. 172 not-exact samples are concordant: 107
+    differ only at truth alleles outside DNA's callable intervals, 32 only at
+    special-position indels, and 33 at both.
+  - **Same rules as the lab's code.** Run through `SampleComparator` on the
+    same DNA calls and truth, every one of the 2,616 compared samples gets the
+    same `Y`, `N`, or `N/A` on the primary measure.
+- **Dev panel v3 after the too-short rejection** (revision d171ce3 plus this
+  change, truth unchanged): the 2 samples that failed on a trace too short
+  for signal processing now set that trace aside and are concordant on all
+  three measures; no other sample changes. Primary 1,960 `Y`, 656 `N`, 2
+  `N/A`, 2 failed (the retired samples), rate 0.1779 ± 0.0138; strict 1,820
+  `Y`, rate 0.2057 ± 0.0152; IUPAC-compatible 2,221 `Y`, rate 0.1010 ±
+  0.0143.
+- **Speed.** The dev panel takes 5.5–7 s wall on 64 or 128 threads of the
+  shared server (about 320–800 CPU-seconds, with the one-pass sample analysis
+  at the low end); a first run under a load spike took 20 s.
+- **Determinism.** Every output except the timed `run.json` is
+  byte-identical between 64 and 128 threads.

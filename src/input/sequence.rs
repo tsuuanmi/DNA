@@ -83,6 +83,14 @@ pub(crate) fn load_call(
     })
 }
 
+/// Parses the consensus sequences of one in-memory FASTA document, with the
+/// same record rules and uniqueness checks as a file given to `call`.
+pub(crate) fn from_fasta(bytes: &[u8]) -> Result<Vec<SequenceRead>> {
+    let reads = parse(bytes)?;
+    require_unique(&reads)?;
+    Ok(reads)
+}
+
 /// Loads every record of one FASTA file.
 fn load(path: &Path) -> Result<Vec<SequenceRead>> {
     let metadata = fs::metadata(path).map_err(|source| Error::Read {

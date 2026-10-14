@@ -39,7 +39,10 @@ requirements, adapters, validation, and public contracts are implemented.
 - typed Rust results for public library capabilities;
 - separate append-only operational logs;
 - downstream pipelines orchestrate runs and group, convert, and compare outputs
-  (ADR-0065, ADR-0066); DNA itself does none of that.
+  (ADR-0065, ADR-0066); the `dna` binary and library do none of that. The
+  evaluation harness `dna-eval`, a separate workspace binary, runs DNA over
+  test panels and compares with reviewer truth as validation evidence
+  (ADR-0075).
 
 ## Trust boundary
 

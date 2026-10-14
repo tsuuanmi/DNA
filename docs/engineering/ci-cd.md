@@ -36,7 +36,12 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-featur
 
 The rust-quality job also tests `dna-kernel`, `dna-core`, `dna-sanger`, and
 `dna-post` each on its own, and checks with `cargo tree` that the kernel, core,
-and post-calling crates never reach `dna-sanger` (ADR-0070).
+and post-calling crates never reach `dna-sanger` (ADR-0070) and that neither
+the `dna` facade nor a plugin crate reaches the evaluation harness `dna-eval`
+(ADR-0075). The harness
+is checked, linted, tested, and documented with the workspace; its tests use
+synthetic data only. Release builds name `-p dna`, so the harness is never
+built for or shipped in a release.
 
 Pushes to `main` additionally run `cargo build --locked --release -p dna`.
 
@@ -149,7 +154,7 @@ Checks that cannot be reduced to normal public CI remain release evidence:
 - long fuzz campaigns;
 - performance and peak-memory measurements;
 - approved real-AB1 regression corpus;
-- ground-truth biological comparison and disagreement analysis, performed by downstream pipelines on published results (ADR-0065).
+- ground-truth biological comparison and disagreement analysis, performed by the evaluation harness `dna-eval` on approved data (ADR-0075) or by downstream pipelines on published results (ADR-0065).
 
 A check is added only when its protected failure mode is documented.
 

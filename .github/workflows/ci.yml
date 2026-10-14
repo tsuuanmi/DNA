@@ -67,6 +67,12 @@ jobs:
               exit 1
             fi
           done
+          for crate in dna dna-kernel dna-core dna-sanger dna-post; do
+            if cargo tree --locked -e normal,dev -p "$crate" | grep -q 'dna-eval'; then
+              echo "$crate must not depend on the evaluation harness dna-eval" >&2
+              exit 1
+            fi
+          done
       - name: Rustdoc
         env:
           RUSTDOCFLAGS: -D warnings
