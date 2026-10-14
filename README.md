@@ -4,7 +4,7 @@ DNA is a deterministic Rust platform for DNA analysis. The current production im
 
 The current Sanger capability reads analyzed A/C/G/T chromatogram channels, projects ABIF locus metadata into canonical Sanger loci, re-calls bases from signal, performs read-quality handling, aligns the retained read to a reference, and reports auditable primary-sequence differences through typed Rust results and versioned JSON contracts.
 
-DNA is designed as scientific software rather than as a generic sequence-conversion utility. The goal is not maximum feature count. The goal is to make signal processing, biological interpretation, and software correctness explicit enough to inspect, test, validate, and evolve safely.
+DNA is designed as scientific software rather than as a generic sequence-conversion utility. The goal is not maximum feature count. The goal is to shrink manual review without losing accuracy: results with clear evidence pass, uncertain ones go to review with a reason, and traces whose signal cannot support a result go back to the lab for a rerun. DNA makes these decisions for regions, traces, samples, and batches ([purpose](docs/requirements/SRS.md#purpose)). To get there, signal processing, biological interpretation, and software correctness must be explicit enough to inspect, test, validate, and evolve safely.
 
 ## Design principles
 

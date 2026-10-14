@@ -6,6 +6,8 @@ The roadmap is non-normative. It records current validation priorities and inten
 
 Strengthen evidence-backed confidence in the implemented Sanger analysis path before expanding biological interpretation.
 
+That confidence serves DNA's [purpose](../requirements/SRS.md#purpose): sort regions, traces, and samples into pass, review, and rerun, with more passes, fewer reviews, and no wrong passes. [PROP-0004](0004-review-triage.md) drafts the triage.
+
 The core confidence floor remains the read-level path defined by [ADR-0021](../decisions/adr/0021-scientific-core-confidence-floor.md), but the current supported baseline already includes intentional capabilities beyond that floor. The roadmap does not redefine those capabilities.
 
 ## Architectural evolution
