@@ -25,7 +25,7 @@ DNA makes these decisions at four levels, worked on from the bottom up:
 - **region** — a stretch of the target;
 - **trace** — one read;
 - **sample** — the whole result;
-- **batch** — a run or plate, aggregated by downstream pipelines (ADR-0065).
+- **batch** — a run or plate, aggregated by downstream pipelines (ADR-0066).
 
 The levels are not a tree. A trace covers several regions, and several traces
 cover a region. A sample passes only when all its regions pass, and a region
