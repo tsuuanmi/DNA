@@ -19,6 +19,27 @@ remain independently versioned and are never silently changed in place.
   - `dna sample` and `dna consensus` run the same pass; their documents and
     FASTA are unchanged.
 
+- Evaluation harness `dna-eval` (PROP-0005 harness v0, ADR-0075,
+  SRS-COMPAT-003).
+  - **Crate:** `crates/dna-eval`, a workspace binary outside the `dna` binary
+    and the release. It is the only place for truth formats and comparison;
+    no crate depends on it.
+  - **Run:** it verifies a panel manifest, runs `consensus` then `call` for
+    every sample in process on a thread pool, reads the reviewer truth from
+    the lab's statistics database (read-only, `rusqlite`), and classifies each
+    sample `Y`, `N`, or `N/A` with the lab's comparison rules, plus a strict
+    measure that counts DNA's coverage gaps and an IUPAC-compatible measure.
+  - **Panel versions:** `dna-eval panel` derives a new panel version against
+    the database, keeping every row and retiring samples without truth.
+  - **Outputs:** per-sample comparisons, stratified weighted estimates with
+    95 % intervals, anchors, the diff against a baseline run, a Markdown
+    summary, and a run header
+    ([evaluation harness](docs/validation/evaluation-harness.md)).
+  - **Rust API:** `SampleAnalysis::call(sample_id)` calls a sample
+    analysis's consensus as `dna call` reads the consensus FASTA, completing
+    the recommended `consensus` then `call` workflow in process. It returns a
+    `ConsensusCall`: the callable segments and structured `NotationCall`s
+    (SRS-API-011, SRS-API-012).
 - Sample consensus (PROP-0003 increment 1, ADR-0073, SRS-CONS).
   - **Command:** `dna consensus <sample-id> <trace>... --reference
     <reference.fasta>` adjudicates between a sample's placed reads.

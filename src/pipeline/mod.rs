@@ -9,6 +9,7 @@ mod path;
 mod plugins;
 mod represent;
 mod sample;
+mod sample_call;
 mod sample_metrics;
 
 use std::num::NonZeroUsize;

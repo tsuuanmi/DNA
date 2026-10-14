@@ -106,6 +106,19 @@ timings differ between runs. The library call instead sends each read's
 instrumentation to the caller's dispatcher, inside the caller's span, as it
 happens.
 
+## Consensus call in process
+
+`SampleAnalysis::call` completes the recommended `consensus` then `call`
+workflow without files (SRS-API-012). It rebuilds the consensus document the
+`consensus` command would publish for the given sample identifier, renders its
+FASTA, and parses that FASTA with the record rules of a sequence file given to
+`call`. The records then run the scientific step the `call` command runs
+(`pipeline::call::complete`: the core call of each record, then the notation),
+with the configuration, profile, and reference the analysis loaded. The
+round trip through the FASTA text keeps record names and sequence identities
+equal to those of the two commands. It is implemented in `pipeline`, beside
+the commands it composes, as an inherent method of `SampleAnalysis`.
+
 ## Output boundary
 
 Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, `dna.sample_evidence/v10`, `dna.variants/v1`, and `dna.notation/v1`, including schemas, examples, coordinate semantics, and publication-visible fields.

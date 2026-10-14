@@ -36,7 +36,7 @@ data/validation/ground-truth/
 
 Generated evaluation artifacts under `validation-results/` inherit the same policy because extra/missing/representation rows disclose biological differences.
 
-DNA contains no comparison logic (SRS-COMPAT-003, ADR-0065): reviewer truth is parsed and compared by downstream pipelines that consume DNA's published results, and this storage policy applies to their outputs when they are kept as DNA validation evidence.
+Reviewer truth is parsed and compared only by the evaluation harness `dna-eval` and by downstream pipelines that consume DNA's published results; the `dna` facade and the plugin crates contain no comparison logic (SRS-COMPAT-003, ADR-0065, ADR-0075). This storage policy applies to their outputs, including `dna-eval` run directories, when they are kept as DNA validation evidence.
 
 ## Approval record for real validation evidence
 

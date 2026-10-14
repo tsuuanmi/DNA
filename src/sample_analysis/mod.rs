@@ -3,6 +3,7 @@
 //! One placement pass over a sample's traces yields both the sample evidence
 //! and the consensus, without CLI logging, JSON serialization, or result
 //! publication. The `sample` and `consensus` operations run the same pass.
+//! [`SampleAnalysis::call`] then calls the consensus as `call` would.
 
 pub(crate) mod reads;
 
@@ -19,13 +20,15 @@ use dna_core::model::sample_evidence::RejectedSampleRead;
 use dna_core::sample;
 use dna_kernel::error::Result;
 use dna_kernel::model::reference::Reference;
-use dna_kernel::profile::ProfileIdentity;
+use dna_kernel::profile::{Profile, ProfileIdentity};
 use dna_kernel::variant::ReferenceIdentity;
 
 pub use crate::model::read_observation::{RejectedRead, RejectionCause};
 pub use dna_core::model::consensus::Consensus;
 pub use dna_core::model::sample_evidence::SampleEvidence;
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
+
+pub use crate::variant_analysis::ReferenceSegment;
 
 use reads::{PlacedReads, ReadScope};
 
@@ -50,6 +53,47 @@ pub struct SampleAnalysis {
     /// carries the read's Sanger evidence unless the read was too short to
     /// process.
     pub rejected: BTreeMap<String, RejectedRead>,
+    /// The loaded inputs [`SampleAnalysis::call`] calls the consensus with.
+    pub(crate) inputs: CallInputs,
+}
+
+/// The configuration, profile, and reference an analysis ran with.
+#[derive(Debug, Clone)]
+pub(crate) struct CallInputs {
+    pub(crate) config: Config,
+    pub(crate) profile: Profile,
+    pub(crate) reference: Reference,
+}
+
+/// Typed result of calling a sample's consensus (SRS-API-012).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ConsensusCall {
+    /// Reference intervals the consensus sequences cover with callable bases,
+    /// in consensus read order; `callable_reference_segments` of the
+    /// `dna.variants/v1` reads.
+    pub callable_segments: Vec<ReferenceSegment>,
+    /// The sample's calls in the profile notation, distinct and in reference
+    /// order, as `notation.calls` of `dna.variants/v1`; `None` when the profile
+    /// declares no notation.
+    pub notation: Option<Vec<NotationCall>>,
+}
+
+/// One per-base call in the profile notation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct NotationCall {
+    /// 1-based position of the changed base, or of the base an insertion
+    /// follows.
+    pub position: usize,
+    /// `0` for a substitution or deletion, `1..` for successive inserted bases.
+    pub ordinal: usize,
+    /// The reference base; `None` for an inserted base.
+    pub reference: Option<char>,
+    /// The called base; `None` for a deleted base.
+    pub alternate: Option<char>,
+    /// The rendered call, for example `309.1C`, `249DEL`, or `16189C`.
+    pub text: String,
 }
 
 /// Runs the Sanger adapter over one sample's traces: each trace is processed
@@ -97,6 +141,11 @@ pub fn analyze_sanger(
         consensus,
         reads: placed.sanger,
         rejected: by_identity(placed.rejected),
+        inputs: CallInputs {
+            config: inputs.config,
+            profile: inputs.profile,
+            reference: inputs.reference,
+        },
     })
 }
 

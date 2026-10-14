@@ -114,6 +114,53 @@ class CrateMapTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_accepts_the_harness_on_the_facade_and_plugin_crates(self) -> None:
+        result = self.run_map(
+            {
+                "crates/dna-eval/Cargo.toml": (
+                    '[dependencies]\ndna = "0"\ndna-kernel = "0"\ndna-core = "0"\n'
+                ),
+                "crates/dna-eval/src/main.rs": "mod runner;\n",
+                "crates/dna-eval/src/runner.rs": (
+                    "use dna::sample_call;\n"
+                    "use dna_kernel::checksum::hex_sha256;\n"
+                    "use dna_core::consensus::build;\n"
+                    "use crate::compare::Failure;\n"
+                ),
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rejects_any_crate_depending_on_the_harness(self) -> None:
+        result = self.run_map(
+            {
+                "Cargo.toml": '[dev-dependencies]\ndna-eval = "0"\n',
+                "src/pipeline/mod.rs": "use dna_eval::compare::compare;\n",
+                "crates/dna-core/Cargo.toml": '[dependencies]\ndna-eval = "0"\n',
+                "crates/dna-eval/Cargo.toml": '[dependencies]\ndna = "0"\n',
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("dna must not depend on dna-eval", result.stderr)
+        self.assertIn("core must not depend on dna-eval", result.stderr)
+        self.assertIn(
+            "dna module pipeline must not depend on eval module compare", result.stderr
+        )
+
+    def test_rejects_a_plugin_depending_on_the_facade(self) -> None:
+        result = self.run_map(
+            {
+                "crates/dna-post/Cargo.toml": '[dependencies]\ndna = "0"\n',
+                "crates/dna-post/src/conformance.rs": "use dna::sample_call;\n",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("post must not depend on dna\n", result.stderr)
+        self.assertIn(
+            "post module conformance must not depend on dna module sample_call",
+            result.stderr,
+        )
+
     def test_rejects_an_unknown_crate(self) -> None:
         result = self.run_map({"crates/dna-ngs/src/lib.rs": "pub fn read() {}\n"})
         self.assertNotEqual(result.returncode, 0)

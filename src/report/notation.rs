@@ -6,7 +6,7 @@
 //! `<anchor>.<ordinal><base>` after the preceding reference base (`309.1C`,
 //! `309.2C`); an insertion before the first base uses anchor `0`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::notation_result::{
     ConformanceResult, FindingResult, NotationProvenanceResult, NotationResult, SourceResult,
@@ -197,13 +197,40 @@ pub(super) fn project(
 
 /// One rendered per-base call with its reference-order sort key.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct NotationCall {
+pub(crate) struct NotationCall {
     /// 1-based position of the changed base, or of the base an insertion follows.
-    pub(super) position: usize,
+    pub(crate) position: usize,
     /// `0` for substitutions and deletions, `1..` for successive inserted bases.
-    pub(super) ordinal: usize,
+    pub(crate) ordinal: usize,
     /// The rendered call, for example `309.1C`.
-    pub(super) text: String,
+    pub(crate) text: String,
+    /// The reference base; `None` for an inserted base.
+    pub(crate) reference: Option<char>,
+    /// The called base; `None` for a deleted base.
+    pub(crate) alternate: Option<char>,
+}
+
+/// The distinct calls of every read's represented variants, in reference
+/// order; the calls `project` lists.
+pub(crate) fn calls(
+    reference: &Reference,
+    notation: &SampleNotation,
+) -> dna_kernel::error::Result<Vec<NotationCall>> {
+    let render = match notation.style {
+        NotationStyle::PerBaseDecimal => render,
+    };
+    let mut calls = BTreeSet::new();
+    for representation in &notation.reads {
+        calls.extend(
+            render(
+                &reference.name,
+                &reference.sequence,
+                &representation.variants,
+            )
+            .map_err(ReportError::Representation)?,
+        );
+    }
+    Ok(calls.into_iter().collect())
 }
 
 /// Renders represented variants as per-base calls in reference order.
@@ -214,16 +241,19 @@ pub(super) fn render(
 ) -> Result<Vec<NotationCall>, RepresentationError> {
     let mut edits = variants_to_edits(contig, reference, variants)?;
     sort_edits(&mut edits);
+    let base = |index: usize| reference.as_bytes().get(index).copied().map(char::from);
     let mut calls = Vec::new();
     for edit in edits {
         let deleted = edit.end - edit.start;
         match (deleted, edit.alternate.len()) {
             (0, _) => {
-                calls.extend(edit.alternate.chars().enumerate().map(|(index, base)| {
+                calls.extend(edit.alternate.chars().enumerate().map(|(index, inserted)| {
                     NotationCall {
                         position: edit.start,
                         ordinal: index + 1,
-                        text: format!("{}.{}{base}", edit.start, index + 1),
+                        text: format!("{}.{}{inserted}", edit.start, index + 1),
+                        reference: None,
+                        alternate: Some(inserted),
                     }
                 }));
             }
@@ -231,11 +261,15 @@ pub(super) fn render(
                 position: index + 1,
                 ordinal: 0,
                 text: format!("{}DEL", index + 1),
+                reference: base(index),
+                alternate: None,
             })),
             (1, 1) => calls.push(NotationCall {
                 position: edit.start + 1,
                 ordinal: 0,
                 text: format!("{}{}", edit.start + 1, edit.alternate),
+                reference: base(edit.start),
+                alternate: edit.alternate.chars().next(),
             }),
             _ => return Err(RepresentationError::UnsupportedReplacement),
         }
@@ -278,6 +312,28 @@ mod tests {
         ];
 
         assert_eq!(texts(&variants)?, ["2C", "4.1C", "4.2C", "6DEL", "7DEL"]);
+        Ok(())
+    }
+
+    #[test]
+    fn renders_the_alleles_of_each_call() -> Result<(), RepresentationError> {
+        let variants = [
+            variant(4, "T", "TC", VariantKind::Ins),
+            variant(2, "A", "C", VariantKind::Snv),
+            variant(5, "AC", "A", VariantKind::Del),
+        ];
+        let alleles = render("synthetic", REFERENCE, &variants)?
+            .into_iter()
+            .map(|call| (call.text, call.reference, call.alternate))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            alleles,
+            [
+                ("2C".to_owned(), Some('A'), Some('C')),
+                ("4.1C".to_owned(), None, Some('C')),
+                ("6DEL".to_owned(), Some('C'), None),
+            ]
+        );
         Ok(())
     }
 

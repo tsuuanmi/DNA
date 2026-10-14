@@ -21,5 +21,6 @@ pub(crate) use consensus::{
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
 pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,
+    calls as notation_calls,
 };
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

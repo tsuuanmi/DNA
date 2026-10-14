@@ -52,11 +52,14 @@ in `dna_sanger::read_processing`; reference-guided one-read observation is owned
 `variant_analysis` and is reused by CLI analysis, sample evidence, and the
 public Rust API.
 
-The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns stable typed called-variant evidence directly and does not open logs or publish JSON. Optional post-calling normalization and nomenclature belong to separate capabilities; see [variant lifecycle](variant-lifecycle.md). Its exact current contract is owned by [Rust public API](../reference/rust-api.md).
+The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns stable typed called-variant evidence directly and does not open logs or publish JSON. Optional post-calling normalization and nomenclature belong to separate capabilities; see [variant lifecycle](variant-lifecycle.md). The exact current contracts are owned by [Rust public API](../reference/rust-api.md).
 
 `sample_analysis::analyze_sanger` is the sample-level capability: one placement
 pass over a sample's traces returns the typed sample evidence and consensus. The
-`sample` and `consensus` commands run the same pass. Its reads run on worker
+`sample` and `consensus` commands run the same pass. `SampleAnalysis::call`
+completes the recommended `consensus` then `call` workflow in process, through
+the same stages as the `call` command, without logs or publication; the
+evaluation harness (`dna-eval`, ADR-0075) is its first consumer. Its reads run on worker
 threads; a `ReadScope` carries their instrumentation either into the
 operation log in trace order or to the caller's dispatcher, so the library still
 selects no destination.

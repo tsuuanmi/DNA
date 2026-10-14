@@ -9,7 +9,8 @@ DNA's production core and runtime are Rust. This directory contains Python only 
 - tests for the Python tooling itself.
 
 Orchestrating DNA runs, converting results, and comparing them with other
-sources belong to downstream pipelines, not here (ADR-0065, ADR-0066).
+sources belong to downstream pipelines or to the Rust evaluation harness
+`dna-eval`, not here (ADR-0065, ADR-0066, ADR-0075).
 
 Python code here must not become a runtime dependency of the `dna` binary or be placed under the Rust production `src/` or `crates/*/src/` trees.
 

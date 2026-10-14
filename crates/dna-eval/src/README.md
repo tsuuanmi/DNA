@@ -1,0 +1,31 @@
+# dna-eval
+
+The evaluation harness
+([ADR-0075](../../../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)):
+the `dna-eval` binary runs DNA over a test panel and compares the calls with
+reviewer truth. It is the only crate that reads truth formats or compares
+with them (SRS-COMPAT-003). It depends on the `dna` facade alone, whose
+`sample_analysis` capability it runs. No crate depends on it, and it is not
+part of the release.
+
+- `main.rs` — command line (`run`, `panel`), run orchestration, output
+  directory, and the `run.json` header.
+- `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
+  the optional `retired` column.
+- `panel.rs` — a new panel version from a parent and the truth database.
+- `truth.rs` — reviewer truth from the lab's statistics database, opened
+  read-only with `rusqlite`.
+- `runner.rs` — the scoped thread pool that removes repeated traces and runs
+  DNA per sample, with typed failures, in sample order.
+- `compare.rs` — concordance of DNA's alleles with the truth under the primary
+  (the lab's rules), strict, and IUPAC-compatible measures.
+- `estimate.rs` — stratified weighted rates with their 95 % intervals.
+- `baseline.rs` — the statuses of an earlier run and their classes.
+- `report.rs` — scores, estimates, anchors, the baseline diff, and the
+  Markdown summary.
+- `error.rs` — failures that stop a run.
+
+Formats, comparison rules, and outputs are specified in the
+[evaluation harness](../../../docs/validation/evaluation-harness.md) document.
+Tests use synthetic manifests, traces, and SQLite databases built from SQL in
+the test.

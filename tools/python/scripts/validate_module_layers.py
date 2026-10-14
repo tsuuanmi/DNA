@@ -1,16 +1,20 @@
-"""Enforce the plugin-family crate map of the workspace (ADR-0069, ADR-0070).
+"""Enforce the crate map of the workspace (ADR-0069, ADR-0070, ADR-0075).
 
-The workspace has one facade crate at the root (``src/``, crate ``dna``) and
-one member crate per plugin family under ``crates/``:
+The workspace has one facade crate at the root (``src/``, crate ``dna``), one
+member crate per plugin family under ``crates/``:
 
 - ``dna-kernel``: shared contracts;
 - ``dna-core``: the core caller;
 - ``dna-sanger``: the Sanger modality;
-- ``dna-post``: post-calling plugins.
+- ``dna-post``: post-calling plugins;
+
+and the evaluation harness ``dna-eval``.
 
 The plugin crates depend only on the kernel, and only the facade composes
-them. Both source paths (``dna_<crate>::…``) and manifest dependencies must
-follow that graph. Within each crate the module graph must be acyclic.
+them. The harness may depend on the facade and the plugin crates, and no crate
+may depend on the harness. Both source paths (``dna::…``, ``dna_<crate>::…``)
+and manifest dependencies must follow that graph. Within each crate the module
+graph must be acyclic.
 """
 
 from __future__ import annotations
@@ -31,9 +35,10 @@ ALLOWED: dict[str, frozenset[str]] = {
     "sanger": frozenset({"kernel"}),
     "post": frozenset({"kernel"}),
     "dna": frozenset({"kernel", "core", "sanger", "post"}),
+    "eval": frozenset({"dna", "kernel", "core", "sanger", "post"}),
 }
-# Source path prefix of each member crate.
-PATH_PREFIXES = {f"dna_{name}": name for name in ALLOWED if name != "dna"}
+# Source path prefix of each crate.
+PATH_PREFIXES = {("dna" if name == "dna" else f"dna_{name}"): name for name in ALLOWED}
 # Modules whose children are tracked as separate nodes of the module graph.
 SPLIT_MODULES = {"model", "input"}
 
@@ -41,7 +46,9 @@ TEST_MODULE = re.compile(
     r"#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{", re.MULTILINE
 )
 LINE_COMMENT = re.compile(r"//.*$", re.MULTILINE)
-PATH_START = re.compile(r"\b(crate|dna_kernel|dna_core|dna_sanger|dna_post)::")
+PATH_START = re.compile(
+    r"\b(crate|" + "|".join(sorted(PATH_PREFIXES)) + r")::",
+)
 TOKEN = re.compile(r"\s*([A-Za-z_][A-Za-z0-9_]*|::|\{|\}|,|\*)")
 
 
@@ -187,12 +194,17 @@ def manifest_dependencies(manifest: Path) -> list[str]:
     document = tomllib.loads(manifest.read_text(encoding="utf-8"))
     names: list[str] = []
     for table in ("dependencies", "dev-dependencies"):
-        names.extend(
-            name.removeprefix("dna-")
-            for name in document.get(table, {})
-            if name.startswith("dna-")
-        )
+        for name in document.get(table, {}):
+            if name == "dna":
+                names.append(name)
+            elif name.startswith("dna-"):
+                names.append(name.removeprefix("dna-"))
     return names
+
+
+def package(name: str) -> str:
+    """Package name of a crate-map name."""
+    return name if name == "dna" else f"dna-{name}"
 
 
 def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
@@ -234,7 +246,7 @@ def validate(root: Path = ROOT) -> list[str]:
             if dependency not in ALLOWED[crate.name]:
                 failures.append(
                     f"{relative(root, crate.manifest)}: {crate.name} must not depend on "
-                    f"dna-{dependency}"
+                    f"{package(dependency)}"
                 )
         graph: dict[str, set[str]] = {}
         for target_crate, edge in edges(crate):
@@ -276,8 +288,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(failures)} crate-map violation(s) found", file=sys.stderr)
         return 1
     print(
-        "OK: crates depend only on the kernel or, for the facade, on every plugin "
-        "crate, in source and manifests, and each crate's module graph is acyclic"
+        "OK: plugin crates depend only on the kernel, the facade on the plugin "
+        "crates, and nothing on the evaluation harness, in source and manifests, "
+        "and each crate's module graph is acyclic"
     )
     return 0
 

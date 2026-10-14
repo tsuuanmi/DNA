@@ -1,6 +1,6 @@
 # ADR-0065: Result comparison belongs to downstream pipelines
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0075](0075-evaluation-harness-in-workspace.md)
 - **Date:** 2026-10-08
 - **Related decisions:** [ADR-0005](0005-versioned-output-contracts.md),
   [ADR-0019](0019-scientific-evidence-hierarchy.md),
@@ -39,3 +39,11 @@ revision; they are not DNA code, fixtures, or contracts.
   repository against a named DNA revision.
 - Tests in DNA assert DNA's own behaviour against synthetic expectations; they
   do not implement a comparison method.
+
+## Superseded scope
+
+> **Superseded in part (2026-10-14):**
+> [ADR-0075](0075-evaluation-harness-in-workspace.md) lets truth adapters and
+> comparison live in the evaluation harness crate `dna-eval`, and nowhere
+> else in the repository. The `dna` facade and the plugin crates stay free of
+> them, and the other consequences above still hold.

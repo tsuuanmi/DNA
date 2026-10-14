@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::input::sequence;
+use crate::input::sequence::{self, CallInputs};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
@@ -57,6 +57,38 @@ fn call(
     );
 
     drop(stage);
+    let completed = complete(sample_id, inputs)?;
+
+    let _stage = tracing::info_span!("reporting").entered();
+    let result = report::build_call(completed)?;
+    let schema_version = result.schema_version;
+    let variants = result
+        .reads
+        .iter()
+        .map(|read| {
+            read.variants
+                .iter()
+                .filter(|variant| variant.eligible)
+                .count()
+        })
+        .sum::<usize>();
+    let bytes = report::serialize(&result)?;
+    tracing::info!(
+        event = "call_ready_for_publication",
+        total_elapsed_ms = started.elapsed().as_millis(),
+        schema = schema_version,
+        reads = result.reads.len(),
+        eligible_variants = variants,
+        output_path = ?output.display().to_string(),
+        bytes = bytes.len(),
+    );
+    log.sync()?;
+    report::publish(&output, &bytes)
+}
+
+/// Calls every consensus sequence and derives the notation over loaded inputs,
+/// without output paths, operation logs, or publication.
+pub(super) fn complete(sample_id: &str, inputs: CallInputs) -> Result<CompletedCall> {
     let run = CoreRun {
         config: &inputs.config.core,
         configuration_sha256: &inputs.config.source_sha256,
@@ -84,45 +116,19 @@ fn call(
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let stage = tracing::info_span!("nomenclature").entered();
+    let _stage = tracing::info_span!("nomenclature").entered();
     let notation = represent::represent(&reads, &inputs.reference, &inputs.profile)?;
-
-    drop(stage);
-    let _stage = tracing::info_span!("reporting").entered();
     let plugins = if notation.is_some() {
         plugin::CALL_WITH_NOTATION
     } else {
         plugin::CALL
     };
-    let result = report::build_call(CompletedCall {
+    Ok(CompletedCall {
         sample_id: sample_id.to_owned(),
         reference: inputs.reference,
         profile: inputs.profile.identity().clone(),
         reads,
         notation,
         plugins,
-    })?;
-    let schema_version = result.schema_version;
-    let variants = result
-        .reads
-        .iter()
-        .map(|read| {
-            read.variants
-                .iter()
-                .filter(|variant| variant.eligible)
-                .count()
-        })
-        .sum::<usize>();
-    let bytes = report::serialize(&result)?;
-    tracing::info!(
-        event = "call_ready_for_publication",
-        total_elapsed_ms = started.elapsed().as_millis(),
-        schema = schema_version,
-        reads = result.reads.len(),
-        eligible_variants = variants,
-        output_path = ?output.display().to_string(),
-        bytes = bytes.len(),
-    );
-    log.sync()?;
-    report::publish(&output, &bytes)
+    })
 }
