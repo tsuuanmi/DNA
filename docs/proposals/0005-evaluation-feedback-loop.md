@@ -314,6 +314,106 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 - **Known numbers.** On the 320-sample evaluation subset, the harness
   reproduces the numbers measured so far.
 
+### Approval protocol (draft)
+
+This protocol approves pass rules on the hold-out (validation panel v3: 115
+whole batches, 10,102 active samples, the same corpus weights as the
+development panel). It is a draft. **The numeric bounds below await the
+user's decision.**
+
+**Freeze and pre-register.**
+- **Pre-registration note.** Before any approval run, a pre-registration note
+  is committed under `docs/validation/preregistration/` that fixes:
+  - the DNA revision, `config/dna.toml`, the harness version, and the truth
+    digest;
+  - the exact policy: its detectors, the minor-signal kind and threshold, and
+    the one-strand rule;
+  - the measures, endpoints, bounds, and decision rule;
+  - the expected number of passed samples.
+- **One run.** The run happens once, and nothing is tuned after it. A rerun
+  needs a new revision and a written reason.
+- **Truth changes.** If the truth digest differs from the frozen one, the
+  run aborts.
+- **A spent hold-out.** Once a rule is approved, the hold-out is spent for it.
+  A later rule change needs fresh batches, such as those received after the
+  freeze.
+- **Measurement fixes first.** Fixes that change what "concordant" means
+  land before the freeze. These include DNA's callable intervals excluding
+  unresolved consensus bases, and the haplotype measures deciding per
+  interval.
+
+**Rules under test.** The rules are tested as a fixed sequence, which keeps
+the overall α without a Bonferroni split:
+
+1. **H-base.** The stage-1 triage with the minor-signal gate (its kind and
+   threshold are fixed at pre-registration), requiring both strands
+   everywhere.
+2. **H-os1**, tested only if H-base is approved. H-base plus the one-strand
+   exception R6m-h4: one strand is enough outside the repeat windows ± 3 and
+   away from reference runs of 4 or more bases. It is paired with a
+   single-strand minor rule on the positions it allows, because the
+   cross-strand minor rules cannot fire where only one strand reads. R6m may
+   replace R6m-h4 only before the freeze.
+3. **H-os2**, tested only if H-os1 fails. H-base plus R1: an edge stretch of
+   fewer than 5 positions.
+
+**Endpoints.**
+
+- **Primary safety: the leak rate among passed samples.** This is
+  P(not concordant | pass) under the haplotype IUPAC-compatible measure,
+  reported three ways, each with its upper bound:
+  - as a one-sided 95 % Clopper–Pearson bound on the unweighted passed
+    samples;
+  - as the corpus-weighted rate with the stratified interval;
+  - as the 95th percentile of a cluster bootstrap over batches (10,000 draws,
+    fixed seed). Leaks cluster by batch, through chemistry, run, and
+    reviewer.
+- **Secondary safety, reported but not gating.**
+  - The same rate under the primary, strict, and IUPAC-compatible measures.
+  - Leaks by window and by stratum.
+  - A sensitivity analysis without the enriched strata.
+- **Marginal one-strand endpoint** (H-os rules). Among the samples a rule
+  newly passes, the share that differ inside the positions it allows, at
+  sample level with its upper bound.
+- **Utility.** The corpus-weighted A with its interval; B and C are
+  reported.
+
+**Acceptance, pending the user's decision.**
+
+| Rule | Approved when |
+|---|---|
+| H-base | all three upper bounds of the primary safety endpoint are at most 1 % *(pending)* |
+| H-os1, H-os2 | the rule still meets H-base's bound on all passed samples, its marginal upper bound is at most 2 % *(pending)*, and adjudication finds no leak class unseen on the development panel |
+| any | optionally, A is at least 0.15 corpus-weighted *(pending)*, so that a rule passing almost nothing is not approved by default |
+
+**Power.** With a one-sided 95 % Clopper–Pearson bound:
+- **H-base.** A bound of 1 % needs 303 passed samples at 0 leaks, 474 at 1,
+  630 at 2, 1,057 at 5, and 1,718 at 10. With an A near the development
+  panel's, the hold-out should pass about 1,500–2,500 samples. That gives,
+  for example, 0.52 % for 5 leaks in 2,000 passes.
+- **H-os rules.** These pass far fewer new samples. A bound of 2 % needs 150
+  newly passed samples at 0 leaks, and 237 at 1.
+- **Check at freeze time.** A power check from the development panel's pass
+  counts and the hold-out's size is recorded in the pre-registration.
+
+**Adjudication in an approval run.**
+- Every leak on the hold-out is inspected and classified as a DNA error, a
+  truth error, a representation the measure missed, or ambiguous.
+- Unlike in development runs (see *Adjudication* above), the gating endpoint
+  counts every leak, and no case leaves it after the run.
+- The classification is reported next to the decision and feeds the next
+  development iteration.
+- Sample identifiers stay in the adjudication list, never in repository
+  documents.
+
+**Exclusions.** A sample DNA fails counts as not passed and is reported.
+
+**After approval.**
+- **Monitoring.** A random 2–5 % *(pending)* of auto-passed production
+  samples is reviewed each month, with a running Clopper–Pearson bound.
+- **Stop rule.** Auto-pass is suspended when that bound exceeds 2 %
+  *(pending)*.
+
 ## Alternatives considered
 
 - **No cache; make DNA fast enough.** Rejected as the only path. Even a ten
