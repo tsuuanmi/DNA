@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 
 use crate::compare::{Allele, Failure};
 use crate::error::{Error, Result};
-use crate::evidence::{self, Evidence};
+use crate::evidence::{self, Evidence, EvidenceFailure};
 use crate::manifest::Sample;
 
 /// Largest accepted thread count.
@@ -61,8 +61,9 @@ pub(crate) struct Outcome {
     pub(crate) traces: Option<usize>,
     pub(crate) result: std::result::Result<Called, Failure>,
     /// The draft triage evidence, when the run asks for it and DNA analysed
-    /// the sample or rejected every read; it is kept when the call fails.
-    pub(crate) triage: Option<Evidence>,
+    /// the sample or rejected every read; it is kept when the call fails. A
+    /// failure to take it leaves the call as it is.
+    pub(crate) triage: Option<Taken>,
     /// Wall time of the sample, in milliseconds.
     pub(crate) millis: u128,
 }
@@ -112,15 +113,12 @@ pub(crate) fn run(
                 };
                 return (
                     Err(failure(error.into())),
-                    triage.then(|| evidence::rejected_only(rejected.values())),
+                    triage.then(|| Ok(evidence::rejected_only(rejected.values()))),
                 );
             }
             Err(error) => return (Err(failure(error)), None),
         };
-        let evidence = match triage.then(|| evidence::extract(&analysis)).transpose() {
-            Ok(evidence) => evidence,
-            Err(error) => return (Err(failure(error)), None),
-        };
+        let evidence = triage.then(|| evidence::extract(&analysis));
         (call(&analysis, &sample.id), evidence)
     })
 }
@@ -171,9 +169,13 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
     })
 }
 
+/// The draft triage evidence of one sample, or why the harness could not
+/// take it.
+pub(crate) type Taken = std::result::Result<Evidence, EvidenceFailure>;
+
 /// What running DNA on one sample gives: its calls or failure, and its draft
 /// triage evidence.
-pub(crate) type Ran = (std::result::Result<Called, Failure>, Option<Evidence>);
+pub(crate) type Ran = (std::result::Result<Called, Failure>, Option<Taken>);
 
 /// Runs `call` over every sample's distinct traces with `threads` workers.
 pub(crate) fn run_with<F>(samples: &[Sample], threads: Threads, call: F) -> Result<Vec<Outcome>>

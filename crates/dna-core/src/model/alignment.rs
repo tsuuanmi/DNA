@@ -13,8 +13,10 @@ pub enum Orientation {
 }
 
 impl Orientation {
-    /// Projects one trace-strand canonical base onto the reference strand.
-    pub(crate) const fn reference_base(self, base: char) -> char {
+    /// Projects one trace-strand base onto the reference strand: a reverse
+    /// read's canonical base is complemented; any other symbol is kept.
+    #[must_use]
+    pub const fn reference_base(self, base: char) -> char {
         match self {
             Self::Forward => base,
             Self::Reverse => match base {

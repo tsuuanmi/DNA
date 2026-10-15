@@ -8,7 +8,10 @@ Children of `../evidence.rs`, the compact triage evidence of
   without a mask, its strongest other channel (kept from 0.05), whether that
   base is the base the read calls just before or after (a shadow), and its
   local noise. It reads every covered position through
-  `SampleAnalysis::loci` and the read's own calls from its Sanger evidence.
+  `SampleAnalysis::observations` (once over the span of the regions) and the
+  read's own calls from its Sanger evidence. A failure to read them is an
+  `EvidenceFailure`; the sample's call stands and its triage class is
+  `no_evidence`.
 
 The evidence is specified in the
 [evaluation harness](../../../../docs/validation/evaluation-harness.md#draft-triage)

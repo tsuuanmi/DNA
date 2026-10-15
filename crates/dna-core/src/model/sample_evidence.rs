@@ -209,6 +209,18 @@ pub struct LocusNucleotideSupport {
     pub directional_profile_distance: Option<f64>,
 }
 
+/// Every covering read's observation of one reference position, as at a
+/// [`SampleLocusEvidence`] but without its support aggregates.
+#[derive(Debug, Clone)]
+pub struct LocusObservations {
+    /// 1-based reference position.
+    pub position_1based: usize,
+    /// Reference base at the position.
+    pub reference_base: char,
+    /// Every covering read's observation, in registry order.
+    pub observations: Vec<SampleLocusObservation>,
+}
+
 /// All covering-read observations retained at one sample reference locus.
 #[derive(Debug, Clone)]
 pub struct SampleLocusEvidence {

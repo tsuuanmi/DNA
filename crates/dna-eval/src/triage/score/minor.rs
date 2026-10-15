@@ -1,7 +1,8 @@
 //! What each `region.minor_signal` rule of the sweep buys and costs: per
-//! policy with a rule, against the same policy without it, the samples it
-//! moves from pass to review, the leaks it removes, its burden, the
-//! corpus-weighted A it costs, and its recall of truth IUPAC sites.
+//! reported policy with a rule, against the same policy without it (decided
+//! by [`decide`](crate::triage::detect::decide) like any other policy), the
+//! samples it moves from pass to review, the leaks it removes, its burden,
+//! the corpus-weighted A it costs, and its recall of truth IUPAC sites.
 
 use std::fmt::Write as _;
 
@@ -9,7 +10,7 @@ use super::{Class, Detail, Leak, Triage, class, evidence, upper_bound};
 use crate::compare::{self, Measure};
 use crate::estimate::{self, Observation};
 use crate::report::{Row, Status, Weighting};
-use crate::triage::detect::{Detector, Outcome, Policy, RegionDecision, SampleDecision};
+use crate::triage::detect::{Detector, Outcome, Policy, SampleDecision};
 use crate::triage::minor::Rule;
 
 /// One minor-signal rule's effect under one policy, over the scored rows.
@@ -35,60 +36,47 @@ pub(super) struct Effect {
     caught_all: usize,
 }
 
-/// Whether a region passes once its minor-signal findings are cleared: a
-/// minor signal never asks for a rerun, so the region has no rerun and no
-/// other applied finding.
-fn passes_without(region: &RegionDecision, policy: &Policy) -> bool {
-    region.rerun.is_empty()
-        && !region.findings.iter().any(|(detector, count)| {
-            *count > 0 && !matches!(detector, Detector::MinorSignal(_)) && policy.applies(*detector)
-        })
+/// Whether the minor-signal measurement reports policy `index`: a policy
+/// with a rule that is the reported (first) policy or has a rule other than
+/// the reported policy's.
+pub(super) fn reports(index: usize, policy: &Policy, reported: Option<Rule>) -> bool {
+    policy.minor.is_some() && (index == 0 || policy.minor != reported)
 }
 
-/// Whether a decided sample with region evidence passes once its
-/// minor-signal findings are cleared.
-fn sample_passes_without(decision: &SampleDecision, policy: &Policy) -> bool {
-    decision.admitted
-        && decision
-            .regions
-            .iter()
-            .all(|region| passes_without(region, policy))
-}
-
-/// Measures `policy`'s minor-signal rule over its decisions of `rows`;
-/// `None` when the policy applies none.
+/// Measures `policy`'s minor-signal rule from its decisions of `rows` and
+/// the decisions of the same policy without the rule; `None` when the
+/// policy applies none.
 pub(super) fn effect(
     rows: &[Row<'_>],
     decisions: &[Option<SampleDecision>],
+    without: &[Option<SampleDecision>],
     policy: &Policy,
 ) -> Option<Effect> {
     let rule = Detector::MinorSignal(policy.minor?);
     let mut effect = Effect::default();
-    let mut without = Vec::new();
-    let mut with = Vec::new();
-    for (row, decision) in rows.iter().zip(decisions) {
+    let mut shares_without = Vec::new();
+    let mut shares_with = Vec::new();
+    for ((row, decision), cleared) in rows.iter().zip(decisions).zip(without) {
         if row.sample.retired {
             continue;
         }
-        let decision = decision.as_ref();
-        let class = class(row, decision);
-        let passed = class == Class::Decided(Outcome::Pass);
-        let free = matches!(class, Class::Decided(_))
-            && decision.is_some_and(|decision| sample_passes_without(decision, policy));
+        let (decision, cleared) = (decision.as_ref(), cleared.as_ref());
+        let passed = class(row, decision) == Class::Decided(Outcome::Pass);
+        let free = class(row, cleared) == Class::Decided(Outcome::Pass);
         let weight = Weighting::Corpus.of(row.sample);
         let stratum = row.sample.stratum.as_str();
-        without.push(Observation {
+        shares_without.push(Observation {
             stratum,
             weight,
             event: free,
         });
-        with.push(Observation {
+        shares_with.push(Observation {
             stratum,
             weight,
             event: passed,
         });
-        let (Some(decision), Some(evidence), Ok(primary)) =
-            (decision, evidence(row), row.comparison(Measure::Primary))
+        let (Some(cleared), Some(evidence), Ok(primary)) =
+            (cleared, evidence(row), row.comparison(Measure::Primary))
         else {
             continue;
         };
@@ -117,25 +105,21 @@ pub(super) fn effect(
             if Detail::of(primary, position).class != "iupac" {
                 continue;
             }
-            let Some((region, offset)) = compare::anchor(position).and_then(|anchor| {
-                let region = evidence.region_of(anchor)?;
-                let offset = usize::try_from(anchor)
-                    .ok()?
-                    .checked_sub(evidence.regions[region].start)?;
-                Some((region, offset))
-            }) else {
+            let Some((region, offset)) =
+                compare::anchor(position).and_then(|anchor| evidence.locate(anchor))
+            else {
                 continue;
             };
             let (Some(at), Some(outcome)) = (
                 evidence.regions[region].positions.get(offset).copied(),
-                decision.regions.get(region),
+                cleared.regions.get(region),
             ) else {
                 continue;
             };
             let marked = rule.marks(at, evidence.minors(region, offset));
             effect.sites_all += 1;
             effect.caught_all += usize::from(marked);
-            if passes_without(outcome, policy) {
+            if outcome.outcome == Outcome::Pass {
                 effect.sites += 1;
                 effect.caught += usize::from(marked);
             }
@@ -144,22 +128,19 @@ pub(super) fn effect(
     let rate = |observations: &[Observation<'_>]| {
         estimate::estimate(observations).map_or(0.0, |estimate| estimate.rate)
     };
-    effect.pass_without = rate(&without);
-    effect.pass_with = rate(&with);
+    effect.pass_without = rate(&shares_without);
+    effect.pass_with = rate(&shares_with);
     Some(effect)
 }
 
 impl Triage<'_> {
-    /// The reported policy, and every policy whose minor-signal rule differs
-    /// from its, with the rule and its effect.
+    /// The policies the minor-signal measurement reports, with the rule and
+    /// its effect.
     fn minor_rows(&self) -> Vec<(&Policy, Rule, Effect)> {
-        let reported = self.policy().and_then(|policy| policy.minor);
         self.policies
             .iter()
             .zip(&self.minor)
-            .enumerate()
-            .filter(|(index, (policy, _))| *index == 0 || policy.minor != reported)
-            .filter_map(|(_, (policy, effect))| Some((policy, policy.minor?, (*effect)?)))
+            .filter_map(|(policy, effect)| Some((policy, policy.minor?, (*effect)?)))
             .collect()
     }
 

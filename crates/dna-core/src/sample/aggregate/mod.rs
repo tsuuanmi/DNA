@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{
-    RejectedSampleRead, SampleEvidence, SampleLocusEvidence, SampleReadAlignmentEvidence,
+    LocusObservations, RejectedSampleRead, SampleEvidence, SampleReadAlignmentEvidence,
     SampleReadEvidence,
 };
 use crate::sample::SampleReconciliationConfig;
@@ -83,17 +83,18 @@ pub fn aggregate(
 /// Every admitted read's observation of each reference position from
 /// `first_1based` to `last_1based` (inclusive) that a read's alignment covers,
 /// as [`SampleEvidence::locus_differences`] records them, whether or not a read
-/// differs there. Read indices follow the registry order of [`aggregate`].
+/// differs there, but without support aggregates. Read indices follow the
+/// registry order of [`aggregate`].
 ///
 /// # Errors
 ///
 /// Returns `SampleError` when no read is given, reads disagree on reference
 /// or configuration, a trace repeats, or the evidence is inconsistent.
-pub fn loci(
+pub fn observations(
     reads: &[&CalledRead],
     first_1based: usize,
     last_1based: usize,
-) -> Result<Vec<SampleLocusEvidence>> {
+) -> Result<Vec<LocusObservations>> {
     locus::interval(
         &validated_ordered_reads(reads)?,
         &(first_1based..=last_1based),

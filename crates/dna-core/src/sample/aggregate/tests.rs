@@ -824,7 +824,7 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
 }
 
 #[test]
-fn loci_record_every_covered_position_of_an_interval() -> TestResult {
+fn observations_record_every_covered_position_of_an_interval() -> TestResult {
     let forward = observation(
         "b",
         "reference",
@@ -847,7 +847,7 @@ fn loci_record_every_covered_position_of_an_interval() -> TestResult {
     );
     let reads = [&forward, &reverse];
 
-    let recorded = loci(&reads, 12, 20)?;
+    let recorded = observations(&reads, 12, 20)?;
 
     // Positions 12–14 are covered; 15–20 are not, and 11 lies outside.
     assert_eq!(
@@ -857,12 +857,17 @@ fn loci_record_every_covered_position_of_an_interval() -> TestResult {
             .collect::<Vec<_>>(),
         [12, 13, 14]
     );
-    // The differential locus is recorded as `aggregate` records it.
+    // The differential locus has the observations `aggregate` records.
     let evidence = run(&[forward.clone(), reverse.clone()])?;
     assert_eq!(evidence.locus_differences.len(), 1);
+    let differential = &evidence.locus_differences[0];
     assert_eq!(
-        format!("{:?}", recorded[0]),
-        format!("{:?}", evidence.locus_differences[0])
+        (recorded[0].position_1based, recorded[0].reference_base),
+        (differential.position_1based, differential.reference_base)
+    );
+    assert_eq!(
+        format!("{:?}", recorded[0].observations),
+        format!("{:?}", differential.observations)
     );
     // A reference match is recorded too, with registry read indices (`a`
     // first) and the reference-oriented profile.
@@ -874,14 +879,13 @@ fn loci_record_every_covered_position_of_an_interval() -> TestResult {
         crate::model::sample_evidence::LocusState::Reference
     );
     assert_eq!(matched.observations[1].read_index, 1);
-    assert_eq!(matched.support_topology.reference_reads, 2);
     assert_eq!(
         matched.observations[0]
             .profile
             .map(|profile| profile.weights),
         Some([0.4, 0.3, 0.2, 0.1])
     );
-    assert!(loci(&reads, 30, 40)?.is_empty());
-    assert!(loci(&[], 1, 10).is_err());
+    assert!(observations(&reads, 30, 40)?.is_empty());
+    assert!(observations(&[], 1, 10).is_err());
     Ok(())
 }

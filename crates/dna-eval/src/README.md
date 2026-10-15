@@ -33,7 +33,7 @@ part of the release.
   and callable span. It names `dna_core` and `dna_sanger` evidence types
   (`Orientation`, `SiteState`, `RunEvidence`, `ReadCallability`) that the
   facade exposes only as fields. `evidence/minor.rs` adds each clean read's
-  minor channel per region position, read through `SampleAnalysis::loci`
+  minor channel per region position, read through `SampleAnalysis::observations`
   ([minor evidence](evidence/README.md)).
 - `triage/` — the draft stage-1 triage of PROP-0004 phase 0 over that
   evidence ([triage](triage/README.md)).

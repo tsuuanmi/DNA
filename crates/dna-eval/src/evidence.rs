@@ -36,7 +36,8 @@ impl Strand {
         }
     }
 
-    const fn of(orientation: Orientation) -> Self {
+    /// The strand a read placed in `orientation` observes.
+    pub(crate) const fn of(orientation: Orientation) -> Self {
         match orientation {
             Orientation::Forward => Self::Forward,
             Orientation::Reverse => Self::Reverse,
@@ -206,12 +207,15 @@ pub(crate) struct Evidence {
 }
 
 impl Evidence {
-    /// The index of the region holding the anchor base of `position`.
-    pub(crate) fn region_of(&self, anchor: i64) -> Option<usize> {
+    /// The region holding the 1-based position `anchor`, and the anchor's
+    /// offset from the region's start.
+    pub(crate) fn locate(&self, anchor: i64) -> Option<(usize, usize)> {
         let anchor = usize::try_from(anchor).ok()?;
-        self.regions
-            .iter()
-            .position(|region| (region.start..=region.end).contains(&anchor))
+        self.regions.iter().enumerate().find_map(|(index, region)| {
+            (region.start..=region.end)
+                .contains(&anchor)
+                .then(|| (index, anchor - region.start))
+        })
     }
 
     /// The minor channels at position `offset` of region `region`; none when
@@ -224,19 +228,46 @@ impl Evidence {
     }
 }
 
+/// Why the harness could not take an analysed sample's triage evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum EvidenceFailure {
+    /// DNA could not give the reads' observations of the regions.
+    Observations(String),
+}
+
+impl EvidenceFailure {
+    /// Stable label of the failure kind.
+    pub(crate) const fn kind(&self) -> &'static str {
+        match self {
+            Self::Observations(_) => "observations",
+        }
+    }
+}
+
+impl std::fmt::Display for EvidenceFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Observations(message) => {
+                write!(formatter, "cannot read the observations: {message}")
+            }
+        }
+    }
+}
+
 /// Takes the triage evidence of one analysed sample.
 ///
 /// # Errors
 ///
-/// Returns DNA's error when its loci cannot be read.
-pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Evidence> {
+/// Returns [`EvidenceFailure`] when DNA cannot give the reads' observations.
+pub(crate) fn extract(analysis: &SampleAnalysis) -> Result<Evidence, EvidenceFailure> {
     let spans = analysis
         .reads
         .iter()
         .map(|(sha256, sanger)| (sha256.as_str(), span(&sanger.callability)))
         .collect::<BTreeMap<_, _>>();
     Ok(Evidence {
-        minor: minor::extract(analysis)?,
+        minor: minor::extract(analysis)
+            .map_err(|error| EvidenceFailure::Observations(error.to_string()))?,
         ..build(
             analysis.regions(),
             &analysis.evidence.reads,
@@ -653,8 +684,10 @@ pub(crate) mod tests {
         );
         assert_eq!(evidence.traces[0].span, Some(400));
         assert_eq!(evidence.traces[1].span, None);
-        assert_eq!(evidence.region_of(30), Some(0));
-        assert_eq!(evidence.region_of(31), None);
+        assert_eq!(evidence.locate(11), Some((0, 0)));
+        assert_eq!(evidence.locate(30), Some((0, 19)));
+        assert_eq!(evidence.locate(31), None);
+        assert_eq!(evidence.locate(-1), None);
 
         // The evidence does not depend on the order of the reads or traces.
         let reversed = [reads[1].clone(), reads[0].clone()];

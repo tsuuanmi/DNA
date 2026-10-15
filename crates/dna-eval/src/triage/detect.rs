@@ -57,17 +57,13 @@ pub(crate) enum Detector {
 }
 
 impl Detector {
-    /// Every region detector, in report order; `region.minor_signal` with
-    /// the draft's rule.
-    pub(crate) fn all() -> Vec<Self> {
+    /// Every stage-1 region detector, in report order; a policy adds
+    /// `region.minor_signal` with its rule ([`Policy::detectors`]).
+    pub(crate) fn stage1() -> Vec<Self> {
         Cause::ALL
             .into_iter()
             .map(Self::Unreliable)
-            .chain([
-                Self::OneStrand,
-                Self::Gap,
-                Self::MinorSignal(MinorRule::DEFAULT),
-            ])
+            .chain([Self::OneStrand, Self::Gap])
             .collect()
     }
 
@@ -192,15 +188,15 @@ impl Policy {
         }
     }
 
-    /// The region detectors whose findings a decision counts: every
-    /// detector, and the policy's minor-signal rule.
+    /// The region detectors whose findings a decision under the policy
+    /// counts, in report order: every stage-1 detector, applied or not, and
+    /// `region.minor_signal` with the policy's rule, or with the draft's rule
+    /// (measured, not applied) when the policy has none.
     pub(crate) fn detectors(&self) -> Vec<Detector> {
-        let mut detectors = Detector::all();
-        if let Some(rule) = self.minor
-            && !detectors.contains(&Detector::MinorSignal(rule))
-        {
-            detectors.push(Detector::MinorSignal(rule));
-        }
+        let mut detectors = Detector::stage1();
+        detectors.push(Detector::MinorSignal(
+            self.minor.unwrap_or(MinorRule::DEFAULT),
+        ));
         detectors
     }
 
@@ -452,6 +448,7 @@ pub(crate) fn decide(
 mod tests {
     use super::*;
     use crate::evidence::{Position, Region, Trace};
+    use dna_kernel::model::nucleotide::Nucleotide;
 
     fn position(forward: u8, reverse: u8) -> Position {
         Position {
@@ -543,7 +540,7 @@ mod tests {
     fn minor_signal_reviews_or_passes_by_policy() {
         let read = |strand, weight| Minor {
             strand,
-            pair: [1, 3],
+            pair: [Nucleotide::C, Nucleotide::T],
             weight,
             before: false,
             after: false,
@@ -561,7 +558,7 @@ mod tests {
             decision.regions[0].findings[&Detector::MinorSignal(MinorRule::DEFAULT)],
             1
         );
-        // Off, the finding is still counted but does not act.
+        // Off, the draft's rule is still counted but does not act.
         let off = Policy {
             minor: None,
             ..Policy::draft()
@@ -572,8 +569,8 @@ mod tests {
             decision.regions[0].findings[&Detector::MinorSignal(MinorRule::DEFAULT)],
             1
         );
-        // Another rule is counted beside the draft's; above both weights it
-        // marks nothing.
+        // Another rule replaces the draft's; above both weights it marks
+        // nothing.
         let strict = MinorRule {
             threshold: 121,
             ..MinorRule::DEFAULT
@@ -582,7 +579,12 @@ mod tests {
             minor: Some(strict),
             ..Policy::draft()
         };
-        assert_eq!(policy.detectors().len(), Detector::all().len() + 1);
+        assert_eq!(policy.detectors().len(), Detector::stage1().len() + 1);
+        assert!(
+            !policy
+                .detectors()
+                .contains(&Detector::MinorSignal(MinorRule::DEFAULT))
+        );
         assert!(policy.parameters().ends_with("minor=upstream@121"));
         let decision = decide(&evidence, &policy, &Footprints::default());
         assert_eq!(decision.outcome, Outcome::Pass);

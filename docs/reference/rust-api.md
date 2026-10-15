@@ -226,11 +226,11 @@ pub struct SampleAnalysis {
 
 impl SampleAnalysis {
     pub fn regions(&self) -> &[[usize; 2]];
-    pub fn loci(
+    pub fn observations(
         &self,
         first_1based: usize,
         last_1based: usize,
-    ) -> dna::error::Result<Vec<SampleLocusEvidence>>;
+    ) -> dna::error::Result<Vec<LocusObservations>>;
 }
 
 #[non_exhaustive]
@@ -263,16 +263,17 @@ impl RejectionCause {
 - `regions()` returns the reportable regions of the target profile the
   analysis ran with (inclusive, 1-based), so a caller reads them from the
   profile rather than repeating them.
-- `loci(first_1based, last_1based)` returns, for each position of the
-  inclusive interval that an admitted read covers, a `SampleLocusEvidence`
-  (`dna_core`) built exactly as `evidence.locus_differences` builds one, but
-  whether or not a read differs there: every covering read's state,
+- `observations(first_1based, last_1based)` returns, for each position of
+  the inclusive interval that an admitted read covers, a `LocusObservations`
+  (`dna_core`): the position, its reference base, and every covering read's
+  observation exactly as `evidence.locus_differences` records it (state,
   reference-strand base, source call index, and reference-oriented A/C/G/T
-  profile, with read indices into `evidence.reads` (SRS-API-013). It is
-  computed on demand from the placed reads the analysis keeps and changes
-  nothing; uncovered positions have no record. The sample evidence keeps only
-  differential loci; a caller that needs the minor channel at a position where
-  every read calls the reference reads it here.
+  profile, with read indices into `evidence.reads`), whether or not a read
+  differs there, but without the support aggregates of a differential locus
+  (SRS-API-013). It is computed on demand from the placed reads the analysis
+  keeps and changes nothing; uncovered positions have no record. The sample
+  evidence keeps only differential loci; a caller that needs the minor
+  channel at a position where every read calls the reference reads it here.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the
   core rejected. The last two carry the read's integrity and callability

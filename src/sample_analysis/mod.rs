@@ -17,7 +17,7 @@ use crate::config::Config;
 use crate::input::sanger;
 use dna_core::consensus;
 use dna_core::model::called_read::CalledRead;
-use dna_core::model::sample_evidence::{RejectedSampleRead, SampleLocusEvidence};
+use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 use dna_core::sample;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
@@ -59,7 +59,7 @@ pub struct SampleAnalysis {
     /// the consensus with them.
     pub(crate) loaded: Loaded,
     /// The admitted reads as the core placed them, which
-    /// [`SampleAnalysis::loci`] observes.
+    /// [`SampleAnalysis::observations`] reads.
     pub(crate) called: Vec<CalledRead>,
 }
 
@@ -72,22 +72,23 @@ impl SampleAnalysis {
     }
 
     /// Every admitted read's observation of each reference position from
-    /// `first_1based` to `last_1based` (inclusive) that a read covers, as
-    /// `evidence.locus_differences` records them, whether or not a read
-    /// differs there: state, reference-strand base, source call index, and
-    /// reference-oriented A/C/G/T profile, with read indices into
-    /// `evidence.reads`. Uncovered positions have no record.
+    /// `first_1based` to `last_1based` (inclusive) that a read covers,
+    /// whether or not a read differs there: state, reference-strand base,
+    /// source call index, and reference-oriented A/C/G/T profile, as
+    /// `evidence.locus_differences` records them, with read indices into
+    /// `evidence.reads`, but without their support aggregates. Uncovered
+    /// positions have no record.
     ///
     /// # Errors
     ///
     /// Returns [`Error`](dna_kernel::error::Error) when the placed reads are
     /// inconsistent, which the analysis already rules out.
-    pub fn loci(
+    pub fn observations(
         &self,
         first_1based: usize,
         last_1based: usize,
-    ) -> Result<Vec<SampleLocusEvidence>> {
-        sample::loci(
+    ) -> Result<Vec<LocusObservations>> {
+        sample::observations(
             &self.called.iter().collect::<Vec<_>>(),
             first_1based,
             last_1based,

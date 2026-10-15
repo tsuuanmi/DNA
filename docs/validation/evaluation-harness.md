@@ -217,7 +217,8 @@ nothing in DNA reads them, they decide no call, and none is approved.
 - the marks of the consensus sites over each position;
 - per region position, each read's *minor channel* where that read calls a
   canonical base without a mask (every covered position, through
-  `SampleAnalysis::loci`): the strongest channel of its reference-oriented
+  `SampleAnalysis::observations`, read once over the span of the regions):
+  the strongest channel of its reference-oriented
   A/C/G/T profile other than its own call, kept when its weight is at least
   0.05; the pair (call, minor base); whether the minor base is the base the
   read calls just before or just after in sequencing order (a neighbour's
@@ -228,7 +229,9 @@ nothing in DNA reads them, they decide no call, and none is approved.
   callable calls, or unplaced), and its callable span in calls.
 
 When every read is rejected, the evidence is the traces alone, with no region
-evidence.
+evidence. When the harness cannot take an analysed sample's evidence (DNA
+cannot give the reads' observations), the sample's call and scores stand and
+its triage class is `no_evidence`, with the cause in `triage.tsv`.
 
 **Detectors.**
 
@@ -307,11 +310,13 @@ count in A/B/C but not in leaks or catches.
   cause; one-strand and `masked` off; the gap alone; the minor signal off),
   then the draft with each minor rule but `lone` (which equals `unshadowed`
   while `region.one_strand` applies) at thresholds 60, 80, 100, 120, 150, 200,
-  and 250, and `lone` at the same thresholds with `region.one_strand` off;
+  and 250, leaving out the draft's own rule, and `lone` at the same
+  thresholds with `region.one_strand` off;
   each with A/B/C and its leaks under every measure: a risk–coverage table.
   Every policy runs on the evidence already taken, without DNA.
 - **Minor signal:** for the draft and each policy with another minor rule,
-  against the same policy with the rule cleared: corpus-weighted A without and
+  against the same policy without the rule, decided like any policy:
+  corpus-weighted A without and
   with the rule and its cost; the compared samples the rule alone moves from
   pass to review and the concordant ones among them (burden); passed samples
   and leaks under every measure without and with the rule; and the recall of
@@ -332,14 +337,14 @@ Phase-0 results are in
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
 | `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
-| `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts, poor traces, the traces a rerun asks for, and the status under each measure |
+| `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (or the evidence failure), poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
 | `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |
 | `triage_leaks.tsv` | with `--triage`, every discordant position inside a passed region under each measure: the sample's outcome, region, position, window, kind, class, the alleles of each side, and the detectors marking it |
 | `triage_detectors.tsv` | with `--triage`, per region detector: whether the draft applies it, samples, regions, and positions flagged, catches per measure, burden, and hits; unique catches and sole burden for an applied detector, `if_applied_*` catches and burden for one not applied, `-` in the other set |
 | `triage_positions.tsv` | with `--triage`, per region position: the analysed samples each detector marks it in |
 | `triage_minor.tsv` | with `--triage`, per policy of the minor-signal measurement: its rule, A without and with it and the cost, moved samples and burden, IUPAC sites and those caught (in regions that pass without the rule, and in any region), and per measure the passed samples and leaks without and with the rule, the upper bound, and the corpus rate |
-| `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
+| `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` and `no_evidence` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
 | `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
 | `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 

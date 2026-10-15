@@ -114,10 +114,12 @@ impl Rule {
 
 #[cfg(test)]
 mod tests {
+    use dna_kernel::model::nucleotide::Nucleotide;
+
     use super::*;
 
     /// A read of the C/T pair (or `pair`) with a second channel of `weight`.
-    fn read(strand: Strand, pair: [u8; 2], weight: u16) -> Minor {
+    fn read(strand: Strand, pair: [Nucleotide; 2], weight: u16) -> Minor {
         Minor {
             strand,
             pair,
@@ -128,8 +130,8 @@ mod tests {
         }
     }
 
-    const CT: [u8; 2] = [1, 3];
-    const TC: [u8; 2] = [3, 1];
+    const CT: [Nucleotide; 2] = [Nucleotide::C, Nucleotide::T];
+    const TC: [Nucleotide; 2] = [Nucleotide::T, Nucleotide::C];
 
     fn two_strands() -> Position {
         Position {
@@ -168,7 +170,7 @@ mod tests {
         assert!(rule(Kind::Any, 150).marks(&one_strand, two_strands()));
         let other_pair = [
             read(Strand::Forward, CT, 300),
-            read(Strand::Reverse, [1, 0], 300),
+            read(Strand::Reverse, [Nucleotide::C, Nucleotide::A], 300),
         ];
         assert!(!rule(Kind::Strands, 150).marks(&other_pair, two_strands()));
         assert!(!rule(Kind::Strands, 50).marks(&[], two_strands()));

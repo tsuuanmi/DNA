@@ -544,7 +544,8 @@ differential loci, where some read differs from the reference. Two thirds of
 the truth IUPAC positions that leaked in phase 0 are positions where DNA calls
 the reference base, so they are differential only when a read happens to call
 the minor base. The harness therefore reads every covered position through a
-new read-only accessor, `SampleAnalysis::loci` (SRS-API-013), and keeps per
+new read-only accessor, `SampleAnalysis::observations` (SRS-API-013), and
+keeps per
 read its minor channel (the strongest channel other than its call), whether
 that base is a neighbour's (a shadow), and its local noise.
 
@@ -609,9 +610,10 @@ a third of them for a quarter of the cost.
 - **Burden.** `region.minor_signal` flags 403 samples (178 primary catches,
   22 that no other applied detector makes; 225 concordant, 35 held back by it
   alone) and marks 100 primary discordant positions itself.
-- **Speed.** The run with the 57 policies takes about 15 s on 64 threads, of
-  which deciding and scoring take about 9 s; outputs are byte-identical
-  between 1 and 64 threads.
+- **Speed.** The run with the 56 policies takes about 15 s on 64 threads, of
+  which deciding and scoring take about 9–10 s; taking the minor channels
+  costs less than 1 % of DNA's time on one thread. Outputs are
+  byte-identical between 1 and 64 threads.
 
 **Conclusion.** A cross-strand minor-signal detector that drops only the
 shadow both strands share halves the heteroplasmy leaks at a review cost of

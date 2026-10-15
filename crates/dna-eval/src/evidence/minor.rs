@@ -2,13 +2,15 @@
 //! region position, each clean read's strongest channel other than its own
 //! call, with whether it is a neighbour's shadow and the read's local noise.
 //!
-//! It reads every covered position through `SampleAnalysis::loci`, so
-//! positions where every read matches the reference are included, and the
-//! read's own calls (`SampleAnalysis::reads`) for its neighbours and noise.
+//! It reads every covered position of the regions in one pass through
+//! `SampleAnalysis::observations`, so positions where every read matches the
+//! reference are included, and the read's own calls
+//! (`SampleAnalysis::reads`) for its neighbours and noise.
 
 use dna::sample_analysis::{SampleAnalysis, SangerAttachment};
 use dna_core::model::alignment::Orientation;
 use dna_core::model::sample_evidence::{LocusState, SampleLocusObservation};
+use dna_kernel::model::nucleotide::Nucleotide;
 
 use super::Strand;
 
@@ -18,15 +20,12 @@ pub(crate) const FLOOR: u16 = 50;
 /// Calls on each side of a call whose second channels give its local noise.
 pub(crate) const NOISE_CALLS: usize = 10;
 
-const BASES: [char; 4] = ['A', 'C', 'G', 'T'];
-
 /// One clean read's second channel at one position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Minor {
     pub(crate) strand: Strand,
-    /// The read's call and its strongest other channel, reference strand, as
-    /// indices into A/C/G/T.
-    pub(crate) pair: [u8; 2],
+    /// The read's call and its strongest other channel, reference strand.
+    pub(crate) pair: [Nucleotide; 2],
     /// The second channel's weight in the read's profile, in thousandths.
     pub(crate) weight: u16,
     /// The second channel's base is the base the read calls just before
@@ -56,7 +55,7 @@ impl Minor {
     }
 
     /// The pair as an unordered key, so reads calling either base agree.
-    pub(crate) fn alleles(self) -> [u8; 2] {
+    pub(crate) fn alleles(self) -> [Nucleotide; 2] {
         let [first, second] = self.pair;
         [first.min(second), first.max(second)]
     }
@@ -66,12 +65,23 @@ impl Minor {
 /// registry order.
 pub(crate) type Signals = Vec<Vec<Vec<Minor>>>;
 
-/// Takes the minor-channel evidence of every region of `analysis`.
+/// Takes the minor-channel evidence of every region of `analysis`, reading
+/// the span from the first region's start to the last region's end once.
 ///
 /// # Errors
 ///
-/// Returns DNA's error when its loci cannot be read.
+/// Returns DNA's error when the observations cannot be read.
 pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Signals> {
+    let regions = analysis.regions();
+    let mut signals: Signals = regions
+        .iter()
+        .map(|[start, end]| vec![Vec::new(); end.saturating_sub(*start) + 1])
+        .collect();
+    let first = regions.iter().map(|[start, _]| *start).min();
+    let last = regions.iter().map(|[_, end]| *end).max();
+    let (Some(first), Some(last)) = (first, last) else {
+        return Ok(signals);
+    };
     let reads = analysis
         .evidence
         .reads
@@ -85,37 +95,41 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Signals> 
             (orientation, calls)
         })
         .collect::<Vec<_>>();
-    analysis
-        .regions()
-        .iter()
-        .map(|[start, end]| {
-            let mut positions = vec![Vec::new(); end.saturating_sub(*start) + 1];
-            for locus in analysis.loci(*start, *end)? {
-                let Some(kept) = locus
-                    .position_1based
-                    .checked_sub(*start)
-                    .and_then(|offset| positions.get_mut(offset))
-                else {
-                    continue;
-                };
-                for observation in &locus.observations {
-                    let Some((orientation, Some(calls))) = reads.get(observation.read_index) else {
-                        continue;
-                    };
-                    if let Some(minor) = minor(observation, *orientation, calls) {
-                        kept.push(minor);
-                    }
-                }
+    for locus in analysis.observations(first, last)? {
+        let Some((region, offset)) =
+            regions
+                .iter()
+                .enumerate()
+                .find_map(|(index, [start, end])| {
+                    (*start..=*end)
+                        .contains(&locus.position_1based)
+                        .then(|| (index, locus.position_1based - start))
+                })
+        else {
+            continue;
+        };
+        let Some(kept) = signals
+            .get_mut(region)
+            .and_then(|positions| positions.get_mut(offset))
+        else {
+            continue;
+        };
+        for observation in &locus.observations {
+            let Some((orientation, Some(calls))) = reads.get(observation.read_index) else {
+                continue;
+            };
+            if let Some(minor) = minor(observation, *orientation, calls) {
+                kept.push(minor);
             }
-            Ok(positions)
-        })
-        .collect()
+        }
+    }
+    Ok(signals)
 }
 
 /// A read's calls on the reference strand, and each call's second-channel
 /// weight in thousandths.
 struct Calls {
-    bases: Vec<char>,
+    bases: Vec<Option<Nucleotide>>,
     seconds: Vec<Option<u16>>,
 }
 
@@ -125,7 +139,7 @@ impl Calls {
             .calls
             .calls
             .iter()
-            .map(|call| reference_base(call.primary, orientation))
+            .map(|call| Nucleotide::from_char(orientation.reference_base(call.primary)))
             .collect();
         // The profile and call share a strand, so the read strand serves.
         let seconds = sanger
@@ -135,7 +149,8 @@ impl Calls {
             .enumerate()
             .map(|(index, call)| {
                 let profile = sanger.locus(index)?.profile?;
-                second(call.primary, profile.weights).map(|(_, weight)| weight)
+                second(Nucleotide::from_char(call.primary)?, profile.weights)
+                    .map(|(_, weight)| weight)
             })
             .collect();
         Self { bases, seconds }
@@ -172,25 +187,21 @@ fn minor(
         return None;
     }
     let (base, index, profile) = (
-        observation.base?,
+        Nucleotide::from_char(observation.base?)?,
         observation.call_index_0based?,
         observation.profile?,
     );
-    let primary = channel(base)?;
     let (secondary, weight) = second(base, profile.weights)?;
     if weight < FLOOR {
         return None;
     }
     let neighbour = |call: Option<usize>| {
         call.and_then(|call| calls.bases.get(call))
-            .is_some_and(|base| channel(*base) == Some(secondary))
+            .is_some_and(|base| *base == Some(secondary))
     };
     Some(Minor {
-        strand: match orientation {
-            Orientation::Forward => Strand::Forward,
-            Orientation::Reverse => Strand::Reverse,
-        },
-        pair: [primary, secondary],
+        strand: Strand::of(orientation),
+        pair: [base, secondary],
         weight,
         before: neighbour(index.checked_sub(1)),
         after: neighbour(index.checked_add(1)),
@@ -198,22 +209,26 @@ fn minor(
     })
 }
 
-/// The strongest channel other than `base`'s, the lowest on a tie, and its
-/// weight in thousandths; `None` when `base` is not A, C, G, or T.
-fn second(base: char, weights: [f64; 4]) -> Option<(u8, u16)> {
-    let primary = channel(base)?;
-    let (index, weight) = (0_u8..4)
-        .filter(|index| *index != primary)
-        .map(|index| (index, weights[usize::from(index)]))
-        .fold(None::<(u8, f64)>, |best, (index, weight)| match best {
-            Some((_, top)) if top >= weight => best,
-            _ => Some((index, weight)),
-        })?;
-    Some((index, thousandths(weight)))
+/// The strongest finite channel other than `base`'s, the lowest on a tie,
+/// and its weight in thousandths; `None` when no other channel is finite.
+fn second(base: Nucleotide, weights: [f64; 4]) -> Option<(Nucleotide, u16)> {
+    let (other, weight) = Nucleotide::ALL
+        .into_iter()
+        .filter(|other| *other != base)
+        .map(|other| (other, weights[other.channel_index()]))
+        .filter(|(_, weight)| weight.is_finite())
+        .fold(
+            None::<(Nucleotide, f64)>,
+            |best, (other, weight)| match best {
+                Some((_, top)) if top.total_cmp(&weight).is_ge() => best,
+                _ => Some((other, weight)),
+            },
+        )?;
+    Some((other, thousandths(weight)))
 }
 
-/// A weight in `[0, 1]` in thousandths, rounded half away from zero; a NaN
-/// weight is 0.
+/// A finite weight, clamped to `[0, 1]`, in thousandths, rounded half away
+/// from zero.
 fn thousandths(weight: f64) -> u16 {
     let scaled = (weight.clamp(0.0, 1.0) * 1000.0).round();
     // The least integer not below `scaled`, which is a whole number.
@@ -229,35 +244,19 @@ fn thousandths(weight: f64) -> u16 {
     low
 }
 
-fn channel(base: char) -> Option<u8> {
-    BASES
-        .iter()
-        .position(|other| *other == base)
-        .and_then(|index| u8::try_from(index).ok())
-}
-
-const fn reference_base(base: char, orientation: Orientation) -> char {
-    match orientation {
-        Orientation::Forward => base,
-        Orientation::Reverse => match base {
-            'A' => 'T',
-            'C' => 'G',
-            'G' => 'C',
-            'T' => 'A',
-            other => other,
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use dna_kernel::read_evidence::EvidenceProfile;
 
     use super::*;
 
+    const C: Nucleotide = Nucleotide::C;
+    const T: Nucleotide = Nucleotide::T;
+
+    /// A read's reference-strand calls and second-channel weights.
     fn calls(bases: &str, seconds: &[Option<u16>]) -> Calls {
         Calls {
-            bases: bases.chars().collect(),
+            bases: bases.chars().map(Nucleotide::from_char).collect(),
             seconds: seconds.to_vec(),
         }
     }
@@ -293,10 +292,10 @@ mod tests {
         let Some(t) = at([0.0, 0.7, 0.0, 0.3]) else {
             panic!("a minor channel of 0.3 is kept");
         };
-        assert_eq!((t.pair, t.weight, t.shadow()), ([1, 3], 300, false));
+        assert_eq!((t.pair, t.weight, t.shadow()), ([C, T], 300, false));
         // The median of 10 and 30 is the lower middle.
         assert_eq!(t.noise, 10);
-        assert_eq!(t.alleles(), [1, 3]);
+        assert_eq!(t.alleles(), [C, T]);
         let Some(g) = at([0.0, 0.7, 0.3, 0.0]) else {
             panic!("kept");
         };
@@ -325,11 +324,14 @@ mod tests {
         let read = Calls {
             bases: "TGC"
                 .chars()
-                .map(|base| reference_base(base, Orientation::Reverse))
+                .map(|base| Nucleotide::from_char(Orientation::Reverse.reference_base(base)))
                 .collect(),
             seconds: vec![None; 3],
         };
-        assert_eq!(read.bases, ['A', 'C', 'G']);
+        assert_eq!(
+            read.bases,
+            [Some(Nucleotide::A), Some(C), Some(Nucleotide::G)]
+        );
         let Some(minor) = minor(
             &observation(LocusState::Alternate, 'C', 1, [0.3, 0.7, 0.0, 0.0]),
             Orientation::Reverse,
@@ -343,10 +345,21 @@ mod tests {
     }
 
     #[test]
-    fn picks_the_lowest_channel_on_a_tie() {
-        assert_eq!(second('A', [0.5, 0.25, 0.25, 0.0]), Some((1, 250)));
-        assert_eq!(second('N', [0.5, 0.25, 0.25, 0.0]), None);
-        assert_eq!(thousandths(f64::NAN), 0);
+    fn picks_the_lowest_finite_channel_on_a_tie() {
+        let a = Nucleotide::A;
+        assert_eq!(second(a, [0.5, 0.25, 0.25, 0.0]), Some((C, 250)));
+        // A NaN channel neither wins nor hides a real minor channel.
+        assert_eq!(
+            second(a, [0.5, f64::NAN, 0.2, 0.0]),
+            Some((Nucleotide::G, 200))
+        );
+        assert_eq!(second(a, [0.5, 0.1, f64::NAN, 0.2]), Some((T, 200)));
+        assert_eq!(
+            second(a, [0.5, f64::INFINITY, 0.2, 0.0]),
+            Some((Nucleotide::G, 200))
+        );
+        assert_eq!(second(a, [1.0, f64::NAN, f64::NAN, f64::NAN]), None);
         assert_eq!(thousandths(0.0995), 100);
+        assert_eq!(thousandths(1.5), 1000);
     }
 }
