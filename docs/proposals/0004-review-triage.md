@@ -397,14 +397,137 @@ Agreed in review on 2026-10-14:
 
 ## Validation plan
 
-- **Phase 0, before any code.** Stage 1 detectors from today's evidence,
-  measured with the method of [PROP-0005](0005-evaluation-feedback-loop.md).
-  The leak and A/B/C numbers decide whether the system is worth building.
+- **Phase 0, before any production code.** Stage 1 detectors from today's
+  evidence, measured with the method of
+  [PROP-0005](0005-evaluation-feedback-loop.md). The leak and A/B/C numbers
+  decide whether the system is worth building. Results below.
 - **Per rule.** The approval targets above, on held-out ground truth.
 - **System.** Property tests for determinism and order independence, and a
   regression check that the outcomes of the approval set do not change
   without a policy version bump.
 - **After go-live.** An audit sample of passed results.
+
+### Phase 0 results
+
+Measured on 2026-10-15 with the draft triage of the evaluation harness
+(`dna-eval run --triage`,
+[draft triage](../validation/evaluation-harness.md#draft-triage)) on the
+development panel v3: 2,618 active samples, revision 6a84daa plus the draft.
+The detectors are drafts in the harness, not DNA rules. The lab's database
+refresh of 2026-10-15 09:53 removed the truth of one zero-weight panel sample,
+so the run reports the truth as changed; that sample now counts in A/B/C but
+not in leaks or catches, and no other number moved.
+
+**Draft policy.** `trace.short` below 100 calls; `region.unreliable` for `N`,
+`contested`, `masked` sites, `phase_loss`, and `reference_frame`;
+`region.one_strand`; `region.gap`; a poor trace is asked for by a rerun when
+its primer (from the trace name) reads the region on a missing strand.
+
+**A/B/C.**
+
+| Level | Pass | Review | Rerun |
+|---|---:|---:|---:|
+| samples | 515 (19.7 %) | 2,025 (77.4 %) | 78 (3.0 %) |
+| samples, corpus-weighted | 0.178 ± 0.023 | 0.799 ± 0.023 | 0.023 ± 0.006 |
+| regions (HVS-I, HVS-II, HVS-III) | 42.9 % (40.0, 36.6, 52.0) | 55.4 % | 1.7 % |
+| regions, corpus-weighted | 0.424 (0.408, 0.340, 0.524) | 0.563 | 0.013 |
+
+No sample failed, and every sample had an admitted read. The clean stratum passes 36 %; the poly-C strata pass
+almost nothing (`16189C` 3 %, `309.2C` 1 %), and samples with missing traces
+none.
+
+**Leaks** (passed samples that are not concordant; one-sided 95 %
+Clopper–Pearson upper bound):
+
+| Measure | Leaks / passed | Rate | Upper bound | Corpus-weighted |
+|---|---:|---:|---:|---:|
+| primary | 50 / 515 | 0.097 | 0.121 | 0.055 |
+| strict | 50 / 515 | 0.097 | 0.121 | 0.055 |
+| IUPAC-compatible | 9 / 515 | 0.017 | 0.030 | 0.002 |
+
+What leaks is invisible to stage-1 evidence:
+
+- **Heteroplasmy.** 41 of the 50 primary leaks differ only at truth IUPAC
+  alleles that both strands read cleanly, where the consensus calls one base.
+- **Representation.** The other 9 differ only in how a clean haplotype is
+  written or placed: HVS-I poly-C length variants at other positions
+  (5 samples), an HVS-II poly-C insertion (1), `248DEL` against `249DEL` with an
+  AC-repeat deletion (1), and one sample whose truth positions in HVS-I are
+  shifted by one against DNA's (to adjudicate).
+- **Region leaks** follow the same pattern: of the 301 primary discordant
+  positions inside passed regions, most lie in the HVS-I poly-C window
+  (16180–16195), insertions and substitutions written at other positions.
+
+**Detectors** (over 657 primary not-concordant samples; unique = flagged by
+no other applied detector; sole burden = concordant samples that pass once
+the detector is cleared):
+
+| Detector | Samples | Catches | Unique | Burden | Sole burden |
+|---|---:|---:|---:|---:|---:|
+| `region.one_strand` | 1,920 | 553 | 8 | 1,367 | 118 |
+| `region.unreliable:masked` | 1,753 | 550 | 8 | 1,203 | 56 |
+| `region.gap` | 1,236 | 480 | 0 | 756 | 9 |
+| `region.unreliable:n` | 1,157 | 469 | 0 | 688 | 0 |
+| `region.unreliable:reference_frame` | 481 | 124 | 0 | 357 | 0 |
+| `region.unreliable:phase_loss` | 142 | 40 | 0 | 102 | 0 |
+| `region.unreliable:contested` | 53 | 20 | 6 | 33 | 3 |
+
+`masked_read` (a covering read masked at the position) is measured but not
+applied: it flags 2,097 samples, and applying it would add 9 primary catches
+for 68 concordant samples no longer passing.
+
+- **One strand** covers whole halves of a region in samples with poly-C
+  length heteroplasmy (`16189C`, `309.1C`/`309.2C`): each read dephases at the
+  poly-C, so the far side is read by the opposite primer only. Region starts
+  at the primer ends (16024–16031, 73–80) give gaps and one-strand
+  positions.
+- **Nested causes.** Every sample that `N`, `phase_loss`, or
+  `reference_frame` flags is flagged by another detector too (an `N` position
+  is a gap), so they add no catch; they are diagnosis causes rather than
+  stage-1 detectors.
+- **Poor traces.** 92 poor traces, 87 asked for by a rerun. Most traces with
+  a callable span under 200 calls are HV1F traces whose span ends near the
+  HVS-I poly-C (150–250 calls), so `trace.short` at 200 calls sends 27 % of
+  samples to rerun for a length heteroplasmy a rerun cannot fix; at 100 calls
+  2.3 %.
+
+**Sweep** (risk–coverage; corpus-weighted A, leaks over passed samples):
+
+| Policy | A | Primary leaks (bound) | IUPAC-compatible leaks (bound) |
+|---|---:|---:|---:|
+| draft | 0.178 | 50 / 515 (0.121) | 9 / 515 (0.030) |
+| `region.one_strand` off | 0.237 | 58 / 641 (0.111) | 10 / 641 (0.026) |
+| `masked` off | 0.220 | 58 / 579 (0.123) | 13 / 579 (0.036) |
+| one-strand and `masked` off | 0.418 | 119 / 1,046 (0.131) | 35 / 1,046 (0.044) |
+| gap only | 0.504 | 177 / 1,381 (0.144) | 70 / 1,381 (0.062) |
+
+`trace.short` and the proxy move samples only between review and rerun
+(C 0.008 with the detector off, 0.023 at 100, 0.270 at 200 calls; the `any`
+proxy adds 0.0002).
+
+**Speed.** The panel run with the draft triage takes 7–11 s on 32–64
+threads; deciding and scoring all 14 policies takes about 1 s. Outputs are
+byte-identical between thread counts, and the run without `--triage` is
+unchanged.
+
+**Conclusion.** Stage 1 is worth building as the detection layer, but not on
+its own as the pass rule:
+
+- **Its leaks are not stage-1 errors.** Every leak is heteroplasmy or a
+  difference in how or where a clean haplotype is written, neither of which
+  stage-1 evidence can show. A
+  pass rule therefore needs, before approval: notation normalisation in the
+  comparison (or an HVS-I poly-C nomenclature window) so representation stops
+  counting, and a minor-signal detector (`region.minor_signal`) as a pass
+  gate.
+- **Its A is too low.** About 18 % corpus-weighted. The largest lever is a
+  one-strand resolver for poly-C dephasing (open question 6), then region
+  edges at the primer ends.
+- **Detectors first:** `region.gap`, `region.unreliable` for `N` and
+  `contested` (the best catches per burden), `region.one_strand`, and the
+  trace rejections. `masked` sites second, with their burden measured.
+  `phase_loss` and `reference_frame` serve diagnosis. `trace.short` at
+  100 calls or off, with the primer proxy for reruns.
 
 ## Rollout and rollback
 
@@ -445,4 +568,6 @@ Not yet reviewed.
 
 ## Implementation
 
-None.
+None in DNA. Phase 0 is measured with draft detectors in the evaluation
+harness (`dna-eval run --triage`); they are research and not rules of this
+system.

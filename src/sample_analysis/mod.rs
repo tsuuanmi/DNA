@@ -18,7 +18,7 @@ use crate::input::sanger;
 use dna_core::consensus;
 use dna_core::model::sample_evidence::RejectedSampleRead;
 use dna_core::sample;
-use dna_kernel::error::Result;
+use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Profile, ProfileIdentity};
 use dna_kernel::variant::ReferenceIdentity;
@@ -57,6 +57,15 @@ pub struct SampleAnalysis {
     /// identities above derive from them, and [`SampleAnalysis::call`] calls
     /// the consensus with them.
     pub(crate) loaded: Loaded,
+}
+
+impl SampleAnalysis {
+    /// The reportable regions of the target profile the analysis ran with:
+    /// inclusive 1-based reference intervals, as the profile declares them.
+    #[must_use]
+    pub fn regions(&self) -> &[[usize; 2]] {
+        &self.loaded.profile.regions
+    }
 }
 
 /// The configuration, profile, and reference an analysis ran with.
@@ -113,7 +122,9 @@ pub struct NotationCall {
 ///
 /// Returns [`Error`](dna_kernel::error::Error) when an input or configuration
 /// file is unreadable or invalid, when a read fails other than by rejection
-/// (the first such read in trace order), or when no read is admitted.
+/// (the first such read in trace order), or when no read is admitted
+/// (`SampleError::NoAdmittedReads`; [`analyze_sanger_outcome`] returns those
+/// reads instead).
 ///
 /// # Panics
 ///
@@ -125,6 +136,43 @@ pub fn analyze_sanger(
     config: &Path,
     workers: NonZeroUsize,
 ) -> Result<SampleAnalysis> {
+    match analyze_sanger_outcome(traces, reference, config, workers)? {
+        SampleOutcome::Analyzed(analysis) => Ok(*analysis),
+        SampleOutcome::Rejected(rejected) => Err(SampleError::NoAdmittedReads {
+            rejected: rejected.len(),
+        }
+        .into()),
+    }
+}
+
+/// What one sample analysis yields: the analysis, or, when every read was
+/// rejected, those reads. The two cases are complete: a read is admitted or
+/// rejected.
+#[derive(Debug, Clone)]
+pub enum SampleOutcome {
+    /// At least one read was admitted.
+    Analyzed(Box<SampleAnalysis>),
+    /// Every read was rejected; each with its cause, by read content SHA-256.
+    Rejected(BTreeMap<String, RejectedRead>),
+}
+
+/// Runs [`analyze_sanger`], but returns the rejected reads with their causes
+/// when no read is admitted, so a caller can name the traces that failed.
+///
+/// # Errors
+///
+/// As [`analyze_sanger`], except that a sample without an admitted read is
+/// [`SampleOutcome::Rejected`] rather than an error.
+///
+/// # Panics
+///
+/// As [`analyze_sanger`].
+pub fn analyze_sanger_outcome(
+    traces: &[PathBuf],
+    reference: &Path,
+    config: &Path,
+    workers: NonZeroUsize,
+) -> Result<SampleOutcome> {
     let inputs = sanger::load_sample(traces, reference, config)?;
     let placed = reads::place(
         &inputs.traces,
@@ -134,6 +182,9 @@ pub fn analyze_sanger(
         &CallerScope::current(),
         workers,
     )?;
+    if placed.called.is_empty() && !placed.rejected.is_empty() {
+        return Ok(SampleOutcome::Rejected(by_identity(placed.rejected)));
+    }
     let evidence = aggregate(&placed, &inputs.config)?;
     let consensus = build_consensus(&placed, &evidence, &inputs.reference, &inputs.config);
     let loaded = Loaded {
@@ -141,7 +192,7 @@ pub fn analyze_sanger(
         profile: inputs.profile,
         reference: inputs.reference,
     };
-    Ok(SampleAnalysis {
+    Ok(SampleOutcome::Analyzed(Box::new(SampleAnalysis {
         reference: loaded.reference.identity(),
         profile: loaded.profile.identity().clone(),
         evidence,
@@ -149,7 +200,7 @@ pub fn analyze_sanger(
         reads: placed.sanger,
         rejected: by_identity(placed.rejected),
         loaded,
-    })
+    })))
 }
 
 /// Aggregates the placed reads into the sample evidence, which validates the

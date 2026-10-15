@@ -224,6 +224,10 @@ pub struct SampleAnalysis {
     pub rejected: BTreeMap<String, RejectedRead>,
 }
 
+impl SampleAnalysis {
+    pub fn regions(&self) -> &[[usize; 2]];
+}
+
 #[non_exhaustive]
 pub struct RejectedRead {
     pub input_name: String,
@@ -251,6 +255,9 @@ impl RejectionCause {
   summary; each site names its reads in registry order.
 - `reads` holds each admitted read's Sanger evidence (`dna_sanger`): calls,
   signal analysis, callability, and quality control.
+- `regions()` returns the reportable regions of the target profile the
+  analysis ran with (inclusive, 1-based), so a caller reads them from the
+  profile rather than repeating them.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the
   core rejected. The last two carry the read's integrity and callability
@@ -261,6 +268,34 @@ core records use. Every coordinate field names its base (`_0based`,
 `_1based`, `_0based_exclusive`). The published projections of these records
 are `dna.sample_evidence/v10` and `dna.consensus/v1`. Notation is not part of
 this result; the consensus call below derives it.
+
+### Sample outcome
+
+`analyze_sanger` fails with `SampleError::NoAdmittedReads` when every read is
+rejected, so the caller learns how many but not which. A caller that must name
+those traces, such as the evaluation harness asking for a rerun, uses the same
+pass through:
+
+```rust
+pub fn analyze_sanger_outcome(
+    traces: &[PathBuf],
+    reference: &Path,
+    config: &Path,
+    workers: NonZeroUsize,
+) -> dna::error::Result<SampleOutcome>
+
+pub enum SampleOutcome {
+    Analyzed(Box<SampleAnalysis>),
+    Rejected(BTreeMap<String, RejectedRead>),
+}
+```
+
+It returns `Analyzed` with exactly the analysis `analyze_sanger` returns, or
+`Rejected` with every read, its cause, and its Sanger evidence, keyed by read
+content SHA-256, when none is admitted. Every other failure is the error
+`analyze_sanger` returns; `analyze_sanger` is this call with `Rejected` turned
+into that error. The two cases are complete, so the enum is not marked
+non-exhaustive.
 
 ### Consensus call
 

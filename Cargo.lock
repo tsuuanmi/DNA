@@ -297,6 +297,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "dna",
+ "dna-core",
+ "dna-sanger",
  "rusqlite",
  "serde",
  "serde_json",

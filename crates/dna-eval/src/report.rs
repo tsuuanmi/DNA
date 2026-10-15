@@ -109,7 +109,7 @@ impl Status {
 
 impl Row<'_> {
     /// The comparison under `measure`, or the failure.
-    fn comparison(&self, measure: Measure) -> Result<&Comparison, &Failure> {
+    pub(crate) fn comparison(&self, measure: Measure) -> Result<&Comparison, &Failure> {
         self.comparisons
             .as_ref()
             .map(|comparisons| &comparisons[measure.index()])
@@ -129,7 +129,7 @@ impl Row<'_> {
 
 /// How samples are weighted for an estimate. Retired samples weigh nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Weighting {
+pub(crate) enum Weighting {
     /// `weight_corpus`: the panel scaled to the whole corpus.
     Corpus,
     /// `weight`: the panel scaled to its sampling pool.
@@ -146,7 +146,7 @@ impl Weighting {
         }
     }
 
-    fn of(self, sample: &Sample) -> f64 {
+    pub(crate) fn of(self, sample: &Sample) -> f64 {
         if sample.retired {
             return 0.0;
         }
@@ -965,7 +965,7 @@ mod tests {
             .collect();
         let truth = crate::truth::load(&path, &wanted)?;
 
-        let call = |sample: &Sample, traces: &[PathBuf]| {
+        let called = |sample: &Sample, traces: &[PathBuf]| {
             let index = sample.id[1..]
                 .parse::<usize>()
                 .map_err(|_| Failure::Panic)?;
@@ -998,6 +998,9 @@ mod tests {
                 },
                 identity: identity(),
             })
+        };
+        let call = |sample: &Sample, traces: &[PathBuf]| -> crate::runner::Ran {
+            (called(sample, traces), None)
         };
         let baseline = crate::baseline::parse(
             b"sample_id\tstatus\tstrict_status\nS00\texact\tconcordant\nS01\texact\tdiscordant\n\

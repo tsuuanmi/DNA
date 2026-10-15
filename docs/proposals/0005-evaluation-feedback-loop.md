@@ -327,9 +327,8 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 1. **Inventory and panel v1.** Done, outside the repository (see *Panel
    v1*). The panel scripts move into the harness crate.
 2. **Harness v0.** Comparison and the run are done (see *Implementation*):
-   stage E calls DNA in process instead of reading CLI result JSON. Next,
-   stage R reproduces the stage-1 detectors for the phase-0 numbers of
-   PROP-0004.
+   stage E calls DNA in process instead of reading CLI result JSON, and a
+   draft stage R gives the phase-0 numbers of PROP-0004 (`run --triage`).
 3. **DNA library calls and evidence record.** Placement once per trace.
 4. **Placement speed-up.** PR #51, measured (see *Panel v1*); review and
    land it, then run a combined `sample` and `consensus` pass, share signal
@@ -390,8 +389,12 @@ yet reviewed.
 
 - **Scope.** It runs DNA, compares the calls with reviewer truth, and
   reports weighted estimates, anchors, and the diff against a baseline run.
-  The stage-R detectors, the evidence cache, rerun labels, and leaks are not
-  built yet.
+  The evidence cache and rerun labels are not built yet.
+- **Draft stage R** (`run --triage`, 2026-10-15). Draft stage-1 detectors of
+  PROP-0004 over a compact per-sample evidence record taken in stage E and
+  held in memory; every policy of a sweep runs on that record without DNA.
+  Results and timings are in
+  [PROP-0004](0004-review-triage.md#phase-0-results).
 - **Stage E.** Instead of reading CLI result JSON (rollout step 2), it calls
   the library: `dna::sample_analysis::analyze_sanger` with one worker per
   sample, then `SampleAnalysis::call`, which completes `consensus` then `call`

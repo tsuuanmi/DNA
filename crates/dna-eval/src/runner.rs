@@ -19,11 +19,13 @@ use std::time::Instant;
 
 use std::num::NonZeroUsize;
 
-use dna::sample_analysis;
+use dna::error::SampleError;
+use dna::sample_analysis::{self, SampleAnalysis, SampleOutcome};
 use sha2::{Digest, Sha256};
 
 use crate::compare::{Allele, Failure};
 use crate::error::{Error, Result};
+use crate::evidence::{self, Evidence};
 use crate::manifest::Sample;
 
 /// Largest accepted thread count.
@@ -58,6 +60,9 @@ pub(crate) struct Outcome {
     /// Distinct traces given to DNA, once duplicates are removed.
     pub(crate) traces: Option<usize>,
     pub(crate) result: std::result::Result<Called, Failure>,
+    /// The draft triage evidence, when the run asks for it and DNA analysed
+    /// the sample or rejected every read; it is kept when the call fails.
+    pub(crate) triage: Option<Evidence>,
     /// Wall time of the sample, in milliseconds.
     pub(crate) millis: u128,
 }
@@ -82,64 +87,95 @@ impl Threads {
     }
 }
 
-/// Runs DNA over every sample with `threads` workers.
+/// Runs DNA over every sample with `threads` workers, taking each sample's
+/// draft triage evidence when `triage` is set: from the analysis, even when
+/// its call then fails, or from the rejected reads when none is admitted.
 pub(crate) fn run(
     samples: &[Sample],
     reference: &Path,
     config: &Path,
     threads: Threads,
+    triage: bool,
 ) -> Result<Vec<Outcome>> {
     run_with(samples, threads, |sample, traces| {
         let failure = |error: dna::error::Error| Failure::Dna(error.to_string());
-        let analysis =
-            sample_analysis::analyze_sanger(traces, reference, config, NonZeroUsize::MIN)
-                .map_err(failure)?;
-        let result = analysis.call(&sample.id).map_err(failure)?;
-        let alleles = result
-            .notation
-            .ok_or(Failure::Notation)?
-            .iter()
-            .map(|call| {
-                let position = if call.ordinal == 0 {
-                    call.position.to_string()
-                } else {
-                    format!("{}.{}", call.position, call.ordinal)
+        let analysis = match sample_analysis::analyze_sanger_outcome(
+            traces,
+            reference,
+            config,
+            NonZeroUsize::MIN,
+        ) {
+            Ok(SampleOutcome::Analyzed(analysis)) => analysis,
+            Ok(SampleOutcome::Rejected(rejected)) => {
+                let error = SampleError::NoAdmittedReads {
+                    rejected: rejected.len(),
                 };
-                let base = |base: Option<char>| base.map_or_else(|| "-".to_owned(), String::from);
-                Allele::new(&position, &base(call.reference), &base(call.alternate))
-            })
-            .collect();
-        // Half-open 0-based segments become closed 1-based intervals.
-        let intervals = result
-            .callable_segments
-            .iter()
-            .filter(|segment| segment.end_0based_exclusive > segment.start_0based)
-            .filter_map(|segment| {
-                Some((
-                    i64::try_from(segment.start_0based).ok()? + 1,
-                    i64::try_from(segment.end_0based_exclusive).ok()?,
-                ))
-            })
-            .collect();
-        Ok(Called {
-            rejected: analysis.rejected.len(),
-            alleles,
-            intervals,
-            identity: Identity {
-                configuration_sha256: analysis.evidence.configuration_sha256,
-                reference_name: analysis.reference.name,
-                reference_sha256: analysis.reference.sha256,
-                profile_id: analysis.profile.id,
-                profile_sha256: analysis.profile.sha256,
-            },
-        })
+                return (
+                    Err(failure(error.into())),
+                    triage.then(|| evidence::rejected_only(rejected.values())),
+                );
+            }
+            Err(error) => return (Err(failure(error)), None),
+        };
+        let evidence = triage.then(|| evidence::extract(&analysis));
+        (call(&analysis, &sample.id), evidence)
     })
 }
+
+/// Calls an analysed sample's consensus and converts the calls into alleles
+/// and the callable segments into intervals.
+fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Called, Failure> {
+    let result = analysis
+        .call(sample_id)
+        .map_err(|error| Failure::Dna(error.to_string()))?;
+    let alleles = result
+        .notation
+        .ok_or(Failure::Notation)?
+        .iter()
+        .map(|call| {
+            let position = if call.ordinal == 0 {
+                call.position.to_string()
+            } else {
+                format!("{}.{}", call.position, call.ordinal)
+            };
+            let base = |base: Option<char>| base.map_or_else(|| "-".to_owned(), String::from);
+            Allele::new(&position, &base(call.reference), &base(call.alternate))
+        })
+        .collect();
+    // Half-open 0-based segments become closed 1-based intervals.
+    let intervals = result
+        .callable_segments
+        .iter()
+        .filter(|segment| segment.end_0based_exclusive > segment.start_0based)
+        .filter_map(|segment| {
+            Some((
+                i64::try_from(segment.start_0based).ok()? + 1,
+                i64::try_from(segment.end_0based_exclusive).ok()?,
+            ))
+        })
+        .collect();
+    Ok(Called {
+        rejected: analysis.rejected.len(),
+        alleles,
+        intervals,
+        identity: Identity {
+            configuration_sha256: analysis.evidence.configuration_sha256.clone(),
+            reference_name: analysis.reference.name.clone(),
+            reference_sha256: analysis.reference.sha256.clone(),
+            profile_id: analysis.profile.id.clone(),
+            profile_sha256: analysis.profile.sha256.clone(),
+        },
+    })
+}
+
+/// What running DNA on one sample gives: its calls or failure, and its draft
+/// triage evidence.
+pub(crate) type Ran = (std::result::Result<Called, Failure>, Option<Evidence>);
 
 /// Runs `call` over every sample's distinct traces with `threads` workers.
 pub(crate) fn run_with<F>(samples: &[Sample], threads: Threads, call: F) -> Result<Vec<Outcome>>
 where
-    F: Fn(&Sample, &[PathBuf]) -> std::result::Result<Called, Failure> + Sync,
+    F: Fn(&Sample, &[PathBuf]) -> Ran + Sync,
 {
     let next = AtomicUsize::new(0);
     let done = AtomicUsize::new(0);
@@ -177,20 +213,21 @@ where
 
 fn one<F>(sample: &Sample, call: &F) -> Outcome
 where
-    F: Fn(&Sample, &[PathBuf]) -> std::result::Result<Called, Failure>,
+    F: Fn(&Sample, &[PathBuf]) -> Ran,
 {
     let started = Instant::now();
-    let (traces, result) = match distinct(&sample.traces) {
+    let (traces, (result, triage)) = match distinct(&sample.traces) {
         Ok(traces) => {
-            let result = panic::catch_unwind(AssertUnwindSafe(|| call(sample, &traces)))
-                .unwrap_or(Err(Failure::Panic));
-            (Some(traces.len()), result)
+            let ran = panic::catch_unwind(AssertUnwindSafe(|| call(sample, &traces)))
+                .unwrap_or((Err(Failure::Panic), None));
+            (Some(traces.len()), ran)
         }
-        Err(failure) => (None, Err(failure)),
+        Err(failure) => (None, (Err(failure), None)),
     };
     Outcome {
         traces,
         result,
+        triage,
         millis: started.elapsed().as_millis(),
     }
 }
@@ -277,7 +314,7 @@ mod tests {
         let samples = (0..40)
             .map(|index| sample(&format!("S{index:02}"), vec![trace.clone(), trace.clone()]))
             .collect::<Vec<_>>();
-        let call = |sample: &Sample, traces: &[PathBuf]| {
+        let called = |sample: &Sample, traces: &[PathBuf]| {
             let index = sample.id[1..]
                 .parse::<usize>()
                 .map_err(|_| Failure::Panic)?;
@@ -292,6 +329,7 @@ mod tests {
                 }),
             }
         };
+        let call = |sample: &Sample, traces: &[PathBuf]| -> Ran { (called(sample, traces), None) };
         let strip = |outcomes: Vec<Outcome>| {
             outcomes
                 .into_iter()
