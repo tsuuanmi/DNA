@@ -421,7 +421,10 @@ not in leaks or catches, and no other number moved.
 **Draft policy.** `trace.short` below 100 calls; `region.unreliable` for `N`,
 `contested`, `masked` sites, `phase_loss`, and `reference_frame`;
 `region.one_strand`; `region.gap`; a poor trace is asked for by a rerun when
-its primer (from the trace name) reads the region on a missing strand.
+its primer (from the trace name) reads the region on a missing strand. The
+draft has since gained `region.minor_signal`
+([minor-signal results](#minor-signal-results)); the numbers in this section
+are those of the stage-1 policy without it (the sweep's `minor_off`).
 
 **A/B/C.**
 
@@ -519,7 +522,7 @@ its own as the pass rule:
   pass rule therefore needs, before approval: notation normalisation in the
   comparison (or an HVS-I poly-C nomenclature window) so representation stops
   counting, and a minor-signal detector (`region.minor_signal`) as a pass
-  gate.
+  gate ([minor-signal results](#minor-signal-results)).
 - **Its A is too low.** About 18 % corpus-weighted. The largest lever is a
   one-strand resolver for poly-C dephasing (open question 6), then region
   edges at the primer ends.
@@ -528,6 +531,97 @@ its own as the pass rule:
   trace rejections. `masked` sites second, with their burden measured.
   `phase_loss` and `reference_frame` serve diagnosis. `trace.short` at
   100 calls or off, with the primer proxy for reruns.
+
+### Minor-signal results
+
+Measured on 2026-10-15 with the same panel, truth, and harness at revision
+a244644 plus the minor-signal draft (`region.minor_signal`,
+[minor rules](../validation/evaluation-harness.md#draft-triage)), on the
+development panel only.
+
+**Evidence.** The sample evidence keeps A/C/G/T profiles only at
+differential loci, where some read differs from the reference. Two thirds of
+the truth IUPAC positions that leaked in phase 0 are positions where DNA calls
+the reference base, so they are differential only when a read happens to call
+the minor base. The harness therefore reads every covered position through a
+new read-only accessor, `SampleAnalysis::loci` (SRS-API-013), and keeps per
+read its minor channel (the strongest channel other than its call), whether
+that base is a neighbour's (a shadow), and its local noise.
+
+**What separates a second allele from noise.** Of the 90 truth IUPAC
+positions inside regions that pass without the rule (the 41 heteroplasmy
+leaks), 18 show no minor channel of 0.05 or more in any read (mostly the
+HVS-I poly-C, 16189–16193, where DNA's call is shifted or another length).
+At homoplasmic positions of concordant samples, a pair seen on both strands
+at 0.10 or more is almost always a shadow: 736 positions in 258 samples, of
+which 3 remain when neither neighbour's base may count (but only 30 of the 90
+true sites do) and 101 in 53 samples when only the base of the next
+reference position may not (41 true sites). That base is a shadow on both
+strands (the next call of a forward read, the previous call of a reverse
+read). The previous reference base is the minor base of about one in seven
+shadow reads, but of one in four reads at true sites, where it is the second
+allele itself (HVS-II C/T sites such as 146, 152, and 195). A local
+noise ratio, a read's local shadow level, or agreement of the two strands'
+minor weights did not separate them better (the last two measured
+exploratorily on the same evidence, not kept).
+
+**Rules** (against the stage-1 draft with the rule cleared: corpus-weighted
+A 0.178, primary leaks 50 / 515; moved = compared samples the rule alone
+sends to review, burden = the concordant ones among them):
+
+| Rule | A cost | Moved | Burden | Primary leaks (bound) | IUPAC sites caught |
+|---|---:|---:|---:|---:|---:|
+| `strands@150` | 0.025 | 101 | 82 | 31 / 414 (0.100) | 26 / 90 |
+| `strands@100` | 0.059 | 217 | 182 | 15 / 298 (0.077) | 47 / 90 |
+| `unshadowed@150` | 0.001 | 11 | 0 | 39 / 504 (0.100) | 20 / 90 |
+| `unshadowed@100` | 0.005 | 16 | 2 | 36 / 499 (0.094) | 30 / 90 |
+| `unshadowed@80` | 0.009 | 25 | 9 | 34 / 490 (0.091) | 33 / 90 |
+| `upstream@120` | 0.011 | 37 | 21 | 34 / 478 (0.094) | 31 / 90 |
+| **`upstream@100`** | **0.020** | **57** | **35** | **28 / 458 (0.083)** | **41 / 90** |
+| `upstream@80` | 0.031 | 89 | 62 | 23 / 426 (0.076) | 46 / 90 |
+| `noise@150` | 0.022 | 92 | 73 | 31 / 423 (0.098) | 26 / 90 |
+| `any@200` | 0.021 | 48 | 33 | 35 / 467 (0.098) | 19 / 90 |
+| `lone@100`, one-strand off | 0.012 | 41 | 24 | 41 / 600 (0.088) | 33 / 110 |
+
+`triage_minor.tsv` holds every rule at 60–250 thousandths.
+
+**Default: `upstream@100`,** the cheapest swept rule that removes more than
+half of the heteroplasmy leaks. `unshadowed@100` is the precise alternative:
+a third of them for a quarter of the cost.
+
+| Level | Pass | Review | Rerun |
+|---|---:|---:|---:|
+| samples | 458 (17.5 %) | 2,082 (79.5 %) | 78 (3.0 %) |
+| samples, corpus-weighted | 0.158 ± 0.022 | 0.819 ± 0.022 | 0.023 ± 0.006 |
+| regions | 41.5 % | 56.8 % | 1.7 % |
+| regions, corpus-weighted | 0.410 | 0.576 | 0.013 |
+
+| Measure | Leaks / passed | Rate | Upper bound | Corpus-weighted |
+|---|---:|---:|---:|---:|
+| primary | 28 / 458 | 0.061 | 0.083 | 0.035 |
+| strict | 28 / 458 | 0.061 | 0.083 | 0.035 |
+| IUPAC-compatible | 8 / 458 | 0.017 | 0.031 | 0.002 |
+
+- **Leaks.** Heteroplasmy leaks fall from 41 to 20 samples; 8 leaks are
+  representation differences (6 in a repeat window, 2 other). The rule marks
+  41 of the 90 IUPAC positions in regions that pass without it, and 96 of the
+  343 inside any region.
+- **Burden.** `region.minor_signal` flags 403 samples (178 primary catches,
+  22 that no other applied detector makes; 225 concordant, 35 held back by it
+  alone) and marks 100 primary discordant positions itself.
+- **Speed.** The run with the 57 policies takes about 15 s on 64 threads, of
+  which deciding and scoring take about 9 s; outputs are byte-identical
+  between 1 and 64 threads.
+
+**Conclusion.** A cross-strand minor-signal detector that drops only the
+shadow both strands share halves the heteroplasmy leaks at a review cost of
+about two percentage points of A. The rest is out of its reach as built: a
+third of the remaining sites show no minor channel, and the others need a
+shadow model of the read (the previous reference base) rather than a
+neighbour test. Recall rather than precision limits it, so the next steps
+are a shadow-corrected minor channel in the Sanger plugin (the
+[point-heteroplasmy](../research/point-heteroplasmy/README.md) prerequisite)
+and the HVS-I poly-C sites, before the rule is measured on held-out truth.
 
 ## Rollout and rollback
 

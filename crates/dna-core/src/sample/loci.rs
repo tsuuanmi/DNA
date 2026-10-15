@@ -1,6 +1,7 @@
 //! Reference-coordinate production sample-locus evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::RangeInclusive;
 
 use crate::model::alignment::{AlignmentColumn, Orientation};
 use crate::model::called_read::CalledRead;
@@ -17,7 +18,34 @@ struct LocusBuilder {
     observations: Vec<SampleLocusObservation>,
 }
 
+/// The differential loci: positions where at least one covering read is
+/// alternate, unresolved, or deleted by an unmasked call.
 pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<SampleLocusEvidence>> {
+    retain(reads, |read, column, _| {
+        !matches!(
+            classify(read, column),
+            LocusState::Reference | LocusState::Masked
+        )
+    })
+}
+
+/// Every position of `positions` (1-based) that a read's alignment covers,
+/// whether or not a read differs there.
+pub(super) fn interval(
+    reads: &[&CalledRead],
+    positions: &RangeInclusive<usize>,
+) -> Result<Vec<SampleLocusEvidence>> {
+    retain(reads, |_, _, position_1based| {
+        positions.contains(&position_1based)
+    })
+}
+
+/// Retains the positions a covering column is kept at, then records every
+/// covering read's observation there.
+fn retain(
+    reads: &[&CalledRead],
+    keep: impl Fn(&CalledRead, &AlignmentColumn, usize) -> bool,
+) -> Result<Vec<SampleLocusEvidence>> {
     let mut loci: BTreeMap<usize, LocusBuilder> = BTreeMap::new();
 
     for read in reads {
@@ -31,13 +59,12 @@ pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<SampleLocusEvidence
                 )
                 .into());
             }
-            let state = classify(read, column);
-            if matches!(state, LocusState::Reference | LocusState::Masked) {
-                continue;
-            }
             let position_1based = reference_index_0based
                 .checked_add(1)
                 .ok_or(SampleError::Overflow("reference coordinate overflow"))?;
+            if !keep(read, column, position_1based) {
+                continue;
+            }
             let entry = loci.entry(position_1based).or_insert_with(|| LocusBuilder {
                 reference_base: column.reference_base,
                 observations: Vec::new(),

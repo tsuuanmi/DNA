@@ -8,7 +8,10 @@
 //! cover it only through a masked call, and the consensus marks over it. Per
 //! input trace it keeps the name, the primer the name carries, whether the
 //! read was admitted (with its strand and the clean positions it reads in
-//! each region) or why it was rejected, and its callable span.
+//! each region) or why it was rejected, and its callable span. Per region
+//! position it also keeps the clean reads' minor channels ([`minor`]).
+
+pub(crate) mod minor;
 
 use std::collections::BTreeMap;
 
@@ -197,6 +200,9 @@ pub(crate) struct Evidence {
     pub(crate) regions: Vec<Region>,
     /// Traces sorted by name, then by state.
     pub(crate) traces: Vec<Trace>,
+    /// Per region and position, the clean reads' minor channels; empty when
+    /// not taken.
+    pub(crate) minor: minor::Signals,
 }
 
 impl Evidence {
@@ -207,22 +213,38 @@ impl Evidence {
             .iter()
             .position(|region| (region.start..=region.end).contains(&anchor))
     }
+
+    /// The minor channels at position `offset` of region `region`; none when
+    /// not taken.
+    pub(crate) fn minors(&self, region: usize, offset: usize) -> &[minor::Minor] {
+        self.minor
+            .get(region)
+            .and_then(|positions| positions.get(offset))
+            .map_or(&[], Vec::as_slice)
+    }
 }
 
 /// Takes the triage evidence of one analysed sample.
-pub(crate) fn extract(analysis: &SampleAnalysis) -> Evidence {
+///
+/// # Errors
+///
+/// Returns DNA's error when its loci cannot be read.
+pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Evidence> {
     let spans = analysis
         .reads
         .iter()
         .map(|(sha256, sanger)| (sha256.as_str(), span(&sanger.callability)))
         .collect::<BTreeMap<_, _>>();
-    build(
-        analysis.regions(),
-        &analysis.evidence.reads,
-        &analysis.consensus,
-        &spans,
-        rejected(analysis.rejected.values()),
-    )
+    Ok(Evidence {
+        minor: minor::extract(analysis)?,
+        ..build(
+            analysis.regions(),
+            &analysis.evidence.reads,
+            &analysis.consensus,
+            &spans,
+            rejected(analysis.rejected.values()),
+        )
+    })
 }
 
 /// The evidence of a sample whose every read was rejected: its traces only,
@@ -233,6 +255,7 @@ pub(crate) fn rejected_only<'a>(reads: impl IntoIterator<Item = &'a RejectedRead
     Evidence {
         regions: Vec::new(),
         traces,
+        minor: Vec::new(),
     }
 }
 
@@ -345,7 +368,11 @@ pub(crate) fn build(
         }
     }
     traces.sort_by(|left, right| order(left).cmp(&order(right)));
-    Evidence { regions, traces }
+    Evidence {
+        regions,
+        traces,
+        minor: Vec::new(),
+    }
 }
 
 /// The unreliable causes a consensus site shows.

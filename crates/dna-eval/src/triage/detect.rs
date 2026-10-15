@@ -7,8 +7,10 @@
 //!   read's rejection) and `trace.short` (callable span below
 //!   [`Policy::short_calls`]); any of them makes the trace *poor*;
 //! - region level: `region.unreliable` per [`Cause`], `region.one_strand`
-//!   (positions observed cleanly by one strand only), and `region.gap`
-//!   (positions observed cleanly by no read).
+//!   (positions observed cleanly by one strand only), `region.gap`
+//!   (positions observed cleanly by no read), and `region.minor_signal`
+//!   (positions whose clean reads show a second allele, by a
+//!   [`MinorRule`]).
 //!
 //! A region is `rerun` when it has a gap, or a one-strand position while the
 //! policy applies `region.one_strand`, and a poor trace could have read it
@@ -19,7 +21,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::evidence::{Cause, Evidence, Strand, TraceState, primer_strand};
+use super::minor::Rule as MinorRule;
+use crate::evidence::minor::Minor;
+use crate::evidence::{Cause, Evidence, Position, Strand, TraceState, primer_strand};
 
 /// Clean positions a read must observe in a region for its primer to count
 /// as reading that region.
@@ -49,15 +53,21 @@ pub(crate) enum Detector {
     Unreliable(Cause),
     OneStrand,
     Gap,
+    MinorSignal(MinorRule),
 }
 
 impl Detector {
-    /// Every region detector, in report order.
+    /// Every region detector, in report order; `region.minor_signal` with
+    /// the draft's rule.
     pub(crate) fn all() -> Vec<Self> {
         Cause::ALL
             .into_iter()
             .map(Self::Unreliable)
-            .chain([Self::OneStrand, Self::Gap])
+            .chain([
+                Self::OneStrand,
+                Self::Gap,
+                Self::MinorSignal(MinorRule::DEFAULT),
+            ])
             .collect()
     }
 
@@ -66,15 +76,18 @@ impl Detector {
             Self::Unreliable(cause) => format!("region.unreliable:{}", cause.label()),
             Self::OneStrand => "region.one_strand".to_owned(),
             Self::Gap => "region.gap".to_owned(),
+            Self::MinorSignal(_) => "region.minor_signal".to_owned(),
         }
     }
 
-    /// Whether the detector marks the position.
-    pub(crate) fn marks(self, position: crate::evidence::Position) -> bool {
+    /// Whether the detector marks a position with this evidence and these
+    /// minor channels.
+    pub(crate) fn marks(self, position: Position, minors: &[Minor]) -> bool {
         match self {
             Self::Unreliable(cause) => position.has(cause),
             Self::OneStrand => position.strands() == 1,
             Self::Gap => position.strands() == 0,
+            Self::MinorSignal(rule) => rule.marks(minors, position),
         }
     }
 }
@@ -143,11 +156,14 @@ pub(crate) struct Policy {
     pub(crate) one_strand: bool,
     /// Which poor traces could have read a region.
     pub(crate) proxy: Proxy,
+    /// The rule of `region.minor_signal`; `None` turns the detector off.
+    pub(crate) minor: Option<MinorRule>,
 }
 
 impl Policy {
     /// The draft default: `trace.short` below 100 calls, every unreliable
-    /// cause except `masked_read`, one-strand positions, and the primer proxy.
+    /// cause except `masked_read`, one-strand positions, the primer proxy,
+    /// and `region.minor_signal` with [`MinorRule::DEFAULT`].
     pub(crate) fn draft() -> Self {
         Self {
             name: "draft".to_owned(),
@@ -162,6 +178,7 @@ impl Policy {
             .into(),
             one_strand: true,
             proxy: Proxy::Primer,
+            minor: Some(MinorRule::DEFAULT),
         }
     }
 
@@ -171,13 +188,26 @@ impl Policy {
             Detector::Unreliable(cause) => self.causes.contains(&cause),
             Detector::OneStrand => self.one_strand,
             Detector::Gap => true,
+            Detector::MinorSignal(rule) => self.minor == Some(rule),
         }
+    }
+
+    /// The region detectors whose findings a decision counts: every
+    /// detector, and the policy's minor-signal rule.
+    pub(crate) fn detectors(&self) -> Vec<Detector> {
+        let mut detectors = Detector::all();
+        if let Some(rule) = self.minor
+            && !detectors.contains(&Detector::MinorSignal(rule))
+        {
+            detectors.push(Detector::MinorSignal(rule));
+        }
+        detectors
     }
 
     /// The parameters, as `key=value` pairs separated by spaces.
     pub(crate) fn parameters(&self) -> String {
         format!(
-            "short_calls={} causes={} one_strand={} proxy={}",
+            "short_calls={} causes={} one_strand={} proxy={} minor={}",
             self.short_calls,
             if self.causes.is_empty() {
                 "-".to_owned()
@@ -189,7 +219,9 @@ impl Policy {
                     .join(",")
             },
             self.one_strand,
-            self.proxy.label()
+            self.proxy.label(),
+            self.minor
+                .map_or_else(|| "off".to_owned(), MinorRule::label)
         )
     }
 }
@@ -327,14 +359,16 @@ pub(crate) fn decide(
         .iter()
         .enumerate()
         .map(|(index, region)| {
-            let mut findings = Detector::all()
+            let mut findings = policy
+                .detectors()
                 .into_iter()
                 .map(|detector| (detector, 0))
                 .collect::<BTreeMap<_, _>>();
             let mut missing = BTreeSet::new();
-            for position in &region.positions {
+            for (offset, position) in region.positions.iter().enumerate() {
+                let minors = evidence.minors(index, offset);
                 for (detector, count) in &mut findings {
-                    *count += usize::from(detector.marks(*position));
+                    *count += usize::from(detector.marks(*position, minors));
                 }
                 match (position.forward > 0, position.reverse > 0) {
                     (false, false) => {
@@ -455,7 +489,11 @@ mod tests {
     /// primer after them.
     fn sample(regions: Vec<Region>, mut traces: Vec<Trace>) -> Evidence {
         traces.push(trace("ok.ab1", admitted(Strand::Forward, 0), Some(500)));
-        Evidence { regions, traces }
+        Evidence {
+            regions,
+            traces,
+            minor: Vec::new(),
+        }
     }
 
     #[test]
@@ -498,6 +536,59 @@ mod tests {
                 .findings
                 .values()
                 .all(|count| *count == 0)
+        );
+    }
+
+    #[test]
+    fn minor_signal_reviews_or_passes_by_policy() {
+        let read = |strand, weight| Minor {
+            strand,
+            pair: [1, 3],
+            weight,
+            before: false,
+            after: false,
+            noise: 0,
+        };
+        let mut evidence = sample(vec![region(vec![position(1, 1); 3])], Vec::new());
+        evidence.minor = vec![vec![
+            Vec::new(),
+            vec![read(Strand::Forward, 100), read(Strand::Reverse, 120)],
+            Vec::new(),
+        ]];
+        let decision = decide(&evidence, &Policy::draft(), &Footprints::default());
+        assert_eq!(decision.outcome, Outcome::Review);
+        assert_eq!(
+            decision.regions[0].findings[&Detector::MinorSignal(MinorRule::DEFAULT)],
+            1
+        );
+        // Off, the finding is still counted but does not act.
+        let off = Policy {
+            minor: None,
+            ..Policy::draft()
+        };
+        let decision = decide(&evidence, &off, &Footprints::default());
+        assert_eq!(decision.outcome, Outcome::Pass);
+        assert_eq!(
+            decision.regions[0].findings[&Detector::MinorSignal(MinorRule::DEFAULT)],
+            1
+        );
+        // Another rule is counted beside the draft's; above both weights it
+        // marks nothing.
+        let strict = MinorRule {
+            threshold: 121,
+            ..MinorRule::DEFAULT
+        };
+        let policy = Policy {
+            minor: Some(strict),
+            ..Policy::draft()
+        };
+        assert_eq!(policy.detectors().len(), Detector::all().len() + 1);
+        assert!(policy.parameters().ends_with("minor=upstream@121"));
+        let decision = decide(&evidence, &policy, &Footprints::default());
+        assert_eq!(decision.outcome, Outcome::Pass);
+        assert_eq!(
+            decision.regions[0].findings[&Detector::MinorSignal(strict)],
+            0
         );
     }
 
@@ -545,6 +636,7 @@ mod tests {
     fn a_gap_reruns_when_a_poor_trace_could_read_it() {
         // Learned footprints: HV1R reads region 0 on the reverse strand.
         let learned = Evidence {
+            minor: Vec::new(),
             regions: Vec::new(),
             traces: vec![
                 trace("a_HV1R.ab1", admitted(Strand::Reverse, 50), Some(500)),
@@ -593,6 +685,7 @@ mod tests {
 
         // A gap needs any strand: still rerun, even without one-strand.
         let gap = Evidence {
+            minor: Vec::new(),
             regions: vec![region(vec![position(0, 0)])],
             traces: evidence.traces.clone(),
         };
@@ -603,6 +696,7 @@ mod tests {
             vec![trace("s_HV2F.ab1", TraceState::Weak, None)],
         );
         let mut footprints_hv2f = Footprints::learn([&Evidence {
+            minor: Vec::new(),
             regions: Vec::new(),
             traces: vec![trace("c_HV2F.ab1", admitted(Strand::Forward, 80), None)],
         }]);
@@ -656,6 +750,7 @@ mod tests {
     #[test]
     fn a_sample_without_an_admitted_read_reruns_every_poor_trace() {
         let evidence = Evidence {
+            minor: Vec::new(),
             regions: Vec::new(),
             traces: vec![
                 trace("s.ab1", TraceState::Weak, Some(40)),

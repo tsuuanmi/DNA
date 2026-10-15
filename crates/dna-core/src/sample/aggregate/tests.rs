@@ -822,3 +822,66 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
     duplicate.input_name = "renamed-copy.ab1".into();
     assert!(run(&[first, duplicate]).is_err());
 }
+
+#[test]
+fn loci_record_every_covered_position_of_an_interval() -> TestResult {
+    let forward = observation(
+        "b",
+        "reference",
+        "config",
+        Orientation::Forward,
+        vec![
+            column('A', 'A', Some(0), 10),
+            column('G', 'C', Some(1), 11),
+            column('T', 'T', Some(2), 12),
+        ],
+        Vec::new(),
+    );
+    let reverse = observation(
+        "a",
+        "reference",
+        "config",
+        Orientation::Reverse,
+        vec![column('T', 'T', Some(0), 12), column('G', 'G', Some(1), 13)],
+        Vec::new(),
+    );
+    let reads = [&forward, &reverse];
+
+    let recorded = loci(&reads, 12, 20)?;
+
+    // Positions 12–14 are covered; 15–20 are not, and 11 lies outside.
+    assert_eq!(
+        recorded
+            .iter()
+            .map(|locus| locus.position_1based)
+            .collect::<Vec<_>>(),
+        [12, 13, 14]
+    );
+    // The differential locus is recorded as `aggregate` records it.
+    let evidence = run(&[forward.clone(), reverse.clone()])?;
+    assert_eq!(evidence.locus_differences.len(), 1);
+    assert_eq!(
+        format!("{:?}", recorded[0]),
+        format!("{:?}", evidence.locus_differences[0])
+    );
+    // A reference match is recorded too, with registry read indices (`a`
+    // first) and the reference-oriented profile.
+    let matched = &recorded[1];
+    assert_eq!(matched.observations.len(), 2);
+    assert_eq!(matched.observations[0].read_index, 0);
+    assert_eq!(
+        matched.observations[0].state,
+        crate::model::sample_evidence::LocusState::Reference
+    );
+    assert_eq!(matched.observations[1].read_index, 1);
+    assert_eq!(matched.support_topology.reference_reads, 2);
+    assert_eq!(
+        matched.observations[0]
+            .profile
+            .map(|profile| profile.weights),
+        Some([0.4, 0.3, 0.2, 0.1])
+    );
+    assert!(loci(&reads, 30, 40)?.is_empty());
+    assert!(loci(&[], 1, 10).is_err());
+    Ok(())
+}

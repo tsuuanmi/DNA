@@ -32,7 +32,9 @@ part of the release.
   strands, masked reads, and consensus marks; per trace, its primer, state,
   and callable span. It names `dna_core` and `dna_sanger` evidence types
   (`Orientation`, `SiteState`, `RunEvidence`, `ReadCallability`) that the
-  facade exposes only as fields.
+  facade exposes only as fields. `evidence/minor.rs` adds each clean read's
+  minor channel per region position, read through `SampleAnalysis::loci`
+  ([minor evidence](evidence/README.md)).
 - `triage/` — the draft stage-1 triage of PROP-0004 phase 0 over that
   evidence ([triage](triage/README.md)).
 - `error.rs` — failures that stop a run.

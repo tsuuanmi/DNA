@@ -96,3 +96,10 @@ they are right, heteroplasmy evidence can be revisited.
 A modality-neutral record of a mixed site would carry the result through the
 core to post-calling notation (`16192Y`). The sequence modality could map
 consensus IUPAC codes to the same record.
+
+## Follow-up: review triage
+
+Reporting heteroplasmy stays out of scope, but routing a site to review needs
+recall more than precision. The draft triage measures this evidence as a
+review detector (`region.minor_signal`) on the development panel; the results
+are in [PROP-0004](../../proposals/0004-review-triage.md#minor-signal-results).

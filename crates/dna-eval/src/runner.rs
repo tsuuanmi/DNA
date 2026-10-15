@@ -117,7 +117,10 @@ pub(crate) fn run(
             }
             Err(error) => return (Err(failure(error)), None),
         };
-        let evidence = triage.then(|| evidence::extract(&analysis));
+        let evidence = match triage.then(|| evidence::extract(&analysis)).transpose() {
+            Ok(evidence) => evidence,
+            Err(error) => return (Err(failure(error)), None),
+        };
         (call(&analysis, &sample.id), evidence)
     })
 }
