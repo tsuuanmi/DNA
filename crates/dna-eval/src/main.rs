@@ -5,7 +5,8 @@
 //! `call` workflow for every sample in process, compares the calls with the
 //! reviewer truth of the lab's statistics database, and writes the
 //! comparisons, weighted estimates, anchors, the diff against an optional
-//! baseline run, and a summary into a new output directory. `dna-eval panel`
+//! baseline run, and a summary into a new output directory; with `--triage`
+//! it also scores the draft stage-1 triage of PROP-0004. `dna-eval panel`
 //! derives a new panel version against the database. Nothing in DNA depends on
 //! this crate.
 
@@ -13,10 +14,12 @@ mod baseline;
 mod compare;
 mod error;
 mod estimate;
+mod evidence;
 mod manifest;
 mod panel;
 mod report;
 mod runner;
+mod triage;
 mod truth;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -102,6 +105,10 @@ struct RunArgs {
     /// Worker threads that run DNA (1 to 256).
     #[arg(long)]
     threads: usize,
+    /// Also run the draft stage-1 triage of PROP-0004 phase 0 and write its
+    /// `triage*` outputs; research only.
+    #[arg(long)]
+    triage: bool,
 }
 
 fn main() -> ExitCode {
@@ -149,14 +156,26 @@ fn run(cli: &RunArgs) -> Result<String> {
     let truth = load_truth(&cli.truth, &wanted)?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
-    let outcomes = runner::run(&manifest.samples, &cli.reference, &cli.config, threads)?;
+    let outcomes = runner::run(
+        &manifest.samples,
+        &cli.reference,
+        &cli.config,
+        threads,
+        cli.triage,
+    )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
 
     let rows = report::rows(&manifest.samples, &outcomes, &truth.database.samples);
     let check = TruthCheck::new(&manifest, &truth.database);
     let report = Report::new(&rows, baseline.as_ref(), &check);
+    let triage_started = Instant::now();
+    let triage = cli
+        .triage
+        .then(|| triage::score::Triage::new(&rows, triage::score::sweep()));
+    let triage_files = triage.as_ref().map(triage::score::Triage::files);
+    let triage_seconds = triage_started.elapsed().as_secs_f64();
 
-    let header = header(
+    let mut header = header(
         cli,
         &manifest,
         &truth,
@@ -168,7 +187,19 @@ fn run(cli: &RunArgs) -> Result<String> {
             dna: dna_seconds,
         },
     );
-    for (name, contents) in report.files(&context(&header)) {
+    header.triage = triage.as_ref().map(|triage| TriageHeader {
+        policy: triage
+            .policy()
+            .map(|policy| format!("{}: {}", policy.name, policy.parameters()))
+            .unwrap_or_default(),
+        policies: triage.policies(),
+        seconds: triage_seconds,
+    });
+    for (name, contents) in report
+        .files(&context(&header))
+        .into_iter()
+        .chain(triage_files.into_iter().flatten())
+    {
         write(&cli.output, name, &contents)?;
     }
     let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
@@ -347,6 +378,18 @@ struct Header {
     /// Outcome counts per measure.
     samples: BTreeMap<&'static str, Counts>,
     seconds: Seconds,
+    /// The draft triage, when the run asked for it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    triage: Option<TriageHeader>,
+}
+
+/// The draft triage of a run: the reported policy, the policies swept, and
+/// the time to decide and score every policy.
+#[derive(Debug, Serialize)]
+struct TriageHeader {
+    policy: String,
+    policies: usize,
+    seconds: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -485,6 +528,7 @@ fn header(
             sample_max: seconds(millis.len().saturating_sub(1)),
             sample_sum: millis.iter().sum::<u128>() as f64 / 1000.0,
         },
+        triage: None,
     }
 }
 

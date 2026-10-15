@@ -90,7 +90,7 @@ impl Allele {
         }
     }
 
-    fn is_iupac(&self) -> bool {
+    pub(crate) fn is_iupac(&self) -> bool {
         self.alternate != "-" && !DEFINITE.contains(&self.alternate.as_str())
     }
 
@@ -136,7 +136,7 @@ pub(crate) fn normalize_position(text: &str) -> String {
 }
 
 /// The anchor base of a position: `309` for `309.1`.
-fn anchor(position: &str) -> Option<i64> {
+pub(crate) fn anchor(position: &str) -> Option<i64> {
     position.split('.').next()?.parse::<i64>().ok()
 }
 

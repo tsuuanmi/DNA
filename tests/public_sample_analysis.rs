@@ -96,6 +96,7 @@ fn one_pass_returns_sample_evidence_and_consensus_without_cli_side_effects()
         sample_analysis::analyze_sanger(&[forward, foreign, reverse], &reference, &config, FOUR)?;
 
     assert_eq!(result.reference.name, "synthetic");
+    assert_eq!(result.regions(), [[1, 50000]]);
     assert_eq!(result.evidence.reference_sha256, result.reference.sha256);
     assert!(!result.evidence.configuration_sha256.is_empty());
     assert_eq!(result.evidence.reads.len(), 2);

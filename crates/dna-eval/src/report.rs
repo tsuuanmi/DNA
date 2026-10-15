@@ -109,7 +109,7 @@ impl Status {
 
 impl Row<'_> {
     /// The comparison under `measure`, or the failure.
-    fn comparison(&self, measure: Measure) -> Result<&Comparison, &Failure> {
+    pub(crate) fn comparison(&self, measure: Measure) -> Result<&Comparison, &Failure> {
         self.comparisons
             .as_ref()
             .map(|comparisons| &comparisons[measure.index()])
@@ -129,7 +129,7 @@ impl Row<'_> {
 
 /// How samples are weighted for an estimate. Retired samples weigh nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Weighting {
+pub(crate) enum Weighting {
     /// `weight_corpus`: the panel scaled to the whole corpus.
     Corpus,
     /// `weight`: the panel scaled to its sampling pool.
@@ -146,7 +146,7 @@ impl Weighting {
         }
     }
 
-    fn of(self, sample: &Sample) -> f64 {
+    pub(crate) fn of(self, sample: &Sample) -> f64 {
         if sample.retired {
             return 0.0;
         }
@@ -997,6 +997,7 @@ mod tests {
                     vec![(73, 340), (16024, 16365)]
                 },
                 identity: identity(),
+                triage: None,
             })
         };
         let baseline = crate::baseline::parse(

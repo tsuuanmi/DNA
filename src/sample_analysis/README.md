@@ -19,7 +19,8 @@ consensus in the evidence's read order, and exposes `analyze_sanger`, which
 returns both as a typed `SampleAnalysis` from one pass. The `sample` and
 `consensus` pipelines call the same pass, aggregation, and consensus, then add
 their own logging, notation, projection, and publication. `mod.rs` also keeps
-the loaded configuration, profile, and reference in the result and defines the
+the loaded configuration, profile, and reference in the result, exposes the
+profile's reportable regions (`SampleAnalysis::regions`), and defines the
 public `ConsensusCall` and `NotationCall` types of `SampleAnalysis::call`, which
 `pipeline` implements because it composes the `consensus` report and the `call`
 pipeline.

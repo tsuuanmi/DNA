@@ -24,6 +24,7 @@ use sha2::{Digest, Sha256};
 
 use crate::compare::{Allele, Failure};
 use crate::error::{Error, Result};
+use crate::evidence::{self, Evidence};
 use crate::manifest::Sample;
 
 /// Largest accepted thread count.
@@ -40,6 +41,8 @@ pub(crate) struct Called {
     pub(crate) intervals: Vec<(i64, i64)>,
     /// Identities of the configuration, reference, and profile.
     pub(crate) identity: Identity,
+    /// The draft triage evidence, when the run asks for it.
+    pub(crate) triage: Option<Evidence>,
 }
 
 /// Scientific identities DNA reports for a sample.
@@ -82,12 +85,14 @@ impl Threads {
     }
 }
 
-/// Runs DNA over every sample with `threads` workers.
+/// Runs DNA over every sample with `threads` workers, taking each sample's
+/// draft triage evidence when `triage` is set.
 pub(crate) fn run(
     samples: &[Sample],
     reference: &Path,
     config: &Path,
     threads: Threads,
+    triage: bool,
 ) -> Result<Vec<Outcome>> {
     run_with(samples, threads, |sample, traces| {
         let failure = |error: dna::error::Error| Failure::Dna(error.to_string());
@@ -125,6 +130,7 @@ pub(crate) fn run(
             rejected: analysis.rejected.len(),
             alleles,
             intervals,
+            triage: triage.then(|| evidence::extract(&analysis)),
             identity: Identity {
                 configuration_sha256: analysis.evidence.configuration_sha256,
                 reference_name: analysis.reference.name,
@@ -289,6 +295,7 @@ mod tests {
                     alleles: vec![Allele::new(&sample.id[1..], "A", "G")],
                     intervals: Vec::new(),
                     identity: identity(),
+                    triage: None,
                 }),
             }
         };

@@ -10,6 +10,24 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Draft triage measurement for PROP-0004 phase 0 (evaluation harness only).
+  - **Harness:** `dna-eval run --triage` takes a compact triage evidence
+    record per sample from the same analysis, runs draft stage-1 detectors
+    (`trace.too_short`, `trace.weak`, `trace.unplaced`, `trace.short`,
+    `region.unreliable`, `region.one_strand`, `region.gap`), decides pass,
+    review, or rerun per region, trace, and sample, and scores A/B/C, leaks
+    with Clopper–Pearson bounds, catches per detector, and a policy sweep
+    against the truth (`triage*` outputs,
+    [draft triage](docs/validation/evaluation-harness.md#draft-triage)).
+    Without `--triage` a run is unchanged. The detectors are research drafts,
+    not DNA rules.
+  - **Rust API:** `SampleAnalysis::regions()` returns the reportable regions
+    of the target profile the analysis ran with (SRS-API-010).
+  - **Measured** on the development panel v3: corpus-weighted A 0.178,
+    B 0.799, C 0.023; 50 of 515 passed samples leak on the primary measure,
+    41 of them only at truth IUPAC alleles, and 9 on the IUPAC-compatible
+    measure, all differences in how or where a clean haplotype is written
+    ([phase 0 results](docs/proposals/0004-review-triage.md#phase-0-results)).
 - Sample analysis in one placement pass (PROP-0005, SRS-API-009/010/011).
   - **Rust API:** `dna::sample_analysis::analyze_sanger(traces, reference,
     config, workers)` places each trace once on up to `workers` threads and returns a typed `SampleAnalysis`: the

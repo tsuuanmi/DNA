@@ -59,6 +59,15 @@ pub struct SampleAnalysis {
     pub(crate) loaded: Loaded,
 }
 
+impl SampleAnalysis {
+    /// The reportable regions of the target profile the analysis ran with:
+    /// inclusive 1-based reference intervals, as the profile declares them.
+    #[must_use]
+    pub fn regions(&self) -> &[[usize; 2]] {
+        &self.loaded.profile.regions
+    }
+}
+
 /// The configuration, profile, and reference an analysis ran with.
 #[derive(Debug, Clone)]
 pub(crate) struct Loaded {

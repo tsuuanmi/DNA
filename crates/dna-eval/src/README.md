@@ -4,8 +4,9 @@ The evaluation harness
 ([ADR-0075](../../../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)):
 the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
-with them (SRS-COMPAT-003). It depends on the `dna` facade alone, whose
-`sample_analysis` capability it runs. No crate depends on it, and it is not
+with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
+`sample_analysis` capability it runs, and on `dna-core` only to name the
+evidence types the draft triage reads. No crate depends on it, and it is not
 part of the release.
 
 - `main.rs` — command line (`run`, `panel`), run orchestration, output
@@ -24,6 +25,13 @@ part of the release.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.
+- `evidence.rs` — with `run --triage`, the compact triage evidence the
+  runner takes from each sample's analysis: per region position, the clean
+  strands, masked reads, and consensus marks; per trace, its primer, state,
+  and callable span. It names `dna_core` evidence types (`Orientation`,
+  `SiteState`, `RunEvidence`) that the facade exposes only as fields.
+- `triage/` — the draft stage-1 triage of PROP-0004 phase 0 over that
+  evidence ([triage](triage/README.md)).
 - `error.rs` — failures that stop a run.
 
 `build.rs` records the git revision the harness is built from, and whether

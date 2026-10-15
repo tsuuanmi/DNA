@@ -14,7 +14,7 @@ cargo run --release -p dna-eval -- run \
   --manifest <panel.tsv> --truth <statistics.sqlite> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
-  --threads <1-256>
+  --threads <1-256> [--triage]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -118,6 +118,10 @@ rejects, or on which DNA panics gets a failure row; the others continue. The
 truth of the whole panel loads before DNA runs, so a database that cannot be
 opened, has another schema, or fails a query stops the run first.
 
+`--triage` also takes each sample's triage evidence from the same analysis
+and runs the [draft triage](#draft-triage); without it the run and its
+outputs are unchanged.
+
 ## Measures
 
 The truth side is compared as stored in the database; DNA's side uses its
@@ -191,6 +195,74 @@ Statuses fall into classes so that runs of other conventions stay comparable:
   change of class), `added`, `removed`. The summary also tabulates the
   baseline `status` against the primary status.
 
+## Draft triage
+
+`run --triage` measures whether the triage of
+[PROP-0004](../proposals/0004-review-triage.md) is worth building (phase 0).
+Its detectors are research drafts over the evidence DNA already produces:
+nothing in DNA reads them, they decide no call, and none is approved.
+
+**Evidence.** Per sample, from the analysis the run already made:
+
+- the reportable regions of the target profile (`SampleAnalysis::regions`);
+- per region position: the admitted reads that observe it cleanly on each
+  strand (inside the read's callable reference segments; at a consensus site,
+  its supporting and opposing reads instead), the reads that cover it only
+  through a masked call, and the marks of the consensus sites over it;
+- per input trace: its name, the primer in the name (a `HV<n><F|R>` token),
+  whether it was admitted (with its strand) or rejected (too short, too few
+  callable calls, or unplaced), and its callable span in calls.
+
+**Detectors.**
+
+| Level | Finding | Fires when |
+|---|---|---|
+| trace | `trace.too_short`, `trace.weak`, `trace.unplaced` | the read was rejected for that cause (SRS-SAMPLE-030, SRS-SAMPLE-027, SRS-SAMPLE-029) |
+| trace | `trace.short` | the callable span has fewer than `short_calls` calls (default 100; `0` turns it off) |
+| region | `region.unreliable` | a position is `n` (a site without a call or with `N`), `contested`, `masked` (a site with an uninformative read), or `phase_loss` or `reference_frame` (a run of the site has that length evidence); `masked_read` (a covering read reads the position only through a masked call) is measured but not applied by default |
+| region | `region.one_strand` | a position is observed cleanly by one strand only |
+| region | `region.gap` | a position is observed cleanly by no read |
+
+A failed analysis (a trace that cannot be decoded, or no admitted read) is
+the sample's own class, `failed`. A trace with any trace finding is *poor*;
+it stays a diagnostic unless a region asks for it.
+
+**Outcomes.** A region is `rerun` when it has a gap, or a one-strand position
+while the policy applies `region.one_strand`, and a poor trace could have read
+it; `review` when any applied finding remains; `pass` otherwise. A sample takes
+its worst region (rerun > review > pass). Which poor trace could have read a
+region is a proxy:
+
+- `primer` (default): the poor trace's primer reads the region on a strand
+  the region lacks. A primer's strand is its `F` or `R`; its regions are those
+  that at least half of the run's admitted traces with that primer observe
+  cleanly at 50 positions or more (its footprint, learned from the run);
+- `any`: any poor trace of the sample.
+
+**Measurement.** Retired samples are left out; samples without a comparison
+count in A/B/C but not in leaks or catches.
+
+- **A/B/C:** the share of samples, and of regions, in each outcome,
+  unweighted and corpus-weighted with the stratified estimator.
+- **Leaks:** passed samples that are not concordant under each measure, with
+  the one-sided 95 % Clopper–Pearson upper bound on the leak rate among passed
+  samples (`1 − 0.05^(1/n)`, about `3/n`, at zero leaks) and the
+  corpus-weighted rate. Region leaks are discordant positions inside passed
+  regions, each with its kind (`dna_unique`, `truth_unique`, `both`,
+  `uncovered`), allele class (`iupac`, `insertion`, `deletion`,
+  `substitution`), window, and the detectors that mark the position itself.
+- **Catches** per region detector: not-concordant samples it flags, those no
+  other applied detector flags (unique), concordant samples it flags (burden),
+  those only it flags (sole burden: the samples clearing it would pass), and
+  primary discordant positions it marks itself (hits).
+- **Sweep:** the draft and policies that each change one thing
+  (`short_calls` 0, 50, 150, 200, 300; the `any` proxy; `region.one_strand`
+  off; `masked` off; `masked_read` on; `n` and `contested` only; no unreliable
+  cause; one-strand and `masked` off; the gap alone), each with A/B/C and its
+  leaks under every measure: a risk–coverage table. Every policy runs on the
+  evidence already taken, so the whole sweep costs about a second on the
+  development panel.
+
 ## Outputs
 
 | File | Content |
@@ -201,10 +273,18 @@ Statuses fall into classes so that runs of other conventions stay comparable:
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
 | `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
-| `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings |
+| `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts, poor traces, the traces a rerun asks for, and the status under each measure |
+| `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
+| `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it |
+| `triage_leaks.tsv` | with `--triage`, every discordant position inside a passed region under each measure: the sample's outcome, region, position, window, kind, class, the alleles of each side, and the detectors marking it |
+| `triage_detectors.tsv` | with `--triage`, per region detector: samples, regions, and positions flagged, catches and unique catches per measure, burden, sole burden, and hits |
+| `triage_positions.tsv` | with `--triage`, per region position: the analysed samples each detector marks it in |
+| `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
+| `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, regions, leak classes, detectors, traces and primer footprints, and the sweep |
+| `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 
 Every file except `run.json` depends only on the panel, the truth, DNA's
-calls, and the configuration, reference, profile, and baseline the summary
+calls (and with `--triage` its evidence), and the configuration, reference, profile, and baseline the summary
 names, so it is byte-identical whatever the thread count and whatever revision
 or database file it ran on. Run outputs and
 panel manifests hold sample identifiers and stay outside the repository under

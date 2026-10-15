@@ -224,6 +224,10 @@ pub struct SampleAnalysis {
     pub rejected: BTreeMap<String, RejectedRead>,
 }
 
+impl SampleAnalysis {
+    pub fn regions(&self) -> &[[usize; 2]];
+}
+
 #[non_exhaustive]
 pub struct RejectedRead {
     pub input_name: String,
@@ -251,6 +255,9 @@ impl RejectionCause {
   summary; each site names its reads in registry order.
 - `reads` holds each admitted read's Sanger evidence (`dna_sanger`): calls,
   signal analysis, callability, and quality control.
+- `regions()` returns the reportable regions of the target profile the
+  analysis ran with (inclusive, 1-based), so a caller reads them from the
+  profile rather than repeating them.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the
   core rejected. The last two carry the read's integrity and callability
