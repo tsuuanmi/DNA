@@ -202,16 +202,25 @@ Statuses fall into classes so that runs of other conventions stay comparable:
 Its detectors are research drafts over the evidence DNA already produces:
 nothing in DNA reads them, they decide no call, and none is approved.
 
-**Evidence.** Per sample, from the analysis the run already made:
+**Evidence.** Per sample, from the analysis the run already made
+(`analyze_sanger_outcome`), kept even when the call then fails:
 
 - the reportable regions of the target profile (`SampleAnalysis::regions`);
-- per region position: the admitted reads that observe it cleanly on each
-  strand (inside the read's callable reference segments; at a consensus site,
-  its supporting and opposing reads instead), the reads that cover it only
-  through a masked call, and the marks of the consensus sites over it;
+- per region position, its clean and masked reads from one source: at a
+  consensus site, the site's supporting and opposing reads observe it cleanly
+  and its uninformative reads are masked; elsewhere, a read observes it
+  cleanly inside its callable reference segments and masked in the rest of its
+  reference segments. Clean reads are counted per strand. Sites name reads by
+  trace name; a name that two admitted reads share counts a strand only when
+  the site names every read of that name or all of them share the strand,
+  otherwise as masked;
+- the marks of the consensus sites over each position;
 - per input trace: its name, the primer in the name (a `HV<n><F|R>` token),
   whether it was admitted (with its strand) or rejected (too short, too few
   callable calls, or unplaced), and its callable span in calls.
+
+When every read is rejected, the evidence is the traces alone, with no region
+evidence.
 
 **Detectors.**
 
@@ -223,9 +232,12 @@ nothing in DNA reads them, they decide no call, and none is approved.
 | region | `region.one_strand` | a position is observed cleanly by one strand only |
 | region | `region.gap` | a position is observed cleanly by no read |
 
-A failed analysis (a trace that cannot be decoded, or no admitted read) is
-the sample's own class, `failed`. A trace with any trace finding is *poor*;
-it stays a diagnostic unless a region asks for it.
+A trace with any trace finding is *poor*; it stays a diagnostic unless a
+region asks for it. A sample without an admitted read is `rerun` with every
+poor trace, the clearest rerun case. A sample DNA cannot analyse (a trace that
+cannot be read, an invalid input) or whose consensus cannot be called is its
+own class, `failed`; after a call failure its trace findings are still
+reported.
 
 **Outcomes.** A region is `rerun` when it has a gap, or a one-strand position
 while the policy applies `region.one_strand`, and a poor trace could have read
@@ -235,15 +247,20 @@ region is a proxy:
 
 - `primer` (default): the poor trace's primer reads the region on a strand
   the region lacks. A primer's strand is its `F` or `R`; its regions are those
-  that at least half of the run's admitted traces with that primer observe
-  cleanly at 50 positions or more (its footprint, learned from the run);
+  that at least half of the admitted traces with that primer in the run's
+  active samples observe cleanly at 50 positions or more (its footprint). A
+  sample's own traces are not left out: a poor trace never contributes to a
+  footprint, and a sample's admitted traces are a negligible share of a
+  primer's;
 - `any`: any poor trace of the sample.
 
 **Measurement.** Retired samples are left out; samples without a comparison
 count in A/B/C but not in leaks or catches.
 
-- **A/B/C:** the share of samples, and of regions, in each outcome,
-  unweighted and corpus-weighted with the stratified estimator.
+- **A/B/C:** the share of samples in each outcome, unweighted and
+  corpus-weighted with the stratified estimator (with its interval); and the
+  share of regions of decided samples with region evidence, unweighted and
+  weighted by their sample's `weight_corpus` (a point estimate).
 - **Leaks:** passed samples that are not concordant under each measure, with
   the one-sided 95 % Clopper–Pearson upper bound on the leak rate among passed
   samples (`1 − 0.05^(1/n)`, about `3/n`, at zero leaks) and the
@@ -251,17 +268,23 @@ count in A/B/C but not in leaks or catches.
   regions, each with its kind (`dna_unique`, `truth_unique`, `both`,
   `uncovered`), allele class (`iupac`, `insertion`, `deletion`,
   `substitution`), window, and the detectors that mark the position itself.
-- **Catches** per region detector: not-concordant samples it flags, those no
-  other applied detector flags (unique), concordant samples it flags (burden),
-  those only it flags (sole burden: the samples clearing it would pass), and
-  primary discordant positions it marks itself (hits).
+- **Catches** per region detector: not-concordant samples it flags (catches),
+  concordant samples it flags (burden), and primary discordant positions it
+  marks itself (hits). For a detector the policy applies, also the catches no
+  other applied detector makes (unique) and the concordant samples only it
+  holds back (sole burden: clearing it would pass them). For a detector the
+  policy does not apply, instead what applying it would add: the
+  not-concordant samples it would newly catch and the concordant samples it
+  would newly hold back.
 - **Sweep:** the draft and policies that each change one thing
   (`short_calls` 0, 50, 150, 200, 300; the `any` proxy; `region.one_strand`
   off; `masked` off; `masked_read` on; `n` and `contested` only; no unreliable
   cause; one-strand and `masked` off; the gap alone), each with A/B/C and its
   leaks under every measure: a risk–coverage table. Every policy runs on the
-  evidence already taken, so the whole sweep costs about a second on the
-  development panel.
+  evidence already taken, without DNA.
+
+Phase-0 results are in
+[PROP-0004](../proposals/0004-review-triage.md#phase-0-results).
 
 ## Outputs
 
@@ -275,12 +298,12 @@ count in A/B/C but not in leaks or catches.
 | `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
 | `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts, poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
-| `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it |
+| `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |
 | `triage_leaks.tsv` | with `--triage`, every discordant position inside a passed region under each measure: the sample's outcome, region, position, window, kind, class, the alleles of each side, and the detectors marking it |
-| `triage_detectors.tsv` | with `--triage`, per region detector: samples, regions, and positions flagged, catches and unique catches per measure, burden, sole burden, and hits |
+| `triage_detectors.tsv` | with `--triage`, per region detector: whether the draft applies it, samples, regions, and positions flagged, catches per measure, burden, and hits; unique catches and sole burden for an applied detector, `if_applied_*` catches and burden for one not applied, `-` in the other set |
 | `triage_positions.tsv` | with `--triage`, per region position: the analysed samples each detector marks it in |
 | `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
-| `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, regions, leak classes, detectors, traces and primer footprints, and the sweep |
+| `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, and the sweep |
 | `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 
 Every file except `run.json` depends only on the panel, the truth, DNA's

@@ -965,7 +965,7 @@ mod tests {
             .collect();
         let truth = crate::truth::load(&path, &wanted)?;
 
-        let call = |sample: &Sample, traces: &[PathBuf]| {
+        let called = |sample: &Sample, traces: &[PathBuf]| {
             let index = sample.id[1..]
                 .parse::<usize>()
                 .map_err(|_| Failure::Panic)?;
@@ -997,8 +997,10 @@ mod tests {
                     vec![(73, 340), (16024, 16365)]
                 },
                 identity: identity(),
-                triage: None,
             })
+        };
+        let call = |sample: &Sample, traces: &[PathBuf]| -> crate::runner::Ran {
+            (called(sample, traces), None)
         };
         let baseline = crate::baseline::parse(
             b"sample_id\tstatus\tstrict_status\nS00\texact\tconcordant\nS01\texact\tdiscordant\n\

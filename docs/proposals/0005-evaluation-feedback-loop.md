@@ -392,9 +392,9 @@ yet reviewed.
   The evidence cache and rerun labels are not built yet.
 - **Draft stage R** (`run --triage`, 2026-10-15). Draft stage-1 detectors of
   PROP-0004 over a compact per-sample evidence record taken in stage E and
-  held in memory; it scores A/B/C, leaks with Clopper–Pearson bounds, catches
-  per detector, and a 14-policy sweep in 1–2 s on the development panel.
-  Results are in [PROP-0004](0004-review-triage.md#phase-0-results).
+  held in memory; every policy of a sweep runs on that record without DNA.
+  Results and timings are in
+  [PROP-0004](0004-review-triage.md#phase-0-results).
 - **Stage E.** Instead of reading CLI result JSON (rollout step 2), it calls
   the library: `dna::sample_analysis::analyze_sanger` with one worker per
   sample, then `SampleAnalysis::call`, which completes `consensus` then `call`

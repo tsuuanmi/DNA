@@ -13,7 +13,9 @@
 //! A region is `rerun` when it has a gap, or a one-strand position while the
 //! policy applies `region.one_strand`, and a poor trace could have read it
 //! ([`Proxy`]); `review` when any finding the policy applies remains; `pass`
-//! otherwise. A sample takes its worst region (rerun > review > pass).
+//! otherwise. A sample takes its worst region (rerun > review > pass); a
+//! sample without an admitted read has no region evidence and is `rerun` with
+//! every poor trace.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -32,8 +34,6 @@ pub(crate) enum Outcome {
 }
 
 impl Outcome {
-    pub(crate) const ALL: [Self; 3] = [Self::Pass, Self::Review, Self::Rerun];
-
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Pass => "pass",
@@ -212,6 +212,13 @@ impl Footprints {
     /// A primer's strand is the one its name gives, its regions those that at
     /// least half of its admitted traces observe cleanly at
     /// [`FOOTPRINT_POSITIONS`] positions or more.
+    ///
+    /// The caller passes the active samples. The footprints are not left out
+    /// per sample: a poor trace, the one a footprint is applied to, never
+    /// contributes to one (only admitted traces do), and a sample's own
+    /// admitted traces are a small share of a primer's (thousands per common
+    /// primer on a panel), so leaving them out would cost a recomputation per
+    /// sample for no measurable change.
     pub(crate) fn learn<'a>(samples: impl IntoIterator<Item = &'a Evidence>) -> Self {
         let mut tallies = BTreeMap::<String, (usize, Vec<usize>)>::new();
         for evidence in samples {
@@ -272,9 +279,15 @@ pub(crate) struct RegionDecision {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SampleDecision {
     pub(crate) outcome: Outcome,
+    /// Whether any trace was admitted; without one the sample has no region
+    /// evidence and is `rerun` with every poor trace.
+    pub(crate) admitted: bool,
     pub(crate) regions: Vec<RegionDecision>,
     /// Per trace, its findings.
     pub(crate) traces: Vec<Vec<TraceFinding>>,
+    /// The poor traces (indices into the evidence's traces) the sample's rerun
+    /// asks for, in order.
+    pub(crate) rerun: Vec<usize>,
 }
 
 /// The findings of one trace under `policy`.
@@ -370,14 +383,34 @@ pub(crate) fn decide(
             }
         })
         .collect::<Vec<_>>();
-    SampleDecision {
-        outcome: regions
+    let admitted = evidence
+        .traces
+        .iter()
+        .any(|trace| matches!(trace.state, TraceState::Admitted { .. }));
+    let (outcome, rerun) = if admitted {
+        let rerun = regions
+            .iter()
+            .flat_map(|region| region.rerun.iter().copied())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let worst = regions
             .iter()
             .map(|region| region.outcome)
             .max()
-            .unwrap_or(Outcome::Review),
+            .unwrap_or(Outcome::Review);
+        (worst, rerun)
+    } else if poor.is_empty() {
+        (Outcome::Review, Vec::new())
+    } else {
+        (Outcome::Rerun, poor)
+    };
+    SampleDecision {
+        outcome,
+        admitted,
         regions,
         traces,
+        rerun,
     }
 }
 
@@ -418,6 +451,13 @@ mod tests {
         }
     }
 
+    /// A sample with `regions` and `traces`, plus an admitted trace without a
+    /// primer after them.
+    fn sample(regions: Vec<Region>, mut traces: Vec<Trace>) -> Evidence {
+        traces.push(trace("ok.ab1", admitted(Strand::Forward, 0), Some(500)));
+        Evidence { regions, traces }
+    }
+
     #[test]
     fn trace_short_applies_below_the_threshold_only() {
         let policy = Policy::draft();
@@ -450,10 +490,7 @@ mod tests {
 
     #[test]
     fn a_region_read_cleanly_on_both_strands_passes() {
-        let evidence = Evidence {
-            regions: vec![region(vec![position(1, 1); 5])],
-            traces: Vec::new(),
-        };
+        let evidence = sample(vec![region(vec![position(1, 1); 5])], Vec::new());
         let decision = decide(&evidence, &Policy::draft(), &Footprints::default());
         assert_eq!(decision.outcome, Outcome::Pass);
         assert!(
@@ -466,10 +503,10 @@ mod tests {
 
     #[test]
     fn one_strand_reviews_or_passes_by_policy() {
-        let evidence = Evidence {
-            regions: vec![region(vec![position(1, 1), position(2, 0)])],
-            traces: Vec::new(),
-        };
+        let evidence = sample(
+            vec![region(vec![position(1, 1), position(2, 0)])],
+            Vec::new(),
+        );
         let decision = decide(&evidence, &Policy::draft(), &Footprints::default());
         assert_eq!(decision.outcome, Outcome::Review);
         assert_eq!(decision.regions[0].findings[&Detector::OneStrand], 1);
@@ -487,10 +524,7 @@ mod tests {
     fn an_unreliable_cause_reviews_only_when_applied() {
         let mut masked = position(1, 1);
         masked.masked_reads = 1;
-        let evidence = Evidence {
-            regions: vec![region(vec![masked])],
-            traces: Vec::new(),
-        };
+        let evidence = sample(vec![region(vec![masked])], Vec::new());
         let draft = Policy::draft();
         let decision = decide(&evidence, &draft, &Footprints::default());
         assert_eq!(decision.outcome, Outcome::Pass);
@@ -526,13 +560,13 @@ mod tests {
         );
 
         // Forward-only region, with a weak HV1R and a weak HV2F trace.
-        let evidence = Evidence {
-            regions: vec![region(vec![position(1, 0), position(1, 1)])],
-            traces: vec![
+        let evidence = sample(
+            vec![region(vec![position(1, 0), position(1, 1)])],
+            vec![
                 trace("s_HV1R.ab1", TraceState::Weak, Some(50)),
                 trace("s_HV2F.ab1", TraceState::Weak, Some(50)),
             ],
-        };
+        );
         let decision = decide(&evidence, &Policy::draft(), &footprints);
         assert_eq!(decision.outcome, Outcome::Rerun);
         assert_eq!(decision.regions[0].rerun, [0]);
@@ -564,10 +598,10 @@ mod tests {
         };
         assert_eq!(decide(&gap, &lenient, &footprints).outcome, Outcome::Rerun);
         // A forward poor trace cannot supply a missing reverse strand.
-        let forward_only = Evidence {
-            regions: vec![region(vec![position(1, 0)])],
-            traces: vec![trace("s_HV2F.ab1", TraceState::Weak, None)],
-        };
+        let forward_only = sample(
+            vec![region(vec![position(1, 0)])],
+            vec![trace("s_HV2F.ab1", TraceState::Weak, None)],
+        );
         let mut footprints_hv2f = Footprints::learn([&Evidence {
             regions: Vec::new(),
             traces: vec![trace("c_HV2F.ab1", admitted(Strand::Forward, 80), None)],
@@ -585,14 +619,14 @@ mod tests {
 
     #[test]
     fn the_sample_takes_its_worst_region() {
-        let evidence = Evidence {
-            regions: vec![
+        let evidence = sample(
+            vec![
                 region(vec![position(1, 1)]),
                 region(vec![position(1, 0)]),
                 region(vec![position(0, 0)]),
             ],
-            traces: vec![trace("s_HV1R.ab1", TraceState::TooShort, None)],
-        };
+            vec![trace("s_HV1R.ab1", TraceState::TooShort, None)],
+        );
         let decision = decide(
             &evidence,
             &Policy {
@@ -610,14 +644,29 @@ mod tests {
             [Outcome::Pass, Outcome::Rerun, Outcome::Rerun]
         );
         assert_eq!(decision.outcome, Outcome::Rerun);
+        assert_eq!(decision.rerun, [0]);
         let review = decide(
-            &Evidence {
-                regions: evidence.regions.clone(),
-                traces: Vec::new(),
-            },
+            &sample(evidence.regions.clone(), Vec::new()),
             &Policy::draft(),
             &Footprints::default(),
         );
         assert_eq!(review.outcome, Outcome::Review);
+    }
+
+    #[test]
+    fn a_sample_without_an_admitted_read_reruns_every_poor_trace() {
+        let evidence = Evidence {
+            regions: Vec::new(),
+            traces: vec![
+                trace("s.ab1", TraceState::Weak, Some(40)),
+                trace("s_HV1R.ab1", TraceState::TooShort, None),
+            ],
+        };
+        let decision = decide(&evidence, &Policy::draft(), &Footprints::default());
+        assert!(!decision.admitted);
+        assert_eq!(
+            (decision.outcome, decision.rerun),
+            (Outcome::Rerun, vec![0, 1])
+        );
     }
 }

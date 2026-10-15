@@ -86,42 +86,100 @@ pub(crate) fn sweep() -> Vec<Policy> {
     ]
 }
 
-/// The triage of every panel sample under every policy of the sweep.
+/// The triage of every panel sample under every policy of the sweep, measured
+/// once: the reported (first) policy's decisions and discordant positions, and
+/// each policy's A/B/C and leaks.
 pub(crate) struct Triage<'a> {
     rows: &'a [Row<'a>],
     footprints: Footprints,
     policies: Vec<Policy>,
-    /// Per policy, per row: the decision, or `None` when DNA failed.
-    decisions: Vec<Vec<Option<SampleDecision>>>,
+    /// Per row, the reported policy's decision; `None` without triage
+    /// evidence.
+    decisions: Vec<Option<SampleDecision>>,
+    /// Per row, the reported policy's class.
+    classes: Vec<Class>,
+    /// Per policy, its measurement.
+    measurements: Vec<Measurement>,
+    /// Region labels, from the first sample with region evidence.
+    labels: Vec<String>,
+    /// Every discordant position of the scored, compared rows with region
+    /// evidence, under every measure.
+    cases: Vec<Case>,
+    /// The indices into `cases` of each row.
+    by_row: BTreeMap<usize, Vec<usize>>,
 }
 
-/// The triage evidence of a row, when DNA analysed the sample.
+/// The triage evidence of a row, when the run took it.
 fn evidence<'a>(row: &'a Row<'a>) -> Option<&'a Evidence> {
-    row.outcome
-        .result
-        .as_ref()
-        .ok()
-        .and_then(|called| called.triage.as_ref())
+    row.outcome.triage.as_ref()
+}
+
+/// The class of a row: its decision, unless DNA failed on a sample that had
+/// an admitted read. A sample without an admitted read is decided (`rerun`)
+/// although DNA reports it as failed.
+fn class(row: &Row<'_>, decision: Option<&SampleDecision>) -> Class {
+    match decision {
+        Some(decision) if row.outcome.result.is_ok() || !decision.admitted => {
+            Class::Decided(decision.outcome)
+        }
+        _ => Class::Failed,
+    }
 }
 
 impl<'a> Triage<'a> {
     /// Decides every row under every policy; the first policy is the one the
-    /// per-sample outputs report.
+    /// per-sample outputs report. Primer footprints are learned from the
+    /// active (not retired) samples.
     pub(crate) fn new(rows: &'a [Row<'a>], policies: Vec<Policy>) -> Self {
-        let footprints = Footprints::learn(rows.iter().filter_map(evidence));
-        let decisions = policies
+        let footprints = Footprints::learn(
+            rows.iter()
+                .filter(|row| !row.sample.retired)
+                .filter_map(evidence),
+        );
+        let labels: Vec<String> = rows
             .iter()
-            .map(|policy| {
-                rows.iter()
-                    .map(|row| evidence(row).map(|evidence| decide(evidence, policy, &footprints)))
+            .filter_map(evidence)
+            .find(|evidence| !evidence.regions.is_empty())
+            .map(|evidence| {
+                evidence
+                    .regions
+                    .iter()
+                    .map(crate::evidence::Region::label)
                     .collect()
             })
-            .collect();
+            .unwrap_or_default();
+        let mut reported = Vec::new();
+        let mut measurements = Vec::new();
+        for (index, policy) in policies.iter().enumerate() {
+            let decisions = rows
+                .iter()
+                .map(|row| evidence(row).map(|evidence| decide(evidence, policy, &footprints)))
+                .collect::<Vec<_>>();
+            measurements.push(Measurement::of(rows, &decisions, labels.len()));
+            if index == 0 {
+                reported = decisions;
+            }
+        }
+        let classes = rows
+            .iter()
+            .zip(&reported)
+            .map(|(row, decision)| class(row, decision.as_ref()))
+            .collect::<Vec<_>>();
+        let cases = cases(rows, &reported, &classes);
+        let mut by_row = BTreeMap::<usize, Vec<usize>>::new();
+        for (index, case) in cases.iter().enumerate() {
+            by_row.entry(case.row).or_default().push(index);
+        }
         Self {
             rows,
             footprints,
             policies,
-            decisions,
+            decisions: reported,
+            classes,
+            measurements,
+            labels,
+            cases,
+            by_row,
         }
     }
 
@@ -149,102 +207,50 @@ impl<'a> Triage<'a> {
         ]
     }
 
-    /// The scored rows with their decision under policy `index`.
-    fn scored(&self, index: usize) -> impl Iterator<Item = (&'a Row<'a>, Option<&SampleDecision>)> {
+    /// The rows with their index, decision, and class under the reported
+    /// policy.
+    fn all(
+        &self,
+    ) -> impl Iterator<Item = (usize, &'a Row<'a>, Option<&SampleDecision>, Class)> + '_ {
         self.rows
             .iter()
-            .zip(&self.decisions[index])
-            .filter(|(row, _)| !row.sample.retired)
-            .map(|(row, decision)| (row, decision.as_ref()))
+            .zip(&self.decisions)
+            .zip(&self.classes)
+            .enumerate()
+            .map(|(index, ((row, decision), class))| (index, row, decision.as_ref(), *class))
     }
 
-    /// Region labels, from the first sample with evidence.
-    fn region_labels(&self) -> Vec<String> {
-        self.rows
-            .iter()
-            .find_map(evidence)
-            .map(|evidence| {
-                evidence
-                    .regions
-                    .iter()
-                    .map(crate::evidence::Region::label)
-                    .collect()
-            })
-            .unwrap_or_default()
+    /// [`Triage::all`] without the retired rows.
+    fn scored(
+        &self,
+    ) -> impl Iterator<Item = (usize, &'a Row<'a>, Option<&SampleDecision>, Class)> + '_ {
+        self.all().filter(|(_, row, _, _)| !row.sample.retired)
     }
 
-    /// A/B/C and leaks of policy `index`.
-    fn measure(&self, index: usize) -> Measurement {
-        let mut classes = BTreeMap::<Class, usize>::new();
-        let mut observations = Vec::new();
-        let mut leaks = [Leak::default(); 3];
-        for (row, decision) in self.scored(index) {
-            let class = decision.map_or(Class::Failed, |decision| Class::Decided(decision.outcome));
-            *classes.entry(class).or_default() += 1;
-            observations.push((row, class));
-            if class == Class::Decided(Outcome::Pass) && row.comparisons.is_ok() {
-                let weight = Weighting::Corpus.of(row.sample);
-                for measure in Measure::ALL {
-                    let leak = &mut leaks[measure.index()];
-                    let leaked = row.status(measure) != Status::Concordant;
-                    leak.passed += 1;
-                    leak.weight += weight;
-                    if leaked {
-                        leak.leaks += 1;
-                        leak.leaked_weight += weight;
-                    }
-                }
-            }
-        }
-        let estimates = Class::ALL
-            .into_iter()
-            .filter_map(|class| {
-                let rows = observations
-                    .iter()
-                    .map(|(row, of)| Observation {
-                        stratum: &row.sample.stratum,
-                        weight: Weighting::Corpus.of(row.sample),
-                        event: *of == class,
-                    })
-                    .collect::<Vec<_>>();
-                estimate::estimate(&rows).map(|estimate| (class, estimate))
-            })
-            .collect();
-        Measurement {
-            samples: observations.len(),
-            classes,
-            estimates,
-            leaks,
-        }
+    /// The reported policy's measurement.
+    fn reported(&self) -> Option<&Measurement> {
+        self.measurements.first()
     }
 
     /// `triage.tsv`: one row per sample under the reported policy.
     fn samples(&self) -> String {
-        let labels = self.region_labels();
         let mut text = String::from(
             "sample_id\tstratum\tweight_corpus\tretired\toutcome\tregions\tfindings\t\
              poor_traces\trerun_traces\tstatus\tstrict_status\tiupac_compatible_status\n",
         );
-        for (row, decision) in self.rows.iter().zip(&self.decisions[0]) {
-            let (outcome, regions, findings, poor, rerun) = decision.as_ref().map_or_else(
-                || {
-                    (
-                        "failed".to_owned(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                        String::new(),
-                    )
-                },
-                |decision| {
-                    let traces = evidence(row).map_or(&[][..], |evidence| &evidence.traces[..]);
-                    let regions = labels
+        for (_, row, decision, class) in self.all() {
+            let traces = evidence(row).map_or(&[][..], |evidence| &evidence.traces[..]);
+            let (regions, findings, poor, rerun) =
+                decision.map_or_else(Default::default, |decision| {
+                    let regions = self
+                        .labels
                         .iter()
                         .zip(&decision.regions)
                         .map(|(label, region)| format!("{label}={}", region.outcome.label()))
                         .collect::<Vec<_>>()
                         .join(",");
-                    let findings = labels
+                    let findings = self
+                        .labels
                         .iter()
                         .zip(&decision.regions)
                         .flat_map(|(label, region)| {
@@ -266,31 +272,21 @@ impl<'a> Triage<'a> {
                         .collect::<Vec<_>>()
                         .join(",");
                     let rerun = decision
-                        .regions
+                        .rerun
                         .iter()
-                        .flat_map(|region| &region.rerun)
-                        .copied()
-                        .collect::<BTreeSet<_>>()
-                        .into_iter()
-                        .filter_map(|index| traces.get(index).map(|trace| trace.name.clone()))
+                        .filter_map(|index| traces.get(*index).map(|trace| trace.name.as_str()))
                         .collect::<Vec<_>>()
                         .join(",");
-                    (
-                        decision.outcome.label().to_owned(),
-                        regions,
-                        findings,
-                        poor,
-                        rerun,
-                    )
-                },
-            );
+                    (regions, findings, poor, rerun)
+                });
             let _ = writeln!(
                 text,
-                "{}\t{}\t{}\t{}\t{outcome}\t{regions}\t{findings}\t{poor}\t{rerun}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{regions}\t{findings}\t{poor}\t{rerun}\t{}\t{}\t{}",
                 row.sample.id,
                 row.sample.stratum,
                 row.sample.weight_corpus.text,
                 u8::from(row.sample.retired),
+                class.label(),
                 row.status(Measure::Primary).label(),
                 row.status(Measure::Strict).label(),
                 row.status(Measure::IupacCompatible).label(),
@@ -301,7 +297,6 @@ impl<'a> Triage<'a> {
 
     /// `triage_regions.tsv`: one row per sample and region.
     fn regions(&self) -> String {
-        let labels = self.region_labels();
         let detectors = Detector::all();
         let mut text = String::from("sample_id\tstratum\tregion\toutcome");
         for detector in &detectors {
@@ -310,11 +305,11 @@ impl<'a> Triage<'a> {
         text.push_str(
             "\trerun_traces\tprimary_positions\tstrict_positions\tiupac_compatible_positions\n",
         );
-        for (row, decision) in self.rows.iter().zip(&self.decisions[0]) {
+        for (_, row, decision, _) in self.all() {
             let (Some(decision), Some(evidence)) = (decision, evidence(row)) else {
                 continue;
             };
-            for (index, (label, region)) in labels.iter().zip(&decision.regions).enumerate() {
+            for (index, (label, region)) in self.labels.iter().zip(&decision.regions).enumerate() {
                 let _ = write!(
                     text,
                     "{}\t{}\t{label}\t{}",
@@ -363,10 +358,9 @@ impl<'a> Triage<'a> {
 
     /// `triage_traces.tsv`: one row per input trace.
     fn traces(&self) -> String {
-        let labels = self.region_labels();
         let mut text =
             String::from("sample_id\ttrace\tprimer\tstate\tcallable_span\tfindings\trerun_for\n");
-        for (row, decision) in self.rows.iter().zip(&self.decisions[0]) {
+        for (_, row, decision, _) in self.all() {
             let (Some(decision), Some(evidence)) = (decision, evidence(row)) else {
                 continue;
             };
@@ -380,13 +374,19 @@ impl<'a> Triage<'a> {
                     TraceState::Unplaced(label) => format!("unplaced:{label}"),
                     TraceState::Rejected => "rejected".to_owned(),
                 };
-                let rerun_for = labels
-                    .iter()
-                    .zip(&decision.regions)
-                    .filter(|(_, region)| region.rerun.contains(&index))
-                    .map(|(label, _)| label.as_str())
-                    .collect::<Vec<_>>()
-                    .join(",");
+                let rerun_for = if decision.admitted {
+                    self.labels
+                        .iter()
+                        .zip(&decision.regions)
+                        .filter(|(_, region)| region.rerun.contains(&index))
+                        .map(|(label, _)| label.as_str())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                } else if decision.rerun.contains(&index) {
+                    NO_ADMITTED_READ.to_owned()
+                } else {
+                    String::new()
+                };
                 let _ = writeln!(
                     text,
                     "{}\t{}\t{}\t{state}\t{}\t{}\t{rerun_for}",
@@ -401,78 +401,22 @@ impl<'a> Triage<'a> {
         text
     }
 
-    /// Every discordant position of every scored, compared sample under every
-    /// measure, with its region's outcome under the reported policy.
-    fn cases(&self) -> Vec<Case<'a>> {
-        let mut cases = Vec::new();
-        for (row, decision) in self.scored(0) {
-            let (Some(decision), Some(evidence)) = (decision, evidence(row)) else {
-                continue;
-            };
-            for measure in Measure::ALL {
-                let Ok(comparison) = row.comparison(measure) else {
-                    continue;
-                };
-                for position in compare::sorted_positions(&comparison.positions) {
-                    let region =
-                        compare::anchor(position).and_then(|anchor| evidence.region_of(anchor));
-                    let flags = region
-                        .and_then(|region| {
-                            let evidence = &evidence.regions[region];
-                            let anchor = usize::try_from(compare::anchor(position)?).ok()?;
-                            evidence
-                                .positions
-                                .get(anchor.checked_sub(evidence.start)?)
-                                .copied()
-                        })
-                        .map(|at| {
-                            Detector::all()
-                                .into_iter()
-                                .filter(|detector| detector.marks(at))
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_default();
-                    cases.push(Case {
-                        row,
-                        measure,
-                        region: region.map(|index| {
-                            (
-                                evidence.regions[index].label(),
-                                decision.regions[index].outcome,
-                            )
-                        }),
-                        position: position.to_owned(),
-                        detail: Detail::of(comparison, position),
-                        flags,
-                    });
-                }
-            }
-        }
-        cases
-    }
-
     /// `triage_leaks.tsv`: discordant positions inside passed regions.
     fn leak_cases(&self) -> String {
         let mut text = String::from(
             "sample_id\tstratum\tsample_outcome\tmeasure\tregion\tposition\twindow\tkind\t\
              class\tdna_alleles\ttruth_alleles\tmarked_by\n",
         );
-        for case in self.cases().iter().filter(|case| case.leaks()) {
-            let outcome = self.decisions[0]
-                .iter()
-                .zip(self.rows)
-                .find(|(_, row)| row.sample.id == case.row.sample.id)
-                .and_then(|(decision, _)| decision.as_ref())
-                .map_or("failed", |decision| decision.outcome.label());
+        for case in self.cases.iter().filter(|case| case.leaks()) {
+            let row = &self.rows[case.row];
             let _ = writeln!(
                 text,
-                "{}\t{}\t{outcome}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                case.row.sample.id,
-                case.row.sample.stratum,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                row.sample.id,
+                row.sample.stratum,
+                case.sample.label(),
                 case.measure.label(),
-                case.region
-                    .as_ref()
-                    .map_or("-", |(label, _)| label.as_str()),
+                self.region_label(case.region.map(|(index, _)| index)),
                 case.position,
                 Window::of(&case.position).label(),
                 case.detail.kind,
@@ -489,16 +433,25 @@ impl<'a> Triage<'a> {
         text
     }
 
-    /// Per region detector: samples flagged, catches and unique catches per
-    /// measure, burden, and positional hits, under the reported policy's
-    /// findings.
+    /// The label of a region index; `-` outside every region.
+    fn region_label(&self, index: Option<usize>) -> &str {
+        index
+            .and_then(|index| self.labels.get(index))
+            .map_or("-", String::as_str)
+    }
+
+    /// Per region detector, under the reported policy's findings, over the
+    /// scored, compared samples with a decision: samples flagged, catches,
+    /// burden, and positional hits; for an applied detector the catches and
+    /// burden no other applied detector shares; for a detector the policy does
+    /// not apply, what applying it would add.
     fn detector_rows(&self) -> Vec<DetectorRow> {
         let Some(policy) = self.policy() else {
             return Vec::new();
         };
         let compared = self
-            .scored(0)
-            .filter_map(|(row, decision)| Some((row, decision?)))
+            .scored()
+            .filter_map(|(_, row, decision, _)| Some((row, decision?)))
             .filter(|(row, _)| row.comparisons.is_ok())
             .collect::<Vec<_>>();
         let flagged = |decision: &SampleDecision, detector: Detector| {
@@ -509,51 +462,42 @@ impl<'a> Triage<'a> {
                     .is_some_and(|count| *count > 0)
             })
         };
-        let cases = self.cases();
         Detector::all()
             .into_iter()
             .map(|detector| {
+                let applied = policy.applies(detector);
                 let others = Detector::all()
                     .into_iter()
                     .filter(|other| *other != detector && policy.applies(*other))
                     .collect::<Vec<_>>();
-                let mut row = DetectorRow {
-                    detector,
-                    applied: policy.applies(detector),
-                    ..DetectorRow::default()
-                };
+                let mut row = DetectorRow::new(detector, applied);
                 for (sample, decision) in &compared {
                     if !flagged(decision, detector) {
                         continue;
                     }
                     row.samples += 1;
-                    row.regions += decision
-                        .regions
-                        .iter()
-                        .filter(|region| {
-                            region
-                                .findings
-                                .get(&detector)
-                                .is_some_and(|count| *count > 0)
-                        })
-                        .count();
-                    row.positions += decision
-                        .regions
-                        .iter()
-                        .map(|region| region.findings.get(&detector).copied().unwrap_or(0))
-                        .sum::<usize>();
+                    for region in &decision.regions {
+                        let count = region.findings.get(&detector).copied().unwrap_or(0);
+                        row.regions += usize::from(count > 0);
+                        row.positions += count;
+                    }
+                    // Flagged by no other applied detector: for an applied
+                    // detector the samples only it holds back; for one the
+                    // policy does not apply, the samples it would newly hold
+                    // back.
                     let alone = !others.iter().any(|other| flagged(decision, *other));
                     for measure in Measure::ALL {
                         if sample.status(measure) != Status::Concordant {
                             row.catches[measure.index()] += 1;
-                            row.unique[measure.index()] += usize::from(alone);
+                            row.alone[measure.index()] += usize::from(alone);
                         }
                     }
                     let concordant = sample.status(Measure::Primary) == Status::Concordant;
                     row.burden += usize::from(concordant);
-                    row.sole_burden += usize::from(concordant && alone);
+                    row.alone_burden += usize::from(concordant && alone);
                 }
-                row.hits = cases
+                row.hits = self
+                    .cases
                     .iter()
                     .filter(|case| {
                         case.measure == Measure::Primary && case.flags.contains(&detector)
@@ -574,8 +518,9 @@ impl<'a> Triage<'a> {
         }
         text.push('\n');
         let analysed = self
-            .scored(0)
-            .filter_map(|(row, _)| evidence(row))
+            .scored()
+            .filter_map(|(_, row, _, _)| evidence(row))
+            .filter(|evidence| !evidence.regions.is_empty())
             .collect::<Vec<_>>();
         let Some(first) = analysed.first() else {
             return text;
@@ -612,30 +557,39 @@ impl<'a> Triage<'a> {
         text
     }
 
-    /// `triage_detectors.tsv`.
+    /// `triage_detectors.tsv`: `unique_*` and `sole_burden` for applied
+    /// detectors, `if_applied_*` for the others; the other set is `-`.
     fn detectors(&self) -> String {
         let mut text = String::from(
-            "detector\tapplied\tsamples\tregions\tpositions\tcatches_primary\tunique_primary\t\
-             catches_strict\tunique_strict\tcatches_iupac_compatible\tunique_iupac_compatible\t\
-             burden\tsole_burden\tposition_hits_primary\n",
+            "detector\tapplied\tsamples\tregions\tpositions\tcatches_primary\tcatches_strict\t\
+             catches_iupac_compatible\tburden\tunique_primary\tunique_strict\t\
+             unique_iupac_compatible\tsole_burden\tif_applied_catches_primary\t\
+             if_applied_catches_strict\tif_applied_catches_iupac_compatible\t\
+             if_applied_burden\tposition_hits_primary\n",
         );
         for row in self.detector_rows() {
+            let alone = format!(
+                "{}\t{}\t{}\t{}",
+                row.alone[0], row.alone[1], row.alone[2], row.alone_burden
+            );
+            let none = "-\t-\t-\t-";
+            let (unique, added) = if row.applied {
+                (alone.as_str(), none)
+            } else {
+                (none, alone.as_str())
+            };
             let _ = writeln!(
                 text,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{unique}\t{added}\t{}",
                 row.detector.label(),
                 u8::from(row.applied),
                 row.samples,
                 row.regions,
                 row.positions,
                 row.catches[0],
-                row.unique[0],
                 row.catches[1],
-                row.unique[1],
                 row.catches[2],
-                row.unique[2],
                 row.burden,
-                row.sole_burden,
                 row.hits,
             );
         }
@@ -657,8 +611,7 @@ impl<'a> Triage<'a> {
             );
         }
         text.push('\n');
-        for (index, policy) in self.policies.iter().enumerate() {
-            let measured = self.measure(index);
+        for (policy, measured) in self.policies.iter().zip(&self.measurements) {
             let corpus = |class: Class| {
                 measured
                     .estimate(class)
@@ -712,9 +665,13 @@ impl<'a> Triage<'a> {
                 policy.parameters()
             );
         }
-        let measured = self.measure(0);
+        let Some(measured) = self.reported() else {
+            return text;
+        };
         text.push_str(
-            "\n## Samples\n\n| Outcome | Samples | Share | Corpus-weighted | 95 % CI |\n\
+            "\n## Samples\n\nA sample without an admitted read is `rerun` with every trace; \
+             `failed` is a sample DNA could not analyse or call.\n\n\
+             | Outcome | Samples | Share | Corpus-weighted | 95 % CI |\n\
              |---|---:|---:|---:|---:|\n",
         );
         for class in Class::ALL {
@@ -729,46 +686,14 @@ impl<'a> Triage<'a> {
                 measured.share(class),
             );
         }
-        Self::strata_section(&mut text, &measured);
-        self.leak_section(&mut text, &measured);
-        self.region_section(&mut text);
+        strata_section(&mut text, measured);
+        self.leak_section(&mut text, measured);
+        self.region_section(&mut text, measured);
         self.class_section(&mut text);
         self.detector_section(&mut text);
         self.trace_section(&mut text);
         self.sweep_section(&mut text);
         text
-    }
-
-    fn strata_section(text: &mut String, measured: &Measurement) {
-        let Some(pass) = measured.estimate(Class::Decided(Outcome::Pass)) else {
-            return;
-        };
-        text.push_str(
-            "\n### Pass by stratum\n\n| Stratum | Samples | Pass | Review | Rerun |\n\
-             |---|---:|---:|---:|---:|\n",
-        );
-        for stratum in &pass.strata {
-            let rate = |class: Class| {
-                measured
-                    .estimate(class)
-                    .and_then(|estimate| {
-                        estimate
-                            .strata
-                            .iter()
-                            .find(|other| other.name == stratum.name)
-                    })
-                    .map_or(0.0, |other| other.rate)
-            };
-            let _ = writeln!(
-                text,
-                "| {} | {} | {:.3} | {:.3} | {:.3} |",
-                stratum.name,
-                stratum.samples,
-                stratum.rate,
-                rate(Class::Decided(Outcome::Review)),
-                rate(Class::Decided(Outcome::Rerun)),
-            );
-        }
     }
 
     fn leak_section(&self, text: &mut String, measured: &Measurement) {
@@ -792,21 +717,25 @@ impl<'a> Triage<'a> {
                 leak.weighted_rate()
             );
         }
-        let cases = self.cases();
         let mut composition = BTreeMap::<(Measure, &str), usize>::new();
-        for (row, decision) in self.scored(0) {
-            if decision.is_none_or(|decision| decision.outcome != Outcome::Pass)
-                || row.comparisons.is_err()
-            {
+        for (index, row, _, class) in self.scored() {
+            if class != Class::Decided(Outcome::Pass) || row.comparisons.is_err() {
                 continue;
             }
+            let cases = self
+                .by_row
+                .get(&index)
+                .map_or(&[][..], Vec::as_slice)
+                .iter()
+                .map(|case| &self.cases[*case])
+                .collect::<Vec<_>>();
             for measure in Measure::ALL {
                 if row.status(measure) == Status::Concordant {
                     continue;
                 }
                 let at = cases
                     .iter()
-                    .filter(|case| case.measure == measure && case.row.sample.id == row.sample.id)
+                    .filter(|case| case.measure == measure)
                     .collect::<Vec<_>>();
                 let class = if at.is_empty() {
                     "no_position"
@@ -843,51 +772,64 @@ impl<'a> Triage<'a> {
         }
     }
 
-    fn region_section(&self, text: &mut String) {
-        let labels = self.region_labels();
-        let mut counts = vec![BTreeMap::<Outcome, usize>::new(); labels.len()];
-        for (_, decision) in self.scored(0) {
-            for (count, region) in counts
-                .iter_mut()
-                .zip(decision.map_or(&[][..], |decision| &decision.regions[..]))
-            {
-                *count.entry(region.outcome).or_default() += 1;
-            }
+    fn region_section(&self, text: &mut String, measured: &Measurement) {
+        let mut leaks = BTreeMap::<(Measure, Option<usize>), usize>::new();
+        for case in self.cases.iter().filter(|case| case.leaks()) {
+            let region = case.region.map(|(index, _)| index);
+            *leaks.entry((case.measure, region)).or_default() += 1;
+            *leaks.entry((case.measure, None)).or_default() += 1;
         }
-        let cases = self.cases();
         text.push_str(
-            "\n## Regions\n\nOutcomes of the analysed samples' regions, and discordant positions \
-             inside passed regions (region leaks) per measure.\n\n\
-             | Region | Pass | Review | Rerun | Pass share | Leaks primary | Leaks strict | Leaks IUPAC-compatible |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|\n",
+            "\n## Regions\n\nOutcomes of the regions of decided samples with region evidence, \
+             as counts and as shares weighted by the samples' `weight_corpus`, and discordant \
+             positions inside passed regions (region leaks) per measure.\n\n\
+             | Region | Pass | Review | Rerun | Pass corpus | Review corpus | Rerun corpus | Leaks primary | Leaks strict | Leaks IUPAC-compatible |\n\
+             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
         );
-        let mut total = BTreeMap::<Outcome, usize>::new();
-        for (label, count) in labels.iter().zip(&counts) {
-            for (outcome, value) in count {
-                *total.entry(*outcome).or_default() += value;
-            }
-            region_line(text, label, count, &cases, Some(label));
+        let mut total = Tally::default();
+        let lines = self
+            .labels
+            .iter()
+            .zip(&measured.regions)
+            .enumerate()
+            .map(|(index, (label, tally))| (label.as_str(), tally, Some(index)))
+            .collect::<Vec<_>>();
+        for (_, tally, _) in &lines {
+            total.add(tally);
         }
-        region_line(text, "all", &total, &cases, None);
+        for (label, tally, index) in lines.into_iter().chain([("all", &total, None)]) {
+            let leak = |measure: Measure| leaks.get(&(measure, index)).copied().unwrap_or(0);
+            let _ = writeln!(
+                text,
+                "| {label} | {} | {} | {} | {:.4} | {:.4} | {:.4} | {} | {} | {} |",
+                tally.count(Outcome::Pass),
+                tally.count(Outcome::Review),
+                tally.count(Outcome::Rerun),
+                tally.weighted(Outcome::Pass),
+                tally.weighted(Outcome::Review),
+                tally.weighted(Outcome::Rerun),
+                leak(Measure::Primary),
+                leak(Measure::Strict),
+                leak(Measure::IupacCompatible),
+            );
+        }
     }
 
     fn class_section(&self, text: &mut String) {
         let mut classes =
-            BTreeMap::<(Measure, String, &str, &str, &str), (usize, BTreeSet<&str>)>::new();
-        for case in self.cases().iter().filter(|case| case.leaks()) {
+            BTreeMap::<(Measure, &str, &str, &str, &str), (usize, BTreeSet<usize>)>::new();
+        for case in self.cases.iter().filter(|case| case.leaks()) {
             let entry = classes
                 .entry((
                     case.measure,
-                    case.region
-                        .as_ref()
-                        .map_or_else(|| "-".to_owned(), |(label, _)| label.clone()),
+                    self.region_label(case.region.map(|(index, _)| index)),
                     Window::of(&case.position).label(),
                     case.detail.kind,
                     case.detail.class,
                 ))
                 .or_default();
             entry.0 += 1;
-            entry.1.insert(case.row.sample.id.as_str());
+            entry.1.insert(case.row);
         }
         text.push_str(
             "\n## Leak classes\n\nDiscordant positions inside passed regions, by measure, region, \
@@ -915,68 +857,63 @@ impl<'a> Triage<'a> {
 
     fn detector_section(&self, text: &mut String) {
         let discordant = |measure: Measure| {
-            self.scored(0)
-                .filter(|(row, decision)| decision.is_some() && row.comparisons.is_ok())
-                .filter(|(row, _)| row.status(measure) != Status::Concordant)
+            self.scored()
+                .filter(|(_, row, decision, _)| decision.is_some() && row.comparisons.is_ok())
+                .filter(|(_, row, _, _)| row.status(measure) != Status::Concordant)
                 .count()
         };
+        let rows = self.detector_rows();
         let _ = write!(
             text,
             "\n## Detectors\n\nPer region detector, over analysed and compared samples: samples \
-             it flags, not-concordant samples among them (catches) and those no other applied \
-             detector flags (unique), concordant samples it flags (burden) and those no other \
-             applied detector flags (sole burden: the samples clearing it would pass), and \
-             primary discordant positions it marks itself (hits). Not concordant: {} primary, \
-             {} strict, {} IUPAC-compatible.\n\n\
-             | Detector | Applied | Samples | Catches primary | Unique primary | Catches strict | Unique strict | Catches IUPAC | Unique IUPAC | Burden | Sole burden | Hits |\n\
-             |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+             it flags, not-concordant samples among them (catches), concordant samples it flags \
+             (burden), and primary discordant positions it marks itself (hits). Not concordant: \
+             {} primary, {} strict, {} IUPAC-compatible.\n\n\
+             Applied detectors, with the catches no other applied detector makes (unique) and \
+             the concordant samples only it holds back (sole burden: clearing it would pass \
+             them):\n\n\
+             | Detector | Samples | Catches primary | Unique primary | Catches strict | Unique strict | Catches IUPAC | Unique IUPAC | Burden | Sole burden | Hits |\n\
+             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
             discordant(Measure::Primary),
             discordant(Measure::Strict),
             discordant(Measure::IupacCompatible),
         );
-        for row in self.detector_rows() {
-            let _ = writeln!(
-                text,
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-                row.detector.label(),
-                if row.applied { "yes" } else { "no" },
-                row.samples,
-                row.catches[0],
-                row.unique[0],
-                row.catches[1],
-                row.unique[1],
-                row.catches[2],
-                row.unique[2],
-                row.burden,
-                row.sole_burden,
-                row.hits
-            );
+        for row in rows.iter().filter(|row| row.applied) {
+            row.line(text);
+        }
+        text.push_str(
+            "\nMeasured but not applied, with what applying each would add: the not-concordant \
+             samples it would newly catch and the concordant samples it would newly hold back \
+             (lost A):\n\n\
+             | Detector | Samples | Catches primary | Added primary | Catches strict | Added strict | Catches IUPAC | Added IUPAC | Burden | Added burden | Hits |\n\
+             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+        );
+        for row in rows.iter().filter(|row| !row.applied) {
+            row.line(text);
         }
     }
 
     fn trace_section(&self, text: &mut String) {
-        let mut findings = BTreeMap::<TraceFinding, (usize, BTreeSet<&str>, usize)>::new();
+        let mut findings = BTreeMap::<TraceFinding, (usize, BTreeSet<usize>, usize)>::new();
         let (mut poor, mut needed, mut unlabelled) = (0, 0, 0);
-        for (row, decision) in self.scored(0) {
+        for (index, row, decision, _) in self.scored() {
             let (Some(decision), Some(evidence)) = (decision, evidence(row)) else {
                 continue;
             };
-            for (index, (trace, found)) in evidence.traces.iter().zip(&decision.traces).enumerate()
+            for (trace_index, (trace, found)) in
+                evidence.traces.iter().zip(&decision.traces).enumerate()
             {
                 if found.is_empty() {
                     continue;
                 }
                 poor += 1;
-                let rerun = decision
-                    .regions
-                    .iter()
-                    .any(|region| region.rerun.contains(&index));
+                let rerun = decision.rerun.contains(&trace_index);
                 needed += usize::from(rerun);
                 unlabelled += usize::from(trace.primer.is_none());
                 for finding in found {
                     let entry = findings.entry(*finding).or_default();
                     entry.0 += 1;
-                    entry.1.insert(row.sample.id.as_str());
+                    entry.1.insert(index);
                     entry.2 += usize::from(rerun);
                 }
             }
@@ -999,14 +936,14 @@ impl<'a> Triage<'a> {
                 finding.label()
             );
         }
-        let labels = self.region_labels();
         text.push_str(
-            "\nPrimer footprints learned from the admitted traces (proxy for which region a \
-             poor trace would have read):\n\n| Primer | Strand | Regions | Admitted traces |\n\
-             |---|---|---|---:|\n",
+            "\nPrimer footprints learned from the admitted traces of the active samples (proxy \
+             for which region a poor trace would have read):\n\n\
+             | Primer | Strand | Regions | Admitted traces |\n|---|---|---|---:|\n",
         );
         for (primer, footprint) in self.footprints.iter() {
-            let regions = labels
+            let regions = self
+                .labels
                 .iter()
                 .zip(&footprint.regions)
                 .filter(|(_, reads)| **reads)
@@ -1029,8 +966,7 @@ impl<'a> Triage<'a> {
              | Policy | Pass | Pass share | Pass corpus | Review corpus | Rerun corpus | Leaks primary | Upper | Leaks strict | Upper | Leaks IUPAC | Upper |\n\
              |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
         );
-        for (index, policy) in self.policies.iter().enumerate() {
-            let measured = self.measure(index);
+        for (policy, measured) in self.policies.iter().zip(&self.measurements) {
             let corpus = |class: Class| {
                 measured
                     .estimate(class)
@@ -1060,43 +996,90 @@ impl<'a> Triage<'a> {
     }
 }
 
-fn region_line(
-    text: &mut String,
-    label: &str,
-    counts: &BTreeMap<Outcome, usize>,
-    cases: &[Case<'_>],
-    region: Option<&String>,
-) {
-    let count = |outcome: Outcome| counts.get(&outcome).copied().unwrap_or(0);
-    let total = Outcome::ALL.into_iter().map(count).sum::<usize>();
-    let leaks = |measure: Measure| {
-        cases
-            .iter()
-            .filter(|case| case.measure == measure && case.leaks())
-            .filter(|case| {
-                region.is_none_or(|region| {
-                    case.region
-                        .as_ref()
-                        .is_some_and(|(label, _)| label == region)
-                })
-            })
-            .count()
+/// `traces` value of `rerun_for` for a sample without an admitted read.
+const NO_ADMITTED_READ: &str = "no_admitted_read";
+
+fn strata_section(text: &mut String, measured: &Measurement) {
+    let Some(pass) = measured.estimate(Class::Decided(Outcome::Pass)) else {
+        return;
     };
-    let _ = writeln!(
-        text,
-        "| {label} | {} | {} | {} | {:.4} | {} | {} | {} |",
-        count(Outcome::Pass),
-        count(Outcome::Review),
-        count(Outcome::Rerun),
-        if total == 0 {
-            0.0
-        } else {
-            count(Outcome::Pass) as f64 / total as f64
-        },
-        leaks(Measure::Primary),
-        leaks(Measure::Strict),
-        leaks(Measure::IupacCompatible),
+    text.push_str(
+        "\n### Pass by stratum\n\n| Stratum | Samples | Pass | Review | Rerun |\n\
+         |---|---:|---:|---:|---:|\n",
     );
+    for stratum in &pass.strata {
+        let rate = |class: Class| {
+            measured
+                .estimate(class)
+                .and_then(|estimate| {
+                    estimate
+                        .strata
+                        .iter()
+                        .find(|other| other.name == stratum.name)
+                })
+                .map_or(0.0, |other| other.rate)
+        };
+        let _ = writeln!(
+            text,
+            "| {} | {} | {:.3} | {:.3} | {:.3} |",
+            stratum.name,
+            stratum.samples,
+            stratum.rate,
+            rate(Class::Decided(Outcome::Review)),
+            rate(Class::Decided(Outcome::Rerun)),
+        );
+    }
+}
+
+/// Every discordant position of the scored rows that have region evidence
+/// and a comparison, under every measure, with its region's outcome under
+/// the reported policy and the sample's class.
+fn cases(rows: &[Row<'_>], decisions: &[Option<SampleDecision>], classes: &[Class]) -> Vec<Case> {
+    let mut cases = Vec::new();
+    for (index, ((row, decision), class)) in rows.iter().zip(decisions).zip(classes).enumerate() {
+        if row.sample.retired {
+            continue;
+        }
+        let (Some(decision), Some(evidence)) = (decision, evidence(row)) else {
+            continue;
+        };
+        for measure in Measure::ALL {
+            let Ok(comparison) = row.comparison(measure) else {
+                continue;
+            };
+            for position in compare::sorted_positions(&comparison.positions) {
+                let anchor = compare::anchor(position);
+                let region = anchor.and_then(|anchor| evidence.region_of(anchor));
+                let flags = region
+                    .and_then(|region| {
+                        let evidence = &evidence.regions[region];
+                        let anchor = usize::try_from(anchor?).ok()?;
+                        evidence
+                            .positions
+                            .get(anchor.checked_sub(evidence.start)?)
+                            .copied()
+                    })
+                    .map(|at| {
+                        Detector::all()
+                            .into_iter()
+                            .filter(|detector| detector.marks(at))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                cases.push(Case {
+                    row: index,
+                    sample: *class,
+                    measure,
+                    region: region
+                        .and_then(|region| Some((region, decision.regions.get(region)?.outcome))),
+                    position: position.to_owned(),
+                    detail: Detail::of(comparison, position),
+                    flags,
+                });
+            }
+        }
+    }
+    cases
 }
 
 fn finding_labels(findings: &[TraceFinding]) -> String {
@@ -1107,16 +1090,74 @@ fn finding_labels(findings: &[TraceFinding]) -> String {
         .join("+")
 }
 
-/// A/B/C and leaks of one policy.
+/// A/B/C, leaks, and region outcomes of one policy.
 struct Measurement {
     samples: usize,
     classes: BTreeMap<Class, usize>,
     estimates: Vec<(Class, Estimate)>,
     /// Per measure, in [`Measure::ALL`] order.
     leaks: [Leak; 3],
+    /// Per region, the outcomes of decided samples with region evidence.
+    regions: Vec<Tally>,
 }
 
 impl Measurement {
+    /// Measures one policy's decisions of `rows` over the scored (not
+    /// retired) rows.
+    fn of(rows: &[Row<'_>], decisions: &[Option<SampleDecision>], regions: usize) -> Self {
+        let mut classes = BTreeMap::<Class, usize>::new();
+        let mut scored = Vec::new();
+        let mut leaks = [Leak::default(); 3];
+        let mut tallies = vec![Tally::default(); regions];
+        for (row, decision) in rows.iter().zip(decisions) {
+            if row.sample.retired {
+                continue;
+            }
+            let decision = decision.as_ref();
+            let class = class(row, decision);
+            *classes.entry(class).or_default() += 1;
+            let weight = Weighting::Corpus.of(row.sample);
+            scored.push((row.sample.stratum.as_str(), weight, class));
+            if let (Class::Decided(_), Some(decision)) = (class, decision) {
+                for (tally, region) in tallies.iter_mut().zip(&decision.regions) {
+                    tally.record(region.outcome, weight);
+                }
+            }
+            if class == Class::Decided(Outcome::Pass) && row.comparisons.is_ok() {
+                for measure in Measure::ALL {
+                    let leak = &mut leaks[measure.index()];
+                    leak.passed += 1;
+                    leak.weight += weight;
+                    if row.status(measure) != Status::Concordant {
+                        leak.leaks += 1;
+                        leak.leaked_weight += weight;
+                    }
+                }
+            }
+        }
+        let estimates = Class::ALL
+            .into_iter()
+            .filter_map(|wanted| {
+                let observations = scored
+                    .iter()
+                    .map(|(stratum, weight, class)| Observation {
+                        stratum,
+                        weight: *weight,
+                        event: *class == wanted,
+                    })
+                    .collect::<Vec<_>>();
+                estimate::estimate(&observations).map(|estimate| (wanted, estimate))
+            })
+            .collect();
+        Self {
+            samples: scored.len(),
+            classes,
+            estimates,
+            leaks,
+            regions: tallies,
+        }
+    }
+
     fn count(&self, class: Class) -> usize {
         self.classes.get(&class).copied().unwrap_or(0)
     }
@@ -1134,6 +1175,43 @@ impl Measurement {
             .iter()
             .find(|(of, _)| *of == class)
             .map(|(_, estimate)| estimate)
+    }
+}
+
+/// Region outcomes: counts and summed corpus weights.
+#[derive(Debug, Clone, Default)]
+struct Tally {
+    counts: BTreeMap<Outcome, usize>,
+    weights: BTreeMap<Outcome, f64>,
+}
+
+impl Tally {
+    fn record(&mut self, outcome: Outcome, weight: f64) {
+        *self.counts.entry(outcome).or_default() += 1;
+        *self.weights.entry(outcome).or_default() += weight;
+    }
+
+    fn add(&mut self, other: &Self) {
+        for (outcome, count) in &other.counts {
+            *self.counts.entry(*outcome).or_default() += count;
+        }
+        for (outcome, weight) in &other.weights {
+            *self.weights.entry(*outcome).or_default() += weight;
+        }
+    }
+
+    fn count(&self, outcome: Outcome) -> usize {
+        self.counts.get(&outcome).copied().unwrap_or(0)
+    }
+
+    /// The outcome's share of the regions, weighted by `weight_corpus`.
+    fn weighted(&self, outcome: Outcome) -> f64 {
+        let total = self.weights.values().sum::<f64>();
+        if total > 0.0 {
+            self.weights.get(&outcome).copied().unwrap_or(0.0) / total
+        } else {
+            0.0
+        }
     }
 }
 
@@ -1173,49 +1251,72 @@ struct DetectorRow {
     regions: usize,
     positions: usize,
     catches: [usize; 3],
-    unique: [usize; 3],
     burden: usize,
-    /// Concordant samples no other applied detector flags: the samples that
-    /// would pass if this detector were cleared.
-    sole_burden: usize,
+    /// Not-concordant samples, per measure, that no other applied detector
+    /// flags: unique catches of an applied detector, added catches of one the
+    /// policy does not apply.
+    alone: [usize; 3],
+    /// Concordant samples no other applied detector flags: the sole burden of
+    /// an applied detector, the added burden (lost A) of one not applied.
+    alone_burden: usize,
     hits: usize,
 }
 
-impl Default for DetectorRow {
-    fn default() -> Self {
+impl DetectorRow {
+    const fn new(detector: Detector, applied: bool) -> Self {
         Self {
-            detector: Detector::Gap,
-            applied: false,
+            detector,
+            applied,
             samples: 0,
             regions: 0,
             positions: 0,
             catches: [0; 3],
-            unique: [0; 3],
             burden: 0,
-            sole_burden: 0,
+            alone: [0; 3],
+            alone_burden: 0,
             hits: 0,
         }
+    }
+
+    fn line(&self, text: &mut String) {
+        let _ = writeln!(
+            text,
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            self.detector.label(),
+            self.samples,
+            self.catches[0],
+            self.alone[0],
+            self.catches[1],
+            self.alone[1],
+            self.catches[2],
+            self.alone[2],
+            self.burden,
+            self.alone_burden,
+            self.hits
+        );
     }
 }
 
 /// One discordant position of one sample under one measure.
-struct Case<'a> {
-    row: &'a Row<'a>,
+struct Case {
+    /// The row's index.
+    row: usize,
+    /// The sample's class under the reported policy.
+    sample: Class,
     measure: Measure,
-    /// The region's label and outcome; `None` outside every region.
-    region: Option<(String, Outcome)>,
+    /// The region's index and outcome; `None` outside every region.
+    region: Option<(usize, Outcome)>,
     position: String,
     detail: Detail,
     /// The region detectors that mark the position itself.
     flags: Vec<Detector>,
 }
 
-impl Case<'_> {
+impl Case {
     /// Whether the position lies inside a passed region.
     fn leaks(&self) -> bool {
         self.region
-            .as_ref()
-            .is_some_and(|(_, outcome)| *outcome == Outcome::Pass)
+            .is_some_and(|(_, outcome)| outcome == Outcome::Pass)
     }
 }
 
@@ -1379,6 +1480,7 @@ mod tests {
             "S1\tb1\tclean\t2\t2\t0\t/t/b.ab1",
             "S2\tb1\thard\t1\t1\t0\t/t/c.ab1",
             "S3\tb1\thard\t1\t1\t0\t/t/d.ab1",
+            "S4\tb1\thard\t1\t1\t0\t/t/e.ab1",
         ]);
         let manifest = crate::manifest::parse(text.as_bytes())?;
         let both = Position {
@@ -1410,18 +1512,18 @@ mod tests {
                     profile_id: "p".into(),
                     profile_sha256: "q".into(),
                 },
-                triage: Some(Evidence {
-                    regions: vec![region(one_strand)],
-                    traces: vec![Trace {
-                        name: "x_HV1F.ab1".into(),
-                        primer: Some("HV1F".into()),
-                        state: TraceState::Admitted {
-                            strand: Strand::Forward,
-                            clean: vec![21],
-                        },
-                        span: Some(400),
-                    }],
-                }),
+            }),
+            triage: Some(Evidence {
+                regions: vec![region(one_strand)],
+                traces: vec![Trace {
+                    name: "x_HV1F.ab1".into(),
+                    primer: Some("HV1F".into()),
+                    state: TraceState::Admitted {
+                        strand: Strand::Forward,
+                        clean: vec![21],
+                    },
+                    span: Some(400),
+                }],
             }),
             millis: 0,
         };
@@ -1433,6 +1535,30 @@ mod tests {
             Run {
                 traces: Some(1),
                 result: Err(Failure::Dna("unreadable".into())),
+                triage: None,
+                millis: 0,
+            },
+            // Every read rejected: DNA reports a failure, triage a rerun.
+            Run {
+                traces: Some(2),
+                result: Err(Failure::Dna("all 2 reads were rejected".into())),
+                triage: Some(Evidence {
+                    regions: Vec::new(),
+                    traces: vec![
+                        Trace {
+                            name: "y_HV1F.ab1".into(),
+                            primer: Some("HV1F".into()),
+                            state: TraceState::Weak,
+                            span: Some(40),
+                        },
+                        Trace {
+                            name: "y_HV1R.ab1".into(),
+                            primer: Some("HV1R".into()),
+                            state: TraceState::TooShort,
+                            span: None,
+                        },
+                    ],
+                }),
                 millis: 0,
             },
         ];
@@ -1450,6 +1576,7 @@ mod tests {
                 truth(vec![c16189(), Allele::new("16190", "T", "C")]),
             ),
             ("S3".to_owned(), truth(vec![c16189()])),
+            ("S4".to_owned(), truth(vec![c16189()])),
         ]);
         let rows = crate::report::rows(&manifest.samples, &outcomes, &records);
         let triage = Triage::new(&rows, sweep());
@@ -1460,20 +1587,37 @@ mod tests {
             .skip(1)
             .map(|line| line.split('\t').nth(4).unwrap_or_default())
             .collect::<Vec<_>>();
-        assert_eq!(outcomes, ["pass", "pass", "review", "failed"]);
+        assert_eq!(outcomes, ["pass", "pass", "review", "failed", "rerun"]);
+        assert!(
+            files["triage.tsv"]
+                .lines()
+                .last()
+                .is_some_and(|line| line.contains("\ty_HV1F.ab1,y_HV1R.ab1\t"))
+        );
+        assert!(
+            files["triage_traces.tsv"]
+                .contains("S4\ty_HV1R.ab1\tHV1R\ttoo_short\t\ttrace.too_short\tno_admitted_read")
+        );
 
-        let measured = triage.measure(0);
+        let measured = triage.reported().ok_or("a measurement")?;
         assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 2);
+        assert_eq!(measured.count(Class::Decided(Outcome::Rerun)), 1);
         assert_eq!(measured.count(Class::Failed), 1);
+        // Region shares count the analysed samples' regions only.
+        assert_eq!(measured.regions[0].count(Outcome::Pass), 2);
+        assert!(close(
+            measured.regions[0].weighted(Outcome::Pass),
+            4.0 / 5.0
+        ));
         let [primary, strict, compatible] = measured.leaks;
         assert_eq!((primary.passed, primary.leaks), (2, 1));
         assert_eq!((strict.passed, strict.leaks), (2, 1));
         assert_eq!((compatible.passed, compatible.leaks), (2, 0));
-        // Corpus-weighted A over S0..S3 (weights 2, 2, 1, 1), by stratum.
+        // Corpus-weighted A over S0..S4 (weights 2, 2, 1, 1, 1), by stratum.
         let pass = measured
             .estimate(Class::Decided(Outcome::Pass))
             .ok_or("no estimate")?;
-        assert!(close(pass.rate, 4.0 / 6.0));
+        assert!(close(pass.rate, 4.0 / 7.0));
 
         let leaks = files["triage_leaks.tsv"]
             .lines()
@@ -1494,14 +1638,25 @@ mod tests {
             .ok_or("one-strand row")?;
         assert_eq!(
             (
+                one_strand.applied,
                 one_strand.samples,
                 one_strand.catches,
-                one_strand.unique,
+                one_strand.alone,
                 one_strand.burden,
                 one_strand.hits
             ),
-            (1, [1, 1, 1], [1, 1, 1], 0, 1)
+            (true, 1, [1, 1, 1], [1, 1, 1], 0, 1)
         );
+        // Not applied: its counters say what applying it would add, and the
+        // TSV leaves its unique columns empty.
+        let masked_read = detectors
+            .iter()
+            .find(|row| row.detector == Detector::Unreliable(Cause::MaskedRead))
+            .ok_or("masked-read row")?;
+        assert!(!masked_read.applied);
+        assert!(files["triage_detectors.tsv"].contains(
+            "region.unreliable:masked_read\t0\t0\t0\t0\t0\t0\t0\t0\t-\t-\t-\t-\t0\t0\t0\t0\t0"
+        ));
         assert!(files["triage.md"].contains("| primary | 2 | 1 | 0.5000 |"));
         assert!(
             files["triage_sweep.tsv"]

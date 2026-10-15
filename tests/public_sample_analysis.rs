@@ -12,7 +12,7 @@ use assert_cmd::Command;
 use serde_json::Value;
 use tempfile::tempdir;
 
-use dna::sample_analysis::{self, RejectionCause};
+use dna::sample_analysis::{self, RejectionCause, SampleOutcome};
 use support::{write_abif, write_config, write_reference};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -219,5 +219,59 @@ fn a_too_short_read_is_rejected_without_stopping_the_other_reads()
             if rejection.calls == 5 && rejection.minimum_calls == 10
     ));
     assert!(short.cause.sanger().is_none());
+    Ok(())
+}
+
+/// When every read is rejected, `analyze_sanger_outcome` returns those reads
+/// with their causes, and `analyze_sanger` fails as before; with an admitted
+/// read both give the same analysis.
+#[test]
+fn the_outcome_names_the_rejected_reads_when_none_is_admitted()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let [reference, config, forward, foreign, reverse] = write_sample(directory.path())?;
+    let short = directory.path().join("read-short.ab1");
+    write_abif(&short, &QUERY[..5])?;
+    let rejected = [short, foreign];
+
+    let outcome = sample_analysis::analyze_sanger_outcome(&rejected, &reference, &config, FOUR)?;
+    let SampleOutcome::Rejected(reads) = outcome else {
+        return Err("every read is rejected".into());
+    };
+    let mut causes = reads
+        .values()
+        .map(|read| {
+            (
+                read.input_name.as_str(),
+                matches!(read.cause, RejectionCause::TooShort(_)),
+                matches!(read.cause, RejectionCause::Placement { .. }),
+            )
+        })
+        .collect::<Vec<_>>();
+    causes.sort_unstable();
+    assert_eq!(
+        causes,
+        [
+            ("read-foreign.ab1", false, true),
+            ("read-short.ab1", true, false)
+        ]
+    );
+    let error = sample_analysis::analyze_sanger(&rejected, &reference, &config, FOUR)
+        .err()
+        .ok_or("analyze_sanger fails")?;
+    assert!(
+        error
+            .to_string()
+            .contains("all 2 reads were rejected and none could be analyzed")
+    );
+
+    let admitted = [forward, reverse];
+    let analysis = sample_analysis::analyze_sanger(&admitted, &reference, &config, FOUR)?;
+    let SampleOutcome::Analyzed(outcome) =
+        sample_analysis::analyze_sanger_outcome(&admitted, &reference, &config, FOUR)?
+    else {
+        return Err("a read is admitted".into());
+    };
+    assert_eq!(format!("{analysis:?}"), format!("{outcome:?}"));
     Ok(())
 }

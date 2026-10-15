@@ -12,10 +12,11 @@
 
 use std::collections::BTreeMap;
 
-use dna::sample_analysis::{Consensus, RejectionCause, SampleAnalysis};
+use dna::sample_analysis::{Consensus, RejectedRead, RejectionCause, SampleAnalysis};
 use dna_core::model::alignment::{Orientation, ReferenceSegment};
-use dna_core::model::consensus::{RunEvidence, SiteState};
+use dna_core::model::consensus::{ConsensusSite, RunEvidence, SiteState};
 use dna_core::model::sample_evidence::SampleReadEvidence;
+use dna_sanger::model::callability::ReadCallability;
 
 /// The strand a read observes the reference on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -213,19 +214,32 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> Evidence {
     let spans = analysis
         .reads
         .iter()
-        .map(|(sha256, sanger)| {
-            let callability = &sanger.callability;
-            (
-                sha256.as_str(),
-                callability
-                    .callable_end_0based_exclusive
-                    .saturating_sub(callability.callable_start_0based),
-            )
-        })
+        .map(|(sha256, sanger)| (sha256.as_str(), span(&sanger.callability)))
         .collect::<BTreeMap<_, _>>();
-    let rejected = analysis
-        .rejected
-        .values()
+    build(
+        analysis.regions(),
+        &analysis.evidence.reads,
+        &analysis.consensus,
+        &spans,
+        rejected(analysis.rejected.values()),
+    )
+}
+
+/// The evidence of a sample whose every read was rejected: its traces only,
+/// with no region evidence.
+pub(crate) fn rejected_only<'a>(reads: impl IntoIterator<Item = &'a RejectedRead>) -> Evidence {
+    let mut traces = rejected(reads);
+    traces.sort_by(|left, right| order(left).cmp(&order(right)));
+    Evidence {
+        regions: Vec::new(),
+        traces,
+    }
+}
+
+/// The traces of rejected reads, with their cause and callable span.
+fn rejected<'a>(reads: impl IntoIterator<Item = &'a RejectedRead>) -> Vec<Trace> {
+    reads
+        .into_iter()
         .map(|read| {
             let state = match &read.cause {
                 RejectionCause::TooShort(_) => TraceState::TooShort,
@@ -239,27 +253,29 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> Evidence {
                 name: read.input_name.clone(),
                 primer: primer(&read.input_name),
                 state,
-                span: read.cause.sanger().map(|sanger| {
-                    sanger
-                        .callability
-                        .callable_end_0based_exclusive
-                        .saturating_sub(sanger.callability.callable_start_0based)
-                }),
+                span: read.cause.sanger().map(|sanger| span(&sanger.callability)),
             }
         })
-        .collect();
-    build(
-        analysis.regions(),
-        &analysis.evidence.reads,
-        &analysis.consensus,
-        &spans,
-        rejected,
-    )
+        .collect()
+}
+
+/// The callable span of a read in calls: from its first to its last unmasked
+/// call.
+fn span(callability: &ReadCallability) -> usize {
+    callability
+        .callable_end_0based_exclusive
+        .saturating_sub(callability.callable_start_0based)
 }
 
 /// Builds the evidence from the profile's regions, the admitted reads, the
 /// consensus, the admitted reads' callable spans by content SHA-256, and the
 /// rejected traces.
+///
+/// Each position has one source for its clean and masked reads: at a
+/// consensus site, the site's supporting and opposing reads are its clean
+/// observers and its uninformative reads its masked ones; elsewhere, the reads'
+/// callable reference segments are clean and the rest of their reference
+/// segments masked.
 pub(crate) fn build(
     regions: &[[usize; 2]],
     reads: &[SampleReadEvidence],
@@ -301,88 +317,117 @@ pub(crate) fn build(
             span: spans.get(read.input_sha256.as_str()).copied(),
         });
     }
-    let strands = reads
-        .iter()
-        .map(|read| {
-            (
-                read.input_name.as_str(),
-                Strand::of(read.alignment.orientation),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+    // Consensus sites name their reads; several admitted reads can share a
+    // name, so each name keeps the strands of all its reads.
+    let mut strands = BTreeMap::<&str, Vec<Strand>>::new();
+    for read in reads {
+        strands
+            .entry(read.input_name.as_str())
+            .or_default()
+            .push(Strand::of(read.alignment.orientation));
+    }
     for site in &consensus.sites {
-        let mut causes = Vec::new();
-        if site.call.as_ref().is_none_or(|call| call.contains('N')) {
-            causes.push(Cause::N);
-        }
-        if site.state == SiteState::Contested {
-            causes.push(Cause::Contested);
-        }
-        if !site.uninformative.is_empty() {
-            causes.push(Cause::Masked);
-        }
-        for run in &site.runs {
-            match run.evidence {
-                RunEvidence::PhaseLoss => causes.push(Cause::PhaseLoss),
-                RunEvidence::ReferenceFrame => causes.push(Cause::ReferenceFrame),
-                RunEvidence::InPhase | RunEvidence::AnchoredEnd => {}
-            }
-        }
-        // A site names the reads that observe it cleanly: its supporting and
-        // opposing reads. They replace the reads' callable segments there.
-        let observers = site
-            .supporting
-            .iter()
-            .chain(&site.opposing)
-            .filter_map(|name| strands.get(name.as_str()))
-            .collect::<Vec<_>>();
-        let count = |wanted: Strand| {
-            u8::try_from(
-                observers
-                    .iter()
-                    .filter(|strand| ***strand == wanted)
-                    .count(),
-            )
-            .unwrap_or(u8::MAX)
-        };
-        let (forward, reverse) = (count(Strand::Forward), count(Strand::Reverse));
+        let marks = site_causes(site);
+        let observed = observers(&strands, &site.supporting, &site.opposing);
+        let masked = observed
+            .masked
+            .saturating_add(u8::try_from(site.uninformative.len()).unwrap_or(u8::MAX));
         for region in &mut regions {
             let range = region.overlap(site.first_0based, site.last_0based + 1);
             for position in &mut region.positions[range] {
-                position.forward = forward;
-                position.reverse = reverse;
-                for cause in &causes {
+                position.forward = observed.forward;
+                position.reverse = observed.reverse;
+                position.masked_reads = masked;
+                for cause in &marks {
                     position.mark(*cause);
                 }
             }
         }
     }
-    traces.sort_by(|left, right| {
-        (
-            &left.name,
-            &left.primer,
-            state_order(&left.state),
-            left.span,
-        )
-            .cmp(&(
-                &right.name,
-                &right.primer,
-                state_order(&right.state),
-                right.span,
-            ))
-    });
+    traces.sort_by(|left, right| order(left).cmp(&order(right)));
     Evidence { regions, traces }
 }
 
-/// A sort key of a trace state, so traces sort the same whatever their order.
-fn state_order(state: &TraceState) -> (u8, &'static str, Vec<usize>) {
-    match state {
-        TraceState::Admitted { strand, clean } => (0, strand.label(), clean.clone()),
-        TraceState::TooShort => (1, "", Vec::new()),
-        TraceState::Weak => (2, "", Vec::new()),
-        TraceState::Unplaced(label) => (3, label, Vec::new()),
-        TraceState::Rejected => (4, "", Vec::new()),
+/// The unreliable causes a consensus site shows.
+fn site_causes(site: &ConsensusSite) -> Vec<Cause> {
+    let mut causes = Vec::new();
+    if site.call.as_ref().is_none_or(|call| call.contains('N')) {
+        causes.push(Cause::N);
     }
+    if site.state == SiteState::Contested {
+        causes.push(Cause::Contested);
+    }
+    if !site.uninformative.is_empty() {
+        causes.push(Cause::Masked);
+    }
+    for run in &site.runs {
+        match run.evidence {
+            RunEvidence::PhaseLoss => causes.push(Cause::PhaseLoss),
+            RunEvidence::ReferenceFrame => causes.push(Cause::ReferenceFrame),
+            RunEvidence::InPhase | RunEvidence::AnchoredEnd => {}
+        }
+    }
+    causes
+}
+
+/// The clean observers of a site by strand.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Observers {
+    forward: u8,
+    reverse: u8,
+    /// Clean observations whose strand cannot be told, counted as masked.
+    masked: u8,
+}
+
+/// Counts a site's clean observers (its supporting and opposing reads) by
+/// strand. A name shared by reads of both strands is resolved only when the
+/// site names every read of that name; otherwise its observations count as
+/// masked, so an ambiguous name never adds a strand.
+fn observers(
+    strands: &BTreeMap<&str, Vec<Strand>>,
+    supporting: &[String],
+    opposing: &[String],
+) -> Observers {
+    let mut named = BTreeMap::<&str, usize>::new();
+    for name in supporting.iter().chain(opposing) {
+        *named.entry(name.as_str()).or_default() += 1;
+    }
+    let mut observed = Observers::default();
+    let add = |count: &mut u8, by: usize| {
+        *count = count.saturating_add(u8::try_from(by).unwrap_or(u8::MAX));
+    };
+    for (name, count) in named {
+        let of = strands.get(name).map_or(&[][..], Vec::as_slice);
+        let first = of.first().copied();
+        if count == of.len() {
+            for strand in of {
+                match strand {
+                    Strand::Forward => add(&mut observed.forward, 1),
+                    Strand::Reverse => add(&mut observed.reverse, 1),
+                }
+            }
+        } else if let Some(strand) = first.filter(|first| of.iter().all(|other| other == first)) {
+            match strand {
+                Strand::Forward => add(&mut observed.forward, count),
+                Strand::Reverse => add(&mut observed.reverse, count),
+            }
+        } else {
+            add(&mut observed.masked, count);
+        }
+    }
+    observed
+}
+
+/// The sort key of a trace, so traces sort the same whatever their order.
+fn order(trace: &Trace) -> (&str, u8, &str, &[usize], Option<usize>) {
+    let (rank, label, clean): (u8, &str, &[usize]) = match &trace.state {
+        TraceState::Admitted { strand, clean } => (0, strand.label(), clean),
+        TraceState::TooShort => (1, "", &[]),
+        TraceState::Weak => (2, "", &[]),
+        TraceState::Unplaced(label) => (3, label, &[]),
+        TraceState::Rejected => (4, "", &[]),
+    };
+    (&trace.name, rank, label, clean, trace.span)
 }
 
 /// The ranges of `region.positions` that the segments cover.
@@ -551,9 +596,14 @@ pub(crate) mod tests {
         assert_eq!(unresolved.strands(), 0);
         assert!(unresolved.has(Cause::N) && unresolved.has(Cause::Masked));
         assert!(!unresolved.has(Cause::Contested));
+        // At a site its uninformative reads are the masked ones.
+        assert_eq!(unresolved.masked_reads, 1);
         // 1-based 23–24: contested, one reverse observer, phase loss.
         let contested = region.positions[12];
-        assert_eq!((contested.forward, contested.reverse), (0, 1));
+        assert_eq!(
+            (contested.forward, contested.reverse, contested.masked_reads),
+            (0, 1, 0)
+        );
         assert!(contested.has(Cause::Contested) && contested.has(Cause::PhaseLoss));
         assert!(!contested.has(Cause::N) && !contested.has(Cause::ReferenceFrame));
         // 1-based 26..=30: reverse only.
@@ -586,6 +636,48 @@ pub(crate) mod tests {
         assert_eq!(
             build(&[[11, 30]], &reversed, &sites, &spans, rejected.clone()),
             build(&[[11, 30]], &reads, &sites, &spans, rejected)
+        );
+    }
+
+    #[test]
+    fn a_shared_read_name_adds_a_strand_only_when_it_is_unambiguous() {
+        let names = |names: &[&str]| {
+            names
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect::<Vec<_>>()
+        };
+        let strands = BTreeMap::from([
+            ("both", vec![Strand::Forward, Strand::Reverse]),
+            ("twice", vec![Strand::Reverse, Strand::Reverse]),
+            ("one", vec![Strand::Forward]),
+        ]);
+        // Every read of a shared name observes: both strands are known.
+        assert_eq!(
+            observers(&strands, &names(&["both", "one"]), &names(&["both"])),
+            Observers {
+                forward: 2,
+                reverse: 1,
+                masked: 0
+            }
+        );
+        // One of two reads of different strands: its strand is unknown.
+        assert_eq!(
+            observers(&strands, &names(&["both"]), &[]),
+            Observers {
+                forward: 0,
+                reverse: 0,
+                masked: 1
+            }
+        );
+        // One of two reads of the same strand.
+        assert_eq!(
+            observers(&strands, &[], &names(&["twice"])),
+            Observers {
+                forward: 0,
+                reverse: 1,
+                masked: 0
+            }
         );
     }
 

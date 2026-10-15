@@ -20,14 +20,15 @@ remain independently versioned and are never silently changed in place.
     against the truth (`triage*` outputs,
     [draft triage](docs/validation/evaluation-harness.md#draft-triage)).
     Without `--triage` a run is unchanged. The detectors are research drafts,
-    not DNA rules.
+    not DNA rules; their results are in
+    [PROP-0004](docs/proposals/0004-review-triage.md#phase-0-results).
   - **Rust API:** `SampleAnalysis::regions()` returns the reportable regions
     of the target profile the analysis ran with (SRS-API-010).
-  - **Measured** on the development panel v3: corpus-weighted A 0.178,
-    B 0.799, C 0.023; 50 of 515 passed samples leak on the primary measure,
-    41 of them only at truth IUPAC alleles, and 9 on the IUPAC-compatible
-    measure, all differences in how or where a clean haplotype is written
-    ([phase 0 results](docs/proposals/0004-review-triage.md#phase-0-results)).
+  - **Rust API:** `sample_analysis::analyze_sanger_outcome` runs the same pass
+    as `analyze_sanger` but returns `SampleOutcome::Rejected` with every
+    rejected read and its cause when none is admitted, instead of the
+    `NoAdmittedReads` error, so a caller can name the traces to rerun
+    (SRS-API-009).
 - Sample analysis in one placement pass (PROP-0005, SRS-API-009/010/011).
   - **Rust API:** `dna::sample_analysis::analyze_sanger(traces, reference,
     config, workers)` places each trace once on up to `workers` threads and returns a typed `SampleAnalysis`: the
