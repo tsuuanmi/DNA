@@ -33,8 +33,9 @@ not the untrimmed raw call span. `masked_bases` counts aligned calls that the
 read's callability masks: dephased ones align with their call and profile,
 every other masked call as unresolved, and none of them counts in
 `unresolved_bases`. `callable_reference_segments` are the parts of the mapped
-segments observed by unmasked calls and by deletions between them; a covered
-position outside them is covered by a masked call.
+segments observed by unmasked calls that read a resolved base (not `N`), and
+by deletions between them; a covered position outside them is covered by a
+masked or an unresolved call.
 
 `reference_segments` and `callable_reference_segments` are 0-based half-open.
 For a segment

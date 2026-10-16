@@ -84,8 +84,8 @@ Dense all-reference positions are omitted. The compact default is explicit:
 - inside a read's `callable_reference_segments`, absence from
   `locus_differences[]` means that read is a canonical reference match there;
 - inside its mapped `reference_segments` but outside its callable segments,
-  the read covers the position with a masked call: neither reference support
-  nor a difference;
+  the read covers the position with a masked or an unresolved call: neither
+  reference support nor a difference;
 - outside the read's mapped segments, the position is uncovered;
 - at a retained differential locus, the explicit observations are authoritative.
 

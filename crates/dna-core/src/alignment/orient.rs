@@ -9,7 +9,7 @@ use crate::alignment::runs;
 use crate::alignment::traceback::RawAlignment;
 use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, ReferenceSegment};
 use dna_kernel::error::{AlignmentError, Result};
-use dna_kernel::model::nucleotide::reverse_complement;
+use dna_kernel::model::nucleotide::{is_canonical, reverse_complement};
 use dna_kernel::model::reference::{Reference, ReferenceTopology};
 use dna_kernel::read_evidence::{
     CallEvidence, CallMask, EvidenceProfile, MaskedAlignment, ReadEvidence,
@@ -322,7 +322,9 @@ fn finish_alignment(
                 "masked query bases exceed unresolved query bases",
             ))?;
     metrics.masked_query_bases = masked_query_bases;
-    let callable_segments = callable_segments(&columns, |column| mask_of(column).is_some());
+    let callable_segments = callable_segments(&columns, |column| {
+        mask_of(column).is_none() && is_canonical(column.query_base)
+    });
     Ok(Alignment {
         orientation: selected.orientation,
         score: raw.score,
@@ -334,18 +336,20 @@ fn finish_alignment(
     })
 }
 
-/// Reference segments observed by unmasked calls: a call column counts when
-/// its call is not masked, a deletion column when the call columns on both
-/// sides do; runs of consecutive reference indexes form one segment.
+/// Reference segments observed by callable calls — unmasked calls that read
+/// a resolved base: a call column counts when its call is callable, a deletion
+/// column when the call columns on both sides are; runs of consecutive
+/// reference indexes form one segment. An unresolved call (`N`, or an IUPAC
+/// code a modality presents as `N`) observes no base, masked or not.
 fn callable_segments(
     columns: &[AlignmentColumn],
-    masked: impl Fn(&AlignmentColumn) -> bool,
+    callable: impl Fn(&AlignmentColumn) -> bool,
 ) -> Vec<ReferenceSegment> {
     let calls = columns
         .iter()
         .enumerate()
         .filter(|(_, column)| column.original_call_index_0based.is_some())
-        .map(|(index, column)| (index, !masked(column)))
+        .map(|(index, column)| (index, callable(column)))
         .collect::<Vec<_>>();
     let callable_call_around = |index: usize| {
         let before = calls.iter().rev().find(|(position, _)| *position < index);
@@ -358,12 +362,12 @@ fn callable_segments(
         let Some(reference) = column.reference_index_0based else {
             continue;
         };
-        let callable = if column.original_call_index_0based.is_some() {
-            !masked(column)
+        let observed = if column.original_call_index_0based.is_some() {
+            callable(column)
         } else {
             callable_call_around(index)
         };
-        if !callable {
+        if !observed {
             continue;
         }
         match segments.last_mut() {
@@ -783,7 +787,7 @@ mod tests {
     }
 
     #[test]
-    fn callable_segments_skip_masked_calls_and_deletions_beside_them() {
+    fn callable_segments_skip_uncallable_calls_and_deletions_beside_them() {
         let column = |call: Option<usize>, reference: Option<usize>| AlignmentColumn {
             query_base: if call.is_some() { 'A' } else { '-' },
             reference_base: if reference.is_some() { 'A' } else { '-' },
@@ -800,9 +804,9 @@ mod tests {
             column(Some(4), None),
             column(Some(5), Some(16)),
         ];
-        let masked = |column: &AlignmentColumn| column.original_call_index_0based == Some(3);
+        let callable = |column: &AlignmentColumn| column.original_call_index_0based != Some(3);
         assert_eq!(
-            callable_segments(&columns, masked),
+            callable_segments(&columns, callable),
             [
                 ReferenceSegment {
                     start_0based: 10,
@@ -814,6 +818,38 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn unresolved_unmasked_calls_are_not_callable() -> Result<()> {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "TTGACGTACGGATCCATGCAGTCA".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        // An `N` run and an ambiguity code: unresolved bases, the second with
+        // a shared-weight profile, neither masked.
+        let mut evidence = ReadEvidence::clean("TTGACGNNNGGATCCATGCAGTCA");
+        let mut call = evidence.calls()[14];
+        call.base = 'N';
+        call.profile = Some(EvidenceProfile {
+            weights: [0.0, 0.5, 0.0, 0.5],
+        });
+        evidence = evidence.with_call(14, call);
+        let alignment = align_best(&evidence, &reference, &config())?;
+        let segment = |start_0based, end_0based_exclusive| ReferenceSegment {
+            start_0based,
+            end_0based_exclusive,
+        };
+        assert_eq!(alignment.reference_segments, [segment(0, 24)]);
+        assert_eq!(
+            alignment.callable_segments,
+            [segment(0, 6), segment(9, 14), segment(15, 24)]
+        );
+        assert_eq!(alignment.metrics.unresolved_query_bases, 4);
+        assert_eq!(alignment.metrics.masked_query_bases, 0);
+        Ok(())
     }
 
     #[test]

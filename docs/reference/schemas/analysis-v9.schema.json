@@ -353,7 +353,7 @@
           }
         },
         "callable_reference_segments": {
-          "description": "Reference intervals observed by unmasked calls and by deletions between them, in alignment order; each lies inside one reference segment. A covered position outside them is covered by a masked call.",
+          "description": "Reference intervals observed by unmasked calls that read a resolved base (not N) and by deletions between them, in alignment order; each lies inside one reference segment. A covered position outside them is covered by a masked or an unresolved call.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/interval"
