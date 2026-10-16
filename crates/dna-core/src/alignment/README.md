@@ -13,7 +13,8 @@ Key children: `scoring.rs`, [`exact/`](exact/README.md), `gotoh.rs`,
 The query is the evidence's informative interval. Calls with an *unresolved*
 mask enter it as `N` without a profile; calls with an *anchoring* mask keep
 their base and profile. `orient.rs` also derives the masked-base counts and the
-callable reference segments from the masks. Before that, `runs.rs`
+callable reference segments: the reference observed by unmasked calls that
+read a resolved base. Before that, `runs.rs`
 re-expresses masked repeat stretches of the selected alignment as one length
 edit per run (ADR-0072).
 

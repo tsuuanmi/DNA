@@ -141,7 +141,10 @@ if it crosses the origin it is split into two segments and `wraps_origin` is
 `true`.
 
 The callable reference segments are the runs of consecutive reference indexes
-observed, in alignment order, by columns on unmasked calls and by deletion
-columns whose nearest call columns on both sides are unmasked. Each lies inside
-one reference segment; a covered position outside them is covered by a masked
-call.
+observed, in alignment order, by columns on callable calls — unmasked calls
+that read a resolved base — and by deletion columns whose nearest call columns
+on both sides are callable. Each lies inside one reference segment; a covered
+position outside them is covered by a masked or an unresolved (`N`) call. An
+unmasked `N` (a Sanger call without a resolved primary base, or a consensus
+position no read observes cleanly) therefore splits the segments, as it already
+counts in neither `callable_bases` nor `identity`.

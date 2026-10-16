@@ -103,7 +103,7 @@ fn calls_variants_from_consensus_sequences_with_the_core_alone()
         value["provenance"]["plugins"],
         json!([
             {"id": "sequence", "family": "modality", "version": 1},
-            {"id": "core", "family": "core", "version": 2},
+            {"id": "core", "family": "core", "version": 3},
         ])
     );
     assert!(value.get("notation").is_none());
@@ -158,6 +158,77 @@ fn rejects_sequences_with_unsupported_symbols() -> Result<(), Box<dyn std::error
         .stderr(predicate::str::contains(
             "invalid sequence FASTA: unsupported sequence symbol '-' in \"HV1\"",
         ));
+    assert!(!directory.path().join("results").exists());
+    Ok(())
+}
+
+#[test]
+fn unresolved_bases_split_the_callable_reference_segments() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let sequences = directory.path().join("consensus.fasta");
+    let sequence = reference_sequence(160);
+    write_reference(&reference, &sequence)?;
+    write_config_with_margin(&config, 12)?;
+
+    // An `N` run over reference 40..48, an ambiguity code at 60, and an
+    // inner substitution two bases after the `N` run.
+    let mut bases = substitute(&sequence[..100], 50).chars().collect::<Vec<_>>();
+    bases[40..48].fill('N');
+    bases[60] = 'y';
+    let record = bases.into_iter().collect::<String>();
+    fs::write(&sequences, format!(">HV1\n{record}\n"))?;
+
+    run(&sequences, &reference, &config, directory.path()).success();
+
+    let value: Value = serde_json::from_slice(&fs::read(
+        directory
+            .path()
+            .join("results")
+            .join(format!("{SAMPLE_ID}.variants.json")),
+    )?)?;
+    let alignment = &value["reads"][0]["alignment"];
+    assert_eq!(
+        alignment["reference_segments"],
+        json!([{"start": 0, "end": 100}])
+    );
+    assert_eq!(
+        alignment["callable_reference_segments"],
+        json!([
+            {"start": 0, "end": 40},
+            {"start": 48, "end": 60},
+            {"start": 61, "end": 100},
+        ])
+    );
+    assert_eq!(alignment["unresolved_bases"], 9);
+    assert_eq!(alignment["masked_bases"], 0);
+    // An unresolved base masks no call: the substitution beside the `N` run
+    // stays eligible, and the ambiguity code is no variant.
+    let variants = value["reads"][0]["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0]["position"], 51);
+    assert_eq!(variants[0]["eligible"], true);
+    Ok(())
+}
+
+#[test]
+fn rejects_a_sequence_without_a_resolved_base() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let sequences = directory.path().join("consensus.fasta");
+    write_reference(&reference, &reference_sequence(120))?;
+    write_config_with_margin(&config, 0)?;
+    // Nothing places a read without a resolved base: it fails typed.
+    fs::write(&sequences, format!(">HV1\n{}\n", "N".repeat(60)))?;
+
+    run(&sequences, &reference, &config, directory.path())
+        .failure()
+        .stderr(predicate::str::contains("error: alignment failed:"));
     assert!(!directory.path().join("results").exists());
     Ok(())
 }

@@ -424,6 +424,15 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- **Breaking:** callable reference segments (`callable_reference_segments`)
+  no longer include positions read by an unresolved call (`N`, or an IUPAC
+  code a modality presents as `N`), masked or not (SRS-ALN-015). A reviewed
+  or sample consensus that writes `N` where no read observes a position
+  cleanly therefore no longer reports those positions as callable, so a
+  comparison counts truth alleles there as uncovered instead of missed.
+  `dna.analysis/v9`, `dna.sample_evidence/v10`, and `dna.variants/v1` are
+  edited in place (unreleased cycle); the `core` plugin version rises to 3
+  ([versioning](docs/governance/versioning.md)). Calls are unchanged.
 - A trace with fewer calls than one signal window no longer fails a whole
   `dna sample` or `dna consensus` (SRS-SIG-007, SRS-SAMPLE-030).
   - Read processing checks the call count before any stage runs. Such a read

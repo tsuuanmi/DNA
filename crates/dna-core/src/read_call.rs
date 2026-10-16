@@ -236,7 +236,7 @@ pub fn call_read(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "core",
     family: PluginFamily::Core,
-    version: 2,
+    version: 3,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::ReadEvidence],
     config_sections: &["alignment", "sample_reconciliation", "variant_calling"],
