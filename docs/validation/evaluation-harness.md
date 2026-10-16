@@ -21,7 +21,7 @@ cargo run --release -p dna-eval -- panel \
   --version <v2> --created <YYYY-MM-DD> --output <new-panel.tsv>
 
 cargo run --release -p dna-eval -- power \
-  --dev-run <development-run-directory> --manifest <hold-out-panel.tsv> \
+  --dev-run <development-or-readiness-run-directory> --manifest <hold-out-panel.tsv> \
   [--base <sweep-policy> --candidate <sweep-policy> \
    [--true-rate <rate> --bound <rate>...]]
 
@@ -35,9 +35,10 @@ Every path is an argument. `run` needs a new or empty output directory, and
 body's checksum line (`<sha256>  <file> (body)`). The harness is built from
 the workspace but not shipped in a release.
 
-`run` refuses a manifest whose header names a panel other than `dev`: a
-hold-out panel is read only by `approve`, once, under a committed
-pre-registration ([approval](#approval)).
+`run` refuses a manifest whose header names a panel other than `dev` or
+`readiness`: a hold-out panel is read only by `approve`, once, under a
+committed pre-registration ([approval](#approval)). `power` reads a
+development or readiness run.
 
 ## Approval
 
