@@ -317,14 +317,15 @@ counts when its minor weight (its second channel's share of the read's
 normalised A/C/G/T profile, which sums to 1, rounded to thousandths, so 0.0995
 counts at `t` = 100) is at least `t` (`>=`) and it passes the kind's shadow
 test. The shadow tests compare the minor base with the read's *adjacent
-calls* in reference order, not with the reference bases. The cross-strand kinds mark a position when a forward and a
-reverse read that count show the same unordered pair:
+calls* in reference order, not with the reference bases. The cross-strand
+kinds mark a position when a forward and a reverse read that count show the
+same unordered pair:
 
 | Kind | A read counts when | Marks when |
 |---|---|---|
 | `strands` | always | a forward and a reverse read show the same pair |
 | `unshadowed` | its minor base is neither neighbour's base | as `strands` |
-| `upstream` | its minor base is not the base of its 3′-side adjacent call in reference order (the call after it on a forward read, before it on a reverse read) | as `strands` |
+| `upstream` | its minor base is not the base of its 3′-side adjacent call in reference order (the call after it on a forward read, the call before it in sequencing order on a reverse read) | as `strands` |
 | `noise` | its minor weight is at least 3 times its local noise | as `strands` |
 | `any` | its minor base is neither neighbour's base | any read counts |
 | `lone` | as `unshadowed` | as `unshadowed`, or any read counts where one strand alone reads the position cleanly |
