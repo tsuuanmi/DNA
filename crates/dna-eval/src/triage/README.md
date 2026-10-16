@@ -13,6 +13,9 @@ It reads the compact triage evidence that the runner takes per sample
 - `detect.rs` — stage R: the trace and region detectors, the primer
   footprints, and the region, trace, and sample outcome under one policy.
   Pure and deterministic.
+- `repeats.rs` — the reference geometry of the one-strand exception: the
+  repeat windows (the measures' table) with their margin, and the
+  reference's homopolymer runs. Pure.
 - `minor.rs` — the `region.minor_signal` rules: a kind (how a read's minor
   channel counts and how reads must agree) and a threshold. Pure and
   deterministic.

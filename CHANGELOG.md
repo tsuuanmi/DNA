@@ -10,6 +10,12 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- One-strand exception policies in the draft triage (evaluation harness
+  only): `region.one_strand` can apply everywhere, nowhere, or only inside
+  the repeat windows and near reference homopolymers (R6m, R6m-h4), and a
+  single-strand minor-signal rule applies where one strand may pass. The
+  approval pre-registration accepts them, and the marginal endpoint reports
+  apart the leaks inside the exception.
 - `dna-eval approve` and `dna-eval power` (evaluation harness only). `approve`
   runs the pre-registered approval of triage pass rules on a hold-out panel
   once: it checks every frozen input before DNA runs, decides the fixed

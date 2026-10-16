@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use crate::compare::Measure;
 use crate::error::PreregError;
 use crate::evidence::Cause;
-use crate::triage::detect::{Policy, Proxy};
+use crate::triage::detect::{OneStrand, Policy, Proxy};
 use crate::triage::minor::{Kind, Rule};
 
 /// A number, or the word `"pending"`.
@@ -103,7 +103,9 @@ struct RawHypothesis {
 struct RawPolicy {
     short_calls: usize,
     causes: Vec<String>,
-    one_strand: bool,
+    one_strand: String,
+    #[serde(default = "off")]
+    single_minor: String,
     proxy: String,
     minor: String,
 }
@@ -376,37 +378,48 @@ fn policy(name: &str, raw: &RawPolicy, field: &str) -> Result<Policy, PreregErro
             ));
         }
     };
-    let minor = if raw.minor == "off" {
-        None
-    } else {
-        let (kind, threshold) = raw.minor.split_once('@').ok_or_else(|| {
-            invalid(
-                &format!("{field}.minor"),
-                "must be <kind>@<thousandths> or off",
-            )
-        })?;
-        let kind = Kind::ALL
-            .into_iter()
-            .find(|candidate| candidate.label() == kind)
-            .ok_or_else(|| {
-                invalid(
-                    &format!("{field}.minor"),
-                    &format!("{kind:?} is not a kind"),
-                )
-            })?;
-        let threshold = threshold
-            .parse::<u16>()
-            .map_err(|_| invalid(&format!("{field}.minor"), "the threshold is not a number"))?;
-        Some(Rule { kind, threshold })
-    };
+    let minor = rule(&raw.minor, &format!("{field}.minor"))?;
+    let single_minor = rule(&raw.single_minor, &format!("{field}.single_minor"))?;
+    let one_strand = OneStrand::parse(&raw.one_strand).ok_or_else(|| {
+        invalid(
+            &format!("{field}.one_strand"),
+            &format!(
+                "{:?} is not everywhere, off, outside_repeats, or outside_repeats_h<k>",
+                raw.one_strand
+            ),
+        )
+    })?;
     Ok(Policy {
         name: name.to_owned(),
         short_calls: raw.short_calls,
         causes,
-        one_strand: raw.one_strand,
+        one_strand,
         proxy,
         minor,
+        single_minor,
     })
+}
+
+fn off() -> String {
+    "off".to_owned()
+}
+
+/// A minor rule written as `<kind>@<thousandths>`, or `off`.
+fn rule(text: &str, field: &str) -> Result<Option<Rule>, PreregError> {
+    if text == "off" {
+        return Ok(None);
+    }
+    let (kind, threshold) = text
+        .split_once('@')
+        .ok_or_else(|| invalid(field, "must be <kind>@<thousandths> or off"))?;
+    let kind = Kind::ALL
+        .into_iter()
+        .find(|candidate| candidate.label() == kind)
+        .ok_or_else(|| invalid(field, &format!("{kind:?} is not a kind")))?;
+    let threshold = threshold
+        .parse::<u16>()
+        .map_err(|_| invalid(field, "the threshold is not a number"))?;
+    Ok(Some(Rule { kind, threshold }))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -450,12 +463,12 @@ upper_bound = 0.01
 [[hypotheses]]
 name = "H-base"
 requires = "first"
-policy = { short_calls = 100, causes = ["n", "contested", "masked", "phase_loss", "reference_frame"], one_strand = true, proxy = "primer", minor = "upstream@100" }
+policy = { short_calls = 100, causes = ["n", "contested", "masked", "phase_loss", "reference_frame"], one_strand = "everywhere", proxy = "primer", minor = "upstream@100" }
 
 [[hypotheses]]
 name = "H-os"
 requires = "previous_pass"
-policy = { short_calls = 100, causes = ["n", "contested"], one_strand = false, proxy = "primer", minor = "upstream@100" }
+policy = { short_calls = 100, causes = ["n", "contested"], one_strand = "outside_repeats_h4", proxy = "primer", single_minor = "any@150", minor = "upstream@100" }
 marginal = { against = "H-base", measure = "primary", upper_bound = 0.02 }
 "#;
 

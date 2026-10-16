@@ -67,6 +67,10 @@ struct MarginalResult {
     bound: f64,
     newly_passed: usize,
     leaks: usize,
+    /// Leaks with a discordant position the one-strand exception lets one
+    /// strand read, and the rest; reported apart, not gating.
+    leaks_inside_exception: usize,
+    leaks_outside_exception: usize,
     count_upper: f64,
     pass: bool,
 }
@@ -201,7 +205,7 @@ pub(crate) fn approve(prereg_path: &Path, output: &Path, threads: usize) -> Resu
         &truth.database.samples,
         &reference.sequence,
     );
-    let (approval, leaks) = score(&prereg, &rows);
+    let (approval, leaks) = score(&prereg, &rows, &reference.sequence);
 
     crate::prepare_output(output)?;
     let mut json = serde_json::to_string_pretty(&approval).map_err(Error::Serialize)?;
@@ -230,12 +234,13 @@ pub(crate) fn approve(prereg_path: &Path, output: &Path, threads: usize) -> Resu
 
 /// Decides and scores every hypothesis of the fixed sequence; returns the
 /// approval and the leak list for adjudication.
-fn score(prereg: &Prereg, rows: &[Row<'_>]) -> (Approval, String) {
+fn score(prereg: &Prereg, rows: &[Row<'_>], reference: &str) -> (Approval, String) {
     let active = rows
         .iter()
         .filter(|row| !row.sample.retired)
         .collect::<Vec<_>>();
-    let footprints = Footprints::learn(active.iter().filter_map(|row| row.outcome.triage.as_ref()));
+    let footprints = Footprints::learn(active.iter().filter_map(|row| row.outcome.triage.as_ref()))
+        .with_reference(reference);
     let batches = active
         .iter()
         .map(|row| row.sample.batch.as_str())
@@ -264,7 +269,14 @@ fn score(prereg: &Prereg, rows: &[Row<'_>]) -> (Approval, String) {
             previous.map(|previous| previous.verdict),
         );
         let result = if tested {
-            let result = test(prereg, hypothesis, &active, &passed, &pass_sets, &batches);
+            let result = test(
+                prereg,
+                hypothesis,
+                (&active, &passed),
+                &pass_sets,
+                &batches,
+                &footprints,
+            );
             for gate in &prereg.gates {
                 for (row, _) in active
                     .iter()
@@ -280,6 +292,23 @@ fn score(prereg: &Prereg, rows: &[Row<'_>]) -> (Approval, String) {
                         row.sample.stratum,
                         row.sample.batch
                     );
+                }
+            }
+            if let Some(marginal) = &hypothesis.marginal
+                && let Some(against) = pass_sets.get(marginal.against.as_str())
+            {
+                for ((row, passed), before) in active.iter().zip(&passed).zip(against) {
+                    if *passed && !*before && leaked(row, marginal.measure) {
+                        let _ = writeln!(
+                            leaks,
+                            "{}\t{}\tmarginal_{}\t{}\t{}\t",
+                            row.sample.id,
+                            hypothesis.name,
+                            marginal.measure.label(),
+                            row.sample.stratum,
+                            row.sample.batch
+                        );
+                    }
                 }
             }
             result
@@ -330,6 +359,37 @@ fn tested(requires: Requires, previous: Option<&str>) -> bool {
     }
 }
 
+/// Whether a leaked sample has a discordant position under `measure` that
+/// one strand alone reads and the hypothesis's one-strand exception lets
+/// pass.
+fn inside_exception(
+    row: &Row<'_>,
+    measure: Measure,
+    hypothesis: &Hypothesis,
+    footprints: &Footprints,
+) -> bool {
+    let (Ok(comparison), Some(evidence)) = (row.comparison(measure), row.outcome.triage.as_ref())
+    else {
+        return false;
+    };
+    comparison.positions.iter().any(|position| {
+        crate::compare::anchor(position)
+            .and_then(|anchor| Some((anchor, evidence.locate(anchor)?)))
+            .is_some_and(|(anchor, (region, offset))| {
+                let one_strand = evidence.regions[region]
+                    .positions
+                    .get(offset)
+                    .is_some_and(|position| position.strands() == 1);
+                let coordinate = usize::try_from(anchor).unwrap_or(0);
+                one_strand
+                    && !hypothesis
+                        .policy
+                        .one_strand
+                        .applies_at(coordinate, &footprints.repeats)
+            })
+    })
+}
+
 /// Whether a passed sample is a leak under `measure`: anything but
 /// concordant.
 fn leaked(row: &Row<'_>, measure: Measure) -> bool {
@@ -339,10 +399,10 @@ fn leaked(row: &Row<'_>, measure: Measure) -> bool {
 fn test(
     prereg: &Prereg,
     hypothesis: &Hypothesis,
-    active: &[&Row<'_>],
-    passed: &[bool],
+    (active, passed): (&[&Row<'_>], &[bool]),
     pass_sets: &BTreeMap<&str, Vec<bool>>,
     batches: &BTreeMap<&str, usize>,
+    footprints: &Footprints,
 ) -> HypothesisResult {
     let gates = prereg
         .gates
@@ -364,17 +424,23 @@ fn test(
             })
             .map(|(_, (row, _))| *row)
             .collect::<Vec<_>>();
-        let leaks = newly
+        let leaking = newly
             .iter()
             .filter(|row| leaked(row, marginal.measure))
+            .collect::<Vec<_>>();
+        let inside = leaking
+            .iter()
+            .filter(|row| inside_exception(row, marginal.measure, hypothesis, footprints))
             .count();
-        let count_upper = upper_bound(leaks, newly.len());
+        let count_upper = upper_bound(leaking.len(), newly.len());
         MarginalResult {
             against: marginal.against.clone(),
             measure: marginal.measure.label(),
             bound: marginal.upper_bound,
             newly_passed: newly.len(),
-            leaks,
+            leaks: leaking.len(),
+            leaks_inside_exception: inside,
+            leaks_outside_exception: leaking.len() - inside,
             count_upper,
             pass: count_upper <= marginal.upper_bound,
         }
@@ -549,11 +615,14 @@ fn markdown(approval: &Approval) -> String {
         if let Some(marginal) = &hypothesis.marginal {
             let _ = writeln!(
                 text,
-                "\nMarginal against {} ({}): {} newly passed, {} leaks, UB {:.4} (bound {:.4}): {}.",
+                "\nMarginal against {} ({}): {} newly passed, {} leaks ({} at a position the \
+                 one-strand exception lets one strand read, {} elsewhere), UB {:.4} (bound {:.4}): {}.",
                 marginal.against,
                 marginal.measure,
                 marginal.newly_passed,
                 marginal.leaks,
+                marginal.leaks_inside_exception,
+                marginal.leaks_outside_exception,
                 marginal.count_upper,
                 marginal.bound,
                 marginal.pass
