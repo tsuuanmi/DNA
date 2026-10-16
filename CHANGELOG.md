@@ -193,7 +193,7 @@ remain independently versioned and are never silently changed in place.
 - Bounded runs before a post-repeat phase loss are exempt from `read_end`
   (ADR-0076, SRS-VAR-013, SRS-CONS-003). An insertion or deletion of a run the
   read bounds with unmasked calls, and the consensus's observations of that
-  run, are no longer distrusted when the margin's edge is the read losing
+  run's matching and inserted calls, are no longer distrusted when the margin's edge is the read losing
   phase right after a repeat run. Substitutions and run bounds keep the
   margin. `ReadEvidence` masks carry a `MaskOnset`; the `core` plugin version
   rises to 4 and the `sanger` plugin version to 3.

@@ -14,9 +14,9 @@
 //!
 //! A run the read bounds is exempt from `read_end` where the margin's edge is
 //! the read losing phase right after a repeat run, not a read end (ADR-0076):
-//! the run's calls stay trusted for the length of an insertion or deletion of
-//! that run, and for the consensus's run observations, but never for a
-//! substitution, and the run's bounds keep their own trust.
+//! an insertion or deletion of that run is not `read_end`, and the consensus
+//! trusts the run's matches and insertions; a substituted call or a bound
+//! never gains trust.
 
 use crate::model::alignment::Orientation;
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
@@ -112,10 +112,12 @@ impl<'a> ReadEligibility<'a> {
         eligibility
     }
 
-    /// Whether a call is trusted for the consensus's run-structure
-    /// observations: trusted, or exempt as part of a bounded run.
-    pub(crate) fn run_trusted(&self, index: usize) -> bool {
-        self.trusted(index) || self.run_exempt.get(index).copied().unwrap_or(false)
+    /// Whether a call lies on a bounded run the exemption lifts from
+    /// `read_end`. The consensus trusts such a call only where it matches
+    /// the reference or is inserted: the run's length may change, its
+    /// composition may not.
+    pub(crate) fn run_exempt(&self, index: usize) -> bool {
+        self.run_exempt.get(index).copied().unwrap_or(false)
     }
 
     /// Whether the run `start..=end` of `base` is bounded by resolving,
@@ -462,9 +464,9 @@ mod tests {
         let eligibility = ReadEligibility::new(&read, &settings(8));
         // The run lies within the margin of the edge, but is exempt.
         assert!((11..=15).all(|index| !eligibility.trusted(index)));
-        assert!((11..=15).all(|index| eligibility.run_trusted(index)));
+        assert!((11..=15).all(|index| eligibility.run_exempt(index)));
         // The bound right of the run keeps its own trust: never a clean base.
-        assert!(!eligibility.run_trusted(16) && !eligibility.trusted(16));
+        assert!(!eligibility.run_exempt(16) && !eligibility.trusted(16));
         // Too few informative calls between the bound and the edge: the
         // masked segment reaches the call right after the bound.
         let mut close = read.clone();
@@ -473,7 +475,7 @@ mod tests {
             call.mask = read.calls()[19].mask;
             close = close.with_call(index, call);
         }
-        assert!(!ReadEligibility::new(&close, &settings(8)).run_trusted(13));
+        assert!(!ReadEligibility::new(&close, &settings(8)).run_exempt(13));
     }
 
     #[test]
@@ -482,7 +484,7 @@ mod tests {
         for onset in [Some(MaskOnset::Other), None] {
             let read = run_read(onset);
             assert!(
-                !ReadEligibility::new(&read, &settings(8)).run_trusted(13),
+                !ReadEligibility::new(&read, &settings(8)).run_exempt(13),
                 "{onset:?}"
             );
         }

@@ -43,10 +43,13 @@ end. All of these must hold:
 1. **Run-length evidence only.** The exemption covers the calls of the run:
    - for an insertion or deletion that changes the run's length, the variant
      is not `read_end`;
-   - in the consensus, the run's calls are clean for its run observations.
+   - in the consensus, the run's calls are clean where they match the
+     reference or are inserted: the run's length may change, its composition
+     may not.
 
-   A substitution is never exempt, and the run's two bounds keep their own
-   trust. A bound shows where the run ends but never a clean base, so a
+   A substitution is never exempt: in `dna sample` eligibility, and in the
+   consensus, where a run call aligned to a reference base of another base
+   keeps the margin. The run's two bounds keep their own trust. A bound shows where the run ends but never a clean base, so a
    substitution at a run exit still needs a read that is clean there without
    the exemption.
 2. **Bounded run.** The run (two or more calls of one canonical base) has a
@@ -85,19 +88,25 @@ phase.
 
   | Measure | Fixes | Regressions |
   |---|---:|---:|
-  | Primary | +49 | 0 |
-  | Strict | +46 | 0 |
-  | Haplotype IUPAC-compatible | +60 | 0 |
+  | Primary | +40 | 0 |
+  | Strict | +37 | 0 |
+  | Haplotype IUPAC-compatible | +50 | 0 |
 
   - The strict measure, which counts uncovered truth alleles, rises from
-    1,820 to 1,866 concordant samples, so this is an accuracy gain and not a
+    1,820 to 1,857 concordant samples, so this is an accuracy gain and not a
     reclassification.
   - No new DNA allele appears.
-  - `315.1C` is now matched in 67 more samples.
+  - `315.1C` is now matched in 55 more samples.
+  - Keeping substituted calls under the margin costs 9 samples: there the
+    aligner writes two length changes (`309.1C 315.1C`) as two mismatches at
+    the run ends instead of two insertions, so the exempt run's calls sit on
+    a reference base of another base. Recognising such shifted run ends is
+    left to a follow-up decision.
   - A cross-check with the Researcher session's separate consensus → call
     scorer on two 320-sample subsets of the panel gained only true calls
-    (`309.1C`, `315.1C`, and one `16183C` that the consensus composes from the
-    run's calls), with no worse sample.
+    (`309.1C`, `315.1C`), with no worse sample. An earlier build also let the
+    consensus compose a substitution (`16183C`) from an exempt run call; the
+    rule now keeps substituted calls under the margin.
 - **`dna sample`.** Its eligibility changes the same way: an insertion or
   deletion of such a run is no longer `read_end`.
 - **Versions.** `ReadEvidence` masks carry an onset (`MaskOnset`). The `core`
