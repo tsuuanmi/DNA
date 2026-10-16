@@ -33,10 +33,25 @@
 //!   possible base (`C` and `Y`), and where DNA calls nothing inside its
 //!   callable intervals its base is the reference, which matches a truth IUPAC
 //!   allele whose code admits the reference (`16189Y` over a reference `T`).
+//!
+//! Two haplotype measures apply the primary or the IUPAC-compatible rules
+//! only to the alleles that do not describe the same sequence on both sides:
+//! inside the comparable intervals (the HV regions within DNA's callable
+//! intervals, or the HV regions when DNA reports none), each side's alleles,
+//! special positions included, are applied to the reference, and alleles
+//! where the two sequences agree leave the comparison
+//! ([`haplotype`](crate::haplotype)). `16188.1C` and `16193.1C` in one C run,
+//! or `248DEL` and `249DEL` over `AA`, are then concordant. Special-position
+//! indel lengths cannot decide a difference, and a symbol matches a
+//! compatible one only where a truth allele wrote it, as under the
+//! IUPAC-compatible rules. The rules still decide the rest, special positions
+//! left out, so a sample concordant under the base rules stays concordant.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::PathBuf;
+
+use crate::haplotype::{Block, Edit, Haplotypes};
 
 /// Positions whose insertions and deletions are left out of the comparison.
 const SPECIAL_POSITIONS: [&str; 4] = ["455", "463", "573", "309"];
@@ -148,7 +163,7 @@ fn hv_region(position: &str) -> Option<&'static str> {
         .map(|(name, _, _)| *name)
 }
 
-/// A set of comparison rules.
+/// A set of comparison rules, declared in [`Measure::ALL`] order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Measure {
     /// The lab's rules.
@@ -158,26 +173,50 @@ pub(crate) enum Measure {
     Strict,
     /// The lab's rules, with IUPAC-compatible called bases matching.
     IupacCompatible,
+    /// The lab's rules over the alleles that do not describe the same
+    /// sequence.
+    Haplotype,
+    /// The IUPAC-compatible rules over the alleles that do not describe the
+    /// same sequence, IUPAC codes that share a base counting as the same.
+    HaplotypeIupacCompatible,
 }
 
 impl Measure {
-    pub(crate) const ALL: [Self; 3] = [Self::Primary, Self::Strict, Self::IupacCompatible];
+    /// The number of measures.
+    pub(crate) const COUNT: usize = 5;
+
+    pub(crate) const ALL: [Self; Self::COUNT] = [
+        Self::Primary,
+        Self::Strict,
+        Self::IupacCompatible,
+        Self::Haplotype,
+        Self::HaplotypeIupacCompatible,
+    ];
 
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Primary => "primary",
             Self::Strict => "strict",
             Self::IupacCompatible => "iupac_compatible",
+            Self::Haplotype => "haplotype",
+            Self::HaplotypeIupacCompatible => "haplotype_iupac_compatible",
         }
     }
 
-    /// The measure's place in [`Measure::ALL`].
-    pub(crate) const fn index(self) -> usize {
+    /// The name in Markdown tables.
+    pub(crate) const fn title(self) -> &'static str {
         match self {
-            Self::Primary => 0,
-            Self::Strict => 1,
-            Self::IupacCompatible => 2,
+            Self::Primary => "Primary",
+            Self::Strict => "Strict",
+            Self::IupacCompatible => "IUPAC-compatible",
+            Self::Haplotype => "Haplotype",
+            Self::HaplotypeIupacCompatible => "Haplotype IUPAC-compatible",
         }
+    }
+
+    /// The measure's place in [`Measure::ALL`]: its declaration order.
+    pub(crate) const fn index(self) -> usize {
+        self as usize
     }
 
     /// The scores column that holds the measure's status.
@@ -186,7 +225,19 @@ impl Measure {
             Self::Primary => "status",
             Self::Strict => "strict_status",
             Self::IupacCompatible => "iupac_compatible_status",
+            Self::Haplotype => "haplotype_status",
+            Self::HaplotypeIupacCompatible => "haplotype_iupac_compatible_status",
         }
+    }
+
+    /// Whether called bases match when their IUPAC codes share a base.
+    const fn compatible(self) -> bool {
+        matches!(self, Self::IupacCompatible | Self::HaplotypeIupacCompatible)
+    }
+
+    /// Whether alleles that describe the same sequence leave the comparison.
+    pub(crate) const fn haplotype(self) -> bool {
+        matches!(self, Self::Haplotype | Self::HaplotypeIupacCompatible)
     }
 
     /// Whether two alleles match under this measure.
@@ -194,7 +245,7 @@ impl Measure {
         left.position == right.position
             && left.reference == right.reference
             && (left.alternate == right.alternate
-                || (self == Self::IupacCompatible && compatible(&left.alternate, &right.alternate)))
+                || (self.compatible() && compatible(&left.alternate, &right.alternate)))
     }
 }
 
@@ -306,21 +357,131 @@ pub(crate) struct Comparison {
     /// Truth-only alleles in an HV region inside the truth's analysed
     /// intervals but outside DNA's callable intervals: DNA's coverage gaps.
     pub(crate) uncovered: Vec<Allele>,
+    /// Haplotype measures: the blocks where the two sequences differ that
+    /// hold a discordant position, in reference order.
+    pub(crate) blocks: Vec<Block>,
+}
+
+/// The intervals a haplotype measure compares as sequences: the HV regions
+/// within DNA's callable intervals (merged where they touch), or the HV
+/// regions when DNA reports none.
+fn comparable(intervals: &[(i64, i64)]) -> Vec<(i64, i64)> {
+    let regions = HV_REGIONS.map(|(_, start, end)| (start, end));
+    if intervals.is_empty() {
+        let mut regions = regions.to_vec();
+        regions.sort_unstable();
+        return regions;
+    }
+    let mut sorted = intervals.to_vec();
+    sorted.sort_unstable();
+    let mut merged = Vec::<(i64, i64)>::new();
+    for (start, end) in sorted {
+        match merged.last_mut() {
+            Some(last) if start <= last.1.saturating_add(1) => last.1 = last.1.max(end),
+            _ => merged.push((start, end)),
+        }
+    }
+    let mut comparable = regions
+        .iter()
+        .flat_map(|&(region_start, region_end)| {
+            merged.iter().filter_map(move |&(start, end)| {
+                let (start, end) = (start.max(region_start), end.min(region_end));
+                (start <= end).then_some((start, end))
+            })
+        })
+        .collect::<Vec<_>>();
+    comparable.sort_unstable();
+    comparable
+}
+
+/// The allele as an edit of the reference, or `None` without an anchor base.
+/// An insertion (`-` reference) needs an insertion ordinal and an inserted
+/// base; any other allele replaces as many bases as its reference has. Its
+/// symbols are `None` when it cannot be applied: an insertion without an
+/// ordinal or a base, an ordinal on a reference base, or a reference or
+/// alternate that is empty or not ASCII.
+fn edit(allele: &Allele) -> Option<Edit<'_>> {
+    let base = anchor(&allele.position)?;
+    let ordinal = allele
+        .position
+        .split_once('.')
+        .map(|(_, ordinal)| ordinal.parse::<u32>().ok());
+    let readable = |text: &str| !text.is_empty() && text.is_ascii();
+    let (ordinal, symbols) = match (ordinal, allele.reference == "-") {
+        (Some(Some(ordinal)), true) if allele.alternate != "-" => {
+            (Some(ordinal), Some(allele.alternate.as_str()))
+        }
+        (None, false) if allele.alternate == "-" => (None, Some("")),
+        (None, false) => (None, Some(allele.alternate.as_str())),
+        _ => (None, None),
+    };
+    let usable = readable(&allele.reference) && readable(&allele.alternate);
+    Some(Edit {
+        base,
+        ordinal,
+        span: i64::try_from(allele.reference.len()).unwrap_or(i64::MAX),
+        symbols: symbols.filter(|_| usable),
+        special: allele.is_special(),
+    })
+}
+
+/// The reference bases an allele touches, from its anchor base.
+fn bases_of(allele: &Allele) -> Option<(i64, i64)> {
+    let edit = edit(allele)?;
+    Some((edit.base, edit.last()))
+}
+
+/// Both sides' sequences over the comparable intervals (the HV regions
+/// within DNA's callable intervals, or the HV regions when DNA reports none)
+/// on `reference`, built once for the haplotype measures.
+pub(crate) fn haplotypes(dna: Side<'_>, truth: Side<'_>, reference: &str) -> Haplotypes {
+    fn edits(alleles: &[Allele]) -> Vec<Edit<'_>> {
+        alleles
+            .iter()
+            .filter(|allele| allele.reference != allele.alternate)
+            .filter_map(edit)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+    Haplotypes::new(
+        reference,
+        &comparable(dna.intervals),
+        &edits(dna.alleles),
+        &edits(truth.alleles),
+    )
 }
 
 /// Compares DNA's side (its callable intervals) with the truth's side (its
-/// analysed intervals) under `measure`.
-pub(crate) fn compare(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Comparison {
+/// analysed intervals) under `measure`; the haplotype measures read both
+/// sides' sequences from `haplotypes`.
+pub(crate) fn compare(
+    dna: Side<'_>,
+    truth: Side<'_>,
+    measure: Measure,
+    haplotypes: &Haplotypes,
+) -> Comparison {
     let dna_all = distinct(dna.alleles);
     let truth_all = distinct(truth.alleles);
-    let dna_kept = dna_all
-        .iter()
-        .filter(|allele| !allele.is_special())
-        .collect::<Vec<_>>();
-    let truth_kept = truth_all
-        .iter()
-        .filter(|allele| !allele.is_special())
-        .collect::<Vec<_>>();
+    // Special positions take part in the sequences, but not in the rules. A
+    // truth symbol written by a truth allele also matches a compatible DNA
+    // symbol, as two alleles at one position do under the IUPAC-compatible
+    // rules; DNA's codes never match the truth's reference.
+    let equivalence = measure.haplotype().then(|| {
+        haplotypes.equivalence(
+            measure
+                .compatible()
+                .then_some(compatible as fn(&str, &str) -> bool),
+        )
+    });
+    let kept = |allele: &&Allele| {
+        !allele.is_special()
+            && !equivalence.as_ref().is_some_and(|equivalence| {
+                bases_of(allele).is_some_and(|(first, last)| equivalence.explains(first, last))
+            })
+    };
+    let dna_kept = dna_all.iter().filter(kept).collect::<Vec<_>>();
+    let truth_kept = truth_all.iter().filter(kept).collect::<Vec<_>>();
     let unique = |left: &[&Allele], right: &[&Allele]| {
         left.iter()
             .filter(|allele| !right.iter().any(|other| measure.matches(allele, other)))
@@ -330,7 +491,7 @@ pub(crate) fn compare(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Compa
     let dna_unique = unique(&dna_kept, &truth_kept);
     let dna_by_position = by_position(&dna_kept);
     let mut truth_unique = unique(&truth_kept, &dna_kept);
-    if measure == Measure::IupacCompatible {
+    if measure.compatible() {
         // Where DNA calls nothing but reads the position, its base is the
         // reference; that matches an IUPAC code that admits it.
         truth_unique.retain(|allele| {
@@ -396,6 +557,19 @@ pub(crate) fn compare(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Compa
                 .iter()
                 .any(|allele| allele.position == *position && allele.is_iupac())
         });
+    let blocks = equivalence
+        .map(|equivalence| {
+            equivalence
+                .blocks()
+                .filter(|block| {
+                    positions.iter().any(|position| {
+                        anchor(position).is_some_and(|base| block.overlaps(base, base))
+                    })
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
     Comparison {
         concordance,
         dna_alleles: dna_all.len(),
@@ -406,6 +580,7 @@ pub(crate) fn compare(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Compa
         positions,
         iupac_only,
         uncovered,
+        blocks,
     }
 }
 
@@ -504,6 +679,9 @@ pub(crate) enum Failure {
     Notation,
     /// The truth has no record of the sample.
     TruthMissing,
+    /// DNA analysed the sample on another reference sequence than the one
+    /// the harness compares on.
+    Reference { analysed: String, compared: String },
 }
 
 impl Failure {
@@ -515,6 +693,7 @@ impl Failure {
             Self::Panic => "panic",
             Self::Notation => "notation",
             Self::TruthMissing => "truth_missing",
+            Self::Reference { .. } => "reference",
         }
     }
 }
@@ -529,6 +708,10 @@ impl fmt::Display for Failure {
             Self::Panic => formatter.write_str("DNA panicked"),
             Self::Notation => formatter.write_str("the target profile declares no notation"),
             Self::TruthMissing => formatter.write_str("the truth has no record of the sample"),
+            Self::Reference { analysed, compared } => write!(
+                formatter,
+                "DNA analysed reference sequence {analysed}, the harness compares on {compared}"
+            ),
         }
     }
 }
@@ -536,12 +719,29 @@ impl fmt::Display for Failure {
 impl std::error::Error for Failure {}
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    use std::path::Path;
+    use std::sync::OnceLock;
+
+    use dna_kernel::model::reference::ReferenceTopology;
+
     use super::*;
+
+    /// The rCRS sequence of the repository's reference.
+    pub(crate) fn rcrs() -> &'static str {
+        static SEQUENCE: OnceLock<String> = OnceLock::new();
+        SEQUENCE.get_or_init(|| {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../references/rCRS.fasta");
+            match dna_kernel::reference::load(&path, ReferenceTopology::Linear) {
+                Ok(reference) => reference.sequence,
+                Err(error) => panic!("cannot load {}: {error}", path.display()),
+            }
+        })
+    }
 
     /// Alleles from reviewer tokens: `263G`, `309.1C` (insertion), `249DEL`,
     /// with the reference base given after a colon where it matters.
-    fn alleles(tokens: &[&str]) -> Vec<Allele> {
+    pub(crate) fn alleles(tokens: &[&str]) -> Vec<Allele> {
         tokens
             .iter()
             .map(|token| {
@@ -574,7 +774,7 @@ mod tests {
         truth: &[Allele],
         measure: Measure,
     ) -> Comparison {
-        compare(
+        compared(
             Side {
                 alleles: dna,
                 intervals,
@@ -585,6 +785,11 @@ mod tests {
             },
             measure,
         )
+    }
+
+    /// `compare` with both sides' sequences built on rCRS.
+    fn compared(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Comparison {
+        compare(dna, truth, measure, &haplotypes(dna, truth, rcrs()))
     }
 
     #[test]
@@ -740,7 +945,7 @@ mod tests {
         assert_eq!(strict.concordance, Concordance::Discordant);
         assert_eq!(strict.reasons, BTreeSet::from([Reason::Uncovered]));
         // Outside the truth's analysed intervals it is not missed either.
-        let narrow = compare(
+        let narrow = compared(
             Side {
                 alleles: &dna,
                 intervals: &intervals,
@@ -800,5 +1005,347 @@ mod tests {
         assert!(!compatible("-", "N"));
         assert!(compatible("N", "Y"));
         assert!(!compatible("X", "A"));
+    }
+
+    /// Concordance under primary, haplotype, and haplotype IUPAC-compatible.
+    fn concordances(dna: &[&str], intervals: &[(i64, i64)], truth: &[&str]) -> [Concordance; 3] {
+        let (dna, truth) = (alleles(dna), alleles(truth));
+        [
+            Measure::Primary,
+            Measure::Haplotype,
+            Measure::HaplotypeIupacCompatible,
+        ]
+        .map(|of| measure(&dna, intervals, &truth, of).concordance)
+    }
+
+    const Y: Concordance = Concordance::Concordant;
+    const N: Concordance = Concordance::Discordant;
+
+    #[test]
+    fn the_haplotype_measures_accept_other_placements_of_one_sequence() {
+        for (dna, truth) in [
+            // HVS-I poly-C: an insertion anywhere in the C run 16190-16193.
+            (&["263G", "16190.1C"][..], &["263G", "16193.1C"][..]),
+            // HVS-II: a C after 310T lengthens the run 311-315.
+            (&["263G", "310.1C"], &["263G", "315.1C"]),
+            // A deletion in AA (248-249).
+            (&["249DEL", "263G"], &["248DEL", "263G"]),
+            // The AC repeat 514-524 loses one AC unit.
+            (&["263G", "514DEL", "515DEL"], &["263G", "523DEL", "524DEL"]),
+            // An insertion and a deletion against substitutions (the HVS-I
+            // nomenclature form 16183C 16184A 16189C).
+            (
+                &["263G", "16182.1C", "16189C", "16193DEL"],
+                &["263G", "16183C", "16184A", "16189C"],
+            ),
+            // The HVS-III C run 568-573: 573.1C is special, 570.1C is not.
+            (&["263G", "570.1C"], &["263G", "573.1C"]),
+            // A T after the special 455 with a C lost, against 456T.
+            (&["263G", "455.1T", "459DEL"], &["263G", "456T"]),
+        ] {
+            assert_eq!(
+                concordances(dna, &FULL, truth),
+                [N, Y, Y],
+                "{dna:?} {truth:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_haplotype_measures_keep_real_differences() {
+        // One more C before the T and one fewer after it: equal lengths, a
+        // different sequence.
+        let dna = alleles(&["263G", "16188.1C", "16188.2T"]);
+        let truth = alleles(&["263G", "16190T", "16193.1C", "16193.2C"]);
+        let comparison = measure(&dna, &FULL, &truth, Measure::Haplotype);
+        assert_eq!(comparison.concordance, N);
+        assert_eq!(
+            comparison
+                .blocks
+                .iter()
+                .map(Block::text)
+                .collect::<Vec<_>>(),
+            ["16188-16193:CCTTCCCC/CTTCCCCC"]
+        );
+        assert_eq!(comparison.dna_unique, alleles(&["16188.1C", "16188.2T"]));
+        // An insertion against a substitution that lengthens the run is
+        // another sequence.
+        assert_eq!(
+            concordances(&["263G", "16194C"], &FULL, &["263G", "16193.1C"]),
+            [N, N, N]
+        );
+        // A truth IUPAC code where DNA calls a base it admits, in another
+        // placement: only the IUPAC-compatible haplotype measure accepts it.
+        assert_eq!(
+            concordances(
+                &["263G", "16190.1T"],
+                &FULL,
+                &["263G", "16191Y", "16193.1C"]
+            ),
+            [N, N, Y]
+        );
+    }
+
+    #[test]
+    fn the_haplotype_measures_keep_the_base_rules_elsewhere() {
+        // Concordant samples stay concordant, special-position lengths
+        // included; an empty side stays not applicable.
+        assert_eq!(
+            concordances(
+                &["263G", "309.1C", "315.1C"],
+                &FULL,
+                &["263G", "309.1C", "309.2C", "315.1C"]
+            ),
+            [Y, Y, Y]
+        );
+        assert_eq!(
+            concordances(&[], &FULL, &["263G"]),
+            [Concordance::NotApplicable; 3]
+        );
+        // A DNA-only allele outside DNA's callable intervals is not judged
+        // as a sequence, and counts as on the primary measure.
+        let comparison = measure(
+            &alleles(&["263G", "16300A"]),
+            &[(73, 340)],
+            &alleles(&["263G"]),
+            Measure::Haplotype,
+        );
+        assert_eq!(comparison.reasons, BTreeSet::from([Reason::DnaOnly]));
+        assert!(comparison.blocks.is_empty());
+        // A different reference written for the same base is the same
+        // sequence.
+        assert_eq!(concordances(&["263G:A"], &FULL, &["263G:C"]), [N, Y, Y]);
+    }
+
+    #[test]
+    fn a_callable_interval_edge_leaves_a_split_length_change_open() {
+        // DNA reads up to 16191 and places the extra C at 16190; the truth's
+        // 16193.1C lies outside DNA's intervals and is ignored, so the
+        // difference cannot close inside the comparable interval.
+        let intervals = [(73, 340), (16024, 16191)];
+        let comparison = measure(
+            &alleles(&["263G", "16190.1C"]),
+            &intervals,
+            &alleles(&["263G", "16193.1C"]),
+            Measure::Haplotype,
+        );
+        assert_eq!(comparison.concordance, N);
+        assert_eq!(
+            comparison
+                .blocks
+                .iter()
+                .map(Block::text)
+                .collect::<Vec<_>>(),
+            ["16190-16191+:CCC/CC"]
+        );
+        assert_eq!(
+            concordances(&["263G", "16190.1C"], &FULL, &["263G", "16193.1C"]),
+            [N, Y, Y]
+        );
+    }
+
+    #[test]
+    fn measures_are_declared_in_their_order() {
+        for (index, measure) in Measure::ALL.into_iter().enumerate() {
+            assert_eq!(measure.index(), index);
+        }
+    }
+
+    #[test]
+    fn dna_codes_never_match_the_truth_reference() {
+        // DNA's Y or N where the truth writes nothing: discordant on the
+        // IUPAC-compatible rules, so on the haplotype measures too.
+        for dna in ["16304Y:T", "16304N:T"] {
+            let dna = alleles(&["263G", dna]);
+            let truth = alleles(&["263G"]);
+            for of in Measure::ALL {
+                assert_eq!(measure(&dna, &FULL, &truth, of).concordance, N, "{of:?}");
+            }
+        }
+        // Both write the position: codes that share a base match on both
+        // IUPAC-compatible measures, as two alleles do.
+        assert_eq!(
+            concordances(&["263G", "16304Y:T"], &FULL, &["263G", "16304C:T"]),
+            [N, N, Y]
+        );
+    }
+
+    #[test]
+    fn several_reference_bases_are_one_edit() {
+        let with = |mut alleles: Vec<Allele>, allele: Allele| {
+            alleles.push(allele);
+            alleles
+        };
+        let deletion = with(alleles(&["263G"]), Allele::new("514", "CA", "-"));
+        let haplotype = |dna: &[&str], truth: &[Allele]| {
+            measure(&alleles(dna), &FULL, truth, Measure::Haplotype).concordance
+        };
+        // Two bases deleted at once are the two one-base deletions, here or
+        // one AC unit later, but not one of them.
+        assert_eq!(haplotype(&["263G", "514DEL", "515DEL"], &deletion), Y);
+        assert_eq!(haplotype(&["263G", "523DEL", "524DEL"], &deletion), Y);
+        assert_eq!(haplotype(&["263G", "514DEL"], &deletion), N);
+        // Two substituted bases are the two substitutions.
+        let mnv = with(alleles(&["263G"]), Allele::new("16300", "AC", "GT"));
+        assert_eq!(haplotype(&["263G", "16300G", "16301T"], &mnv), Y);
+        assert_eq!(haplotype(&["263G", "16300G"], &mnv), N);
+    }
+
+    #[test]
+    fn a_special_length_difference_does_not_hide_a_placement() {
+        // The 303-309 run differs by a special 309.2C, and the C after 310T
+        // is written at another place. The special length is left out of
+        // the rules, so only the placement remains: one sequence.
+        assert_eq!(
+            concordances(
+                &["263G", "309.1C", "315.1C"],
+                &FULL,
+                &["263G", "309.1C", "309.2C", "310.1C"]
+            ),
+            [N, Y, Y]
+        );
+        // A real difference after it stays one.
+        assert_eq!(
+            concordances(
+                &["263G", "309.1C", "315.1C", "320T"],
+                &FULL,
+                &["263G", "309.1C", "309.2C", "310.1C"]
+            ),
+            [N, N, N]
+        );
+    }
+
+    #[test]
+    fn comparable_intervals_are_hv_regions_within_callable_intervals() {
+        // The tests' reference loaded.
+        assert_eq!(rcrs().len(), 16_569);
+        assert_eq!(comparable(&[]), [(73, 340), (438, 576), (16024, 16365)]);
+        assert_eq!(
+            comparable(&[(16300, 16400), (1, 100), (101, 200), (500, 600)]),
+            [(73, 200), (500, 576), (16300, 16365)]
+        );
+    }
+
+    /// Per-base alleles of anchored variants, as DNA's notation writes them.
+    fn per_base(variants: &[dna_kernel::variant::Variant]) -> Vec<Allele> {
+        use dna_kernel::variant::VariantKind;
+        let mut alleles = Vec::new();
+        for variant in variants {
+            let position = variant.position_1based;
+            match variant.kind {
+                VariantKind::Ins => {
+                    for (ordinal, base) in variant.alternate.chars().skip(1).enumerate() {
+                        let position = format!("{position}.{}", ordinal + 1);
+                        alleles.push(Allele::new(&position, "-", &base.to_string()));
+                    }
+                }
+                VariantKind::Del => {
+                    for (offset, base) in variant.reference.chars().enumerate().skip(1) {
+                        let position = (position + offset).to_string();
+                        alleles.push(Allele::new(&position, &base.to_string(), "-"));
+                    }
+                }
+                _ => alleles.push(Allele::new(
+                    &position.to_string(),
+                    &variant.reference,
+                    &variant.alternate,
+                )),
+            }
+        }
+        alleles
+    }
+
+    /// DNA's post-calling plugins as the oracle: every single-base edit in
+    /// and around the HVS-II and HVS-III repeat windows is normalized and
+    /// represented by `dna-post`, which proves the represented variants
+    /// rebuild the source haplotype. The haplotype comparison must find the
+    /// source and represented alleles the same sequence, and any two edits
+    /// the same exactly when `dna-post`'s rebuilt sequences are equal.
+    #[test]
+    fn agrees_with_dna_post_on_sequence_equivalence() -> Result<(), Box<dyn std::error::Error>> {
+        use dna_kernel::profile::Profile;
+        use dna_kernel::variant::{CalledVariantSet, Variant, VariantKind};
+        use dna_post::variant_nomenclature::{apply_with, from_normalization};
+        use dna_post::variant_normalization::{NormalizationPolicy, normalize_with};
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let reference = dna_kernel::reference::load(
+            &root.join("references/rCRS.fasta"),
+            ReferenceTopology::Linear,
+        )?;
+        let profile = Profile::load(&root.join("config/profiles/human-mtdna-rcrs.toml"))?;
+        let sequence = reference.sequence.as_str();
+        let base = |position: usize| sequence[position - 1..position].to_owned();
+        let mut edits = Vec::new();
+        for (start, end) in [(300, 318), (510, 527)] {
+            for position in start..=end {
+                for inserted in ["A", "C", "G", "T"] {
+                    edits.push(Variant {
+                        contig: reference.name.clone(),
+                        position_1based: position,
+                        reference: base(position),
+                        alternate: format!("{}{inserted}", base(position)),
+                        kind: VariantKind::Ins,
+                    });
+                    if base(position) != inserted {
+                        edits.push(Variant {
+                            contig: reference.name.clone(),
+                            position_1based: position,
+                            reference: base(position),
+                            alternate: inserted.to_owned(),
+                            kind: VariantKind::Snv,
+                        });
+                    }
+                }
+                edits.push(Variant {
+                    contig: reference.name.clone(),
+                    position_1based: position - 1,
+                    reference: format!("{}{}", base(position - 1), base(position)),
+                    alternate: base(position - 1),
+                    kind: VariantKind::Del,
+                });
+            }
+        }
+        // Intervals around the edits; the sequences agree outside them.
+        let intervals = [(295, 325), (505, 532)];
+        let built = |left: &[Allele], right: &[Allele]| {
+            let side = |alleles| Side {
+                alleles,
+                intervals: &intervals,
+            };
+            haplotypes(side(left), side(right), sequence).equivalence(None)
+        };
+        let mut rebuilt = Vec::new();
+        let mut moved = 0;
+        for edit in &edits {
+            let called = CalledVariantSet {
+                reference: reference.identity(),
+                variants: vec![edit.clone()],
+            };
+            let normalized =
+                normalize_with(&reference, &called, NormalizationPolicy::RightAligned)?;
+            let represented = apply_with(&reference, &profile, from_normalization(&normalized))?;
+            let source = per_base(&represented.source_variants);
+            let target = per_base(&represented.represented_variants);
+            moved += usize::from(source != target);
+            let equivalence = built(&source, &target);
+            assert_eq!(equivalence.blocks().count(), 0, "{edit:?}");
+            for allele in source.iter().chain(&target) {
+                let (first, last) = bases_of(allele).ok_or("an anchor base")?;
+                assert!(equivalence.explains(first, last), "{allele:?}");
+            }
+            rebuilt.push((source, represented.alternate_sequence));
+        }
+        assert!(moved > 50, "{moved} edits change their representation");
+        for (left, left_sequence) in &rebuilt {
+            for (right, right_sequence) in &rebuilt {
+                assert_eq!(
+                    built(left, right).blocks().count() == 0,
+                    left_sequence == right_sequence,
+                    "{left:?} {right:?}"
+                );
+            }
+        }
+        Ok(())
     }
 }

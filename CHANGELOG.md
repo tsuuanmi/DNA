@@ -10,6 +10,18 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Haplotype measures in the evaluation harness (PROP-0005).
+  - **Harness:** `dna-eval run` also scores every sample under `haplotype`
+    and `haplotype_iupac_compatible`: the primary and IUPAC-compatible rules
+    applied only to alleles that do not describe the same sequence, so a
+    haplotype written or placed differently (`16190.1C` against `16193.1C`,
+    `248DEL` against `249DEL`) is not a difference. Scores list the blocks
+    where the sequences differ; estimates, anchors, the baseline diff, the
+    summary, and the draft triage report both measures
+    ([measures](docs/validation/evaluation-harness.md#measures)). The primary,
+    strict, and IUPAC-compatible measures are unchanged. The harness now
+    loads the reference it passes to DNA, and a sample DNA analyses on another
+    reference sequence fails (`reference`).
 - Draft triage measurement for PROP-0004 phase 0 (evaluation harness only).
   - **Harness:** `dna-eval run --triage` takes a compact triage evidence
     record per sample from the same analysis, runs draft stage-1 detectors

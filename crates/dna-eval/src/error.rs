@@ -37,6 +37,9 @@ pub(crate) enum Error {
     /// The truth file is invalid.
     #[error("invalid truth file: {0}")]
     Truth(#[from] TruthError),
+    /// The reference cannot be loaded.
+    #[error("reference {path}: {message}")]
+    Reference { path: PathBuf, message: String },
     /// The baseline scores are invalid.
     #[error("invalid baseline scores: {0}")]
     Baseline(#[from] BaselineError),

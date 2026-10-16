@@ -299,6 +299,7 @@ dependencies = [
  "dna",
  "dna-core",
  "dna-kernel",
+ "dna-post",
  "dna-sanger",
  "rusqlite",
  "serde",

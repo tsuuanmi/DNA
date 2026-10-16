@@ -133,10 +133,14 @@ make the loop possible they provide:
 
 - **What counts.** The reviewer variants of each sample, compared by the
   lab's concordance rules (primary measure), with a stricter measure on the
-  truth's analysed intervals and an IUPAC-compatible measure beside it
+  truth's analysed intervals, an IUPAC-compatible measure, and haplotype
+  measures that do not count a haplotype written or placed differently
   ([evaluation harness](../validation/evaluation-harness.md#measures)).
+  Work is ranked on the haplotype measures, so representation does not
+  inflate the error counts.
 - **Notation.** The truth side is compared as stored in the database,
-  following `comparison.py`'s rules; DNA's side uses its notation.
+  following `comparison.py`'s rules; DNA's side uses its notation. The
+  haplotype measures compare the sequences both notations describe instead.
 
 **Labels.**
 
@@ -507,8 +511,10 @@ yet reviewed.
   the primary measure. A strict measure also counts truth alleles inside the
   truth's analysed intervals where DNA has no callable base, and an
   IUPAC-compatible measure lets DNA's base match a truth IUPAC code that
-  admits it. This replaces the panel's research scoring ("fair scale"); the
-  differences of the primary measure:
+  admits it. The haplotype and haplotype IUPAC-compatible measures apply
+  those rules only to alleles that do not describe the same sequence (see
+  *Haplotype measures* below). This replaces the panel's research scoring
+  ("fair scale"); the differences of the primary measure:
   - the research scoring kept only tokens inside the truth's analysed
     intervals on both sides; the lab's rules count every DNA-only allele in
     HV1–HV3, and a truth-only allele only inside DNA's callable intervals;
@@ -568,6 +574,61 @@ yet reviewed.
   `N/A`, 2 failed (the retired samples), rate 0.1779 ± 0.0138; strict 1,820
   `Y`, rate 0.2057 ± 0.0152; IUPAC-compatible 2,221 `Y`, rate 0.1010 ±
   0.0143.
+- **Haplotype measures** (2026-10-15, revision a244644 plus this change, dev
+  panel v3 on the database refresh of 09:53, which removed the truth of one
+  zero-weight sample; every primary, strict, and IUPAC-compatible result and
+  estimate equals the draft-triage run before this change, and no sample
+  concordant on a base measure is discordant on its haplotype measure).
+  - **Method**
+    ([measures](../validation/evaluation-harness.md#measures)). Inside the
+    HV regions within DNA's callable intervals each side's alleles are
+    applied to rCRS and the two sequences are cut into blocks wherever their
+    lengths agree; alleles outside differing blocks leave the comparison, and
+    the base rules decide the rest. Special-position indel lengths, which the
+    rules leave out, cannot decide a block (each interval is also built with
+    both sides' special-position indels the same), and the IUPAC leniency is
+    the base measure's, so only representation changes a status. Comparing
+    notations after DNA's own normalization and nomenclature was rejected:
+    `dna-post` rejects IUPAC codes and truth references that differ from
+    rCRS, and its windows give a canonical form only for the forms their
+    rules know, so equivalent truth forms such as `16190T 16193.1C 16193.2C`
+    against `16188.1C 16188.2T` would stay different. `dna-post` is the test
+    oracle instead: for every single-base edit around the HVS-II and HVS-III
+    windows, its normalized and represented calls are one sequence under the
+    measure, and two edits are one sequence exactly when `dna-post` rebuilds
+    the same haplotype.
+  - **Review fixes** (special-position balancing, the IUPAC leniency limited
+    to truth-written symbols, alleles spanning several reference bases),
+    re-measured on the next database refresh, which gave the two retired
+    samples a record again: every other sample has the same status and
+    discordant positions on all five measures, and every estimate is equal.
+    On this panel no DNA call is an IUPAC code, no truth allele spans several
+    bases, and no placement depends on the special-position balancing; the
+    fixes guard the measure rather than move it.
+  - **Haplotype.** 2,020 `Y`, 595 `N`; corpus-weighted not-concordant rate
+    0.1753 ± 0.0137 (primary 0.1779), unweighted 0.2550 (0.2842). 60 of the
+    655 primary-discordant samples describe the truth's sequence: 50 in the
+    HVS-I poly-C window, 7 in HVS-II, 2 in the AC repeat (one with `248DEL`
+    against `249DEL`), and 1 at `455.1T 459DEL` against `456T`; the HVS-I
+    length stratum goes from 0.580 to 0.267. The most frequent form is
+    `16188.1C 16188.2T` against `16190T 16193.1C 16193.2C` (19 samples).
+  - **Haplotype IUPAC-compatible.** 2,301 `Y`, 314 `N`; rate 0.0977 ± 0.0143
+    (IUPAC-compatible 0.1010), unweighted 0.1469 (0.1861): 80 of the 394
+    IUPAC-compatible-discordant samples, the 60 above and 20 whose placement
+    also involves a truth IUPAC code (`16190.1T` against `16191Y 16193.1C`).
+    The HVS-I length stratum goes to 0.133. Anchors: 295 of 297 concordant
+    on both haplotype measures, as on the primary.
+  - **What remains** (314 samples, by the blocks where the sequences
+    differ): HVS-II poly-C, DNA's sequence shorter (129 samples, mostly a
+    truth `315.1C` DNA lacks, usually with a shorter 303–309 run as well);
+    substitutions outside the repeat windows (59); HVS-I poly-C
+    substitutions DNA does not call (44: `16189C`, `16183C`, `16184A`);
+    blocks outside the truth's analysed intervals, where only DNA calls
+    (HVS-II 32, other 12, HVS-III 6, AC repeat 1); HVS-I poly-C length (13
+    shorter, 10 longer); AC repeat (11 substitutions, 8 longer, 5 shorter);
+    other length differences (9 shorter, 7 longer); and fewer than 8 each in
+    the HVS-II and HVS-III windows. 209 blocks are open at a callable-interval
+    end.
 - **Speed.** The dev panel takes 5.5–7 s wall on 64 or 128 threads of the
   shared server (about 320–800 CPU-seconds, with the one-pass sample analysis
   at the low end); a first run under a load spike took 20 s.

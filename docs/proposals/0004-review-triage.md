@@ -447,6 +447,12 @@ Clopper–Pearson upper bound):
 | primary | 50 / 515 | 0.097 | 0.121 | 0.055 |
 | strict | 50 / 515 | 0.097 | 0.121 | 0.055 |
 | IUPAC-compatible | 9 / 515 | 0.017 | 0.030 | 0.002 |
+| haplotype | 44 / 515 | 0.085 | 0.109 | 0.054 |
+| haplotype IUPAC-compatible | 1 / 515 | 0.002 | 0.009 | 0.0001 |
+
+The haplotype measures (added after this measurement, same samples and
+policy) do not count a haplotype written or placed differently
+([measures](../validation/evaluation-harness.md#measures)).
 
 What leaks is invisible to stage-1 evidence:
 
@@ -456,7 +462,10 @@ What leaks is invisible to stage-1 evidence:
   written or placed: HVS-I poly-C length variants at other positions
   (5 samples), an HVS-II poly-C insertion (1), `248DEL` against `249DEL` with an
   AC-repeat deletion (1), and one sample whose truth positions in HVS-I are
-  shifted by one against DNA's (to adjudicate).
+  shifted by one against DNA's (to adjudicate). The haplotype
+  IUPAC-compatible measure confirms the first 8 as the same sequence; the
+  shifted sample is its one leak (six substitution pairs one base apart, a
+  truth-origin candidate).
 - **Region leaks** follow the same pattern: of the 301 primary discordant
   positions inside passed regions, most lie in the HVS-I poly-C window
   (16180–16195), insertions and substitutions written at other positions.
@@ -496,13 +505,13 @@ for 68 concordant samples no longer passing.
 
 **Sweep** (risk–coverage; corpus-weighted A, leaks over passed samples):
 
-| Policy | A | Primary leaks (bound) | IUPAC-compatible leaks (bound) |
-|---|---:|---:|---:|
-| draft | 0.178 | 50 / 515 (0.121) | 9 / 515 (0.030) |
-| `region.one_strand` off | 0.237 | 58 / 641 (0.111) | 10 / 641 (0.026) |
-| `masked` off | 0.220 | 58 / 579 (0.123) | 13 / 579 (0.036) |
-| one-strand and `masked` off | 0.418 | 119 / 1,046 (0.131) | 35 / 1,046 (0.044) |
-| gap only | 0.504 | 177 / 1,381 (0.144) | 70 / 1,381 (0.062) |
+| Policy | A | Primary leaks (bound) | IUPAC-compatible leaks (bound) | Haplotype IUPAC-compatible leaks (bound) |
+|---|---:|---:|---:|---:|
+| draft | 0.178 | 50 / 515 (0.121) | 9 / 515 (0.030) | 1 / 515 (0.009) |
+| `region.one_strand` off | 0.237 | 58 / 641 (0.111) | 10 / 641 (0.026) | 1 / 641 (0.007) |
+| `masked` off | 0.220 | 58 / 579 (0.123) | 13 / 579 (0.036) | 1 / 579 (0.008) |
+| one-strand and `masked` off | 0.418 | 119 / 1,046 (0.131) | 35 / 1,046 (0.044) | 6 / 1,046 (0.011) |
+| gap only | 0.504 | 177 / 1,381 (0.144) | 70 / 1,381 (0.062) | 38 / 1,381 (0.036) |
 
 `trace.short` and the proxy move samples only between review and rerun
 (C 0.008 with the detector off, 0.023 at 100, 0.270 at 200 calls; the `any`
@@ -519,10 +528,12 @@ its own as the pass rule:
 - **Its leaks are not stage-1 errors.** Every leak is heteroplasmy or a
   difference in how or where a clean haplotype is written, neither of which
   stage-1 evidence can show. A
-  pass rule therefore needs, before approval: notation normalisation in the
-  comparison (or an HVS-I poly-C nomenclature window) so representation stops
-  counting, and a minor-signal detector (`region.minor_signal`) as a pass
-  gate ([minor-signal results](#minor-signal-results)).
+  pass rule therefore needs, before approval, a minor-signal detector
+  (`region.minor_signal`) as a pass gate
+  ([minor-signal results](#minor-signal-results)), and is judged on the haplotype
+  measures, which no longer count representation: under the haplotype
+  IUPAC-compatible measure the draft leaks 1 of 515 passed samples (upper
+  bound 0.009).
 - **Its A is too low.** About 18 % corpus-weighted. The largest lever is a
   one-strand resolver for poly-C dephasing (open question 6), then region
   edges at the primer ends.

@@ -21,6 +21,7 @@ sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+dna-post.workspace = true
 tempfile.workspace = true
 
 [lints]
