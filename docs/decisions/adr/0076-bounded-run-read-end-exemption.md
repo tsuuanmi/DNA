@@ -155,5 +155,16 @@ rule. Draft triage already sends that sample to review (`minor_signal`). The
 validation panel's haplotype IUPAC-compatible gate and the adjudication of its
 leaks are the checks on this risk.
 
+A trusted bound can also oppose another read's clean alternate. One read
+against one read gives the reference and `contested` (SRS-CONS-005), and any
+other tie leaves the position undecided and `contested`. The draft triage
+sends a contested region to review, so such a tie never passes. On the
+development panel, 17 newly trusted observations in 13 samples oppose a clean
+alternate at the same position: 12 at `310` (`T` against one `C`) and 5 at
+`523` (`A` against deletions). None of them changes a sample's result or its
+triage outcome, and no sample's contested count changes. The stretch decision
+over run structure (ADR-0074) reads both reads as the same sequence aligned
+differently.
+
 **Versions.** The `consensus` plugin version rises to 3; the `core` plugin is
 unchanged.
