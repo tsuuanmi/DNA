@@ -223,13 +223,10 @@ every allele the base rules count describes the same sequence as the other
 side's, or the base rules find it concordant anyway. A sample concordant
 under the base rules stays concordant.
 
-**Dependency on DNA's callable intervals.** The comparable span is DNA's
-callable intervals, and these currently also span runs of `N` in the
-consensus. Inside such a run DNA's sequence falls back to the reference
-there, and the IUPAC-compatible rules' "where DNA calls nothing" includes
-positions where DNA has `N`, so a truth heteroplasmy inside an `N` run could
-falsely match. The numbers of these measures are re-measured once `dna call`
-leaves unresolved consensus bases out of its callable segments.
+**DNA's callable intervals.** The comparable span is DNA's callable
+intervals, which leave out unresolved consensus bases (`N`; SRS-ALN-015), so
+neither DNA's sequence nor the IUPAC-compatible rules' "where DNA calls
+nothing" ever stands for a position DNA left unresolved.
 
 For each sample the harness also reports, on the primary measure, the alleles
 unique to each side (special positions left out), every rule that applies,
