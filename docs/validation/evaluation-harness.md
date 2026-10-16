@@ -209,7 +209,8 @@ can write a placement (`455.1T 459DEL` equals `456T`; `573.1C` equals
 special-position indels differ: each side with its own, both with DNA's, and
 both with the truth's. One way decides the whole interval: the first that
 leaves no block over any allele the rules count, or else the first with the
-fewest such blocks. An allele leaves the comparison when the deciding way
+fewest such blocks (a count of blocks, not of unexplained alleles, so a tie
+falls to the earlier way; this errs toward discordance). An allele leaves the comparison when the deciding way
 finds no block over its bases, so two alleles of one interval are never
 explained by two different ways. With their own indels, `455.1T 459DEL` against `456T`
 is one sequence; with the same indels, `309.1C 315.1C` against
