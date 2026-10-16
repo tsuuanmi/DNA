@@ -152,8 +152,8 @@ is common in the reviewed corpus (about 112,000 samples): `16172C` 22 %,
 trusted bound. On the development panel, one sample has a truth alternate at a
 trusted bound: `16184Y`, a heteroplasmy that DNA did not report under either
 rule. Draft triage already sends that sample to review (`minor_signal`). The
-validation panel's haplotype IUPAC-compatible gate and the adjudication of its
-leaks are the checks on this risk.
+validation panel's haplotype gate, which counts a missed heteroplasmy too, and
+the adjudication of its leaks are the checks on this risk.
 
 A trusted bound can also oppose another read's clean alternate. One read
 against one read gives the reference and `contested` (SRS-CONS-005), and any
