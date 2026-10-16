@@ -22,6 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::minor::Rule as MinorRule;
+use super::repeats::{Repeats, in_window};
 use crate::evidence::minor::Minor;
 use crate::evidence::{Cause, Evidence, Position, Strand, TraceState, primer_strand};
 
@@ -54,6 +55,9 @@ pub(crate) enum Detector {
     OneStrand,
     Gap,
     MinorSignal(MinorRule),
+    /// A minor signal at a position one strand alone reads cleanly, applied
+    /// where the policy's one-strand exception lets such a position pass.
+    SingleStrandMinor(MinorRule),
 }
 
 impl Detector {
@@ -73,6 +77,7 @@ impl Detector {
             Self::OneStrand => "region.one_strand".to_owned(),
             Self::Gap => "region.gap".to_owned(),
             Self::MinorSignal(_) => "region.minor_signal".to_owned(),
+            Self::SingleStrandMinor(_) => "region.minor_signal_single_strand".to_owned(),
         }
     }
 
@@ -84,6 +89,9 @@ impl Detector {
             Self::OneStrand => position.strands() == 1,
             Self::Gap => position.strands() == 0,
             Self::MinorSignal(rule) => rule.marks(minors, position),
+            Self::SingleStrandMinor(rule) => {
+                position.strands() == 1 && rule.marks(minors, position)
+            }
         }
     }
 }
@@ -148,12 +156,70 @@ pub(crate) struct Policy {
     pub(crate) short_calls: usize,
     /// The causes of `region.unreliable` the policy applies.
     pub(crate) causes: BTreeSet<Cause>,
-    /// Whether `region.one_strand` applies.
-    pub(crate) one_strand: bool,
+    /// Where `region.one_strand` applies.
+    pub(crate) one_strand: OneStrand,
     /// Which poor traces could have read a region.
     pub(crate) proxy: Proxy,
     /// The rule of `region.minor_signal`; `None` turns the detector off.
     pub(crate) minor: Option<MinorRule>,
+    /// The rule of `region.minor_signal_single_strand`, applied at the
+    /// one-strand positions the one-strand exception lets pass; `None` turns
+    /// it off.
+    pub(crate) single_minor: Option<MinorRule>,
+}
+
+/// Where a policy requires both strands (`region.one_strand`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OneStrand {
+    /// Everywhere: a one-strand position never passes.
+    Everywhere,
+    /// Nowhere.
+    Off,
+    /// Inside the repeat windows and their margin (R6m), and, with
+    /// `homopolymer`, also in or next to a reference run of at least that
+    /// many bases (R6m-h4 with 4); one clean strand suffices elsewhere.
+    OutsideRepeats { homopolymer: Option<usize> },
+}
+
+impl OneStrand {
+    /// Whether both strands are required at the 1-based `position`.
+    pub(crate) fn applies_at(self, position: usize, repeats: &Repeats) -> bool {
+        match self {
+            Self::Everywhere => true,
+            Self::Off => false,
+            Self::OutsideRepeats { homopolymer } => {
+                in_window(position)
+                    || homopolymer.is_some_and(|length| repeats.near_run(position, length))
+            }
+        }
+    }
+
+    pub(crate) fn label(self) -> String {
+        match self {
+            Self::Everywhere => "everywhere".to_owned(),
+            Self::Off => "off".to_owned(),
+            Self::OutsideRepeats { homopolymer: None } => "outside_repeats".to_owned(),
+            Self::OutsideRepeats {
+                homopolymer: Some(length),
+            } => format!("outside_repeats_h{length}"),
+        }
+    }
+
+    /// The exception a label names, as [`Self::label`] writes it.
+    pub(crate) fn parse(label: &str) -> Option<Self> {
+        match label {
+            "everywhere" => Some(Self::Everywhere),
+            "off" => Some(Self::Off),
+            "outside_repeats" => Some(Self::OutsideRepeats { homopolymer: None }),
+            _ => label
+                .strip_prefix("outside_repeats_h")
+                .and_then(|length| length.parse::<usize>().ok())
+                .filter(|length| *length >= 2)
+                .map(|length| Self::OutsideRepeats {
+                    homopolymer: Some(length),
+                }),
+        }
+    }
 }
 
 impl Policy {
@@ -172,9 +238,10 @@ impl Policy {
                 Cause::ReferenceFrame,
             ]
             .into(),
-            one_strand: true,
+            one_strand: OneStrand::Everywhere,
             proxy: Proxy::Primer,
             minor: Some(MinorRule::DEFAULT),
+            single_minor: None,
         }
     }
 
@@ -182,9 +249,28 @@ impl Policy {
     pub(crate) fn applies(&self, detector: Detector) -> bool {
         match detector {
             Detector::Unreliable(cause) => self.causes.contains(&cause),
-            Detector::OneStrand => self.one_strand,
+            Detector::OneStrand => self.one_strand != OneStrand::Off,
             Detector::Gap => true,
             Detector::MinorSignal(rule) => self.minor == Some(rule),
+            Detector::SingleStrandMinor(rule) => self.single_minor == Some(rule),
+        }
+    }
+
+    /// Whether the policy applies the region detector at the 1-based
+    /// `position`: `region.one_strand` only where the policy requires both
+    /// strands, the single-strand minor rule only where it does not.
+    pub(crate) fn applies_at(
+        &self,
+        detector: Detector,
+        position: usize,
+        repeats: &Repeats,
+    ) -> bool {
+        match detector {
+            Detector::OneStrand => self.one_strand.applies_at(position, repeats),
+            Detector::SingleStrandMinor(_) => {
+                self.applies(detector) && !self.one_strand.applies_at(position, repeats)
+            }
+            _ => self.applies(detector),
         }
     }
 
@@ -197,13 +283,16 @@ impl Policy {
         detectors.push(Detector::MinorSignal(
             self.minor.unwrap_or(MinorRule::DEFAULT),
         ));
+        if let Some(rule) = self.single_minor {
+            detectors.push(Detector::SingleStrandMinor(rule));
+        }
         detectors
     }
 
     /// The parameters, as `key=value` pairs separated by spaces.
     pub(crate) fn parameters(&self) -> String {
         format!(
-            "short_calls={} causes={} one_strand={} proxy={} minor={}",
+            "short_calls={} causes={} one_strand={} proxy={} minor={} single_minor={}",
             self.short_calls,
             if self.causes.is_empty() {
                 "-".to_owned()
@@ -214,9 +303,11 @@ impl Policy {
                     .collect::<Vec<_>>()
                     .join(",")
             },
-            self.one_strand,
+            self.one_strand.label(),
             self.proxy.label(),
             self.minor
+                .map_or_else(|| "off".to_owned(), MinorRule::label),
+            self.single_minor
                 .map_or_else(|| "off".to_owned(), MinorRule::label)
         )
     }
@@ -225,7 +316,11 @@ impl Policy {
 /// What each labelled primer reads, learned from the admitted traces of the
 /// whole run: its strand, and the regions it reads.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct Footprints(BTreeMap<String, Footprint>);
+pub(crate) struct Footprints {
+    primers: BTreeMap<String, Footprint>,
+    /// The reference's repeat geometry the one-strand exception reads.
+    pub(crate) repeats: Repeats,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Footprint {
@@ -265,8 +360,8 @@ impl Footprints {
                 }
             }
         }
-        Self(
-            tallies
+        Self {
+            primers: tallies
                 .into_iter()
                 .filter_map(|(primer, (traces, regions))| {
                     Some((
@@ -279,15 +374,23 @@ impl Footprints {
                     ))
                 })
                 .collect(),
-        )
+            repeats: Repeats::default(),
+        }
+    }
+
+    /// The footprints with the repeat geometry of `reference`.
+    #[must_use]
+    pub(crate) fn with_reference(mut self, reference: &str) -> Self {
+        self.repeats = Repeats::new(reference);
+        self
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&String, &Footprint)> {
-        self.0.iter()
+        self.primers.iter()
     }
 
     fn get(&self, primer: Option<&String>) -> Option<&Footprint> {
-        self.0.get(primer?)
+        self.primers.get(primer?)
     }
 }
 
@@ -361,20 +464,29 @@ pub(crate) fn decide(
                 .map(|detector| (detector, 0))
                 .collect::<BTreeMap<_, _>>();
             let mut missing = BTreeSet::new();
+            // Whether a finding the policy applies marks any position.
+            let mut applied = false;
             for (offset, position) in region.positions.iter().enumerate() {
+                let coordinate = region.start + offset;
                 let minors = evidence.minors(index, offset);
                 for (detector, count) in &mut findings {
-                    *count += usize::from(detector.marks(*position, minors));
+                    if detector.marks(*position, minors) {
+                        *count += 1;
+                        applied |= policy.applies_at(*detector, coordinate, &footprints.repeats);
+                    }
                 }
+                let both = policy
+                    .one_strand
+                    .applies_at(coordinate, &footprints.repeats);
                 match (position.forward > 0, position.reverse > 0) {
                     (false, false) => {
                         missing.insert(Strand::Forward);
                         missing.insert(Strand::Reverse);
                     }
-                    (true, false) if policy.one_strand => {
+                    (true, false) if both => {
                         missing.insert(Strand::Reverse);
                     }
-                    (false, true) if policy.one_strand => {
+                    (false, true) if both => {
                         missing.insert(Strand::Forward);
                     }
                     _ => {}
@@ -398,10 +510,9 @@ pub(crate) fn decide(
             };
             let outcome = if !rerun.is_empty() {
                 Outcome::Rerun
-            } else if findings
-                .iter()
-                .any(|(detector, count)| *count > 0 && policy.applies(*detector))
-                || (policy.minor.is_some() && evidence.minor_failure.is_some())
+            } else if applied
+                || ((policy.minor.is_some() || policy.single_minor.is_some())
+                    && evidence.minor_failure.is_some())
             {
                 Outcome::Review
             } else {
@@ -539,6 +650,87 @@ mod tests {
     }
 
     #[test]
+    fn the_one_strand_exception_and_its_single_strand_minor_act_by_position() {
+        // A one-strand position at 400 (outside every window, no reference
+        // run) and one at 305 (inside the HVS-II window).
+        let read = Minor {
+            strand: Strand::Forward,
+            pair: [Nucleotide::C, Nucleotide::T],
+            weight: 200,
+            before: false,
+            after: false,
+            noise: 0,
+        };
+        let at = |start: usize, minor: bool| {
+            let mut evidence = sample(
+                vec![Region {
+                    start,
+                    end: start,
+                    positions: vec![position(1, 0)],
+                }],
+                Vec::new(),
+            );
+            if minor {
+                evidence.minor = vec![vec![vec![read]]];
+            }
+            evidence
+        };
+        let footprints = Footprints::default().with_reference(&"ACGT".repeat(5000));
+        let exception = Policy {
+            one_strand: OneStrand::OutsideRepeats {
+                homopolymer: Some(4),
+            },
+            ..Policy::draft()
+        };
+        assert_eq!(
+            decide(&at(400, false), &exception, &footprints).outcome,
+            Outcome::Pass
+        );
+        assert_eq!(
+            decide(&at(305, false), &exception, &footprints).outcome,
+            Outcome::Review
+        );
+        // The single-strand minor rule acts only where one strand may pass.
+        let guarded = Policy {
+            single_minor: Some(MinorRule {
+                kind: super::super::minor::Kind::Any,
+                threshold: 150,
+            }),
+            ..exception.clone()
+        };
+        assert_eq!(
+            decide(&at(400, true), &guarded, &footprints).outcome,
+            Outcome::Review
+        );
+        assert_eq!(
+            decide(&at(400, false), &guarded, &footprints).outcome,
+            Outcome::Pass
+        );
+        let draft = decide(&at(400, true), &Policy::draft(), &footprints);
+        assert_eq!(draft.outcome, Outcome::Review);
+        assert!(!Policy::draft().applies_at(
+            Detector::SingleStrandMinor(MinorRule::DEFAULT),
+            400,
+            &footprints.repeats
+        ));
+        assert!(!guarded.applies_at(
+            Detector::SingleStrandMinor(MinorRule {
+                kind: super::super::minor::Kind::Any,
+                threshold: 150,
+            }),
+            305,
+            &footprints.repeats
+        ));
+        assert_eq!(
+            OneStrand::parse("outside_repeats_h4"),
+            Some(OneStrand::OutsideRepeats {
+                homopolymer: Some(4)
+            })
+        );
+        assert_eq!(OneStrand::parse("outside_repeats_h1"), None);
+    }
+
+    #[test]
     fn minor_signal_reviews_or_passes_by_policy() {
         let read = |strand, weight| Minor {
             strand,
@@ -587,7 +779,11 @@ mod tests {
                 .detectors()
                 .contains(&Detector::MinorSignal(MinorRule::DEFAULT))
         );
-        assert!(policy.parameters().ends_with("minor=upstream@121"));
+        assert!(
+            policy
+                .parameters()
+                .ends_with("minor=upstream@121 single_minor=off")
+        );
         let decision = decide(&evidence, &policy, &Footprints::default());
         assert_eq!(decision.outcome, Outcome::Pass);
         assert_eq!(
@@ -606,7 +802,7 @@ mod tests {
         assert_eq!(decision.outcome, Outcome::Review);
         assert_eq!(decision.regions[0].findings[&Detector::OneStrand], 1);
         let lenient = Policy {
-            one_strand: false,
+            one_strand: OneStrand::Off,
             ..Policy::draft()
         };
         assert_eq!(
@@ -678,7 +874,7 @@ mod tests {
         // Without one-strand, the region passes and the poor traces stay
         // diagnostics.
         let lenient = Policy {
-            one_strand: false,
+            one_strand: OneStrand::Off,
             ..Policy::draft()
         };
         let decision = decide(&evidence, &lenient, &footprints);

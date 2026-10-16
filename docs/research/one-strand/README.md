@@ -356,12 +356,29 @@ reference runs then.
 - **Keep `masked` as it is** in either rule. Clearing the masked mark where
   the other strand's read is dephased (R6, +0.042) needs the strand of each
   masked read, which the triage evidence does not record yet.
-- **Decision basis: on top of the minor-signal gate.** The gate (PR #56) is
-  merged; every number above was measured before it and the re-measure on top
-  of it is pending: for R6m-h4, R6m, and R1, (a) with the `upstream` gate
-  alone, and (b) with `upstream` plus the single-strand minor rule on the
-  allowed one-strand positions. The choice of R6m-h4 is recorded with the
-  approval decisions in [PROP-0005](../../proposals/0005-evaluation-feedback-loop.md).
+- **Decision basis: on top of the minor-signal gate.** Every number above was
+  measured before the gate (PR #56), the unresolved-call fix (PR #59), and
+  the bounded-run exemption (ADR-0076). Re-measured on dev panel v4 with all
+  three, the harness policies `outside_repeats` (R6m) and
+  `outside_repeats_h4` (R6m-h4):
+
+  | Policy | Passed | ΔA | Primary leaks | Haplotype IUPAC-compatible leaks (UB) |
+  |---|---:|---:|---:|---:|
+  | draft (both strands) | 458 | — | 28 | 1 (0.0103) |
+  | R6m | 513 | +0.034 | 30 | 1 (0.0092) |
+  | R6m-h4 | 494 | +0.022 | 29 | 1 (0.0096) |
+  | R6m-h4 + single-strand `any@150` | 494 | +0.022 | 29 | 1 (0.0096) |
+  | R6m-h4 + single-strand `any@100` | 493 | +0.021 | 29 | 1 (0.0096) |
+
+  R6m-h4 now passes 36 more samples than the draft instead of 40, because the
+  gate and the exemption change which samples the draft passes and which
+  one-strand stretches block them. Of the 36, one leaks under the primary
+  measure, at a heteroplasmic position both strands read, so not inside the
+  exception: 0 leaks inside the allowed one-strand positions, as before.
+  The single-strand rule at 150 changes no outcome on this panel. R1 is not
+  a hypothesis; the fixed sequence stops at the first failure. The choice of
+  R6m-h4 is recorded with the approval decisions in
+  [PROP-0005](../../proposals/0005-evaluation-feedback-loop.md).
 - **Selection effect.** About 17 rules were tried on the development panel,
   so the best of them looks better there than it will elsewhere. Validation
   will pre-register the pairing above (R6m-h4 first, R6m second) with R1 as

@@ -226,7 +226,7 @@ fn run(cli: &RunArgs) -> Result<String> {
     let triage_started = Instant::now();
     let triage = cli
         .triage
-        .then(|| triage::score::Triage::new(&rows, triage::score::sweep()));
+        .then(|| triage::score::Triage::new(&rows, triage::score::sweep(), &reference.sequence));
     let triage_files = triage.as_ref().map(triage::score::Triage::files);
     let triage_seconds = triage_started.elapsed().as_secs_f64();
 
