@@ -24,7 +24,10 @@ defines it, and the power projection that sizes it beforehand. Only
 - `power.rs` — `power`: projects the passes of an approval run per stratum
   from a development run's `triage.tsv` and the panel's stratum sizes, at the
   development pass rate and at its lower bound, with the attainable bound at
-  0–10 leaks. It reads no truth of the panel.
+  0–10 leaks. With a base and a candidate sweep policy it projects, from
+  `triage_policies.tsv`, the samples the candidate newly passes, which a
+  marginal endpoint counts, with the attainable bound at 0–3 leaks. It reads
+  no truth of the panel.
 
 It depends on `../triage` for the policies and decisions, `../report.rs` for
 the compared rows, `../estimate.rs` for the stratified rate, and

@@ -47,6 +47,8 @@ use crate::truth::TruthCheck;
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted baseline scores file.
 const MAX_BASELINE_BYTES: u64 = 256 * 1024 * 1024;
+/// Largest accepted development `triage_policies.tsv`.
+const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -87,12 +89,20 @@ struct ApproveArgs {
 /// Arguments of `dna-eval power`.
 #[derive(Debug, Args)]
 struct PowerArgs {
-    /// A development run directory with `triage.tsv`.
+    /// A development run directory with `triage.tsv`, and with
+    /// `triage_policies.tsv` for `--base` and `--candidate`.
     #[arg(long)]
     dev_run: PathBuf,
     /// The panel manifest whose strata the approval will read.
     #[arg(long)]
     manifest: PathBuf,
+    /// The sweep policy a marginal endpoint is measured against.
+    #[arg(long, requires = "candidate")]
+    base: Option<String>,
+    /// The sweep policy whose newly passed samples over `--base` are
+    /// projected.
+    #[arg(long, requires = "base")]
+    candidate: Option<String>,
 }
 
 /// Arguments of `dna-eval panel`.
@@ -285,6 +295,16 @@ fn run(cli: &RunArgs) -> Result<String> {
 /// `dna-eval power`: the projection as Markdown.
 fn power(args: &PowerArgs) -> Result<String> {
     let manifest = manifest::parse(&read(&args.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
+    if let (Some(base), Some(candidate)) = (&args.base, &args.candidate) {
+        let path = args.dev_run.join("triage_policies.tsv");
+        let policies = read(&path, "development policy outcomes", MAX_POLICIES_BYTES)?;
+        return approve::power::project_candidate(
+            &String::from_utf8_lossy(&policies),
+            &manifest,
+            base,
+            candidate,
+        );
+    }
     let path = args.dev_run.join("triage.tsv");
     let triage = read(&path, "development triage", MAX_MANIFEST_BYTES)?;
     Ok(approve::power::project(
