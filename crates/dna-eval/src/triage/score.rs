@@ -282,11 +282,10 @@ impl<'a> Triage<'a> {
         let detectors = policies
             .first()
             .map_or_else(Detector::stage1, Policy::detectors);
-        let classes = rows
-            .iter()
-            .zip(&reported)
-            .map(|(row, decision)| class(row, decision.as_ref()))
-            .collect::<Vec<_>>();
+        let classes = measurements
+            .first()
+            .map(|measured| measured.by_row.clone())
+            .unwrap_or_default();
         let cases = cases(rows, &reported, &classes, &detectors);
         let mut by_row = BTreeMap::<usize, Vec<usize>>::new();
         for (index, case) in cases.iter().enumerate() {
@@ -327,6 +326,7 @@ impl<'a> Triage<'a> {
             ("triage_detectors.tsv", self.detectors()),
             ("triage_positions.tsv", self.positions()),
             ("triage_sweep.tsv", self.sweep_table()),
+            ("triage_policies.tsv", self.policy_table()),
             ("triage_minor.tsv", self.minor_table()),
             ("triage.md", self.summary()),
         ]
@@ -802,6 +802,32 @@ impl<'a> Triage<'a> {
         text
     }
 
+    /// `triage_policies.tsv`: one row per sample, retired ones included, with
+    /// its outcome under every policy of the sweep, one column per policy.
+    fn policy_table(&self) -> String {
+        let mut text = String::from("sample_id\tstratum\tretired");
+        for policy in &self.policies {
+            text.push('\t');
+            text.push_str(&policy.name);
+        }
+        text.push('\n');
+        for (index, row) in self.rows.iter().enumerate() {
+            let _ = write!(
+                text,
+                "{}\t{}\t{}",
+                row.sample.id,
+                row.sample.stratum,
+                u8::from(row.sample.retired)
+            );
+            for measured in &self.measurements {
+                text.push('\t');
+                text.push_str(measured.by_row.get(index).map_or("", |class| class.label()));
+            }
+            text.push('\n');
+        }
+        text
+    }
+
     /// `triage.md`: the triage in aggregate.
     fn summary(&self) -> String {
         let mut text = String::from(
@@ -1265,6 +1291,8 @@ fn finding_labels(findings: &[TraceFinding]) -> String {
 /// A/B/C, leaks, and region outcomes of one policy.
 struct Measurement {
     samples: usize,
+    /// Per row, retired rows included, its class.
+    by_row: Vec<Class>,
     classes: BTreeMap<Class, usize>,
     estimates: Vec<(Class, Estimate)>,
     /// Per measure, in [`Measure::ALL`] order.
@@ -1281,12 +1309,16 @@ impl Measurement {
         let mut scored = Vec::new();
         let mut leaks = [Leak::default(); Measure::COUNT];
         let mut tallies = vec![Tally::default(); regions];
-        for (row, decision) in rows.iter().zip(decisions) {
+        let by_row = rows
+            .iter()
+            .zip(decisions)
+            .map(|(row, decision)| class(row, decision.as_ref()))
+            .collect::<Vec<_>>();
+        for ((row, decision), class) in rows.iter().zip(decisions).zip(by_row.iter().copied()) {
             if row.sample.retired {
                 continue;
             }
             let decision = decision.as_ref();
-            let class = class(row, decision);
             *classes.entry(class).or_default() += 1;
             let weight = Weighting::Corpus.of(row.sample);
             scored.push((row.sample.stratum.as_str(), weight, class));
@@ -1323,6 +1355,7 @@ impl Measurement {
             .collect();
         Self {
             samples: scored.len(),
+            by_row,
             classes,
             estimates,
             leaks,
@@ -1878,6 +1911,20 @@ mod tests {
                 .lines()
                 .nth(1)
                 .is_some_and(|line| line.starts_with("draft\t"))
+        );
+        // One column per policy, in sweep order; S0 passes under the draft,
+        // and the failed sample is its own class.
+        let policies = files["triage_policies.tsv"].lines().collect::<Vec<_>>();
+        assert!(policies[0].starts_with("sample_id\tstratum\tretired\tdraft\tshort_off\t"));
+        assert_eq!(policies[0].split('\t').count(), 3 + triage.policies());
+        assert!(policies[1].starts_with("S0\tclean\t0\tpass\t"));
+        assert_eq!(
+            policies
+                .iter()
+                .skip(1)
+                .filter(|line| line.split('\t').nth(3) == Some("failed"))
+                .count(),
+            1
         );
         assert!(
             files["triage_minor.tsv"]

@@ -20,8 +20,8 @@ It reads the compact triage evidence that the runner takes per sample
   channel counts and how reads must agree) and a threshold. Pure and
   deterministic.
 - `score.rs` — stage C: A/B/C, leaks with Clopper–Pearson bounds, catches
-  and burden per detector, region leak cases, the policy sweep, and the
-  `triage*` output files; `score/minor.rs` measures each minor rule against
+  and burden per detector, region leak cases, the policy sweep with every sample's outcome under
+  each policy, and the `triage*` output files; `score/minor.rs` measures each minor rule against
   its policy without it (`triage_minor.tsv`, [minor score](score/README.md)).
 
 The detectors, outcomes, measures, and outputs are specified in the

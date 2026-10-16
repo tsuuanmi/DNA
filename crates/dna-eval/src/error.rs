@@ -86,6 +86,10 @@ pub(crate) enum Error {
         "panel {panel:?} is a hold-out panel: only `dna-eval approve` with a committed pre-registration may read it"
     )]
     HoldOut { panel: String },
+    /// `power --base/--candidate` named a policy the development run's
+    /// `triage_policies.tsv` lacks or lists twice.
+    #[error("the development run's triage_policies.tsv has no single column for policy {name:?}")]
+    Policy { name: String },
 }
 
 /// A panel manifest that does not follow the manifest format.

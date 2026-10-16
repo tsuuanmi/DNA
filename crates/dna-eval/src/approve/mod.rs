@@ -65,6 +65,9 @@ struct MarginalResult {
     against: String,
     measure: &'static str,
     bound: f64,
+    /// The pre-registered lower-bound projection of `newly_passed`.
+    projected_n: usize,
+    projected_from: prereg::Projection,
     newly_passed: usize,
     leaks: usize,
     /// Leaks with a discordant position the one-strand exception lets one
@@ -437,6 +440,8 @@ fn test(
             against: marginal.against.clone(),
             measure: marginal.measure.label(),
             bound: marginal.upper_bound,
+            projected_n: marginal.projected_n,
+            projected_from: marginal.projected_from.clone(),
             newly_passed: newly.len(),
             leaks: leaking.len(),
             leaks_inside_exception: inside,
@@ -615,11 +620,13 @@ fn markdown(approval: &Approval) -> String {
         if let Some(marginal) = &hypothesis.marginal {
             let _ = writeln!(
                 text,
-                "\nMarginal against {} ({}): {} newly passed, {} leaks ({} at a position the \
-                 one-strand exception lets one strand read, {} elsewhere), UB {:.4} (bound {:.4}): {}.",
+                "\nMarginal against {} ({}): {} newly passed (projected {}), {} leaks ({} at a \
+                 position the one-strand exception lets one strand read, {} elsewhere), UB {:.4} \
+                 (bound {:.4}): {}.",
                 marginal.against,
                 marginal.measure,
                 marginal.newly_passed,
+                marginal.projected_n,
                 marginal.leaks,
                 marginal.leaks_inside_exception,
                 marginal.leaks_outside_exception,

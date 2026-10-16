@@ -21,7 +21,9 @@ cargo run --release -p dna-eval -- panel \
   --version <v2> --created <YYYY-MM-DD> --output <new-panel.tsv>
 
 cargo run --release -p dna-eval -- power \
-  --dev-run <development-run-directory> --manifest <hold-out-panel.tsv>
+  --dev-run <development-run-directory> --manifest <hold-out-panel.tsv> \
+  [--base <sweep-policy> --candidate <sweep-policy> \
+   [--true-rate <rate> --bound <rate>...]]
 
 cargo run --release -p dna-eval -- approve \
   --prereg <committed-prereg.toml> --output results/<new-directory> \
@@ -57,11 +59,17 @@ pre-registration (TOML) committed to the repository:
   (`short_calls`, `causes`, `one_strand` as `everywhere`, `off`,
   `outside_repeats`, or `outside_repeats_h<k>`, `proxy`, `minor` and
   `single_minor` as `<kind>@<t>` or `off`), and an optional `marginal`
-  (`against` an earlier hypothesis, a measure, an `upper_bound`).
+  (`against` an earlier hypothesis, a measure, an `upper_bound`, the
+  `projected_n` that `dna-eval power` gave at its lower bound, and
+  `projected_from`: the development `run`, the SHA-256 of its
+  `triage_policies.tsv`, and the `base` and `candidate` sweep policies
+  projected).
 
 The run stops before DNA when any value is still `"pending"`, a policy lacks
-the `n` cause, the file is not committed unmodified, the harness build is not
-the frozen revision or has local changes, or the manifest, configuration,
+the `n` cause, a marginal `upper_bound` is below the count-based bound at 0
+leaks among its `projected_n` samples (it cannot be met), the file is not
+committed unmodified, the harness build is not the frozen revision or has
+local changes, or the manifest, configuration,
 truth copy, or panel truth digest differs from the frozen value. The output
 directory must be new and lie under `results/`.
 
@@ -89,17 +97,38 @@ corpus-weighted pass rate or its one-sided lower bound. A hypothesis passes
 when its gates, marginal, and utility pass; the next one is tested only when
 the previous one passed.
 
-The outputs are `approval.json` (identities, every endpoint and verdict),
+The outputs are `approval.json` (identities, every endpoint and verdict,
+with each marginal's `projected_n` beside the realised newly passed count),
 `approval.md` (aggregates only), `leaks.tsv` (every leak of every gate with
 an empty `verdict` column for the adjudicators; the only file with sample
 identifiers), and `prereg.toml`. Adjudication never changes the verdict.
 
 `dna-eval power` projects an approval run before the freeze. It reads the
 development run's `triage.tsv` and the hold-out manifest's stratum sizes,
-never the hold-out truth, and reports per stratum the expected passes at the
-development pass rate and at its one-sided lower bound (development rates
-are optimistic because the rules were tuned there), with the count-based
-bound attainable at 0–10 leaks.
+never the hold-out truth. Per stratum it reports the development pass rate
+and the passes it projects. For the whole panel it reports:
+
+- the stratified rate: the development rates weighted by the panel's
+  stratum sizes, with the variance `Σ W_h² p_h(1 − p_h) / n_h` over the
+  development samples `n_h`;
+- its Korn–Graubard one-sided 95 % lower bound, the gates' method: the
+  Clopper–Pearson lower bound at the effective sample size;
+- the expected passes at each, with the count-based bound attainable at
+  0–10 leaks.
+
+A panel stratum without development samples counts at rate zero. The
+development rates come from the panel the rules were tuned on, so even the
+lower bound may be optimistic.
+
+With `--base` and `--candidate`, two policy names of the development run's
+sweep, it projects the samples the candidate passes and the base does not,
+the samples a marginal endpoint against the base counts. It reads them from
+`triage_policies.tsv` and reports the same projection, with the marginal
+bound attainable at 0–3 leaks. With `--true-rate` and one or more `--bound`,
+it also reports, per bound, the most leaks among the lower-bound samples
+that still meet it and the binomial chance of at most that many at the true
+rate. The pre-registration records the lower-bound projection as
+`projected_n`.
 
 ## Inputs
 
@@ -504,6 +533,7 @@ Phase-0 results are in
 | `triage_leaks.tsv` | with `--triage`, every discordant position inside a passed region under each measure: the sample's outcome, region, position, window, kind, class, the alleles of each side, and the detectors marking it |
 | `triage_detectors.tsv` | with `--triage`, per region detector: whether the draft applies it, samples, regions, and positions flagged, catches per measure, burden, and hits; unique catches and sole burden for an applied detector, `if_applied_*` catches and burden for one not applied, `-` in the other set |
 | `triage_positions.tsv` | with `--triage`, per region position: the analysed samples each detector marks it in |
+| `triage_policies.tsv` | with `--triage`, per sample (retired ones included, with `retired`): its stratum and its class under each policy of the sweep, one column per policy named as in `triage_sweep.tsv` (`pass`, `review`, `rerun`, or `failed`) |
 | `triage_minor.tsv` | with `--triage`, per policy of the minor-signal measurement: its rule, A without and with it and the cost, moved samples and burden, IUPAC sites and those caught (in regions that pass without the rule, and in any region), and per measure the passed samples and leaks without and with the rule, the upper bound, and the corpus rate |
 | `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
 | `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
