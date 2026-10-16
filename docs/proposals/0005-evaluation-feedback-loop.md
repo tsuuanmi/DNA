@@ -381,11 +381,13 @@ reported for the next development iteration.
 **Endpoints.**
 
 - **Primary safety: the leak rate among passed samples.** This is
-  P(not concordant | pass) under the haplotype measure, reported three ways,
-  each with its upper bound. The delivered result carries the reviewers'
-  IUPAC codes, so a truth heteroplasmy that a passed sample lacks is a leak;
-  DNA reports none (SRS-VAR-009), so the triage must send such samples to
-  review.
+  P(not concordant | pass) under the haplotype LoD measure, reported three
+  ways, each with its upper bound. The delivered result carries the
+  reviewers' IUPAC codes, so a truth heteroplasmy that a passed sample lacks
+  is a leak where a covering read shows it at the limit of detection (10 %,
+  see the decisions below); DNA reports none (SRS-VAR-009), so the triage
+  must send such samples to review. Below the limit the code compares
+  IUPAC-compatibly.
   - as a one-sided 95 % Clopper–Pearson bound on the unweighted passed
     samples;
   - as the corpus-weighted rate with a Korn–Graubard bound: a
@@ -398,15 +400,16 @@ reported for the next development iteration.
     this bound adds information only when there are leaks; the gate needs all
     three.
 - **Secondary safety, reported but not gating.**
-  - The same rate under the primary, strict, IUPAC-compatible, and
-    haplotype IUPAC-compatible measures. The last separates base and length
-    errors from missed heteroplasmy.
+  - The same rate under the primary, strict, IUPAC-compatible, haplotype,
+    and haplotype IUPAC-compatible measures. The haplotype measure counts
+    every missed truth heteroplasmy; the haplotype IUPAC-compatible measure
+    separates base and length errors from missed heteroplasmy.
   - Leaks by window and by stratum.
   - A sensitivity analysis without the enriched strata.
 - **Marginal one-strand endpoint** (H-os1). Among the samples a rule
   newly passes (passed by it, not by the hypothesis before it in the
   sequence), the share that leak anywhere under the primary safety
-  endpoint's measure (haplotype), with its Clopper–Pearson upper bound at
+  endpoint's measure (haplotype LoD), with its Clopper–Pearson upper bound at
   sample level. Leaks inside and outside the positions it allows are
   reported apart.
 - **Utility.** The corpus-weighted A with its interval; B and C are
@@ -500,6 +503,20 @@ the draft's outcomes unchanged.
   leaks in 6 (upper bound 4.9 %). No rule is ready for an approval run;
   detecting heteroplasmy, or sending it to review, must improve about
   tenfold first.
+- **Limit of detection, 10 % (user decision).** Sanger heteroplasmy
+  detection is typically quoted at 10–20 % minor. Of the development truth
+  IUPAC sites, 32 % show less than that in every covering read, including
+  16189Y with no signal at all, which no trace-based method can reproduce.
+  The primary safety endpoint therefore counts a missed truth heteroplasmy
+  only where it is observed (`haplotype_lod`): the covering reads show both of
+  the code's bases, each as some read's call or as a second channel at 10 %
+  or more of a read's normalised profile, or one of them as such a second
+  channel. The haplotype measure stays a secondary endpoint. On the development panel the draft policy then leaks in
+  11 of its 458 passes (upper bound 3.9 %), and the draft's rule joined by
+  `local_shadow@80` (PROP-0004) in 3 of 443 (upper bound 1.7 %): two
+  heteroplasmies that one strand alone shows above the limit, and the truth
+  numbering error below. At a limit of 5 % the development estimate would be
+  about 2.7 times higher.
 - **H-base bound, 1 %.** The draft policy passes 458 of 2,618 samples
   (A = 0.158 ± 0.022 corpus-weighted) with one haplotype IUPAC-compatible
   leak (upper bound 1.03 %). That leak is a truth numbering error: the truth

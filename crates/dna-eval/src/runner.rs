@@ -26,6 +26,7 @@ use sha2::{Digest, Sha256};
 use crate::compare::{Allele, Failure};
 use crate::error::{Error, Result};
 use crate::evidence::{self, Evidence};
+use crate::lod;
 use crate::manifest::Sample;
 
 /// Largest accepted thread count.
@@ -40,6 +41,8 @@ pub(crate) struct Called {
     pub(crate) alleles: Vec<Allele>,
     /// Callable reference intervals of the consensus, closed and 1-based.
     pub(crate) intervals: Vec<(i64, i64)>,
+    /// Where some read shows a second base at the limit of detection.
+    pub(crate) signals: lod::Signals,
     /// Identities of the configuration, reference, and profile.
     pub(crate) identity: Identity,
 }
@@ -166,10 +169,12 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
             ))
         })
         .collect();
+    let signals = lod::signals(analysis).map_err(|error| Failure::Dna(error.to_string()))?;
     Ok(Called {
         rejected: analysis.rejected.len(),
         alleles,
         intervals,
+        signals,
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -337,6 +342,7 @@ mod tests {
                     rejected: 0,
                     alleles: vec![Allele::new(&sample.id[1..], "A", "G")],
                     intervals: Vec::new(),
+                    signals: lod::Signals::default(),
                     identity: identity(),
                 }),
             }
