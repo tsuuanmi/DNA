@@ -302,10 +302,10 @@ Other rules explored, on the same windows ± 3 (sample level):
 A research build of the harness measured R6m as the sweep policy
 `one_strand_windows` and reproduced it: 575 passed samples, A 0.214, primary
 leaks 55 / 575, IUPAC-compatible 9 / 575. That sweep row is not on main; it
-lands with the rule's implementation. R6m-h3 and R6m-h4 stay in the analysis script: the
-triage evidence carries no reference sequence, and adding it only for a
-research row would need a new facade accessor or a second FASTA reader in
-the harness. If the decision needs R6m-h, the evidence can take the
+lands with the rule's implementation. R6m-h3 and R6m-h4 stay in the analysis
+script: the triage evidence carries no reference sequence, and adding it only
+for a research row would need a new facade accessor or a second FASTA reader
+in the harness. If the decision needs R6m-h, the evidence can take the
 reference runs then.
 
 ### External norms
@@ -356,11 +356,12 @@ reference runs then.
 - **Keep `masked` as it is** in either rule. Clearing the masked mark where
   the other strand's read is dephased (R6, +0.042) needs the strand of each
   masked read, which the triage evidence does not record yet.
-- **Decision basis: on top of PR #56.** PR #56 is not merged yet; every
-  number above will be re-measured on it before the decision.
-  *Placeholder, to be filled after rebasing on PR #56: for R6m-h4, R6m, and
-  R1, report (a) with the `upstream` gate alone, and (b) with `upstream` plus
-  the single-strand minor rule on the allowed one-strand positions.*
+- **Decision basis: on top of the minor-signal gate.** The gate (PR #56) is
+  merged; every number above was measured before it and the re-measure on top
+  of it is pending: for R6m-h4, R6m, and R1, (a) with the `upstream` gate
+  alone, and (b) with `upstream` plus the single-strand minor rule on the
+  allowed one-strand positions. The choice of R6m-h4 is recorded with the
+  approval decisions in [PROP-0005](../../proposals/0005-evaluation-feedback-loop.md).
 - **Selection effect.** About 17 rules were tried on the development panel,
   so the best of them looks better there than it will elsewhere. Validation
   will pre-register the pairing above (R6m-h4 first, R6m second) with R1 as
