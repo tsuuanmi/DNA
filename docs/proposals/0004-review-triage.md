@@ -645,6 +645,35 @@ are a shadow-corrected minor channel in the Sanger plugin (the
 [point-heteroplasmy](../research/point-heteroplasmy/README.md) prerequisite)
 and the HVS-I poly-C sites, before the rule is measured on held-out truth.
 
+### Local shadow
+
+`upstream` cannot see an allele that equals the next reference base, or
+both neighbours, by construction: about 21.7 % of the corpus's heteroplasmy
+sites. A neighbour-compatible minor channel is a shadow of the read only when
+the read shows that shadow systematically nearby. `local_shadow` drops a read's
+minor channel when it is the base called just before (or after) and at least
+0.05 of the read's calls within 10 show that same shadow. The draft's rule
+keeps marking the positions it marks; `local_shadow` adds the positions with
+a minor allele on both strands that only a neighbour test hid. On the
+development panel (v4), with the stage-1 draft cleared of minor rules as the
+base (A 0.178):
+
+| Rule | A cost | Moved | Burden | Haplotype leaks (bound) | IUPAC sites caught |
+|---|---:|---:|---:|---:|---:|
+| `upstream@100` (draft) | 0.020 | 57 | 35 | 22 / 458 (0.068) | 41 / 90 |
+| `local_shadow@80` alone | 0.013 | 37 | 11 | 18 / 478 (0.055) | 50 / 90 |
+| **`upstream@100+local_shadow@80`** | **0.028** | **72** | **41** | **13 / 443 (0.046)** | **53 / 90** |
+| `upstream@100+local_shadow@60` | 0.037 | 88 | 57 | 13 / 427 (0.048) | 58 / 90 |
+
+`local_shadow@80` joined to the draft's rule keeps the leaks of `@60` with
+16 more passes. Of its 13 haplotype leaks, 10 are truth heteroplasmy whose
+other base reaches less than 0.10 in every covering read, 2 reach it on one
+strand only, and 1 is a truth numbering shift. The rules catch 53 of the 90
+truth IUPAC positions in regions that pass without them, against the draft's
+41. The 0.05 shadow share (`LOCAL_SHADOW_SHARE`) and the threshold 80 were
+chosen on the 16 development heteroplasmy sites above that level, so the
+held-out run is their test.
+
 ## Rollout and rollback
 
 Outcomes are new output and do not change any call. Rules start in `shadow`

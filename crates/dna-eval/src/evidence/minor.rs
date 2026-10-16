@@ -1,6 +1,7 @@
 //! Minor-channel evidence for the draft `region.minor_signal` detectors: per
 //! region position, each clean read's strongest channel other than its own
-//! call, with whether it is a neighbour's shadow and the read's local noise.
+//! call, with whether it is a neighbour's shadow, how often the read shows
+//! that shadow nearby, and the read's local noise.
 //!
 //! It reads every covered position of the regions in one pass through
 //! `SampleAnalysis::observations`, so positions where every read matches the
@@ -17,7 +18,8 @@ use super::Strand;
 /// Second-channel weights below this are not kept, in thousandths.
 pub(crate) const FLOOR: u16 = 50;
 
-/// Calls on each side of a call whose second channels give its local noise.
+/// Calls on each side of a call whose second channels give its local noise
+/// and its shadow shares.
 pub(crate) const NOISE_CALLS: usize = 10;
 
 /// One clean read's second channel at one position.
@@ -33,6 +35,12 @@ pub(crate) struct Minor {
     /// neighbour's shadow rather than a second allele.
     pub(crate) before: bool,
     pub(crate) after: bool,
+    /// Of the read's calls within [`NOISE_CALLS`] on either side, the share
+    /// whose second channel, at [`FLOOR`] or more, is the base of the call
+    /// before (`before_share`) or after (`after_share`) them, in thousandths:
+    /// how systematic that shadow is in the read here.
+    pub(crate) before_share: u16,
+    pub(crate) after_share: u16,
     /// The median second-channel weight of the read's calls within
     /// [`NOISE_CALLS`] calls on either side, in thousandths.
     pub(crate) noise: u16,
@@ -126,35 +134,80 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Signals> 
     Ok(signals)
 }
 
-/// A read's calls on the reference strand, and each call's second-channel
-/// weight in thousandths.
+/// A read's calls on the reference strand, each call's second-channel weight
+/// in thousandths, and each call's shadow shares.
 struct Calls {
     bases: Vec<Option<Nucleotide>>,
     seconds: Vec<Option<u16>>,
+    before_shares: Vec<u16>,
+    after_shares: Vec<u16>,
 }
 
 impl Calls {
     fn of(sanger: &SangerAttachment, orientation: Orientation) -> Self {
-        let bases = sanger
-            .calls
-            .calls
+        let calls = &sanger.calls.calls;
+        let bases = calls
             .iter()
             .map(|call| Nucleotide::from_char(orientation.reference_base(call.primary)))
             .collect();
         // The profile and call share a strand, so the read strand serves.
-        let seconds = sanger
-            .calls
-            .calls
+        let primaries = calls
+            .iter()
+            .map(|call| Nucleotide::from_char(call.primary))
+            .collect::<Vec<_>>();
+        let channels = calls
             .iter()
             .enumerate()
             .map(|(index, call)| {
                 let profile = sanger.locus(index)?.profile?;
                 second(Nucleotide::from_char(call.primary)?, profile.weights)
-                    .map(|(_, weight)| weight)
             })
+            .collect::<Vec<_>>();
+        let seconds = channels
+            .iter()
+            .map(|channel| channel.map(|(_, weight)| weight))
             .collect();
-        Self { bases, seconds }
+        let shares = |neighbour: fn(usize) -> Option<usize>| {
+            let shadows = channels
+                .iter()
+                .enumerate()
+                .map(|(index, channel)| {
+                    let base =
+                        neighbour(index).and_then(|other| primaries.get(other).copied().flatten());
+                    base.map(|base| {
+                        channel.is_some_and(|(second, weight)| weight >= FLOOR && second == base)
+                    })
+                })
+                .collect::<Vec<_>>();
+            (0..channels.len())
+                .map(|index| share(&shadows, index))
+                .collect()
+        };
+        Self {
+            bases,
+            seconds,
+            before_shares: shares(|index| index.checked_sub(1)),
+            after_shares: shares(|index| index.checked_add(1)),
+        }
     }
+}
+
+/// Of the calls within [`NOISE_CALLS`] of `index`, itself left out, that
+/// have the neighbour `shadows` asks about, the share that show its shadow,
+/// in thousandths; 0 when none has.
+fn share(shadows: &[Option<bool>], index: usize) -> u16 {
+    let first = index.saturating_sub(NOISE_CALLS);
+    let last = (index + NOISE_CALLS).min(shadows.len().saturating_sub(1));
+    let (shown, counted) = (first..=last)
+        .filter(|other| *other != index)
+        .filter_map(|other| shadows.get(other).copied().flatten())
+        .fold((0_usize, 0_usize), |(shown, counted), shadow| {
+            (shown + usize::from(shadow), counted + 1)
+        });
+    if counted == 0 {
+        return 0;
+    }
+    u16::try_from(shown * 1000 / counted).unwrap_or(1000)
 }
 
 /// The median of `series` over the calls within [`NOISE_CALLS`] of
@@ -199,12 +252,15 @@ fn minor(
         call.and_then(|call| calls.bases.get(call))
             .is_some_and(|base| *base == Some(secondary))
     };
+    let at = |shares: &[u16]| shares.get(index).copied().unwrap_or(0);
     Some(Minor {
         strand: Strand::of(orientation),
         pair: [base, secondary],
         weight,
         before: neighbour(index.checked_sub(1)),
         after: neighbour(index.checked_add(1)),
+        before_share: at(&calls.before_shares),
+        after_share: at(&calls.after_shares),
         noise: local(&calls.seconds, index),
     })
 }
@@ -258,7 +314,25 @@ mod tests {
         Calls {
             bases: bases.chars().map(Nucleotide::from_char).collect(),
             seconds: seconds.to_vec(),
+            before_shares: vec![0; bases.len()],
+            after_shares: vec![0; bases.len()],
         }
+    }
+
+    #[test]
+    fn a_shadow_share_counts_the_nearby_calls_that_show_it() {
+        // Calls 0..30; the shadow is shown at 2, 5, and 25, unknown at 7.
+        let mut shadows = vec![Some(false); 30];
+        for index in [2, 5, 25] {
+            shadows[index] = Some(true);
+        }
+        shadows[7] = None;
+        // Around call 4: calls 0..=14 but 4 and the unknown 7, 13 in all, of
+        // which 2 and 5 show it.
+        assert_eq!(share(&shadows, 4), 2 * 1000 / 13);
+        // Call 25 leaves itself out: none of 15..=29 but it shows the shadow.
+        assert_eq!(share(&shadows, 25), 0);
+        assert_eq!(share(&[None, None], 0), 0);
     }
 
     fn observation(
@@ -327,6 +401,8 @@ mod tests {
                 .map(|base| Nucleotide::from_char(Orientation::Reverse.reference_base(base)))
                 .collect(),
             seconds: vec![None; 3],
+            before_shares: vec![0; 3],
+            after_shares: vec![0; 3],
         };
         assert_eq!(
             read.bases,

@@ -17,6 +17,10 @@
 //!   insertion or deletion next to the position changes what it compares;
 //! - `noise`: as `strands`, with each read's second channel at least
 //!   [`NOISE_RATIO`] times its local noise instead of the shadow test;
+//! - `local_shadow`: as `strands`, without reads whose second channel is the
+//!   base called just before (or after) where the read shows that shadow
+//!   systematically nearby: at least [`LOCAL_SHADOW_SHARE`] of its calls
+//!   within 10 have it;
 //! - `any`: one read without a shadow is enough;
 //! - `lone`: `unshadowed`, or one read without a shadow where only one
 //!   strand reads the position cleanly.
@@ -29,6 +33,12 @@ use crate::evidence::minor::Minor;
 /// times its local noise.
 pub(crate) const NOISE_RATIO: u16 = 3;
 
+/// `local_shadow`: a neighbour-compatible second channel is a shadow only when
+/// at least this share of the read's nearby calls shows the same shadow, in
+/// thousandths. On the development panel 50 and 100 caught the same
+/// heteroplasmy, and 50 held back fewer samples.
+pub(crate) const LOCAL_SHADOW_SHARE: u16 = 50;
+
 /// How a minor-signal rule counts reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Kind {
@@ -36,16 +46,18 @@ pub(crate) enum Kind {
     Unshadowed,
     Upstream,
     Noise,
+    LocalShadow,
     Any,
     Lone,
 }
 
 impl Kind {
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: [Self; 7] = [
         Self::Strands,
         Self::Unshadowed,
         Self::Upstream,
         Self::Noise,
+        Self::LocalShadow,
         Self::Any,
         Self::Lone,
     ];
@@ -56,6 +68,7 @@ impl Kind {
             Self::Unshadowed => "unshadowed",
             Self::Upstream => "upstream",
             Self::Noise => "noise",
+            Self::LocalShadow => "local_shadow",
             Self::Any => "any",
             Self::Lone => "lone",
         }
@@ -84,6 +97,19 @@ impl Rule {
         format!("{}@{}", self.kind.label(), self.threshold)
     }
 
+    /// A policy's rules, any of which marks: `upstream@100+local_shadow@80`,
+    /// or `off` for none.
+    pub(crate) fn labels(rules: &[Self]) -> String {
+        if rules.is_empty() {
+            return "off".to_owned();
+        }
+        rules
+            .iter()
+            .map(|rule| rule.label())
+            .collect::<Vec<_>>()
+            .join("+")
+    }
+
     /// Whether the rule marks a position with these minor channels.
     pub(crate) fn marks(self, minors: &[Minor], position: Position) -> bool {
         let counts = |minor: &&Minor| {
@@ -94,6 +120,12 @@ impl Rule {
                     Kind::Upstream => !minor.downstream(),
                     Kind::Noise => {
                         u32::from(minor.weight) >= u32::from(NOISE_RATIO) * u32::from(minor.noise)
+                    }
+                    Kind::LocalShadow => {
+                        let systematic =
+                            |shadow: bool, share: u16| shadow && share >= LOCAL_SHADOW_SHARE;
+                        !systematic(minor.before, minor.before_share)
+                            && !systematic(minor.after, minor.after_share)
                     }
                 }
         };
@@ -107,7 +139,9 @@ impl Rule {
             })
         };
         match self.kind {
-            Kind::Strands | Kind::Unshadowed | Kind::Upstream | Kind::Noise => both(),
+            Kind::Strands | Kind::Unshadowed | Kind::Upstream | Kind::Noise | Kind::LocalShadow => {
+                both()
+            }
             Kind::Any => counted().next().is_some(),
             Kind::Lone => both() || (position.strands() == 1 && counted().next().is_some()),
         }
@@ -128,6 +162,8 @@ mod tests {
             weight,
             before: false,
             after: false,
+            before_share: 0,
+            after_share: 0,
             noise: 20,
         }
     }
@@ -158,6 +194,7 @@ mod tests {
             Kind::Unshadowed,
             Kind::Upstream,
             Kind::Noise,
+            Kind::LocalShadow,
             Kind::Lone,
         ] {
             // At the threshold, and just below it.
@@ -176,6 +213,22 @@ mod tests {
         ];
         assert!(!rule(Kind::Strands, 150).marks(&other_pair, two_strands()));
         assert!(!rule(Kind::Strands, 50).marks(&[], two_strands()));
+    }
+
+    #[test]
+    fn a_local_shadow_drops_a_read_only_where_its_shadow_is_systematic() {
+        let mut forward = read(Strand::Forward, CT, 200);
+        forward.before = true;
+        let reads = [forward, read(Strand::Reverse, CT, 200)];
+        // The shadow is rare near the forward call: the read still counts.
+        assert!(rule(Kind::LocalShadow, 150).marks(&reads, two_strands()));
+        let mut systematic = reads;
+        systematic[0].before_share = LOCAL_SHADOW_SHARE;
+        assert!(!rule(Kind::LocalShadow, 150).marks(&systematic, two_strands()));
+        // A share of the other neighbour's shadow does not drop it.
+        systematic[0].before_share = 0;
+        systematic[0].after_share = 1000;
+        assert!(rule(Kind::LocalShadow, 150).marks(&systematic, two_strands()));
     }
 
     #[test]
@@ -229,7 +282,15 @@ mod tests {
         assert_eq!(Rule::DEFAULT.label(), "upstream@100");
         assert_eq!(
             Kind::ALL.map(Kind::label),
-            ["strands", "unshadowed", "upstream", "noise", "any", "lone"]
+            [
+                "strands",
+                "unshadowed",
+                "upstream",
+                "noise",
+                "local_shadow",
+                "any",
+                "lone"
+            ]
         );
     }
 }

@@ -454,7 +454,7 @@ fn policy(name: &str, raw: &RawPolicy, field: &str) -> Result<Policy, PreregErro
             ));
         }
     };
-    let minor = rule(&raw.minor, &format!("{field}.minor"))?;
+    let minor = rules(&raw.minor, &format!("{field}.minor"))?;
     let single_minor = rule(&raw.single_minor, &format!("{field}.single_minor"))?;
     let one_strand = OneStrand::parse(&raw.one_strand).ok_or_else(|| {
         invalid(
@@ -480,11 +480,33 @@ fn off() -> String {
     "off".to_owned()
 }
 
+/// Minor rules, any of which marks, written as `<kind>@<thousandths>` joined
+/// by `+`, or `off` for none.
+fn rules(text: &str, field: &str) -> Result<Vec<Rule>, PreregError> {
+    if text == "off" {
+        return Ok(Vec::new());
+    }
+    let rules = text
+        .split('+')
+        .map(|rule| rule_of(rule, field))
+        .collect::<Result<Vec<_>, _>>()?;
+    let distinct = rules.iter().collect::<BTreeSet<_>>();
+    if distinct.len() != rules.len() {
+        return Err(invalid(field, "repeats a rule"));
+    }
+    Ok(rules)
+}
+
 /// A minor rule written as `<kind>@<thousandths>`, or `off`.
 fn rule(text: &str, field: &str) -> Result<Option<Rule>, PreregError> {
     if text == "off" {
         return Ok(None);
     }
+    rule_of(text, field).map(Some)
+}
+
+/// A minor rule written as `<kind>@<thousandths>`.
+fn rule_of(text: &str, field: &str) -> Result<Rule, PreregError> {
     let (kind, threshold) = text
         .split_once('@')
         .ok_or_else(|| invalid(field, "must be <kind>@<thousandths> or off"))?;
@@ -495,7 +517,7 @@ fn rule(text: &str, field: &str) -> Result<Option<Rule>, PreregError> {
     let threshold = threshold
         .parse::<u16>()
         .map_err(|_| invalid(field, "the threshold is not a number"))?;
-    Ok(Some(Rule { kind, threshold }))
+    Ok(Rule { kind, threshold })
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -564,6 +586,48 @@ marginal = { against = "H-base", measure = "primary", upper_bound = 0.02, projec
             prereg.hypotheses[1].policy_sha256
         );
         assert_eq!(prereg.gates[0].measure, Measure::HaplotypeIupacCompatible);
+        Ok(())
+    }
+
+    #[test]
+    fn a_policy_may_join_minor_rules_and_a_single_rule_keeps_its_definition()
+    -> Result<(), PreregError> {
+        let draft = parse(VALID.as_bytes())?;
+        let union = VALID.replacen(
+            "minor = \"upstream@100\"",
+            "minor = \"upstream@100+local_shadow@80\"",
+            1,
+        );
+        let prereg = parse(union.as_bytes())?;
+        assert_eq!(
+            prereg.hypotheses[0].policy.minor,
+            [
+                Rule::DEFAULT,
+                Rule {
+                    kind: Kind::LocalShadow,
+                    threshold: 80
+                }
+            ]
+        );
+        assert_ne!(
+            prereg.hypotheses[0].policy_sha256,
+            draft.hypotheses[0].policy_sha256
+        );
+        // One rule writes its definition as before the rules could join.
+        assert!(
+            definition(&draft.hypotheses[0].policy).contains(" minor=upstream@100 single_minor=")
+        );
+        let repeated = VALID.replacen(
+            "minor = \"upstream@100\"",
+            "minor = \"upstream@100+upstream@100\"",
+            1,
+        );
+        assert_eq!(
+            parse(repeated.as_bytes())
+                .map(|_| ())
+                .map_err(|error| error.to_string()),
+            Err("hypotheses[0].policy.minor: repeats a rule".to_owned())
+        );
         Ok(())
     }
 
