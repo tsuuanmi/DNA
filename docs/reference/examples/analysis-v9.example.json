@@ -18,12 +18,12 @@
       {
         "id": "sanger",
         "family": "modality",
-        "version": 2
+        "version": 3
       },
       {
         "id": "core",
         "family": "core",
-        "version": 3
+        "version": 4
       }
     ]
   },

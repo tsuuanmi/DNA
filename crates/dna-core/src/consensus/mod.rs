@@ -1111,7 +1111,9 @@ mod tests {
     use crate::model::variant::VariantCallingResult;
     use dna_kernel::error::Result;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::{CallMask, EvidenceReason, MaskedAlignment, ReadEvidence};
+    use dna_kernel::read_evidence::{
+        CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence,
+    };
 
     use super::*;
 
@@ -1179,6 +1181,7 @@ mod tests {
             call.mask = Some(CallMask {
                 alignment,
                 reason: EvidenceReason::new(reason),
+                onset: MaskOnset::Other,
             });
             evidence = evidence.with_call(index, call);
         }
@@ -1196,6 +1199,57 @@ mod tests {
                 excluded: Vec::new(),
             },
         })
+    }
+
+    #[test]
+    fn an_exempt_run_trusts_its_matches_but_never_a_substituted_call()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // The read's C run 11-15 covers the reference A at 11, is bounded by
+        // G10 and T16, and lies within the margin of a segment that starts
+        // right after a repeat run (calls 19-25).
+        let tail = "AAAAAACGTACGTACGTACG";
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: format!("ACGTACGTACGACCCCTAG{tail}"),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let mut evidence = ReadEvidence::clean(&format!("ACGTACGTACGCCCCCTAG{tail}"));
+        for index in 19..26 {
+            let mut call = evidence.calls()[index];
+            call.mask = Some(CallMask {
+                alignment: MaskedAlignment::Unresolved,
+                reason: EvidenceReason::new("post_homopolymer"),
+                onset: MaskOnset::AfterRun,
+            });
+            evidence = evidence.with_call(index, call);
+        }
+        let alignment = align_best(&evidence, &reference, &alignment())?;
+        let read = CalledRead {
+            input_name: "r".into(),
+            input_sha256: "r".into(),
+            reference_sha256: String::new(),
+            configuration_sha256: String::new(),
+            evidence,
+            alignment,
+            variants: VariantCallingResult {
+                reported: Vec::new(),
+                observed: Vec::new(),
+                excluded: Vec::new(),
+            },
+        };
+        let settings = crate::variant_calling::VariantCallingConfig {
+            max_indel_length: 50,
+            read_end_margin: 8,
+        };
+        let observed = observe(&read, &settings, reference.sequence.len());
+        let clean = |position: usize| observed.positions.get(&position).map(|site| site.clean);
+        // The substituted call keeps `read_end`; the run's matches are clean;
+        // the bound keeps its own trust.
+        assert_eq!(clean(11), Some(false));
+        assert!((12..=15).all(|position| clean(position) == Some(true)));
+        assert_eq!(clean(16), Some(false));
+        Ok(())
     }
 
     fn site_at(consensus: &Consensus, position: usize) -> Option<&ConsensusSite> {

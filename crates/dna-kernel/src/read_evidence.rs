@@ -75,6 +75,16 @@ pub enum MaskedAlignment {
     Anchoring,
 }
 
+/// Where a masked call's segment begins, as the modality places it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaskOnset {
+    /// The segment starts in the window right after a repeat run of the
+    /// read's own calls: the read loses phase leaving the run (ADR-0076).
+    AfterRun,
+    /// Any other start, or one the modality does not place.
+    Other,
+}
+
 /// A masked call: how it aligns and why it is masked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CallMask {
@@ -82,6 +92,8 @@ pub struct CallMask {
     pub alignment: MaskedAlignment,
     /// The modality's reason label, reported verbatim.
     pub reason: EvidenceReason,
+    /// Where the call's masked segment begins.
+    pub onset: MaskOnset,
 }
 
 /// Which variant kinds a support veto applies to.
@@ -349,6 +361,7 @@ mod tests {
             mask: Some(CallMask {
                 alignment: MaskedAlignment::Unresolved,
                 reason: EvidenceReason::new("Weak Signal"),
+                onset: MaskOnset::Other,
             }),
             ..call
         };

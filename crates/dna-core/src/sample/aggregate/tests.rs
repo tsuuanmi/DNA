@@ -9,7 +9,8 @@ use crate::model::variant::{
     VariantExclusionReason, VariantKind,
 };
 use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceProfile, EvidenceReason, MaskedAlignment, ReadEvidence, VetoSet,
+    CallEvidence, CallMask, EvidenceProfile, EvidenceReason, MaskOnset, MaskedAlignment,
+    ReadEvidence, VetoSet,
 };
 
 use super::*;
@@ -553,6 +554,7 @@ fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -
                 mask: Some(CallMask {
                     alignment: MaskedAlignment::Anchoring,
                     reason: EvidenceReason::new("dephased_signal"),
+                    onset: MaskOnset::Other,
                 }),
                 ..call('G', Some(PROFILE))
             },

@@ -106,7 +106,9 @@ outside the read's trim, or is the read's end.
 
 `read_end` (ADR-0062) means a mapped call of the variant lies within the
 configured margin of an uninformative call: beyond the read's trim interval or
-inside a masked segment that aligns as unresolved. The other
+inside a masked segment that aligns as unresolved. An insertion or deletion
+of a run the read bounds with unmasked calls is not `read_end` when that
+segment starts right after a repeat run (ADR-0076). The other
 read-callability reasons (ADR-0067) name the phase segment of a masked evidence
 call: `post_homopolymer` when the segment starts in the window after a long
 repeat run in the read's sequencing direction, otherwise `dephased_signal`,

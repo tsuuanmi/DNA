@@ -34,7 +34,7 @@
 | `model` | kernel, core, sanger, dna | validated domain vocabulary; each child belongs to the crate of its family (Sanger evidence and attachments to `sanger`) | filesystem and algorithms |
 | `variant` | kernel | public canonical called-variant contracts | evidence and call mappings |
 | `plugin` | kernel | plugin descriptor types and their compile-time validation; each plugin declares its own descriptor, and `pipeline::plugins` lists the registry and workflow compositions | running stages, configuration values |
-| `read_evidence` | kernel | modality → core per-read evidence contract: bases, profiles, labelled masks, support vetoes, informative interval | modality algorithms, interpreting reason labels |
+| `read_evidence` | kernel | modality → core per-read evidence contract: bases, profiles, labelled masks with their onset, support vetoes, informative interval | modality algorithms, interpreting reason labels |
 | `input` | dna | loading orchestration (configuration, profile, reference) and source adapters: Sanger traces (`sanger`, decoding through `dna_sanger::abif`), reviewed consensus sequences with their `ReadEvidence` adapter, and variants documents | CLI publication paths and scientific algorithms |
 | `reference` | kernel | validated reference identity/model | alignment |
 | `abif` | sanger | bounds-checked ABIF decoding into a chromatogram | scientific interpretation |
