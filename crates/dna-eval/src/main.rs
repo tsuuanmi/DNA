@@ -10,6 +10,7 @@
 //! derives a new panel version against the database. Nothing in DNA depends on
 //! this crate.
 
+mod approve;
 mod baseline;
 mod compare;
 mod error;
@@ -61,6 +62,37 @@ enum Command {
     Run(RunArgs),
     /// Derives a new panel version against the truth database.
     Panel(PanelArgs),
+    /// Runs the pre-registered approval of triage pass rules on a hold-out
+    /// panel, once.
+    Approve(ApproveArgs),
+    /// Projects the passes and attainable bounds of an approval run from a
+    /// development run, without the panel's truth.
+    Power(PowerArgs),
+}
+
+/// Arguments of `dna-eval approve`.
+#[derive(Debug, Args)]
+struct ApproveArgs {
+    /// The committed pre-registration (TOML).
+    #[arg(long)]
+    prereg: PathBuf,
+    /// New output directory under `results/`.
+    #[arg(long)]
+    output: PathBuf,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+}
+
+/// Arguments of `dna-eval power`.
+#[derive(Debug, Args)]
+struct PowerArgs {
+    /// A development run directory with `triage.tsv`.
+    #[arg(long)]
+    dev_run: PathBuf,
+    /// The panel manifest whose strata the approval will read.
+    #[arg(long)]
+    manifest: PathBuf,
 }
 
 /// Arguments of `dna-eval panel`.
@@ -117,6 +149,8 @@ fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
+        Command::Approve(args) => approve::approve(&args.prereg, &args.output, args.threads),
+        Command::Power(args) => power(&args),
     };
     match result {
         Ok(summary) => {
@@ -134,6 +168,13 @@ fn run(cli: &RunArgs) -> Result<String> {
     let started = Instant::now();
     let threads = Threads::new(cli.threads)?;
     let manifest = manifest::parse(&read(&cli.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
+    if let Some(panel) = manifest.header.get("panel")
+        && panel != "dev"
+    {
+        return Err(Error::HoldOut {
+            panel: panel.clone(),
+        });
+    }
     let baseline = cli
         .baseline
         .as_ref()
@@ -238,6 +279,17 @@ fn run(cli: &RunArgs) -> Result<String> {
         count(Measure::HaplotypeIupacCompatible, Status::Concordant),
         started.elapsed().as_secs_f64(),
         cli.output.display()
+    ))
+}
+
+/// `dna-eval power`: the projection as Markdown.
+fn power(args: &PowerArgs) -> Result<String> {
+    let manifest = manifest::parse(&read(&args.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
+    let path = args.dev_run.join("triage.tsv");
+    let triage = read(&path, "development triage", MAX_MANIFEST_BYTES)?;
+    Ok(approve::power::project(
+        &String::from_utf8_lossy(&triage),
+        &manifest,
     ))
 }
 

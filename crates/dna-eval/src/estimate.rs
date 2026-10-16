@@ -34,6 +34,8 @@ pub(crate) struct Estimate {
     pub(crate) rate: f64,
     /// Half-width of the 95 % interval.
     pub(crate) ci95: f64,
+    /// The stratified variance of the rate.
+    pub(crate) variance: f64,
     /// Unweighted rate over the same samples.
     pub(crate) unweighted: f64,
     /// Per-stratum rates, by stratum name.
@@ -104,6 +106,7 @@ pub(crate) fn estimate(observations: &[Observation<'_>]) -> Option<Estimate> {
         events,
         rate,
         ci95: Z_95 * variance.sqrt(),
+        variance,
         unweighted: events as f64 / samples as f64,
         strata,
     })

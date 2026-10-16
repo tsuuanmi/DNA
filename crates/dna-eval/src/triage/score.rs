@@ -22,7 +22,7 @@ use crate::evidence::{Cause, Evidence, TraceState};
 use crate::report::{Row, Status, Weighting};
 
 /// One-sided level of the Clopper–Pearson upper bound: a 95 % bound.
-const ALPHA: f64 = 0.05;
+pub(crate) const ALPHA: f64 = 0.05;
 
 /// The triage class of a sample.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
