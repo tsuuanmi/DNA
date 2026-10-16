@@ -77,11 +77,14 @@ impl SampleAnalysis {
     /// source call index, and reference-oriented A/C/G/T profile, as
     /// `evidence.locus_differences` records them, with read indices into
     /// `evidence.reads`, but without their support aggregates. Uncovered
-    /// positions have no record.
+    /// positions have no record. The interval does not wrap: on a circular
+    /// reference, a span across the origin is two calls.
     ///
     /// # Errors
     ///
-    /// Returns [`Error`](dna_kernel::error::Error) when the placed reads are
+    /// Returns [`SampleError::InvalidInterval`]
+    /// when `first_1based` is zero or greater than `last_1based`, and
+    /// [`Error`](dna_kernel::error::Error) when the placed reads are
     /// inconsistent, which the analysis already rules out.
     pub fn observations(
         &self,

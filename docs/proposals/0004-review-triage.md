@@ -607,6 +607,15 @@ a third of them for a quarter of the cost.
   representation differences (6 in a repeat window, 2 other). The rule marks
   41 of the 90 IUPAC positions in regions that pass without it, and 96 of the
   343 inside any region.
+- **Blind spot.** The residual heteroplasmy leaks sit at 21 truth IUPAC
+  positions. Their alternate base equals the next reference base only (3),
+  both neighbours (4), the previous reference base only (3), or neither (11).
+  `upstream` cannot mark the first two classes by construction (7 of 21);
+  the others fall below the threshold, show no minor channel, or are read
+  cleanly by one strand only. Corpus-wide the blind classes are about 21.7 %
+  of heteroplasmy sites ([harness](../validation/evaluation-harness.md)), so
+  the upper bound above holds only for the classes the rule can see. A
+  symmetric shadow test is the next iteration.
 - **Burden.** `region.minor_signal` flags 403 samples (178 primary catches,
   22 that no other applied detector makes; 225 concordant, 35 held back by it
   alone) and marks 100 primary discordant positions itself.

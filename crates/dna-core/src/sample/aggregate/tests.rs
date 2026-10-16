@@ -886,6 +886,15 @@ fn observations_record_every_covered_position_of_an_interval() -> TestResult {
         Some([0.4, 0.3, 0.2, 0.1])
     );
     assert!(observations(&reads, 30, 40)?.is_empty());
+    assert_eq!(observations(&reads, 12, 12)?.len(), 1);
     assert!(observations(&[], 1, 10).is_err());
+    for (first, last) in [(0, 10), (20, 12)] {
+        assert!(matches!(
+            observations(&reads, first, last),
+            Err(dna_kernel::error::Error::Sample(
+                SampleError::InvalidInterval { .. }
+            ))
+        ));
+    }
     Ok(())
 }

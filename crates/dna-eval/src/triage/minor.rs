@@ -10,9 +10,11 @@
 //! - `unshadowed`: as `strands`, without reads whose second channel is the
 //!   base called just before or after (a neighbour's shadow);
 //! - `upstream`: as `strands`, without reads whose second channel is the
-//!   base of the next reference position (a shadow in either strand's
-//!   reading direction); a second channel equal to the previous reference
-//!   base still counts;
+//!   base of the read's adjacent call on the 3' side in reference order (the
+//!   call after it on a forward read, the call before it on a reverse read);
+//!   a second channel equal to the adjacent call on the 5' side still counts.
+//!   The test reads the adjacent *call*, not the reference base, so an
+//!   insertion or deletion next to the position changes what it compares;
 //! - `noise`: as `strands`, with each read's second channel at least
 //!   [`NOISE_RATIO`] times its local noise instead of the shadow test;
 //! - `any`: one read without a shadow is enough;

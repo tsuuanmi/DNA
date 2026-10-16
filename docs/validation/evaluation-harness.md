@@ -229,9 +229,11 @@ nothing in DNA reads them, they decide no call, and none is approved.
   callable calls, or unplaced), and its callable span in calls.
 
 When every read is rejected, the evidence is the traces alone, with no region
-evidence. When the harness cannot take an analysed sample's evidence (DNA
-cannot give the reads' observations), the sample's call and scores stand and
-its triage class is `no_evidence`, with the cause in `triage.tsv`.
+evidence. When DNA cannot give an analysed sample's observations, the
+stage-1 evidence is kept without minor channels: the sample's call and scores
+stand, a policy with a minor-signal rule sends its would-pass regions to
+review because the gate could not run, and `triage.tsv` gives the cause
+(`minor_unavailable=…`).
 
 **Detectors.**
 
@@ -245,20 +247,36 @@ its triage class is `no_evidence`, with the cause in `triage.tsv`.
 | region | `region.minor_signal` | a position's reads show a second allele under the policy's minor rule (default `upstream@100`; off turns it off) |
 
 **Minor rules.** A rule is a kind and a threshold `t` in thousandths; a read
-counts when its minor weight is at least `t` (`>=`) and it passes the kind's
-shadow test. The cross-strand kinds mark a position when a forward and a
+counts when its minor weight (its second channel's share of the read's
+normalised A/C/G/T profile, which sums to 1, rounded to thousandths, so 0.0995
+counts at `t` = 100) is at least `t` (`>=`) and it passes the kind's shadow
+test. The shadow tests compare the minor base with the read's *adjacent
+calls* in reference order, not with the reference bases. The cross-strand kinds mark a position when a forward and a
 reverse read that count show the same unordered pair:
 
 | Kind | A read counts when | Marks when |
 |---|---|---|
 | `strands` | always | a forward and a reverse read show the same pair |
 | `unshadowed` | its minor base is neither neighbour's base | as `strands` |
-| `upstream` | its minor base is not the base of the next reference position (the call after it on a forward read, before it on a reverse read) | as `strands` |
+| `upstream` | its minor base is not the base of its 3′-side adjacent call in reference order (the call after it on a forward read, before it on a reverse read) | as `strands` |
 | `noise` | its minor weight is at least 3 times its local noise | as `strands` |
 | `any` | its minor base is neither neighbour's base | any read counts |
 | `lone` | as `unshadowed` | as `unshadowed`, or any read counts where one strand alone reads the position cleanly |
 
 A minor signal never asks for a rerun.
+
+**Blind spot by construction.** A cross-strand kind marks a position only when
+a forward and a reverse read count, so none of them can fire where one strand
+alone reads cleanly. `upstream` can never mark a heteroplasmy whose alternate
+base equals the 3′ neighbour (next reference base), and `unshadowed` and `any`
+also miss one equal to the 5′ neighbour. In the merged reviewer truth of about
+103,000 samples, 9,368 reference-plus-one-alternate IUPAC sites split as
+alternate = previous reference base only 15.5 %, next only 11.3 %, both
+10.4 %, neither 62.8 %. `upstream` is therefore blind to about 21.7 % of
+corpus heteroplasmy sites (common examples: 146Y, 16189Y, 16183M) and
+`unshadowed` to about 37.2 %. The leak bound of a policy with these rules
+holds only for the classes they can see; [PROP-0004](../proposals/0004-review-triage.md)
+gives the dev-panel split.
 
 A trace with any trace finding is *poor*; it stays a diagnostic unless a
 region asks for it. A sample without an admitted read is `rerun` with every
@@ -344,7 +362,7 @@ Phase-0 results are in
 | `triage_detectors.tsv` | with `--triage`, per region detector: whether the draft applies it, samples, regions, and positions flagged, catches per measure, burden, and hits; unique catches and sole burden for an applied detector, `if_applied_*` catches and burden for one not applied, `-` in the other set |
 | `triage_positions.tsv` | with `--triage`, per region position: the analysed samples each detector marks it in |
 | `triage_minor.tsv` | with `--triage`, per policy of the minor-signal measurement: its rule, A without and with it and the cost, moved samples and burden, IUPAC sites and those caught (in regions that pass without the rule, and in any region), and per measure the passed samples and leaks without and with the rule, the upper bound, and the corpus rate |
-| `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` and `no_evidence` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
+| `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
 | `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
 | `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 

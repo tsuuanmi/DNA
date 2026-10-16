@@ -84,17 +84,27 @@ pub fn aggregate(
 /// `first_1based` to `last_1based` (inclusive) that a read's alignment covers,
 /// as [`SampleEvidence::locus_differences`] records them, whether or not a read
 /// differs there, but without support aggregates. Read indices follow the
-/// registry order of [`aggregate`].
+/// registry order of [`aggregate`]. The interval does not wrap: on a circular
+/// reference, a span across the origin is two calls.
 ///
 /// # Errors
 ///
-/// Returns `SampleError` when no read is given, reads disagree on reference
-/// or configuration, a trace repeats, or the evidence is inconsistent.
+/// Returns `SampleError::InvalidInterval` when `first_1based` is zero or
+/// greater than `last_1based`, and `SampleError` when no read is given, reads
+/// disagree on reference or configuration, a trace repeats, or the evidence
+/// is inconsistent.
 pub fn observations(
     reads: &[&CalledRead],
     first_1based: usize,
     last_1based: usize,
 ) -> Result<Vec<LocusObservations>> {
+    if first_1based == 0 || first_1based > last_1based {
+        return Err(SampleError::InvalidInterval {
+            first: first_1based,
+            last: last_1based,
+        }
+        .into());
+    }
     locus::interval(
         &validated_ordered_reads(reads)?,
         &(first_1based..=last_1based),

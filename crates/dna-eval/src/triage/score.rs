@@ -18,7 +18,7 @@ use super::detect::{
 use super::minor::{Kind, Rule};
 use crate::compare::{self, Allele, Comparison, Measure, Region as Window};
 use crate::estimate::{self, Estimate, Observation};
-use crate::evidence::{Cause, Evidence, EvidenceFailure, TraceState};
+use crate::evidence::{Cause, Evidence, TraceState};
 use crate::report::{Row, Status, Weighting};
 
 /// One-sided level of the Clopper–Pearson upper bound: a 95 % bound.
@@ -30,25 +30,20 @@ enum Class {
     Decided(Outcome),
     /// DNA failed on the sample.
     Failed,
-    /// The harness could not take the sample's triage evidence; DNA's call
-    /// stands.
-    NoEvidence,
 }
 
 impl Class {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 4] = [
         Self::Decided(Outcome::Pass),
         Self::Decided(Outcome::Review),
         Self::Decided(Outcome::Rerun),
         Self::Failed,
-        Self::NoEvidence,
     ];
 
     const fn label(self) -> &'static str {
         match self {
             Self::Decided(outcome) => outcome.label(),
             Self::Failed => "failed",
-            Self::NoEvidence => "no_evidence",
         }
     }
 }
@@ -158,22 +153,13 @@ pub(crate) struct Triage<'a> {
 
 /// The triage evidence of a row, when the run took it.
 fn evidence<'a>(row: &'a Row<'a>) -> Option<&'a Evidence> {
-    row.outcome.triage.as_ref()?.as_ref().ok()
+    row.outcome.triage.as_ref()
 }
 
-/// Why the harness could not take a row's triage evidence, if it could not.
-fn evidence_failure<'a>(row: &'a Row<'a>) -> Option<&'a EvidenceFailure> {
-    row.outcome.triage.as_ref()?.as_ref().err()
-}
-
-/// The class of a row: `no_evidence` when the harness could not take its
-/// triage evidence; otherwise its decision, unless DNA failed on a sample
-/// that had an admitted read. A sample without an admitted read is decided
-/// (`rerun`) although DNA reports it as failed.
+/// The class of a row: its decision, unless DNA failed on a sample that had
+/// an admitted read. A sample without an admitted read is decided (`rerun`)
+/// although DNA reports it as failed.
 fn class(row: &Row<'_>, decision: Option<&SampleDecision>) -> Class {
-    if evidence_failure(row).is_some() {
-        return Class::NoEvidence;
-    }
     match decision {
         Some(decision) if row.outcome.result.is_ok() || !decision.admitted => {
             Class::Decided(decision.outcome)
@@ -345,15 +331,7 @@ impl<'a> Triage<'a> {
         );
         for (_, row, decision, class) in self.all() {
             let traces = evidence(row).map_or(&[][..], |evidence| &evidence.traces[..]);
-            let failed = evidence_failure(row).map(|failure| {
-                (
-                    String::new(),
-                    format!("evidence_failure:{}={failure}", failure.kind()),
-                    String::new(),
-                    String::new(),
-                )
-            });
-            let (regions, findings, poor, rerun) = failed.unwrap_or_else(|| {
+            let (regions, mut findings, poor, rerun) =
                 decision.map_or_else(Default::default, |decision| {
                     let regions = self
                         .labels
@@ -391,8 +369,15 @@ impl<'a> Triage<'a> {
                         .collect::<Vec<_>>()
                         .join(",");
                     (regions, findings, poor, rerun)
-                })
-            });
+                });
+            if let Some(failure) =
+                evidence(row).and_then(|evidence| evidence.minor_failure.as_ref())
+            {
+                if !findings.is_empty() {
+                    findings.push(',');
+                }
+                let _ = write!(findings, "minor_unavailable={failure}");
+            }
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{regions}\t{findings}\t{poor}\t{rerun}\t{}\t{}\t{}",
@@ -717,7 +702,7 @@ impl<'a> Triage<'a> {
     /// `triage_sweep.tsv`: A/B/C and leaks per policy.
     fn sweep_table(&self) -> String {
         let mut text = String::from(
-            "policy\tparameters\tsamples\tpass\treview\trerun\tfailed\tno_evidence\tpass_rate\t\
+            "policy\tparameters\tsamples\tpass\treview\trerun\tfailed\tpass_rate\t\
              pass_corpus\tpass_corpus_ci95\treview_corpus\trerun_corpus\tfailed_corpus",
         );
         for measure in Measure::ALL {
@@ -737,7 +722,7 @@ impl<'a> Triage<'a> {
             };
             let _ = write!(
                 text,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{:.4}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{:.4}",
                 policy.name,
                 policy.parameters(),
                 measured.samples,
@@ -745,7 +730,6 @@ impl<'a> Triage<'a> {
                 measured.count(Class::Decided(Outcome::Review)),
                 measured.count(Class::Decided(Outcome::Rerun)),
                 measured.count(Class::Failed),
-                measured.count(Class::NoEvidence),
                 measured.share(Class::Decided(Outcome::Pass)),
                 corpus(Class::Decided(Outcome::Pass)).0,
                 corpus(Class::Decided(Outcome::Pass)).1,
@@ -789,8 +773,9 @@ impl<'a> Triage<'a> {
         };
         text.push_str(
             "\n## Samples\n\nA sample without an admitted read is `rerun` with every trace; \
-             `failed` is a sample DNA could not analyse or call; `no_evidence` is a sample whose \
-             triage evidence the harness could not take (`triage.tsv` gives the cause).\n\n\
+             `failed` is a sample DNA could not analyse or call. A sample whose minor channels the \
+             harness could not take is decided without them, and a policy with a minor-signal \
+             rule sends its would-pass regions to review (`triage.tsv` gives the cause).\n\n\
              | Outcome | Samples | Share | Corpus-weighted | 95 % CI |\n\
              |---|---:|---:|---:|---:|\n",
         );
@@ -1639,8 +1624,9 @@ mod tests {
                     profile_sha256: "q".into(),
                 },
             }),
-            triage: Some(Ok(Evidence {
+            triage: Some(Evidence {
                 minor: Vec::new(),
+                minor_failure: None,
                 regions: vec![region(one_strand)],
                 traces: vec![Trace {
                     name: "x_HV1F.ab1".into(),
@@ -1651,7 +1637,7 @@ mod tests {
                     },
                     span: Some(400),
                 }],
-            })),
+            }),
             millis: 0,
         };
         let c16189 = || Allele::new("16189", "T", "C");
@@ -1669,8 +1655,9 @@ mod tests {
             Run {
                 traces: Some(2),
                 result: Err(Failure::Dna("all 2 reads were rejected".into())),
-                triage: Some(Ok(Evidence {
+                triage: Some(Evidence {
                     minor: Vec::new(),
+                    minor_failure: None,
                     regions: Vec::new(),
                     traces: vec![
                         Trace {
@@ -1686,7 +1673,7 @@ mod tests {
                             span: None,
                         },
                     ],
-                })),
+                }),
                 millis: 0,
             },
         ];
@@ -1811,7 +1798,7 @@ mod tests {
             after: false,
             noise: 10,
         };
-        let Some(Ok(evidence)) = runs[1].triage.as_mut() else {
+        let Some(evidence) = runs[1].triage.as_mut() else {
             return Err("S1 evidence".into());
         };
         evidence.minor = vec![vec![Vec::new(); 21]];
@@ -1859,21 +1846,24 @@ mod tests {
         let measured = triage.reported().ok_or("a measurement")?;
         assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 2);
 
-        // Evidence the harness could not take: the sample is its own class,
-        // with the cause in `triage.tsv`, and DNA's call still counts.
+        // Minor channels the harness could not take: the stage-1 evidence is
+        // kept, the would-pass regions go to review, the cause is in
+        // `triage.tsv`, and DNA's call still counts.
         let mut runs = outcomes;
-        runs[0].triage = Some(Err(EvidenceFailure::Observations("broken".into())));
+        if let Some(evidence) = runs[0].triage.as_mut() {
+            evidence.minor = Vec::new();
+            evidence.minor_failure = Some("cannot read the observations: broken".into());
+        }
         let rows = crate::report::rows(&manifest.samples, &runs, &records);
         assert_eq!(rows[0].status(Measure::Primary), Status::Concordant);
         let triage = Triage::new(&rows, sweep());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
         let first = files["triage.tsv"].lines().nth(1).ok_or("S0's row")?;
-        assert!(first.contains("\tno_evidence\t"));
-        assert!(
-            first.contains("evidence_failure:observations=cannot read the observations: broken")
-        );
+        assert!(first.contains("\treview\t"));
+        assert!(first.contains("minor_unavailable=cannot read the observations: broken"));
         let measured = triage.reported().ok_or("a measurement")?;
-        assert_eq!(measured.count(Class::NoEvidence), 1);
+        // S0 moves from pass to review; the other samples keep their class.
+        assert_eq!(measured.count(Class::Decided(Outcome::Review)), 2);
         assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 1);
         Ok(())
     }

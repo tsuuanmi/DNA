@@ -9,9 +9,9 @@ Children of `../evidence.rs`, the compact triage evidence of
   base is the base the read calls just before or after (a shadow), and its
   local noise. It reads every covered position through
   `SampleAnalysis::observations` (once over the span of the regions) and the
-  read's own calls from its Sanger evidence. A failure to read them is an
-  `EvidenceFailure`; the sample's call stands and its triage class is
-  `no_evidence`.
+  read's own calls from its Sanger evidence. When they cannot be read, the
+  stage-1 evidence is kept without minor channels and `Evidence::minor_failure`
+  says why; a policy with a minor rule then reviews the would-pass regions.
 
 The evidence is specified in the
 [evaluation harness](../../../../docs/validation/evaluation-harness.md#draft-triage)

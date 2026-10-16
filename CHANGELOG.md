@@ -35,7 +35,9 @@ remain independently versioned and are never silently changed in place.
     gives every admitted read's observation of each covered position of an
     interval, as the sample evidence records it at a differential locus,
     whether or not a read differs there, without support aggregates
-    (SRS-API-013). `Orientation::reference_base` (`dna-core`) is public.
+    (SRS-API-013). A zero or reversed interval is a typed
+    `SampleError::InvalidInterval`; a span across the circular origin is two
+    calls. `Orientation::reference_base` (`dna-core`) is public.
   - **Rust API:** `sample_analysis::analyze_sanger_outcome` runs the same pass
     as `analyze_sanger` but returns `SampleOutcome::Rejected` with every
     rejected read and its cause when none is admitted, instead of the

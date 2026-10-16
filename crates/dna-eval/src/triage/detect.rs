@@ -401,6 +401,7 @@ pub(crate) fn decide(
             } else if findings
                 .iter()
                 .any(|(detector, count)| *count > 0 && policy.applies(*detector))
+                || (policy.minor.is_some() && evidence.minor_failure.is_some())
             {
                 Outcome::Review
             } else {
@@ -490,6 +491,7 @@ mod tests {
             regions,
             traces,
             minor: Vec::new(),
+            minor_failure: None,
         }
     }
 
@@ -639,6 +641,7 @@ mod tests {
         // Learned footprints: HV1R reads region 0 on the reverse strand.
         let learned = Evidence {
             minor: Vec::new(),
+            minor_failure: None,
             regions: Vec::new(),
             traces: vec![
                 trace("a_HV1R.ab1", admitted(Strand::Reverse, 50), Some(500)),
@@ -688,6 +691,7 @@ mod tests {
         // A gap needs any strand: still rerun, even without one-strand.
         let gap = Evidence {
             minor: Vec::new(),
+            minor_failure: None,
             regions: vec![region(vec![position(0, 0)])],
             traces: evidence.traces.clone(),
         };
@@ -699,6 +703,7 @@ mod tests {
         );
         let mut footprints_hv2f = Footprints::learn([&Evidence {
             minor: Vec::new(),
+            minor_failure: None,
             regions: Vec::new(),
             traces: vec![trace("c_HV2F.ab1", admitted(Strand::Forward, 80), None)],
         }]);
@@ -753,6 +758,7 @@ mod tests {
     fn a_sample_without_an_admitted_read_reruns_every_poor_trace() {
         let evidence = Evidence {
             minor: Vec::new(),
+            minor_failure: None,
             regions: Vec::new(),
             traces: vec![
                 trace("s.ab1", TraceState::Weak, Some(40)),

@@ -204,6 +204,10 @@ pub(crate) struct Evidence {
     /// Per region and position, the clean reads' minor channels; empty when
     /// not taken.
     pub(crate) minor: minor::Signals,
+    /// Why the minor channels could not be taken, if they could not. A
+    /// policy with a minor-signal rule then sends regions that would pass to
+    /// review, because the gate could not run.
+    pub(crate) minor_failure: Option<String>,
 }
 
 impl Evidence {
@@ -228,46 +232,25 @@ impl Evidence {
     }
 }
 
-/// Why the harness could not take an analysed sample's triage evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum EvidenceFailure {
-    /// DNA could not give the reads' observations of the regions.
-    Observations(String),
-}
-
-impl EvidenceFailure {
-    /// Stable label of the failure kind.
-    pub(crate) const fn kind(&self) -> &'static str {
-        match self {
-            Self::Observations(_) => "observations",
-        }
-    }
-}
-
-impl std::fmt::Display for EvidenceFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Observations(message) => {
-                write!(formatter, "cannot read the observations: {message}")
-            }
-        }
-    }
-}
-
-/// Takes the triage evidence of one analysed sample.
-///
-/// # Errors
-///
-/// Returns [`EvidenceFailure`] when DNA cannot give the reads' observations.
-pub(crate) fn extract(analysis: &SampleAnalysis) -> Result<Evidence, EvidenceFailure> {
+/// Takes the triage evidence of one analysed sample. When DNA cannot give
+/// the reads' observations, the stage-1 evidence is kept without minor
+/// channels and [`Evidence::minor_failure`] says why.
+pub(crate) fn extract(analysis: &SampleAnalysis) -> Evidence {
     let spans = analysis
         .reads
         .iter()
         .map(|(sha256, sanger)| (sha256.as_str(), span(&sanger.callability)))
         .collect::<BTreeMap<_, _>>();
-    Ok(Evidence {
-        minor: minor::extract(analysis)
-            .map_err(|error| EvidenceFailure::Observations(error.to_string()))?,
+    let (minor, minor_failure) = match minor::extract(analysis) {
+        Ok(minor) => (minor, None),
+        Err(error) => (
+            Vec::new(),
+            Some(format!("cannot read the observations: {error}")),
+        ),
+    };
+    Evidence {
+        minor,
+        minor_failure,
         ..build(
             analysis.regions(),
             &analysis.evidence.reads,
@@ -275,7 +258,7 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> Result<Evidence, EvidenceFai
             &spans,
             rejected(analysis.rejected.values()),
         )
-    })
+    }
 }
 
 /// The evidence of a sample whose every read was rejected: its traces only,
@@ -287,6 +270,7 @@ pub(crate) fn rejected_only<'a>(reads: impl IntoIterator<Item = &'a RejectedRead
         regions: Vec::new(),
         traces,
         minor: Vec::new(),
+        minor_failure: None,
     }
 }
 
@@ -403,6 +387,7 @@ pub(crate) fn build(
         regions,
         traces,
         minor: Vec::new(),
+        minor_failure: None,
     }
 }
 
