@@ -19,6 +19,7 @@ These are current interpretation/validation boundaries, not future promises.
   - **Unread runs.** A run that no read reads stays `N`, so most remaining misses are HVS-II length calls.
   - **Ties.** One read against one read takes the reference and is marked `contested`.
   - **Point heteroplasmy** is never written as an IUPAC code.
+  - **Run lengths lost between consensus and call.** `SampleAnalysis::call` re-reads the consensus FASTA (SRS-API-012). When the consensus decides a run's length (`in_phase`) but writes `N` at a bound it could not resolve as a base, that `N` leaves the run unbounded for `call`, which excludes the length change (`run_boundary`). On the development panel this drops `315.1C` in 8 samples (7 of them discordant) and a `309` insertion in 22. Fixing this requires a decision on the interface: either the consensus also writes the run end it decided on, or `call` reads the consensus's run evidence directly.
 - External-tool agreement is differential evidence, not a compatibility requirement or ground-truth substitute.
 - The standalone post-calling mtDNA normalizer currently rejects a source variant whose anchored REF allele itself spans the FASTA/rCRS end-to-start seam; it does not silently rotate or reinterpret that event.
 - Production readiness requires approved real-trace validation in addition to engineering test success.
