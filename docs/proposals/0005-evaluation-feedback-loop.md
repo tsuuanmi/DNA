@@ -320,6 +320,8 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 
 ### Approval protocol (draft)
 
+The harness implements this protocol as `dna-eval approve` and `dna-eval power` ([approval](../validation/evaluation-harness.md#approval)); the decisions below that are still pending are inputs of the pre-registration, so building the tool fixes none of them.
+
 This protocol approves pass rules on the hold-out (validation panel v3: 115
 whole batches, 10,102 active samples, the same corpus weights as the
 development panel). It is a draft. **The numeric bounds below await the

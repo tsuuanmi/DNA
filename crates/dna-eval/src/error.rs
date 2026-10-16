@@ -65,6 +65,27 @@ pub(crate) enum Error {
     /// A harness thread panicked outside the per-sample guard.
     #[error("a harness thread panicked outside a sample")]
     Worker,
+    /// The pre-registration cannot be run.
+    #[error("invalid pre-registration: {0}")]
+    Prereg(#[from] PreregError),
+    /// The pre-registration is not tracked by git or has local changes.
+    #[error("pre-registration {path} is not committed unmodified")]
+    PreregNotCommitted { path: PathBuf },
+    /// An input differs from what the pre-registration froze.
+    #[error("{what} differs from the pre-registration: expected {expected}, found {found}")]
+    Frozen {
+        what: &'static str,
+        expected: String,
+        found: String,
+    },
+    /// An approval output directory outside `results/`.
+    #[error("approval output {path} must lie under a results directory")]
+    OutputOutsideResults { path: PathBuf },
+    /// `run` was given a hold-out panel, which only `approve` may read.
+    #[error(
+        "panel {panel:?} is a hold-out panel: only `dna-eval approve` with a committed pre-registration may read it"
+    )]
+    HoldOut { panel: String },
 }
 
 /// A panel manifest that does not follow the manifest format.
@@ -163,4 +184,18 @@ pub(crate) enum BaselineError {
     /// A sample appears on two rows.
     #[error("line {line} repeats sample {sample:?}")]
     DuplicateSample { line: usize, sample: String },
+}
+
+/// A pre-registration that cannot be run.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub(crate) enum PreregError {
+    /// The file is not valid TOML of the expected shape.
+    #[error("{0}")]
+    Format(String),
+    /// A value is still pending.
+    #[error("{0} is still \"pending\"")]
+    Pending(String),
+    /// A value is outside its allowed set or range.
+    #[error("{field}: {message}")]
+    Invalid { field: String, message: String },
 }

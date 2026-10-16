@@ -10,6 +10,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- `dna-eval approve` and `dna-eval power` (evaluation harness only). `approve`
+  runs the pre-registered approval of triage pass rules on a hold-out panel
+  once: it checks every frozen input before DNA runs, decides the fixed
+  sequence of hypotheses, and bounds each gate's leak rate three ways
+  (count-based Clopper–Pearson, Korn–Graubard, batch-cluster bootstrap).
+  `power` projects the passes and attainable bounds from a development run
+  without the hold-out truth. `dna-eval run` now refuses a hold-out panel
+  ([approval](docs/validation/evaluation-harness.md#approval)).
 - Haplotype measures in the evaluation harness (PROP-0005).
   - **Harness:** `dna-eval run` also scores every sample under `haplotype`
     and `haplotype_iupac_compatible`: the primary and IUPAC-compatible rules

@@ -11,7 +11,7 @@ the reference the haplotype measures apply alleles to; its tests use
 `dna-post`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
-- `main.rs` — command line (`run`, `panel`), run orchestration, output
+- `main.rs` — command line (`run`, `panel`, `approve`, `power`), run orchestration, output
   directory, and the `run.json` header.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
@@ -30,7 +30,7 @@ equivalence. No crate depends on it, and it is not part of the release.
   to the reference over each comparable interval, once per way of taking
   the special-position indels, and cut into blocks where their lengths agree;
   built once per sample and read under exact or compatible symbols.
-- `estimate.rs` — stratified weighted rates with their 95 % intervals.
+- `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.
@@ -44,6 +44,8 @@ equivalence. No crate depends on it, and it is not part of the release.
   ([minor evidence](evidence/README.md)).
 - `triage/` — the draft stage-1 triage of PROP-0004 phase 0 over that
   evidence ([triage](triage/README.md)).
+- `approve/` — the pre-registered approval run on a hold-out panel and its
+  power projection ([approve](approve/README.md)).
 - `error.rs` — failures that stop a run.
 
 `build.rs` records the git revision the harness is built from, and whether

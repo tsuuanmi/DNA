@@ -19,12 +19,86 @@ cargo run --release -p dna-eval -- run \
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
   --version <v2> --created <YYYY-MM-DD> --output <new-panel.tsv>
+
+cargo run --release -p dna-eval -- power \
+  --dev-run <development-run-directory> --manifest <hold-out-panel.tsv>
+
+cargo run --release -p dna-eval -- approve \
+  --prereg <committed-prereg.toml> --output results/<new-directory> \
+  --threads <1-256>
 ```
 
 Every path is an argument. `run` needs a new or empty output directory, and
 `panel` a new output file; nothing is overwritten. `panel` prints the new
 body's checksum line (`<sha256>  <file> (body)`). The harness is built from
 the workspace but not shipped in a release.
+
+`run` refuses a manifest whose header names a panel other than `dev`: a
+hold-out panel is read only by `approve`, once, under a committed
+pre-registration ([approval](#approval)).
+
+## Approval
+
+`dna-eval approve` is the single approval run of the [approval
+protocol](../proposals/0005-evaluation-feedback-loop.md). Its input is a
+pre-registration (TOML) committed to the repository:
+
+- **`[inputs]`** — the manifest and its body SHA-256, the panel truth digest,
+  a pinned read-only copy of the truth database and its SHA-256, the
+  configuration and its SHA-256, the reference, and the DNA revision.
+- **`[analysis]`** — `bootstrap_draws` and `bootstrap_seed`.
+- **`[utility]`** — `form` (`point` or `lower_bound`) and
+  `minimum_pass_rate`.
+- **`[[gates]]`** — a measure and an `upper_bound` each; every tested
+  hypothesis must meet every gate.
+- **`[[hypotheses]]`** — the fixed sequence in order: a name, `requires`
+  (`first`, then `previous_pass`: the sequence stops at the first failure, so
+  the family-wise alpha holds), the full policy
+  (`short_calls`, `causes`, `one_strand`, `proxy`, `minor` as `<kind>@<t>` or
+  `off`), and an optional `marginal` (`against` an earlier hypothesis, a
+  measure, an `upper_bound`).
+
+The run stops before DNA when any value is still `"pending"`, a policy lacks
+the `n` cause, the file is not committed unmodified, the harness build is not
+the frozen revision or has local changes, or the manifest, configuration,
+truth copy, or panel truth digest differs from the frozen value. The output
+directory must be new and lie under `results/`.
+
+Per tested hypothesis, a sample passes when DNA called it and the policy
+decides `pass`; failed samples never pass, and retired ones are left out.
+Each gate bounds the leak rate (passed samples not concordant under the
+gate's measure) three ways, at one-sided alpha 0.05:
+
+- the count-based Clopper–Pearson upper bound;
+- the Korn–Graubard upper bound of the corpus-weighted rate: the variance is
+  the stratified variance of `estimate.rs` over the passed samples, each
+  stratum's passed samples its sample, which gives the effective sample size
+  (a zero rate uses the passed count); the degrees-of-freedom correction is
+  omitted, and the bootstrap is what covers clustering by batch;
+- the 95th percentile of a bootstrap that resamples the panel's batches with
+  replacement, each draw the combined ratio `Σ w·leak / Σ w·pass` with fixed
+  corpus weights, seeded by `SplitMix64(seed ^ draw · 0x9E3779B97F4A7C15)`; a
+  draw without a passed sample counts as rate 1.
+
+A gate passes only when all three are within its bound; at zero leaks the
+bootstrap bound is 0 and proves nothing alone. The marginal endpoint bounds
+the leaks under its measure among the samples a hypothesis passes and
+`against` does not (count-based bound). The utility floor applies to the
+corpus-weighted pass rate or its one-sided lower bound. A hypothesis passes
+when its gates, marginal, and utility pass; the next one is tested only when
+the previous one passed.
+
+The outputs are `approval.json` (identities, every endpoint and verdict),
+`approval.md` (aggregates only), `leaks.tsv` (every leak of every gate with
+an empty `verdict` column for the adjudicators; the only file with sample
+identifiers), and `prereg.toml`. Adjudication never changes the verdict.
+
+`dna-eval power` projects an approval run before the freeze. It reads the
+development run's `triage.tsv` and the hold-out manifest's stratum sizes,
+never the hold-out truth, and reports per stratum the expected passes at the
+development pass rate and at its one-sided lower bound (development rates
+are optimistic because the rules were tuned there), with the count-based
+bound attainable at 0–10 leaks.
 
 ## Inputs
 
