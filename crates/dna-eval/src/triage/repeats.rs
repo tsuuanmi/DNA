@@ -32,7 +32,9 @@ impl Repeats {
     }
 
     /// Whether the 1-based `position` lies in a reference run of at least
-    /// `length` bases, or next to one.
+    /// `length` bases, or next to one. Runs and neighbours do not wrap the
+    /// circular origin: the reference is read as linear. On the rCRS only
+    /// the two-base `G16569 G1` run crosses it.
     pub(crate) fn near_run(&self, position: usize, length: usize) -> bool {
         let Some(index) = position.checked_sub(1) else {
             return false;
