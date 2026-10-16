@@ -103,6 +103,13 @@ struct PowerArgs {
     /// projected.
     #[arg(long, requires = "base")]
     candidate: Option<String>,
+    /// A true leak rate among newly passed samples, for the chance that each
+    /// `--bound` is met.
+    #[arg(long, requires_all = ["candidate", "bound"])]
+    true_rate: Option<f64>,
+    /// A candidate marginal upper bound; repeatable.
+    #[arg(long, requires = "true_rate")]
+    bound: Vec<f64>,
 }
 
 /// Arguments of `dna-eval panel`.
@@ -298,11 +305,16 @@ fn power(args: &PowerArgs) -> Result<String> {
     if let (Some(base), Some(candidate)) = (&args.base, &args.candidate) {
         let path = args.dev_run.join("triage_policies.tsv");
         let policies = read(&path, "development policy outcomes", MAX_POLICIES_BYTES)?;
+        let target = args.true_rate.map(|true_rate| approve::power::Target {
+            true_rate,
+            bounds: args.bound.clone(),
+        });
         return approve::power::project_candidate(
             &String::from_utf8_lossy(&policies),
             &manifest,
             base,
             candidate,
+            target.as_ref(),
         );
     }
     let path = args.dev_run.join("triage.tsv");

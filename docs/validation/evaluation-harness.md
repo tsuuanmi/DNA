@@ -22,7 +22,8 @@ cargo run --release -p dna-eval -- panel \
 
 cargo run --release -p dna-eval -- power \
   --dev-run <development-run-directory> --manifest <hold-out-panel.tsv> \
-  [--base <sweep-policy> --candidate <sweep-policy>]
+  [--base <sweep-policy> --candidate <sweep-policy> \
+   [--true-rate <rate> --bound <rate>...]]
 
 cargo run --release -p dna-eval -- approve \
   --prereg <committed-prereg.toml> --output results/<new-directory> \
@@ -57,10 +58,14 @@ pre-registration (TOML) committed to the repository:
   the family-wise alpha holds), the full policy
   (`short_calls`, `causes`, `one_strand`, `proxy`, `minor` as `<kind>@<t>` or
   `off`), and an optional `marginal` (`against` an earlier hypothesis, a
-  measure, an `upper_bound`).
+  measure, an `upper_bound`, the `projected_n` that `dna-eval power` gave at
+  its lower bound, and `projected_from`: the development `run`, the SHA-256
+  of its `triage_policies.tsv`, and the `base` and `candidate` sweep
+  policies projected).
 
 The run stops before DNA when any value is still `"pending"`, a policy lacks
-the `n` cause, the file is not committed unmodified, the harness build is not
+the `n` cause, a marginal `upper_bound` is below the count-based bound at 0
+leaks among its `projected_n` samples (it cannot be met), the file is not committed unmodified, the harness build is not
 the frozen revision or has local changes, or the manifest, configuration,
 truth copy, or panel truth digest differs from the frozen value. The output
 directory must be new and lie under `results/`.
@@ -89,26 +94,38 @@ corpus-weighted pass rate or its one-sided lower bound. A hypothesis passes
 when its gates, marginal, and utility pass; the next one is tested only when
 the previous one passed.
 
-The outputs are `approval.json` (identities, every endpoint and verdict),
+The outputs are `approval.json` (identities, every endpoint and verdict,
+with each marginal's `projected_n` beside the realised newly passed count),
 `approval.md` (aggregates only), `leaks.tsv` (every leak of every gate with
 an empty `verdict` column for the adjudicators; the only file with sample
 identifiers), and `prereg.toml`. Adjudication never changes the verdict.
 
 `dna-eval power` projects an approval run before the freeze. It reads the
 development run's `triage.tsv` and the hold-out manifest's stratum sizes,
-never the hold-out truth, and reports per stratum the expected passes at the
-development pass rate and at its one-sided lower bound (development rates
-are optimistic because the rules were tuned there), with the count-based
-bound attainable at 0–10 leaks.
+never the hold-out truth. Per stratum it reports the development pass rate
+and the passes it projects. For the whole panel it reports:
+
+- the stratified rate: the development rates weighted by the panel's
+  stratum sizes, with the variance `Σ W_h² p_h(1 − p_h) / n_h` over the
+  development samples `n_h`;
+- its Korn–Graubard one-sided 95 % lower bound, the gates' method: the
+  Clopper–Pearson lower bound at the effective sample size;
+- the expected passes at each, with the count-based bound attainable at
+  0–10 leaks.
+
+A panel stratum without development samples counts at rate zero. The
+development rates come from the panel the rules were tuned on, so even the
+lower bound may be optimistic.
 
 With `--base` and `--candidate`, two policy names of the development run's
 sweep, it projects the samples the candidate passes and the base does not,
 the samples a marginal endpoint against the base counts. It reads them from
-`triage_policies.tsv` and reports, per stratum and in total, the expected
-newly passed samples at the development rate and at its lower bound, with
-the marginal bound attainable at 0–3 leaks. The pre-registration records the
-lower-bound projection: a marginal `upper_bound` below the bound at 0 leaks
-among those samples cannot be met.
+`triage_policies.tsv` and reports the same projection, with the marginal
+bound attainable at 0–3 leaks. With `--true-rate` and one or more `--bound`,
+it also reports, per bound, the most leaks among the lower-bound samples
+that still meet it and the binomial chance of at most that many at the true
+rate. The pre-registration records the lower-bound projection as
+`projected_n`.
 
 ## Inputs
 

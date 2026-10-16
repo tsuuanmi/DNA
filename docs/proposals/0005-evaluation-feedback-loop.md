@@ -401,8 +401,10 @@ the overall α without a Bonferroni split:
   newly passed samples at 0 leaks, and 237 at 1.
 - **Check at freeze time.** A power check from the development panel's pass
   counts and the hold-out's size is recorded in the pre-registration. For a
-  marginal endpoint it records the lower-bound projection of the samples the
-  hypothesis newly passes over the one it is measured against.
+  marginal endpoint it records, as `projected_n`, the joint Korn–Graubard
+  lower-bound projection of the samples the hypothesis newly passes over the
+  one it is measured against, and where it came from; a bound that 0 leaks
+  among those samples cannot meet stops the run.
 
 **Adjudication in an approval run.**
 - Every leak on the hold-out is inspected and classified as a DNA error, a

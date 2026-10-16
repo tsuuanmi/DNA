@@ -65,6 +65,9 @@ struct MarginalResult {
     against: String,
     measure: &'static str,
     bound: f64,
+    /// The pre-registered lower-bound projection of `newly_passed`.
+    projected_n: usize,
+    projected_from: prereg::Projection,
     newly_passed: usize,
     leaks: usize,
     count_upper: f64,
@@ -373,6 +376,8 @@ fn test(
             against: marginal.against.clone(),
             measure: marginal.measure.label(),
             bound: marginal.upper_bound,
+            projected_n: marginal.projected_n,
+            projected_from: marginal.projected_from.clone(),
             newly_passed: newly.len(),
             leaks,
             count_upper,
@@ -549,10 +554,12 @@ fn markdown(approval: &Approval) -> String {
         if let Some(marginal) = &hypothesis.marginal {
             let _ = writeln!(
                 text,
-                "\nMarginal against {} ({}): {} newly passed, {} leaks, UB {:.4} (bound {:.4}): {}.",
+                "\nMarginal against {} ({}): {} newly passed (projected {}), {} leaks, UB {:.4} \
+                 (bound {:.4}): {}.",
                 marginal.against,
                 marginal.measure,
                 marginal.newly_passed,
+                marginal.projected_n,
                 marginal.leaks,
                 marginal.count_upper,
                 marginal.bound,

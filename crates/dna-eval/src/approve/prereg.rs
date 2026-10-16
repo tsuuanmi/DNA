@@ -8,7 +8,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::compare::Measure;
@@ -16,6 +16,7 @@ use crate::error::PreregError;
 use crate::evidence::Cause;
 use crate::triage::detect::{Policy, Proxy};
 use crate::triage::minor::{Kind, Rule};
+use crate::triage::score;
 
 /// A number, or the word `"pending"`.
 #[derive(Debug, Clone, Deserialize)]
@@ -114,6 +115,17 @@ struct RawMarginal {
     against: String,
     measure: String,
     upper_bound: Pinned<f64>,
+    projected_n: Pinned<usize>,
+    projected_from: RawProjection,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawProjection {
+    run: String,
+    triage_policies_sha256: String,
+    base: String,
+    candidate: String,
 }
 
 /// A pre-registration ready to run.
@@ -184,6 +196,21 @@ pub(crate) struct Marginal {
     pub(crate) against: String,
     pub(crate) measure: Measure,
     pub(crate) upper_bound: f64,
+    /// The newly passed samples `dna-eval power` projected at its lower
+    /// bound when the bound was chosen.
+    pub(crate) projected_n: usize,
+    pub(crate) projected_from: Projection,
+}
+
+/// Where a marginal endpoint's projection came from: a development run, the
+/// SHA-256 of its `triage_policies.tsv`, and the two sweep policies
+/// projected.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct Projection {
+    pub(crate) run: String,
+    pub(crate) triage_policies_sha256: String,
+    pub(crate) base: String,
+    pub(crate) candidate: String,
 }
 
 #[derive(Debug, Clone)]
@@ -273,10 +300,52 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Prereg, PreregError> {
                         "must name an earlier hypothesis",
                     ));
                 }
+                let upper_bound = fraction(marginal.upper_bound, &field("marginal.upper_bound"))?;
+                let projected_n = marginal.projected_n.value(&field("marginal.projected_n"))?;
+                // At the projected size even no leak may not reach the
+                // bound: such an endpoint cannot be met.
+                let attainable = score::upper_bound(0, projected_n);
+                if upper_bound < attainable {
+                    return Err(invalid(
+                        &field("marginal.upper_bound"),
+                        &format!(
+                            "{upper_bound} cannot be met: 0 leaks among the {projected_n} \
+                             projected samples bound the rate at {attainable:.4}"
+                        ),
+                    ));
+                }
+                let from = marginal.projected_from;
+                for (name, value) in [
+                    ("run", &from.run),
+                    ("triage_policies_sha256", &from.triage_policies_sha256),
+                    ("base", &from.base),
+                    ("candidate", &from.candidate),
+                ] {
+                    let name = field(&format!("marginal.projected_from.{name}"));
+                    if value == "pending" {
+                        return Err(PreregError::Pending(name));
+                    }
+                    if value.is_empty() {
+                        return Err(invalid(&name, "must not be empty"));
+                    }
+                }
+                if !is_sha256(&from.triage_policies_sha256) {
+                    return Err(invalid(
+                        &field("marginal.projected_from.triage_policies_sha256"),
+                        "must be 64 lowercase hexadecimal digits",
+                    ));
+                }
                 Ok(Marginal {
                     against: marginal.against,
                     measure: measure(&marginal.measure, &field("marginal.measure"))?,
-                    upper_bound: fraction(marginal.upper_bound, &field("marginal.upper_bound"))?,
+                    upper_bound,
+                    projected_n,
+                    projected_from: Projection {
+                        run: from.run,
+                        triage_policies_sha256: from.triage_policies_sha256,
+                        base: from.base,
+                        candidate: from.candidate,
+                    },
                 })
             })
             .transpose()?;
@@ -328,6 +397,13 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Prereg, PreregError> {
 /// The canonical text of a policy's full definition.
 pub(crate) fn definition(policy: &Policy) -> String {
     format!("{}\n{}", policy.name, policy.parameters())
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn fraction(value: Pinned<f64>, field: &str) -> Result<f64, PreregError> {
@@ -456,7 +532,7 @@ policy = { short_calls = 100, causes = ["n", "contested", "masked", "phase_loss"
 name = "H-os"
 requires = "previous_pass"
 policy = { short_calls = 100, causes = ["n", "contested"], one_strand = false, proxy = "primer", minor = "upstream@100" }
-marginal = { against = "H-base", measure = "primary", upper_bound = 0.02 }
+marginal = { against = "H-base", measure = "primary", upper_bound = 0.02, projected_n = 400, projected_from = { run = "results/test-panel/runs/dev", triage_policies_sha256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", base = "draft", candidate = "one_strand_off" } }
 "#;
 
     #[test]
@@ -510,6 +586,28 @@ marginal = { against = "H-base", measure = "primary", upper_bound = 0.02 }
                 "against = \"H-base\"",
                 "against = \"H-later\"",
                 "hypotheses[1].marginal.against: must name an earlier hypothesis",
+            ),
+            (
+                "projected_n = 400",
+                "projected_n = \"pending\"",
+                "hypotheses[1].marginal.projected_n is still \"pending\"",
+            ),
+            (
+                "projected_n = 400",
+                "projected_n = 100",
+                "hypotheses[1].marginal.upper_bound: 0.02 cannot be met: 0 leaks among the 100 \
+                 projected samples bound the rate at 0.0295",
+            ),
+            (
+                "base = \"draft\"",
+                "base = \"pending\"",
+                "hypotheses[1].marginal.projected_from.base is still \"pending\"",
+            ),
+            (
+                "triage_policies_sha256 = \"0123",
+                "triage_policies_sha256 = \"X123",
+                "hypotheses[1].marginal.projected_from.triage_policies_sha256: must be 64 \
+                 lowercase hexadecimal digits",
             ),
             (
                 "requires = \"previous_pass\"",

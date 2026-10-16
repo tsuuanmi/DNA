@@ -4,7 +4,10 @@
 //!   possibly non-integer event count, through the beta quantile.
 //! - [`korn_graubard`]: the Korn–Graubard bound for a stratified proportion,
 //!   which applies [`beta_upper`] at the effective sample size of the
-//!   stratified variance, so a rate of zero still has a positive bound.
+//!   stratified variance, so a rate of zero still has a positive bound;
+//!   [`korn_graubard_lower`] is its lower counterpart through [`beta_lower`].
+//! - [`binomial_at_most`]: the binomial distribution function, for the
+//!   chance that a bound is met at a true rate.
 //! - [`bootstrap`]: the 95th percentile of the corpus-weighted leak rate
 //!   over batch resamples, with each draw seeded by its index.
 
@@ -31,21 +34,83 @@ pub(crate) fn beta_upper(events: f64, trials: f64) -> f64 {
     high
 }
 
-/// The Korn–Graubard one-sided upper bound of a stratified proportion `rate`
-/// with variance `variance` over `samples` samples: the effective sample size
-/// is `rate (1 − rate) / variance`, or `samples` when the rate or the
-/// variance is zero, and never more than `samples`.
+/// The one-sided `1 − ALPHA` lower bound on a proportion with `events` of
+/// `trials`, `events` possibly fractional: the `ALPHA` quantile of
+/// `Beta(events, trials − events + 1)`; `0` when there is no event or no
+/// trial.
+pub(crate) fn beta_lower(events: f64, trials: f64) -> f64 {
+    if trials <= 0.0 || events <= 0.0 {
+        return 0.0;
+    }
+    if events >= trials {
+        return ALPHA.powf(1.0 / trials);
+    }
+    let (a, b) = (events, trials - events + 1.0);
+    let (mut low, mut high) = (0.0_f64, 1.0_f64);
+    for _ in 0..200 {
+        let middle = f64::midpoint(low, high);
+        if incomplete_beta(a, b, middle) < ALPHA {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    low
+}
+
+/// The effective sample size of a stratified proportion `rate` with
+/// variance `variance` over `samples` samples: `rate (1 − rate) / variance`,
+/// or `samples` when the rate or the variance is zero, and never more than
+/// `samples`.
+fn effective(rate: f64, variance: f64, samples: f64) -> f64 {
+    if rate <= 0.0 || variance <= 0.0 {
+        samples
+    } else {
+        (rate * (1.0 - rate) / variance).min(samples)
+    }
+}
+
+/// The Korn–Graubard one-sided upper bound of a stratified proportion: the
+/// Clopper–Pearson bound at the [`effective`] sample size.
 pub(crate) fn korn_graubard(rate: f64, variance: f64, samples: usize) -> f64 {
     let samples = samples as f64;
     if samples <= 0.0 {
         return 1.0;
     }
-    let effective = if rate <= 0.0 || variance <= 0.0 {
-        samples
-    } else {
-        (rate * (1.0 - rate) / variance).min(samples)
-    };
+    let effective = effective(rate, variance, samples);
     beta_upper(rate * effective, effective)
+}
+
+/// The Korn–Graubard one-sided lower bound of a stratified proportion: the
+/// Clopper–Pearson lower bound at the [`effective`] sample size.
+pub(crate) fn korn_graubard_lower(rate: f64, variance: f64, samples: usize) -> f64 {
+    let samples = samples as f64;
+    if samples <= 0.0 {
+        return 0.0;
+    }
+    let effective = effective(rate, variance, samples);
+    beta_lower(rate * effective, effective)
+}
+
+/// The chance of at most `events` events in `trials` trials of rate `rate`.
+pub(crate) fn binomial_at_most(events: usize, trials: usize, rate: f64) -> f64 {
+    if events >= trials || rate <= 0.0 {
+        return 1.0;
+    }
+    if rate >= 1.0 {
+        return 0.0;
+    }
+    let n = trials as f64;
+    let total = (0..=events)
+        .map(|count| {
+            let k = count as f64;
+            (ln_gamma(n + 1.0) - ln_gamma(k + 1.0) - ln_gamma(n - k + 1.0)
+                + k * rate.ln()
+                + (n - k) * (1.0 - rate).ln())
+            .exp()
+        })
+        .sum::<f64>();
+    total.min(1.0)
 }
 
 /// `SplitMix64`: a small, fully specified generator, so an outside reviewer
@@ -264,6 +329,34 @@ mod tests {
         // A smaller effective size widens the bound.
         let wide = korn_graubard(0.01, 0.000_1, 1000);
         assert!(wide > upper_bound(10, 1000));
+    }
+
+    #[test]
+    fn beta_lower_matches_clopper_pearson_at_integer_counts() {
+        // 1 − lower(x, n) is the upper bound on the complement, n − x of n.
+        for (events, trials) in [(1_u16, 10_u16), (10, 300), (150, 474), (20, 20)] {
+            let lower = beta_lower(f64::from(events), f64::from(trials));
+            let complement = upper_bound(usize::from(trials - events), usize::from(trials));
+            assert!(
+                (lower - (1.0 - complement)).abs() < 1e-6,
+                "{events}/{trials}: {lower} vs {}",
+                1.0 - complement
+            );
+        }
+        assert!(beta_lower(0.0, 300.0).abs() < f64::EPSILON);
+        // A smaller effective size lowers the bound.
+        let narrow = korn_graubard_lower(0.1, 0.0, 1000);
+        assert!((narrow - beta_lower(100.0, 1000.0)).abs() < 1e-12);
+        assert!(korn_graubard_lower(0.1, 0.000_5, 1000) < narrow);
+    }
+
+    #[test]
+    fn binomial_at_most_sums_the_probabilities() {
+        assert!((binomial_at_most(0, 10, 0.1) - 0.9_f64.powi(10)).abs() < 1e-12);
+        let two = 0.9_f64.powi(10) + 10.0 * 0.1 * 0.9_f64.powi(9) + 45.0 * 0.01 * 0.9_f64.powi(8);
+        assert!((binomial_at_most(2, 10, 0.1) - two).abs() < 1e-9);
+        assert!((binomial_at_most(10, 10, 0.5) - 1.0).abs() < f64::EPSILON);
+        assert!((binomial_at_most(3, 500, 0.0) - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
