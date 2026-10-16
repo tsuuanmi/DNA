@@ -35,8 +35,10 @@ the existing per-read support records:
   within each selected orientation.
 
 The counts are recomputed from `support[]` and the read registry by contract
-validation. They do not include covering reads that support the reference, are
-unresolved, or observe another event; those reads appear in `opposition`.
+validation. They do not include covering reads that support the reference or
+observe another event; those reads appear in `opposition`. A read with an
+unresolved call in the evidence span neither supports nor opposes the variant:
+an unresolved call is not callable (SRS-ALN-015).
 
 Each variant also contains `opposition` (ADR-0068):
 

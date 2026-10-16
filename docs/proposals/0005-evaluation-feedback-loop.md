@@ -412,6 +412,13 @@ the overall α without a Bonferroni split:
 
 **Exclusions.** A sample DNA fails counts as not passed and is reported.
 
+**Abstention.** The primary and haplotype measures count a truth allele where
+DNA has no callable base (DNA abstains, `N`) as not compared, by the lab's
+rule; only the strict measure counts it. The pre-registered policies must
+therefore keep the `region.unreliable` cause `n`, so a passed region never
+holds an abstention, and the strict measure is reported for passed samples.
+The pre-registration fails if any policy drops `n`.
+
 **After approval.**
 - **Monitoring.** A random 2–5 % *(pending)* of auto-passed production
   samples is reviewed each month, with a running Clopper–Pearson bound.

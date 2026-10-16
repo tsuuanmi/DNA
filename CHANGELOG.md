@@ -429,7 +429,10 @@ remain independently versioned and are never silently changed in place.
   code a modality presents as `N`), masked or not (SRS-ALN-015). A reviewed
   or sample consensus that writes `N` where no read observes a position
   cleanly therefore no longer reports those positions as callable, so a
-  comparison counts truth alleles there as uncovered instead of missed.
+  comparison counts truth alleles there as uncovered instead of missed: a
+  reclassification of DNA's abstentions, not a change of any call. A read
+  with an unresolved call in a variant's evidence span no longer counts as
+  opposing it.
   `dna.analysis/v9`, `dna.sample_evidence/v10`, and `dna.variants/v1` are
   edited in place (unreleased cycle); the `core` plugin version rises to 3
   ([versioning](docs/governance/versioning.md)). Calls are unchanged.

@@ -692,6 +692,49 @@ fn records_callable_reads_that_do_not_support_a_variant_as_opposition() -> Resul
 }
 
 #[test]
+fn an_unresolved_call_neither_supports_nor_opposes() -> Result<()> {
+    let variant = snv(73, "A", "G");
+    let supporting = observation(
+        "a",
+        "reference",
+        "config",
+        Orientation::Forward,
+        vec![column('G', 'A', Some(0), 72)],
+        vec![variant],
+    );
+    // An unmasked `N` at the variant observes no base: alignment leaves it
+    // out of the callable segments (SRS-ALN-015), so the read does not
+    // oppose the variant.
+    let mut unresolved = observation(
+        "b",
+        "reference",
+        "config",
+        Orientation::Reverse,
+        vec![
+            column('A', 'A', Some(0), 71),
+            column('N', 'A', Some(1), 72),
+            column('A', 'A', Some(2), 73),
+        ],
+        Vec::new(),
+    );
+    unresolved.alignment.callable_segments = vec![
+        ReferenceSegment {
+            start_0based: 71,
+            end_0based_exclusive: 72,
+        },
+        ReferenceSegment {
+            start_0based: 73,
+            end_0based_exclusive: 74,
+        },
+    ];
+
+    let evidence = run(&[supporting, unresolved])?;
+
+    assert!(evidence.variants[0].opposition.read_indices.is_empty());
+    Ok(())
+}
+
+#[test]
 fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     let variant = snv(73, "A", "G");
     let forward = observation(
