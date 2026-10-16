@@ -117,6 +117,23 @@ pub(crate) fn sweep() -> Vec<Policy> {
                 threshold: 150,
             });
         }),
+        // The H-os1 candidate over the minor rules joined by `local_shadow@80`.
+        with(
+            "minor_upstream@100+local_shadow@80_one_strand_outside_repeats_h4_single_any150",
+            &|policy| {
+                policy.minor.push(Rule {
+                    kind: Kind::LocalShadow,
+                    threshold: 80,
+                });
+                policy.one_strand = OneStrand::OutsideRepeats {
+                    homopolymer: Some(4),
+                };
+                policy.single_minor = Some(Rule {
+                    kind: Kind::Any,
+                    threshold: 150,
+                });
+            },
+        ),
         with("one_strand_outside_repeats_h4_single_any100", &|policy| {
             policy.one_strand = OneStrand::OutsideRepeats {
                 homopolymer: Some(4),

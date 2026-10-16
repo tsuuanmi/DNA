@@ -44,6 +44,11 @@ use crate::report::{Report, Row, Status};
 use crate::runner::{Identity, Outcome, Threads};
 use crate::truth::TruthCheck;
 
+/// The panels `run` reads: the development panel the rules are tuned on, and
+/// the readiness panel that checks them before a pre-registration. A hold-out
+/// panel is read only by `approve`.
+const RUNNABLE_PANELS: [&str; 2] = ["dev", "readiness"];
+
 /// Largest accepted panel manifest.
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted baseline scores file.
@@ -90,7 +95,7 @@ struct ApproveArgs {
 /// Arguments of `dna-eval power`.
 #[derive(Debug, Args)]
 struct PowerArgs {
-    /// A development run directory with `triage.tsv`, and with
+    /// A development or readiness run directory with `triage.tsv`, and with
     /// `triage_policies.tsv` for `--base` and `--candidate`.
     #[arg(long)]
     dev_run: PathBuf,
@@ -182,17 +187,22 @@ fn main() -> ExitCode {
     }
 }
 
+/// Whether `run` may read the panel: one its header does not name, or a
+/// development or readiness panel.
+fn runnable(manifest: &Manifest) -> Result<()> {
+    match manifest.header.get("panel") {
+        Some(panel) if !RUNNABLE_PANELS.contains(&panel.as_str()) => Err(Error::HoldOut {
+            panel: panel.clone(),
+        }),
+        _ => Ok(()),
+    }
+}
+
 fn run(cli: &RunArgs) -> Result<String> {
     let started = Instant::now();
     let threads = Threads::new(cli.threads)?;
     let manifest = manifest::parse(&read(&cli.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
-    if let Some(panel) = manifest.header.get("panel")
-        && panel != "dev"
-    {
-        return Err(Error::HoldOut {
-            panel: panel.clone(),
-        });
-    }
+    runnable(&manifest)?;
     let baseline = cli
         .baseline
         .as_ref()
@@ -710,4 +720,33 @@ fn source() -> Source {
 /// that fails.
 fn absolute(path: &Path) -> PathBuf {
     std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    fn panel(name: Option<&str>) -> Manifest {
+        Manifest {
+            header: name
+                .map(|name| BTreeMap::from([("panel".to_owned(), name.to_owned())]))
+                .unwrap_or_default(),
+            body_sha256: String::new(),
+            columns: Vec::new(),
+            samples: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn run_reads_development_and_readiness_panels_only() {
+        for name in [None, Some("dev"), Some("readiness")] {
+            assert!(runnable(&panel(name)).is_ok(), "{name:?}");
+        }
+        assert!(matches!(
+            runnable(&panel(Some("validation"))),
+            Err(Error::HoldOut { panel }) if panel == "validation"
+        ));
+    }
 }

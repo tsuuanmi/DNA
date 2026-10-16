@@ -248,6 +248,35 @@ The panels:
   - batches drawn by hash.
 
   It is not run until approval.
+- **Readiness panel** (v1, 2026-10-16). Every eligible sample of the 167
+  corpus batches that hold no development sample and are not hold-out
+  batches: 13,793 samples, 2024-07-19 to 2026-09-07, with the validation
+  panel's strata and corpus weights. Being whole, disjoint batches, it
+  mirrors the hold-out; it is the entire disjoint remainder of the corpus,
+  not a draw from it. It serves the readiness check and the
+  pre-registration's projections; rules are still tuned on the development
+  panel only. When readiness results lead to a rule change, the readiness
+  panel counts as development data from then on, and every such use is
+  recorded in the panel log. The next readiness check then needs batches
+  received after 2026-09-07, or falls back, as a weaker check named as such,
+  to whole batches shared with the development panel without its samples.
+  - **v1, 2026-10-16: the H-base candidate is not ready.** For
+    `upstream@100+local_shadow@80` under haplotype LoD:
+    - 30 leaks in 2,303 passes;
+    - corpus-weighted rate 1.40 %;
+    - Korn–Graubard bound 1.9 %, bootstrap bound 2.2 %, from a replica of the
+      harness formulas, not the approval tool.
+
+    At the 1,616 hold-out passes `power` projects, the 1 % gate passes with
+    probability about 0. Readiness needs a true rate of about 0.45 % or less.
+    The development panel suggested 0.68 %; the gap is the optimism of
+    tuning on few positives.
+
+    About 21 of the 30 leaks are missed heteroplasmies the reads show. 9 are
+    base or length errors, about 0.39 % on their own.
+
+    The H-os1 marginal bound would be 2.5 %: its lower-bound projection is
+    218 newly passed samples, with 1 leak in 337 on this panel.
 
 Measured run time for `consensus` plus `call`, about 6.3 CPU-seconds per
 sample:
@@ -348,12 +377,12 @@ rule, adjudication, and hold-out access were decided on 2026-10-16 (see
 - **A spent hold-out.** Once a rule is approved, the hold-out is spent for it.
   A later rule change needs fresh batches, such as those received after the
   freeze.
-- **Readiness.** An approval run is pre-registered only when the development
+- **Readiness.** An approval run is pre-registered only when the readiness
   panel at the frozen revision makes it likely to pass: taking the policy's
-  corpus-weighted development leak rate as the true rate, `dna-eval power`
-  must give every gate a probability of at least 0.8 at the projected number
-  of passes. A run on a rule bound to fail spends the hold-out without a
-  decision.
+  corpus-weighted readiness leak rate as the true rate, every gate must have
+  a probability of at least 0.8 at the number of passes `dna-eval power`
+  projects from the readiness run. A run on a rule bound to fail spends the
+  hold-out without a decision.
 - **Measurement fixes first.** Fixes that change what "concordant" means
   land before the freeze. These include DNA's callable intervals excluding
   unresolved consensus bases, and the haplotype measures deciding per
