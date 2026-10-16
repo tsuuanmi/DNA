@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use super::detect::{
-    Detector, Footprints, Outcome, Policy, Proxy, SampleDecision, TraceFinding, decide,
+    Detector, Footprints, OneStrand, Outcome, Policy, Proxy, SampleDecision, TraceFinding, decide,
 };
 use super::minor::{Kind, Rule};
 use crate::compare::{self, Allele, Comparison, Measure, Region as Window};
@@ -73,7 +73,9 @@ pub(crate) fn sweep() -> Vec<Policy> {
         with("short_200", &|policy| policy.short_calls = 200),
         with("short_300", &|policy| policy.short_calls = 300),
         with("proxy_any", &|policy| policy.proxy = Proxy::Any),
-        with("one_strand_off", &|policy| policy.one_strand = false),
+        with("one_strand_off", &|policy| {
+            policy.one_strand = OneStrand::Off;
+        }),
         with("masked_off", &|policy| {
             policy.causes.remove(&Cause::Masked);
         }),
@@ -85,14 +87,45 @@ pub(crate) fn sweep() -> Vec<Policy> {
         }),
         with("unreliable_off", &|policy| policy.causes.clear()),
         with("one_strand_masked_off", &|policy| {
-            policy.one_strand = false;
+            policy.one_strand = OneStrand::Off;
             policy.causes.remove(&Cause::Masked);
         }),
         with("gap_only", &|policy| {
             policy.causes.clear();
-            policy.one_strand = false;
+            policy.one_strand = OneStrand::Off;
         }),
         with("minor_off", &|policy| policy.minor = None),
+        with("one_strand_outside_repeats", &|policy| {
+            policy.one_strand = OneStrand::OutsideRepeats { homopolymer: None };
+        }),
+        with("one_strand_outside_repeats_h3", &|policy| {
+            policy.one_strand = OneStrand::OutsideRepeats {
+                homopolymer: Some(3),
+            };
+        }),
+        with("one_strand_outside_repeats_h4", &|policy| {
+            policy.one_strand = OneStrand::OutsideRepeats {
+                homopolymer: Some(4),
+            };
+        }),
+        with("one_strand_outside_repeats_h4_single_any150", &|policy| {
+            policy.one_strand = OneStrand::OutsideRepeats {
+                homopolymer: Some(4),
+            };
+            policy.single_minor = Some(Rule {
+                kind: Kind::Any,
+                threshold: 150,
+            });
+        }),
+        with("one_strand_outside_repeats_h4_single_any100", &|policy| {
+            policy.one_strand = OneStrand::OutsideRepeats {
+                homopolymer: Some(4),
+            };
+            policy.single_minor = Some(Rule {
+                kind: Kind::Any,
+                threshold: 100,
+            });
+        }),
     ]
     .into_iter()
     .chain(
@@ -115,7 +148,7 @@ pub(crate) fn sweep() -> Vec<Policy> {
         with(
             &format!("one_strand_off_minor_{}", rule.label()),
             &|policy| {
-                policy.one_strand = false;
+                policy.one_strand = OneStrand::Off;
                 policy.minor = Some(rule);
             },
         )
@@ -172,12 +205,13 @@ impl<'a> Triage<'a> {
     /// Decides every row under every policy; the first policy is the one the
     /// per-sample outputs report. Primer footprints are learned from the
     /// active (not retired) samples.
-    pub(crate) fn new(rows: &'a [Row<'a>], policies: Vec<Policy>) -> Self {
+    pub(crate) fn new(rows: &'a [Row<'a>], policies: Vec<Policy>, reference: &str) -> Self {
         let footprints = Footprints::learn(
             rows.iter()
                 .filter(|row| !row.sample.retired)
                 .filter_map(evidence),
-        );
+        )
+        .with_reference(reference);
         let labels: Vec<String> = rows
             .iter()
             .filter_map(evidence)
@@ -1772,7 +1806,7 @@ mod tests {
             &records,
             compare::tests::rcrs(),
         );
-        let triage = Triage::new(&rows, sweep());
+        let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
 
         let decided = files["triage.tsv"]
@@ -1918,7 +1952,7 @@ mod tests {
         evidence.minor = vec![vec![Vec::new(); 21]];
         evidence.minor[0][9] = vec![minor(Strand::Forward), minor(Strand::Reverse)];
         let rows = crate::report::rows(&manifest.samples, &runs, &records, compare::tests::rcrs());
-        let triage = Triage::new(&rows, sweep());
+        let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
         let measured = triage.reported().ok_or("a measurement")?;
         assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 1);
@@ -1950,7 +1984,7 @@ mod tests {
             minor: Some(strict),
             ..Policy::draft()
         };
-        let triage = Triage::new(&rows, vec![policy]);
+        let triage = Triage::new(&rows, vec![policy], compare::tests::rcrs());
         assert!(triage.detectors.contains(&Detector::MinorSignal(strict)));
         assert!(
             !triage
@@ -1971,7 +2005,7 @@ mod tests {
         let rows = crate::report::rows(&manifest.samples, &runs, &records, compare::tests::rcrs());
         // S0's status (its placement leak) does not depend on the evidence.
         assert_eq!(rows[0].status(Measure::Primary), Status::Discordant);
-        let triage = Triage::new(&rows, sweep());
+        let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
         let first = files["triage.tsv"].lines().nth(1).ok_or("S0's row")?;
         assert!(first.contains("\treview\t"));

@@ -1099,7 +1099,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 2,
+    version: 3,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledVariants],
     config_sections: &[],
@@ -1201,20 +1201,21 @@ mod tests {
         })
     }
 
-    #[test]
-    fn an_exempt_run_trusts_its_matches_but_never_a_substituted_call()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
-        // The read's C run 11-15 covers the reference A at 11, is bounded by
-        // G10 and T16, and lies within the margin of a segment that starts
-        // right after a repeat run (calls 19-25).
-        let tail = "AAAAAACGTACGTACGTACG";
+    /// The observations of a read `read_sequence` on `reference_sequence`,
+    /// both `ACGTACGTAC G CCCCC T AG` + `tail` in shape, with calls 19-25
+    /// masked as a segment that starts right after a repeat run, under a
+    /// read-end margin of 8.
+    fn exempt_observations(
+        reference_sequence: &str,
+        read_sequence: &str,
+    ) -> std::result::Result<ReadObservations, Box<dyn std::error::Error>> {
         let reference = Reference {
             name: "ref".into(),
-            sequence: format!("ACGTACGTACGACCCCTAG{tail}"),
+            sequence: reference_sequence.into(),
             topology: ReferenceTopology::Linear,
             sequence_sha256: String::new(),
         };
-        let mut evidence = ReadEvidence::clean(&format!("ACGTACGTACGCCCCCTAG{tail}"));
+        let mut evidence = ReadEvidence::clean(read_sequence);
         for index in 19..26 {
             let mut call = evidence.calls()[index];
             call.mask = Some(CallMask {
@@ -1242,12 +1243,40 @@ mod tests {
             max_indel_length: 50,
             read_end_margin: 8,
         };
-        let observed = observe(&read, &settings, reference.sequence.len());
+        Ok(observe(&read, &settings, reference.sequence.len()))
+    }
+
+    #[test]
+    fn an_exempt_run_trusts_its_matches_but_never_a_substituted_call()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // The read's C run 11-15 covers the reference A at 11 and is bounded
+        // by G10 and T16, which match the reference.
+        let tail = "AAAAAACGTACGTACGTACG";
+        let observed = exempt_observations(
+            &format!("ACGTACGTACGACCCCTAG{tail}"),
+            &format!("ACGTACGTACGCCCCCTAG{tail}"),
+        )?;
         let clean = |position: usize| observed.positions.get(&position).map(|site| site.clean);
         // The substituted call keeps `read_end`; the run's matches are clean;
-        // the bound keeps its own trust.
+        // the bound that reads the reference base is clean too, since it can
+        // never make a variant.
         assert_eq!(clean(11), Some(false));
         assert!((12..=15).all(|position| clean(position) == Some(true)));
+        assert_eq!(clean(16), Some(true));
+        Ok(())
+    }
+
+    #[test]
+    fn an_exempt_run_bound_on_another_base_keeps_its_trust()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // The read's bound at 16 reads A where the reference has T.
+        let tail = "AAAAAACGTACGTACGTACG";
+        let observed = exempt_observations(
+            &format!("ACGTACGTACGCCCCCTAG{tail}"),
+            &format!("ACGTACGTACGCCCCCAAG{tail}"),
+        )?;
+        let clean = |position: usize| observed.positions.get(&position).map(|site| site.clean);
+        assert!((11..=15).all(|position| clean(position) == Some(true)));
         assert_eq!(clean(16), Some(false));
         Ok(())
     }

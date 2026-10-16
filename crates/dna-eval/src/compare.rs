@@ -654,15 +654,25 @@ impl Region {
         }
     }
 
+    /// The repeat windows with their inclusive 1-based bounds.
+    pub(crate) const WINDOWS: [(Self, i64, i64); 4] = [
+        (Self::Hv2PolyC, 302, 316),
+        (Self::Hv1PolyC, 16180, 16195),
+        (Self::Hv3PolyC, 560, 576),
+        (Self::AcRepeat, 513, 526),
+    ];
+
     /// The window of a position's anchor base.
     pub(crate) fn of(position: &str) -> Self {
-        match anchor(position) {
-            Some(302..=316) => Self::Hv2PolyC,
-            Some(16180..=16195) => Self::Hv1PolyC,
-            Some(560..=576) => Self::Hv3PolyC,
-            Some(513..=526) => Self::AcRepeat,
-            _ => Self::Other,
-        }
+        anchor(position).map_or(Self::Other, Self::at)
+    }
+
+    /// The window of a 1-based reference position.
+    pub(crate) fn at(position: i64) -> Self {
+        Self::WINDOWS
+            .iter()
+            .find(|(_, first, last)| (*first..=*last).contains(&position))
+            .map_or(Self::Other, |(window, _, _)| *window)
     }
 }
 

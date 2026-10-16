@@ -14,4 +14,5 @@
 
 pub(crate) mod detect;
 pub(crate) mod minor;
+pub(crate) mod repeats;
 pub(crate) mod score;

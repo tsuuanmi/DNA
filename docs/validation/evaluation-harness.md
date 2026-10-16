@@ -56,17 +56,20 @@ pre-registration (TOML) committed to the repository:
 - **`[[hypotheses]]`** — the fixed sequence in order: a name, `requires`
   (`first`, then `previous_pass`: the sequence stops at the first failure, so
   the family-wise alpha holds), the full policy
-  (`short_calls`, `causes`, `one_strand`, `proxy`, `minor` as `<kind>@<t>` or
-  `off`), and an optional `marginal` (`against` an earlier hypothesis, a
-  measure, an `upper_bound`, the `projected_n` that `dna-eval power` gave at
-  its lower bound, and `projected_from`: the development `run`, the SHA-256
-  of its `triage_policies.tsv`, and the `base` and `candidate` sweep
-  policies projected).
+  (`short_calls`, `causes`, `one_strand` as `everywhere`, `off`,
+  `outside_repeats`, or `outside_repeats_h<k>`, `proxy`, `minor` and
+  `single_minor` as `<kind>@<t>` or `off`), and an optional `marginal`
+  (`against` an earlier hypothesis, a measure, an `upper_bound`, the
+  `projected_n` that `dna-eval power` gave at its lower bound, and
+  `projected_from`: the development `run`, the SHA-256 of its
+  `triage_policies.tsv`, and the `base` and `candidate` sweep policies
+  projected).
 
 The run stops before DNA when any value is still `"pending"`, a policy lacks
 the `n` cause, a marginal `upper_bound` is below the count-based bound at 0
-leaks among its `projected_n` samples (it cannot be met), the file is not committed unmodified, the harness build is not
-the frozen revision or has local changes, or the manifest, configuration,
+leaks among its `projected_n` samples (it cannot be met), the file is not
+committed unmodified, the harness build is not the frozen revision or has
+local changes, or the manifest, configuration,
 truth copy, or panel truth digest differs from the frozen value. The output
 directory must be new and lie under `results/`.
 
@@ -89,7 +92,7 @@ gate's measure) three ways, at one-sided alpha 0.05:
 A gate passes only when all three are within its bound; at zero leaks the
 bootstrap bound is 0 and proves nothing alone. The marginal endpoint bounds
 the leaks under its measure among the samples a hypothesis passes and
-`against` does not (count-based bound). The utility floor applies to the
+`against` does not (count-based bound), and reports apart the leaks with a discordant position that the one-strand exception lets one strand read. The utility floor applies to the
 corpus-weighted pass rate or its one-sided lower bound. A hypothesis passes
 when its gates, marginal, and utility pass; the next one is tested only when
 the previous one passed.
@@ -409,7 +412,8 @@ review because the gate could not run, and `triage.tsv` gives the cause
 | trace | `trace.too_short`, `trace.weak`, `trace.unplaced` | the read was rejected for that cause (SRS-SAMPLE-030, SRS-SAMPLE-027, SRS-SAMPLE-029) |
 | trace | `trace.short` | the callable span has fewer than `short_calls` calls (default 100; `0` turns it off) |
 | region | `region.unreliable` | a position is `n` (a site without a call or with `N`), `contested`, `masked` (a site with an uninformative read), or `phase_loss` or `reference_frame` (a run of the site has that length evidence); `masked_read` (a covering read reads the position only through a masked call) is measured but not applied by default |
-| region | `region.one_strand` | a position is observed cleanly by one strand only |
+| region | `region.one_strand` | a position is observed cleanly by one strand only, where the policy requires both strands: everywhere (the draft), nowhere (`off`), or only inside the repeat windows ±3 (`outside_repeats`, R6m) and also in or next to a reference homopolymer of at least `k` bases (`outside_repeats_h<k>`, R6m-h4 with 4); the windows are the measures' windows (`compare::Region::WINDOWS`) and the runs are read from the reference |
+| region | `region.minor_signal_single_strand` | a position one strand alone reads cleanly shows a minor signal under the policy's single-strand rule (off by default); it applies only where the policy lets one strand pass |
 | region | `region.gap` | a position is observed cleanly by no read |
 | region | `region.minor_signal` | a position's reads show a second allele under the policy's minor rule (default `upstream@100`; off turns it off) |
 

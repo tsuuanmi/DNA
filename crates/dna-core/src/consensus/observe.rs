@@ -107,15 +107,18 @@ pub(super) fn observe(
     let calls = read.evidence.calls();
     let eligibility = ReadEligibility::new(&read.evidence, config);
     let orientation = read.alignment.orientation;
-    // Calls aligned as a match or inserted: the only calls a bounded-run
-    // exemption may trust (ADR-0076); a substituted call keeps `read_end`.
+    // Calls aligned as a match, and calls aligned as a match or inserted:
+    // the only bounds, and the only run calls, a bounded-run exemption may
+    // trust (ADR-0076); a substituted call keeps `read_end`.
+    let mut matches = vec![false; calls.len()];
     let mut length_only = vec![false; calls.len()];
     for column in &read.alignment.columns {
         if let Some(call) = column.original_call_index_0based
-            && let Some(slot) = length_only.get_mut(call)
+            && call < calls.len()
         {
-            *slot = column.reference_index_0based.is_none()
-                || column.query_base == column.reference_base;
+            let inserted = column.reference_index_0based.is_none();
+            matches[call] = !inserted && column.query_base == column.reference_base;
+            length_only[call] = inserted || matches[call];
         }
     }
     let clean_call = |index: usize| {
@@ -123,7 +126,8 @@ pub(super) fn observe(
             call.mask.is_none()
                 && call.vetoes == VetoSet::default()
                 && (eligibility.trusted(index)
-                    || (eligibility.run_exempt(index) && length_only[index]))
+                    || (eligibility.run_exempt(index) && length_only[index])
+                    || (eligibility.bound_exempt(index) && matches[index]))
         })
     };
     let interval = read.evidence.informative();
