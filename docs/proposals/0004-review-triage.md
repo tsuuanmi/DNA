@@ -675,6 +675,7 @@ New contract fields or a new document version; no migration is needed.
 5. Should trace checks run before the sample is complete, as a trace-level
    command?
 6. Which exceptions, if any, allow a region read by one strand to pass?
+   Evidence: [one-strand research](../research/one-strand/README.md).
 7. How far must the traces of one sample disagree to count as a mixture, and
    is a mixture a review or a rerun?
 
