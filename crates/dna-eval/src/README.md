@@ -20,12 +20,17 @@ equivalence. No crate depends on it, and it is not part of the release.
   read-only with `rusqlite`; the sample and panel truth digests and the check
   of a panel's recorded truth.
 - `runner.rs` — the scoped thread pool that removes repeated traces and runs
-  DNA per sample, with typed failures, in sample order; with `run --triage` it
+  DNA per sample, with typed failures, in sample order, and takes the
+  positions where a read shows a second base at the limit of detection; with `run --triage` it
   also takes each sample's triage evidence, from the analysis even when the
   call then fails, or from the rejected reads when none is admitted.
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary
-  (the lab's rules), strict, IUPAC-compatible, and haplotype measures, and the
-  comparable intervals and edits of the haplotype measures.
+  (the lab's rules), strict, IUPAC-compatible, haplotype, and haplotype LoD
+  measures, and the comparable intervals and edits of the haplotype measures.
+- `lod.rs` — the limit of detection of point heteroplasmy: from an analysis,
+  where a read shows a second base at 10 % or more; from the truth, the
+  two-base IUPAC positions no read shows, which haplotype LoD compares
+  compatibly.
 - `haplotype.rs` — the haplotype equivalence of two edit sets: both applied
   to the reference over each comparable interval, once per way of taking
   the special-position indels, and cut into blocks where their lengths agree;

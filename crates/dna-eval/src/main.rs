@@ -17,6 +17,7 @@ mod error;
 mod estimate;
 mod evidence;
 mod haplotype;
+mod lod;
 mod manifest;
 mod panel;
 mod report;

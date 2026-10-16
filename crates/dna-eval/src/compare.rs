@@ -179,11 +179,14 @@ pub(crate) enum Measure {
     /// The IUPAC-compatible rules over the alleles that do not describe the
     /// same sequence, IUPAC codes that share a base counting as the same.
     HaplotypeIupacCompatible,
+    /// As `haplotype`, but a truth heteroplasmy below the limit of detection
+    /// compares IUPAC-compatibly ([`crate::lod`]).
+    HaplotypeLod,
 }
 
 impl Measure {
     /// The number of measures.
-    pub(crate) const COUNT: usize = 5;
+    pub(crate) const COUNT: usize = 6;
 
     pub(crate) const ALL: [Self; Self::COUNT] = [
         Self::Primary,
@@ -191,6 +194,7 @@ impl Measure {
         Self::IupacCompatible,
         Self::Haplotype,
         Self::HaplotypeIupacCompatible,
+        Self::HaplotypeLod,
     ];
 
     pub(crate) const fn label(self) -> &'static str {
@@ -200,6 +204,7 @@ impl Measure {
             Self::IupacCompatible => "iupac_compatible",
             Self::Haplotype => "haplotype",
             Self::HaplotypeIupacCompatible => "haplotype_iupac_compatible",
+            Self::HaplotypeLod => "haplotype_lod",
         }
     }
 
@@ -211,6 +216,7 @@ impl Measure {
             Self::IupacCompatible => "IUPAC-compatible",
             Self::Haplotype => "Haplotype",
             Self::HaplotypeIupacCompatible => "Haplotype IUPAC-compatible",
+            Self::HaplotypeLod => "Haplotype LoD",
         }
     }
 
@@ -227,6 +233,7 @@ impl Measure {
             Self::IupacCompatible => "iupac_compatible_status",
             Self::Haplotype => "haplotype_status",
             Self::HaplotypeIupacCompatible => "haplotype_iupac_compatible_status",
+            Self::HaplotypeLod => "haplotype_lod_status",
         }
     }
 
@@ -237,20 +244,32 @@ impl Measure {
 
     /// Whether alleles that describe the same sequence leave the comparison.
     pub(crate) const fn haplotype(self) -> bool {
-        matches!(self, Self::Haplotype | Self::HaplotypeIupacCompatible)
+        matches!(
+            self,
+            Self::Haplotype | Self::HaplotypeIupacCompatible | Self::HaplotypeLod
+        )
     }
 
-    /// Whether two alleles match under this measure.
-    fn matches(self, left: &Allele, right: &Allele) -> bool {
+    /// Whether two alleles match under this measure, the truth IUPAC alleles
+    /// at `below` (below the limit of detection) matching compatibly under
+    /// `haplotype_lod`.
+    fn matches(self, left: &Allele, right: &Allele, below: &BTreeSet<String>) -> bool {
         left.position == right.position
             && left.reference == right.reference
             && (left.alternate == right.alternate
-                || (self.compatible() && compatible(&left.alternate, &right.alternate)))
+                || ((self.lenient(left, below) || self.lenient(right, below))
+                    && compatible(&left.alternate, &right.alternate)))
+    }
+
+    /// Whether `allele` compares IUPAC-compatibly under this measure.
+    fn lenient(self, allele: &Allele, below: &BTreeSet<String>) -> bool {
+        self.compatible()
+            || (self == Self::HaplotypeLod && allele.is_iupac() && below.contains(&allele.position))
     }
 }
 
 /// The bases an IUPAC code admits; empty for anything else.
-fn bases(code: &str) -> &'static [char] {
+pub(crate) fn bases(code: &str) -> &'static [char] {
     match code {
         "A" => &['A'],
         "C" => &['C'],
@@ -422,6 +441,7 @@ fn edit(allele: &Allele) -> Option<Edit<'_>> {
         span: i64::try_from(allele.reference.len()).unwrap_or(i64::MAX),
         symbols: symbols.filter(|_| usable),
         special: allele.is_special(),
+        lenient: true,
     })
 }
 
@@ -433,33 +453,50 @@ fn bases_of(allele: &Allele) -> Option<(i64, i64)> {
 
 /// Both sides' sequences over the comparable intervals (the HV regions
 /// within DNA's callable intervals, or the HV regions when DNA reports none)
-/// on `reference`, built once for the haplotype measures.
-pub(crate) fn haplotypes(dna: Side<'_>, truth: Side<'_>, reference: &str) -> Haplotypes {
-    fn edits(alleles: &[Allele]) -> Vec<Edit<'_>> {
+/// on `reference`, built once for the haplotype measures. With `below`, only
+/// the truth IUPAC alleles at those positions write symbols that match
+/// compatibly (`haplotype_lod`); without it, every truth allele does.
+pub(crate) fn haplotypes(
+    dna: Side<'_>,
+    truth: Side<'_>,
+    reference: &str,
+    below: Option<&BTreeSet<String>>,
+) -> Haplotypes {
+    fn edits<'a>(alleles: &'a [Allele], lenient: &dyn Fn(&Allele) -> bool) -> Vec<Edit<'a>> {
         alleles
             .iter()
             .filter(|allele| allele.reference != allele.alternate)
-            .filter_map(edit)
+            .filter_map(|allele| {
+                edit(allele).map(|edit| Edit {
+                    lenient: lenient(allele),
+                    ..edit
+                })
+            })
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
     }
+    let truth_lenient = |allele: &Allele| {
+        below.is_none_or(|below| allele.is_iupac() && below.contains(&allele.position))
+    };
     Haplotypes::new(
         reference,
         &comparable(dna.intervals),
-        &edits(dna.alleles),
-        &edits(truth.alleles),
+        &edits(dna.alleles, &|_| true),
+        &edits(truth.alleles, &truth_lenient),
     )
 }
 
 /// Compares DNA's side (its callable intervals) with the truth's side (its
 /// analysed intervals) under `measure`; the haplotype measures read both
-/// sides' sequences from `haplotypes`.
+/// sides' sequences from `haplotypes`, and `haplotype_lod` compares the truth
+/// IUPAC alleles at `below` compatibly.
 pub(crate) fn compare(
     dna: Side<'_>,
     truth: Side<'_>,
     measure: Measure,
     haplotypes: &Haplotypes,
+    below: &BTreeSet<String>,
 ) -> Comparison {
     let dna_all = distinct(dna.alleles);
     let truth_all = distinct(truth.alleles);
@@ -469,8 +506,7 @@ pub(crate) fn compare(
     // rules; DNA's codes never match the truth's reference.
     let equivalence = measure.haplotype().then(|| {
         haplotypes.equivalence(
-            measure
-                .compatible()
+            (measure.compatible() || measure == Measure::HaplotypeLod)
                 .then_some(compatible as fn(&str, &str) -> bool),
         )
     });
@@ -484,18 +520,23 @@ pub(crate) fn compare(
     let truth_kept = truth_all.iter().filter(kept).collect::<Vec<_>>();
     let unique = |left: &[&Allele], right: &[&Allele]| {
         left.iter()
-            .filter(|allele| !right.iter().any(|other| measure.matches(allele, other)))
+            .filter(|allele| {
+                !right
+                    .iter()
+                    .any(|other| measure.matches(allele, other, below))
+            })
             .map(|allele| (*allele).clone())
             .collect::<Vec<_>>()
     };
     let dna_unique = unique(&dna_kept, &truth_kept);
     let dna_by_position = by_position(&dna_kept);
     let mut truth_unique = unique(&truth_kept, &dna_kept);
-    if measure.compatible() {
+    if measure.compatible() || measure == Measure::HaplotypeLod {
         // Where DNA calls nothing but reads the position, its base is the
         // reference; that matches an IUPAC code that admits it.
         truth_unique.retain(|allele| {
             !(allele.is_iupac()
+                && measure.lenient(allele, below)
                 && !dna_by_position.contains_key(&allele.position)
                 && inside(&allele.position, dna.intervals)
                 && compatible(&allele.reference, &allele.alternate))
@@ -510,8 +551,11 @@ pub(crate) fn compare(
             continue;
         };
         let covered = |left: &BTreeSet<&Allele>, right: &BTreeSet<&Allele>| {
-            left.iter()
-                .all(|allele| right.iter().any(|other| measure.matches(allele, other)))
+            left.iter().all(|allele| {
+                right
+                    .iter()
+                    .any(|other| measure.matches(allele, other, below))
+            })
         };
         if !(covered(alleles, others) && covered(others, alleles)) {
             reasons.insert(Reason::SharedPosition);
@@ -797,9 +841,18 @@ pub(crate) mod tests {
         )
     }
 
-    /// `compare` with both sides' sequences built on rCRS.
+    /// `compare` with both sides' sequences built on rCRS, every truth IUPAC
+    /// allele at or above the limit of detection.
     fn compared(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Comparison {
-        compare(dna, truth, measure, &haplotypes(dna, truth, rcrs()))
+        let below = BTreeSet::new();
+        let lod = (measure == Measure::HaplotypeLod).then_some(&below);
+        compare(
+            dna,
+            truth,
+            measure,
+            &haplotypes(dna, truth, rcrs(), lod),
+            &below,
+        )
     }
 
     #[test]
@@ -1323,7 +1376,7 @@ pub(crate) mod tests {
                 alleles,
                 intervals: &intervals,
             };
-            haplotypes(side(left), side(right), sequence).equivalence(None)
+            haplotypes(side(left), side(right), sequence, None).equivalence(None)
         };
         let mut rebuilt = Vec::new();
         let mut moved = 0;

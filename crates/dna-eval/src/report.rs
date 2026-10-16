@@ -13,6 +13,7 @@ use crate::baseline::{Class, Statuses};
 use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Region, Side};
 use crate::estimate::{self, Estimate, Observation};
 use crate::haplotype;
+use crate::lod;
 use crate::manifest::Sample;
 use crate::runner::Outcome;
 use crate::truth::{TruthCheck, TruthSample, TruthState};
@@ -25,6 +26,9 @@ pub(crate) struct Row<'a> {
     pub(crate) truth: Option<&'a TruthSample>,
     /// One comparison per measure, in [`Measure::ALL`] order.
     pub(crate) comparisons: Result<[Comparison; Measure::COUNT], Failure>,
+    /// Truth IUPAC positions below the limit of detection, which
+    /// `haplotype_lod` compares IUPAC-compatibly.
+    pub(crate) below_lod: usize,
 }
 
 /// Compares every sample's outcome, given in sample order, with its truth
@@ -41,27 +45,39 @@ pub(crate) fn rows<'a>(
         .zip(outcomes)
         .map(|(sample, outcome)| {
             let record = truth.get(&sample.id);
+            let mut below_lod = 0;
+            let comparisons = match (&outcome.result, record) {
+                (Err(failure), _) => Err(failure.clone()),
+                (Ok(_), None) => Err(Failure::TruthMissing),
+                (Ok(called), Some(record)) => {
+                    let dna = Side {
+                        alleles: &called.alleles,
+                        intervals: &called.intervals,
+                    };
+                    let truth = Side {
+                        alleles: &record.alleles,
+                        intervals: &record.intervals,
+                    };
+                    let below = lod::below(&record.alleles, &called.signals);
+                    below_lod = below.len();
+                    let haplotypes = compare::haplotypes(dna, truth, reference, None);
+                    let lod_haplotypes = compare::haplotypes(dna, truth, reference, Some(&below));
+                    Ok(Measure::ALL.map(|measure| {
+                        let haplotypes = if measure == Measure::HaplotypeLod {
+                            &lod_haplotypes
+                        } else {
+                            &haplotypes
+                        };
+                        compare::compare(dna, truth, measure, haplotypes, &below)
+                    }))
+                }
+            };
             Row {
                 sample,
                 outcome,
                 truth: record,
-                comparisons: match (&outcome.result, record) {
-                    (Err(failure), _) => Err(failure.clone()),
-                    (Ok(_), None) => Err(Failure::TruthMissing),
-                    (Ok(called), Some(record)) => {
-                        let dna = Side {
-                            alleles: &called.alleles,
-                            intervals: &called.intervals,
-                        };
-                        let truth = Side {
-                            alleles: &record.alleles,
-                            intervals: &record.intervals,
-                        };
-                        let haplotypes = compare::haplotypes(dna, truth, reference);
-                        Ok(Measure::ALL
-                            .map(|measure| compare::compare(dna, truth, measure, &haplotypes)))
-                    }
-                },
+                comparisons,
+                below_lod,
             }
         })
         .collect::<Vec<_>>();
@@ -348,30 +364,35 @@ impl<'a> Report<'a> {
              uncovered\tiupac_compatible_status\tiupac_compatible_concordant\t\
              haplotype_status\thaplotype_concordant\thaplotype_blocks\t\
              haplotype_iupac_compatible_status\thaplotype_iupac_compatible_concordant\t\
-             haplotype_iupac_compatible_blocks\ttraces\trejected_traces\tfailure\n",
+             haplotype_iupac_compatible_blocks\thaplotype_lod_status\thaplotype_lod_concordant\t\
+             haplotype_lod_blocks\tbelow_lod\ttraces\trejected_traces\tfailure\n",
         );
         for row in self.rows {
             let sample = row.sample;
             let primary = row.status(Measure::Primary);
             let strict = row.status(Measure::Strict);
             let compatible = row.status(Measure::IupacCompatible);
-            let haplotype = [Measure::Haplotype, Measure::HaplotypeIupacCompatible]
-                .map(|measure| {
-                    let status = row.status(measure);
-                    let blocks = row
-                        .comparison(measure)
-                        .map(|comparison| {
-                            comparison
-                                .blocks
-                                .iter()
-                                .map(haplotype::Block::text)
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        })
-                        .unwrap_or_default();
-                    format!("{}\t{}\t{blocks}", status.label(), status.code())
-                })
-                .join("\t");
+            let haplotype = [
+                Measure::Haplotype,
+                Measure::HaplotypeIupacCompatible,
+                Measure::HaplotypeLod,
+            ]
+            .map(|measure| {
+                let status = row.status(measure);
+                let blocks = row
+                    .comparison(measure)
+                    .map(|comparison| {
+                        comparison
+                            .blocks
+                            .iter()
+                            .map(haplotype::Block::text)
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .unwrap_or_default();
+                format!("{}\t{}\t{blocks}", status.label(), status.code())
+            })
+            .join("\t");
             let detail = row.comparison(Measure::Primary).map_or_else(
                 |_| "\t\t\t\t\t\t\t".to_owned(),
                 |comparison| {
@@ -407,6 +428,11 @@ impl<'a> Report<'a> {
                 .as_ref()
                 .map(|called| called.rejected.to_string())
                 .unwrap_or_default();
+            let below_lod = if row.comparisons.is_ok() {
+                row.below_lod.to_string()
+            } else {
+                String::new()
+            };
             let failure = row
                 .comparisons
                 .as_ref()
@@ -417,7 +443,7 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
-                 {haplotype}\t{traces}\t{rejected}\t{failure}",
+                 {haplotype}\t{below_lod}\t{traces}\t{rejected}\t{failure}",
                 sample.id,
                 sample.batch,
                 row.truth.map_or("", |truth| truth.batch.as_str()),
@@ -1073,6 +1099,7 @@ mod tests {
             Ok(Called {
                 rejected: index % 2,
                 alleles,
+                signals: lod::Signals::default(),
                 intervals: if index % 5 == 0 {
                     vec![(73, 340)]
                 } else {
@@ -1120,24 +1147,24 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\t2\t1\t",
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
-            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\t\
+            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
-             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\t2\t0\t",
+             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\t2\t0\t",
-            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\t\
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\t2\t0\t",
+            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {
@@ -1169,9 +1196,9 @@ mod tests {
                 .map(str::to_owned)
         };
         for (change, line) in [
-            ("added", "| added | 27 | 27 | 0 | 0 | 0 |"),
-            ("removed", "| removed | 1 | 1 | 0 | 0 | 0 |"),
-            ("regression", "| regression | 1 | 1 | 0 | 0 | 0 |"),
+            ("added", "| added | 27 | 27 | 0 | 0 | 0 | 0 |"),
+            ("removed", "| removed | 1 | 1 | 0 | 0 | 0 | 0 |"),
+            ("regression", "| regression | 1 | 1 | 0 | 0 | 0 | 0 |"),
         ] {
             assert_eq!(summary_counts(&one[4].1, change).as_deref(), Some(line));
             for (measure, column) in [("primary", 2), ("strict", 3), ("iupac_compatible", 4)] {
@@ -1189,7 +1216,7 @@ mod tests {
         }
         let anchors = &one[2].1;
         assert!(anchors.contains(
-            "S00\thard\tconcordant\tdiscordant\tconcordant\tconcordant\tconcordant\texact\tsame\n"
+            "S00\thard\tconcordant\tdiscordant\tconcordant\tconcordant\tconcordant\tconcordant\texact\tsame\n"
         ));
         let estimates = &one[1].1;
         assert!(estimates.contains("corpus\tstrict\tnot_concordant\tall\t"));

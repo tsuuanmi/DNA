@@ -1733,6 +1733,7 @@ mod tests {
                 rejected: 0,
                 alleles,
                 intervals: vec![(16024, 16365)],
+                signals: crate::lod::Signals::default(),
                 identity: Identity {
                     configuration_sha256: "c".into(),
                     reference_name: "r".into(),
@@ -1848,10 +1849,11 @@ mod tests {
             4.0 / 5.0
         ));
         // S0 leaks but under the haplotype measures, S1 but under the
-        // IUPAC-compatible ones.
+        // IUPAC-compatible ones and `haplotype_lod`: no read reaches the limit
+        // of detection at S1's IUPAC site, and DNA calls one of its bases.
         assert_eq!(
             measured.leaks.map(|leak| (leak.passed, leak.leaks)),
-            [(2, 2), (2, 2), (2, 1), (2, 1), (2, 0)]
+            [(2, 2), (2, 2), (2, 1), (2, 1), (2, 0), (2, 0)]
         );
         // Corpus-weighted A over S0..S4 (weights 2, 2, 1, 1, 1), by stratum.
         let pass = measured
@@ -1912,8 +1914,8 @@ mod tests {
             .ok_or("masked-read row")?;
         assert!(!masked_read.applied);
         assert!(files["triage_detectors.tsv"].contains(
-            "region.unreliable:masked_read\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t-\t-\t-\t-\t-\t-\t\
-             0\t0\t0\t0\t0\t0\t0"
+            "region.unreliable:masked_read\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t-\t-\t-\t-\t-\t-\t-\t\
+             0\t0\t0\t0\t0\t0\t0\t0"
         ));
         assert!(files["triage.md"].contains("| primary | 2 | 2 | 1.0000 |"));
         assert!(files["triage.md"].contains("| haplotype_iupac_compatible | 2 | 0 | 0.0000 |"));

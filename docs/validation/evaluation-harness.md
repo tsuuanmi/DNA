@@ -233,8 +233,8 @@ outputs are unchanged.
 ## Measures
 
 The truth side is compared as stored in the database; DNA's side uses its
-notation. Every sample is compared under five measures: primary, strict,
-IUPAC-compatible, and the two haplotype measures.
+notation. Every sample is compared under six measures: primary, strict,
+IUPAC-compatible, the two haplotype measures, and haplotype LoD.
 
 **Primary.** The lab's concordance (`mtdna_raw`, `src/core/comparison.py`,
 `SampleComparator.is_concordant`), with DNA as tool A (the automated caller)
@@ -327,6 +327,23 @@ haplotype measure exactly when, apart from special-position indel lengths,
 every allele the base rules count describes the same sequence as the other
 side's, or the base rules find it concordant anyway. A sample concordant
 under the base rules stays concordant.
+
+**Haplotype LoD.** The haplotype measure, except at a truth heteroplasmy
+the traces cannot show (`lod.rs`). A truth substitution to a two-base IUPAC
+code is *observed* when the covering admitted reads show both of its bases
+there, each as some read's call or as some read's second channel (a channel
+other than its own call) at 0.10 or more of its normalised A/C/G/T profile
+(rounded to thousandths, so 0.0995 counts), or when one of its bases shows
+as such a second channel; otherwise it is *below the limit of detection*.
+Every observation of an admitted read counts, masked ones included, so the
+limit errs toward counting a heteroplasmy as observed. Below the limit the allele compares as under the haplotype
+IUPAC-compatible measure: DNA's base there, or the reference where DNA calls
+nothing but reads the position, matches when it is one of the code's bases,
+in the alleles and in the sequences. At or above the limit the code must
+match exactly. A minor reference base where DNA calls the alternate shows the
+heteroplasmy as well. The limit is 10 % (user, 2026-10-16; see the
+[approval protocol](../proposals/0005-evaluation-feedback-loop.md)); each
+sample's count of truth IUPAC positions below it is reported (`below_lod`).
 
 **DNA's callable intervals.** The comparable span is DNA's callable
 intervals, which leave out unresolved consensus bases (`N`; SRS-ALN-015), so
@@ -528,7 +545,7 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype and haplotype IUPAC-compatible status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |

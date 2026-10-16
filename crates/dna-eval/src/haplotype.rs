@@ -22,8 +22,8 @@
 //! over one; an edit is explained when that way finds no block over it.
 //!
 //! Symbols are compared exactly or, when the caller gives a `compatible`
-//! test, a truth symbol written by a truth allele also matches a DNA symbol
-//! it is compatible with. An interval where every way has two edits at one
+//! test, a truth symbol written by a lenient truth allele also matches a DNA
+//! symbol it is compatible with. An interval where every way has two edits at one
 //! base or insertion ordinal, or an edit that cannot be applied or leaves the
 //! interval, is not decided.
 
@@ -45,6 +45,9 @@ pub(crate) struct Edit<'a> {
     pub(crate) symbols: Option<&'a str>,
     /// Whether the comparison rules leave the edit out.
     pub(crate) special: bool,
+    /// Whether a truth edit's symbols may match a compatible DNA symbol under
+    /// an IUPAC-compatible symbol test.
+    pub(crate) lenient: bool,
 }
 
 impl Edit<'_> {
@@ -74,7 +77,7 @@ pub(crate) struct Block {
     pub(crate) dna: String,
     /// The truth's local sequence.
     pub(crate) truth: String,
-    /// Per truth symbol, whether a truth allele wrote it.
+    /// Per truth symbol, whether a lenient truth allele wrote it.
     truth_written: Vec<bool>,
     /// The block reaches the end of its interval with unequal lengths.
     pub(crate) open: bool,
@@ -299,7 +302,7 @@ fn columns<'a>(
     let mut columns = BTreeMap::<i64, Column<'a>>::new();
     let edits = own
         .iter()
-        .map(|edit| (edit, true))
+        .map(|edit| (edit, edit.lenient))
         .chain(borrowed.iter().map(|edit| (edit, false)));
     for (edit, written) in edits {
         let symbols = edit.symbols?;
@@ -443,6 +446,7 @@ mod tests {
                     span: i64::try_from(span.len().max(1)).unwrap_or(1),
                     symbols: Some(if symbol == "-" { "" } else { symbol }),
                     special,
+                    lenient: true,
                 }
             })
             .collect()
@@ -520,6 +524,7 @@ mod tests {
             span: 2,
             symbols: Some("AT"),
             special: false,
+            lenient: true,
         };
         let equivalence =
             Haplotypes::new(REFERENCE, &[(1, 8)], &[mnv], &edits(&["7A", "8T"])).equivalence(None);
@@ -622,6 +627,7 @@ mod tests {
             span: 1,
             symbols: None,
             special: false,
+            lenient: true,
         };
         assert_eq!(
             Haplotypes::new(REFERENCE, &[(1, 8)], &[unusable], &[]),
