@@ -88,12 +88,14 @@ impl Threads {
     }
 }
 
-/// Runs DNA over every sample with `threads` workers, taking each sample's
+/// Runs DNA over every sample with `threads` workers on `reference`, the
+/// FASTA path and the SHA-256 of the sequence the harness compares on (a
+/// sample DNA analyses on another sequence fails), taking each sample's
 /// draft triage evidence when `triage` is set: from the analysis, even when
 /// its call then fails, or from the rejected reads when none is admitted.
 pub(crate) fn run(
     samples: &[Sample],
-    reference: &Path,
+    (reference, reference_sha256): (&Path, &str),
     config: &Path,
     threads: Threads,
     triage: bool,
@@ -118,6 +120,15 @@ pub(crate) fn run(
             }
             Err(error) => return (Err(failure(error)), None),
         };
+        if analysis.reference.sha256 != reference_sha256 {
+            return (
+                Err(Failure::Reference {
+                    analysed: analysis.reference.sha256.clone(),
+                    compared: reference_sha256.to_owned(),
+                }),
+                None,
+            );
+        }
         let evidence = triage.then(|| evidence::extract(&analysis));
         (call(&analysis, &sample.id), evidence)
     })

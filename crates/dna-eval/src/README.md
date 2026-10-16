@@ -5,9 +5,11 @@ The evaluation harness
 the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
 with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
-`sample_analysis` capability it runs, and on `dna-core` and `dna-sanger` only
-to name the evidence types the draft triage reads. No crate depends on it, and it is not
-part of the release.
+`sample_analysis` capability it runs, on `dna-core` and `dna-sanger` only
+to name the evidence types the draft triage reads, and on `dna-kernel` to load
+the reference the haplotype measures apply alleles to; its tests use
+`dna-post`'s normalization and nomenclature as the oracle of sequence
+equivalence. No crate depends on it, and it is not part of the release.
 
 - `main.rs` — command line (`run`, `panel`), run orchestration, output
   directory, and the `run.json` header.
@@ -22,7 +24,12 @@ part of the release.
   also takes each sample's triage evidence, from the analysis even when the
   call then fails, or from the rejected reads when none is admitted.
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary
-  (the lab's rules), strict, and IUPAC-compatible measures.
+  (the lab's rules), strict, IUPAC-compatible, and haplotype measures, and the
+  comparable intervals and edits of the haplotype measures.
+- `haplotype.rs` — the haplotype equivalence of two edit sets: both applied
+  to the reference over each comparable interval, once per way of taking
+  the special-position indels, and cut into blocks where their lengths agree;
+  built once per sample and read under exact or compatible symbols.
 - `estimate.rs` — stratified weighted rates with their 95 % intervals.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the

@@ -327,8 +327,12 @@ impl<'a> Triage<'a> {
     fn samples(&self) -> String {
         let mut text = String::from(
             "sample_id\tstratum\tweight_corpus\tretired\toutcome\tregions\tfindings\t\
-             poor_traces\trerun_traces\tstatus\tstrict_status\tiupac_compatible_status\n",
+             poor_traces\trerun_traces",
         );
+        for measure in Measure::ALL {
+            let _ = write!(text, "\t{}", measure.column());
+        }
+        text.push('\n');
         for (_, row, decision, class) in self.all() {
             let traces = evidence(row).map_or(&[][..], |evidence| &evidence.traces[..]);
             let (regions, mut findings, poor, rerun) =
@@ -378,18 +382,19 @@ impl<'a> Triage<'a> {
                 }
                 let _ = write!(findings, "minor_unavailable={failure}");
             }
-            let _ = writeln!(
+            let _ = write!(
                 text,
-                "{}\t{}\t{}\t{}\t{}\t{regions}\t{findings}\t{poor}\t{rerun}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{regions}\t{findings}\t{poor}\t{rerun}",
                 row.sample.id,
                 row.sample.stratum,
                 row.sample.weight_corpus.text,
                 u8::from(row.sample.retired),
                 class.label(),
-                row.status(Measure::Primary).label(),
-                row.status(Measure::Strict).label(),
-                row.status(Measure::IupacCompatible).label(),
             );
+            for measure in Measure::ALL {
+                let _ = write!(text, "\t{}", row.status(measure).label());
+            }
+            text.push('\n');
         }
         text
     }
@@ -401,9 +406,11 @@ impl<'a> Triage<'a> {
         for detector in detectors {
             let _ = write!(text, "\t{}", detector.label());
         }
-        text.push_str(
-            "\trerun_traces\tprimary_positions\tstrict_positions\tiupac_compatible_positions\n",
-        );
+        text.push_str("\trerun_traces");
+        for measure in Measure::ALL {
+            let _ = write!(text, "\t{}_positions", measure.label());
+        }
+        text.push('\n');
         for (_, row, decision, _) in self.all() {
             let (Some(decision), Some(evidence)) = (decision, evidence(row)) else {
                 continue;
@@ -663,35 +670,43 @@ impl<'a> Triage<'a> {
     /// `triage_detectors.tsv`: `unique_*` and `sole_burden` for applied
     /// detectors, `if_applied_*` for the others; the other set is `-`.
     fn detectors(&self) -> String {
-        let mut text = String::from(
-            "detector\tapplied\tsamples\tregions\tpositions\tcatches_primary\tcatches_strict\t\
-             catches_iupac_compatible\tburden\tunique_primary\tunique_strict\t\
-             unique_iupac_compatible\tsole_burden\tif_applied_catches_primary\t\
-             if_applied_catches_strict\tif_applied_catches_iupac_compatible\t\
-             if_applied_burden\tposition_hits_primary\n",
+        let columns = |prefix: &str, last: &str| {
+            let mut columns = Measure::ALL
+                .map(|measure| format!("{prefix}{}", measure.label()))
+                .join("\t");
+            let _ = write!(columns, "\t{last}");
+            columns
+        };
+        let mut text = format!(
+            "detector\tapplied\tsamples\tregions\tpositions\t{}\t{}\t{}\tposition_hits_primary\n",
+            columns("catches_", "burden"),
+            columns("unique_", "sole_burden"),
+            columns("if_applied_catches_", "if_applied_burden"),
         );
+        let join = |values: &[usize]| {
+            values
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\t")
+        };
         for row in self.detector_rows() {
-            let alone = format!(
-                "{}\t{}\t{}\t{}",
-                row.alone[0], row.alone[1], row.alone[2], row.alone_burden
-            );
-            let none = "-\t-\t-\t-";
+            let alone = format!("{}\t{}", join(&row.alone), row.alone_burden);
+            let none = ["-"; Measure::COUNT + 1].join("\t");
             let (unique, added) = if row.applied {
-                (alone.as_str(), none)
+                (alone.as_str(), none.as_str())
             } else {
-                (none, alone.as_str())
+                (none.as_str(), alone.as_str())
             };
             let _ = writeln!(
                 text,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{unique}\t{added}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{unique}\t{added}\t{}",
                 row.detector.label(),
                 u8::from(row.applied),
                 row.samples,
                 row.regions,
                 row.positions,
-                row.catches[0],
-                row.catches[1],
-                row.catches[2],
+                join(&row.catches),
                 row.burden,
                 row.hits,
             );
@@ -888,9 +903,13 @@ impl<'a> Triage<'a> {
         text.push_str(
             "\n## Regions\n\nOutcomes of the regions of decided samples with region evidence, \
              as counts and as shares weighted by the samples' `weight_corpus`, and discordant \
-             positions inside passed regions (region leaks) per measure.\n\n\
-             | Region | Pass | Review | Rerun | Pass corpus | Review corpus | Rerun corpus | Leaks primary | Leaks strict | Leaks IUPAC-compatible |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+             positions inside passed regions (region leaks) per measure.\n\n",
+        );
+        let (header, separator) = measure_columns(&["Leaks"]);
+        let _ = write!(
+            text,
+            "| Region | Pass | Review | Rerun | Pass corpus | Review corpus | Rerun corpus |{header}\n\
+             |---|---:|---:|---:|---:|---:|---:|{separator}\n"
         );
         let mut total = Tally::default();
         let lines = self
@@ -905,19 +924,20 @@ impl<'a> Triage<'a> {
         }
         for (label, tally, index) in lines.into_iter().chain([("all", &total, None)]) {
             let leak = |measure: Measure| leaks.get(&(measure, index)).copied().unwrap_or(0);
-            let _ = writeln!(
+            let _ = write!(
                 text,
-                "| {label} | {} | {} | {} | {:.4} | {:.4} | {:.4} | {} | {} | {} |",
+                "| {label} | {} | {} | {} | {:.4} | {:.4} | {:.4} |",
                 tally.count(Outcome::Pass),
                 tally.count(Outcome::Review),
                 tally.count(Outcome::Rerun),
                 tally.weighted(Outcome::Pass),
                 tally.weighted(Outcome::Review),
                 tally.weighted(Outcome::Rerun),
-                leak(Measure::Primary),
-                leak(Measure::Strict),
-                leak(Measure::IupacCompatible),
             );
+            for measure in Measure::ALL {
+                let _ = write!(text, " {} |", leak(measure));
+            }
+            text.push('\n');
         }
     }
 
@@ -969,20 +989,22 @@ impl<'a> Triage<'a> {
                 .count()
         };
         let rows = self.detector_rows();
-        let _ = write!(
-            text,
+        text.push_str(
             "\n## Detectors\n\nPer region detector, over analysed and compared samples: samples \
              it flags, not-concordant samples among them (catches), concordant samples it flags \
-             (burden), and primary discordant positions it marks itself (hits). Not concordant: \
-             {} primary, {} strict, {} IUPAC-compatible.\n\n\
-             Applied detectors, with the catches no other applied detector makes (unique) and \
-             the concordant samples only it holds back (sole burden: clearing it would pass \
-             them):\n\n\
-             | Detector | Samples | Catches primary | Unique primary | Catches strict | Unique strict | Catches IUPAC | Unique IUPAC | Burden | Sole burden | Hits |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
-            discordant(Measure::Primary),
-            discordant(Measure::Strict),
-            discordant(Measure::IupacCompatible),
+             (burden), and primary discordant positions it marks itself (hits). Not concordant:",
+        );
+        let counts = Measure::ALL
+            .map(|measure| format!(" {} {}", discordant(measure), measure.label()))
+            .join(",");
+        let (header, separator) = measure_columns(&["Catches", "Unique"]);
+        let _ = write!(
+            text,
+            "{counts}.\n\nApplied detectors, with the catches no other applied detector makes \
+             (unique) and the concordant samples only it holds back (sole burden: clearing it \
+             would pass them):\n\n\
+             | Detector | Samples |{header} Burden | Sole burden | Hits |\n\
+             |---|---:|{separator}---:|---:|---:|\n"
         );
         for row in rows.iter().filter(|row| row.applied) {
             row.line(text);
@@ -990,9 +1012,13 @@ impl<'a> Triage<'a> {
         text.push_str(
             "\nMeasured but not applied, with what applying each would add: the not-concordant \
              samples it would newly catch and the concordant samples it would newly hold back \
-             (lost A):\n\n\
-             | Detector | Samples | Catches primary | Added primary | Catches strict | Added strict | Catches IUPAC | Added IUPAC | Burden | Added burden | Hits |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+             (lost A):\n\n",
+        );
+        let (header, separator) = measure_columns(&["Catches", "Added"]);
+        let _ = write!(
+            text,
+            "| Detector | Samples |{header} Burden | Added burden | Hits |\n\
+             |---|---:|{separator}---:|---:|---:|\n"
         );
         for row in rows.iter().filter(|row| !row.applied) {
             row.line(text);
@@ -1068,9 +1094,13 @@ impl<'a> Triage<'a> {
     fn sweep_section(&self, text: &mut String) {
         text.push_str(
             "\n## Sweep (risk–coverage)\n\nEach policy changes one thing against the draft. \
-             Leaks are passed samples not concordant, with the one-sided 95 % upper bound.\n\n\
-             | Policy | Pass | Pass share | Pass corpus | Review corpus | Rerun corpus | Leaks primary | Upper | Leaks strict | Upper | Leaks IUPAC | Upper |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+             Leaks are passed samples not concordant, with the one-sided 95 % upper bound.\n\n",
+        );
+        let (header, separator) = measure_columns(&["Leaks", "Upper"]);
+        let _ = write!(
+            text,
+            "| Policy | Pass | Pass share | Pass corpus | Review corpus | Rerun corpus |{header}\n\
+             |---|---:|---:|---:|---:|---:|{separator}\n"
         );
         for (policy, measured) in self.policies.iter().zip(&self.measurements) {
             let corpus = |class: Class| {
@@ -1204,7 +1234,7 @@ struct Measurement {
     classes: BTreeMap<Class, usize>,
     estimates: Vec<(Class, Estimate)>,
     /// Per measure, in [`Measure::ALL`] order.
-    leaks: [Leak; 3],
+    leaks: [Leak; Measure::COUNT],
     /// Per region, the outcomes of decided samples with region evidence.
     regions: Vec<Tally>,
 }
@@ -1215,7 +1245,7 @@ impl Measurement {
     fn of(rows: &[Row<'_>], decisions: &[Option<SampleDecision>], regions: usize) -> Self {
         let mut classes = BTreeMap::<Class, usize>::new();
         let mut scored = Vec::new();
-        let mut leaks = [Leak::default(); 3];
+        let mut leaks = [Leak::default(); Measure::COUNT];
         let mut tallies = vec![Tally::default(); regions];
         for (row, decision) in rows.iter().zip(decisions) {
             if row.sample.retired {
@@ -1358,12 +1388,12 @@ struct DetectorRow {
     samples: usize,
     regions: usize,
     positions: usize,
-    catches: [usize; 3],
+    catches: [usize; Measure::COUNT],
     burden: usize,
     /// Not-concordant samples, per measure, that no other applied detector
     /// flags: unique catches of an applied detector, added catches of one the
     /// policy does not apply.
-    alone: [usize; 3],
+    alone: [usize; Measure::COUNT],
     /// Concordant samples no other applied detector flags: the sole burden of
     /// an applied detector, the added burden (lost A) of one not applied.
     alone_burden: usize,
@@ -1378,31 +1408,37 @@ impl DetectorRow {
             samples: 0,
             regions: 0,
             positions: 0,
-            catches: [0; 3],
+            catches: [0; Measure::COUNT],
             burden: 0,
-            alone: [0; 3],
+            alone: [0; Measure::COUNT],
             alone_burden: 0,
             hits: 0,
         }
     }
 
     fn line(&self, text: &mut String) {
+        let _ = write!(text, "| {} | {} |", self.detector.label(), self.samples);
+        for (catches, alone) in self.catches.iter().zip(&self.alone) {
+            let _ = write!(text, " {catches} | {alone} |");
+        }
         let _ = writeln!(
             text,
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-            self.detector.label(),
-            self.samples,
-            self.catches[0],
-            self.alone[0],
-            self.catches[1],
-            self.alone[1],
-            self.catches[2],
-            self.alone[2],
-            self.burden,
-            self.alone_burden,
-            self.hits
+            " {} | {} | {} |",
+            self.burden, self.alone_burden, self.hits
         );
     }
+}
+
+/// Markdown header cells and separators for `names` under every measure:
+/// ` Leaks Primary | Upper Primary | …` and `---:|---:|…`.
+fn measure_columns(names: &[&str]) -> (String, String) {
+    let mut header = String::new();
+    for measure in Measure::ALL {
+        for name in names {
+            let _ = write!(header, " {name} {} |", measure.title());
+        }
+    }
+    (header, "---:|".repeat(names.len() * Measure::COUNT))
 }
 
 /// One discordant position of one sample under one measure.
@@ -1556,6 +1592,7 @@ mod tests {
             positions: BTreeSet::new(),
             iupac_only: false,
             uncovered: vec![Allele::new("16519", "T", "C")],
+            blocks: Vec::new(),
         };
         let detail = Detail::of(&comparison, "16189");
         assert_eq!((detail.kind, detail.class), ("both", "iupac"));
@@ -1572,11 +1609,13 @@ mod tests {
         assert_eq!(Detail::of(&comparison, "73").kind, "none");
     }
 
-    /// Four samples through decision and score: a clean pass, a passed
-    /// sample discordant only at a truth IUPAC allele (a leak under the
-    /// primary and strict measures), a one-strand review that catches a
-    /// discordant sample, and a DNA failure; then a minor signal at the
-    /// IUPAC site that removes the leak.
+    /// Samples through decision and score: a passed sample that places an
+    /// insertion elsewhere in one C run (a leak but under the haplotype
+    /// measures), a passed sample discordant only at a truth IUPAC allele (a
+    /// leak but under the IUPAC-compatible measures), a one-strand review
+    /// that catches a discordant sample, a DNA failure, and a sample whose
+    /// reads were all rejected; then a minor signal at the IUPAC site
+    /// that removes the leak, and minor channels that cannot be read.
     #[test]
     fn scores_outcomes_leaks_and_catches() -> Result<(), Box<dyn std::error::Error>> {
         use crate::compare::Failure;
@@ -1641,10 +1680,11 @@ mod tests {
             millis: 0,
         };
         let c16189 = || Allele::new("16189", "T", "C");
+        let insertion = |position: &str| Allele::new(position, "-", "C");
         let outcomes = vec![
+            called(vec![c16189(), insertion("16190.1")], None),
             called(vec![c16189()], None),
-            called(vec![c16189()], None),
-            called(vec![c16189()], Some(10)),
+            called(vec![c16189()], Some(12)),
             Run {
                 traces: Some(1),
                 result: Err(Failure::Dna("unreadable".into())),
@@ -1684,16 +1724,21 @@ mod tests {
             intervals: vec![(16024, 16365)],
         };
         let records = BTreeMap::from([
-            ("S0".to_owned(), truth(vec![c16189()])),
+            ("S0".to_owned(), truth(vec![c16189(), insertion("16193.1")])),
             ("S1".to_owned(), truth(vec![Allele::new("16189", "T", "Y")])),
             (
                 "S2".to_owned(),
-                truth(vec![c16189(), Allele::new("16190", "T", "C")]),
+                truth(vec![c16189(), Allele::new("16192", "C", "T")]),
             ),
             ("S3".to_owned(), truth(vec![c16189()])),
             ("S4".to_owned(), truth(vec![c16189()])),
         ]);
-        let rows = crate::report::rows(&manifest.samples, &outcomes, &records);
+        let rows = crate::report::rows(
+            &manifest.samples,
+            &outcomes,
+            &records,
+            compare::tests::rcrs(),
+        );
         let triage = Triage::new(&rows, sweep());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
 
@@ -1724,10 +1769,12 @@ mod tests {
             measured.regions[0].weighted(Outcome::Pass),
             4.0 / 5.0
         ));
-        let [primary, strict, compatible] = measured.leaks;
-        assert_eq!((primary.passed, primary.leaks), (2, 1));
-        assert_eq!((strict.passed, strict.leaks), (2, 1));
-        assert_eq!((compatible.passed, compatible.leaks), (2, 0));
+        // S0 leaks but under the haplotype measures, S1 but under the
+        // IUPAC-compatible ones.
+        assert_eq!(
+            measured.leaks.map(|leak| (leak.passed, leak.leaks)),
+            [(2, 2), (2, 2), (2, 1), (2, 1), (2, 0)]
+        );
         // Corpus-weighted A over S0..S4 (weights 2, 2, 1, 1, 1), by stratum.
         let pass = measured
             .estimate(Class::Decided(Outcome::Pass))
@@ -1738,13 +1785,30 @@ mod tests {
             .lines()
             .skip(1)
             .collect::<Vec<_>>();
-        assert_eq!(
-            leaks,
+        let representation = |measure: &str| {
             [
-                "S1\tclean\tpass\tprimary\t16180-16200\t16189\thv1_polyc\tboth\tiupac\t16189C\t16189Y\t",
-                "S1\tclean\tpass\tstrict\t16180-16200\t16189\thv1_polyc\tboth\tiupac\t16189C\t16189Y\t",
+                format!(
+                    "S0\tclean\tpass\t{measure}\t16180-16200\t16190.1\thv1_polyc\tdna_unique\t\
+                     insertion\t16190.1C\t\t"
+                ),
+                format!(
+                    "S0\tclean\tpass\t{measure}\t16180-16200\t16193.1\thv1_polyc\ttruth_unique\t\
+                     insertion\t\t16193.1C\t"
+                ),
             ]
-        );
+        };
+        let iupac = |measure: &str| {
+            format!(
+                "S1\tclean\tpass\t{measure}\t16180-16200\t16189\thv1_polyc\tboth\tiupac\t16189C\t\
+                 16189Y\t"
+            )
+        };
+        let mut expected = Vec::new();
+        for measure in ["primary", "strict", "iupac_compatible"] {
+            expected.extend(representation(measure));
+        }
+        expected.extend(["primary", "strict", "haplotype"].map(iupac));
+        assert_eq!(leaks, expected);
 
         let detectors = triage.detector_rows();
         let one_strand = detectors
@@ -1760,7 +1824,7 @@ mod tests {
                 one_strand.burden,
                 one_strand.hits
             ),
-            (true, 1, [1, 1, 1], [1, 1, 1], 0, 1)
+            (true, 1, [1; Measure::COUNT], [1; Measure::COUNT], 0, 1)
         );
         // Not applied: its counters say what applying it would add, and the
         // TSV leaves its unique columns empty.
@@ -1770,9 +1834,11 @@ mod tests {
             .ok_or("masked-read row")?;
         assert!(!masked_read.applied);
         assert!(files["triage_detectors.tsv"].contains(
-            "region.unreliable:masked_read\t0\t0\t0\t0\t0\t0\t0\t0\t-\t-\t-\t-\t0\t0\t0\t0\t0"
+            "region.unreliable:masked_read\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t-\t-\t-\t-\t-\t-\t\
+             0\t0\t0\t0\t0\t0\t0"
         ));
-        assert!(files["triage.md"].contains("| primary | 2 | 1 | 0.5000 |"));
+        assert!(files["triage.md"].contains("| primary | 2 | 2 | 1.0000 |"));
+        assert!(files["triage.md"].contains("| haplotype_iupac_compatible | 2 | 0 | 0.0000 |"));
         assert!(
             files["triage_sweep.tsv"]
                 .lines()
@@ -1788,7 +1854,8 @@ mod tests {
 
         // Both strands show the C/T pair at S1's IUPAC site: the draft's
         // minor-signal rule sends S1 to review, removing its leak without
-        // burden, and catches the one IUPAC site.
+        // burden, and catches the one IUPAC site. S0's placement leak stays
+        // under the primary measure.
         let mut runs = outcomes.clone();
         let minor = |strand| Minor {
             strand,
@@ -1803,12 +1870,12 @@ mod tests {
         };
         evidence.minor = vec![vec![Vec::new(); 21]];
         evidence.minor[0][9] = vec![minor(Strand::Forward), minor(Strand::Reverse)];
-        let rows = crate::report::rows(&manifest.samples, &runs, &records);
+        let rows = crate::report::rows(&manifest.samples, &runs, &records, compare::tests::rcrs());
         let triage = Triage::new(&rows, sweep());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
         let measured = triage.reported().ok_or("a measurement")?;
         assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 1);
-        assert_eq!(measured.leaks[0].leaks, 0);
+        assert_eq!(measured.leaks[0].leaks, 1);
         let draft = files["triage_minor.tsv"]
             .lines()
             .nth(1)
@@ -1818,7 +1885,7 @@ mod tests {
         // Moved, burden, sites, caught, sites in any region, caught there.
         assert_eq!(draft[5..11], ["1", "0", "1", "1", "1", "1"]);
         // Passed and leaks without and with the rule, primary.
-        assert_eq!(draft[11..15], ["2", "1", "1", "0"]);
+        assert_eq!(draft[11..15], ["2", "2", "1", "1"]);
         assert!(
             files["triage.tsv"]
                 .lines()
@@ -1854,8 +1921,9 @@ mod tests {
             evidence.minor = Vec::new();
             evidence.minor_failure = Some("cannot read the observations: broken".into());
         }
-        let rows = crate::report::rows(&manifest.samples, &runs, &records);
-        assert_eq!(rows[0].status(Measure::Primary), Status::Concordant);
+        let rows = crate::report::rows(&manifest.samples, &runs, &records, compare::tests::rcrs());
+        // S0's status (its placement leak) does not depend on the evidence.
+        assert_eq!(rows[0].status(Measure::Primary), Status::Discordant);
         let triage = Triage::new(&rows, sweep());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
         let first = files["triage.tsv"].lines().nth(1).ok_or("S0's row")?;

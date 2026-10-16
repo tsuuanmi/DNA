@@ -21,8 +21,8 @@ pub(super) struct Effect {
     pass_with: f64,
     /// Passed samples and leaks without the rule and with it, per measure in
     /// [`Measure::ALL`] order.
-    leaks_without: [Leak; 3],
-    leaks_with: [Leak; 3],
+    leaks_without: [Leak; Measure::COUNT],
+    leaks_with: [Leak; Measure::COUNT],
     /// Compared samples the rule alone sends from pass to review, and the
     /// concordant ones among them (burden).
     moved: usize,

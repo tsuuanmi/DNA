@@ -115,8 +115,11 @@ process, with the configuration and reference given. Its notation calls become a
 callable reference segments become DNA's intervals. Samples run on a pool of
 scoped threads (`--threads`). A sample whose traces cannot be read, that DNA
 rejects, or on which DNA panics gets a failure row; the others continue. The
-truth of the whole panel loads before DNA runs, so a database that cannot be
-opened, has another schema, or fails a query stops the run first.
+truth of the whole panel and the reference load before DNA runs, so a
+database that cannot be opened, has another schema, or fails a query, or a
+reference that cannot be read, stops the run first. The haplotype measures
+compare on that reference sequence; a sample that DNA analyses on another
+sequence gets a failure row (kind `reference`).
 
 `--triage` also takes each sample's triage evidence from the same analysis
 and runs the [draft triage](#draft-triage); without it the run and its
@@ -125,7 +128,8 @@ outputs are unchanged.
 ## Measures
 
 The truth side is compared as stored in the database; DNA's side uses its
-notation. Every sample is compared under three measures.
+notation. Every sample is compared under five measures: primary, strict,
+IUPAC-compatible, and the two haplotype measures.
 
 **Primary.** The lab's concordance (`mtdna_raw`, `src/core/comparison.py`,
 `SampleComparator.is_concordant`), with DNA as tool A (the automated caller)
@@ -161,6 +165,71 @@ position and reference match when their called bases share a possible base
 (`16189C` and `16189Y`), and where DNA calls nothing inside its callable
 intervals its base is the reference, which matches a truth IUPAC allele whose
 code admits the reference (`16189Y` over a reference `T`).
+
+**Haplotype and haplotype IUPAC-compatible.** The primary and the
+IUPAC-compatible rules, applied only to alleles that do not describe the same
+sequence on both sides, so a haplotype written or placed differently is not a
+difference (`16190.1C` and `16193.1C` in the C run 16190–16193, `248DEL` and
+`249DEL` over `AA`, `514DEL 515DEL` and `523DEL 524DEL` in the AC repeat,
+`16182.1C 16189C 16193DEL` and `16183C 16184A 16189C`):
+
+- the comparable intervals are the HV regions within DNA's callable
+  intervals (merged where they touch), or the HV regions when DNA reports
+  none; there is no circular seam inside them;
+- in each, both sides' alleles are applied to the reference: an allele
+  replaces as many bases as its reference has (`514`, `CA`, `-` deletes 514
+  and 515; equally many alternate bases substitute them one by one),
+  insertions follow their anchor base in ordinal order, and IUPAC codes stay
+  as written. Only the reference's length is used, not its bases;
+- the interval is walked base by base and cut wherever both local sequences
+  have the same length, so the sequences are equal exactly when every piece
+  is. A piece that differs is a *block*. A block that reaches the end of its
+  interval with unequal lengths is *open*: the length difference may
+  continue where DNA has no callable base;
+- the haplotype measure compares symbols exactly. The haplotype
+  IUPAC-compatible measure also lets a symbol that a truth allele wrote match
+  a DNA symbol that shares a base with it (`16191Y` against DNA's `T`, or
+  against the reference base where DNA calls nothing), as two alleles do
+  under the IUPAC-compatible rules. A symbol that comes from the reference on
+  the truth side matches only itself, so a DNA code (`Y`, `N`) where the
+  truth calls nothing stays a difference;
+- alleles whose bases lie in the interval outside every block describe the
+  same sequence and leave the comparison; the rules decide the rest, special
+  positions still left out of them, and `N/A` is decided on all alleles.
+  An interval where one side has two alleles at one base or insertion
+  ordinal, or an allele that cannot be applied (an insertion without an
+  ordinal, an ordinal on a reference base, an inserted `-`, a reference or
+  alternate that is empty or not ASCII, or bases past the interval), cannot
+  be built and stays under the rules.
+
+Special-position indels are left out of the rules, as in `comparison.py`, so
+their lengths must not decide a difference in the sequences either, yet they
+can write a placement (`455.1T 459DEL` equals `456T`; `573.1C` equals
+`570.1C`). Each interval is therefore built three ways when the sides'
+special-position indels differ: each side with its own, both with DNA's, and
+both with the truth's. One way decides the whole interval: the first that
+leaves no block over any allele the rules count, or else the first with the
+fewest such blocks (a count of blocks, not of unexplained alleles, so a tie
+falls to the earlier way; this errs toward discordance). An allele leaves the comparison when the deciding way
+finds no block over its bases, so two alleles of one interval are never
+explained by two different ways. With their own indels, `455.1T 459DEL` against `456T`
+is one sequence; with the same indels, `309.1C 315.1C` against
+`309.1C 309.2C 310.1C` is (only the excluded 309.2C length differs). A
+difference that remains under every way stays a difference.
+
+Only representation therefore changes a status: a sample is concordant on a
+haplotype measure exactly when, apart from special-position indel lengths,
+every allele the base rules count describes the same sequence as the other
+side's, or the base rules find it concordant anyway. A sample concordant
+under the base rules stays concordant.
+
+**Dependency on DNA's callable intervals.** The comparable span is DNA's
+callable intervals, and these currently also span runs of `N` in the
+consensus. Inside such a run DNA's sequence falls back to the reference
+there, and the IUPAC-compatible rules' "where DNA calls nothing" includes
+positions where DNA has `N`, so a truth heteroplasmy inside an `N` run could
+falsely match. The numbers of these measures are re-measured once `dna call`
+leaves unresolved consensus bases out of its callable segments.
 
 For each sample the harness also reports, on the primary measure, the alleles
 unique to each side (special positions left out), every rule that applies,
@@ -349,13 +418,13 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype and haplotype IUPAC-compatible status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
-| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, anchors, and the baseline |
-| `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (or the evidence failure), poor traces, the traces a rerun asks for, and the status under each measure |
+| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
+| `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (and `minor_unavailable=…` when the minor channels could not be read), poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
 | `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |
 | `triage_leaks.tsv` | with `--triage`, every discordant position inside a passed region under each measure: the sample's outcome, region, position, window, kind, class, the alleles of each side, and the detectors marking it |

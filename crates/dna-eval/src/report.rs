@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use crate::baseline::{Class, Statuses};
 use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Region, Side};
 use crate::estimate::{self, Estimate, Observation};
+use crate::haplotype;
 use crate::manifest::Sample;
 use crate::runner::Outcome;
 use crate::truth::{TruthCheck, TruthSample, TruthState};
@@ -23,15 +24,17 @@ pub(crate) struct Row<'a> {
     /// The sample's truth record, when the truth has one.
     pub(crate) truth: Option<&'a TruthSample>,
     /// One comparison per measure, in [`Measure::ALL`] order.
-    pub(crate) comparisons: Result<[Comparison; 3], Failure>,
+    pub(crate) comparisons: Result<[Comparison; Measure::COUNT], Failure>,
 }
 
 /// Compares every sample's outcome, given in sample order, with its truth
-/// under every measure, and sorts the rows by sample identifier.
+/// under every measure, on `reference` (the reference sequence DNA ran on),
+/// and sorts the rows by sample identifier.
 pub(crate) fn rows<'a>(
     samples: &'a [Sample],
     outcomes: &'a [Outcome],
     truth: &'a BTreeMap<String, TruthSample>,
+    reference: &str,
 ) -> Vec<Row<'a>> {
     let mut rows = samples
         .iter()
@@ -45,19 +48,19 @@ pub(crate) fn rows<'a>(
                 comparisons: match (&outcome.result, record) {
                     (Err(failure), _) => Err(failure.clone()),
                     (Ok(_), None) => Err(Failure::TruthMissing),
-                    (Ok(called), Some(record)) => Ok(Measure::ALL.map(|measure| {
-                        compare::compare(
-                            Side {
-                                alleles: &called.alleles,
-                                intervals: &called.intervals,
-                            },
-                            Side {
-                                alleles: &record.alleles,
-                                intervals: &record.intervals,
-                            },
-                            measure,
-                        )
-                    })),
+                    (Ok(called), Some(record)) => {
+                        let dna = Side {
+                            alleles: &called.alleles,
+                            intervals: &called.intervals,
+                        };
+                        let truth = Side {
+                            alleles: &record.alleles,
+                            intervals: &record.intervals,
+                        };
+                        let haplotypes = compare::haplotypes(dna, truth, reference);
+                        Ok(Measure::ALL
+                            .map(|measure| compare::compare(dna, truth, measure, &haplotypes)))
+                    }
                 },
             }
         })
@@ -342,14 +345,33 @@ impl<'a> Report<'a> {
             "sample_id\tbatch\ttruth_batch\tstratum\tweight\tweight_corpus\tanchor_candidate\t\
              retired\tstatus\tconcordant\tdna_alleles\ttruth_alleles\tdna_unique\ttruth_unique\t\
              reasons\tpositions\tiupac_only\tregions\tstrict_status\tstrict_concordant\t\
-             uncovered\tiupac_compatible_status\tiupac_compatible_concordant\ttraces\t\
-             rejected_traces\tfailure\n",
+             uncovered\tiupac_compatible_status\tiupac_compatible_concordant\t\
+             haplotype_status\thaplotype_concordant\thaplotype_blocks\t\
+             haplotype_iupac_compatible_status\thaplotype_iupac_compatible_concordant\t\
+             haplotype_iupac_compatible_blocks\ttraces\trejected_traces\tfailure\n",
         );
         for row in self.rows {
             let sample = row.sample;
             let primary = row.status(Measure::Primary);
             let strict = row.status(Measure::Strict);
             let compatible = row.status(Measure::IupacCompatible);
+            let haplotype = [Measure::Haplotype, Measure::HaplotypeIupacCompatible]
+                .map(|measure| {
+                    let status = row.status(measure);
+                    let blocks = row
+                        .comparison(measure)
+                        .map(|comparison| {
+                            comparison
+                                .blocks
+                                .iter()
+                                .map(haplotype::Block::text)
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        })
+                        .unwrap_or_default();
+                    format!("{}\t{}\t{blocks}", status.label(), status.code())
+                })
+                .join("\t");
             let detail = row.comparison(Measure::Primary).map_or_else(
                 |_| "\t\t\t\t\t\t\t".to_owned(),
                 |comparison| {
@@ -395,7 +417,7 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
-                 {traces}\t{rejected}\t{failure}",
+                 {haplotype}\t{traces}\t{rejected}\t{failure}",
                 sample.id,
                 sample.batch,
                 row.truth.map_or("", |truth| truth.batch.as_str()),
@@ -452,10 +474,11 @@ impl<'a> Report<'a> {
     /// `anchors.tsv`: every anchor candidate under each measure, with its
     /// baseline status and primary change.
     fn anchors(&self) -> String {
-        let mut text = String::from(
-            "sample_id\tstratum\tstatus\tstrict_status\tiupac_compatible_status\t\
-             baseline_status\tchange\n",
-        );
+        let mut text = String::from("sample_id\tstratum");
+        for measure in Measure::ALL {
+            let _ = write!(text, "\t{}", measure.column());
+        }
+        text.push_str("\tbaseline_status\tchange\n");
         for row in self.rows.iter().filter(|row| row.sample.anchor) {
             let before = self
                 .baseline
@@ -463,15 +486,11 @@ impl<'a> Report<'a> {
                 .and_then(|statuses| statuses.get(&Measure::Primary))
                 .map_or("", String::as_str);
             let change = self.change(row, Measure::Primary).map_or("", Change::label);
-            let _ = writeln!(
-                text,
-                "{}\t{}\t{}\t{}\t{}\t{before}\t{change}",
-                row.sample.id,
-                row.sample.stratum,
-                row.status(Measure::Primary).label(),
-                row.status(Measure::Strict).label(),
-                row.status(Measure::IupacCompatible).label(),
-            );
+            let _ = write!(text, "{}\t{}", row.sample.id, row.sample.stratum);
+            for measure in Measure::ALL {
+                let _ = write!(text, "\t{}", row.status(measure).label());
+            }
+            let _ = writeln!(text, "\t{before}\t{change}");
         }
         text
     }
@@ -608,26 +627,23 @@ impl<'a> Report<'a> {
             "\n## Outcomes\n\nThe primary measure is the lab's concordance, DNA as tool A and the \
              truth as tool B. The strict measure also counts truth alleles where DNA has no \
              callable base; the IUPAC-compatible measure lets DNA's base (its call, or the \
-             reference where it calls nothing) match a truth IUPAC code that admits it. All panel \
-             samples, retired and zero-weight samples included.\n\n\
-             | Status | Code | Primary | Strict | IUPAC-compatible |\n|---|---|---:|---:|---:|\n",
+             reference where it calls nothing) match a truth IUPAC code that admits it. The \
+             haplotype measures apply the primary and IUPAC-compatible rules only to alleles \
+             that do not describe the same sequence as the other side's. All panel samples, \
+             retired and zero-weight samples included.\n\n| Status | Code |",
         );
+        table_header(text, "|---|---|");
         for status in Status::ALL {
-            let count = |measure: Measure| {
-                self.rows
+            let _ = write!(text, "| {} | {} |", status.label(), status.code());
+            for measure in Measure::ALL {
+                let count = self
+                    .rows
                     .iter()
                     .filter(|row| row.status(measure) == status)
-                    .count()
-            };
-            let _ = writeln!(
-                text,
-                "| {} | {} | {} | {} | {} |",
-                status.label(),
-                status.code(),
-                count(Measure::Primary),
-                count(Measure::Strict),
-                count(Measure::IupacCompatible)
-            );
+                    .count();
+                let _ = write!(text, " {count} |");
+            }
+            text.push('\n');
         }
     }
 
@@ -659,35 +675,33 @@ impl<'a> Report<'a> {
                 })
                 .map(|(_, _, estimate)| estimate)
         };
-        if let (Some(primary), Some(strict), Some(compatible)) = (
-            corpus(Measure::Primary),
-            corpus(Measure::Strict),
-            corpus(Measure::IupacCompatible),
-        ) {
-            text.push_str(
-                "\n### Not concordant by stratum (corpus weighting)\n\n\
-                 | Stratum | Population | Samples | Primary | Strict | IUPAC-compatible |\n\
-                 |---|---:|---:|---:|---:|---:|\n",
+        let Some(estimates) = Measure::ALL
+            .into_iter()
+            .map(corpus)
+            .collect::<Option<Vec<_>>>()
+        else {
+            return;
+        };
+        text.push_str(
+            "\n### Not concordant by stratum (corpus weighting)\n\n\
+             | Stratum | Population | Samples |",
+        );
+        table_header(text, "|---|---:|---:|");
+        for stratum in &estimates[0].strata {
+            let _ = write!(
+                text,
+                "| {} | {:.0} | {} |",
+                stratum.name, stratum.population, stratum.samples
             );
-            for stratum in &primary.strata {
-                let rate = |estimate: &Estimate| {
-                    estimate
-                        .strata
-                        .iter()
-                        .find(|other| other.name == stratum.name)
-                        .map_or(0.0, |other| other.rate)
-                };
-                let _ = writeln!(
-                    text,
-                    "| {} | {:.0} | {} | {:.3} | {:.3} | {:.3} |",
-                    stratum.name,
-                    stratum.population,
-                    stratum.samples,
-                    stratum.rate,
-                    rate(strict),
-                    rate(compatible)
-                );
+            for estimate in &estimates {
+                let rate = estimate
+                    .strata
+                    .iter()
+                    .find(|other| other.name == stratum.name)
+                    .map_or(0.0, |other| other.rate);
+                let _ = write!(text, " {rate:.3} |");
             }
+            text.push('\n');
         }
     }
 
@@ -770,6 +784,68 @@ impl<'a> Report<'a> {
                 Status::Discordant
             ),
         );
+        self.haplotype_section(text);
+    }
+
+    fn haplotype_section(&self, text: &mut String) {
+        let pairs = [
+            (Measure::Primary, Measure::Haplotype),
+            (Measure::IupacCompatible, Measure::HaplotypeIupacCompatible),
+        ];
+        text.push_str(
+            "\n## Representation (haplotype)\n\nDiscordant samples on a base measure that the \
+             haplotype measure finds concordant differ only in how the same sequence is \
+             written, by the window of their base-measure discordant positions; the rest \
+             keep blocks where the sequences differ (open: reaching the end of a comparable \
+             interval with unequal lengths).\n\n\
+             | Base measure | Haplotype measure | Discordant | Same sequence | Still discordant | \
+             Blocks | Open blocks |",
+        );
+        for region in Region::ALL {
+            let _ = write!(text, " Same: {} |", region.label());
+        }
+        text.push_str("\n|---|---|---:|---:|---:|---:|---:|");
+        text.push_str(&"---:|".repeat(Region::ALL.len()));
+        text.push('\n');
+        for (base, measure) in pairs {
+            let discordant = self
+                .rows
+                .iter()
+                .filter(|row| row.status(base) == Status::Discordant)
+                .collect::<Vec<_>>();
+            let same = discordant
+                .iter()
+                .filter(|row| row.status(measure) == Status::Concordant)
+                .filter_map(|row| row.comparison(base).ok())
+                .collect::<Vec<_>>();
+            let blocks = discordant
+                .iter()
+                .filter_map(|row| row.comparison(measure).ok())
+                .flat_map(|comparison| &comparison.blocks)
+                .collect::<Vec<_>>();
+            let _ = write!(
+                text,
+                "| {} | {} | {} | {} | {} | {} | {} |",
+                base.label(),
+                measure.label(),
+                discordant.len(),
+                same.len(),
+                discordant
+                    .iter()
+                    .filter(|row| row.status(measure) == Status::Discordant)
+                    .count(),
+                blocks.len(),
+                blocks.iter().filter(|block| block.open).count(),
+            );
+            for region in Region::ALL {
+                let count = same
+                    .iter()
+                    .filter(|comparison| regions(comparison).contains(&region))
+                    .count();
+                let _ = write!(text, " {count} |");
+            }
+            text.push('\n');
+        }
     }
 
     fn anchor_section(&self, text: &mut String) {
@@ -784,14 +860,13 @@ impl<'a> Report<'a> {
                 .filter(|row| row.status(measure) == Status::Concordant)
                 .count()
         };
-        let _ = write!(
+        let _ = writeln!(
             text,
-            "\n## Anchors\n\nOf {} anchor candidates, {} are concordant on the primary measure, \
-             {} on the strict one, and {} on the IUPAC-compatible one.\n",
+            "\n## Anchors\n\nOf {} anchor candidates, concordant: {}.",
             anchors.len(),
-            concordant(Measure::Primary),
-            concordant(Measure::Strict),
-            concordant(Measure::IupacCompatible)
+            Measure::ALL
+                .map(|measure| format!("{} {}", measure.label(), concordant(measure)))
+                .join(", ")
         );
         if let Some(baseline) = self.baseline {
             let set = anchors
@@ -848,23 +923,30 @@ impl<'a> Report<'a> {
         for ((before, now), count) in transitions {
             let _ = writeln!(text, "| {before} | {now} | {count} |");
         }
-        text.push_str(
-            "\nChanges of status class, per measure the baseline reports:\n\n\
-             | Change | Primary | Strict | IUPAC-compatible |\n|---|---:|---:|---:|\n",
-        );
+        text.push_str("\nChanges of status class, per measure the baseline reports:\n\n| Change |");
+        table_header(text, "|---|");
         for change in Change::ALL {
-            let count =
-                |measure: Measure| changes.get(&(measure, change)).copied().unwrap_or_default();
-            let _ = writeln!(
-                text,
-                "| {} | {} | {} | {} |",
-                change.label(),
-                count(Measure::Primary),
-                count(Measure::Strict),
-                count(Measure::IupacCompatible)
-            );
+            let _ = write!(text, "| {} |", change.label());
+            for measure in Measure::ALL {
+                let count = changes.get(&(measure, change)).copied().unwrap_or_default();
+                let _ = write!(text, " {count} |");
+            }
+            text.push('\n');
         }
     }
+}
+
+/// Completes a Markdown table header with one numeric column per measure:
+/// the titles after the leading columns already written, then `separator`
+/// (the leading columns' separator) and the measures' separators.
+fn table_header(text: &mut String, separator: &str) {
+    for measure in Measure::ALL {
+        let _ = write!(text, " {} |", measure.title());
+    }
+    text.push('\n');
+    text.push_str(separator);
+    text.push_str(&"---:|".repeat(Measure::COUNT));
+    text.push('\n');
 }
 
 /// Reason labels, comma-separated.
@@ -1011,7 +1093,12 @@ mod tests {
         let outputs = |threads: usize| -> Result<Vec<(&str, String)>, Box<dyn std::error::Error>> {
             let outcomes =
                 crate::runner::run_with(&manifest.samples, Threads::new(threads)?, call)?;
-            let rows = rows(&manifest.samples, &outcomes, &truth.samples);
+            let rows = rows(
+                &manifest.samples,
+                &outcomes,
+                &truth.samples,
+                compare::tests::rcrs(),
+            );
             Ok(Report::new(&rows, Some(&baseline), &check)
                 .files(&[("panel", "synthetic".to_owned())]))
         };
@@ -1033,22 +1120,24 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\t2\t1\t",
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
-            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\t\
+            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
+             not_applicable\tN/A\t\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
-             2\t0\t",
+             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t2\t0\t",
-            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\t\
+             not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
+             not_applicable\tN/A\t\t2\t0\t",
+            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {
@@ -1080,9 +1169,9 @@ mod tests {
                 .map(str::to_owned)
         };
         for (change, line) in [
-            ("added", "| added | 27 | 27 | 0 |"),
-            ("removed", "| removed | 1 | 1 | 0 |"),
-            ("regression", "| regression | 1 | 1 | 0 |"),
+            ("added", "| added | 27 | 27 | 0 | 0 | 0 |"),
+            ("removed", "| removed | 1 | 1 | 0 | 0 | 0 |"),
+            ("regression", "| regression | 1 | 1 | 0 | 0 | 0 |"),
         ] {
             assert_eq!(summary_counts(&one[4].1, change).as_deref(), Some(line));
             for (measure, column) in [("primary", 2), ("strict", 3), ("iupac_compatible", 4)] {
@@ -1099,7 +1188,9 @@ mod tests {
             }
         }
         let anchors = &one[2].1;
-        assert!(anchors.contains("S00\thard\tconcordant\tdiscordant\tconcordant\texact\tsame\n"));
+        assert!(anchors.contains(
+            "S00\thard\tconcordant\tdiscordant\tconcordant\tconcordant\tconcordant\texact\tsame\n"
+        ));
         let estimates = &one[1].1;
         assert!(estimates.contains("corpus\tstrict\tnot_concordant\tall\t"));
         assert!(estimates.contains("pool\tall\tfailed\tall\t"));
@@ -1108,7 +1199,7 @@ mod tests {
             "| without a truth record | 1 |",
             "| truth batch differs from the panel batch | 1 |",
             "| exact | discordant | 1 |",
-            "| regression | 1 | 1 | 0 |",
+            "| regression | 1 | 1 | 0 | 0 | 0 |",
         ] {
             assert!(summary.contains(line), "{line}");
         }

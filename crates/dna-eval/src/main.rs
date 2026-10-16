@@ -15,6 +15,7 @@ mod compare;
 mod error;
 mod estimate;
 mod evidence;
+mod haplotype;
 mod manifest;
 mod panel;
 mod report;
@@ -31,6 +32,7 @@ use std::thread;
 use std::time::Instant;
 
 use clap::{Args, Parser, Subcommand};
+use dna_kernel::model::reference::ReferenceTopology;
 use serde::Serialize;
 
 use crate::compare::Measure;
@@ -154,18 +156,30 @@ fn run(cli: &RunArgs) -> Result<String> {
         .map(|sample| sample.id.as_str())
         .collect::<BTreeSet<_>>();
     let truth = load_truth(&cli.truth, &wanted)?;
+    // The haplotype measures apply alleles to this sequence; a sample DNA
+    // analyses on another sequence fails.
+    let reference = dna_kernel::reference::load(&cli.reference, ReferenceTopology::Linear)
+        .map_err(|error| Error::Reference {
+            path: cli.reference.clone(),
+            message: error.to_string(),
+        })?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let outcomes = runner::run(
         &manifest.samples,
-        &cli.reference,
+        (&cli.reference, &reference.sequence_sha256),
         &cli.config,
         threads,
         cli.triage,
     )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
 
-    let rows = report::rows(&manifest.samples, &outcomes, &truth.database.samples);
+    let rows = report::rows(
+        &manifest.samples,
+        &outcomes,
+        &truth.database.samples,
+        &reference.sequence,
+    );
     let check = TruthCheck::new(&manifest, &truth.database);
     let report = Report::new(&rows, baseline.as_ref(), &check);
     let triage_started = Instant::now();
@@ -209,7 +223,8 @@ fn run(cli: &RunArgs) -> Result<String> {
     let count = |measure: Measure, status: Status| count(&rows, measure, status);
     Ok(format!(
         "dna-eval: truth {} ({} samples changed); {} samples; primary {} concordant, {} discordant, {} not applicable, {} \
-         failed; strict {} concordant; IUPAC-compatible {} concordant; {:.1} s; outputs in {}",
+         failed; strict {} concordant; IUPAC-compatible {} concordant; haplotype {} concordant; \
+         haplotype IUPAC-compatible {} concordant; {:.1} s; outputs in {}",
         check.state().label(),
         check.changed.len(),
         rows.len(),
@@ -219,6 +234,8 @@ fn run(cli: &RunArgs) -> Result<String> {
         count(Measure::Primary, Status::Failed),
         count(Measure::Strict, Status::Concordant),
         count(Measure::IupacCompatible, Status::Concordant),
+        count(Measure::Haplotype, Status::Concordant),
+        count(Measure::HaplotypeIupacCompatible, Status::Concordant),
         started.elapsed().as_secs_f64(),
         cli.output.display()
     ))
