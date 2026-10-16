@@ -150,14 +150,24 @@ pub(crate) fn bootstrap(samples: &[Draw], batches: usize, draws: u64, seed: u64)
         }
     }
     rates.sort_by(f64::total_cmp);
-    // The smallest draw at or above the `1 − ALPHA` share of draws: the index
-    // `⌈len·(1 − ALPHA)⌉ − 1`, computed in integers.
-    let tail = rates.len() - rates.len() * 19 / 20;
-    let index = rates.len().saturating_sub(tail.max(1));
+    // The `1 − ALPHA` quantile: index `⌈len·(1 − ALPHA)⌉ − 1`, which is
+    // `len − ⌊len·ALPHA⌋ − 1`.
+    let index = rates
+        .len()
+        .saturating_sub(largest_count(rates.len(), ALPHA) + 1);
     Bootstrap {
         upper: rates.get(index).copied().unwrap_or(1.0),
         empty_draws,
     }
+}
+
+/// The largest count of `size` items whose share does not exceed `rate`:
+/// `⌊size·rate⌋`, computed without a float-to-integer cast.
+pub(crate) fn largest_count(size: usize, rate: f64) -> usize {
+    (0..=size)
+        .take_while(|count| *count as f64 <= rate * size as f64)
+        .last()
+        .unwrap_or(0)
 }
 
 /// The regularized incomplete beta function `I_x(a, b)`, by Lentz's
@@ -264,6 +274,13 @@ mod tests {
         assert_ne!(first, SplitMix64::for_draw(8, 3).next_u64());
         // A golden value pins the algorithm.
         assert_eq!(SplitMix64(0).next_u64(), 0xE220_A839_7B1D_CDAF);
+    }
+
+    #[test]
+    fn the_quantile_index_is_the_ceiling_minus_one() {
+        // 10,000 draws: index 9,499, the 9,500th value.
+        assert_eq!(10_000 - largest_count(10_000, ALPHA) - 1, 9_499);
+        assert_eq!(largest_count(0, ALPHA), 0);
     }
 
     #[test]

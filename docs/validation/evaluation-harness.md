@@ -52,7 +52,8 @@ pre-registration (TOML) committed to the repository:
 - **`[[gates]]`** — a measure and an `upper_bound` each; every tested
   hypothesis must meet every gate.
 - **`[[hypotheses]]`** — the fixed sequence in order: a name, `requires`
-  (`first`, then `previous_pass` or `previous_fail`), the full policy
+  (`first`, then `previous_pass`: the sequence stops at the first failure, so
+  the family-wise alpha holds), the full policy
   (`short_calls`, `causes`, `one_strand`, `proxy`, `minor` as `<kind>@<t>` or
   `off`), and an optional `marginal` (`against` an earlier hypothesis, a
   measure, an `upper_bound`).
@@ -69,9 +70,11 @@ Each gate bounds the leak rate (passed samples not concordant under the
 gate's measure) three ways, at one-sided alpha 0.05:
 
 - the count-based Clopper–Pearson upper bound;
-- the Korn–Graubard upper bound of the corpus-weighted rate (the stratified
-  variance gives the effective sample size; a zero rate uses the passed
-  count);
+- the Korn–Graubard upper bound of the corpus-weighted rate: the variance is
+  the stratified variance of `estimate.rs` over the passed samples, each
+  stratum's passed samples its sample, which gives the effective sample size
+  (a zero rate uses the passed count); the degrees-of-freedom correction is
+  omitted, and the bootstrap is what covers clustering by batch;
 - the 95th percentile of a bootstrap that resamples the panel's batches with
   replacement, each draw the combined ratio `Σ w·leak / Σ w·pass` with fixed
   corpus weights, seeded by `SplitMix64(seed ^ draw · 0x9E3779B97F4A7C15)`; a
@@ -83,7 +86,7 @@ the leaks under its measure among the samples a hypothesis passes and
 `against` does not (count-based bound). The utility floor applies to the
 corpus-weighted pass rate or its one-sided lower bound. A hypothesis passes
 when its gates, marginal, and utility pass; the next one is tested only when
-its `requires` holds.
+the previous one passed.
 
 The outputs are `approval.json` (identities, every endpoint and verdict),
 `approval.md` (aggregates only), `leaks.tsv` (every leak of every gate with

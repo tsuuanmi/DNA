@@ -321,12 +321,12 @@ fn score(prereg: &Prereg, rows: &[Row<'_>]) -> (Approval, String) {
 }
 
 /// Whether a hypothesis of the fixed sequence is tested, given the verdict
-/// of the previous one (`not_tested` when it was skipped).
+/// of the previous one (`not_tested` when it was skipped): the sequence
+/// stops at the first failure.
 fn tested(requires: Requires, previous: Option<&str>) -> bool {
     match requires {
         Requires::First => true,
         Requires::PreviousPass => previous == Some("pass"),
-        Requires::PreviousFail => previous == Some("fail"),
     }
 }
 
@@ -646,11 +646,8 @@ mod tests {
         assert!(tested(Requires::First, None));
         assert!(tested(Requires::PreviousPass, Some("pass")));
         assert!(!tested(Requires::PreviousPass, Some("fail")));
-        // H-os2 runs only when H-os1 was tested and failed; a skipped H-os1
-        // skips it too.
-        assert!(tested(Requires::PreviousFail, Some("fail")));
-        assert!(!tested(Requires::PreviousFail, Some("not_tested")));
-        assert!(!tested(Requires::PreviousFail, Some("pass")));
+        // A skipped hypothesis skips every later one.
+        assert!(!tested(Requires::PreviousPass, Some("not_tested")));
     }
 
     #[test]

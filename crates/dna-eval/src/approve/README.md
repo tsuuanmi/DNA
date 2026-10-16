@@ -8,7 +8,7 @@ defines it, and the power projection that sizes it beforehand. Only
 - `prereg.rs` — parses the pre-registration (TOML): the frozen inputs and
   their checksums, the bootstrap draws and seed, the utility floor, the
   gates (measure and bound), and the fixed sequence of hypotheses (policy,
-  test condition, optional marginal endpoint). A value still written as
+  test condition `first` or `previous_pass`, optional marginal endpoint; the sequence stops at the first failure). A value still written as
   `"pending"` is an error, every policy must keep the `n` cause, and each
   policy is pinned by the SHA-256 of its full definition.
 - `stats.rs` — the bounds: a Clopper–Pearson upper bound for fractional

@@ -166,15 +166,15 @@ pub(crate) struct Gate {
     pub(crate) upper_bound: f64,
 }
 
-/// When a hypothesis of the fixed sequence is tested.
+/// When a hypothesis of the fixed sequence is tested. The sequence stops at
+/// the first failure: testing on after a failure would spend alpha again
+/// and lose the family-wise error control of a fixed-sequence procedure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Requires {
     /// Always: the first hypothesis.
     First,
     /// Only if the previous hypothesis was tested and passed.
     PreviousPass,
-    /// Only if the previous hypothesis was tested and failed.
-    PreviousFail,
 }
 
 /// The risk a hypothesis adds over another: leaks among the samples it
@@ -253,11 +253,13 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Prereg, PreregError> {
                 ));
             }
             (_, "previous_pass") => Requires::PreviousPass,
-            (_, "previous_fail") => Requires::PreviousFail,
             (_, other) => {
                 return Err(invalid(
                     &field("requires"),
-                    &format!("{other:?} is not previous_pass or previous_fail"),
+                    &format!(
+                        "{other:?}: a later hypothesis requires \"previous_pass\"; the fixed \
+                         sequence stops at the first failure"
+                    ),
                 ));
             }
         };
@@ -508,6 +510,12 @@ marginal = { against = "H-base", measure = "primary", upper_bound = 0.02 }
                 "against = \"H-base\"",
                 "against = \"H-later\"",
                 "hypotheses[1].marginal.against: must name an earlier hypothesis",
+            ),
+            (
+                "requires = \"previous_pass\"",
+                "requires = \"previous_fail\"",
+                "hypotheses[1].requires: \"previous_fail\": a later hypothesis requires \
+                 \"previous_pass\"; the fixed sequence stops at the first failure",
             ),
         ] {
             let text = VALID.replacen(from, to, 1);

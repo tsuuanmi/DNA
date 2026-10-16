@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+use super::stats::largest_count;
 use crate::manifest::Manifest;
 use crate::triage::score::upper_bound;
 
@@ -51,14 +52,6 @@ fn lower_bound(events: usize, trials: usize) -> f64 {
     1.0 - upper_bound(trials - events, trials)
 }
 
-/// The largest count of `size` samples whose share does not exceed `rate`.
-fn share_of(size: usize, rate: f64) -> usize {
-    (0..=size)
-        .take_while(|count| *count as f64 <= rate * size as f64)
-        .last()
-        .unwrap_or(0)
-}
-
 /// The projection as Markdown.
 pub(crate) fn project(triage: &str, panel: &Manifest) -> String {
     let dev = dev_passes(triage);
@@ -80,7 +73,7 @@ pub(crate) fn project(triage: &str, panel: &Manifest) -> String {
             passed as f64 / samples as f64
         };
         let lower = lower_bound(passed, samples);
-        let (point, low) = (share_of(*size, rate), share_of(*size, lower));
+        let (point, low) = (largest_count(*size, rate), largest_count(*size, lower));
         expected += point;
         cautious += low;
         let _ = writeln!(
