@@ -73,8 +73,8 @@ segments alike. The calls of a run the read bounds are exempt where the
 margin's edge is the read losing phase right after a repeat run (ADR-0076):
 an insertion or deletion of that run is then not `read_end`, and the
 consensus trusts the run's calls where they match the reference or are
-inserted, while substituted calls and the run's
-bounds keep the margin. A read's physical ends count only when its modality does not
+inserted, and the run's bounds where they match the reference, while
+substituted calls and bounds that read another base keep the margin. A read's physical ends count only when its modality does not
 vouch for them: Sanger reads never do, and reviewed consensus sequences always
 do, so a consensus difference at its first or last base stays eligible. A masked
 evidence call — a supporting call, or a flanking call of a deletion — adds the

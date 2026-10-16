@@ -49,9 +49,10 @@ end. All of these must hold:
 
    A substitution is never exempt: in `dna sample` eligibility, and in the
    consensus, where a run call aligned to a reference base of another base
-   keeps the margin. The run's two bounds keep their own trust. A bound shows where the run ends but never a clean base, so a
-   substitution at a run exit still needs a read that is clean there without
-   the exemption.
+   keeps the margin. In the consensus, a run's two bounds are clean where
+   they match the reference (revision of 2026-10-16 below); a bound that
+   reads another base keeps its own trust, so a substitution at a run exit
+   still needs a read that is clean there without the exemption.
 2. **Bounded run.** The run (two or more calls of one canonical base) has a
    resolving call on each side (ADR-0071). The bounds and every run call are
    unmasked.
@@ -114,3 +115,56 @@ phase.
 - **Not covered.** Reads that fade without a post-repeat onset (weak tails),
   and runs a read loses for good, are still distrusted. They remain the
   largest HVS-II residual.
+
+## Revision 2026-10-16: reference-matching bounds
+
+The consensus decides a run's length only from a read whose run ends are
+clean (ADR-0074). With the bounds outside the exemption, a read that the
+exemption trusts across the run still could not show the run's length when a
+bound sat within the margin, typically `T310` after a post-repeat phase loss
+at the `A302` exit. The consensus now also trusts an exempt run's bound where
+it matches the reference. A bound that reads another base keeps its own
+trust, as does every substituted run call. `dna sample` eligibility is
+unchanged: the bound adds no variant there.
+
+**Measured on the development panel** (dna-eval, panel v4, against the
+previous rule):
+
+| Measure | Fixes | Regressions |
+|---|---:|---:|
+| Primary | +13 | 0 |
+| Strict | +11 | 0 |
+| Haplotype IUPAC-compatible | +14 | 0 |
+
+- No new DNA allele and no new uncovered truth allele appear; `315.1C` is
+  matched in 14 more samples. The draft triage outcomes do not change.
+- The rule trusts 621 bound calls in 228 samples. Most lie on HVS-II run
+  exits: `T310` (80 samples), `C303` (56), `A300` (54), `C317` (33), `C299`
+  (32), `T321` (26). In HVS-I, `C16184` (17), `T16172` (12), and `A16170` (9)
+  are the most frequent. No bound lies at `16182`, `16183`, or `16194`.
+
+**Residual risk.** A bound that matches the reference can never create a
+variant. If the read is wrong at the bound, it can hide a real alternate
+there as a reference call. The risk is largest where an alternate at the bound
+is common in the reviewed corpus (about 112,000 samples): `16172C` 22 %,
+`16184` 3.4 %, `332` 1.4 %. For comparison, the corpus has `16183C` at 31 %,
+`16182C` at 15 %, and `316` at 1.3 %. None of those three positions is a
+trusted bound. On the development panel, one sample has a truth alternate at a
+trusted bound: `16184Y`, a heteroplasmy that DNA did not report under either
+rule. Draft triage already sends that sample to review (`minor_signal`). The
+validation panel's haplotype IUPAC-compatible gate and the adjudication of its
+leaks are the checks on this risk.
+
+A trusted bound can also oppose another read's clean alternate. One read
+against one read gives the reference and `contested` (SRS-CONS-005), and any
+other tie leaves the position undecided and `contested`. The draft triage
+sends a contested region to review, so such a tie never passes. On the
+development panel, 17 newly trusted observations in 13 samples oppose a clean
+alternate at the same position: 12 at `310` (`T` against one `C`) and 5 at
+`523` (`A` against deletions). None of them changes a sample's result or its
+triage outcome, and no sample's contested count changes. The stretch decision
+over run structure (ADR-0074) reads both reads as the same sequence aligned
+differently.
+
+**Versions.** The `consensus` plugin version rises to 3; the `core` plugin is
+unchanged.
