@@ -235,7 +235,9 @@ mod tests {
     use crate::model::alignment::{AlignmentMetrics, Orientation};
     use crate::model::variant::VariantCallRole;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::{CallMask, EvidenceReason, MaskedAlignment, ReadEvidence};
+    use dna_kernel::read_evidence::{
+        CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence,
+    };
 
     use super::*;
 
@@ -301,6 +303,7 @@ mod tests {
             call.mask = Some(CallMask {
                 alignment: MaskedAlignment::Anchoring,
                 reason: EvidenceReason::new("dephased_signal"),
+                onset: MaskOnset::Other,
             });
             read = read.with_call(index, call);
         }

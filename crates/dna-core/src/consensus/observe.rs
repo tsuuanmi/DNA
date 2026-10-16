@@ -109,7 +109,9 @@ pub(super) fn observe(
     let orientation = read.alignment.orientation;
     let clean_call = |index: usize| {
         calls.get(index).is_some_and(|call| {
-            call.mask.is_none() && call.vetoes == VetoSet::default() && eligibility.trusted(index)
+            call.mask.is_none()
+                && call.vetoes == VetoSet::default()
+                && eligibility.run_trusted(index)
         })
     };
     let interval = read.evidence.informative();

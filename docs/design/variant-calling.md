@@ -69,7 +69,11 @@ the trim interval and is unmasked or dephased; calls beyond the trim interval
 and masked calls aligned as unresolved are not. A difference therefore needs
 that many informative calls between it and the nearest place where the
 alignment has no information, at the read's ends and around internal masked
-segments alike. A read's physical ends count only when its modality does not
+segments alike. The calls of a run the read bounds are exempt where the
+margin's edge is the read losing phase right after a repeat run (ADR-0076):
+an insertion or deletion of that run is then not `read_end`, and the
+consensus treats the run's calls as clean, while substitutions and the run's
+bounds keep the margin. A read's physical ends count only when its modality does not
 vouch for them: Sanger reads never do, and reviewed consensus sequences always
 do, so a consensus difference at its first or last base stays eligible. A masked
 evidence call — a supporting call, or a flanking call of a deletion — adds the

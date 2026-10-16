@@ -1111,7 +1111,9 @@ mod tests {
     use crate::model::variant::VariantCallingResult;
     use dna_kernel::error::Result;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::{CallMask, EvidenceReason, MaskedAlignment, ReadEvidence};
+    use dna_kernel::read_evidence::{
+        CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence,
+    };
 
     use super::*;
 
@@ -1179,6 +1181,7 @@ mod tests {
             call.mask = Some(CallMask {
                 alignment,
                 reason: EvidenceReason::new(reason),
+                onset: MaskOnset::Other,
             });
             evidence = evidence.with_call(index, call);
         }

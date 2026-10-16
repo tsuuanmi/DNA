@@ -11,17 +11,35 @@
 //! is informative and reads another base, unmasked or anchoring. A masked
 //! evidence call — a supporting call, or a flanking call of a deletion, which
 //! has none — contributes its modality's mask reason.
+//!
+//! A run the read bounds is exempt from `read_end` where the margin's edge is
+//! the read losing phase right after a repeat run, not a read end (ADR-0076):
+//! the run's calls stay trusted for the length of an insertion or deletion of
+//! that run, and for the consensus's run observations, but never for a
+//! substitution, and the run's bounds keep their own trust.
 
 use crate::model::alignment::Orientation;
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
 use crate::variant_calling::VariantCallingConfig;
-use dna_kernel::read_evidence::{MaskedAlignment, ReadEnds, ReadEvidence};
+use dna_kernel::read_evidence::{MaskOnset, MaskedAlignment, ReadEnds, ReadEvidence};
+
+/// Informative calls between a run's bound and a post-repeat edge for the
+/// run to be exempt from `read_end` (ADR-0076).
+const EXEMPTION_MINIMUM_CALLS: usize = 2;
 
 /// Trusted calls of one read.
 pub(crate) struct ReadEligibility<'a> {
     /// Per call: at least `read_end_margin` informative calls separate it from
     /// the nearest uninformative call on both sides.
     trusted: Vec<bool>,
+    /// Per call: informative calls ending at it, and starting at it (a
+    /// vouched read end counts as a full margin).
+    before: Vec<usize>,
+    after: Vec<usize>,
+    margin: usize,
+    /// Per call: it lies on a bounded run of one base that the exemption lifts
+    /// from `read_end` (the run's bounds are not included).
+    run_exempt: Vec<bool>,
     evidence: &'a ReadEvidence,
 }
 
@@ -63,7 +81,139 @@ impl<'a> ReadEligibility<'a> {
         let trusted = (0..calls)
             .map(|index| before[index] > margin && after[index] > margin)
             .collect();
-        Self { trusted, evidence }
+        let mut eligibility = Self {
+            trusted,
+            before,
+            after,
+            margin,
+            run_exempt: vec![false; calls],
+            evidence,
+        };
+        {
+            let calls = evidence.calls();
+            let mut start = 0;
+            while start < calls.len() {
+                let base = calls[start].base;
+                let mut end = start;
+                while end + 1 < calls.len() && calls[end + 1].base == base {
+                    end += 1;
+                }
+                if end > start
+                    && dna_kernel::model::nucleotide::is_canonical(base)
+                    && eligibility.bounded_run_exempt(start, end, base)
+                {
+                    // The run's own calls only: its bounds keep their trust,
+                    // so they show where the run ends but never a base.
+                    eligibility.run_exempt[start..=end].fill(true);
+                }
+                start = end + 1;
+            }
+        }
+        eligibility
+    }
+
+    /// Whether a call is trusted for the consensus's run-structure
+    /// observations: trusted, or exempt as part of a bounded run.
+    pub(crate) fn run_trusted(&self, index: usize) -> bool {
+        self.trusted(index) || self.run_exempt.get(index).copied().unwrap_or(false)
+    }
+
+    /// Whether the run `start..=end` of `base` is bounded by resolving,
+    /// unmasked calls with every run call unmasked, and each side's nearest
+    /// uninformative call within the margin starts a masked segment right
+    /// after a repeat run, at least [`EXEMPTION_MINIMUM_CALLS`] informative
+    /// calls from the bound.
+    fn bounded_run_exempt(&self, start: usize, end: usize, base: char) -> bool {
+        let calls = self.evidence.calls();
+        let (Some(left), right) = (start.checked_sub(1), end + 1) else {
+            return false;
+        };
+        if right >= calls.len()
+            || !self.resolves(left, base)
+            || !self.resolves(right, base)
+            || calls[left..=right].iter().any(|call| call.mask.is_some())
+        {
+            return false;
+        }
+        let allowed = |index: Option<usize>| {
+            index
+                .and_then(|index| calls.get(index))
+                .and_then(|call| call.mask)
+                .is_some_and(|mask| mask.onset == MaskOnset::AfterRun)
+        };
+        // The nearest uninformative call on each side; `None` is the read's
+        // physical end, which never exempts.
+        let side = |run: usize, edge: Option<usize>| {
+            run > self.margin || (run >= EXEMPTION_MINIMUM_CALLS && allowed(edge))
+        };
+        let exempt = side(self.before[left], left.checked_sub(self.before[left]))
+            && side(
+                self.after[right],
+                Some(right + self.after[right]).filter(|index| *index < calls.len()),
+            );
+        // Only a run the margin actually distrusts needs the exemption.
+        exempt && (left..=right).any(|index| !self.trusted(index))
+    }
+
+    /// The read's maximal run of the edited base around an edit, as
+    /// [`Self::unbounded_run`] defines it: its first and last call, and the
+    /// trace-strand base. `None` when the edit changes no run's length.
+    fn run(
+        &self,
+        kind: VariantKind,
+        edited: &str,
+        orientation: Orientation,
+        evidence: &[usize],
+    ) -> Option<(usize, usize, char)> {
+        let calls = self.evidence.calls();
+        let mut bases = edited.chars();
+        let reference_base = bases.next()?;
+        if bases.any(|other| other != reference_base) {
+            return None;
+        }
+        // The calls read the trace strand; complementing is its own inverse.
+        let base = orientation.reference_base(reference_base);
+        let (first, last) = (*evidence.iter().min()?, *evidence.iter().max()?);
+        let reads = |index: usize| calls.get(index).is_some_and(|call| call.base == base);
+        // A deletion's run is the rest of the run, read by a flank.
+        let (mut start, mut end) = match kind {
+            VariantKind::Del if reads(first) => (first, first),
+            VariantKind::Del if reads(last) => (last, last),
+            VariantKind::Del => return None,
+            VariantKind::Snv | VariantKind::Ins => (first, last),
+        };
+        while start > 0 && reads(start - 1) {
+            start -= 1;
+        }
+        while reads(end + 1) {
+            end += 1;
+        }
+        // A lone substituted or inserted base starts no run.
+        (kind == VariantKind::Del || start != end).then_some((start, end, base))
+    }
+
+    /// Whether the exemption lifts `read_end` from an edit: an
+    /// insertion or deletion of a bounded run (see `bounded_run_exempt`)
+    /// whose mapped calls lie on the run and its bounds.
+    fn exempt(
+        &self,
+        kind: VariantKind,
+        edited: &str,
+        orientation: Orientation,
+        evidence: &[usize],
+        mapped: &[usize],
+    ) -> bool {
+        if kind == VariantKind::Snv {
+            return false;
+        }
+        let Some((start, end, base)) = self.run(kind, edited, orientation, evidence) else {
+            return false;
+        };
+        let Some(left) = start.checked_sub(1) else {
+            return false;
+        };
+        mapped.iter().all(|index| (left..=end + 1).contains(index))
+            && self.bounded_run_exempt(start, end, base)
     }
 
     /// Whether an edit of `kind` changes the length of a run of one base at an
@@ -186,20 +336,20 @@ impl<'a> ReadEligibility<'a> {
             .map(|mapping| mapping.call_index_0based)
             .collect::<Vec<_>>();
         let mut reasons = Vec::new();
-        if mappings.iter().any(|mapping| {
-            !self
-                .trusted
-                .get(mapping.call_index_0based)
-                .copied()
-                .unwrap_or(false)
-        }) {
-            reasons.push(VariantExclusionReason::ReadEnd);
-        }
         let edited = match kind {
             VariantKind::Snv => &variant.alternate[..],
             VariantKind::Ins => variant.alternate.get(1..).unwrap_or_default(),
             VariantKind::Del => variant.reference.get(1..).unwrap_or_default(),
         };
+        let mapped = mappings
+            .iter()
+            .map(|mapping| mapping.call_index_0based)
+            .collect::<Vec<_>>();
+        if mapped.iter().any(|index| !self.trusted(*index))
+            && !self.exempt(kind, edited, orientation, &evidence, &mapped)
+        {
+            reasons.push(VariantExclusionReason::ReadEnd);
+        }
         if self.unbounded_run(kind, edited, orientation, &evidence) {
             reasons.push(VariantExclusionReason::RunBoundary);
         }
@@ -215,7 +365,7 @@ impl<'a> ReadEligibility<'a> {
 #[cfg(test)]
 mod tests {
     use crate::model::variant::VariantCallMapping;
-    use dna_kernel::read_evidence::{CallMask, EvidenceReason};
+    use dna_kernel::read_evidence::{CallMask, EvidenceReason, MaskOnset};
 
     use super::*;
 
@@ -240,6 +390,7 @@ mod tests {
                 call.mask = Some(CallMask {
                     alignment,
                     reason: EvidenceReason::new(reason),
+                    onset: MaskOnset::Other,
                 });
                 read = read.with_call(index, call);
             }
@@ -279,6 +430,78 @@ mod tests {
             kind,
             calls: calls.to_vec(),
         }
+    }
+
+    /// A read `ACGTACGTAC G CCCCC T AG`, then a masked segment of `onset` from
+    /// call 19 (or the read's end there when `onset` is `None`), then 13
+    /// clean calls.
+    fn run_read(onset: Option<MaskOnset>) -> ReadEvidence {
+        let tail = if onset.is_some() {
+            "AAAAAACGTACGTACGTACG"
+        } else {
+            ""
+        };
+        let mut read = ReadEvidence::clean(&format!("ACGTACGTACGCCCCCTAG{tail}"));
+        if let Some(onset) = onset {
+            for index in 19..26 {
+                let mut call = read.calls()[index];
+                call.mask = Some(CallMask {
+                    alignment: MaskedAlignment::Unresolved,
+                    reason: EvidenceReason::new("post_homopolymer"),
+                    onset,
+                });
+                read = read.with_call(index, call);
+            }
+        }
+        read
+    }
+
+    #[test]
+    fn a_bounded_run_before_a_post_repeat_edge_is_exempt_but_not_its_bounds() {
+        let read = run_read(Some(MaskOnset::AfterRun));
+        let eligibility = ReadEligibility::new(&read, &settings(8));
+        // The run lies within the margin of the edge, but is exempt.
+        assert!((11..=15).all(|index| !eligibility.trusted(index)));
+        assert!((11..=15).all(|index| eligibility.run_trusted(index)));
+        // The bound right of the run keeps its own trust: never a clean base.
+        assert!(!eligibility.run_trusted(16) && !eligibility.trusted(16));
+        // Too few informative calls between the bound and the edge: the
+        // masked segment reaches the call right after the bound.
+        let mut close = read.clone();
+        for index in [17, 18] {
+            let mut call = close.calls()[index];
+            call.mask = read.calls()[19].mask;
+            close = close.with_call(index, call);
+        }
+        assert!(!ReadEligibility::new(&close, &settings(8)).run_trusted(13));
+    }
+
+    #[test]
+    fn other_edges_never_exempt_a_run() {
+        // Another onset, or the read's physical end.
+        for onset in [Some(MaskOnset::Other), None] {
+            let read = run_read(onset);
+            assert!(
+                !ReadEligibility::new(&read, &settings(8)).run_trusted(13),
+                "{onset:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_exemption_lifts_read_end_from_run_indels_only() {
+        let read = run_read(Some(MaskOnset::AfterRun));
+        let eligibility = ReadEligibility::new(&read, &settings(8));
+        assert!(eligibility.exempt(VariantKind::Ins, "C", Orientation::Forward, &[15], &[15]));
+        assert!(!eligibility.exempt(VariantKind::Snv, "C", Orientation::Forward, &[15], &[15]));
+        // A mapped call beyond the run and its bounds.
+        assert!(!eligibility.exempt(
+            VariantKind::Ins,
+            "C",
+            Orientation::Forward,
+            &[15],
+            &[15, 20]
+        ));
     }
 
     fn mapping(role: VariantCallRole, index: usize) -> VariantCallMapping {
@@ -465,6 +688,7 @@ mod tests {
             call.mask = Some(CallMask {
                 alignment,
                 reason: EvidenceReason::new("dephased_signal"),
+                onset: MaskOnset::Other,
             });
             read = read.with_call(index, call);
         }

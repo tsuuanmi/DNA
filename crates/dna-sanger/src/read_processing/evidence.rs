@@ -14,8 +14,8 @@ use crate::model::quality::QualityControlResult;
 use crate::model::signal::SignalAnalysis;
 use dna_kernel::error::{AlignmentError, Result, VariantError};
 use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceReason, MaskedAlignment, ReadEvidence, SupportVeto, VetoScope,
-    VetoSet,
+    CallEvidence, CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence, SupportVeto,
+    VetoScope, VetoSet,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -138,7 +138,8 @@ pub fn read_evidence(
 
 /// The mask of a call: `post_homopolymer` when its segment starts right after
 /// a repeat run, otherwise its phase state; dephased calls still anchor the
-/// alignment, every other masked call is unresolved.
+/// alignment, every other masked call is unresolved. The onset says whether
+/// the segment starts right after a repeat run (ADR-0076).
 fn call_mask(callability: &ReadCallability, index: usize) -> Option<CallMask> {
     let state = callability.mask.get(index).copied().flatten()?;
     if state == PhaseState::InPhase {
@@ -147,6 +148,11 @@ fn call_mask(callability: &ReadCallability, index: usize) -> Option<CallMask> {
     let after_repeat = callability
         .segment_at(index)
         .is_some_and(|segment| segment.after_repeat);
+    let onset = if after_repeat {
+        MaskOnset::AfterRun
+    } else {
+        MaskOnset::Other
+    };
     let reason = if after_repeat {
         POST_HOMOPOLYMER
     } else {
@@ -163,7 +169,11 @@ fn call_mask(callability: &ReadCallability, index: usize) -> Option<CallMask> {
     } else {
         MaskedAlignment::Unresolved
     };
-    Some(CallMask { alignment, reason })
+    Some(CallMask {
+        alignment,
+        reason,
+        onset,
+    })
 }
 
 #[cfg(test)]
@@ -329,14 +339,26 @@ mod tests {
         let evidence = read_evidence(&calls, &signal, &callability, &quality, &config())?;
         let masks = [0, 7, 12, 17, 22].map(|index| evidence.calls()[index].mask);
         let expected = [
-            Some((MaskedAlignment::Unresolved, WEAK_SIGNAL)),
+            Some((MaskedAlignment::Unresolved, WEAK_SIGNAL, MaskOnset::Other)),
             None,
-            Some((MaskedAlignment::Anchoring, DEPHASED_SIGNAL)),
-            Some((MaskedAlignment::Unresolved, POST_HOMOPOLYMER)),
-            Some((MaskedAlignment::Unresolved, IRREGULAR_SPACING)),
+            Some((
+                MaskedAlignment::Anchoring,
+                DEPHASED_SIGNAL,
+                MaskOnset::Other,
+            )),
+            Some((
+                MaskedAlignment::Unresolved,
+                POST_HOMOPOLYMER,
+                MaskOnset::AfterRun,
+            )),
+            Some((
+                MaskedAlignment::Unresolved,
+                IRREGULAR_SPACING,
+                MaskOnset::Other,
+            )),
         ];
         assert_eq!(
-            masks.map(|mask| mask.map(|mask| (mask.alignment, mask.reason))),
+            masks.map(|mask| mask.map(|mask| (mask.alignment, mask.reason, mask.onset))),
             expected
         );
         Ok(())

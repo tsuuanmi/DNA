@@ -445,7 +445,7 @@ fn segments(alignment: &RawAlignment, reference: &Reference) -> (Vec<ReferenceSe
 mod tests {
     use crate::model::alignment::AlignmentMetrics;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::EvidenceReason;
+    use dna_kernel::read_evidence::{EvidenceReason, MaskOnset};
 
     use super::*;
 
@@ -873,6 +873,7 @@ mod tests {
         call.mask = Some(CallMask {
             alignment: MaskedAlignment::Anchoring,
             reason: EvidenceReason::new("dephased_signal"),
+            onset: MaskOnset::Other,
         });
         let masked = clean.clone().with_call(12, call);
         let inserted_after = |alignment: &Alignment| {
@@ -899,6 +900,7 @@ mod tests {
         call.mask = Some(CallMask {
             alignment: MaskedAlignment::Anchoring,
             reason: EvidenceReason::new("dephased_signal"),
+            onset: MaskOnset::Other,
         });
         let reverse = align_best(&reverse.clone().with_call(11, call), &reference, &config())?;
         assert_eq!(reverse.orientation, Orientation::Reverse);
