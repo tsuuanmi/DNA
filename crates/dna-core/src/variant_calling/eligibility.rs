@@ -40,6 +40,8 @@ pub(crate) struct ReadEligibility<'a> {
     /// Per call: it lies on a bounded run of one base that the exemption lifts
     /// from `read_end` (the run's bounds are not included).
     run_exempt: Vec<bool>,
+    /// Per call: it bounds such a run.
+    bound_exempt: Vec<bool>,
     evidence: &'a ReadEvidence,
 }
 
@@ -87,6 +89,7 @@ impl<'a> ReadEligibility<'a> {
             after,
             margin,
             run_exempt: vec![false; calls],
+            bound_exempt: vec![false; calls],
             evidence,
         };
         {
@@ -102,9 +105,12 @@ impl<'a> ReadEligibility<'a> {
                     && dna_kernel::model::nucleotide::is_canonical(base)
                     && eligibility.bounded_run_exempt(start, end, base)
                 {
-                    // The run's own calls only: its bounds keep their trust,
-                    // so they show where the run ends but never a base.
+                    // The run's own calls; its bounds are recorded apart, since
+                    // the consensus trusts them only where they read the
+                    // reference base.
                     eligibility.run_exempt[start..=end].fill(true);
+                    eligibility.bound_exempt[start - 1] = true;
+                    eligibility.bound_exempt[end + 1] = true;
                 }
                 start = end + 1;
             }
@@ -118,6 +124,13 @@ impl<'a> ReadEligibility<'a> {
     /// composition may not.
     pub(crate) fn run_exempt(&self, index: usize) -> bool {
         self.run_exempt.get(index).copied().unwrap_or(false)
+    }
+
+    /// Whether a call bounds a run the exemption lifts. The consensus trusts
+    /// such a bound only where it reads the reference base, so it can never
+    /// make a variant.
+    pub(crate) fn bound_exempt(&self, index: usize) -> bool {
+        self.bound_exempt.get(index).copied().unwrap_or(false)
     }
 
     /// Whether the run `start..=end` of `base` is bounded by resolving,
