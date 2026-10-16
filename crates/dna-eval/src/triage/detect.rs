@@ -160,8 +160,9 @@ pub(crate) struct Policy {
     pub(crate) one_strand: OneStrand,
     /// Which poor traces could have read a region.
     pub(crate) proxy: Proxy,
-    /// The rule of `region.minor_signal`; `None` turns the detector off.
-    pub(crate) minor: Option<MinorRule>,
+    /// The rules of `region.minor_signal`, any of which marks a position;
+    /// none turns the detector off.
+    pub(crate) minor: Vec<MinorRule>,
     /// The rule of `region.minor_signal_single_strand`, applied at the
     /// one-strand positions the one-strand exception lets pass; `None` turns
     /// it off.
@@ -240,7 +241,7 @@ impl Policy {
             .into(),
             one_strand: OneStrand::Everywhere,
             proxy: Proxy::Primer,
-            minor: Some(MinorRule::DEFAULT),
+            minor: vec![MinorRule::DEFAULT],
             single_minor: None,
         }
     }
@@ -251,7 +252,7 @@ impl Policy {
             Detector::Unreliable(cause) => self.causes.contains(&cause),
             Detector::OneStrand => self.one_strand != OneStrand::Off,
             Detector::Gap => true,
-            Detector::MinorSignal(rule) => self.minor == Some(rule),
+            Detector::MinorSignal(rule) => self.minor.contains(&rule),
             Detector::SingleStrandMinor(rule) => self.single_minor == Some(rule),
         }
     }
@@ -276,13 +277,14 @@ impl Policy {
 
     /// The region detectors whose findings a decision under the policy
     /// counts, in report order: every stage-1 detector, applied or not, and
-    /// `region.minor_signal` with the policy's rule, or with the draft's rule
-    /// (measured, not applied) when the policy has none.
+    /// `region.minor_signal` with each of the policy's rules, or with the
+    /// draft's rule (measured, not applied) when the policy has none.
     pub(crate) fn detectors(&self) -> Vec<Detector> {
         let mut detectors = Detector::stage1();
-        detectors.push(Detector::MinorSignal(
-            self.minor.unwrap_or(MinorRule::DEFAULT),
-        ));
+        if self.minor.is_empty() {
+            detectors.push(Detector::MinorSignal(MinorRule::DEFAULT));
+        }
+        detectors.extend(self.minor.iter().copied().map(Detector::MinorSignal));
         if let Some(rule) = self.single_minor {
             detectors.push(Detector::SingleStrandMinor(rule));
         }
@@ -305,8 +307,7 @@ impl Policy {
             },
             self.one_strand.label(),
             self.proxy.label(),
-            self.minor
-                .map_or_else(|| "off".to_owned(), MinorRule::label),
+            MinorRule::labels(&self.minor),
             self.single_minor
                 .map_or_else(|| "off".to_owned(), MinorRule::label)
         )
@@ -511,7 +512,7 @@ pub(crate) fn decide(
             let outcome = if !rerun.is_empty() {
                 Outcome::Rerun
             } else if applied
-                || ((policy.minor.is_some() || policy.single_minor.is_some())
+                || ((!policy.minor.is_empty() || policy.single_minor.is_some())
                     && evidence.minor_failure.is_some())
             {
                 Outcome::Review
@@ -659,6 +660,8 @@ mod tests {
             weight: 200,
             before: false,
             after: false,
+            before_share: 0,
+            after_share: 0,
             noise: 0,
         };
         let at = |start: usize, minor: bool| {
@@ -738,6 +741,8 @@ mod tests {
             weight,
             before: false,
             after: false,
+            before_share: 0,
+            after_share: 0,
             noise: 0,
         };
         let mut evidence = sample(vec![region(vec![position(1, 1); 3])], Vec::new());
@@ -754,7 +759,7 @@ mod tests {
         );
         // Off, the draft's rule is still counted but does not act.
         let off = Policy {
-            minor: None,
+            minor: Vec::new(),
             ..Policy::draft()
         };
         let decision = decide(&evidence, &off, &Footprints::default());
@@ -770,7 +775,7 @@ mod tests {
             ..MinorRule::DEFAULT
         };
         let policy = Policy {
-            minor: Some(strict),
+            minor: vec![strict],
             ..Policy::draft()
         };
         assert_eq!(policy.detectors().len(), Detector::stage1().len() + 1);

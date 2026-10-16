@@ -57,7 +57,8 @@ pre-registration (TOML) committed to the repository:
   (`first`, then `previous_pass`: the sequence stops at the first failure, so
   the family-wise alpha holds), the full policy
   (`short_calls`, `causes`, `one_strand` as `everywhere`, `off`,
-  `outside_repeats`, or `outside_repeats_h<k>`, `proxy`, `minor` and
+  `outside_repeats`, or `outside_repeats_h<k>`, `proxy`, `minor` as one or
+  more `<kind>@<t>` joined by `+` (any of which marks) or `off`, and
   `single_minor` as `<kind>@<t>` or `off`), and an optional `marginal`
   (`against` an earlier hypothesis, a measure, an `upper_bound`, the
   `projected_n` that `dna-eval power` gave at its lower bound, and
@@ -392,8 +393,12 @@ nothing in DNA reads them, they decide no call, and none is approved.
   A/C/G/T profile other than its own call, kept when its weight is at least
   0.05; the pair (call, minor base); whether the minor base is the base the
   read calls just before or just after in sequencing order (a neighbour's
-  shadow); and the read's local noise, the median minor weight of its calls
-  within 10 calls on either side. Weights are kept in thousandths, rounded;
+  shadow); how systematic each of those two shadows is in the read here,
+  the share of its calls within 10 on either side (the call itself left
+  out) whose minor channel, at 0.05 or more, is the base of the call before
+  (or after) them; and the read's local noise, the median minor weight of
+  its calls within 10 calls on either side. Weights and shares are kept in
+  thousandths, rounded down for shares;
 - per input trace: its name, the primer in the name (a `HV<n><F|R>` token),
   whether it was admitted (with its strand) or rejected (too short, too few
   callable calls, or unplaced), and its callable span in calls.
@@ -415,7 +420,7 @@ review because the gate could not run, and `triage.tsv` gives the cause
 | region | `region.one_strand` | a position is observed cleanly by one strand only, where the policy requires both strands: everywhere (the draft), nowhere (`off`), or only inside the repeat windows ±3 (`outside_repeats`, R6m) and also in or next to a reference homopolymer of at least `k` bases (`outside_repeats_h<k>`, R6m-h4 with 4); the windows are the measures' windows (`compare::Region::WINDOWS`) and the runs are read from the reference |
 | region | `region.minor_signal_single_strand` | a position one strand alone reads cleanly shows a minor signal under the policy's single-strand rule (off by default); it applies only where the policy lets one strand pass |
 | region | `region.gap` | a position is observed cleanly by no read |
-| region | `region.minor_signal` | a position's reads show a second allele under the policy's minor rule (default `upstream@100`; off turns it off) |
+| region | `region.minor_signal` | a position's reads show a second allele under one of the policy's minor rules (default `upstream@100`; off turns it off) |
 
 **Minor rules.** A rule is a kind and a threshold `t` in thousandths; a read
 counts when its minor weight (its second channel's share of the read's
@@ -432,6 +437,7 @@ same unordered pair:
 | `unshadowed` | its minor base is neither neighbour's base | as `strands` |
 | `upstream` | its minor base is not the base of its 3′-side adjacent call in reference order (the call after it on a forward read, the call before it in sequencing order on a reverse read) | as `strands` |
 | `noise` | its minor weight is at least 3 times its local noise | as `strands` |
+| `local_shadow` | its minor base is not a neighbour's base whose shadow at least 0.05 of the read's nearby calls show | as `strands` |
 | `any` | its minor base is neither neighbour's base | any read counts |
 | `lone` | as `unshadowed` | as `unshadowed`, or any read counts where one strand alone reads the position cleanly |
 
@@ -500,8 +506,9 @@ count in A/B/C but not in leaks or catches.
   cause; one-strand and `masked` off; the gap alone; the minor signal off),
   then the draft with each minor rule but `lone` (which equals `unshadowed`
   while `region.one_strand` applies) at thresholds 60, 80, 100, 120, 150, 200,
-  and 250, leaving out the draft's own rule, and `lone` at the same
-  thresholds with `region.one_strand` off;
+  and 250, leaving out the draft's own rule, `lone` at the same
+  thresholds with `region.one_strand` off, and the draft's rule joined by
+  `local_shadow` at the same thresholds;
   each with A/B/C and its leaks under every measure: a risk–coverage table.
   Every policy runs on the evidence already taken, without DNA.
 - **Minor signal:** for the draft and each policy with another minor rule,

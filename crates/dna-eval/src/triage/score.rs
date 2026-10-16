@@ -94,7 +94,7 @@ pub(crate) fn sweep() -> Vec<Policy> {
             policy.causes.clear();
             policy.one_strand = OneStrand::Off;
         }),
-        with("minor_off", &|policy| policy.minor = None),
+        with("minor_off", &|policy| policy.minor.clear()),
         with("one_strand_outside_repeats", &|policy| {
             policy.one_strand = OneStrand::OutsideRepeats { homopolymer: None };
         }),
@@ -133,13 +133,24 @@ pub(crate) fn sweep() -> Vec<Policy> {
             .into_iter()
             .filter(|kind| *kind != Kind::Lone)
             .flat_map(|kind| MINOR_THRESHOLDS.map(|threshold| Rule { kind, threshold }))
-            .filter(|rule| Some(*rule) != draft.minor)
+            .filter(|rule| !draft.minor.contains(rule))
             .map(|rule| {
                 with(&format!("minor_{}", rule.label()), &|policy| {
-                    policy.minor = Some(rule);
+                    policy.minor = vec![rule];
                 })
             }),
     )
+    .chain(MINOR_THRESHOLDS.map(|threshold| {
+        let rule = Rule {
+            kind: Kind::LocalShadow,
+            threshold,
+        };
+        let mut rules = draft.minor.clone();
+        rules.push(rule);
+        with(&format!("minor_{}", Rule::labels(&rules)), &|policy| {
+            policy.minor.clone_from(&rules);
+        })
+    }))
     .chain(MINOR_THRESHOLDS.map(|threshold| {
         let rule = Rule {
             kind: Kind::Lone,
@@ -149,7 +160,7 @@ pub(crate) fn sweep() -> Vec<Policy> {
             &format!("one_strand_off_minor_{}", rule.label()),
             &|policy| {
                 policy.one_strand = OneStrand::Off;
-                policy.minor = Some(rule);
+                policy.minor = vec![rule];
             },
         )
     }))
@@ -229,9 +240,9 @@ impl<'a> Triage<'a> {
                 .map(|row| evidence(row).map(|evidence| decide(evidence, policy, &footprints)))
                 .collect::<Vec<_>>()
         };
-        let reported_rule = policies.first().and_then(|policy| policy.minor);
+        let reported_rules = policies.first().map(|policy| policy.minor.as_slice());
         let without = |policy: &Policy| Policy {
-            minor: None,
+            minor: Vec::new(),
             ..policy.clone()
         };
         // The decisions of each policy without a minor-signal rule that a
@@ -240,14 +251,14 @@ impl<'a> Triage<'a> {
         let needed = policies
             .iter()
             .enumerate()
-            .filter(|(index, policy)| minor::reports(*index, policy, reported_rule))
+            .filter(|(index, policy)| minor::reports(*index, policy, reported_rules))
             .map(|(_, policy)| without(policy).parameters())
             .collect::<BTreeSet<_>>();
         let mut cleared = BTreeMap::<String, Vec<Option<SampleDecision>>>::new();
         let ensure = |cleared: &mut BTreeMap<String, Vec<Option<SampleDecision>>>,
                       wanted: &Policy| {
             let key = wanted.parameters();
-            if wanted.minor.is_none() && needed.contains(&key) && !cleared.contains_key(&key) {
+            if wanted.minor.is_empty() && needed.contains(&key) && !cleared.contains_key(&key) {
                 cleared.insert(key, decide_all(wanted));
             }
         };
@@ -255,7 +266,7 @@ impl<'a> Triage<'a> {
         let mut measurements = Vec::new();
         let mut effects = Vec::new();
         for (index, policy) in policies.iter().enumerate() {
-            let reports = minor::reports(index, policy, reported_rule);
+            let reports = minor::reports(index, policy, reported_rules);
             let base = without(policy);
             if reports {
                 ensure(&mut cleared, &base);
@@ -1944,6 +1955,8 @@ mod tests {
             weight: 300,
             before: false,
             after: false,
+            before_share: 0,
+            after_share: 0,
             noise: 10,
         };
         let Some(evidence) = runs[1].triage.as_mut() else {
@@ -1981,7 +1994,7 @@ mod tests {
             threshold: 301,
         };
         let policy = Policy {
-            minor: Some(strict),
+            minor: vec![strict],
             ..Policy::draft()
         };
         let triage = Triage::new(&rows, vec![policy], compare::tests::rcrs());
@@ -2018,7 +2031,8 @@ mod tests {
     }
 
     #[test]
-    fn the_sweep_starts_with_the_draft_and_names_each_policy_once() {
+    fn the_sweep_starts_with_the_draft_and_names_each_policy_once()
+    -> Result<(), Box<dyn std::error::Error>> {
         let policies = sweep();
         assert_eq!(policies.first(), Some(&Policy::draft()));
         let names = policies
@@ -2032,8 +2046,29 @@ mod tests {
                 .iter()
                 .skip(1)
                 .filter(|policy| policy.name.starts_with("minor_") && policy.name != "minor_off")
-                .all(|policy| policy.minor.is_some() && policy.minor != Policy::draft().minor)
+                .all(|policy| !policy.minor.is_empty() && policy.minor != Policy::draft().minor)
         );
         assert!(!names.contains("minor_upstream@100"));
+        // The draft's rule with each local-shadow rule beside it.
+        let union = policies
+            .iter()
+            .find(|policy| policy.name == "minor_upstream@100+local_shadow@80")
+            .ok_or("the union policy")?;
+        assert_eq!(
+            union.minor,
+            [
+                Rule::DEFAULT,
+                Rule {
+                    kind: Kind::LocalShadow,
+                    threshold: 80
+                }
+            ]
+        );
+        assert!(
+            union
+                .parameters()
+                .contains("minor=upstream@100+local_shadow@80 ")
+        );
+        Ok(())
     }
 }

@@ -37,22 +37,30 @@ pub(super) struct Effect {
 }
 
 /// Whether the minor-signal measurement reports policy `index`: a policy
-/// with a rule that is the reported (first) policy or has a rule other than
+/// with rules that is the reported (first) policy or has rules other than
 /// the reported policy's.
-pub(super) fn reports(index: usize, policy: &Policy, reported: Option<Rule>) -> bool {
-    policy.minor.is_some() && (index == 0 || policy.minor != reported)
+pub(super) fn reports(index: usize, policy: &Policy, reported: Option<&[Rule]>) -> bool {
+    !policy.minor.is_empty() && (index == 0 || Some(policy.minor.as_slice()) != reported)
 }
 
-/// Measures `policy`'s minor-signal rule from its decisions of `rows` and
-/// the decisions of the same policy without the rule; `None` when the
-/// policy applies none.
+/// Measures `policy`'s minor-signal rules from its decisions of `rows` and
+/// the decisions of the same policy without them; `None` when the policy
+/// applies none.
 pub(super) fn effect(
     rows: &[Row<'_>],
     decisions: &[Option<SampleDecision>],
     without: &[Option<SampleDecision>],
     policy: &Policy,
 ) -> Option<Effect> {
-    let rule = Detector::MinorSignal(policy.minor?);
+    if policy.minor.is_empty() {
+        return None;
+    }
+    let rules = policy
+        .minor
+        .iter()
+        .copied()
+        .map(Detector::MinorSignal)
+        .collect::<Vec<_>>();
     let mut effect = Effect::default();
     let mut shares_without = Vec::new();
     let mut shares_with = Vec::new();
@@ -116,7 +124,8 @@ pub(super) fn effect(
             ) else {
                 continue;
             };
-            let marked = rule.marks(at, evidence.minors(region, offset));
+            let minors = evidence.minors(region, offset);
+            let marked = rules.iter().any(|rule| rule.marks(at, minors));
             effect.sites_all += 1;
             effect.caught_all += usize::from(marked);
             if outcome.outcome == Outcome::Pass {
@@ -134,13 +143,13 @@ pub(super) fn effect(
 }
 
 impl Triage<'_> {
-    /// The policies the minor-signal measurement reports, with the rule and
-    /// its effect.
-    fn minor_rows(&self) -> Vec<(&Policy, Rule, Effect)> {
+    /// The policies the minor-signal measurement reports, with their rules
+    /// and effect.
+    fn minor_rows(&self) -> Vec<(&Policy, String, Effect)> {
         self.policies
             .iter()
             .zip(&self.minor)
-            .filter_map(|(policy, effect)| Some((policy, policy.minor?, (*effect)?)))
+            .filter_map(|(policy, effect)| Some((policy, Rule::labels(&policy.minor), (*effect)?)))
             .collect()
     }
 
@@ -165,7 +174,7 @@ impl Triage<'_> {
                 text,
                 "{}\t{}\t{:.4}\t{:.4}\t{:.4}\t{}\t{}\t{}\t{}\t{}\t{}",
                 policy.name,
-                rule.label(),
+                rule,
                 effect.pass_without,
                 effect.pass_with,
                 effect.pass_without - effect.pass_with,
@@ -214,7 +223,7 @@ impl Triage<'_> {
                 text,
                 "| {} | `{}` | {:.4} | {:.4} | {:.4} | {} | {} | {}/{} | {}/{} | {:.4} | {}/{} | {}/{} |",
                 policy.name,
-                rule.label(),
+                rule,
                 effect.pass_without,
                 effect.pass_with,
                 effect.pass_without - effect.pass_with,
