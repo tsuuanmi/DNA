@@ -49,6 +49,14 @@ pub enum SampleError {
         /// Read content identity.
         read: String,
     },
+    /// A requested reference interval is empty, reversed, or not 1-based.
+    #[error("reference interval {first}..={last} must be 1-based with first <= last")]
+    InvalidInterval {
+        /// First requested 1-based position.
+        first: usize,
+        /// Last requested 1-based position.
+        last: usize,
+    },
     /// A read maps one reference coordinate twice.
     #[error("read {read} contains duplicate reference coordinate {position}")]
     DuplicateCoordinate {

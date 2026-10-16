@@ -298,6 +298,7 @@ dependencies = [
  "clap",
  "dna",
  "dna-core",
+ "dna-kernel",
  "dna-sanger",
  "rusqlite",
  "serde",

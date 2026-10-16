@@ -16,7 +16,8 @@ use tracing::{Dispatch, Span};
 use crate::config::Config;
 use crate::input::sanger;
 use dna_core::consensus;
-use dna_core::model::sample_evidence::RejectedSampleRead;
+use dna_core::model::called_read::CalledRead;
+use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 use dna_core::sample;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
@@ -57,6 +58,9 @@ pub struct SampleAnalysis {
     /// identities above derive from them, and [`SampleAnalysis::call`] calls
     /// the consensus with them.
     pub(crate) loaded: Loaded,
+    /// The admitted reads as the core placed them, which
+    /// [`SampleAnalysis::observations`] reads.
+    pub(crate) called: Vec<CalledRead>,
 }
 
 impl SampleAnalysis {
@@ -65,6 +69,33 @@ impl SampleAnalysis {
     #[must_use]
     pub fn regions(&self) -> &[[usize; 2]] {
         &self.loaded.profile.regions
+    }
+
+    /// Every admitted read's observation of each reference position from
+    /// `first_1based` to `last_1based` (inclusive) that a read covers,
+    /// whether or not a read differs there: state, reference-strand base,
+    /// source call index, and reference-oriented A/C/G/T profile, as
+    /// `evidence.locus_differences` records them, with read indices into
+    /// `evidence.reads`, but without their support aggregates. Uncovered
+    /// positions have no record. The interval does not wrap: on a circular
+    /// reference, a span across the origin is two calls.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SampleError::InvalidInterval`]
+    /// when `first_1based` is zero or greater than `last_1based`, and
+    /// [`Error`](dna_kernel::error::Error) when the placed reads are
+    /// inconsistent, which the analysis already rules out.
+    pub fn observations(
+        &self,
+        first_1based: usize,
+        last_1based: usize,
+    ) -> Result<Vec<LocusObservations>> {
+        sample::observations(
+            &self.called.iter().collect::<Vec<_>>(),
+            first_1based,
+            last_1based,
+        )
     }
 }
 
@@ -200,6 +231,7 @@ pub fn analyze_sanger_outcome(
         reads: placed.sanger,
         rejected: by_identity(placed.rejected),
         loaded,
+        called: placed.called,
     })))
 }
 

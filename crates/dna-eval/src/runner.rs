@@ -61,7 +61,8 @@ pub(crate) struct Outcome {
     pub(crate) traces: Option<usize>,
     pub(crate) result: std::result::Result<Called, Failure>,
     /// The draft triage evidence, when the run asks for it and DNA analysed
-    /// the sample or rejected every read; it is kept when the call fails.
+    /// the sample or rejected every read; it is kept when the call fails. A
+    /// failure to take it leaves the call as it is.
     pub(crate) triage: Option<Evidence>,
     /// Wall time of the sample, in milliseconds.
     pub(crate) millis: u128,

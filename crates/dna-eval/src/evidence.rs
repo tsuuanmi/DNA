@@ -8,7 +8,10 @@
 //! cover it only through a masked call, and the consensus marks over it. Per
 //! input trace it keeps the name, the primer the name carries, whether the
 //! read was admitted (with its strand and the clean positions it reads in
-//! each region) or why it was rejected, and its callable span.
+//! each region) or why it was rejected, and its callable span. Per region
+//! position it also keeps the clean reads' minor channels ([`minor`]).
+
+pub(crate) mod minor;
 
 use std::collections::BTreeMap;
 
@@ -33,7 +36,8 @@ impl Strand {
         }
     }
 
-    const fn of(orientation: Orientation) -> Self {
+    /// The strand a read placed in `orientation` observes.
+    pub(crate) const fn of(orientation: Orientation) -> Self {
         match orientation {
             Orientation::Forward => Self::Forward,
             Orientation::Reverse => Self::Reverse,
@@ -197,32 +201,64 @@ pub(crate) struct Evidence {
     pub(crate) regions: Vec<Region>,
     /// Traces sorted by name, then by state.
     pub(crate) traces: Vec<Trace>,
+    /// Per region and position, the clean reads' minor channels; empty when
+    /// not taken.
+    pub(crate) minor: minor::Signals,
+    /// Why the minor channels could not be taken, if they could not. A
+    /// policy with a minor-signal rule then sends regions that would pass to
+    /// review, because the gate could not run.
+    pub(crate) minor_failure: Option<String>,
 }
 
 impl Evidence {
-    /// The index of the region holding the anchor base of `position`.
-    pub(crate) fn region_of(&self, anchor: i64) -> Option<usize> {
+    /// The region holding the 1-based position `anchor`, and the anchor's
+    /// offset from the region's start.
+    pub(crate) fn locate(&self, anchor: i64) -> Option<(usize, usize)> {
         let anchor = usize::try_from(anchor).ok()?;
-        self.regions
-            .iter()
-            .position(|region| (region.start..=region.end).contains(&anchor))
+        self.regions.iter().enumerate().find_map(|(index, region)| {
+            (region.start..=region.end)
+                .contains(&anchor)
+                .then(|| (index, anchor - region.start))
+        })
+    }
+
+    /// The minor channels at position `offset` of region `region`; none when
+    /// not taken.
+    pub(crate) fn minors(&self, region: usize, offset: usize) -> &[minor::Minor] {
+        self.minor
+            .get(region)
+            .and_then(|positions| positions.get(offset))
+            .map_or(&[], Vec::as_slice)
     }
 }
 
-/// Takes the triage evidence of one analysed sample.
+/// Takes the triage evidence of one analysed sample. When DNA cannot give
+/// the reads' observations, the stage-1 evidence is kept without minor
+/// channels and [`Evidence::minor_failure`] says why.
 pub(crate) fn extract(analysis: &SampleAnalysis) -> Evidence {
     let spans = analysis
         .reads
         .iter()
         .map(|(sha256, sanger)| (sha256.as_str(), span(&sanger.callability)))
         .collect::<BTreeMap<_, _>>();
-    build(
-        analysis.regions(),
-        &analysis.evidence.reads,
-        &analysis.consensus,
-        &spans,
-        rejected(analysis.rejected.values()),
-    )
+    let (minor, minor_failure) = match minor::extract(analysis) {
+        Ok(minor) => (minor, None),
+        Err(error) => (
+            Vec::new(),
+            Some(format!("cannot read the observations: {error}")),
+        ),
+    };
+    Evidence {
+        minor,
+        minor_failure,
+        ..build(
+            analysis.regions(),
+            &analysis.evidence.reads,
+            &analysis.consensus,
+            &spans,
+            rejected(analysis.rejected.values()),
+        )
+    }
 }
 
 /// The evidence of a sample whose every read was rejected: its traces only,
@@ -233,6 +269,8 @@ pub(crate) fn rejected_only<'a>(reads: impl IntoIterator<Item = &'a RejectedRead
     Evidence {
         regions: Vec::new(),
         traces,
+        minor: Vec::new(),
+        minor_failure: None,
     }
 }
 
@@ -345,7 +383,12 @@ pub(crate) fn build(
         }
     }
     traces.sort_by(|left, right| order(left).cmp(&order(right)));
-    Evidence { regions, traces }
+    Evidence {
+        regions,
+        traces,
+        minor: Vec::new(),
+        minor_failure: None,
+    }
 }
 
 /// The unreliable causes a consensus site shows.
@@ -626,8 +669,10 @@ pub(crate) mod tests {
         );
         assert_eq!(evidence.traces[0].span, Some(400));
         assert_eq!(evidence.traces[1].span, None);
-        assert_eq!(evidence.region_of(30), Some(0));
-        assert_eq!(evidence.region_of(31), None);
+        assert_eq!(evidence.locate(11), Some((0, 0)));
+        assert_eq!(evidence.locate(30), Some((0, 19)));
+        assert_eq!(evidence.locate(31), None);
+        assert_eq!(evidence.locate(-1), None);
 
         // The evidence does not depend on the order of the reads or traces.
         let reversed = [reads[1].clone(), reads[0].clone()];

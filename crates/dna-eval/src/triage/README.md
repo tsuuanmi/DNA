@@ -13,9 +13,13 @@ It reads the compact triage evidence that the runner takes per sample
 - `detect.rs` — stage R: the trace and region detectors, the primer
   footprints, and the region, trace, and sample outcome under one policy.
   Pure and deterministic.
+- `minor.rs` — the `region.minor_signal` rules: a kind (how a read's minor
+  channel counts and how reads must agree) and a threshold. Pure and
+  deterministic.
 - `score.rs` — stage C: A/B/C, leaks with Clopper–Pearson bounds, catches
   and burden per detector, region leak cases, the policy sweep, and the
-  `triage*` output files.
+  `triage*` output files; `score/minor.rs` measures each minor rule against
+  its policy without it (`triage_minor.tsv`, [minor score](score/README.md)).
 
 The detectors, outcomes, measures, and outputs are specified in the
 [evaluation harness](../../../../docs/validation/evaluation-harness.md#draft-triage)

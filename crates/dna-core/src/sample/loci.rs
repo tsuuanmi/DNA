@@ -1,11 +1,13 @@
 //! Reference-coordinate production sample-locus evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::RangeInclusive;
 
 use crate::model::alignment::{AlignmentColumn, Orientation};
 use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{
-    LocusState, LocusSupportTopology, SampleLocusEvidence, SampleLocusObservation,
+    LocusObservations, LocusState, LocusSupportTopology, SampleLocusEvidence,
+    SampleLocusObservation,
 };
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::nucleotide::is_canonical;
@@ -17,7 +19,56 @@ struct LocusBuilder {
     observations: Vec<SampleLocusObservation>,
 }
 
+/// The differential loci: positions where at least one covering read is
+/// alternate, unresolved, or deleted by an unmasked call.
 pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<SampleLocusEvidence>> {
+    let loci = observe(reads, |read, column, _| {
+        !matches!(
+            classify(read, column),
+            LocusState::Reference | LocusState::Masked
+        )
+    })?;
+    loci.into_iter()
+        .map(|(position_1based, built)| {
+            let support_topology = support_topology(&built.observations, reads)?;
+            let nucleotide_support = nucleotide_support::aggregate(&built.observations, reads)?;
+            Ok(SampleLocusEvidence {
+                position_1based,
+                reference_base: built.reference_base,
+                support_topology,
+                nucleotide_support,
+                observations: built.observations,
+            })
+        })
+        .collect()
+}
+
+/// Every covering read's observation of each position of `positions`
+/// (1-based) that a read's alignment covers, whether or not a read differs
+/// there, without support aggregates.
+pub(super) fn interval(
+    reads: &[&CalledRead],
+    positions: &RangeInclusive<usize>,
+) -> Result<Vec<LocusObservations>> {
+    let loci = observe(reads, |_, _, position_1based| {
+        positions.contains(&position_1based)
+    })?;
+    Ok(loci
+        .into_iter()
+        .map(|(position_1based, built)| LocusObservations {
+            position_1based,
+            reference_base: built.reference_base,
+            observations: built.observations,
+        })
+        .collect())
+}
+
+/// Retains the positions a covering column is kept at, then records every
+/// covering read's observation there, by 1-based position.
+fn observe(
+    reads: &[&CalledRead],
+    keep: impl Fn(&CalledRead, &AlignmentColumn, usize) -> bool,
+) -> Result<BTreeMap<usize, LocusBuilder>> {
     let mut loci: BTreeMap<usize, LocusBuilder> = BTreeMap::new();
 
     for read in reads {
@@ -31,13 +82,12 @@ pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<SampleLocusEvidence
                 )
                 .into());
             }
-            let state = classify(read, column);
-            if matches!(state, LocusState::Reference | LocusState::Masked) {
-                continue;
-            }
             let position_1based = reference_index_0based
                 .checked_add(1)
                 .ok_or(SampleError::Overflow("reference coordinate overflow"))?;
+            if !keep(read, column, position_1based) {
+                continue;
+            }
             let entry = loci.entry(position_1based).or_insert_with(|| LocusBuilder {
                 reference_base: column.reference_base,
                 observations: Vec::new(),
@@ -52,7 +102,7 @@ pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<SampleLocusEvidence
     }
 
     if loci.is_empty() {
-        return Ok(Vec::new());
+        return Ok(loci);
     }
 
     for (read_index, read) in reads.iter().enumerate() {
@@ -85,20 +135,7 @@ pub(super) fn aggregate(reads: &[&CalledRead]) -> Result<Vec<SampleLocusEvidence
                 .push(observation(read_index, read, column)?);
         }
     }
-
-    loci.into_iter()
-        .map(|(position_1based, built)| {
-            let support_topology = support_topology(&built.observations, reads)?;
-            let nucleotide_support = nucleotide_support::aggregate(&built.observations, reads)?;
-            Ok(SampleLocusEvidence {
-                position_1based,
-                reference_base: built.reference_base,
-                support_topology,
-                nucleotide_support,
-                observations: built.observations,
-            })
-        })
-        .collect()
+    Ok(loci)
 }
 
 fn support_topology(

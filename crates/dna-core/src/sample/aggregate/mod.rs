@@ -4,12 +4,13 @@ use std::collections::BTreeSet;
 
 use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{
-    RejectedSampleRead, SampleEvidence, SampleReadAlignmentEvidence, SampleReadEvidence,
+    LocusObservations, RejectedSampleRead, SampleEvidence, SampleReadAlignmentEvidence,
+    SampleReadEvidence,
 };
 use crate::sample::SampleReconciliationConfig;
 use dna_kernel::error::{Result, SampleError};
 
-use super::{coverage, loci, overlap, variants};
+use super::{coverage, loci as locus, overlap, variants};
 
 /// Aggregates independently processed reads without using filenames or pair
 /// labels as merge keys; rejected reads are recorded but contribute nothing.
@@ -74,9 +75,40 @@ pub fn aggregate(
         rejected_reads,
         coverage,
         overlaps: overlap::assess(&ordered, config)?,
-        locus_differences: loci::aggregate(&ordered)?,
+        locus_differences: locus::aggregate(&ordered)?,
         variants: variants::aggregate(&ordered)?,
     })
+}
+
+/// Every admitted read's observation of each reference position from
+/// `first_1based` to `last_1based` (inclusive) that a read's alignment covers,
+/// as [`SampleEvidence::locus_differences`] records them, whether or not a read
+/// differs there, but without support aggregates. Read indices follow the
+/// registry order of [`aggregate`]. The interval does not wrap: on a circular
+/// reference, a span across the origin is two calls.
+///
+/// # Errors
+///
+/// Returns `SampleError::InvalidInterval` when `first_1based` is zero or
+/// greater than `last_1based`, and `SampleError` when no read is given, reads
+/// disagree on reference or configuration, a trace repeats, or the evidence
+/// is inconsistent.
+pub fn observations(
+    reads: &[&CalledRead],
+    first_1based: usize,
+    last_1based: usize,
+) -> Result<Vec<LocusObservations>> {
+    if first_1based == 0 || first_1based > last_1based {
+        return Err(SampleError::InvalidInterval {
+            first: first_1based,
+            last: last_1based,
+        }
+        .into());
+    }
+    locus::interval(
+        &validated_ordered_reads(reads)?,
+        &(first_1based..=last_1based),
+    )
 }
 
 pub(crate) fn validated_ordered_reads<'a>(reads: &[&'a CalledRead]) -> Result<Vec<&'a CalledRead>> {

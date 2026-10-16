@@ -24,6 +24,20 @@ remain independently versioned and are never silently changed in place.
     [PROP-0004](docs/proposals/0004-review-triage.md#phase-0-results).
   - **Rust API:** `SampleAnalysis::regions()` returns the reportable regions
     of the target profile the analysis ran with (SRS-API-010).
+  - **Harness:** draft `region.minor_signal` detectors for point
+    heteroplasmy over each clean read's minor channel at every covered
+    position: cross-strand rules with and without a shadow test, a noise
+    ratio, single-read and one-strand variants, swept at several thresholds
+    and measured against the same policy without them (`triage_minor.tsv`).
+    The draft applies `upstream@100`; results are in
+    [PROP-0004](docs/proposals/0004-review-triage.md#minor-signal-results).
+  - **Rust API:** `SampleAnalysis::observations(first_1based, last_1based)`
+    gives every admitted read's observation of each covered position of an
+    interval, as the sample evidence records it at a differential locus,
+    whether or not a read differs there, without support aggregates
+    (SRS-API-013). A zero or reversed interval is a typed
+    `SampleError::InvalidInterval`; a span across the circular origin is two
+    calls. `Orientation::reference_base` (`dna-core`) is public.
   - **Rust API:** `sample_analysis::analyze_sanger_outcome` runs the same pass
     as `analyze_sanger` but returns `SampleOutcome::Rejected` with every
     rejected read and its cause when none is admitted, instead of the

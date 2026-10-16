@@ -7,12 +7,15 @@
 //! sample without a comparison (no truth) counts in A/B/C but not in leaks
 //! or catches.
 
+mod minor;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use super::detect::{
     Detector, Footprints, Outcome, Policy, Proxy, SampleDecision, TraceFinding, decide,
 };
+use super::minor::{Kind, Rule};
 use crate::compare::{self, Allele, Comparison, Measure, Region as Window};
 use crate::estimate::{self, Estimate, Observation};
 use crate::evidence::{Cause, Evidence, TraceState};
@@ -45,7 +48,13 @@ impl Class {
     }
 }
 
-/// The policies of the sweep: the draft first, then one change each.
+/// The thresholds, in thousandths, each minor-signal rule is swept at.
+const MINOR_THRESHOLDS: [u16; 7] = [60, 80, 100, 120, 150, 200, 250];
+
+/// The policies of the sweep: the draft first, then one change each, then
+/// the draft with each minor-signal rule at each of [`MINOR_THRESHOLDS`]
+/// (but `lone`, which equals `unshadowed` while `region.one_strand` applies),
+/// and `lone` with `region.one_strand` off.
 pub(crate) fn sweep() -> Vec<Policy> {
     let draft = Policy::draft();
     let with = |name: &str, change: &dyn Fn(&mut Policy)| {
@@ -83,7 +92,35 @@ pub(crate) fn sweep() -> Vec<Policy> {
             policy.causes.clear();
             policy.one_strand = false;
         }),
+        with("minor_off", &|policy| policy.minor = None),
     ]
+    .into_iter()
+    .chain(
+        Kind::ALL
+            .into_iter()
+            .filter(|kind| *kind != Kind::Lone)
+            .flat_map(|kind| MINOR_THRESHOLDS.map(|threshold| Rule { kind, threshold }))
+            .filter(|rule| Some(*rule) != draft.minor)
+            .map(|rule| {
+                with(&format!("minor_{}", rule.label()), &|policy| {
+                    policy.minor = Some(rule);
+                })
+            }),
+    )
+    .chain(MINOR_THRESHOLDS.map(|threshold| {
+        let rule = Rule {
+            kind: Kind::Lone,
+            threshold,
+        };
+        with(
+            &format!("one_strand_off_minor_{}", rule.label()),
+            &|policy| {
+                policy.one_strand = false;
+                policy.minor = Some(rule);
+            },
+        )
+    }))
+    .collect()
 }
 
 /// The triage of every panel sample under every policy of the sweep, measured
@@ -100,6 +137,11 @@ pub(crate) struct Triage<'a> {
     classes: Vec<Class>,
     /// Per policy, its measurement.
     measurements: Vec<Measurement>,
+    /// Per policy, the effect of its minor-signal rule, for the policies the
+    /// minor-signal measurement reports.
+    minor: Vec<Option<minor::Effect>>,
+    /// The region detectors the reported policy counts, in report order.
+    detectors: Vec<Detector>,
     /// Region labels, from the first sample with region evidence.
     labels: Vec<String>,
     /// Every discordant position of the scored, compared rows with region
@@ -148,24 +190,70 @@ impl<'a> Triage<'a> {
                     .collect()
             })
             .unwrap_or_default();
+        let decide_all = |policy: &Policy| {
+            rows.iter()
+                .map(|row| evidence(row).map(|evidence| decide(evidence, policy, &footprints)))
+                .collect::<Vec<_>>()
+        };
+        let reported_rule = policies.first().and_then(|policy| policy.minor);
+        let without = |policy: &Policy| Policy {
+            minor: None,
+            ..policy.clone()
+        };
+        // The decisions of each policy without a minor-signal rule that a
+        // reported rule is measured against, by its parameters, decided once
+        // and shared with the swept policy of the same parameters.
+        let needed = policies
+            .iter()
+            .enumerate()
+            .filter(|(index, policy)| minor::reports(*index, policy, reported_rule))
+            .map(|(_, policy)| without(policy).parameters())
+            .collect::<BTreeSet<_>>();
+        let mut cleared = BTreeMap::<String, Vec<Option<SampleDecision>>>::new();
+        let ensure = |cleared: &mut BTreeMap<String, Vec<Option<SampleDecision>>>,
+                      wanted: &Policy| {
+            let key = wanted.parameters();
+            if wanted.minor.is_none() && needed.contains(&key) && !cleared.contains_key(&key) {
+                cleared.insert(key, decide_all(wanted));
+            }
+        };
         let mut reported = Vec::new();
         let mut measurements = Vec::new();
+        let mut effects = Vec::new();
         for (index, policy) in policies.iter().enumerate() {
-            let decisions = rows
-                .iter()
-                .map(|row| evidence(row).map(|evidence| decide(evidence, policy, &footprints)))
-                .collect::<Vec<_>>();
-            measurements.push(Measurement::of(rows, &decisions, labels.len()));
+            let reports = minor::reports(index, policy, reported_rule);
+            let base = without(policy);
+            if reports {
+                ensure(&mut cleared, &base);
+            }
+            ensure(&mut cleared, policy);
+            let owned;
+            let decisions = if let Some(decisions) = cleared.get(&policy.parameters()) {
+                decisions
+            } else {
+                owned = decide_all(policy);
+                &owned
+            };
+            measurements.push(Measurement::of(rows, decisions, labels.len()));
+            effects.push(
+                cleared
+                    .get(&base.parameters())
+                    .filter(|_| reports)
+                    .and_then(|without| minor::effect(rows, decisions, without, policy)),
+            );
             if index == 0 {
-                reported = decisions;
+                reported.clone_from(decisions);
             }
         }
+        let detectors = policies
+            .first()
+            .map_or_else(Detector::stage1, Policy::detectors);
         let classes = rows
             .iter()
             .zip(&reported)
             .map(|(row, decision)| class(row, decision.as_ref()))
             .collect::<Vec<_>>();
-        let cases = cases(rows, &reported, &classes);
+        let cases = cases(rows, &reported, &classes, &detectors);
         let mut by_row = BTreeMap::<usize, Vec<usize>>::new();
         for (index, case) in cases.iter().enumerate() {
             by_row.entry(case.row).or_default().push(index);
@@ -177,6 +265,8 @@ impl<'a> Triage<'a> {
             decisions: reported,
             classes,
             measurements,
+            minor: effects,
+            detectors,
             labels,
             cases,
             by_row,
@@ -203,6 +293,7 @@ impl<'a> Triage<'a> {
             ("triage_detectors.tsv", self.detectors()),
             ("triage_positions.tsv", self.positions()),
             ("triage_sweep.tsv", self.sweep_table()),
+            ("triage_minor.tsv", self.minor_table()),
             ("triage.md", self.summary()),
         ]
     }
@@ -240,7 +331,7 @@ impl<'a> Triage<'a> {
         );
         for (_, row, decision, class) in self.all() {
             let traces = evidence(row).map_or(&[][..], |evidence| &evidence.traces[..]);
-            let (regions, findings, poor, rerun) =
+            let (regions, mut findings, poor, rerun) =
                 decision.map_or_else(Default::default, |decision| {
                     let regions = self
                         .labels
@@ -279,6 +370,14 @@ impl<'a> Triage<'a> {
                         .join(",");
                     (regions, findings, poor, rerun)
                 });
+            if let Some(failure) =
+                evidence(row).and_then(|evidence| evidence.minor_failure.as_ref())
+            {
+                if !findings.is_empty() {
+                    findings.push(',');
+                }
+                let _ = write!(findings, "minor_unavailable={failure}");
+            }
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{regions}\t{findings}\t{poor}\t{rerun}\t{}\t{}\t{}",
@@ -297,9 +396,9 @@ impl<'a> Triage<'a> {
 
     /// `triage_regions.tsv`: one row per sample and region.
     fn regions(&self) -> String {
-        let detectors = Detector::all();
+        let detectors = &self.detectors;
         let mut text = String::from("sample_id\tstratum\tregion\toutcome");
-        for detector in &detectors {
+        for detector in detectors {
             let _ = write!(text, "\t{}", detector.label());
         }
         text.push_str(
@@ -317,7 +416,7 @@ impl<'a> Triage<'a> {
                     row.sample.stratum,
                     region.outcome.label()
                 );
-                for detector in &detectors {
+                for detector in detectors {
                     let _ = write!(
                         text,
                         "\t{}",
@@ -341,7 +440,8 @@ impl<'a> Triage<'a> {
                                 .into_iter()
                                 .filter(|position| {
                                     compare::anchor(position)
-                                        .and_then(|anchor| evidence.region_of(anchor))
+                                        .and_then(|anchor| evidence.locate(anchor))
+                                        .map(|(region, _)| region)
                                         == Some(index)
                                 })
                                 .collect::<Vec<_>>()
@@ -462,12 +562,15 @@ impl<'a> Triage<'a> {
                     .is_some_and(|count| *count > 0)
             })
         };
-        Detector::all()
-            .into_iter()
+        self.detectors
+            .iter()
+            .copied()
             .map(|detector| {
                 let applied = policy.applies(detector);
-                let others = Detector::all()
-                    .into_iter()
+                let others = self
+                    .detectors
+                    .iter()
+                    .copied()
                     .filter(|other| *other != detector && policy.applies(*other))
                     .collect::<Vec<_>>();
                 let mut row = DetectorRow::new(detector, applied);
@@ -511,9 +614,9 @@ impl<'a> Triage<'a> {
     /// `triage_positions.tsv`: per region position, the analysed samples
     /// each region detector marks it in, so findings can be located.
     fn positions(&self) -> String {
-        let detectors = Detector::all();
+        let detectors = &self.detectors;
         let mut text = String::from("region\tposition\tsamples");
-        for detector in &detectors {
+        for detector in detectors {
             let _ = write!(text, "\t{}", detector.label());
         }
         text.push('\n');
@@ -538,8 +641,8 @@ impl<'a> Triage<'a> {
                         continue;
                     };
                     samples += 1;
-                    for (count, detector) in counts.iter_mut().zip(&detectors) {
-                        *count += usize::from(detector.marks(*at));
+                    for (count, detector) in counts.iter_mut().zip(detectors) {
+                        *count += usize::from(detector.marks(*at, evidence.minors(index, offset)));
                     }
                 }
                 let _ = write!(
@@ -670,7 +773,9 @@ impl<'a> Triage<'a> {
         };
         text.push_str(
             "\n## Samples\n\nA sample without an admitted read is `rerun` with every trace; \
-             `failed` is a sample DNA could not analyse or call.\n\n\
+             `failed` is a sample DNA could not analyse or call. A sample whose minor channels the \
+             harness could not take is decided without them, and a policy with a minor-signal \
+             rule sends its would-pass regions to review (`triage.tsv` gives the cause).\n\n\
              | Outcome | Samples | Share | Corpus-weighted | 95 % CI |\n\
              |---|---:|---:|---:|---:|\n",
         );
@@ -693,6 +798,7 @@ impl<'a> Triage<'a> {
         self.detector_section(&mut text);
         self.trace_section(&mut text);
         self.sweep_section(&mut text);
+        self.minor_section(&mut text);
         text
     }
 
@@ -1034,7 +1140,12 @@ fn strata_section(text: &mut String, measured: &Measurement) {
 /// Every discordant position of the scored rows that have region evidence
 /// and a comparison, under every measure, with its region's outcome under
 /// the reported policy and the sample's class.
-fn cases(rows: &[Row<'_>], decisions: &[Option<SampleDecision>], classes: &[Class]) -> Vec<Case> {
+fn cases(
+    rows: &[Row<'_>],
+    decisions: &[Option<SampleDecision>],
+    classes: &[Class],
+    detectors: &[Detector],
+) -> Vec<Case> {
     let mut cases = Vec::new();
     for (index, ((row, decision), class)) in rows.iter().zip(decisions).zip(classes).enumerate() {
         if row.sample.retired {
@@ -1048,21 +1159,18 @@ fn cases(rows: &[Row<'_>], decisions: &[Option<SampleDecision>], classes: &[Clas
                 continue;
             };
             for position in compare::sorted_positions(&comparison.positions) {
-                let anchor = compare::anchor(position);
-                let region = anchor.and_then(|anchor| evidence.region_of(anchor));
-                let flags = region
-                    .and_then(|region| {
-                        let evidence = &evidence.regions[region];
-                        let anchor = usize::try_from(anchor?).ok()?;
-                        evidence
-                            .positions
-                            .get(anchor.checked_sub(evidence.start)?)
-                            .copied()
+                let located = compare::anchor(position).and_then(|anchor| evidence.locate(anchor));
+                let region = located.map(|(region, _)| region);
+                let flags = located
+                    .and_then(|(region, offset)| {
+                        let at = evidence.regions[region].positions.get(offset).copied()?;
+                        Some((at, evidence.minors(region, offset)))
                     })
-                    .map(|at| {
-                        Detector::all()
-                            .into_iter()
-                            .filter(|detector| detector.marks(at))
+                    .map(|(at, minors)| {
+                        detectors
+                            .iter()
+                            .copied()
+                            .filter(|detector| detector.marks(at, minors))
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
@@ -1467,13 +1575,16 @@ mod tests {
     /// Four samples through decision and score: a clean pass, a passed
     /// sample discordant only at a truth IUPAC allele (a leak under the
     /// primary and strict measures), a one-strand review that catches a
-    /// discordant sample, and a DNA failure.
+    /// discordant sample, and a DNA failure; then a minor signal at the
+    /// IUPAC site that removes the leak.
     #[test]
     fn scores_outcomes_leaks_and_catches() -> Result<(), Box<dyn std::error::Error>> {
         use crate::compare::Failure;
+        use crate::evidence::minor::Minor;
         use crate::evidence::{Position, Region, Strand, Trace};
         use crate::runner::{Called, Identity, Outcome as Run};
         use crate::truth::TruthSample;
+        use dna_kernel::model::nucleotide::Nucleotide;
 
         let text = crate::manifest::tests::manifest(&[
             "S0\tb1\tclean\t2\t2\t0\t/t/a.ab1",
@@ -1514,6 +1625,8 @@ mod tests {
                 },
             }),
             triage: Some(Evidence {
+                minor: Vec::new(),
+                minor_failure: None,
                 regions: vec![region(one_strand)],
                 traces: vec![Trace {
                     name: "x_HV1F.ab1".into(),
@@ -1543,6 +1656,8 @@ mod tests {
                 traces: Some(2),
                 result: Err(Failure::Dna("all 2 reads were rejected".into())),
                 triage: Some(Evidence {
+                    minor: Vec::new(),
+                    minor_failure: None,
                     regions: Vec::new(),
                     traces: vec![
                         Trace {
@@ -1582,12 +1697,12 @@ mod tests {
         let triage = Triage::new(&rows, sweep());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
 
-        let outcomes = files["triage.tsv"]
+        let decided = files["triage.tsv"]
             .lines()
             .skip(1)
             .map(|line| line.split('\t').nth(4).unwrap_or_default())
             .collect::<Vec<_>>();
-        assert_eq!(outcomes, ["pass", "pass", "review", "failed", "rerun"]);
+        assert_eq!(decided, ["pass", "pass", "review", "failed", "rerun"]);
         assert!(
             files["triage.tsv"]
                 .lines()
@@ -1664,6 +1779,92 @@ mod tests {
                 .nth(1)
                 .is_some_and(|line| line.starts_with("draft\t"))
         );
+        assert!(
+            files["triage_minor.tsv"]
+                .lines()
+                .nth(1)
+                .is_some_and(|line| line.starts_with("draft\tupstream@100\t"))
+        );
+
+        // Both strands show the C/T pair at S1's IUPAC site: the draft's
+        // minor-signal rule sends S1 to review, removing its leak without
+        // burden, and catches the one IUPAC site.
+        let mut runs = outcomes.clone();
+        let minor = |strand| Minor {
+            strand,
+            pair: [Nucleotide::T, Nucleotide::C],
+            weight: 300,
+            before: false,
+            after: false,
+            noise: 10,
+        };
+        let Some(evidence) = runs[1].triage.as_mut() else {
+            return Err("S1 evidence".into());
+        };
+        evidence.minor = vec![vec![Vec::new(); 21]];
+        evidence.minor[0][9] = vec![minor(Strand::Forward), minor(Strand::Reverse)];
+        let rows = crate::report::rows(&manifest.samples, &runs, &records);
+        let triage = Triage::new(&rows, sweep());
+        let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
+        let measured = triage.reported().ok_or("a measurement")?;
+        assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 1);
+        assert_eq!(measured.leaks[0].leaks, 0);
+        let draft = files["triage_minor.tsv"]
+            .lines()
+            .nth(1)
+            .ok_or("the draft's minor row")?
+            .split('\t')
+            .collect::<Vec<_>>();
+        // Moved, burden, sites, caught, sites in any region, caught there.
+        assert_eq!(draft[5..11], ["1", "0", "1", "1", "1", "1"]);
+        // Passed and leaks without and with the rule, primary.
+        assert_eq!(draft[11..15], ["2", "1", "1", "0"]);
+        assert!(
+            files["triage.tsv"]
+                .lines()
+                .nth(2)
+                .is_some_and(|line| line.contains("region.minor_signal=1"))
+        );
+
+        // A reported policy with another minor rule counts that rule, not
+        // the draft's.
+        let strict = Rule {
+            kind: Kind::Unshadowed,
+            threshold: 301,
+        };
+        let policy = Policy {
+            minor: Some(strict),
+            ..Policy::draft()
+        };
+        let triage = Triage::new(&rows, vec![policy]);
+        assert!(triage.detectors.contains(&Detector::MinorSignal(strict)));
+        assert!(
+            !triage
+                .detectors
+                .contains(&Detector::MinorSignal(Rule::DEFAULT))
+        );
+        let measured = triage.reported().ok_or("a measurement")?;
+        assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 2);
+
+        // Minor channels the harness could not take: the stage-1 evidence is
+        // kept, the would-pass regions go to review, the cause is in
+        // `triage.tsv`, and DNA's call still counts.
+        let mut runs = outcomes;
+        if let Some(evidence) = runs[0].triage.as_mut() {
+            evidence.minor = Vec::new();
+            evidence.minor_failure = Some("cannot read the observations: broken".into());
+        }
+        let rows = crate::report::rows(&manifest.samples, &runs, &records);
+        assert_eq!(rows[0].status(Measure::Primary), Status::Concordant);
+        let triage = Triage::new(&rows, sweep());
+        let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
+        let first = files["triage.tsv"].lines().nth(1).ok_or("S0's row")?;
+        assert!(first.contains("\treview\t"));
+        assert!(first.contains("minor_unavailable=cannot read the observations: broken"));
+        let measured = triage.reported().ok_or("a measurement")?;
+        // S0 moves from pass to review; the other samples keep their class.
+        assert_eq!(measured.count(Class::Decided(Outcome::Review)), 2);
+        assert_eq!(measured.count(Class::Decided(Outcome::Pass)), 1);
         Ok(())
     }
 
@@ -1676,5 +1877,14 @@ mod tests {
             .map(|policy| policy.name.as_str())
             .collect::<BTreeSet<_>>();
         assert_eq!(names.len(), policies.len());
+        // No swept rule repeats the draft's.
+        assert!(
+            policies
+                .iter()
+                .skip(1)
+                .filter(|policy| policy.name.starts_with("minor_") && policy.name != "minor_off")
+                .all(|policy| policy.minor.is_some() && policy.minor != Policy::draft().minor)
+        );
+        assert!(!names.contains("minor_upstream@100"));
     }
 }

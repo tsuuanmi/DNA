@@ -122,6 +122,44 @@ fn one_pass_returns_sample_evidence_and_consensus_without_cli_side_effects()
     Ok(())
 }
 
+/// `observations` records every covered position of an interval, reference
+/// matches included, and the differential locus's observations as the sample
+/// evidence does.
+#[test]
+fn observations_cover_every_covered_position() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let [reference, config, forward, foreign, reverse] = write_sample(directory.path())?;
+
+    let result =
+        sample_analysis::analyze_sanger(&[forward, foreign, reverse], &reference, &config, FOUR)?;
+    let loci = result.observations(1, 50_000)?;
+
+    let differential = &result.evidence.locus_differences;
+    assert_eq!(differential.len(), 1);
+    let at = loci
+        .iter()
+        .find(|locus| locus.position_1based == differential[0].position_1based)
+        .ok_or("the differential locus")?;
+    assert_eq!(at.reference_base, differential[0].reference_base);
+    assert_eq!(
+        format!("{:?}", at.observations),
+        format!("{:?}", differential[0].observations)
+    );
+    assert!(loci.len() > differential.len());
+    assert!(
+        loci.iter()
+            .all(|locus| (5..=4 + QUERY.len()).contains(&locus.position_1based))
+    );
+    assert!(loci.iter().all(|locus| {
+        locus
+            .observations
+            .iter()
+            .all(|observation| observation.read_index < result.evidence.reads.len())
+    }));
+    assert!(result.observations(1, 4)?.is_empty());
+    Ok(())
+}
+
 /// The library pass and the two commands describe the same reads, variants,
 /// and consensus.
 #[test]

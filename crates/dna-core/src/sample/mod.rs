@@ -14,4 +14,4 @@ mod overlap;
 mod profile_geometry;
 mod variants;
 
-pub use aggregate::aggregate;
+pub use aggregate::{aggregate, observations};

@@ -7,9 +7,11 @@
 //! ([`crate::evidence`], stage E); then
 //!
 //! - [`detect`] runs the detectors and decides each region, trace, and
-//!   sample under a policy (stage R);
+//!   sample under a policy (stage R), with the minor-signal rules of
+//!   [`minor`];
 //! - [`score`] measures A/B/C, leaks, catches, and a policy sweep against the
 //!   truth (stage C), and writes the `triage*` outputs.
 
 pub(crate) mod detect;
+pub(crate) mod minor;
 pub(crate) mod score;
