@@ -235,4 +235,7 @@ The rest is under review.
 
 ## Implementation
 
-None yet.
+None yet. The range rule "less every position of an excluded variant" is met
+by the core's callable segments of a called record (SRS-VAR-019): the `empop`
+plugin takes the records' callable segments as they are, without a second
+cut.
