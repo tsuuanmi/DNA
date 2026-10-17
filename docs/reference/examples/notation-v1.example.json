@@ -21,7 +21,7 @@
       {
         "id": "nomenclature",
         "family": "post_calling",
-        "version": 2
+        "version": 3
       },
       {
         "id": "conformance",
@@ -77,6 +77,22 @@
         "call": "573.1C",
         "reads": [
           "HV3"
+        ]
+      },
+      {
+        "call": "16189C",
+        "reads": [
+          "HV1"
+        ]
+      },
+      {
+        "call": "16193.1C",
+        "convention": {
+          "name": "hvs1_c_length",
+          "label": "not_recorded"
+        },
+        "reads": [
+          "HV1"
         ]
       },
       {

@@ -420,7 +420,8 @@ the sample's class gives a finding, `cause:evidence@position` (or `@window`)
 in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
 `technology`, and `undetermined` among them. Each finding also has a scope
 (`cause_scope` for the sample): `defect`, or `deferred` for an item left
-undone by design, such as the IUPAC codes DNA does not write; a defect comes
+undone by design, such as the IUPAC codes DNA does not write or a call the
+reviewers' convention does not record; a defect comes
 before a deferred item. The causes come from the
 admitted reads' evidence at each region position (with the core's own trust
 verdict on each call, `SampleAnalysis::trust`), the limit-of-detection
@@ -449,7 +450,8 @@ database; nothing is listed by hand, and the truth is only read.
 | | a read shows it only at 3 % or more (`below_lod`) | `technology` |
 | | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
 | | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
-| `sequence` (each SNV or deletion) | a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
+| `sequence` (each window) | every DNA-only call is one a profile convention labels `not_recorded` (SRS-NOM-017), and the truth has no call of its own (`convention_not_recorded`) | `lab`, deferred: the reviewers' convention |
+| `sequence` (each SNV or deletion) | otherwise, a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
 | | a truth-only call there (`reads_show_reference`) | `lab`: the truth, for a re-check |
 | `failed` | no record in the truth, an unreadable trace, or every trace rejected | `lab` |
 | | a DNA error | `dna` |
@@ -462,7 +464,7 @@ samples carrying each side's calls is a proxy. Each run writes this index as
 `forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
 earlier run's instead of indexing the whole database, and a file written for
 another database stops the run. A sample can need more than
-one party: the summary counts the samples per class and cause, deferred DNA
+one party: the summary counts the samples per class and cause, deferred
 items apart, and per cause, scope, and evidence the samples with such a
 finding. Insertions are not judged under `sequence` yet: reads showing the
 reference at an anchor do not exclude one.

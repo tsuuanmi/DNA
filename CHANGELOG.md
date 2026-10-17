@@ -17,6 +17,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- Report conventions (SRS-NOM-017, PROP-0007 increment 1): a profile's
+  `[[nomenclature.conventions]]` labels the rendered calls the reviewers
+  write differently, and keeps them. The human-mtDNA profile declares
+  `hvs1_c_length` (`not_recorded`): the length calls of the uninterrupted
+  HVS-I C run that `16189C` creates (C10 and longer). Every notation view
+  carries the label as `convention` on a labelled call, and
+  `SampleAnalysis::call` carries it on `NotationCall`. The `nomenclature`
+  plugin is version 3. **Breaking:** `dna.variants/v1`,
+  `dna.sample_evidence/v10`, and `dna.notation/v1` add the optional
+  `notation.calls[].convention`, revised in place (unreleased). The
+  evaluation harness gives a `sequence` difference made only of such calls,
+  with no truth-only call, the cause `lab`, deferred
+  (`convention_not_recorded`): 31 samples on development panel v5, all
+  previously `undetermined`. The summary's cause table adds a
+  `lab (deferred)` column.
+
 - The evaluation harness's haplotype measures compare only inside the
   truth's analysed intervals: a DNA call where the reviewers did not analyse
   no longer counts against DNA there (the primary, strict, and

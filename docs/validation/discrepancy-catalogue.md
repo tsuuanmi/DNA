@@ -104,7 +104,10 @@ the HVS-II C-tract (110 samples, half with a length difference), the HVS-I
 C-tract (77), the HVS-I read start `16024-16050` (76), and fewer elsewhere.
 DNA's defects here are phantom calls inside the HVS-I C-tract (`16185-16193`, 12 samples); 2 samples
 have clean reads on both strands showing the reference where the truth has an
-allele (`lab`, re-check); the other 332 go to adjudication.
+allele (`lab`, re-check); the other 332 go to adjudication. Since PROP-0007
+increment 1, 31 of those 332 are the reviewers' convention: every DNA-only call
+is an HVS-I C-run length the reviewers do not record (`lab`, deferred,
+`convention_not_recorded`). That leaves 301 for adjudication.
 
 **Unanalysed** (DNA calls only where the reviewers did not analyse). Mostly
 the HVS-II run exit (`310C`, `310DEL`, `311DEL`, `312-318DEL`) and `574C`.
@@ -122,6 +125,7 @@ which go to the reviewers for notation consistency.
 | A consensus record re-aligned by `call` and placed elsewhere | SRS-VAR-017; a misplaced record has no callable bases (SRS-VAR-019) |
 | An AC-repeat deletion re-placed beside unresolved `513-516` | SRS-ALN-017, SRS-VAR-018 |
 | An excluded call read as the reference | SRS-VAR-019: its positions are not callable |
+| HVS-I C-run lengths the reviewers do not record (`16193.1C`, `16193DEL`) counted as open differences | SRS-NOM-017: the `hvs1_c_length` convention labels them, and the harness gives 31 samples to `lab`, deferred. A length in a run shorter than 10 (with `T16189`, or split by `16185T`) stays evidence |
 | An AC-repeat insertion placed differently by two reads, lost in the consensus (`524.1A 524.2C`) | ADR-0047 §1 amendment: one 3'-most placement whatever the profile score; contested AC sites 118 to 4 |
 | An insertion into a repeat vetoed on whichever call alignment took as inserted | SRS-VAR-020: judged on the repeat's placements |
 | DNA calls where the reviewers did not analyse counted as defects | the `unanalysed` class |
@@ -134,7 +138,6 @@ which go to the reviewers for notation consistency.
 | Consensus to `call`: an `N` at a decided run's bound (`310`) drops a decided length | core | PROP-0006 (proposed, not yet merged); the decided length is now not callable rather than reported as the reference |
 | Calls DNA does not trust at the AC repeat (`523`/`524`) | core | open |
 | Phantom calls inside the HVS-I C-tract (`16185-16193`) | core | open |
-| HVS-I C-tract lengths the reviewers do not record (`16193.1C`, `16193DEL`; 31 samples differ only by them) | `dna-normalize` convention label | [PROP-0007](../proposals/0007-empop-export-and-report-conventions.md) |
 | A read whose signal collapses inside a C-tract (`16189C`) is classed `read_edge` (lab), since DNA marks a phase loss only after a run; it is a technology limit | Sanger callability | TODO, signal work: attribute signal loss within a run |
 | `73` lost after the 3'-most placement of a nearby insertion merges stretches (5 samples) | core | known, coverage only |
 | Weak calls that read the reference leave `N` | core | parked: trusting them decides run lengths (measured: more regressions than fixes); a reviewer flag instead of a call is an option |

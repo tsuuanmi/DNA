@@ -7,6 +7,7 @@
 //! engine and its haplotype-preservation proof.
 
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
+pub mod conventions;
 mod windows;
 
 use std::ops::Range;
@@ -174,7 +175,7 @@ fn represent(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "nomenclature",
     family: PluginFamily::PostCalling,
-    version: 2,
+    version: 3,
     provides: &[Contract::Nomenclature],
     requires: &[Contract::NormalizedVariants],
     config_sections: &[],

@@ -42,6 +42,14 @@ pub enum ProfileError {
         /// The violated rule.
         reason: &'static str,
     },
+    /// A report convention definition is inconsistent.
+    #[error("nomenclature convention {convention}: {reason}")]
+    InvalidConvention {
+        /// Convention name as declared by the profile.
+        convention: String,
+        /// The violated rule.
+        reason: &'static str,
+    },
     /// The supplied reference does not carry a nomenclature window's sequence
     /// at the window position.
     #[error("reference does not carry nomenclature window {window}")]

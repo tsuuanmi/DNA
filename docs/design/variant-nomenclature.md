@@ -184,6 +184,34 @@ reviewer consensus sequences:
 - the checker reported exactly the two samples whose notation differs from
   the reviewers' in this way, and nothing else.
 
+## Report conventions
+
+A report convention labels calls that the target's reviewers write
+differently, and keeps them (SRS-NOM-017). It is not a window rule: a window
+rule chooses among sequence-equivalent forms, while a convention covers calls
+that change content, so it may label a call but never drop one (ADR-0077 §5).
+
+The labelling runs on each read's rendered calls after representation. For
+`run_length`, it rebuilds the read's represented haplotype, keyed by reference
+position and insertion ordinal. For a covered call, it measures the
+uninterrupted run of the convention's base:
+- an inserted base: the run that holds it;
+- a deleted base: the run across the junction it leaves, plus the deleted
+  base.
+
+A run shorter than `minimum_run` leaves the call unlabelled. A call that two
+reads label differently, or that one read leaves unlabelled, is unlabelled.
+
+The shipped human-mtDNA profile declares `hvs1_c_length`. The reviewers do not
+record the length of the uninterrupted HVS-I C run that `16189C` creates
+(`16184-16193`, C10 and longer), which carries length heterogeneity. With
+`T16189`, the two short runs are read through. A length call there is
+evidence, so it stays unlabelled. On development panel v5 (main `4e6f8d1`), 31
+`sequence` samples differ from the truth only by labelled calls, and the
+[evaluation harness](../validation/evaluation-harness.md#discrepancy-causes)
+gives them to the lab as deferred. Two `16193DEL` samples whose `16185T`
+splits the run (C8) stay unlabelled.
+
 ## Scientific basis
 
 This policy follows the forensic mtDNA convention that insertion notation is

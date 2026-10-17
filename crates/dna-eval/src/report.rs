@@ -175,6 +175,7 @@ impl Row<'_> {
                 primary: self.comparison(Measure::Primary).ok(),
                 regions: &regions,
                 dna: called.map_or(&[][..], |called| called.alleles.as_slice()),
+                not_recorded: called.map(|called| &called.not_recorded),
                 truth: self.truth.map_or(&[][..], |truth| truth.alleles.as_slice()),
                 loci: called.map(|called| &called.loci),
                 signals: called.map(|called| &called.signals),
@@ -956,6 +957,7 @@ impl<'a> Report<'a> {
             (Cause::Dna, Scope::Defect),
             (Cause::Dna, Scope::Deferred),
             (Cause::Lab, Scope::Defect),
+            (Cause::Lab, Scope::Deferred),
             (Cause::Technology, Scope::Defect),
             (Cause::Undetermined, Scope::Defect),
         ];
@@ -979,8 +981,8 @@ impl<'a> Report<'a> {
         text.push_str(
             "\nCause of each sample's discrepancy, the first of dna, lab, technology, and \
              undetermined among its findings, a defect before an item deferred by design:\n\n\
-             | Class | dna | dna (deferred) | lab | technology | undetermined |\n\
-             |---|---:|---:|---:|---:|---:|\n",
+             | Class | dna | dna (deferred) | lab | lab (deferred) | technology | undetermined |\n\
+             |---|---:|---:|---:|---:|---:|---:|\n",
         );
         for discrepancy in Discrepancy::ALL
             .into_iter()
@@ -1339,6 +1341,7 @@ mod tests {
             Ok(Called {
                 rejected: index % 2,
                 alleles,
+                not_recorded: BTreeSet::new(),
                 signals: lod::Signals::default(),
                 loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {

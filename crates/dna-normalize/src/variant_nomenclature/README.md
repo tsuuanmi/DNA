@@ -17,6 +17,12 @@ The shipped human-mtDNA profile declares the HVS-II 303-315 and HVS-I
 reviewer convention. `apply_read` keeps a window's normalized form when its
 representation would call a base the read does not read.
 
+`conventions.rs` labels a read's rendered calls by the profile's report
+conventions (SRS-NOM-017): `Labels` rebuilds the read's represented haplotype
+on first need and names the convention covering a call. It never drops or
+rewrites a call; rendering and the per-call merge across reads stay in the
+facade's `report::notation`.
+
 Target-independent edit/application/render mechanics live in the
 `variant_representation` module of this crate; this module owns only nomenclature policy.
 Its failure vocabulary, `NomenclatureError`, lives in `error`.
