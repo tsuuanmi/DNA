@@ -10,6 +10,16 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- Discrepancy causes in the evaluation harness: `dna-eval run` gives each
+  sample with a discrepancy a cause, `dna`, `lab`, `technology`, or
+  `undetermined`, a scope (`defect`, or `deferred` for IUPAC codes DNA does
+  not write by design), and its findings (`cause`, `cause_scope`,
+  `cause_evidence` in `scores.tsv`), read from the reads' evidence at each position, the
+  limit-of-detection signals, and how the reviewers write each window
+  sequence over the whole truth. The summary counts causes per class and
+  samples per cause and evidence
+  ([discrepancy causes](docs/validation/evaluation-harness.md#discrepancy-causes)).
+  A sample whose every trace DNA rejects now fails as `rejected`.
 - `dna-eval convention` (evaluation harness only): runs every IUPAC-free
   truth sample's calls through DNA's normalization and nomenclature windows
   and counts the samples that come back unchanged, with the change patterns

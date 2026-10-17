@@ -725,6 +725,8 @@ impl Region {
 pub(crate) enum Failure {
     /// A trace could not be read for duplicate removal.
     Trace { path: PathBuf, message: String },
+    /// DNA rejected every trace of the sample before the consensus.
+    Rejected { reads: usize },
     /// DNA returned an error.
     Dna(String),
     /// DNA panicked; this is a DNA defect.
@@ -743,6 +745,7 @@ impl Failure {
     pub(crate) const fn kind(&self) -> &'static str {
         match self {
             Self::Trace { .. } => "trace",
+            Self::Rejected { .. } => "rejected",
             Self::Dna(_) => "dna",
             Self::Panic => "panic",
             Self::Notation => "notation",
@@ -758,6 +761,7 @@ impl fmt::Display for Failure {
             Self::Trace { path, message } => {
                 write!(formatter, "cannot read trace {}: {message}", path.display())
             }
+            Self::Rejected { reads } => write!(formatter, "DNA rejected every trace ({reads})"),
             Self::Dna(message) => formatter.write_str(message),
             Self::Panic => formatter.write_str("DNA panicked"),
             Self::Notation => formatter.write_str("the target profile declares no notation"),

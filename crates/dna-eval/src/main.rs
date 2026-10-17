@@ -12,6 +12,7 @@
 
 mod approve;
 mod baseline;
+mod cause;
 mod classes;
 mod compare;
 mod convention;
@@ -39,6 +40,7 @@ use clap::{Args, Parser, Subcommand};
 use dna_kernel::model::reference::ReferenceTopology;
 use serde::Serialize;
 
+use crate::cause::forms::Forms;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
 use crate::manifest::Manifest;
@@ -248,6 +250,10 @@ fn run(cli: &RunArgs) -> Result<String> {
         .map(|sample| sample.id.as_str())
         .collect::<BTreeSet<_>>();
     let truth = load_truth(&cli.truth, &wanted)?;
+    // How the reviewers write each window sequence, over the whole truth,
+    // for the cause of a representation discrepancy.
+    let corpus = truth::sample_ids(&cli.truth)?;
+    let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
     // The haplotype measures apply alleles to this sequence; a sample DNA
     // analyses on another sequence fails.
     let reference = dna_kernel::reference::load(&cli.reference, ReferenceTopology::Linear)
@@ -255,6 +261,8 @@ fn run(cli: &RunArgs) -> Result<String> {
             path: cli.reference.clone(),
             message: error.to_string(),
         })?;
+    let forms = Forms::new(corpus.samples.values(), &reference.sequence);
+    drop(corpus);
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let outcomes = runner::run(
@@ -273,7 +281,12 @@ fn run(cli: &RunArgs) -> Result<String> {
         &reference.sequence,
     );
     let check = TruthCheck::new(&manifest, &truth.database);
-    let report = Report::new(&rows, baseline.as_ref(), &check);
+    let report = Report::new(
+        &rows,
+        baseline.as_ref(),
+        &check,
+        (&forms, reference.sequence.as_str()),
+    );
     let triage_started = Instant::now();
     let triage = cli
         .triage

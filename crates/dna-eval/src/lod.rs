@@ -34,7 +34,7 @@ pub(crate) struct Signals {
 impl Signals {
     /// Whether the reads show the heteroplasmy of the two-base `code` at
     /// `position`.
-    fn shown(&self, position: i64, code: &[char]) -> bool {
+    pub(crate) fn shown(&self, position: i64, code: &[char]) -> bool {
         let second = |base: &char| self.seconds.contains(&(position, *base));
         code.iter().any(second)
             || code
