@@ -11,7 +11,9 @@ so the difference reaches the one who can act on it.
 - `loci.rs` — per region position, what the admitted reads and the consensus show: covered,
   observed cleanly on each strand, something other than the reference,
   masked for phase loss or for weak signal, unresolved, a tie the consensus
-  left `N`, a run stretch it left undecided; and the faint second
+  left `N`, a run stretch it left undecided, and where a clean but
+  untrusted call stands (beside phase loss, at the read's own end, with a
+  weak or mixed support veto, or inside); and the faint second
   bases (3 % or more). The runner takes it from the sample analysis.
 - `forms.rs` — how the reviewers write each sequence over the whole truth:
   per repeat window and window sequence, the samples per written form, and

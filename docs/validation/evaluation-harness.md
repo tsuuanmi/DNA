@@ -417,18 +417,25 @@ in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
 (`cause_scope` for the sample): `defect`, or `deferred` for an item left
 undone by design, such as the IUPAC codes DNA does not write; a defect comes
 before a deferred item. The causes come from the
-admitted reads' evidence at each region position, the limit-of-detection
+admitted reads' evidence at each region position (with the read-end margin,
+repeat length, and support thresholds read from DNA's configuration), the limit-of-detection
 signals, and how the reviewers write each sequence over the whole truth
 database; nothing is listed by hand, and the truth is only read.
 
 | Class | Evidence | Cause |
 |---|---|---|
 | `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
-| | a read covers it with a call masked for phase loss: dephased or mixed signal, or a segment after a repeat run (`phase_loss`) | `technology` |
+| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` |
+| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology` |
 | | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
 | | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
 | | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
-| | otherwise: read as `N` (`unresolved_call`), or read cleanly yet untrusted, as within the read-end margin beside a masked stretch (`untrusted_call`) | `dna`: its callability policy |
+| | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
+| | a clean but untrusted call lies within the read-end margin of a stretch masked for phase loss, or of the read's end where DNA attributes that end to a repeat run: its tail starts after one, or a run of at least `repeat_min_length` reaches the end (`beside_phase_loss`) | `technology` |
+| | a weak-signal veto denies a call that reads the reference (`veto_out_of_scope`) | `dna`: the veto guards variant support |
+| | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
+| | every untrusted call lies within the read-end margin of its read's own end (`read_edge`) or carries a weak-signal veto (`weak_call`) | `lab`: read quality |
+| | otherwise (`untrusted_call`) | `dna`: its callability policy |
 | `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
 | | the truth writes it (`dna_minority_form`) | `dna`: its notation |
 | | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
