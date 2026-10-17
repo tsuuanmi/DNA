@@ -19,10 +19,10 @@ use std::time::Instant;
 
 use std::num::NonZeroUsize;
 
-use dna::error::SampleError;
 use dna::sample_analysis::{self, SampleAnalysis, SampleOutcome};
 use sha2::{Digest, Sha256};
 
+use crate::cause::loci::{self, Loci};
 use crate::compare::{Allele, Failure};
 use crate::error::{Error, Result};
 use crate::evidence::{self, Evidence};
@@ -43,6 +43,9 @@ pub(crate) struct Called {
     pub(crate) intervals: Vec<(i64, i64)>,
     /// Where some read shows a second base at the limit of detection.
     pub(crate) signals: lod::Signals,
+    /// What the reads show at each region position, for the cause of a
+    /// discrepancy.
+    pub(crate) loci: Loci,
     /// Identities of the configuration, reference, and profile.
     pub(crate) identity: Identity,
 }
@@ -113,11 +116,10 @@ pub(crate) fn run(
         ) {
             Ok(SampleOutcome::Analyzed(analysis)) => analysis,
             Ok(SampleOutcome::Rejected(rejected)) => {
-                let error = SampleError::NoAdmittedReads {
-                    rejected: rejected.len(),
-                };
                 return (
-                    Err(failure(error.into())),
+                    Err(Failure::Rejected {
+                        reads: rejected.len(),
+                    }),
                     triage.then(|| evidence::rejected_only(rejected.values())),
                 );
             }
@@ -170,11 +172,13 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
         })
         .collect();
     let signals = lod::signals(analysis).map_err(|error| Failure::Dna(error.to_string()))?;
+    let loci = loci::extract(analysis).map_err(|error| Failure::Dna(error.to_string()))?;
     Ok(Called {
         rejected: analysis.rejected.len(),
         alleles,
         intervals,
         signals,
+        loci,
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -343,6 +347,7 @@ mod tests {
                     alleles: vec![Allele::new(&sample.id[1..], "A", "G")],
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
+                    loci: Loci::default(),
                     identity: identity(),
                 }),
             }

@@ -10,6 +10,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use crate::baseline::{Class, Statuses};
+use crate::cause::forms::Forms;
+use crate::cause::{self, Cause, Finding};
 use crate::classes::Discrepancy;
 use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Region, Side};
 use crate::estimate::{self, Estimate, Observation};
@@ -139,6 +141,31 @@ impl Row<'_> {
     pub(crate) fn discrepancy(&self) -> Discrepancy {
         Discrepancy::of(|measure| Some(Class::of(self.status(measure).label())))
             .unwrap_or(Discrepancy::Failed)
+    }
+
+    /// The sample's cause and findings, on the truth's written `forms` and
+    /// `reference`; `None` for a sample without a discrepancy.
+    pub(crate) fn cause(&self, forms: &Forms, reference: &str) -> Option<(Cause, Vec<Finding>)> {
+        let discrepancy = self.discrepancy();
+        let regions = self.discrepancy_regions(discrepancy);
+        let called = self.outcome.result.as_ref().ok();
+        cause::findings(
+            &cause::Sample {
+                discrepancy,
+                failure: self.comparisons.as_ref().err(),
+                comparison: discrepancy
+                    .measure()
+                    .and_then(|measure| self.comparison(measure).ok()),
+                primary: self.comparison(Measure::Primary).ok(),
+                regions: &regions,
+                dna: called.map_or(&[][..], |called| called.alleles.as_slice()),
+                truth: self.truth.map_or(&[][..], |truth| truth.alleles.as_slice()),
+                loci: called.map(|called| &called.loci),
+                signals: called.map(|called| &called.signals),
+            },
+            forms,
+            reference,
+        )
     }
 
     /// The windows of the class's discordant positions.
@@ -281,14 +308,18 @@ pub(crate) struct Report<'a> {
     baseline: Option<&'a Statuses>,
     check: &'a TruthCheck,
     estimates: Vec<(Weighting, Metric, Estimate)>,
+    /// Per row, its cause and findings.
+    causes: Vec<Option<(Cause, Vec<Finding>)>>,
 }
 
 impl<'a> Report<'a> {
-    /// Derives the estimates of `rows`, which are sorted by sample identifier.
+    /// Derives the estimates and causes of `rows`, which are sorted by sample
+    /// identifier, the causes on the truth's written `forms` and `reference`.
     pub(crate) fn new(
         rows: &'a [Row<'a>],
         baseline: Option<&'a Statuses>,
         check: &'a TruthCheck,
+        (forms, reference): (&Forms, &str),
     ) -> Self {
         let estimates = Weighting::ALL
             .into_iter()
@@ -309,11 +340,13 @@ impl<'a> Report<'a> {
                 estimate::estimate(&observations).map(|estimate| (weighting, metric, estimate))
             })
             .collect();
+        let causes = rows.iter().map(|row| row.cause(forms, reference)).collect();
         Self {
             rows,
             baseline,
             check,
             estimates,
+            causes,
         }
     }
 
@@ -381,11 +414,24 @@ impl<'a> Report<'a> {
              haplotype_status\thaplotype_concordant\thaplotype_blocks\t\
              haplotype_iupac_compatible_status\thaplotype_iupac_compatible_concordant\t\
              haplotype_iupac_compatible_blocks\thaplotype_lod_status\thaplotype_lod_concordant\t\
-             haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\ttraces\trejected_traces\t\
-             failure\n",
+             haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\tcause\tcause_evidence\t\
+             traces\trejected_traces\tfailure\n",
         );
-        for row in self.rows {
+        for (row, cause) in self.rows.iter().zip(&self.causes) {
             let sample = row.sample;
+            let (cause, cause_evidence) = cause.as_ref().map_or_else(
+                || (String::new(), String::new()),
+                |(cause, findings)| {
+                    (
+                        cause.label().to_owned(),
+                        findings
+                            .iter()
+                            .map(Finding::text)
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    )
+                },
+            );
             let primary = row.status(Measure::Primary);
             let strict = row.status(Measure::Strict);
             let compatible = row.status(Measure::IupacCompatible);
@@ -467,7 +513,8 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
-                 {haplotype}\t{below_lod}\t{}\t{class_regions}\t{traces}\t{rejected}\t{failure}",
+                 {haplotype}\t{below_lod}\t{}\t{class_regions}\t{cause}\t{cause_evidence}\t\
+                 {traces}\t{rejected}\t{failure}",
                 sample.id,
                 sample.batch,
                 row.truth.map_or("", |truth| truth.batch.as_str()),
@@ -841,6 +888,7 @@ impl<'a> Report<'a> {
             }
             text.push('\n');
         }
+        self.cause_tables(text);
         let Some(baseline) = self.baseline.filter(|baseline| {
             Discrepancy::MEASURES
                 .iter()
@@ -868,6 +916,62 @@ impl<'a> Report<'a> {
         }
         for ((before, now), count) in moves {
             let _ = writeln!(text, "| {before} | {now} | {count} |");
+        }
+    }
+
+    /// Samples per class and cause, retired ones left out, and per cause the
+    /// samples with any finding of it: who has work to do.
+    fn cause_tables(&self, text: &mut String) {
+        let current = self
+            .rows
+            .iter()
+            .zip(&self.causes)
+            .filter(|(row, _)| !row.sample.retired);
+        let mut headline = BTreeMap::<(Discrepancy, Cause), usize>::new();
+        let mut routed = BTreeMap::<(Cause, &str), usize>::new();
+        for (row, cause) in current {
+            let Some((cause, findings)) = cause else {
+                continue;
+            };
+            *headline.entry((row.discrepancy(), *cause)).or_default() += 1;
+            let evidence = findings
+                .iter()
+                .map(|finding| (finding.cause, finding.evidence))
+                .collect::<BTreeSet<_>>();
+            for key in evidence {
+                *routed.entry(key).or_default() += 1;
+            }
+        }
+        text.push_str(
+            "\nCause of each sample's discrepancy, the first of dna, lab, technology, and \
+             undetermined among its findings:\n\n| Class |",
+        );
+        for cause in Cause::ALL {
+            let _ = write!(text, " {} |", cause.label());
+        }
+        text.push_str("\n|---|");
+        text.push_str(&"---:|".repeat(Cause::ALL.len()));
+        text.push('\n');
+        for discrepancy in Discrepancy::ALL
+            .into_iter()
+            .filter(|discrepancy| *discrepancy != Discrepancy::None)
+        {
+            let _ = write!(text, "| {} |", discrepancy.label());
+            for cause in Cause::ALL {
+                let count = headline
+                    .get(&(discrepancy, cause))
+                    .copied()
+                    .unwrap_or_default();
+                let _ = write!(text, " {count} |");
+            }
+            text.push('\n');
+        }
+        text.push_str(
+            "\nSamples with a finding of each cause and evidence (a sample can need more \
+             than one of them):\n\n| Cause | Evidence | Samples |\n|---|---|---:|\n",
+        );
+        for ((cause, evidence), count) in routed {
+            let _ = writeln!(text, "| {} | {evidence} | {count} |", cause.label());
         }
     }
 
@@ -1201,6 +1305,7 @@ mod tests {
                 rejected: index % 2,
                 alleles,
                 signals: lod::Signals::default(),
+                loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {
                     vec![(73, 340)]
                 } else {
@@ -1227,8 +1332,10 @@ mod tests {
                 &truth.samples,
                 compare::tests::rcrs(),
             );
-            Ok(Report::new(&rows, Some(&baseline), &check)
-                .files(&[("panel", "synthetic".to_owned())]))
+            Ok(
+                Report::new(&rows, Some(&baseline), &check, (&Forms::default(), ""))
+                    .files(&[("panel", "synthetic".to_owned())]),
+            )
         };
         let one = outputs(1)?;
         assert_eq!(one, outputs(8)?);
@@ -1248,24 +1355,24 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tlab:no_read@16189\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\t2\t1\t",
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tundetermined:one_strand@16189\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
-            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\t\
+            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdna:dna_failure\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tundetermined:not_comparable\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
-             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\t2\t0\t",
+             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tundetermined:adjudicate\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\t2\t0\t",
-            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\t\
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tundetermined:not_comparable\t2\t0\t",
+            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tlab\tlab:truth_missing\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {
@@ -1364,7 +1471,7 @@ mod tests {
                 current: digest("d"),
             }],
         };
-        let files = Report::new(&[], None, &check).files(&[]);
+        let files = Report::new(&[], None, &check, (&Forms::default(), "")).files(&[]);
         let names = files.iter().map(|(name, _)| *name).collect::<Vec<_>>();
         assert_eq!(
             names,
@@ -1389,7 +1496,7 @@ mod tests {
             changed: Vec::new(),
             ..check
         };
-        let files = Report::new(&[], None, &unchanged).files(&[]);
+        let files = Report::new(&[], None, &unchanged, (&Forms::default(), "")).files(&[]);
         assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
         assert!(files[3].1.contains("Panel truth: unchanged"));
         // The header digest differs while no row does: the file is still
@@ -1399,7 +1506,7 @@ mod tests {
             changed: Vec::new(),
             ..unchanged
         };
-        let files = Report::new(&[], None, &header_only).files(&[]);
+        let files = Report::new(&[], None, &header_only, (&Forms::default(), "")).files(&[]);
         let tsv = files
             .iter()
             .find(|(name, _)| *name == "truth_changes.tsv")

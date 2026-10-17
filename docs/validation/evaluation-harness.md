@@ -407,6 +407,43 @@ truth is measured on the corpus with `dna-eval convention`, not per sample.
 The class follows from the statuses alone, so a baseline run's classes come
 from its `scores.tsv` when it reports all four measures.
 
+## Discrepancy causes
+
+Each sample with a discrepancy also has a cause: who accounts for it, so the
+difference reaches the one who can act on it. Every discordant position of
+the sample's class gives a finding, `cause:evidence@position` (or `@window`)
+in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
+`technology`, and `undetermined` among them. The causes come from the
+admitted reads' evidence at each region position, the limit-of-detection
+signals, and how the reviewers write each sequence over the whole truth
+database; nothing is listed by hand, and the truth is only read.
+
+| Class | Evidence | Cause |
+|---|---|---|
+| `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
+| | a read covers it with a call masked for phase loss: dephased or mixed signal, or a segment after a repeat run (`phase_loss`) | `technology` |
+| | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
+| | otherwise: read cleanly or unresolved, yet not callable (`uncallable`) | `dna`: its callability (read-end margin, an `N` the consensus left) |
+| `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
+| | the truth writes it (`dna_minority_form`) | `dna`: its notation |
+| | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
+| `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`second_base_shown`) | `dna`: DNA writes no IUPAC code |
+| | a read shows it only at 3 % or more (`below_lod`) | `technology` |
+| | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
+| | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
+| `sequence` (each SNV or deletion) | a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
+| | a truth-only call there (`reads_show_reference`) | `lab`: the truth, for a re-check |
+| `failed` | no record in the truth, an unreadable trace, or every trace rejected | `lab` |
+| | a DNA error | `dna` |
+
+Any other discrepancy is `undetermined` (`adjudicate`, `not_comparable`).
+The written forms group the truth's IUPAC-free samples by the sequence of
+each repeat window, so DNA's form and the truth's are compared for the same
+sequence; outside the windows no sequence groups them, and the count of
+samples carrying each side's calls is a proxy. A sample can need more than
+one party: the summary counts the samples per class and cause, and per cause
+and evidence the samples with such a finding.
+
 ## Estimates
 
 For each weighting (`corpus` = `weight_corpus`, `pool` = `weight`), each
@@ -595,12 +632,12 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes) and findings (`cause`, `cause_evidence`); distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
-| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, and with a baseline the samples whose class changed), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
+| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
 | `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (and `minor_unavailable=…` when the minor channels could not be read), poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
 | `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |
