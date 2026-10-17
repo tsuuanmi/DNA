@@ -64,7 +64,8 @@ The reconstructed sequence is retained in `VariantNormalizationResult` as
 
 ## Step 4 — Apply the right-alignment policy
 
-Only pure insertions and pure deletions are positionally shifted.
+Only pure insertions and pure deletions are positionally shifted; a deletion
+trade may rewrite the substitutions a deletion passes.
 
 ### Deletion shift
 
@@ -77,6 +78,19 @@ delete:      A
                  ↓ repeated one-base shifts
 canonical:         A
 ~~~
+
+### Deletion trade
+
+When a deletion cannot shift further, it may still move up to 20 bases 3' if
+only substitutions lie in the stretch it crosses and the same haplotype needs
+no more edits: the bases in between are written as substitutions, which may
+replace substitutions the deletion passes. The 3'-most such placement wins.
+With `16297C`, `16293DEL 16298C` becomes `16293C 16298DEL`, as the lab's
+reviewers write it (35 corpus samples DNA wrote the other way); a plain run
+shift is the trade without substitutions. Across the reviewed corpus (about
+101,000 IUPAC-free samples, each haplotype called from its sequence), the
+trade makes DNA write 43 more samples the reviewers' way and 1 fewer, where a
+deletion at the HVS-I window's last base (`16193DEL 16194T`) moves outside it.
 
 ### Insertion shift
 

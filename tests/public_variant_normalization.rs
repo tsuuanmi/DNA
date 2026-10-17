@@ -185,6 +185,37 @@ fn an_insertion_crosses_a_substituted_base_of_its_own() -> Result<(), Box<dyn st
 }
 
 #[test]
+fn a_deletion_moves_3_prime_across_substitutions_it_replaces()
+-> Result<(), Box<dyn std::error::Error>> {
+    // As 16293DEL 16297C 16298C over CCCACCCTT: the sample's C run is eight
+    // bases, written with the deletion at its 3' end: 16293C 16297C 16298DEL.
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = "CCCACCCTTAA";
+    write_reference(&reference_path, sequence)?;
+    let called = called(
+        sequence,
+        vec![
+            variant(3, "CA", "C", VariantKind::Del),
+            variant(8, "T", "C", VariantKind::Snv),
+            variant(9, "T", "C", VariantKind::Snv),
+        ],
+    );
+
+    let result = normalize(&reference_path, &called)?;
+
+    assert_eq!(
+        result.normalized_variants,
+        vec![
+            variant(4, "A", "C", VariantKind::Snv),
+            variant(8, "T", "C", VariantKind::Snv),
+            variant(8, "TT", "T", VariantKind::Del),
+        ]
+    );
+    Ok(())
+}
+
+#[test]
 fn right_alignment_stops_at_the_mtdna_coordinate_seam() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");

@@ -15,11 +15,17 @@ pub(super) fn right_align(
 
         let mut moved = false;
         for index in order {
-            let Some(shifted) = shift_right_once(reference, &normalized, index) else {
-                continue;
+            let candidate = match shift_right_once(reference, &normalized, index) {
+                Some(shifted) => {
+                    let mut candidate = normalized.clone();
+                    candidate[index] = shifted;
+                    candidate
+                }
+                None => match trade_deletion(reference, &normalized, index)? {
+                    Some(candidate) => candidate,
+                    None => continue,
+                },
             };
-            let mut candidate = normalized.clone();
-            candidate[index] = shifted;
             if apply_edits(reference, &candidate)? == alternate_sequence {
                 normalized = candidate;
                 moved = true;
@@ -92,4 +98,80 @@ fn shift_right_once(reference: &str, edits: &[SequenceEdit], index: usize) -> Op
     }
 
     None
+}
+
+/// The farthest a deletion is moved past substitutions in one step.
+const MAX_TRADE: usize = 20;
+
+/// The deletion at `index` placed as far 3' as the same haplotype allows
+/// without more edits: deleting reference bases further right and writing
+/// the bases in between as substitutions, which may replace substitutions
+/// the deletion passes (`16293DEL 16298C` becomes `16293C 16298DEL`, as the
+/// lab's reviewers write it). Only substitutions may lie in the stretch it
+/// crosses; `None` when no farther placement keeps the edit count.
+fn trade_deletion(
+    reference: &str,
+    edits: &[SequenceEdit],
+    index: usize,
+) -> RepresentationResult<Option<Vec<SequenceEdit>>> {
+    let deletion = &edits[index];
+    if !deletion.alternate.is_empty() || deletion.end <= deletion.start {
+        return Ok(None);
+    }
+    let (start, length) = (deletion.start, deletion.end - deletion.start);
+    let mut best = None;
+    for target in start + 1..=(start + MAX_TRADE).min(reference.len().saturating_sub(length)) {
+        let end = target + length;
+        let inside = |edit: &SequenceEdit| {
+            edit.start < end && (edit.end > start || (edit.start == edit.end && edit.start > start))
+        };
+        let crossed = edits
+            .iter()
+            .enumerate()
+            .filter(|(other, edit)| *other != index && inside(edit))
+            .map(|(_, edit)| edit)
+            .collect::<Vec<_>>();
+        if crossed
+            .iter()
+            .any(|edit| edit.end != edit.start + 1 || edit.alternate.len() != 1)
+        {
+            break;
+        }
+        let local = std::iter::once(deletion)
+            .chain(crossed.iter().copied())
+            .map(|edit| SequenceEdit {
+                start: edit.start - start,
+                end: edit.end - start,
+                alternate: edit.alternate.clone(),
+            })
+            .collect::<Vec<_>>();
+        let shown = apply_edits(&reference[start..end], &local)?;
+        let substitutions = shown
+            .bytes()
+            .zip(reference[start..target].bytes())
+            .enumerate()
+            .filter(|(_, (observed, expected))| observed != expected)
+            .map(|(offset, (observed, _))| SequenceEdit {
+                start: start + offset,
+                end: start + offset + 1,
+                alternate: char::from(observed).to_string(),
+            })
+            .collect::<Vec<_>>();
+        let mut candidate = edits
+            .iter()
+            .enumerate()
+            .filter(|(other, edit)| *other != index && !inside(edit))
+            .map(|(_, edit)| edit.clone())
+            .collect::<Vec<_>>();
+        candidate.extend(substitutions);
+        candidate.push(SequenceEdit {
+            start: target,
+            end,
+            alternate: String::new(),
+        });
+        if candidate.len() <= edits.len() {
+            best = Some(candidate);
+        }
+    }
+    Ok(best)
 }

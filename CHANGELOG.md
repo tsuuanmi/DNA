@@ -208,8 +208,10 @@ remain independently versioned and are never silently changed in place.
   substitution of the same haplotype makes equal to its first inserted base,
   until the insertion follows a reference run of that base: with `16172C`, an
   inserted C is written `16174.1C` rather than `16171.1C`, as the lab's
-  reviewers write it, while `16262.1C 16263C` stays. The `normalization`
-  plugin version rises to 2.
+  reviewers write it, while `16262.1C 16263C` stays. A deletion that cannot
+  shift further moves up to 20 bases 3' across substitutions when the same
+  haplotype needs no more edits (`16293DEL 16298C` becomes
+  `16293C 16298DEL`). The `normalization` plugin version rises to 2.
 - Window representation now applies per window rather than per read
   (SRS-NOM-007, SRS-NOM-010). An edit that crosses one nomenclature window
   leaves that window in its normalized form, but no longer prevents the
