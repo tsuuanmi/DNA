@@ -415,14 +415,29 @@ from its `scores.tsv` when it reports all four measures.
 ## Discrepancy causes
 
 Each sample with a discrepancy also has a cause: who accounts for it, so the
-difference reaches the one who can act on it. Every discordant position of
+difference reaches the one who can act on it. The core is judged on the
+working hypothesis that its input signal is good, or clearly poor through the
+lab. Each cause says which case applies:
+- `lab`: the lab did poorly (a missing or short trace, a weak run, or a truth
+  the reads contradict);
+- `technology`: the lab did its part, but the read shows dephasing, noise, or
+  length heterogeneity that the core cannot resolve and signal processing in
+  `dna-sanger` may later;
+- `dna`: a core defect;
+- `undetermined`: a reviewer decides.
+
+Every discordant position of
 the sample's class gives a finding, `cause:evidence@position` (or `@window`)
 in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
 `technology`, and `undetermined` among them. Each finding also has a scope
 (`cause_scope` for the sample): `defect`, or `deferred` for an item left
-undone by design, such as the IUPAC codes DNA does not write or a call the
-reviewers' convention does not record; a defect comes
-before a deferred item. The causes come from the
+undone by design. Three kinds are deferred:
+- the IUPAC codes DNA does not write;
+- a call the reviewers' convention does not record;
+- signal processing in `dna-sanger`, which takes every `technology` finding.
+
+A defect comes before a deferred item, so a sample with both a `lab` and a
+`technology` finding is the lab's. The causes come from the
 admitted reads' evidence at each region position (with the core's own trust
 verdict on each call, `SampleAnalysis::trust`), the limit-of-detection
 signals, and how the reviewers write each sequence over the whole truth
@@ -431,13 +446,13 @@ database; nothing is listed by hand, and the truth is only read.
 | Class | Evidence | Cause |
 |---|---|---|
 | `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
-| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` |
-| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology` |
+| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` deferred |
+| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology`, deferred: signal processing |
 | | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
 | | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
-| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
+| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology`, deferred: signal processing |
 | | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
-| | a clean call the core does not trust, withheld by a call masked for phase loss: dephased or mixed signal, or a segment DNA starts after a repeat run (`beside_phase_loss`) | `technology` |
+| | a clean call the core does not trust, withheld by a call masked for phase loss: dephased or mixed signal, or a segment DNA starts after a repeat run (`beside_phase_loss`) | `technology`, deferred: signal processing |
 | | a weak-signal veto denies a call that reads the reference (`veto_out_of_scope`) | `dna`: the veto guards variant support |
 | | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
 | | every untrusted call is withheld by its read's own end, its trim, or a call masked for weak signal (`read_edge`), or carries a weak-signal veto (`weak_call`); an ADR-0076 exemption counts as trust | `lab`: read quality |
@@ -447,7 +462,7 @@ database; nothing is listed by hand, and the truth is only read.
 | | the truth writes it (`dna_minority_form`) | `dna`: its notation |
 | | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
 | `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`iupac_not_reported`) | `dna`, deferred: DNA writes no IUPAC code by design |
-| | a read shows it only at 3 % or more (`below_lod`) | `technology` |
+| | a read shows it only at 3 % or more (`below_lod`) | `technology`, deferred: signal processing |
 | | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
 | | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
 | `sequence` (each window) | every DNA-only call is one a profile convention labels `not_recorded` (SRS-NOM-017), and the truth has no call of its own (`convention_not_recorded`) | `lab`, deferred: the reviewers' convention |
@@ -464,8 +479,8 @@ samples carrying each side's calls is a proxy. Each run writes this index as
 `forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
 earlier run's instead of indexing the whole database, and a file written for
 another database stops the run. A sample can need more than
-one party: the summary counts the samples per class and cause, deferred
-items apart, and per cause, scope, and evidence the samples with such a
+one party: the summary counts the samples per class and cause, defects
+first and then deferred items, each in cause order, and per cause, scope, and evidence the samples with such a
 finding. Insertions are not judged under `sequence` yet: reads showing the
 reference at an anchor do not exclude one.
 

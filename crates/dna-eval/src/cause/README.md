@@ -4,7 +4,9 @@ The cause of a sample's discrepancy
 ([discrepancy causes](../../../../docs/validation/evaluation-harness.md#discrepancy-causes)):
 whether DNA, the lab (its assay, runs, or reviewers' truth), or the
 sequencing technology accounts for each difference, read from the evidence,
-so the difference reaches the one who can act on it.
+so the difference reaches the one who can act on it. Every `technology`
+finding is deferred, to signal processing; a defect heads a sample before a
+deferred item.
 
 - `mod.rs` — the rules per discrepancy class, the findings (cause, scope,
   evidence, position or window), and the sample's cause and scope. A
