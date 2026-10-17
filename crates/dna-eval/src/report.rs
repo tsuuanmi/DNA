@@ -953,13 +953,15 @@ impl<'a> Report<'a> {
             .iter()
             .zip(&self.causes)
             .filter(|(row, _)| !row.sample.retired);
+        // Defects first, then deferred items, each in cause order; the
+        // technology is always deferred.
         let columns = [
             (Cause::Dna, Scope::Defect),
-            (Cause::Dna, Scope::Deferred),
             (Cause::Lab, Scope::Defect),
-            (Cause::Lab, Scope::Deferred),
-            (Cause::Technology, Scope::Defect),
             (Cause::Undetermined, Scope::Defect),
+            (Cause::Dna, Scope::Deferred),
+            (Cause::Lab, Scope::Deferred),
+            (Cause::Technology, Scope::Deferred),
         ];
         let mut headline = BTreeMap::<(Discrepancy, Cause, Scope), usize>::new();
         let mut routed = BTreeMap::<(Cause, Scope, &str), usize>::new();
@@ -981,7 +983,7 @@ impl<'a> Report<'a> {
         text.push_str(
             "\nCause of each sample's discrepancy, the first of dna, lab, technology, and \
              undetermined among its findings, a defect before an item deferred by design:\n\n\
-             | Class | dna | dna (deferred) | lab | lab (deferred) | technology | undetermined |\n\
+             | Class | dna | lab | undetermined | dna (deferred) | lab (deferred) | technology (deferred) |\n\
              |---|---:|---:|---:|---:|---:|---:|\n",
         );
         for discrepancy in Discrepancy::ALL

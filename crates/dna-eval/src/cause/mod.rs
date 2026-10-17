@@ -30,7 +30,9 @@ pub(crate) enum Cause {
     Dna,
     /// The lab: a missing or poor trace, or a truth the reads contradict.
     Lab,
-    /// The technology: signal Sanger sequencing cannot resolve here.
+    /// The technology: the lab did its part, but the read's signal shows
+    /// dephasing, noise, or length heterogeneity the core cannot resolve.
+    /// Always deferred, to signal processing.
     Technology,
     /// The evidence does not decide; adjudication does.
     Undetermined,
@@ -53,7 +55,9 @@ pub(crate) enum Scope {
     /// A defect to fix.
     Defect,
     /// Deferred by design: DNA writes no IUPAC code for a point
-    /// heteroplasmy (SRS-VAR-009), a deferral the user made.
+    /// heteroplasmy (SRS-VAR-009), the reviewers' convention does not record
+    /// a call, or the signal needs processing the core does not do
+    /// (every `technology` finding); deferrals the user made.
     Deferred,
 }
 
@@ -78,10 +82,16 @@ pub(crate) struct Finding {
 }
 
 impl Finding {
+    /// A finding of `cause`: deferred to signal processing for the
+    /// technology, a defect otherwise.
     fn new(cause: Cause, evidence: &'static str, at: Option<String>) -> Self {
         Self {
             cause,
-            scope: Scope::Defect,
+            scope: if cause == Cause::Technology {
+                Scope::Deferred
+            } else {
+                Scope::Defect
+            },
             evidence,
             at,
         }
@@ -670,6 +680,37 @@ mod tests {
                 Some(vec!["lab:convention_not_recorded@hv1_polyc".to_owned()])
             );
         }
+    }
+
+    #[test]
+    fn a_technology_limit_is_deferred_to_signal_processing() {
+        // 1: phase loss; 2: a clean call withheld by the read's own end.
+        let loci = Loci::of(1, vec![COVERED | PHASE, COVERED | FORWARD | EDGE], &[]);
+        let signals = lod::Signals::default();
+        let regions = BTreeSet::new();
+        let head = |positions: &[&str]| {
+            let uncovered = positions
+                .iter()
+                .map(|position| Allele::new(position, "A", "G"))
+                .collect();
+            let comparison = comparison(&[], Vec::new(), Vec::new(), uncovered);
+            findings(
+                &sample(
+                    Discrepancy::Coverage,
+                    &comparison,
+                    &[],
+                    &loci,
+                    &signals,
+                    &regions,
+                ),
+                &Forms::default(),
+                "",
+            )
+            .map(|(cause, scope, _)| (cause, scope))
+        };
+        assert_eq!(head(&["1"]), Some((Cause::Technology, Scope::Deferred)));
+        // A lab defect heads a sample that also meets a technology limit.
+        assert_eq!(head(&["1", "2"]), Some((Cause::Lab, Scope::Defect)));
     }
 
     #[test]

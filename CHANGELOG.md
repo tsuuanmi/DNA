@@ -17,6 +17,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- Every `technology` finding of the evaluation harness's discrepancy causes
+  is deferred, to signal processing in `dna-sanger`: the core is judged on
+  good input, or input the lab made poor. A defect heads a sample before a
+  deferred item, so a sample with both a `lab` and a `technology` finding is
+  the lab's. The summary's cause table lists defects first, then deferred
+  items, each in cause order (`technology (deferred)` replaces
+  `technology`). Statuses and classes are unchanged.
+
 - Report conventions (SRS-NOM-017, PROP-0007 increment 1): a profile's
   `[[nomenclature.conventions]]` labels the rendered calls the reviewers
   write differently, and keeps them. The human-mtDNA profile declares
