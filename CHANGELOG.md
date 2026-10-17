@@ -550,6 +550,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- `dna call` and `SampleAnalysis::call` no longer report a position DNA
+  excluded a call at as callable (SRS-VAR-019). A record's callable
+  reference segments leave out every position of an excluded variant (a
+  substitution's position, a deletion's deleted positions, both positions
+  beside an insertion's junction), so an excluded call is undecided rather
+  than read as the reference, and a record excluded for `placement_conflict`
+  contributes no callable segments at all; per-read sample evidence is
+  unchanged. The `core` plugin version rises to 7. Development panel v5:
+  102 more samples concordant on haplotype LoD and 97 on the primary
+  measure, no regression; 287 samples lose 441 callable positions inside the
+  HV regions (at most 7).
 - `call` writes an AC-repeat deletion that a consensus decided at `523–524`
   there, rather than as `513DEL 514DEL` beside the unresolved bases the
   consensus left at `513–516`. On a reviewed consensus record, whose ends are

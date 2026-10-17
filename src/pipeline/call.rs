@@ -167,6 +167,7 @@ pub(super) fn call_sequences(
                 reference,
                 &run,
             )
+            .map(CalledRead::without_excluded_positions)
         })
         .collect::<Result<Vec<_>>>()?;
 
