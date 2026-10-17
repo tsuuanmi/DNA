@@ -1,11 +1,13 @@
 //! 3'/right-most sequence-equivalent indel placement.
 
+use super::TradeBounds;
 use crate::variant_representation::{RepresentationResult, SequenceEdit, apply_edits, sort_edits};
 
 pub(super) fn right_align(
     reference: &str,
     alternate_sequence: &str,
     source_edits: &[SequenceEdit],
+    bounds: TradeBounds<'_>,
 ) -> RepresentationResult<Vec<SequenceEdit>> {
     let mut normalized = source_edits.to_vec();
 
@@ -15,12 +17,21 @@ pub(super) fn right_align(
 
         let mut moved = false;
         for index in order {
-            let Some(shifted) = shift_right_once(reference, &normalized, index) else {
-                continue;
+            let candidate = match shift_right_once(reference, &normalized, index) {
+                Some(shifted) => {
+                    let mut candidate = normalized.clone();
+                    candidate[index] = shifted;
+                    candidate
+                }
+                None => match trade_deletion(reference, &normalized, index, bounds)? {
+                    Some(candidate) => candidate,
+                    None => continue,
+                },
             };
-            let mut candidate = normalized.clone();
-            candidate[index] = shifted;
-            if apply_edits(reference, &candidate)? == alternate_sequence {
+            // A candidate whose edits overlap describes no haplotype.
+            if apply_edits(reference, &candidate)
+                .is_ok_and(|sequence| sequence == alternate_sequence)
+            {
                 normalized = candidate;
                 moved = true;
                 break;
@@ -92,4 +103,163 @@ fn shift_right_once(reference: &str, edits: &[SequenceEdit], index: usize) -> Op
     }
 
     None
+}
+
+/// The farthest a deletion is moved past substitutions in one step: twice the
+/// longest trade DNA makes over the lab's reviewed corpus (10 bases, `513DEL`
+/// to `523DEL` inside HVS-III).
+const MAX_TRADE: usize = 20;
+
+/// The deletion at `index` placed as far 3' as the same haplotype allows
+/// without more edits: deleting reference bases further right and writing
+/// the bases in between as substitutions, which may replace substitutions
+/// the deletion passes (`16293DEL 16298C` becomes `16293C 16298DEL`, as the
+/// lab's reviewers write it). Only substitutions may lie in the stretch it
+/// crosses, every base of the stretch must be read, and the stretch may not
+/// cross a boundary of a bounding window; `None` when no farther placement
+/// keeps the edit count.
+fn trade_deletion(
+    reference: &str,
+    edits: &[SequenceEdit],
+    index: usize,
+    bounds: TradeBounds<'_>,
+) -> RepresentationResult<Option<Vec<SequenceEdit>>> {
+    let deletion = &edits[index];
+    if !deletion.alternate.is_empty() || deletion.end <= deletion.start {
+        return Ok(None);
+    }
+    let (start, length) = (deletion.start, deletion.end - deletion.start);
+    let mut best = None;
+    for target in start + 1..=(start + MAX_TRADE).min(reference.len().saturating_sub(length)) {
+        let end = target + length;
+        // A longer stretch keeps any boundary or unread base of a shorter one.
+        let split = bounds.windows.iter().any(|window| {
+            window.start < end
+                && start < window.end
+                && !(window.start <= start && end <= window.end)
+        });
+        let unread = bounds.readable.is_some_and(|readable| {
+            !(start..end).all(|base| readable.iter().any(|range| range.contains(&base)))
+        });
+        if split || unread {
+            break;
+        }
+        let inside = |edit: &SequenceEdit| {
+            edit.start < end && (edit.end > start || (edit.start == edit.end && edit.start > start))
+        };
+        let crossed = edits
+            .iter()
+            .enumerate()
+            .filter(|(other, edit)| *other != index && inside(edit))
+            .map(|(_, edit)| edit)
+            .collect::<Vec<_>>();
+        if crossed
+            .iter()
+            .any(|edit| edit.end != edit.start + 1 || edit.alternate.len() != 1)
+        {
+            break;
+        }
+        let local = std::iter::once(deletion)
+            .chain(crossed.iter().copied())
+            .map(|edit| SequenceEdit {
+                start: edit.start - start,
+                end: edit.end - start,
+                alternate: edit.alternate.clone(),
+            })
+            .collect::<Vec<_>>();
+        let shown = apply_edits(&reference[start..end], &local)?;
+        let substitutions = shown
+            .bytes()
+            .zip(reference[start..target].bytes())
+            .enumerate()
+            .filter(|(_, (observed, expected))| observed != expected)
+            .map(|(offset, (observed, _))| SequenceEdit {
+                start: start + offset,
+                end: start + offset + 1,
+                alternate: char::from(observed).to_string(),
+            })
+            .collect::<Vec<_>>();
+        let mut candidate = edits
+            .iter()
+            .enumerate()
+            .filter(|(other, edit)| *other != index && !inside(edit))
+            .map(|(_, edit)| edit.clone())
+            .collect::<Vec<_>>();
+        candidate.extend(substitutions);
+        candidate.push(SequenceEdit {
+            start: target,
+            end,
+            alternate: String::new(),
+        });
+        if candidate.len() <= edits.len() {
+            best = Some(candidate);
+        }
+    }
+    Ok(best)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn edit(start: usize, end: usize, alternate: &str) -> SequenceEdit {
+        SequenceEdit {
+            start,
+            end,
+            alternate: alternate.to_owned(),
+        }
+    }
+
+    /// As 16293DEL 16297C 16298C over CCCACCCTT: the deletion of A at 3
+    /// trades to 7, and 3 becomes C.
+    const REFERENCE: &str = "CCCACCCTTAA";
+
+    fn trade(bounds: TradeBounds<'_>) -> RepresentationResult<Vec<SequenceEdit>> {
+        let source = [edit(3, 4, ""), edit(7, 8, "C"), edit(8, 9, "C")];
+        let alternate = apply_edits(REFERENCE, &source)?;
+        right_align(REFERENCE, &alternate, &source, bounds)
+    }
+
+    #[test]
+    fn a_deletion_trades_within_its_bounds() -> RepresentationResult<()> {
+        let traded = vec![edit(3, 4, "C"), edit(7, 8, "C"), edit(8, 9, "")];
+        assert_eq!(trade(TradeBounds::default())?, traded);
+        assert_eq!(
+            trade(TradeBounds {
+                windows: &[0..9, 9..11],
+                readable: Some(&[0..5, 5..11]),
+            })?,
+            traded
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_deletion_trades_neither_across_a_window_boundary_nor_an_unread_base()
+    -> RepresentationResult<()> {
+        let kept = vec![edit(3, 4, ""), edit(7, 8, "C"), edit(8, 9, "C")];
+        assert_eq!(
+            trade(TradeBounds {
+                windows: &[0..4, 4..11],
+                readable: None,
+            })?,
+            kept
+        );
+        // Windows meeting at 8 keep the deletion at the first one's last base.
+        assert_eq!(
+            trade(TradeBounds {
+                windows: &[0..8, 8..11],
+                readable: None,
+            })?,
+            vec![edit(3, 4, "C"), edit(7, 8, ""), edit(8, 9, "C")]
+        );
+        assert_eq!(
+            trade(TradeBounds {
+                windows: &[],
+                readable: Some(&[0..5, 6..11]),
+            })?,
+            kept
+        );
+        Ok(())
+    }
 }

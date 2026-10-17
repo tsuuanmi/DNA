@@ -15,7 +15,7 @@ use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Notation, Profile};
 use dna_kernel::variant::{CalledVariantSet, Variant};
 use dna_normalize::variant_nomenclature::{self, from_normalization};
-use dna_normalize::variant_normalization::{NormalizationPolicy, normalize_with};
+use dna_normalize::variant_normalization::{NormalizationPolicy, TradeBounds, normalize_read};
 
 /// Represents every called read's eligible calls, or `None` when the profile
 /// declares no notation. The reference has already been checked against the
@@ -73,7 +73,9 @@ pub(crate) fn represent_variants(
 /// edit straddles keeps its normalized form (SRS-NOM-007), and so does one
 /// whose representation would place a call where the read reads nothing
 /// (SRS-NOM-010): a window rule rewrites the whole window's sequence, which over
-/// an unread base is the reference's, not the read's.
+/// an unread base is the reference's, not the read's. For the same reason a
+/// deletion trade crosses only read bases, and it crosses no window boundary,
+/// leaving a window's representation to its rule (SRS-VN-008).
 fn represent_read(
     reference: &Reference,
     profile: &Profile,
@@ -85,7 +87,20 @@ fn represent_read(
         reference: reference.identity(),
         variants,
     };
-    let normalized = normalize_with(reference, &called, policy)?;
+    let windows = profile
+        .windows
+        .iter()
+        .map(|window| window.start..window.end())
+        .collect::<Vec<_>>();
+    let normalized = normalize_read(
+        reference,
+        &called,
+        policy,
+        TradeBounds {
+            windows: &windows,
+            readable: Some(callable),
+        },
+    )?;
     Ok(variant_nomenclature::apply_read(
         reference,
         profile,
@@ -239,6 +254,29 @@ mod tests {
         assert_eq!(
             whole,
             [public(16181, "AAA", "A"), public(16188, "C", "CCC")]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_deletion_at_the_hv1_window_end_does_not_trade_out_of_it() -> TestResult {
+        let reference = rcrs()?;
+        // 16193DEL 16194T is the same sequence as 16193T 16194DEL, but the
+        // trade would carry the deletion past HVS-I's last base, 16193.
+        let calls = vec![
+            Variant::from(&called(16192, "CC", "C", VariantKind::Del)),
+            Variant::from(&called(16194, "A", "T", VariantKind::Snv)),
+        ];
+        let represented = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            calls,
+            &[READ],
+        )?;
+        assert_eq!(
+            represented,
+            [public(16192, "CC", "C"), public(16194, "A", "T")]
         );
         Ok(())
     }
