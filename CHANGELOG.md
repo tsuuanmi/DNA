@@ -26,7 +26,10 @@ remain independently versioned and are never silently changed in place.
   (technology), at the read's own end or with a weak support veto (lab), a
   weak veto on a call that reads the reference (DNA, `veto_out_of_scope`),
   mixed channels (undetermined), or otherwise DNA's callability policy; a
-  truth IUPAC code a read shows is judged as under heteroplasmy.
+  truth IUPAC code a read shows is judged as under heteroplasmy. Each run
+  writes the written-form index as `forms.tsv`, keyed by the truth
+  database's SHA-256, and `--forms` reads an earlier run's instead of the
+  whole database.
 - `dna-eval convention` (evaluation harness only): runs every IUPAC-free
   truth sample's calls through DNA's normalization and nomenclature windows
   and counts the samples that come back unchanged, with the change patterns
