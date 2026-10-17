@@ -19,6 +19,8 @@ pub(crate) struct Statuses {
     pub(crate) measures: Vec<Measure>,
     /// Each sample's status under every reported measure.
     pub(crate) samples: BTreeMap<String, BTreeMap<Measure, String>>,
+    /// Each sample's discrepancy class, when the baseline reports one.
+    pub(crate) classes: BTreeMap<String, String>,
 }
 
 impl Statuses {
@@ -89,6 +91,8 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
                 .map(|index| (measure, index))
         })
         .collect::<Vec<_>>();
+    let class = columns.iter().position(|name| *name == "class");
+    let mut classes = BTreeMap::new();
     let mut samples = BTreeMap::new();
     for (offset, line) in lines.enumerate() {
         let line_number = offset + 2;
@@ -104,6 +108,9 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
             .iter()
             .map(|(measure, index)| (*measure, fields[*index].to_owned()))
             .collect();
+        if let Some(class) = class {
+            classes.insert(fields[sample].to_owned(), fields[class].to_owned());
+        }
         if samples.insert(fields[sample].to_owned(), row).is_some() {
             return Err(BaselineError::DuplicateSample {
                 line: line_number,
@@ -114,6 +121,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
     Ok(Statuses {
         measures: measures.iter().map(|(measure, _)| *measure).collect(),
         samples,
+        classes,
     })
 }
 

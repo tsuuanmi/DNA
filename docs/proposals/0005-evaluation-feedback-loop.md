@@ -137,7 +137,11 @@ make the loop possible they provide:
   measures that do not count a haplotype written or placed differently
   ([evaluation harness](../validation/evaluation-harness.md#measures)).
   Work is ranked on the haplotype measures, so representation does not
-  inflate the error counts.
+  inflate the error counts. The haplotype measures compare only inside DNA's
+  callable intervals, the HV regions, and the truth's analysed intervals
+  (2026-10-17, user): a DNA call where the reviewers did not analyse is
+  neither concordant nor discordant there; the harness classes such a sample
+  `unanalysed`.
 - **Notation.** The truth side is compared as stored in the database,
   following `comparison.py`'s rules; DNA's side uses its notation. The
   haplotype measures compare the sequences both notations describe instead.
@@ -552,7 +556,12 @@ the draft's outcomes unchanged.
   only where it is observed (`haplotype_lod`): the covering reads show both of
   the code's bases, each as some read's call or as a second channel at 10 %
   or more of a read's normalised profile, or one of them as such a second
-  channel. The haplotype measure stays a secondary endpoint. On the development panel the draft policy then leaks in
+  channel. The haplotype measure stays a secondary endpoint. From the
+  harness revision that compares the haplotype measures only inside the
+  truth's analysed intervals (2026-10-17) the endpoint inherits that
+  restriction; the readiness v1 verdict below and these development figures
+  were computed under the earlier definition, and the spent readiness panel
+  is not re-run. On the development panel the draft policy then leaks in
   11 of its 458 passes (upper bound 3.9 %), and the draft's rule joined by
   `local_shadow@80` (PROP-0004) in 3 of 443 (upper bound 1.7 %): two
   heteroplasmies that one strand alone shows above the limit, and the truth
