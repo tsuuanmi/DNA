@@ -167,11 +167,12 @@ pub struct CallEvidence {
 }
 
 /// Labels the core owns; a modality may not reuse them.
-const CORE_REASONS: [&str; 4] = [
+const CORE_REASONS: [&str; 5] = [
     "non_canonical_allele",
     "indel_length_exceeded",
     "outside_target_region",
     "read_end",
+    "placement_conflict",
 ];
 
 /// Whether the modality vouches for a read's calls up to its physical ends.

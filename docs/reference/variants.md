@@ -31,7 +31,10 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
     `alternate` alleles, its `kind` (`SNV`, `INS`, or `DEL`), `eligible`, and
     its `exclusion_reasons`. These are core reasons (`outside_target_region`,
     `indel_length_exceeded`, `non_canonical_allele`, `read_end`,
-    `run_boundary`), or modality labels reported verbatim.
+    `run_boundary`, `placement_conflict`), or modality labels reported
+    verbatim. `placement_conflict` excludes every variant of a record whose
+    name declares a reference interval (`<id>_<first>-<last>`, 1-based, as
+    consensus segments are named) that its placement does not overlap.
 - `notation` (only when the profile declares notation): the same per-read view
   as in [sample evidence](sample-evidence/notation.md). Each rendered call
   lists the reads whose represented eligible calls contain it.
