@@ -18,7 +18,7 @@ use crate::estimate::{self, Estimate, Observation};
 use crate::haplotype;
 use crate::lod;
 use crate::manifest::Sample;
-use crate::runner::Outcome;
+use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 
 /// One compared panel sample.
@@ -432,7 +432,7 @@ impl<'a> Report<'a> {
              haplotype_iupac_compatible_status\thaplotype_iupac_compatible_concordant\t\
              haplotype_iupac_compatible_blocks\thaplotype_lod_status\thaplotype_lod_concordant\t\
              haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\tcause\tcause_scope\t\
-             cause_evidence\t\
+             cause_evidence\tempop_ranges\tempop_mitotype\tempop_undecided\tempop_ties\t\
              traces\trejected_traces\tfailure\n",
         );
         for (row, cause) in self.rows.iter().zip(&self.causes) {
@@ -510,6 +510,21 @@ impl<'a> Report<'a> {
                 .as_ref()
                 .map(|called| called.rejected.to_string())
                 .unwrap_or_default();
+            let empop = row
+                .outcome
+                .result
+                .as_ref()
+                .ok()
+                .and_then(|called| called.empop.as_ref())
+                .map_or_else(
+                    || "\t\t\t".to_owned(),
+                    |empop| {
+                        format!(
+                            "{}\t{}\t{}\t{}",
+                            empop.ranges, empop.mitotype, empop.undecided, empop.ties
+                        )
+                    },
+                );
             let below_lod = if row.comparisons.is_ok() {
                 row.below_lod.to_string()
             } else {
@@ -533,7 +548,7 @@ impl<'a> Report<'a> {
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
                  {haplotype}\t{below_lod}\t{}\t{class_regions}\t{cause}\t{cause_scope}\t\
-                 {cause_evidence}\t\
+                 {cause_evidence}\t{empop}\t\
                  {traces}\t{rejected}\t{failure}",
                 sample.id,
                 sample.batch,
@@ -909,6 +924,7 @@ impl<'a> Report<'a> {
             text.push('\n');
         }
         self.cause_tables(text);
+        self.empop_section(text);
         let Some(baseline) = self.baseline.filter(|baseline| {
             Discrepancy::MEASURES
                 .iter()
@@ -943,6 +959,38 @@ impl<'a> Report<'a> {
         for ((before, now), count) in moves {
             let _ = writeln!(text, "| {before} | {now} | {count} |");
         }
+    }
+
+    /// The EMPOP queries (PROP-0007): how many samples have one, and the
+    /// consensus decisions their ranges rest on.
+    fn empop_section(&self, text: &mut String) {
+        let queries = self
+            .rows
+            .iter()
+            .filter(|row| !row.sample.retired)
+            .filter_map(|row| row.outcome.result.as_ref().ok()?.empop.as_ref())
+            .collect::<Vec<_>>();
+        if queries.is_empty() {
+            return;
+        }
+        let total =
+            |count: fn(&Empop) -> usize| queries.iter().map(|empop| count(empop)).sum::<usize>();
+        let samples =
+            |count: fn(&Empop) -> usize| queries.iter().filter(|empop| count(empop) > 0).count();
+        let _ = write!(
+            text,
+            "\nEMPOP queries: a range must cover only positions the consensus decided; a \
+             tie the consensus resolved is exported as its decision.\n\n\
+             | Item | Positions | Samples |\n|---|---:|---:|\n\
+             | query | | {} |\n\
+             | undecided position inside a range | {} | {} |\n\
+             | resolved tie inside a range | {} | {} |\n",
+            queries.len(),
+            total(|empop| empop.undecided),
+            samples(|empop| empop.undecided),
+            total(|empop| empop.ties),
+            samples(|empop| empop.ties),
+        );
     }
 
     /// Samples per class and cause, retired ones left out, and per cause the
@@ -1344,6 +1392,7 @@ mod tests {
                 rejected: index % 2,
                 alleles,
                 not_recorded: BTreeSet::new(),
+                empop: None,
                 signals: lod::Signals::default(),
                 loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {
@@ -1395,24 +1444,24 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tdefect\tlab:no_read@16189\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tdefect\tlab:no_read@16189\t\t\t\t\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tdefect\tundetermined:one_strand@16189\t2\t1\t",
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
-            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\
+            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\t\t\t\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t\t\t\t\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
-             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tdefect\tundetermined:adjudicate\t2\t0\t",
+             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tdefect\tundetermined:adjudicate\t\t\t\t\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t2\t0\t",
-            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tlab\tdefect\tlab:truth_missing\t\
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t\t\t\t\t2\t0\t",
+            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tlab\tdefect\tlab:truth_missing\t\t\t\t\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {

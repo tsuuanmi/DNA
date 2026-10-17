@@ -7,7 +7,9 @@
 use crate::input::sequence;
 use crate::report;
 use crate::sample_analysis::{ConsensusCall, NotationCall, ReferenceSegment, SampleAnalysis};
+use dna_empop::export::{self, Record};
 use dna_kernel::error::Result;
+use dna_kernel::variant::Variant;
 
 use super::call::{self, Called};
 use super::sample::validate_sample_id;
@@ -40,6 +42,45 @@ impl SampleAnalysis {
             .as_ref()
             .map(|notation| report::notation_calls(&loaded.reference, notation))
             .transpose()?;
+        let empop = calls
+            .as_ref()
+            .filter(|_| loaded.profile.empop)
+            .map(|calls| {
+                let records = reads
+                    .iter()
+                    .map(|read| {
+                        let segments =
+                            |segments: &[dna_core::model::alignment::ReferenceSegment]| {
+                                segments
+                                    .iter()
+                                    .map(|segment| {
+                                        segment.start_0based..segment.end_0based_exclusive
+                                    })
+                                    .collect()
+                            };
+                        Record {
+                            reference: segments(&read.alignment.reference_segments),
+                            callable: segments(&read.alignment.callable_segments),
+                            excluded: read
+                                .variants
+                                .observed
+                                .iter()
+                                .filter(|observed| !observed.exclusion_reasons.is_empty())
+                                .map(|observed| Variant::from(&observed.variant))
+                                .collect(),
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let calls = calls
+                    .keys()
+                    .map(|call| export::Call {
+                        position: call.position,
+                        ordinal: call.ordinal,
+                        text: &call.text,
+                    })
+                    .collect::<Vec<_>>();
+                export::export(&loaded.profile.regions, &records, &calls)
+            });
         Ok(ConsensusCall {
             callable_segments: reads
                 .iter()
@@ -62,6 +103,7 @@ impl SampleAnalysis {
                     })
                     .collect()
             }),
+            empop,
         })
     }
 }

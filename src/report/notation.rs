@@ -9,7 +9,8 @@
 use std::collections::BTreeMap;
 
 use crate::model::notation_result::{
-    ConformanceResult, FindingResult, NotationProvenanceResult, NotationResult, SourceResult,
+    ConformanceResult, CutResult, EmpopResult, FindingResult, NotationProvenanceResult,
+    NotationResult, SourceResult,
 };
 use crate::model::result::ReferenceResult;
 use crate::model::sample_result::{
@@ -17,6 +18,7 @@ use crate::model::sample_result::{
 };
 use crate::report::json::{project_plugins, project_profile};
 use dna_empop::conformance::Finding;
+use dna_empop::export::Export;
 use dna_kernel::error::{ReportError, RepresentationError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
@@ -59,6 +61,8 @@ pub(crate) struct CompletedNotation {
     /// The profile's rules and each read's findings, in document read order,
     /// when the profile declares conformance.
     pub(crate) conformance: Option<(Vec<ConformanceRule>, Vec<Vec<Finding>>)>,
+    /// The EMPOP query, when the profile declares `[empop]`.
+    pub(crate) empop: Option<Export>,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
@@ -74,6 +78,7 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
         reads,
         notation,
         conformance,
+        empop,
         plugins,
     } = completed;
     let identities = reads
@@ -138,6 +143,20 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
         },
         notation,
         conformance,
+        empop: empop.map(|export| EmpopResult {
+            ranges_text: export.ranges_text(),
+            mitotype: export.mitotype_text(),
+            ranges: export.ranges,
+            cut: export
+                .cut
+                .into_iter()
+                .map(|cut| CutResult {
+                    start: cut.start,
+                    end: cut.end,
+                    reason: cut.reason.label(),
+                })
+                .collect(),
+        }),
     })
 }
 

@@ -484,6 +484,23 @@ first and then deferred items, each in cause order, and per cause, scope, and ev
 finding. Insertions are not judged under `sequence` yet: reads showing the
 reference at an anchor do not exclude one.
 
+## EMPOP queries
+
+When the profile declares `[empop]`, each sample's EMPOP query
+(`SampleAnalysis::call`, SRS-NOM-018) is written to `scores.tsv`. The harness
+checks it against the consensus. A range must not cover a position the
+consensus left undecided (`empop_undecided`):
+- a site without a call counts its positions inside the ranges;
+- a call of the reference's length counts its `N`s inside them;
+- a call that changes the length counts its `N`s less the site positions the
+  ranges leave out.
+
+The export follows the variants document, so a nonzero count means that `call`
+placed a consensus `N` elsewhere: a consensus-to-`call` interface loss, not an
+export defect. A tie the consensus resolved is exported as DNA's decision;
+`empop_ties` counts its positions. The summary gives the samples with a query
+and the positions and samples of each count.
+
 ## Estimates
 
 For each weighting (`corpus` = `weight_corpus`, `pool` = `weight`), each
@@ -672,12 +689,12 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
-| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
+| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), the EMPOP queries, coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
 | `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (and `minor_unavailable=…` when the minor channels could not be read), poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
 | `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |

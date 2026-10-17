@@ -71,3 +71,10 @@ minimum_run = 10
 [conformance]
 rules = ["insertion_at_run_end", "insertion_matches_run"]
 minimum_run_length = 4
+
+# The `notation` command exports an offline EMPOP query: interpretation ranges
+# over the positions the sample's records call, in the region order above
+# (HVS-I, HVS-II, HVS-III), and the rCRS-coded mitotype inside them. EMPOP reads
+# an omission inside a range as the reference, so a range never covers a
+# position DNA left undecided or excluded (PROP-0007). It takes no keys.
+[empop]

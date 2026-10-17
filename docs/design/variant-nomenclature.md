@@ -212,6 +212,33 @@ evidence, so it stays unlabelled. On development panel v5 (main `4e6f8d1`), 31
 gives them to the lab as deferred. Two `16193DEL` samples whose `16185T`
 splits the run (C8) stay unlabelled.
 
+## EMPOP query
+
+`dna-empop`'s `export` builds the offline EMPOP query of `notation`
+(SRS-NOM-018). The same query comes from `SampleAnalysis::call`. It formats and
+decides nothing (ADR-0077 §5). EMPOP reads an omission inside a range as the
+reference, so a range covers only the positions exactly one record calls: the
+records' callable segments, which already leave out every `N` and every
+excluded variant's positions (SRS-VAR-019). A record position no range covers
+is listed as `unresolved`, `excluded_variant`, or `overlap`.
+
+The mitotype follows EMPOP's numbering, which places an insertion `X.k` at
+`X`. A range that holds `X` claims the complete list of insertions after `X`,
+so an insertion is written when its anchor lies in a range. That list is
+complete because an excluded insertion cuts `X` itself: where `X` survives,
+every insertion DNA observed after `X` is eligible. An insertion whose anchor
+is cut is not written, even when `X+1` is in a range.
+
+A tie the consensus resolved is DNA's decision. If it is wrong, it is wrong in
+the haplotype and in the query alike, so the query exports it as decided.
+
+On development panel v5:
+- the query is byte-equal to the laboratory's exporter (`mtdna_raw`'s
+  `EmpopProfile`) given the same ranges and calls, for every sample;
+- inside the positions both declare, DNA's mitotype equals the reviewers' in
+  most samples once hotspot length differences, which EMPOP's standard query
+  disregards, are set aside. The rest is mainly truth IUPAC codes.
+
 ## Scientific basis
 
 This policy follows the forensic mtDNA convention that insertion notation is

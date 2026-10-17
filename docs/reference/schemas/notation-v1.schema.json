@@ -26,6 +26,9 @@
     },
     "conformance": {
       "$ref": "#/$defs/conformance"
+    },
+    "empop": {
+      "$ref": "#/$defs/empop"
     }
   },
   "$defs": {
@@ -255,6 +258,77 @@
                   "type": "string",
                   "minLength": 2
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "empop": {
+      "description": "The offline EMPOP query (PROP-0007), present when the profile declares [empop]. A range covers only positions exactly one record calls; EMPOP reads an omission inside a range as the reference.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ranges",
+        "ranges_text",
+        "mitotype",
+        "cut"
+      ],
+      "properties": {
+        "ranges": {
+          "description": "1-based inclusive interpretation ranges, in the profile's region order and within a region in position order.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "integer",
+                "minimum": 1
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "ranges_text": {
+          "type": "string",
+          "pattern": "^(?:[1-9][0-9]*-[1-9][0-9]*(?: [1-9][0-9]*-[1-9][0-9]*)*)?$"
+        },
+        "mitotype": {
+          "description": "The rCRS-coded calls inside the ranges, distinct, by position and then insertion ordinal, space-separated.",
+          "type": "string",
+          "pattern": "^(?:(?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGTRYSWKMBDHVN]|[1-9][0-9]*(?:[ACGTRYSWKMBDHVN]|DEL))(?: (?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGTRYSWKMBDHVN]|[1-9][0-9]*(?:[ACGTRYSWKMBDHVN]|DEL)))*)?$"
+        },
+        "cut": {
+          "description": "Positions inside a profile region and a record that no range covers, 1-based inclusive, and why.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "start",
+              "end",
+              "reason"
+            ],
+            "properties": {
+              "start": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "end": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "enum": [
+                  "unresolved",
+                  "excluded_variant",
+                  "overlap"
+                ]
               }
             }
           }
