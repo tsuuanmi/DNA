@@ -411,7 +411,6 @@ fn comparable(intervals: &[(i64, i64)], analysed: &[(i64, i64)]) -> Vec<(i64, i6
     comparable
 }
 
-/// Closed intervals sorted and merged where they touch.
 /// DNA's callable yield in one HV region: the truth's analysed positions
 /// there, and how many of them DNA's callable intervals cover.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -447,6 +446,7 @@ pub(crate) fn callable_yield(callable: &[(i64, i64)], analysed: &[(i64, i64)]) -
     })
 }
 
+/// Closed intervals sorted and merged where they touch.
 fn merged(intervals: &[(i64, i64)]) -> Vec<(i64, i64)> {
     let mut sorted = intervals.to_vec();
     sorted.sort_unstable();
