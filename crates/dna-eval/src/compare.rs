@@ -9,7 +9,9 @@
 //!   alleles whose reference equals the alternate are dropped;
 //! - `N/A` when either side has no allele;
 //! - insertions and deletions at 309, 455, 463, and 573 (and their `.n`
-//!   insertion positions) are left out ("special" positions);
+//!   insertion positions) are left out ("special" positions). Only the
+//!   primary measure keeps this rule: DNA is target-agnostic, so its own
+//!   measures judge a run length wherever it lies;
 //! - `N` when a position both sides call holds different allele sets;
 //!   `comparison.py` also never compares 309.1, 309.2, and 573.1, but the
 //!   insertions there are special positions already, so that rule adds
@@ -22,7 +24,8 @@
 //! Interval and region tests use an allele's anchor base, so `16193.1` lies in
 //! `[16024, 16193]`.
 //!
-//! Two secondary measures change one rule each ([`Measure`]):
+//! Two secondary measures change one rule each ([`Measure`]), and judge the
+//! special positions too:
 //!
 //! - **strict:** a truth-only allele in an HV region also counts inside the
 //!   truth's analysed intervals, so a truth allele where DNA has no callable
@@ -41,11 +44,10 @@
 //! special positions included, are applied to the reference, and alleles
 //! where the two sequences agree leave the comparison
 //! ([`haplotype`](crate::haplotype)). `16188.1C` and `16193.1C` in one C run,
-//! or `248DEL` and `249DEL` over `AA`, are then concordant. Special-position
-//! indel lengths cannot decide a difference, and a symbol matches a
+//! or `248DEL` and `249DEL` over `AA`, are then concordant. A symbol matches a
 //! compatible one only where a truth allele wrote it, as under the
 //! IUPAC-compatible rules. The rules still decide the rest, special positions
-//! left out, so a sample concordant under the base rules stays concordant.
+//! included.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -237,6 +239,13 @@ impl Measure {
         }
     }
 
+    /// Whether insertions and deletions at the special positions are left
+    /// out: the lab's rule, kept by the primary measure only. DNA's own
+    /// measures judge a run length wherever it lies.
+    const fn leaves_out_special(self) -> bool {
+        matches!(self, Self::Primary)
+    }
+
     /// Whether called bases match when their IUPAC codes share a base.
     const fn compatible(self) -> bool {
         matches!(self, Self::IupacCompatible | Self::HaplotypeIupacCompatible)
@@ -363,9 +372,11 @@ pub(crate) struct Comparison {
     pub(crate) dna_alleles: usize,
     /// Distinct truth alleles, special positions included.
     pub(crate) truth_alleles: usize,
-    /// DNA alleles absent from the truth, special positions left out.
+    /// DNA alleles absent from the truth, special positions left out under
+    /// the primary measure.
     pub(crate) dna_unique: Vec<Allele>,
-    /// Truth alleles absent from DNA, special positions left out.
+    /// Truth alleles absent from DNA, special positions left out under the
+    /// primary measure.
     pub(crate) truth_unique: Vec<Allele>,
     /// Every rule that makes the sample discordant; empty unless `N`.
     pub(crate) reasons: BTreeSet<Reason>,
@@ -453,7 +464,6 @@ fn edit(allele: &Allele) -> Option<Edit<'_>> {
         ordinal,
         span: i64::try_from(allele.reference.len()).unwrap_or(i64::MAX),
         symbols: symbols.filter(|_| usable),
-        special: allele.is_special(),
         lenient: true,
     })
 }
@@ -514,8 +524,7 @@ pub(crate) fn compare(
 ) -> Comparison {
     let dna_all = distinct(dna.alleles);
     let truth_all = distinct(truth.alleles);
-    // Special positions take part in the sequences, but not in the rules. A
-    // truth symbol written by a truth allele also matches a compatible DNA
+    // A truth symbol written by a truth allele also matches a compatible DNA
     // symbol, as two alleles at one position do under the IUPAC-compatible
     // rules; DNA's codes never match the truth's reference.
     let equivalence = measure.haplotype().then(|| {
@@ -525,7 +534,8 @@ pub(crate) fn compare(
         )
     });
     let kept = |allele: &&Allele| {
-        !allele.is_special()
+        let left_out = measure.leaves_out_special() && allele.is_special();
+        !left_out
             && !equivalence.as_ref().is_some_and(|equivalence| {
                 bases_of(allele).is_some_and(|(first, last)| equivalence.explains(first, last))
             })
@@ -1213,15 +1223,15 @@ pub(crate) mod tests {
 
     #[test]
     fn the_haplotype_measures_keep_the_base_rules_elsewhere() {
-        // Concordant samples stay concordant, special-position lengths
-        // included; an empty side stays not applicable.
+        // A run length at a special position: the lab's rule leaves it out of
+        // the primary measure only; an empty side stays not applicable.
         assert_eq!(
             concordances(
                 &["263G", "309.1C", "315.1C"],
                 &FULL,
                 &["263G", "309.1C", "309.2C", "315.1C"]
             ),
-            [Y, Y, Y]
+            [Y, N, N]
         );
         assert_eq!(
             concordances(&[], &FULL, &["263G"]),
@@ -1317,13 +1327,21 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_special_length_difference_does_not_hide_a_placement() {
+    fn a_special_length_difference_is_judged_beside_a_placement() {
         // The 303-309 run differs by a special 309.2C, and the C after 310T
-        // is written at another place. The special length is left out of
-        // the rules, so only the placement remains: one sequence.
+        // is written at another place. The placement alone is one sequence,
+        // but DNA's measures judge the run length too.
         assert_eq!(
             concordances(
                 &["263G", "309.1C", "315.1C"],
+                &FULL,
+                &["263G", "309.1C", "309.2C", "310.1C"]
+            ),
+            [N, N, N]
+        );
+        assert_eq!(
+            concordances(
+                &["263G", "309.1C", "309.2C", "315.1C"],
                 &FULL,
                 &["263G", "309.1C", "309.2C", "310.1C"]
             ),

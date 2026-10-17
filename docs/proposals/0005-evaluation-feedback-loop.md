@@ -561,7 +561,11 @@ the draft's outcomes unchanged.
   truth's analysed intervals (2026-10-17) the endpoint inherits that
   restriction; the readiness v1 verdict below and these development figures
   were computed under the earlier definition, and the spent readiness panel
-  is not re-run. On the development panel the draft policy then leaks in
+  is not re-run. From the harness revision that judges run lengths at the
+  special positions (309, 455, 463, 573) in DNA's own measures
+  (2026-10-17, user: DNA is target-agnostic; only the primary measure keeps
+  the lab's exception), the endpoint judges them too. The figures before it
+  left them out. On the development panel the draft policy then leaks in
   11 of its 458 passes (upper bound 3.9 %), and the draft's rule joined by
   `local_shadow@80` (PROP-0004) in 3 of 443 (upper bound 1.7 %): two
   heteroplasmies that one strand alone shows above the limit, and the truth
