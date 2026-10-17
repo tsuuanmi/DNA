@@ -775,13 +775,13 @@ yet reviewed.
     both sides' special-position indels the same), and the IUPAC leniency is
     the base measure's, so only representation changes a status. Comparing
     notations after DNA's own normalization and nomenclature was rejected:
-    `dna-post` rejects IUPAC codes and truth references that differ from
+    `dna-normalize` rejects IUPAC codes and truth references that differ from
     rCRS, and its windows give a canonical form only for the forms their
     rules know, so equivalent truth forms such as `16190T 16193.1C 16193.2C`
-    against `16188.1C 16188.2T` would stay different. `dna-post` is the test
+    against `16188.1C 16188.2T` would stay different. `dna-normalize` is the test
     oracle instead: for every single-base edit around the HVS-II and HVS-III
     windows, its normalized and represented calls are one sequence under the
-    measure, and two edits are one sequence exactly when `dna-post` rebuilds
+    measure, and two edits are one sequence exactly when `dna-normalize` rebuilds
     the same haplotype.
   - **Review fixes** (special-position balancing, the IUPAC leniency limited
     to truth-written symbols, alleles spanning several reference bases),

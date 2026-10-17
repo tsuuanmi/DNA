@@ -406,8 +406,13 @@ pub struct VariantNormalizationResult {
 
 `RightAligned` selects sequence-equivalent 3'/right-most insertion and
 deletion representations without rotating across the FASTA coordinate seam
-(a profile's `indel_placement = "right"`). Every accepted movement must reconstruct exactly the same complete
-alternate sequence as the source calls.
+(a profile's `indel_placement = "right"`). A deletion that cannot shift
+further may also move 3' across substitutions it can replace (the deletion
+trade, SRS-VN-008: `16293DEL 16298C` becomes `16293C 16298DEL`), which
+rewrites those substitutions. `normalize` bounds the trade by nothing; the
+DNA workflows bound it by the read's callable bases and the profile's
+nomenclature windows. Every accepted movement must reconstruct exactly the
+same complete alternate sequence as the source calls.
 
 Normalization is optional and does not apply nomenclature windows,
 sample reconciliation, VCF/HGVS formatting, genotype interpretation, or
@@ -474,9 +479,12 @@ human-mtDNA profile declares:
 | HVS-I 16180-16193 A-tract and poly-C around T16189 | `16183C 16184A 16189C`, `16183DEL`, `16188.1C`, `16182C 16183C 16189C`, `16189C 16190T 16193.1C`, `16189C 16193DEL` |
 
 Variants outside the windows, window haplotypes no rule represents, and a
-window an edit crosses keep their normalized form. `apply_read` also keeps the
-normalized form of a window whose representation would place a call outside a
-read's callable reference intervals.
+window an edit crosses keep their normalized form. The DNA workflows apply the
+windows per read with `dna_normalize::variant_nomenclature::apply_read`, which
+the facade does not re-export: it also keeps the normalized form of a window
+whose representation would place a call outside the read's callable
+reference intervals, or would rest on a decisive base the read does not read
+(SRS-NOM-010).
 Decimal strings such as `309.1C` remain an outer notation concern. Sanger
 artifact interpretation, sample reconciliation, and NGS-specific behavior are
 not implemented by this API.

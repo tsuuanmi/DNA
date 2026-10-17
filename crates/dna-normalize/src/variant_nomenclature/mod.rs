@@ -105,9 +105,10 @@ pub fn apply_with(
 
 /// Applies a profile's windows to one read's haplotype, as [`apply_with`],
 /// except that a window keeps its normalized form when its representation
-/// would place a call where the read reads nothing: a substituted or deleted
+/// would place a call where the read reads nothing (a substituted or deleted
 /// base, or an insertion's anchor base, outside every `readable` reference
-/// interval (0-based, half-open).
+/// interval, 0-based and half-open), or would rest on a decisive base of the
+/// window the read does not read (SRS-NOM-010).
 ///
 /// # Errors
 ///

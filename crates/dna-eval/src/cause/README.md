@@ -21,5 +21,7 @@ so the difference reaches the one who can act on it.
   `forms.tsv` and read back for the same truth database.
 
 It depends on `classes`, `compare`, and `lod` for the sample's class,
-comparisons, and limit-of-detection signals, and on DNA's sample analysis
-for the reads; `report` and `runner` use it. It never rewrites the truth.
+comparisons, and limit-of-detection signals, on `truth` for the written
+forms, and on DNA's sample analysis and the `dna-core` and `dna-sanger`
+evidence types for the reads; `report`, `runner`, and `main` (the forms and
+the configuration margins) use it. It never rewrites the truth.

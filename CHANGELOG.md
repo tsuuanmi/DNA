@@ -8,7 +8,30 @@ remain independently versioned and are never silently changed in place.
 
 ## [Unreleased]
 
+Plugin versions rise with every change to a plugin's output, also before a
+release (`docs/governance/versioning.md`). Two changes are recorded without
+a bump of their own (2026-10-17, user: no retroactive bump): the
+`nomenclature` window form resting only on a wholly read window (#77) shares
+the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
+`normalization` 2 of #78.
+
 ### Added
+
+- `local_shadow` minor kind and minor rule sets in the draft triage
+  (evaluation harness only, #70): a read's neighbour-compatible minor channel
+  counts as a shadow only where at least 0.05 of the read's calls within 10
+  show the same shadow, and a policy's `minor` is a set of rules any of which
+  marks (`upstream@100+local_shadow@80`); the pre-registration parses
+  `+`-joined rules.
+- The `haplotype_lod` measure (evaluation harness only, #71): the haplotype
+  measure, except that a truth two-base IUPAC substitution the reads do not
+  observe at the 10 % limit of detection compares IUPAC-compatibly.
+  `scores.tsv` adds its status, code, and blocks and `below_lod`; it is the
+  approval safety endpoint
+  ([measures](docs/validation/evaluation-harness.md#measures)).
+- Readiness panels (evaluation harness only, #72): `dna-eval run` reads a
+  `readiness` panel as well as `dev`, and `power` reads a development or
+  readiness run; any other (hold-out) panel is still refused.
 
 - Discrepancy causes in the evaluation harness: `dna-eval run` gives each
   sample with a discrepancy a cause, `dna`, `lab`, `technology`, or

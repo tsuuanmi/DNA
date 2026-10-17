@@ -23,8 +23,11 @@ Its failure vocabulary, `NomenclatureError`, lives in `error`.
 
 It does **not** implement Sanger-specific repeat artifact interpretation,
 primer callable ranges, sample reconciliation, or NGS behavior. Decimal
-notation rendering lives in `report::notation`, and the `sample` workflow
-composes it per read when the profile declares notation.
+notation rendering lives in `report::notation`, and the sample, call, and
+notation workflows compose it per read when the profile declares notation,
+through `apply_read`: a window keeps its normalized form where its
+representation would place a call the read does not read, or rest on a
+decisive base the read does not read (SRS-NOM-010).
 
 Nomenclature must never reinterpret sequencing signal, change caller
 eligibility, manufacture phase, or change the represented biological haplotype.

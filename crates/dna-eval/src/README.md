@@ -6,8 +6,9 @@ the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
 with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
 `sample_analysis` capability it runs, on `dna-core` and `dna-sanger` only
-to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` to load
-the reference the haplotype measures apply alleles to, and on `dna-normalize`
+to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` for the
+reference the haplotype measures apply alleles to and the profile, variant,
+and nucleotide types it reads, and on `dna-normalize`
 to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.

@@ -103,7 +103,8 @@ Vendor PCON is not used by this filter. For SNVs, a supporting call with more th
 The caller reads each read only as `ReadEvidence`
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 The region gate, `indel_length_exceeded`, `non_canonical_allele`,
-`read_end`, `run_boundary`, and `unresolved_flank` are core rules. Everything else arrives from the modality as data:
+`read_end`, `run_boundary`, `unresolved_flank`, and `placement_conflict` are
+core rules. Everything else arrives from the modality as data:
 - the Sanger adapter (`read_processing::evidence`) raises the support vetoes
   `peak_below_minimum` and `relative_quality_not_above_threshold`, which apply
   to SNVs and insertions, and `mixed_supporting_dna`, which applies to SNVs
@@ -111,13 +112,15 @@ The region gate, `indel_length_exceeded`, `non_canonical_allele`,
 - it labels masked calls with their segment reason.
 
 A variant's reasons are reported in this order:
-1. `outside_target_region`;
-2. the union of its supporting calls' vetoes, in the adapter's vocabulary
+1. `placement_conflict`, for every variant of a consensus record placed away
+   from the interval its name declares (SRS-VAR-017);
+2. `outside_target_region`;
+3. the union of its supporting calls' vetoes, in the adapter's vocabulary
    order (the order listed above);
-3. `read_end`;
-4. `run_boundary`;
-5. `unresolved_flank`, when a mapped call is `N` (SRS-VAR-018);
-6. the mask reasons of its evidence calls, in mapping order and without
+4. `read_end`;
+5. `run_boundary`;
+6. `unresolved_flank`, when a mapped call is `N` (SRS-VAR-018);
+7. the mask reasons of its evidence calls, in mapping order and without
    duplicates.
 
 Each removed candidate increments `excluded_variant_candidates` once, even when
