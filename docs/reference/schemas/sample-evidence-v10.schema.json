@@ -578,6 +578,7 @@
         "mixed_supporting_dna",
         "read_end",
         "run_boundary",
+        "unresolved_flank",
         "post_homopolymer",
         "dephased_signal",
         "mixed_signal",

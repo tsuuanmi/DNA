@@ -493,6 +493,18 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- `call` writes an AC-repeat deletion that a consensus decided at `523–524`
+  there, rather than as `513DEL 514DEL` beside the unresolved bases the
+  consensus left at `513–516`. On a reviewed consensus record, whose ends are
+  vouched, a deletion beside an `N` without evidence now moves 3' across it
+  and the repeat beyond (SRS-ALN-017): the `N` scores the same against any
+  base, so the traceback's placement there was arbitrary and could delete a
+  base the consensus kept. A variant with a mapped call read as `N` is no
+  longer reported, with the new core reason `unresolved_flank`
+  (SRS-VAR-018); the exclusion-reason vocabulary of
+  `dna.sample_evidence/v10` and `dna.variants/v1` gains it (revised in
+  place). Development panel v5: 29 more samples concordant on the
+  primary measure and 31 on haplotype IUPAC-compatible, no regression.
 - `call` no longer reports phantom variants from a consensus record placed
   away from the interval its name declares (SRS-VAR-017). A mostly
   undecided consensus segment named for HVS-I's 5' flank could align onto the

@@ -106,6 +106,17 @@ reference segments, not the rows, operation runs, or score. When multiple paths 
 
 The forward and reverse candidates are compared by fixed-point profile score only. The strictly better orientation is selected; an exact score tie is an error and primary-sequence exact/mismatch metrics do not break it. After placement, `callable_columns`, `callable_identity`, exact/mismatch counts, and unresolved-query count are still computed from the retained primary sequence on the selected traceback. The selected orientation must meet the existing `minimum_callable_bases` and `minimum_identity` primary-sequence admission gates, otherwise analysis fails.
 
+On a read whose ends are vouched (a reviewed consensus record), a deletion
+next to an unresolved call without an evidence profile then moves 3' across
+it, and across repeat-equivalent bases beyond, one base at a time
+(SRS-ALN-017). Such an `N` scores the same against any reference base, so the
+traceback's choice among the equally scoring placements is arbitrary: a
+consensus record `…CCCA NNANACACACCG…` whose consensus decided the AC unit's
+deletion at `523–524` was placed as `513DEL 514DEL`, deleting `G513`. The
+move takes the 3'-most placement, `523DEL 524DEL`. A read that is not vouched
+keeps its traceback: its `N`s stand for masked stretches, whose gaps the
+consensus must not take as placed evidence.
+
 ### Substep 6.6 — Run-structure re-expression
 
 Dephased calls anchor the alignment with their mixed profiles (SRS-ALN-015),

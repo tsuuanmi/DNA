@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 
 use crate::alignment::AlignmentConfig;
+use crate::alignment::canonical;
 use crate::alignment::exact::{self, Problem, Pruned, UpperBoundPlacement, WorkingReference};
 use crate::alignment::gotoh;
 use crate::alignment::runs;
@@ -12,7 +13,7 @@ use dna_kernel::error::{AlignmentError, Result};
 use dna_kernel::model::nucleotide::{is_canonical, reverse_complement};
 use dna_kernel::model::reference::{Reference, ReferenceTopology};
 use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceProfile, MaskedAlignment, ReadEvidence,
+    CallEvidence, CallMask, EvidenceProfile, MaskedAlignment, ReadEnds, ReadEvidence,
 };
 
 struct Candidate {
@@ -59,6 +60,7 @@ pub(crate) fn align_best(
     let forward_mapping = informative.clone().collect::<Vec<_>>();
     let reverse_mapping = informative.rev().collect::<Vec<_>>();
     let masked = calls;
+    let vouched = evidence.ends() == ReadEnds::Vouched;
     let (working_reference, modulo_length) = match reference.topology {
         ReferenceTopology::Linear => (reference.sequence.clone(), None),
         ReferenceTopology::Circular => (
@@ -89,7 +91,7 @@ pub(crate) fn align_best(
         &forward.mapping,
         &reverse.mapping,
     )? {
-        return finish_alignment(&selected, reference, config, masked);
+        return finish_alignment(&selected, reference, config, masked, vouched);
     }
 
     // Evaluate one orientation exactly, preferring a proven one, then the one
@@ -125,7 +127,7 @@ pub(crate) fn align_best(
         Some(placements) => placements,
         None => match second.at_or_above(first.placements[0].score)? {
             Some(placements) if placements.is_empty() => {
-                return finish_alignment(&first, reference, config, masked);
+                return finish_alignment(&first, reference, config, masked, vouched);
             }
             Some(placements) => placements,
             None => second.gotoh()?,
@@ -145,7 +147,7 @@ pub(crate) fn align_best(
             return Err(AlignmentError::OrientationTie.into());
         }
     };
-    finish_alignment(selected, reference, config, masked)
+    finish_alignment(selected, reference, config, masked, vouched)
 }
 
 /// One orientation's alignment query, with its proof problem when one applies.
@@ -247,11 +249,15 @@ fn select_proven_candidate(
     }
 }
 
+/// Checks the selected placement and builds the alignment. On a vouched
+/// read, a deletion beside an `N` without evidence moves 3' across it
+/// ([`canonical::cross_unresolved`]).
 fn finish_alignment(
     selected: &Candidate,
     reference: &Reference,
     config: &AlignmentConfig,
     calls: &[CallEvidence],
+    vouched: bool,
 ) -> Result<Alignment> {
     if selected.placements.len() != 1 {
         return Err(AlignmentError::AmbiguousPlacement.into());
@@ -272,6 +278,20 @@ fn finish_alignment(
         .into());
     }
     let mut raw = raw.clone();
+    if vouched {
+        let unevidenced = |query: usize| {
+            selected
+                .mapping
+                .get(query)
+                .and_then(|&call| calls.get(call))
+                .is_some_and(|call| call.base == 'N' && call.profile.is_none())
+        };
+        let modulo_length = match reference.topology {
+            ReferenceTopology::Linear => None,
+            ReferenceTopology::Circular => Some(reference.len()),
+        };
+        canonical::cross_unresolved(&mut raw, unevidenced, modulo_length);
+    }
     let masked = |query: usize| {
         selected
             .mapping
@@ -665,7 +685,13 @@ mod tests {
             },
             Ordering::Equal => return Err(AlignmentError::OrientationTie.into()),
         };
-        finish_alignment(&selected, reference, config, evidence.calls())
+        finish_alignment(
+            &selected,
+            reference,
+            config,
+            evidence.calls(),
+            evidence.ends() == ReadEnds::Vouched,
+        )
     }
 
     fn assert_matches_gotoh_selection(
