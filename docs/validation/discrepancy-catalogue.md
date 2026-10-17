@@ -60,41 +60,53 @@ reviewers do not record the HVS-I C-tract length. It is handled by a labelled
 convention that classifies a call and never deletes it
 ([PROP-0007](../proposals/0007-empop-export-and-report-conventions.md)).
 
-## Development panel v5 (revision 4e6f8d1)
+## Development panel v5 (revision b075635)
 
 Of 16,410 active samples, 13,302 agree with the truth on every measure. The
-harness classes and causes the rest, the cause being the first of `dna`,
-`lab`, `technology`, and `undetermined` among a sample's findings:
+harness classes and causes the rest. A sample's cause is its first defect, in
+the order `dna`, `lab`, `undetermined`; a sample with deferred findings only
+takes the first of them:
 
-| Class | Samples | dna | dna (deferred) | lab | technology | undetermined |
-|---|---:|---:|---:|---:|---:|---:|
-| coverage | 1,593 | 91 | 385 | 656 | 436 | 25 |
-| heteroplasmy | 992 | 0 | 645 | 84 | 180 | 83 |
-| sequence | 346 | 12 | 0 | 2 | 0 | 332 |
-| unanalysed | 133 | 0 | 0 | 0 | 0 | 133 |
-| representation | 33 | 11 | 0 | 22 | 0 | 0 |
-| failed | 9 | 9 | 0 | 0 | 0 | 0 |
-| not_comparable | 2 | 0 | 0 | 0 | 0 | 2 |
+| Class | Samples | dna | lab | undetermined | dna (deferred) | lab (deferred) | technology (deferred) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| coverage | 1,593 | 91 | 656 | 25 | 415 | 0 | 406 |
+| heteroplasmy | 992 | 0 | 84 | 86 | 656 | 0 | 166 |
+| sequence | 346 | 12 | 2 | 301 | 0 | 31 | 0 |
+| unanalysed | 133 | 0 | 0 | 133 | 0 | 0 | 0 |
+| representation | 33 | 11 | 22 | 0 | 0 | 0 | 0 |
+| failed | 9 | 9 | 0 | 0 | 0 | 0 | 0 |
+| not_comparable | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 
-DNA's own open defects are 123 samples (the `dna` column); 1,030 more wait on
-the deferred heteroplasmy output. Since revision 7931e9e the `sequence` class
-fell from 879 to 346 samples and `coverage` rose from 1,336 to 1,593: calls
-DNA could not stand behind became abstentions (see *Fixed*).
+Under the working hypothesis this splits the work:
+
+- **the core now**: 123 samples (`dna`);
+- **the laboratory**: 764 samples (`lab`), most of them no read or weak
+  signal at `73`, plus the truth re-check below;
+- **a reviewer**: 547 samples (`undetermined`), of which 301 sequence
+  differences to adjudicate and 133 calls where the reviewers did not
+  analyse;
+- **deferred**: 1,674 samples, being the IUPAC output (1,071), the
+  reviewers' HVS-I length convention (31), and signal processing (572).
+
+Since revision 7931e9e the `sequence` class fell from 879 to 346 samples and
+`coverage` rose from 1,336 to 1,593: calls DNA could not stand behind became
+abstentions (see *Fixed*).
 
 **Coverage** (a truth allele where DNA has no callable base). By finding:
 - `lab`: no read covers it (`no_read`, mostly `73G` at the HVS-II forward
   read's start, an assay and run-quality matter, see
   [known limitations](known-limitations.md)), a weak-signal veto
   (`weak_call`), the read's own end (`read_edge`), or masked weak signal;
-- `technology`: phase loss, a run no read shows whole (`run_unread`), or the
-  margin beside a phase-loss mask;
+- `technology`, deferred to signal processing: phase loss, a run no read
+  shows whole (`run_unread`), or the margin beside a phase-loss mask;
 - `dna`, deferred: a truth IUPAC code shown as mixed calls;
 - `dna`: an `N` call or a call DNA does not trust (`untrusted_call`, 89
   samples), most at the AC repeat (`523`/`524`) and a few at `315.1C`.
 
 **Heteroplasmy** (a truth IUPAC code where DNA reports a base). Deferred by
 design: DNA writes no IUPAC code yet, and threshold work is not current. The
-other causes are a second base below the limit of detection (`technology`), no
+other causes are a second base below the limit of detection (`technology`,
+deferred), no
 second base in any clean read (`lab`, for a truth re-check), and one strand or
 a code of three bases (`undetermined`). Most sit in the HVS-I C-tract and the
 regions `101-301`, `16051-16179`, and `16196-16365`.
@@ -104,10 +116,9 @@ the HVS-II C-tract (110 samples, half with a length difference), the HVS-I
 C-tract (77), the HVS-I read start `16024-16050` (76), and fewer elsewhere.
 DNA's defects here are phantom calls inside the HVS-I C-tract (`16185-16193`, 12 samples); 2 samples
 have clean reads on both strands showing the reference where the truth has an
-allele (`lab`, re-check); the other 332 go to adjudication. Since PROP-0007
-increment 1, 31 of those 332 are the reviewers' convention: every DNA-only call
-is an HVS-I C-run length the reviewers do not record (`lab`, deferred,
-`convention_not_recorded`). That leaves 301 for adjudication.
+allele (`lab`, re-check); in 31 every DNA-only call is an HVS-I C-run length
+the reviewers do not record (`lab`, deferred, `convention_not_recorded`); the
+other 301 go to adjudication.
 
 **Unanalysed** (DNA calls only where the reviewers did not analyse). Mostly
 the HVS-II run exit (`310C`, `310DEL`, `311DEL`, `312-318DEL`) and `574C`.
