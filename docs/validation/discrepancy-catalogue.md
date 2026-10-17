@@ -20,6 +20,22 @@ The layers and their boundary are those of
 - `dna-empop` checks and exports the **format**;
 - the [evaluation harness](evaluation-harness.md) classifies.
 
+## Working hypothesis
+
+Current work improves the core caller. It is judged on the hypothesis that a
+read's signal is either good, or clearly bad because of the laboratory, so
+every difference is attributed to one of three owners:
+
+- **the laboratory did poorly**: no read, weak signal, a short read, or the
+  truth itself (`lab`);
+- **the laboratory did well, but the read carries dephasing, noise, or a
+  length mixture** (`technology`): the core cannot recover it. Cleaning the
+  signal, correcting noise, and recovering phase belong to the Sanger
+  modality (`dna-sanger`) and are later work, listed among the
+  [roadmap's deferred directions](../proposals/roadmap.md#deferred-product-directions):
+  phase recovery, signal denoising, and length-mixture decomposition;
+- **the core** (`dna`): the current focus.
+
 ## Classification rule
 
 The harness gives each sample one [class](evaluation-harness.md#discrepancy-classes)
@@ -119,7 +135,7 @@ which go to the reviewers for notation consistency.
 | Calls DNA does not trust at the AC repeat (`523`/`524`) | core | open |
 | Phantom calls inside the HVS-I C-tract (`16185-16193`) | core | open |
 | HVS-I C-tract lengths the reviewers do not record (`16193.1C`, `16193DEL`; 31 samples differ only by them) | `dna-normalize` convention label | [PROP-0007](../proposals/0007-empop-export-and-report-conventions.md) |
-| A read whose signal collapses inside a C-tract (`16189C`) is classed `read_edge` (lab), since DNA marks a phase loss only after a run | Sanger callability | research: attribution of signal loss within a run |
+| A read whose signal collapses inside a C-tract (`16189C`) is classed `read_edge` (lab), since DNA marks a phase loss only after a run; it is a technology limit | Sanger callability | TODO, signal work: attribute signal loss within a run |
 | `73` lost after the 3'-most placement of a nearby insertion merges stretches (5 samples) | core | known, coverage only |
 | Weak calls that read the reference leave `N` | core | parked: trusting them decides run lengths (measured: more regressions than fixes); a reviewer flag instead of a call is an option |
 | Consensus stretches grown over tandem-repeat units | core | parked: fewer strict concordances than it gains |
