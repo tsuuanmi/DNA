@@ -7,6 +7,7 @@ Validation describes **how DNA demonstrates that implementation and scientific c
 - [Datasets and evidence](datasets.md)
 - [Performance evidence](benchmarks.md)
 - [Known limitations](known-limitations.md)
+- [Discrepancy catalogue](discrepancy-catalogue.md)
 - [Evaluation harness](evaluation-harness.md)
 - [Requirement-to-implementation traceability](traceability.md)
 

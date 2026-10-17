@@ -61,6 +61,24 @@ it must never be guessed from the lab form.
      16193;
    - broader HVS-II rules.
 
+5. **Responsibility boundary** (amended 2026-10-17).
+   - The core caller (`dna-core` with the modality plugin) decides **what**
+     the sample's sequence is: placement, callability, consensus, and the
+     called variants. It is judged by the haplotype measures. A
+     representation it chooses internally, such as a re-expressed run
+     (ADR-0072), only makes evidence comparable; it is not the delivered
+     notation.
+   - `dna-normalize` decides **how** a decided sequence is written, in the
+     lab's convention. Every output rebuilds the identical haplotype, and no
+     rule asserts a base the read does not read.
+   - `dna-empop` checks and exports the **format** and never rewrites.
+   - A convention that changes content is not normalization. An example is
+     the reviewers not recording the HVS-I C-tract length. Such a convention
+     needs its own labelled report policy, which classifies and never deletes.
+   - Every difference from the truth is classified by its owner in the
+     [discrepancy catalogue](../../validation/discrepancy-catalogue.md). A
+     class not handled yet stays there as a TODO.
+
 ## Alternatives considered
 
 - **Keep `dna-post` and add two crates beside it.** Rejected. Normalization
