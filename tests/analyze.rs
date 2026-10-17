@@ -90,7 +90,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
         value["provenance"]["plugins"],
         serde_json::json!([
             {"id": "sanger", "family": "modality", "version": 3},
-            {"id": "core", "family": "core", "version": 4},
+            {"id": "core", "family": "core", "version": 5},
         ])
     );
     assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");

@@ -455,6 +455,13 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- `call` no longer reports phantom variants from a consensus record placed
+  away from the interval its name declares (SRS-VAR-017). A mostly
+  undecided consensus segment named for HVS-I's 5' flank could align onto the
+  real HVS-I segment and call its few resolved bases there; on the
+  development panel (v5) 24 samples carried 115 such calls, which triage
+  could not see. Every variant of such a record is now excluded with the core
+  reason `placement_conflict`; the `core` plugin version rises to 5.
 - **Breaking:** callable reference segments (`callable_reference_segments`)
   no longer include positions read by an unresolved call (`N`, or an IUPAC
   code a modality presents as `N`), masked or not (SRS-ALN-015). A reviewed

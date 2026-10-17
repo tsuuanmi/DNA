@@ -103,7 +103,7 @@ fn calls_variants_from_consensus_sequences_with_the_core_alone()
         value["provenance"]["plugins"],
         json!([
             {"id": "sequence", "family": "modality", "version": 1},
-            {"id": "core", "family": "core", "version": 4},
+            {"id": "core", "family": "core", "version": 5},
         ])
     );
     assert!(value.get("notation").is_none());
@@ -230,5 +230,52 @@ fn rejects_a_sequence_without_a_resolved_base() -> Result<(), Box<dyn std::error
         .failure()
         .stderr(predicate::str::contains("error: alignment failed:"));
     assert!(!directory.path().join("results").exists());
+    Ok(())
+}
+
+#[test]
+fn a_record_placed_away_from_its_declared_interval_calls_nothing()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let sequences = directory.path().join("consensus.fasta");
+    let sequence = reference_sequence(160);
+    write_reference(&reference, &sequence)?;
+    write_config_with_margin(&config, 0)?;
+
+    // Both records read 1..=70 with a substitution at 36 (the second also
+    // at 21). The first declares that interval, as a consensus segment does;
+    // the second declares 100..=150, so its placement contradicts its name.
+    let read = substitute(&sequence[..70], 35);
+    let misplaced = substitute(&read, 20);
+    fs::write(
+        &sequences,
+        format!(">{SAMPLE_ID}_1-70\n{read}\n>{SAMPLE_ID}_100-150\n{misplaced}\n"),
+    )?;
+
+    run(&sequences, &reference, &config, directory.path()).success();
+
+    let value: Value = serde_json::from_slice(&fs::read(
+        directory
+            .path()
+            .join("results")
+            .join(format!("{SAMPLE_ID}.variants.json")),
+    )?)?;
+    let reads = value["reads"].as_array().ok_or("reads must be an array")?;
+    assert_eq!(reads[0]["variants"][0]["eligible"], true);
+    assert_eq!(reads[0]["variants"][0]["exclusion_reasons"], json!([]));
+    assert_eq!(
+        reads[1]["alignment"]["reference_segments"],
+        json!([{"start": 0, "end": 70}])
+    );
+    let variants = reads[1]["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 2);
+    for variant in variants {
+        assert_eq!(variant["eligible"], false);
+        assert_eq!(variant["exclusion_reasons"], json!(["placement_conflict"]));
+    }
     Ok(())
 }

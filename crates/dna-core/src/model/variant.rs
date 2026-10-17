@@ -68,7 +68,7 @@ pub struct Variant {
 
 /// Stable reason a primary-difference candidate was not reportable.
 ///
-/// The core owns the first five reasons. Every other reason comes from the
+/// The core owns the first six reasons. Every other reason comes from the
 /// read's modality evidence and is reported verbatim; the core never
 /// interprets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +83,9 @@ pub enum VariantExclusionReason {
     ReadEnd,
     /// A run-length edit at an end of the run the read does not resolve.
     RunBoundary,
+    /// The read was placed away from the reference interval its source
+    /// declares, so none of its calls describe that interval.
+    PlacementConflict,
     /// A support veto or mask reason supplied by the read's modality.
     Evidence(EvidenceReason),
 }
@@ -96,6 +99,7 @@ impl VariantExclusionReason {
             Self::OutsideTargetRegion => "outside_target_region",
             Self::ReadEnd => "read_end",
             Self::RunBoundary => "run_boundary",
+            Self::PlacementConflict => "placement_conflict",
             Self::Evidence(reason) => reason.label(),
         }
     }
@@ -149,6 +153,31 @@ impl VariantCallingResult {
     pub fn excluded_count(&self) -> usize {
         self.excluded.len()
     }
+
+    /// The same observations with `reason` excluding every one of them,
+    /// before any reason it already has.
+    pub(crate) fn excluded_for(self, reason: VariantExclusionReason) -> Self {
+        let observed = self
+            .observed
+            .into_iter()
+            .map(|mut observation| {
+                observation.exclusion_reasons.insert(0, reason);
+                observation
+            })
+            .collect::<Vec<_>>();
+        let mut excluded = self.excluded;
+        excluded.extend(self.reported.into_iter().map(|variant| ExcludedVariant {
+            contig: variant.contig,
+            position_1based: Some(variant.position_1based),
+            kind: variant.kind,
+            reasons: vec![reason],
+        }));
+        Self {
+            reported: Vec::new(),
+            observed,
+            excluded,
+        }
+    }
 }
 
 impl From<&Variant> for public::Variant {
@@ -189,6 +218,10 @@ mod tests {
                 "outside_target_region",
             ),
             (VariantExclusionReason::ReadEnd, "read_end"),
+            (
+                VariantExclusionReason::PlacementConflict,
+                "placement_conflict",
+            ),
             (
                 VariantExclusionReason::Evidence(EvidenceReason::new("mixed_supporting_dna")),
                 "mixed_supporting_dna",
