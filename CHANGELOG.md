@@ -22,9 +22,11 @@ remain independently versioned and are never silently changed in place.
   A sample whose every trace DNA rejects now fails as `rejected`. A
   coverage gap read cleanly yet untrusted is placed by where the call
   stands, with the margins and thresholds read from DNA's configuration:
-  beside phase loss (technology), at the read's own end or with a weak
-  support veto (lab), with mixed channels at a truth IUPAC code (DNA,
-  deferred), or otherwise DNA's callability policy.
+  beside phase loss or a read end DNA attributes to a repeat run
+  (technology), at the read's own end or with a weak support veto (lab), a
+  weak veto on a call that reads the reference (DNA, `veto_out_of_scope`),
+  mixed channels (undetermined), or otherwise DNA's callability policy; a
+  truth IUPAC code a read shows is judged as under heteroplasmy.
 - `dna-eval convention` (evaluation harness only): runs every IUPAC-free
   truth sample's calls through DNA's normalization and nomenclature windows
   and counts the samples that come back unchanged, with the change patterns

@@ -48,6 +48,9 @@ pub(crate) const BESIDE_PHASE_LOSS: u16 = 2048;
 pub(crate) const WEAK_CALL: u16 = 4096;
 /// A read's call there has more than one qualifying channel.
 pub(crate) const MIXED_CALL: u16 = 8192;
+/// A read's call there reads the reference yet carries a weak-signal
+/// support veto, which the consensus also applies to it.
+pub(crate) const WEAK_REFERENCE: u16 = 16384;
 
 /// What the harness reads from DNA's configuration to place a read's trust.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,7 +187,8 @@ pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error
                         *flags |= OTHER;
                     }
                     if let (Some(sanger), Some(call)) = (sanger, observation.call_index_0based) {
-                        *flags |= trust(sanger, call, margins);
+                        let reference = observation.state == LocusState::Reference;
+                        *flags |= trust(sanger, call, reference, margins);
                     }
                 }
                 LocusState::Unresolved => *flags |= UNRESOLVED,
@@ -234,13 +238,15 @@ pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error
 }
 
 /// Where a read's clean `call` stands against its uninformative calls: beside
-/// a call masked for phase loss, or its own end where the read stops at a
-/// repeat run ([`BESIDE_PHASE_LOSS`]); a call with more than one qualifying
-/// channel ([`MIXED_CALL`]) or a weak-signal veto ([`WEAK_CALL`]); within the
+/// a call masked for phase loss (dephased or mixed, or after a repeat run),
+/// or its own end where DNA attributes the read's end to a repeat run
+/// ([`BESIDE_PHASE_LOSS`]); a call with more than one qualifying channel
+/// ([`MIXED_CALL`]) or a weak-signal veto ([`WEAK_CALL`], or
+/// [`WEAK_REFERENCE`] on a call that reads the reference); within the
 /// margin of its first or last
 /// callable call inside its trim interval ([`EDGE`]); or neither
 /// ([`INSIDE`]).
-fn trust(sanger: &SangerAttachment, call: usize, margins: Margins) -> u16 {
+fn trust(sanger: &SangerAttachment, call: usize, reference: bool, margins: Margins) -> u16 {
     let callability = &sanger.callability;
     // The read's own ends: its callable span within its trim interval.
     let (start, end) = (
@@ -289,18 +295,19 @@ fn trust(sanger: &SangerAttachment, call: usize, margins: Margins) -> u16 {
     }
     match vetoed {
         Some((_, true)) => return MIXED_CALL,
+        Some((true, false)) if reference => return WEAK_REFERENCE,
         Some((true, false)) => return WEAK_CALL,
         _ => {}
     }
     if call + margin >= end {
+        // DNA attributes the read's end to a repeat run: its tail starts
+        // after one, or a run of the shortest repeat length reaches the end.
         let tail = callability.segments.iter().find(|segment| {
             (segment.call_start_0based..segment.call_end_0based_exclusive).contains(&end)
         });
-        let bases = sanger.calls.primary_sequence.as_bytes();
-        let window = bases
-            .get(end.saturating_sub(margin)..(end + margins.repeat).min(bases.len()))
-            .unwrap_or_default();
-        if tail.is_some_and(phase_loss) || longest_run(window) >= margins.repeat {
+        if tail.is_some_and(|segment| segment.after_repeat)
+            || run_at_end(sanger.calls.primary_sequence.as_bytes(), end, margins)
+        {
             return BESIDE_PHASE_LOSS;
         }
         return EDGE;
@@ -308,13 +315,20 @@ fn trust(sanger: &SangerAttachment, call: usize, margins: Margins) -> u16 {
     if call < start + margin { EDGE } else { INSIDE }
 }
 
-/// The longest run of one base in `bases`.
-fn longest_run(bases: &[u8]) -> usize {
-    bases
-        .chunk_by(|left, right| left == right)
-        .map(<[u8]>::len)
-        .max()
-        .unwrap_or(0)
+/// Whether a run of one base at least `margins.repeat` long, within
+/// `margins.read_end` calls before `end` up to the repeat length after it,
+/// reaches the end: its last call is at most two before `end` or later.
+fn run_at_end(bases: &[u8], end: usize, margins: Margins) -> bool {
+    let first = end.saturating_sub(margins.read_end);
+    let Some(window) = bases.get(first..(end + margins.repeat).min(bases.len())) else {
+        return false;
+    };
+    let mut offset = first;
+    window.chunk_by(|left, right| left == right).any(|run| {
+        let last = offset + run.len() - 1;
+        offset += run.len();
+        run.len() >= margins.repeat && last + 2 >= end
+    })
 }
 
 /// Whether a profile weight reaches [`FAINT`].
@@ -327,9 +341,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn finds_the_longest_run_of_one_base() {
-        assert_eq!(longest_run(b"ACCCCCCCCCTA"), 9);
-        assert_eq!(longest_run(b"ACGT"), 1);
-        assert_eq!(longest_run(b""), 0);
+    fn a_run_reaches_the_end_only_when_it_ends_at_it() {
+        let margins = Margins {
+            read_end: 12,
+            repeat: 8,
+            minimum_peak: 150,
+            relative_quality: 30,
+        };
+        // Calls 0-11 then a run of nine C at 12-20, the read ending at 20.
+        let bases = b"ACGTACGTACGTCCCCCCCCCTTT";
+        assert!(run_at_end(bases, 20, margins));
+        // The same run, but the read ends at 23, three calls after it.
+        assert!(!run_at_end(bases, 23, margins));
+        // A run of only seven.
+        assert!(!run_at_end(b"ACGTACGTACGTCCCCCCCTTT", 19, margins));
     }
 }
