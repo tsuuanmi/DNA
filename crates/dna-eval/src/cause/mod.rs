@@ -5,8 +5,9 @@
 //!
 //! Every discordant position of the sample's class gives a [`Finding`] with
 //! its cause, its [`Scope`], and the evidence for it; the sample's cause and
-//! scope are the first of `dna`, `lab`, `technology`, `undetermined`, a
-//! defect before a deferred item, among them. The truth is only read.
+//! scope are those of its first defect, by `dna`, `lab`, `technology`,
+//! `undetermined`, or of its first deferred item when it has no defect. The
+//! truth is only read.
 
 pub(crate) mod forms;
 pub(crate) mod loci;
@@ -139,7 +140,12 @@ pub(crate) fn findings(
     }
     found.sort();
     found.dedup();
-    Some((found[0].cause, found[0].scope, found))
+    // A defect heads the sample before any deferred item, whatever its cause.
+    let head = found
+        .iter()
+        .map(|finding| (finding.scope, finding.cause))
+        .min()?;
+    Some((head.1, head.0, found))
 }
 
 fn failed(failure: Option<&Failure>) -> Vec<Finding> {
@@ -449,6 +455,37 @@ mod tests {
                 "undetermined:one_strand@16191"
             ]
         );
+    }
+
+    #[test]
+    fn a_defect_heads_the_sample_before_a_deferred_item() -> Result<(), &'static str> {
+        // 16189Y shown at the limit (DNA's, deferred) and 16190Y with no
+        // second base on either clean strand (the truth's, a defect).
+        let both = COVERED | FORWARD | REVERSE;
+        let loci = Loci::of(16189, vec![both, both], &[]);
+        let truth = [
+            Allele::new("16189", "T", "Y"),
+            Allele::new("16190", "T", "Y"),
+        ];
+        let comparison = comparison(&["16189", "16190"], Vec::new(), Vec::new(), Vec::new());
+        let signals = lod::Signals {
+            calls: BTreeSet::new(),
+            seconds: BTreeSet::from([(16189, 'C')]),
+        };
+        let regions = BTreeSet::new();
+        let site = sample(
+            Discrepancy::Heteroplasmy,
+            &comparison,
+            &truth,
+            &loci,
+            &signals,
+            &regions,
+        );
+        let (cause, scope, found) =
+            findings(&site, &Forms::default(), "").ok_or("a discrepancy has findings")?;
+        assert_eq!((cause, scope), (Cause::Lab, Scope::Defect));
+        assert_eq!(found[0].text(), "dna:iupac_not_reported@16189");
+        Ok(())
     }
 
     #[test]
