@@ -10,6 +10,10 @@ remain independently versioned and are never silently changed in place.
 
 ### Added
 
+- `dna-eval convention` (evaluation harness only): runs every IUPAC-free
+  truth sample's calls through DNA's normalization and nomenclature windows
+  and counts the samples that come back unchanged, with the change patterns
+  of the rest ([notation convention](docs/validation/evaluation-harness.md#notation-convention)).
 - One-strand exception policies in the draft triage (evaluation harness
   only): `region.one_strand` can apply everywhere, nowhere, or only inside
   the repeat windows and near reference homopolymers (R6m, R6m-h4), and a

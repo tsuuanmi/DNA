@@ -13,6 +13,7 @@
 mod approve;
 mod baseline;
 mod compare;
+mod convention;
 mod error;
 mod estimate;
 mod evidence;
@@ -76,6 +77,26 @@ enum Command {
     /// Projects the passes and attainable bounds of an approval run from a
     /// development run, without the panel's truth.
     Power(PowerArgs),
+    /// Runs every truth sample's written calls through DNA's notation chain
+    /// and reports the conventions DNA writes differently.
+    Convention(ConventionArgs),
+}
+
+/// Arguments of `dna-eval convention`.
+#[derive(Debug, Args)]
+struct ConventionArgs {
+    /// The lab's statistics database (`statistics.sqlite`), opened read-only.
+    #[arg(long)]
+    truth: PathBuf,
+    /// The target profile whose notation chain DNA applies.
+    #[arg(long)]
+    profile: PathBuf,
+    /// The profile's reference FASTA.
+    #[arg(long)]
+    reference: PathBuf,
+    /// New or empty output directory.
+    #[arg(long)]
+    output: PathBuf,
 }
 
 /// Arguments of `dna-eval approve`.
@@ -174,6 +195,7 @@ fn main() -> ExitCode {
         Command::Panel(args) => derive_panel(&args),
         Command::Approve(args) => approve::approve(&args.prereg, &args.output, args.threads),
         Command::Power(args) => power(&args),
+        Command::Convention(args) => convention(&args),
     };
     match result {
         Ok(summary) => {
@@ -308,6 +330,28 @@ fn run(cli: &RunArgs) -> Result<String> {
         started.elapsed().as_secs_f64(),
         cli.output.display()
     ))
+}
+
+/// `dna-eval convention`: writes `convention.tsv` and returns the summary.
+fn convention(args: &ConventionArgs) -> Result<String> {
+    let profile =
+        dna_kernel::profile::Profile::load(&args.profile).map_err(|error| Error::Reference {
+            path: args.profile.clone(),
+            message: error.to_string(),
+        })?;
+    let reference = dna_kernel::reference::load(&args.reference, profile.topology)
+        .and_then(|reference| profile.require_reference(&reference).map(|()| reference))
+        .map_err(|error| Error::Reference {
+            path: args.reference.clone(),
+            message: error.to_string(),
+        })?;
+    let ids = truth::sample_ids(&args.truth)?;
+    let wanted = ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let database = truth::load(&args.truth, &wanted)?;
+    prepare_output(&args.output)?;
+    let convention = convention::check(database.samples.values(), &reference, &profile);
+    write(&args.output, "convention.tsv", &convention.table())?;
+    Ok(convention.summary())
 }
 
 /// `dna-eval power`: the projection as Markdown.

@@ -212,6 +212,23 @@ impl TruthCheck {
     }
 }
 
+/// Every sample identifier the database at `path` holds.
+pub(crate) fn sample_ids(path: &Path) -> Result<BTreeSet<String>, TruthError> {
+    let connection = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(TruthError::Open)?;
+    connection
+        .prepare("SELECT sample_id FROM samples")
+        .and_then(|mut statement| {
+            statement
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<Result<BTreeSet<_>, _>>()
+        })
+        .map_err(TruthError::Query)
+}
+
 /// Reads the records of the `wanted` samples from the database at `path`.
 pub(crate) fn load(path: &Path, wanted: &BTreeSet<&str>) -> Result<TruthDatabase, TruthError> {
     let connection = Connection::open_with_flags(
