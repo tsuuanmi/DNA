@@ -417,7 +417,8 @@ in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
 (`cause_scope` for the sample): `defect`, or `deferred` for an item left
 undone by design, such as the IUPAC codes DNA does not write; a defect comes
 before a deferred item. The causes come from the
-admitted reads' evidence at each region position, the limit-of-detection
+admitted reads' evidence at each region position (with the read-end margin,
+repeat length, and support thresholds read from DNA's configuration), the limit-of-detection
 signals, and how the reviewers write each sequence over the whole truth
 database; nothing is listed by hand, and the truth is only read.
 
@@ -428,7 +429,12 @@ database; nothing is listed by hand, and the truth is only read.
 | | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
 | | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
 | | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
-| | otherwise: read as `N` (`unresolved_call`), or read cleanly yet untrusted, as within the read-end margin beside a masked stretch (`untrusted_call`) | `dna`: its callability policy |
+| | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
+| | a clean but untrusted call lies within the read-end margin of a stretch masked for phase loss, or of the read's end where it stops at a repeat run (`beside_phase_loss`) | `technology` |
+| | a call there shows more than one qualifying channel at a truth IUPAC code (`iupac_not_reported`) | `dna`, deferred |
+| | at another truth allele (`mixed_call`) | `undetermined` |
+| | every untrusted call lies within the read-end margin of its read's own end (`read_edge`) or carries a weak-signal veto (`weak_call`) | `lab`: read quality |
+| | otherwise (`untrusted_call`) | `dna`: its callability policy |
 | `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
 | | the truth writes it (`dna_minority_form`) | `dna`: its notation |
 | | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |

@@ -19,7 +19,12 @@ remain independently versioned and are never silently changed in place.
   sequence over the whole truth. The summary counts causes per class and
   samples per cause and evidence
   ([discrepancy causes](docs/validation/evaluation-harness.md#discrepancy-causes)).
-  A sample whose every trace DNA rejects now fails as `rejected`.
+  A sample whose every trace DNA rejects now fails as `rejected`. A
+  coverage gap read cleanly yet untrusted is placed by where the call
+  stands, with the margins and thresholds read from DNA's configuration:
+  beside phase loss (technology), at the read's own end or with a weak
+  support veto (lab), with mixed channels at a truth IUPAC code (DNA,
+  deferred), or otherwise DNA's callability policy.
 - `dna-eval convention` (evaluation harness only): runs every IUPAC-free
   truth sample's calls through DNA's normalization and nomenclature windows
   and counts the samples that come back unchanged, with the change patterns

@@ -198,7 +198,7 @@ pub(crate) fn approve(prereg_path: &Path, output: &Path, threads: usize) -> Resu
     let outcomes = crate::runner::run(
         &manifest.samples,
         (&inputs.reference, &reference.sequence_sha256),
-        &inputs.config,
+        (&inputs.config, crate::margins(&inputs.config)?),
         threads,
         true,
     )?;

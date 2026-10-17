@@ -18,7 +18,10 @@ use crate::classes::Discrepancy;
 use crate::compare::{self, Allele, Comparison, Failure, Region};
 use crate::lod;
 use forms::{Forms, Majority};
-use loci::{CONTESTED, COVERED, Loci, PHASE, RUN_UNREAD, SIGNAL, UNRESOLVED};
+use loci::{
+    BESIDE_PHASE_LOSS, CONTESTED, COVERED, EDGE, INSIDE, Loci, MIXED_CALL, PHASE, RUN_UNREAD,
+    SIGNAL, UNRESOLVED, WEAK_CALL,
+};
 
 /// Who accounts for a difference from the truth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -162,9 +165,13 @@ fn failed(failure: Option<&Failure>) -> Vec<Finding> {
 /// A truth allele where DNA has no callable base: no read there is the lab's
 /// (a missing or short trace); phase loss is the technology's, and so is a
 /// run the consensus left undecided because no read shows both its ends;
-/// weak signal is the run's; a tie of clean reads is for the reviewer; a
-/// base read as `N`, or read cleanly yet untrusted (the read-end margin
-/// beside a masked stretch), is DNA's callability policy.
+/// weak signal is the run's; a tie of clean reads is for the reviewer. A
+/// base read cleanly yet untrusted is the technology's beside a stretch
+/// masked for phase loss or a read that stops at a repeat run; DNA's but
+/// deferred where a call shows mixed channels at a truth IUPAC code (DNA
+/// writes none), undetermined at any other mixed call; the lab's (read quality) when every
+/// read has it within the margin of its own end or with a weak-signal veto;
+/// and otherwise DNA's callability policy, as is a base read as `N`.
 fn coverage(sample: &Sample<'_>) -> Vec<Finding> {
     let Some(loci) = sample.loci else {
         return Vec::new();
@@ -189,6 +196,26 @@ fn coverage(sample: &Sample<'_>) -> Vec<Finding> {
                 (Cause::Technology, "run_unread")
             } else if flags & UNRESOLVED != 0 {
                 (Cause::Dna, "unresolved_call")
+            } else if flags & BESIDE_PHASE_LOSS != 0 {
+                (Cause::Technology, "beside_phase_loss")
+            } else if flags & MIXED_CALL != 0 && allele.is_iupac() {
+                // The reads show the truth's heteroplasmy as mixed calls.
+                return Some(
+                    Finding::new(
+                        Cause::Dna,
+                        "iupac_not_reported",
+                        Some(allele.position.clone()),
+                    )
+                    .deferred(),
+                );
+            } else if flags & MIXED_CALL != 0 {
+                (Cause::Undetermined, "mixed_call")
+            } else if flags & (EDGE | WEAK_CALL) != 0 && flags & INSIDE == 0 {
+                if flags & WEAK_CALL != 0 {
+                    (Cause::Lab, "weak_call")
+                } else {
+                    (Cause::Lab, "read_edge")
+                }
             } else {
                 (Cause::Dna, "untrusted_call")
             };
@@ -375,7 +402,9 @@ mod tests {
     #[test]
     fn a_coverage_gap_goes_to_whoever_left_the_position_unread() {
         // Positions 1-4: unread, phase loss, weak signal, read cleanly.
-        // Positions 5-6: a tie of clean reads, a run no read shows whole.
+        // Positions 5-6: a tie of clean reads, a run no read shows whole;
+        // 7-9: untrusted beside phase loss, at the read's end, inside; 10: a
+        // mixed call at a truth IUPAC code; 11: a weak call at a read end.
         let loci = Loci::of(
             1,
             vec![
@@ -385,12 +414,18 @@ mod tests {
                 COVERED | FORWARD,
                 COVERED | CONTESTED,
                 COVERED | RUN_UNREAD,
+                COVERED | FORWARD | BESIDE_PHASE_LOSS | EDGE,
+                COVERED | FORWARD | EDGE,
+                COVERED | FORWARD | REVERSE | EDGE | INSIDE,
+                COVERED | FORWARD | MIXED_CALL,
+                COVERED | FORWARD | WEAK_CALL | EDGE,
             ],
             &[],
         );
-        let uncovered = ["1", "2", "3", "4", "5", "6"]
+        let mut uncovered = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "11"]
             .map(|position| Allele::new(position, "A", "G"))
             .to_vec();
+        uncovered.push(Allele::new("10", "A", "R"));
         let comparison = comparison(&[], Vec::new(), Vec::new(), uncovered);
         let signals = lod::Signals::default();
         let regions = BTreeSet::new();
@@ -406,8 +441,13 @@ mod tests {
             texts(&gap),
             [
                 "dna:untrusted_call@4",
+                "dna:untrusted_call@9",
+                "dna:iupac_not_reported@10",
                 "lab:no_read@1",
+                "lab:read_edge@8",
+                "lab:weak_call@11",
                 "lab:weak_signal@3",
+                "technology:beside_phase_loss@7",
                 "technology:phase_loss@2",
                 "technology:run_unread@6",
                 "undetermined:contested_reads@5"
