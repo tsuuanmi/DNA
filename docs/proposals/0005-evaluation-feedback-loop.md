@@ -238,7 +238,11 @@ What the strata show:
 The panels:
 
 - **Development panel.** 1,990 stratified samples, plus 630 earlier
-  evaluation samples kept at zero weight.
+  evaluation samples kept at zero weight. From v5 (2026-10-17) it also holds
+  the spent readiness panel v1: 16,413 samples. A `source` column records
+  which panel each sample came from. Corpus weights are recomputed per
+  stratum over the union, because the two designs differ (stratified and
+  whole batches).
 - **Anchors.** Clean samples on which the older pipeline agrees with the
   truth. 294 of 297 were exact in the baseline. Two repeated runs gave
   identical results.
@@ -277,6 +281,14 @@ The panels:
 
     The H-os1 marginal bound would be 2.5 %: its lower-bound projection is
     218 newly passed samples, with 1 leak in 337 on this panel.
+  - **v1 spent, 2026-10-17 (user decision).** Readiness v1 became
+    development data (development panel v5) so that the rules can be tuned on
+    about five times as many heteroplasmy positives. The next readiness panel
+    is whole batches received after 2026-09-07 that are in neither the
+    development nor the validation panel. On 2026-10-17 the truth holds 92
+    such batches newer than the trace inventory, up to 2026-10-06, with
+    7,938 samples. The science raw folders hold traces for 28 of them; the
+    other 64 need the lab's raw folders indexed first.
 
 Measured run time for `consensus` plus `call`, about 6.3 CPU-seconds per
 sample:
