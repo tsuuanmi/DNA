@@ -550,6 +550,21 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- Alignment places every gap at its 3'-most sequence-equivalent placement
+  whatever the read's profile scores (ADR-0047 §1 amended, SRS-ALN-012): the
+  optimal score chooses the explanation, and a move is kept when the
+  primary-base score is unchanged. With profile-weighted scores two reads of
+  one sequence placed an AC-repeat insertion at `513.1C 513.2A` and at
+  `524.1A 524.2C`, and the consensus lost it (118 contested AC sites on
+  development panel v5, now 4). The one-base move is shared with variant
+  normalization (`dna_kernel::model::placement`). An insertion into a repeat
+  the read bounds is judged for support vetoes on its placements along the
+  repeat, in variant calling and the consensus alike (SRS-VAR-020), so a
+  weak call that happens to be taken as the inserted one no longer decides.
+  The `core` plugin version rises to 8 and `consensus` to 4. Development
+  panel v5 against main: 232 more samples concordant on haplotype LoD and
+  227 on the primary measure; the one LoD regression is a truth C-shadow
+  listed for re-check.
 - `dna call` and `SampleAnalysis::call` no longer report a position DNA
   excluded a call at as callable (SRS-VAR-019). A record's callable
   reference segments leave out every position of an excluded variant (a

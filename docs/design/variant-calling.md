@@ -111,6 +111,16 @@ core rules. Everything else arrives from the modality as data:
   only;
 - it labels masked calls with their segment reason.
 
+An insertion whose inserted calls extend a repeat of their unit in the read,
+where the read bounds the run, is judged for support vetoes on its placements
+along the repeat (SRS-VAR-020, `ReadEligibility::repeat_unvetoed`): any window
+of as many repeat calls that is unmasked and free of insertion vetoes clears
+it. The alignment takes the repeat's 3'-most calls as the inserted ones
+(SRS-ALN-012); which identical calls those are is arbitrary, so a weak call
+among them must not decide. The bounded run is the one ADR-0076's exemptions
+read (`length_only`), and the consensus applies the same rule to a junction's
+inserted calls.
+
 A variant's reasons are reported in this order:
 1. `placement_conflict`, for every variant of a consensus record placed away
    from the interval its name declares (SRS-VAR-017);

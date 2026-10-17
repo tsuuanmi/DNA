@@ -23,7 +23,7 @@
 use crate::model::alignment::Orientation;
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
 use crate::variant_calling::VariantCallingConfig;
-use dna_kernel::read_evidence::{MaskOnset, MaskedAlignment, ReadEnds, ReadEvidence};
+use dna_kernel::read_evidence::{MaskOnset, MaskedAlignment, ReadEnds, ReadEvidence, VetoScope};
 
 /// Informative calls between a run's bound and a post-repeat edge for the
 /// run to be exempt from `read_end` (ADR-0076).
@@ -316,6 +316,67 @@ impl<'a> ReadEligibility<'a> {
                 .is_none_or(|mask| mask.alignment == MaskedAlignment::Anchoring)
     }
 
+    /// Whether an insertion whose inserted calls are `inserted` has a
+    /// placement along the read's repeat of its inserted unit whose calls
+    /// raise no support veto that applies to insertions. In a repeat, which
+    /// calls the alignment takes as the inserted ones is arbitrary: they are
+    /// those of its 3'-most placement (ADR-0047), and any window of as many
+    /// calls of the repeat describes the same sequence. So a veto on the calls
+    /// that happen to be taken must not decide the insertion's support. `false`
+    /// when the inserted calls are not contiguous or extend no repeat.
+    pub(crate) fn repeat_unvetoed(&self, inserted: &[usize]) -> bool {
+        let calls = self.evidence.calls();
+        let (Some(&first), Some(&last)) = (inserted.iter().min(), inserted.iter().max()) else {
+            return false;
+        };
+        let length = last - first + 1;
+        if length != inserted.len() {
+            return false;
+        }
+        let base = |index: usize| {
+            calls
+                .get(index)
+                .map(|call| call.base)
+                .filter(|base| matches!(base, 'A' | 'C' | 'G' | 'T'))
+        };
+        let Some(period) = (1..=length).find(|period| {
+            length % period == 0
+                && (first..=last).all(|index| {
+                    base(index).is_some() && base(index) == base(first + (index - first) % period)
+                })
+        }) else {
+            return false;
+        };
+        let mut start = first;
+        while start > 0 && base(start - 1).is_some() && base(start - 1) == base(start - 1 + period)
+        {
+            start -= 1;
+        }
+        let mut end = last + 1;
+        while end < calls.len() && base(end).is_some() && base(end) == base(end - period) {
+            end += 1;
+        }
+        if end - start <= length {
+            return false;
+        }
+        let vetoes = self
+            .evidence
+            .support_vetoes()
+            .iter()
+            .enumerate()
+            .filter(|(_, veto)| veto.scope == VetoScope::SubstitutionsAndInsertions)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        (start..=end - length).any(|offset| {
+            (offset..offset + length).all(|index| {
+                calls[index].mask.is_none()
+                    && !vetoes
+                        .iter()
+                        .any(|&veto| calls[index].vetoes.contains(veto))
+            })
+        })
+    }
+
     /// Whether the call at `index` has at least `read_end_margin` informative
     /// calls between it and the nearest uninformative call on both sides.
     pub(crate) fn trusted(&self, index: usize) -> bool {
@@ -393,6 +454,54 @@ mod tests {
     use dna_kernel::read_evidence::{CallMask, EvidenceReason, MaskOnset};
 
     use super::*;
+
+    /// A read of `sequence` whose calls in `vetoed` carry the peak veto,
+    /// which applies to insertions, or in `mixed` the mixed veto, which does
+    /// not.
+    fn vetoed_read(sequence: &str, vetoed: &[usize], mixed: &[usize]) -> ReadEvidence {
+        use dna_kernel::read_evidence::{EvidenceReason, SupportVeto, VetoScope};
+        let vocabulary = vec![
+            SupportVeto {
+                reason: EvidenceReason::new("peak_below_minimum"),
+                scope: VetoScope::SubstitutionsAndInsertions,
+            },
+            SupportVeto {
+                reason: EvidenceReason::new("mixed_supporting_dna"),
+                scope: VetoScope::Substitutions,
+            },
+        ];
+        let mut calls = ReadEvidence::clean(sequence).calls().to_vec();
+        for &index in vetoed {
+            calls[index].vetoes.insert(0);
+        }
+        for &index in mixed {
+            calls[index].vetoes.insert(1);
+        }
+        let length = calls.len();
+        ReadEvidence::new(calls, 0..length, vocabulary)
+            .unwrap_or_else(|_| ReadEvidence::clean(sequence))
+    }
+
+    #[test]
+    fn an_insertion_into_a_repeat_is_unvetoed_if_some_placement_is() {
+        let settings = settings(0);
+        // GCCCCCCT: one C inserted into a run of five, taken as call 6.
+        let read = vetoed_read("GCCCCCCT", &[6], &[]);
+        assert!(ReadEligibility::new(&read, &settings).repeat_unvetoed(&[6]));
+        // Every C vetoed: no placement is clean.
+        let read = vetoed_read("GCCCCCCT", &[1, 2, 3, 4, 5, 6], &[]);
+        assert!(!ReadEligibility::new(&read, &settings).repeat_unvetoed(&[6]));
+        // A mixed veto does not apply to insertions.
+        let read = vetoed_read("GCCCCCCT", &[], &[6]);
+        assert!(ReadEligibility::new(&read, &settings).repeat_unvetoed(&[6]));
+        // An AC unit inserted into GACACACT, taken as calls 5-6: a clean
+        // window of two calls of the repeat exists.
+        let read = vetoed_read("GACACACT", &[5, 6], &[]);
+        assert!(ReadEligibility::new(&read, &settings).repeat_unvetoed(&[5, 6]));
+        // An inserted base that extends no repeat is judged on itself.
+        let read = vetoed_read("GACT", &[2], &[]);
+        assert!(!ReadEligibility::new(&read, &settings).repeat_unvetoed(&[2]));
+    }
 
     fn settings(read_end_margin: usize) -> VariantCallingConfig {
         VariantCallingConfig {

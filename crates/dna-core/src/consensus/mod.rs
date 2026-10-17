@@ -1099,7 +1099,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 3,
+    version: 4,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledVariants],
     config_sections: &[],
