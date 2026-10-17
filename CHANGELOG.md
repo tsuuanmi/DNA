@@ -14,6 +14,13 @@ remain independently versioned and are never silently changed in place.
   truth sample's calls through DNA's normalization and nomenclature windows
   and counts the samples that come back unchanged, with the change patterns
   of the rest ([notation convention](docs/validation/evaluation-harness.md#notation-convention)).
+- Discrepancy classes in the evaluation harness: `dna-eval run` gives every
+  sample one class from its statuses (`failed`, `sequence`, `heteroplasmy`,
+  `representation`, `coverage`, `not_comparable`, or `none`), naming the part of DNA that owns
+  its difference from the truth, with the windows involved (`class`,
+  `class_regions` in `scores.tsv`). The summary counts the classes per window
+  and, against a baseline, the samples whose class changed
+  ([discrepancy classes](docs/validation/evaluation-harness.md#discrepancy-classes)).
 - One-strand exception policies in the draft triage (evaluation harness
   only): `region.one_strand` can apply everywhere, nowhere, or only inside
   the repeat windows and near reference homopolymers (R6m, R6m-h4), and a

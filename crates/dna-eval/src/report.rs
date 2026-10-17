@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use crate::baseline::{Class, Statuses};
+use crate::classes::Discrepancy;
 use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Region, Side};
 use crate::estimate::{self, Estimate, Observation};
 use crate::haplotype;
@@ -132,6 +133,21 @@ impl Row<'_> {
         self.comparisons
             .as_ref()
             .map(|comparisons| &comparisons[measure.index()])
+    }
+
+    /// The sample's discrepancy class.
+    pub(crate) fn discrepancy(&self) -> Discrepancy {
+        Discrepancy::of(|measure| Some(Class::of(self.status(measure).label())))
+            .unwrap_or(Discrepancy::Failed)
+    }
+
+    /// The windows of the class's discordant positions.
+    fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<Region> {
+        discrepancy
+            .measure()
+            .and_then(|measure| self.comparison(measure).ok())
+            .map(regions)
+            .unwrap_or_default()
     }
 
     pub(crate) fn status(&self, measure: Measure) -> Status {
@@ -365,7 +381,8 @@ impl<'a> Report<'a> {
              haplotype_status\thaplotype_concordant\thaplotype_blocks\t\
              haplotype_iupac_compatible_status\thaplotype_iupac_compatible_concordant\t\
              haplotype_iupac_compatible_blocks\thaplotype_lod_status\thaplotype_lod_concordant\t\
-             haplotype_lod_blocks\tbelow_lod\ttraces\trejected_traces\tfailure\n",
+             haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\ttraces\trejected_traces\t\
+             failure\n",
         );
         for row in self.rows {
             let sample = row.sample;
@@ -433,6 +450,13 @@ impl<'a> Report<'a> {
             } else {
                 String::new()
             };
+            let discrepancy = row.discrepancy();
+            let class_regions = row
+                .discrepancy_regions(discrepancy)
+                .iter()
+                .map(|region| region.label())
+                .collect::<Vec<_>>()
+                .join(",");
             let failure = row
                 .comparisons
                 .as_ref()
@@ -443,7 +467,7 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
-                 {haplotype}\t{below_lod}\t{traces}\t{rejected}\t{failure}",
+                 {haplotype}\t{below_lod}\t{}\t{class_regions}\t{traces}\t{rejected}\t{failure}",
                 sample.id,
                 sample.batch,
                 row.truth.map_or("", |truth| truth.batch.as_str()),
@@ -458,6 +482,7 @@ impl<'a> Report<'a> {
                 strict.code(),
                 compatible.label(),
                 compatible.code(),
+                discrepancy.label(),
             );
         }
         text
@@ -600,6 +625,7 @@ impl<'a> Report<'a> {
         self.outcome_section(&mut text);
         self.estimate_section(&mut text);
         self.discordance_section(&mut text);
+        self.class_section(&mut text);
         self.secondary_section(&mut text);
         self.anchor_section(&mut text);
         self.baseline_section(&mut text);
@@ -767,6 +793,81 @@ impl<'a> Report<'a> {
                 .filter(|comparison| regions(comparison).contains(&region))
                 .count();
             let _ = writeln!(text, "| {} | {count} |", region.label());
+        }
+    }
+
+    /// Samples per discrepancy class and window, retired ones left out, and
+    /// with a baseline that reports every deciding measure, the samples whose
+    /// class changed.
+    fn class_section(&self, text: &mut String) {
+        let current = self.rows.iter().filter(|row| !row.sample.retired);
+        let mut classes = BTreeMap::<Discrepancy, (usize, BTreeMap<Region, usize>)>::new();
+        for row in current.clone() {
+            let discrepancy = row.discrepancy();
+            let (samples, windows) = classes.entry(discrepancy).or_default();
+            *samples += 1;
+            for region in row.discrepancy_regions(discrepancy) {
+                *windows.entry(region).or_default() += 1;
+            }
+        }
+        text.push_str(
+            "\n## Discrepancy classes\n\nEach sample not retired that failed or has a side \
+             without an allele is `failed` or `not_comparable`; any other takes the first class \
+             whose measure is not concordant: sequence (haplotype IUPAC-compatible), heteroplasmy \
+             (haplotype), representation (primary), coverage (strict). A window column counts \
+             the samples with a discordant position of their class in it.\n\n\
+             | Class | Owner | Samples |",
+        );
+        for region in Region::ALL {
+            let _ = write!(text, " {} |", region.label());
+        }
+        text.push_str("\n|---|---|---:|");
+        text.push_str(&"---:|".repeat(Region::ALL.len()));
+        text.push('\n');
+        for discrepancy in Discrepancy::ALL {
+            let (samples, windows) = classes.get(&discrepancy).cloned().unwrap_or_default();
+            let _ = write!(
+                text,
+                "| {} | {} | {samples} |",
+                discrepancy.label(),
+                discrepancy.owner()
+            );
+            for region in Region::ALL {
+                let _ = write!(
+                    text,
+                    " {} |",
+                    windows.get(&region).copied().unwrap_or_default()
+                );
+            }
+            text.push('\n');
+        }
+        let Some(baseline) = self.baseline.filter(|baseline| {
+            Discrepancy::MEASURES
+                .iter()
+                .all(|measure| baseline.reports(*measure))
+        }) else {
+            return;
+        };
+        let mut moves = BTreeMap::<(&str, &str), usize>::new();
+        for row in current {
+            let before = baseline
+                .get(&row.sample.id)
+                .and_then(Discrepancy::of_statuses)
+                .map_or("(absent)", Discrepancy::label);
+            let now = row.discrepancy().label();
+            if before != now {
+                *moves.entry((before, now)).or_default() += 1;
+            }
+        }
+        text.push_str(
+            "\nSamples whose class changed against the baseline:\n\n\
+             | Baseline class | Class | Samples |\n|---|---|---:|\n",
+        );
+        if moves.is_empty() {
+            text.push_str("| - | - | 0 |\n");
+        }
+        for ((before, now), count) in moves {
+            let _ = writeln!(text, "| {before} | {now} | {count} |");
         }
     }
 
@@ -1147,24 +1248,24 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\t2\t1\t",
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
-            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\t\
+            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
-             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\t2\t0\t",
+             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\t2\t0\t",
-            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\t\
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\t2\t0\t",
+            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {
@@ -1227,6 +1328,9 @@ mod tests {
             "| truth batch differs from the panel batch | 1 |",
             "| exact | discordant | 1 |",
             "| regression | 1 | 1 | 0 | 0 | 0 |",
+            "| coverage | core callability, or the lab's assay | 6 | 0 | 6 | 0 | 0 | 0 |",
+            "| sequence | core, or the truth (adjudication) | 5 | 0 | 0 | 0 | 0 | 5 |",
+            "| not_comparable | the input, or coverage | 6 | 0 | 0 | 0 | 0 | 0 |",
         ] {
             assert!(summary.contains(line), "{line}");
         }

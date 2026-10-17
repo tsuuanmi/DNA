@@ -36,6 +36,8 @@ equivalence. No crate depends on it, and it is not part of the release.
   to the reference over each comparable interval, once per way of taking
   the special-position indels, and cut into blocks where their lengths agree;
   built once per sample and read under exact or compatible symbols.
+- `classes.rs` — the discrepancy class of a sample from its statuses: the
+  part of DNA that owns its difference from the truth.
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the

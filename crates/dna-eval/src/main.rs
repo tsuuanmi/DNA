@@ -12,6 +12,7 @@
 
 mod approve;
 mod baseline;
+mod classes;
 mod compare;
 mod convention;
 mod error;
