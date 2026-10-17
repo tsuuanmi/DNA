@@ -503,7 +503,9 @@ remain independently versioned and are never silently changed in place.
   longer reported, with the new core reason `unresolved_flank`
   (SRS-VAR-018); the exclusion-reason vocabulary of
   `dna.sample_evidence/v10` and `dna.variants/v1` gains it (revised in
-  place). Development panel v5: 29 more samples concordant on the
+  place), and the `core` plugin version rises to 6. The same reason also
+  removes three deletions beside an `N` that no truth has (`16197DEL`,
+  `533–535DEL`). Development panel v5: 29 more samples concordant on the
   primary measure and 31 on haplotype IUPAC-compatible, no regression.
 - `call` no longer reports phantom variants from a consensus record placed
   away from the interval its name declares (SRS-VAR-017). A mostly
