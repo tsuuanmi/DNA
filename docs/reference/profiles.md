@@ -25,6 +25,7 @@ SHA-256 of the file bytes in `provenance.profile`.
 | | `conventions` | no, with `notation` | array of tables, in reference order without overlap |
 | `conformance` | `rules` | with `notation` | non-empty, without repetition: `insertion_at_run_end`, `insertion_matches_run` ([notation result](notation.md#rules)) |
 | | `minimum_run_length` | with `rules` | at least `2`: the shortest reference homopolymer the rules apply to |
+| `empop` | (none) | no, with `notation` | an empty table: `notation` exports an EMPOP query ([notation result](notation.md#empop-query)) |
 
 `normalization` and `notation` form the notation chain of `sample`, `call`, and
 `notation`, and are declared together or not at all. `conformance` declares the

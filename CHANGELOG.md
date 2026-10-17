@@ -17,6 +17,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The EMPOP query (SRS-NOM-018, PROP-0007 increment 2): when the profile
+  declares `[empop]`, as the human-mtDNA profile does, `dna notation` adds an
+  offline `empop` query to `dna.notation/v1`, and `SampleAnalysis::call`
+  gives it as `ConsensusCall::empop`. It is sent nowhere. The query has
+  interpretation ranges over the positions exactly one record calls (no `N`,
+  no excluded variant), the represented calls inside them with an insertion
+  written by its anchor, as EMPOP numbers it, and the record positions cut,
+  with their reason. New post-calling plugin `empop` 1 in `dna-empop`.
+  **Breaking:** `dna.notation/v1` adds the optional `empop`, revised in place
+  (unreleased); the profile gains `[empop]`. The evaluation harness writes
+  each query to `scores.tsv` (`empop_ranges`, `empop_mitotype`), with the
+  positions inside its ranges that the consensus left undecided or decided by
+  a tie (`empop_undecided`, `empop_ties`), and summarises them.
+
 - Every `technology` finding of the evaluation harness's discrepancy causes
   is deferred, to signal processing in `dna-sanger`: the core is judged on
   good input, or input the lab made poor. A defect heads a sample before a

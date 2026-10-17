@@ -149,6 +149,7 @@ which go to the reviewers for notation consistency.
 | Consensus to `call`: an `N` at a decided run's bound (`310`) drops a decided length | core | PROP-0006 (proposed, not yet merged); the decided length is now not callable rather than reported as the reference |
 | Calls DNA does not trust at the AC repeat (`523`/`524`) | core | open |
 | Phantom calls inside the HVS-I C-tract (`16185-16193`) | core | open |
+| `call` re-places a consensus `N`, so the variants document asserts a position the consensus left undecided (16 positions, 13 samples on dev v5; `empop_undecided` in the harness) | core | PROP-0006 follow-up: the consensus-to-`call` interface loss, visible through the EMPOP query |
 | A read whose signal collapses inside a C-tract (`16189C`) is classed `read_edge` (lab), since DNA marks a phase loss only after a run; it is a technology limit | Sanger callability | TODO, signal work: attribute signal loss within a run |
 | `73` lost after the 3'-most placement of a nearby insertion merges stretches (5 samples) | core | known, coverage only |
 | Weak calls that read the reference leave `N` | core | parked: trusting them decides run lengths (measured: more regressions than fixes); a reviewer flag instead of a call is an option |

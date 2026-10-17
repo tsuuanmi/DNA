@@ -27,6 +27,11 @@
         "id": "conformance",
         "family": "post_calling",
         "version": 1
+      },
+      {
+        "id": "empop",
+        "family": "post_calling",
+        "version": 1
       }
     ],
     "source": {
@@ -115,6 +120,35 @@
         "calls": [
           "313.1G"
         ]
+      }
+    ]
+  },
+  "empop": {
+    "ranges": [
+      [
+        16024,
+        16365
+      ],
+      [
+        73,
+        340
+      ],
+      [
+        438,
+        560
+      ],
+      [
+        562,
+        576
+      ]
+    ],
+    "ranges_text": "16024-16365 73-340 438-560 562-576",
+    "mitotype": "73G 263G 309.1C 309.2C 313.1G 489C 573.1C 16189C 16193.1C 16223T",
+    "cut": [
+      {
+        "start": 561,
+        "end": 561,
+        "reason": "unresolved"
       }
     ]
   }

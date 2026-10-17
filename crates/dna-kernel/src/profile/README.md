@@ -4,8 +4,9 @@ Owns loading and validation of target profiles: strict versioned TOML that
 holds what is known about one sequencing target — the reference it is validated
 against and its topology, the reportable regions, and the optional
 representation chain (indel placement, nomenclature windows, notation style),
-the report conventions that label its calls (`nomenclature.conventions`), and
-the notation conventions checked on it (`conformance`).
+the report conventions that label its calls (`nomenclature.conventions`), the
+notation conventions checked on it (`conformance`), and whether `notation`
+exports an EMPOP query (`empop`).
 
 Key children: `raw.rs` parses the TOML records and validates every rule;
 `window.rs` holds the validated nomenclature windows. Each window rule carries

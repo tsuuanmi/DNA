@@ -30,7 +30,13 @@ pub(super) struct RawProfile {
     nomenclature: Option<RawNomenclature>,
     notation: Option<RawNotation>,
     conformance: Option<RawConformance>,
+    empop: Option<RawEmpop>,
 }
+
+/// `[empop]` takes no keys: declaring it turns the export on.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawEmpop {}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -220,6 +226,9 @@ impl RawProfile {
                 })
             }
         };
+        if self.empop.is_some() && notation.is_none() {
+            return Err(ProfileError::Constraint("empop requires the notation it exports").into());
+        }
         let (windows, conventions) = match self.nomenclature {
             Some(nomenclature) if nomenclature.windows.is_empty() => {
                 return Err(ProfileError::Constraint(
@@ -253,6 +262,7 @@ impl RawProfile {
             notation,
             conformance,
             conventions,
+            empop: self.empop.is_some(),
         })
     }
 }
@@ -755,6 +765,22 @@ rules = ["motif_shift"]
             Some("minimum_run must be at least 2")
         );
         let without_notation = declared
+            .replace("[normalization]\nindel_placement = \"right\"\n", "")
+            .replace("[notation]\nstyle = \"per_base_decimal\"\n", "");
+        assert!(matches!(
+            validated(&without_notation)?,
+            Err(Error::Profile(ProfileError::Constraint(_)))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn declares_the_empop_export_with_notation()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        assert!(!validated(VALID)??.empop);
+        assert!(validated(&format!("{VALID}[empop]\n"))??.empop);
+        assert!(parse(&format!("{VALID}[empop]\nranges = 1\n")).is_err());
+        let without_notation = format!("{VALID}[empop]\n")
             .replace("[normalization]\nindel_placement = \"right\"\n", "")
             .replace("[notation]\nstyle = \"per_base_decimal\"\n", "");
         assert!(matches!(

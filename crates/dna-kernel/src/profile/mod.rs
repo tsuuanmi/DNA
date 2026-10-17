@@ -47,6 +47,8 @@ pub struct Profile {
     /// Report conventions that label represented calls, in reference order
     /// without overlap.
     pub conventions: Vec<Convention>,
+    /// Whether the `notation` workflow exports an EMPOP query (`[empop]`).
+    pub empop: bool,
 }
 
 /// A report convention: rendered calls of one kind in one window that the

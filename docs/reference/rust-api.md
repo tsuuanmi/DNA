@@ -349,6 +349,7 @@ parallel calls `analyze_sanger` with `NonZeroUsize::MIN` workers, then `call`.
 pub struct ConsensusCall {
     pub callable_segments: Vec<ReferenceSegment>,
     pub notation: Option<Vec<NotationCall>>,
+    pub empop: Option<EmpopExport>,
 }
 
 #[non_exhaustive]
@@ -379,6 +380,11 @@ pub struct NotationCall {
   `notation.calls[].convention` of the document; the call is kept either way.
   `Convention`, `ConventionKind`, and `ConventionLabel` are the profile types
   of `dna_kernel::profile`, re-exported from `sample_analysis`.
+- `empop` is the EMPOP query `dna notation` would export from the
+  `dna.variants/v1` document (SRS-NOM-018), or `None` when the profile
+  declares no `[empop]`. `EmpopExport` (`ranges`, `mitotype`, `cut`, with
+  `ranges_text()` and `mitotype_text()`), `Cut`, and `CutReason` are the types
+  of `dna_empop::export`, re-exported from `sample_analysis`.
 
 ## Variant Normalization
 

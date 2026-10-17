@@ -30,6 +30,7 @@ pub use crate::model::read_observation::{RejectedRead, RejectionCause};
 pub use dna_core::model::consensus::Consensus;
 pub use dna_core::model::sample_evidence::SampleEvidence;
 pub use dna_core::model::trust::{CallTrust, Withholder};
+pub use dna_empop::export::{Cut, CutReason, Export as EmpopExport};
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 
 pub use crate::variant_analysis::ReferenceSegment;
@@ -134,6 +135,9 @@ pub struct ConsensusCall {
     /// order, as `notation.calls` of `dna.variants/v1`; `None` when the profile
     /// declares no notation.
     pub notation: Option<Vec<NotationCall>>,
+    /// The EMPOP query `dna notation` would export from the `dna.variants/v1`
+    /// document (PROP-0007); `None` when the profile declares no `[empop]`.
+    pub empop: Option<EmpopExport>,
 }
 
 /// One per-base call in the profile notation.

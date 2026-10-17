@@ -1,12 +1,12 @@
 ---
 id: PROP-0007
 type: proposal
-status: implementing
+status: implemented
 owners: []
 created: 2026-10-17
 related-requirements: [SRS-NOM-016, SRS-NOM-017]
 related-decisions: [ADR-0069, ADR-0077]
-implementation: []
+implementation: [PR-96, PR-99]
 ---
 
 # Proposal: EMPOP export and labelled report conventions
@@ -96,10 +96,11 @@ shipped human-mtDNA profile declares it. The plugin reads:
 It decides nothing about the sequence. The rules:
 
 - **Ranges.** The ranges are:
-  - the profile's regions intersected with the union of the records'
-    callable segments;
-  - less every position of an excluded variant;
-  - less both positions of a junction with an excluded insertion;
+  - the profile's regions intersected with the positions exactly one record
+    calls, which are its callable segments;
+  - less every position of an excluded variant, and both positions of a
+    junction with an excluded insertion. The callable segments already leave
+    these out (SRS-VAR-019);
   - merged where they touch.
 
   They are written in the profile's region order and, within a region, in
@@ -110,8 +111,14 @@ It decides nothing about the sequence. The rules:
   - distinct, sorted by position and then by insertion ordinal;
   - never a reference-equal token.
 
-  An insertion is written only when both of its junction positions are inside
-  one range.
+  An eligible insertion is written when its anchor position lies inside a
+  range: EMPOP numbers `X.k` at `X`. A range that includes `X` therefore
+  claims the complete list of insertions after `X`. Leaving `309.1C` out of
+  `73-309` would state "no insertion after 309", the very misstatement the
+  export exists to prevent. The list is complete: an excluded insertion cuts
+  `X` itself (SRS-VAR-019), so where `X` is in a range, every insertion DNA
+  observed after `X` is eligible and written. An insertion whose anchor is
+  cut is not written, even when `X+1` is in a range.
 - **IUPAC.** A code passes through unchanged when DNA writes one. None is
   written today.
 - **Document.** The plugin adds an `empop` object to `notation/v1`:
@@ -182,7 +189,8 @@ Downstream:
 - **Unit tests (`dna-empop`):**
   - an `N` splits a range;
   - an excluded variant and an excluded insertion cut their positions;
-  - an insertion at a range edge is left out;
+  - an insertion whose anchor ends a range is written, and one whose anchor
+    is cut is not;
   - tokens are distinct and sorted;
   - an IUPAC code passes through;
   - regions keep the profile's order.
@@ -194,8 +202,9 @@ Downstream:
   - every position inside an exported range is decided by the consensus
     (no `N`, no excluded call); the positions on a tie the consensus resolved
     as the reference are counted;
-  - the sequence rebuilt from rCRS and the mitotype over the ranges equals
-    the consensus sequence there.
+  - the mitotype holds the represented calls inside the ranges, which
+    reconstruct the record's haplotype (SRS-NOM-003); the export only
+    filters them.
 - **Equivalence, Python check (ADR-0066):** given the same calls and
   intervals, DNA's export is byte-equal to `mtdna_raw`'s `EmpopProfile`
   (`ranges_text`, `mitotype`). Run it on every development-panel sample.
@@ -244,6 +253,10 @@ data policy is unchanged.
   resolve the two short runs, and a recorded length there is real;
 - a range never covers a position DNA left undecided or excluded. A tie the
   consensus resolved is exported as DNA's decision.
+
+2026-10-17, on the Researcher's review of the increment 2 measurement: an
+insertion is written by its anchor, as EMPOP numbers it, instead of only when
+both junction positions lie in one range.
 
 ## Implementation
 
@@ -295,7 +308,7 @@ Planned in two increments, each its own pull request.
     `sequence` and 13 `representation`. Each also differs otherwise, or its
     call sits in a run shorter than 10.
 
-**Increment 2, the EMPOP export** (`empop` 1, `notation/v1` **Breaking**):
+**Increment 2, the EMPOP export** (#99; `empop` 1, `notation/v1` **Breaking**):
 
 - `[empop]` is an empty table: declaring it turns the export on, and it
   requires `[notation]`. It has no keys. The region order is the profile's,
@@ -305,17 +318,36 @@ Planned in two increments, each its own pull request.
   plugin takes the records' callable segments as they are, without a second
   cut.
 - The `cut` reasons come from the variants document only:
-  - `excluded_variant`: a gap in a record's callable segments that overlaps
-    an excluded variant's positions;
-  - `unresolved`: any other gap inside a record's reference segments (`N`,
-    masked);
-  - `overlap`: a position that two records cover callably, which never
-    happens in the consensus path.
-- A tie is handled as the consensus handled it.
-  - A tie with no decision is already `N`, so it is cut as `unresolved`.
-  - A one-against-one tie that the consensus resolved as the reference
-    (SRS-CONS) is DNA's decision, in the haplotype and in the export alike.
-  - The development-panel invariant check (harness, which holds the
-    consensus) counts the exported positions on such ties.
+  - `excluded_variant`: a record position of an excluded variant;
+  - `unresolved`: any other record position that no record calls (`N`);
+  - `overlap`: a position that two records call, which never happens in the
+    consensus path.
+- A tie is handled as the consensus handled it. A tie with no decision is
+  already `N`, so it is cut as `unresolved`. A one-against-one tie that the
+  consensus resolved as the reference is DNA's decision, in the haplotype
+  and in the export alike.
 - `dna-empop` takes rendered calls as plain position, ordinal and text. It
-  does not depend on `dna-normalize`.
+  does not depend on `dna-normalize`. `SampleAnalysis::call` gives the same
+  query, and the harness records it (`empop_*` in `scores.tsv`).
+- Measured on development panel v5 (main `b075635`), 16,401 queries:
+  - Equivalence: given DNA's ranges and calls, `mtdna_raw`'s `EmpopProfile`
+    renders byte-equal `ranges_text` and `mitotype` for every query.
+  - Resolved ties inside a range: 1,129 positions in 263 samples, exported
+    as DNA's decision.
+  - Undecided inside a range: 16 positions in 13 samples. In each, `dna call`
+    re-aligns the consensus record and places its `N` at another reference
+    position than the consensus site, so the variants document asserts a
+    position the consensus left undecided:
+    - 11 sites at a run's end (`303-310` as `CCCCCCCCCN`, `568-574`,
+      HVS-I);
+    - 4 inside an indel or repeat context (`103`, `516`/`523`, `16026`).
+    The export follows the document. This is the consensus-to-`call`
+    interface loss of PROP-0006, now visible through `empop_undecided`.
+  - Truth comparison: the reviewers' `EmpopProfile` from the truth record,
+    inside the positions both declare, for 16,400 exportable truth records.
+    - DNA's ranges lie inside the truth's intervals in 15,947 samples.
+    - The mitotypes are equal in 14,305, and in 15,162 once hotspot length
+      differences (which EMPOP's standard query disregards) are set aside.
+    - Most of the rest are truth IUPAC codes (`heteroplasmy`, 992) and
+      `sequence` samples. In 'none' samples, the remaining differences are
+      `309.kC` and `573.kC` lengths that the lab's comparator tolerates.
