@@ -608,6 +608,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- Variant normalization: a deletion whose one-base 3' shift would overlap a
+  substitution of the next base now tries the deletion trade instead of
+  stopping, so `16297DEL 16298C` over `TT` is written `16297C 16298DEL`, as
+  any other trade (SRS-VN-008). `normalization` is version 3.
+- The kernel refuses `run_boundary` as a modality label, as it refuses the
+  core's other exclusion reasons.
+
 - Alignment places every gap at its 3'-most sequence-equivalent placement
   whatever the read's profile scores (ADR-0047 §1 amended, SRS-ALN-012): the
   optimal score chooses the explanation, and a move is kept when the

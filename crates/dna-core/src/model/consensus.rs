@@ -31,8 +31,8 @@ pub enum RunEvidence {
     /// A read shows both ends of the run with clean calls.
     InPhase,
     /// A read shows both ends, one of them only through a masked call that
-    /// still anchors the alignment, such as a dephased call reading the next
-    /// base. The length is at most the dominant one of a mixture.
+    /// still anchors the alignment (`MaskedAlignment::Anchoring`) and reads
+    /// the next base. The length is at most the dominant one of a mixture.
     AnchoredEnd,
     /// No read shows both ends, no reads locate both, and a read that shows
     /// one end loses phase at the other: the length is the longest run read

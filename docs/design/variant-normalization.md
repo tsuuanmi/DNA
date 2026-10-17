@@ -85,6 +85,9 @@ When a deletion cannot shift further, it may still move up to 20 bases 3' if
 only substitutions lie in the stretch it crosses and the same haplotype needs
 no more edits: the bases in between are written as substitutions, which may
 replace substitutions the deletion passes. The 3'-most such placement wins.
+A deletion whose one-base shift would run into a substitution of the next
+base cannot shift, so it trades: `16297DEL 16298C` over `TT` becomes
+`16297C 16298DEL`.
 With `16297C`, `16293DEL 16298C` becomes `16293C 16298DEL`, as the lab's
 reviewers write it; a plain run shift is the trade without substitutions.
 

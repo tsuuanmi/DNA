@@ -18,21 +18,25 @@ pub(super) fn right_align(
 
         let mut moved = false;
         for index in order {
-            let candidate = match shift_right_once(reference, &normalized, index) {
-                Some(shifted) => {
+            // A shift whose edits overlap describes no haplotype; the deletion
+            // may still trade past the substitution it runs into.
+            let describes = |candidate: &[SequenceEdit]| {
+                apply_edits(reference, candidate)
+                    .is_ok_and(|sequence| sequence == alternate_sequence)
+            };
+            let shifted = shift_right_once(reference, &normalized, index)
+                .map(|shifted| {
                     let mut candidate = normalized.clone();
                     candidate[index] = shifted;
                     candidate
-                }
-                None => match trade_deletion(reference, &normalized, index, bounds)? {
-                    Some(candidate) => candidate,
-                    None => continue,
-                },
+                })
+                .filter(|candidate| describes(candidate));
+            let candidate = match shifted {
+                Some(candidate) => Some(candidate),
+                None => trade_deletion(reference, &normalized, index, bounds)?
+                    .filter(|candidate| describes(candidate)),
             };
-            // A candidate whose edits overlap describes no haplotype.
-            if apply_edits(reference, &candidate)
-                .is_ok_and(|sequence| sequence == alternate_sequence)
-            {
+            if let Some(candidate) = candidate {
                 normalized = candidate;
                 moved = true;
                 break;
@@ -218,6 +222,20 @@ mod tests {
         let source = [edit(3, 4, ""), edit(7, 8, "C"), edit(8, 9, "C")];
         let alternate = apply_edits(REFERENCE, &source)?;
         right_align(REFERENCE, &alternate, &source, bounds)
+    }
+
+    #[test]
+    fn a_deletion_that_runs_into_a_substitution_trades_past_it() -> RepresentationResult<()> {
+        // `16297DEL 16298C` over `TT`: the shift would delete the substituted
+        // base, so the deletion trades instead and gives `16297C 16298DEL`.
+        let reference = "CCCTTA";
+        let source = [edit(3, 4, ""), edit(4, 5, "C")];
+        let alternate = apply_edits(reference, &source)?;
+        assert_eq!(
+            right_align(reference, &alternate, &source, TradeBounds::default())?,
+            [edit(3, 4, "C"), edit(4, 5, "")]
+        );
+        Ok(())
     }
 
     #[test]
