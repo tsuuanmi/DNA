@@ -1,7 +1,7 @@
 # CLI
 
 Owns command-line syntax and typed arguments for `analyze`, `basecall`,
-`sample`, `consensus`, `call`, and `notation`.
+`sample`, `consensus`, `review`, `call`, and `notation`.
 
 The CLI is an outer adapter. It parses arguments only; `lib.rs` translates the
 parsed values into operation inputs before calling the pipeline. Pipeline and

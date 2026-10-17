@@ -8,6 +8,7 @@ mod notation;
 mod path;
 mod plugins;
 mod represent;
+mod review;
 mod sample;
 mod sample_call;
 mod sample_metrics;
@@ -60,6 +61,16 @@ pub(crate) fn notation(
     config_path: &Path,
 ) -> Result<()> {
     notation::run(sample_id, document, reference, config_path)
+}
+
+/// Runs one sample review operation (PROP-0004).
+pub(crate) fn review(
+    sample_id: &str,
+    traces: &[PathBuf],
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    review::run(sample_id, traces, reference, config_path)
 }
 
 /// Runs one multi-read sample evidence operation.

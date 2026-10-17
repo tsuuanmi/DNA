@@ -336,30 +336,41 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
 /// Reviewer-facing names of the admitted and the rejected reads, unique
 /// across both.
 pub(super) fn reviewer_read_names(evidence: &SampleEvidence) -> Result<(Vec<String>, Vec<String>)> {
-    let mut unique = BTreeSet::new();
-    let mut name_of = |input_name: &str| -> Result<String> {
-        let name = Path::new(input_name)
-            .file_stem()
-            .and_then(|value| value.to_str())
-            .filter(|value| !value.is_empty())
-            .ok_or(ReportError::InvalidReadName)?
-            .to_owned();
-        if !unique.insert(name.clone()) {
-            return Err(ReportError::DuplicateReadName { name }.into());
-        }
-        Ok(name)
-    };
-    let names = evidence
-        .reads
-        .iter()
-        .map(|read| name_of(&read.input_name))
-        .collect::<Result<Vec<_>>>()?;
-    let rejected = evidence
-        .rejected_reads
-        .iter()
-        .map(|read| name_of(&read.input_name))
-        .collect::<Result<Vec<_>>>()?;
+    let mut names = reviewer_names(
+        evidence
+            .reads
+            .iter()
+            .map(|read| read.input_name.as_str())
+            .chain(
+                evidence
+                    .rejected_reads
+                    .iter()
+                    .map(|read| read.input_name.as_str()),
+            ),
+    )?;
+    let rejected = names.split_off(evidence.reads.len());
     Ok((names, rejected))
+}
+
+/// Reviewer-facing names (the trace stems) of reads given by input name,
+/// unique across them.
+pub(super) fn reviewer_names<'a>(inputs: impl IntoIterator<Item = &'a str>) -> Result<Vec<String>> {
+    let mut unique = BTreeSet::new();
+    inputs
+        .into_iter()
+        .map(|input_name| {
+            let name = Path::new(input_name)
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .filter(|value| !value.is_empty())
+                .ok_or(ReportError::InvalidReadName)?
+                .to_owned();
+            if !unique.insert(name.clone()) {
+                return Err(ReportError::DuplicateReadName { name }.into());
+            }
+            Ok(name)
+        })
+        .collect()
 }
 
 fn joined_read<'a>(joined: &[JoinedRead<'a>], index: usize) -> Result<JoinedRead<'a>> {

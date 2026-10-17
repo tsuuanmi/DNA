@@ -1,0 +1,1262 @@
+{
+  "schema_version": "dna.review/v1",
+  "sample_id": "sample-1",
+  "status": "called",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "b7328a9ac3e4302012d3206311f8c777af63e68d1ee9fc69126c7deae7f05de0",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "a2933c9570798ef2ec1ffab49219201dd09d10681ccda91359a55af1ee9fdf90"
+    },
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 3
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 8
+      },
+      {
+        "id": "consensus",
+        "family": "core",
+        "version": 5
+      },
+      {
+        "id": "decided",
+        "family": "core",
+        "version": 2
+      },
+      {
+        "id": "normalization",
+        "family": "post_calling",
+        "version": 3
+      },
+      {
+        "id": "nomenclature",
+        "family": "post_calling",
+        "version": 3
+      },
+      {
+        "id": "empop",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "review",
+        "family": "post_calling",
+        "version": 1
+      }
+    ],
+    "rules": 1
+  },
+  "reads": [
+    {
+      "name": "A12_HV1F_03",
+      "sha256": "09cf6d52e58d28df5bc54a842ff3600fbe26bb6c87ef8fdc7ec3f4d0daaba202",
+      "strand": "forward",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV2F_03",
+      "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
+      "strand": "forward",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV3R_03",
+      "sha256": "a6c0b613f1fe0bf2798d4fa2d6b0772993f3c3484fd5e8a1799a47757a64536f",
+      "strand": "reverse",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV1R_03",
+      "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
+      "strand": "reverse",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV2R_03",
+      "sha256": "e2a43e08af3addfafb7e509b579a189d5839155b5b93ed49305da750ec99a7a7",
+      "admitted": false,
+      "rejection": {
+        "reason": "callable_calls_below_minimum",
+        "callable_calls": 61,
+        "minimum_callable_calls": 100
+      }
+    }
+  ],
+  "calls": [
+    {
+      "call": "73G",
+      "position": 73,
+      "ordinal": 0,
+      "reference": "A",
+      "alternate": "G"
+    },
+    {
+      "call": "263G",
+      "position": 263,
+      "ordinal": 0,
+      "reference": "A",
+      "alternate": "G"
+    },
+    {
+      "call": "309.1C",
+      "position": 309,
+      "ordinal": 1,
+      "reference": null,
+      "alternate": "C"
+    },
+    {
+      "call": "315.1C",
+      "position": 315,
+      "ordinal": 1,
+      "reference": null,
+      "alternate": "C"
+    },
+    {
+      "call": "16129A",
+      "position": 16129,
+      "ordinal": 0,
+      "reference": "G",
+      "alternate": "A"
+    },
+    {
+      "call": "16189C",
+      "position": 16189,
+      "ordinal": 0,
+      "reference": "T",
+      "alternate": "C"
+    }
+  ],
+  "callable": [
+    {
+      "start": 40,
+      "end": 600
+    },
+    {
+      "start": 16031,
+      "end": 16125
+    },
+    {
+      "start": 16127,
+      "end": 16192
+    },
+    {
+      "start": 16194,
+      "end": 16420
+    }
+  ],
+  "empop": {
+    "ranges": [
+      [
+        16031,
+        16125
+      ],
+      [
+        16127,
+        16192
+      ],
+      [
+        16194,
+        16365
+      ],
+      [
+        73,
+        340
+      ],
+      [
+        438,
+        576
+      ]
+    ],
+    "ranges_text": "16031-16125 16127-16192 16194-16365 73-340 438-576",
+    "mitotype": "73G 263G 309.1C 315.1C 16129A 16189C",
+    "cut": [
+      {
+        "start": 16126,
+        "end": 16126,
+        "reason": "unresolved"
+      },
+      {
+        "start": 16193,
+        "end": 16193,
+        "reason": "unresolved"
+      }
+    ]
+  },
+  "items": [
+    {
+      "first": {
+        "position": 16126,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16126,
+        "ordinal": 0
+      },
+      "kind": "check",
+      "decision": "not_callable",
+      "sequence": "T",
+      "calls": [],
+      "labels": [
+        {
+          "label": "strands_disagree",
+          "reads": [
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "role": "supporting"
+            },
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "role": "opposing"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "read": "A12_HV1F_03",
+          "sha256": "09cf6d52e58d28df5bc54a842ff3600fbe26bb6c87ef8fdc7ec3f4d0daaba202",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 16126,
+              "ordinal": 0,
+              "base": "C",
+              "state": "alternate",
+              "call": 97,
+              "scope": "full",
+              "scan": 1188,
+              "quality": 31,
+              "second": {
+                "base": "T",
+                "share": 0.08
+              }
+            }
+          ]
+        },
+        {
+          "read": "A12_HV1R_03",
+          "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
+          "strand": "reverse",
+          "positions": [
+            {
+              "position": 16126,
+              "ordinal": 0,
+              "base": "T",
+              "state": "reference",
+              "call": 294,
+              "scope": "full",
+              "scan": 3552,
+              "quality": 52,
+              "second": {
+                "base": "T",
+                "share": 0.04
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "first": {
+        "position": 152,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 152,
+        "ordinal": 0
+      },
+      "kind": "check",
+      "decision": "called",
+      "sequence": "T",
+      "calls": [],
+      "labels": [
+        {
+          "label": "possible_heteroplasmy",
+          "position": 152,
+          "base": "C",
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "share": 0.214
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "read": "A12_HV2F_03",
+          "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 152,
+              "ordinal": 0,
+              "base": "T",
+              "state": "reference",
+              "call": 112,
+              "scope": "full",
+              "scan": 1368,
+              "quality": 44,
+              "second": {
+                "base": "C",
+                "share": 0.214
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "first": {
+        "position": 16180,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16194,
+        "ordinal": 0
+      },
+      "kind": "check",
+      "decision": "partly_callable",
+      "sequence": "AAAACCCCCCCCCCA",
+      "calls": [
+        "16189C"
+      ],
+      "labels": [
+        {
+          "label": "estimated_length",
+          "runs": [
+            {
+              "base": "C",
+              "length": 10,
+              "length_evidence": "phase_loss"
+            }
+          ]
+        },
+        {
+          "label": "one_read",
+          "read": "A12_HV1R_03"
+        },
+        {
+          "label": "one_strand",
+          "strand": "reverse",
+          "reads": [
+            "A12_HV1R_03"
+          ]
+        },
+        {
+          "label": "phase_shift",
+          "read": "A12_HV1F_03",
+          "from": 16184
+        }
+      ],
+      "evidence": [
+        {
+          "read": "A12_HV1F_03",
+          "sha256": "09cf6d52e58d28df5bc54a842ff3600fbe26bb6c87ef8fdc7ec3f4d0daaba202",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 16180,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 151,
+              "scope": "full",
+              "scan": 1836,
+              "quality": 40,
+              "second": null
+            },
+            {
+              "position": 16181,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 152,
+              "scope": "full",
+              "scan": 1848,
+              "quality": 40,
+              "second": null
+            },
+            {
+              "position": 16182,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 153,
+              "scope": "full",
+              "scan": 1860,
+              "quality": 40,
+              "second": null
+            },
+            {
+              "position": 16183,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 154,
+              "scope": "full",
+              "scan": 1872,
+              "quality": 40,
+              "second": null
+            },
+            {
+              "position": 16184,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 155,
+              "scope": "full",
+              "scan": 1884,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16185,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 156,
+              "scope": "full",
+              "scan": 1896,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16186,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 157,
+              "scope": "full",
+              "scan": 1908,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16187,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 158,
+              "scope": "full",
+              "scan": 1920,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16188,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 159,
+              "scope": "full",
+              "scan": 1932,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16189,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 160,
+              "scope": "full",
+              "scan": 1944,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16190,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 161,
+              "scope": "full",
+              "scan": 1956,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16191,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 162,
+              "scope": "full",
+              "scan": 1968,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16192,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 163,
+              "scope": "full",
+              "scan": 1980,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16193,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 164,
+              "scope": "full",
+              "scan": 1992,
+              "quality": 12,
+              "second": null
+            },
+            {
+              "position": 16194,
+              "ordinal": 0,
+              "base": "A",
+              "state": "masked",
+              "call": 165,
+              "scope": "full",
+              "scan": 2004,
+              "quality": 12,
+              "second": null
+            }
+          ]
+        },
+        {
+          "read": "A12_HV1R_03",
+          "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
+          "strand": "reverse",
+          "positions": [
+            {
+              "position": 16180,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 240,
+              "scope": "full",
+              "scan": 2904,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16181,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 239,
+              "scope": "full",
+              "scan": 2892,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16182,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 238,
+              "scope": "full",
+              "scan": 2880,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16183,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 237,
+              "scope": "full",
+              "scan": 2868,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16184,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 236,
+              "scope": "full",
+              "scan": 2856,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16185,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 235,
+              "scope": "full",
+              "scan": 2844,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16186,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 234,
+              "scope": "full",
+              "scan": 2832,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16187,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 233,
+              "scope": "full",
+              "scan": 2820,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16188,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 232,
+              "scope": "full",
+              "scan": 2808,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16189,
+              "ordinal": 0,
+              "base": "C",
+              "state": "alternate",
+              "call": 231,
+              "scope": "full",
+              "scan": 2796,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16190,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 230,
+              "scope": "full",
+              "scan": 2784,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16191,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 229,
+              "scope": "full",
+              "scan": 2772,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16192,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 228,
+              "scope": "full",
+              "scan": 2760,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16193,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 227,
+              "scope": "full",
+              "scan": 2748,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16194,
+              "ordinal": 0,
+              "base": "A",
+              "state": "reference",
+              "call": 226,
+              "scope": "full",
+              "scan": 2736,
+              "quality": 48,
+              "second": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "first": {
+        "position": 73,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 73,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "G",
+      "calls": [
+        "73G"
+      ],
+      "labels": [
+        {
+          "label": "one_read",
+          "read": "A12_HV2F_03"
+        },
+        {
+          "label": "one_strand",
+          "strand": "forward",
+          "reads": [
+            "A12_HV2F_03"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "read": "A12_HV2F_03",
+          "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 73,
+              "ordinal": 0,
+              "base": "G",
+              "state": "alternate",
+              "call": 33,
+              "scope": "base",
+              "scan": 420,
+              "quality": 48,
+              "second": {
+                "base": "A",
+                "share": 0.031
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "first": {
+        "position": 303,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 315,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "CCCCCCCCTCCCCCC",
+      "calls": [
+        "309.1C",
+        "315.1C"
+      ],
+      "labels": [
+        {
+          "label": "phase_shift",
+          "read": "A12_HV3R_03",
+          "from": 315
+        }
+      ],
+      "evidence": [
+        {
+          "read": "A12_HV2F_03",
+          "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 303,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 263,
+              "scope": "full",
+              "scan": 3180,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 304,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 264,
+              "scope": "full",
+              "scan": 3192,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 305,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 265,
+              "scope": "full",
+              "scan": 3204,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 306,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 266,
+              "scope": "full",
+              "scan": 3216,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 307,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 267,
+              "scope": "full",
+              "scan": 3228,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 308,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 268,
+              "scope": "full",
+              "scan": 3240,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 309,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 269,
+              "scope": "full",
+              "scan": 3252,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 310,
+              "ordinal": 0,
+              "base": "T",
+              "state": "reference",
+              "call": 271,
+              "scope": "full",
+              "scan": 3276,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 311,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 272,
+              "scope": "full",
+              "scan": 3288,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 312,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 273,
+              "scope": "full",
+              "scan": 3300,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 313,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 274,
+              "scope": "full",
+              "scan": 3312,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 314,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 275,
+              "scope": "full",
+              "scan": 3324,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 315,
+              "ordinal": 0,
+              "base": "C",
+              "state": "reference",
+              "call": 276,
+              "scope": "full",
+              "scan": 3336,
+              "quality": 48,
+              "second": null
+            }
+          ]
+        },
+        {
+          "read": "A12_HV3R_03",
+          "sha256": "a6c0b613f1fe0bf2798d4fa2d6b0772993f3c3484fd5e8a1799a47757a64536f",
+          "strand": "reverse",
+          "positions": [
+            {
+              "position": 303,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 299,
+              "scope": "full",
+              "scan": 3612,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 304,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 298,
+              "scope": "full",
+              "scan": 3600,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 305,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 297,
+              "scope": "full",
+              "scan": 3588,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 306,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 296,
+              "scope": "full",
+              "scan": 3576,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 307,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 295,
+              "scope": "full",
+              "scan": 3564,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 308,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 294,
+              "scope": "full",
+              "scan": 3552,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 309,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 293,
+              "scope": "full",
+              "scan": 3540,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 310,
+              "ordinal": 0,
+              "base": "T",
+              "state": "masked",
+              "call": 291,
+              "scope": "full",
+              "scan": 3516,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 311,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 290,
+              "scope": "full",
+              "scan": 3504,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 312,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 289,
+              "scope": "full",
+              "scan": 3492,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 313,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 288,
+              "scope": "full",
+              "scan": 3480,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 314,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 287,
+              "scope": "full",
+              "scan": 3468,
+              "quality": 9,
+              "second": null
+            },
+            {
+              "position": 315,
+              "ordinal": 0,
+              "base": "C",
+              "state": "masked",
+              "call": 286,
+              "scope": "full",
+              "scan": 3456,
+              "quality": 9,
+              "second": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "first": {
+        "position": 16024,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16030,
+        "ordinal": 0
+      },
+      "kind": "check",
+      "decision": "not_callable",
+      "sequence": null,
+      "calls": [],
+      "labels": [
+        {
+          "label": "not_covered"
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "first": {
+        "position": 263,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 263,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "G",
+      "calls": [
+        "263G"
+      ],
+      "labels": [],
+      "evidence": [
+        {
+          "read": "A12_HV2F_03",
+          "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 263,
+              "ordinal": 0,
+              "base": "G",
+              "state": "alternate",
+              "call": 223,
+              "scope": "full",
+              "scan": 2700,
+              "quality": 48,
+              "second": null
+            }
+          ]
+        },
+        {
+          "read": "A12_HV3R_03",
+          "sha256": "a6c0b613f1fe0bf2798d4fa2d6b0772993f3c3484fd5e8a1799a47757a64536f",
+          "strand": "reverse",
+          "positions": [
+            {
+              "position": 263,
+              "ordinal": 0,
+              "base": "G",
+              "state": "alternate",
+              "call": 339,
+              "scope": "full",
+              "scan": 4092,
+              "quality": 48,
+              "second": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "first": {
+        "position": 16129,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16130,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "AG",
+      "calls": [
+        "16129A"
+      ],
+      "labels": [],
+      "evidence": [
+        {
+          "read": "A12_HV1F_03",
+          "sha256": "09cf6d52e58d28df5bc54a842ff3600fbe26bb6c87ef8fdc7ec3f4d0daaba202",
+          "strand": "forward",
+          "positions": [
+            {
+              "position": 16129,
+              "ordinal": 0,
+              "base": "A",
+              "state": "alternate",
+              "call": 100,
+              "scope": "full",
+              "scan": 1224,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16130,
+              "ordinal": 0,
+              "base": "G",
+              "state": "reference",
+              "call": 101,
+              "scope": "full",
+              "scan": 1236,
+              "quality": 48,
+              "second": null
+            }
+          ]
+        },
+        {
+          "read": "A12_HV1R_03",
+          "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
+          "strand": "reverse",
+          "positions": [
+            {
+              "position": 16129,
+              "ordinal": 0,
+              "base": "A",
+              "state": "alternate",
+              "call": 291,
+              "scope": "full",
+              "scan": 3516,
+              "quality": 48,
+              "second": null
+            },
+            {
+              "position": 16130,
+              "ordinal": 0,
+              "base": "G",
+              "state": "reference",
+              "call": 290,
+              "scope": "full",
+              "scan": 3504,
+              "quality": 48,
+              "second": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "items": 8,
+    "checks": 4,
+    "variants": 4,
+    "labels": {
+      "strands_disagree": 1,
+      "possible_heteroplasmy": 1,
+      "estimated_length": 1,
+      "undecided": 0,
+      "one_read": 2,
+      "one_strand": 2,
+      "noisy_signal": 0,
+      "not_covered": 1,
+      "phase_shift": 2,
+      "read_edge": 0
+    },
+    "clear": false
+  }
+}

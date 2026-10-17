@@ -6,6 +6,8 @@
 //! one or more consensus-sequence FASTA files and runs the core caller alone.
 //! The notation command accepts one sample identifier plus that sample's
 //! variants document and derives its notation with the post-calling plugins.
+//! The review command takes the sample command's arguments and lists the
+//! positions a reviewer should look at.
 //! Configuration is selected by `DNA_CONFIG`.
 
 use std::path::PathBuf;
@@ -37,6 +39,8 @@ pub enum Command {
     Sample(SampleArgs),
     /// Adjudicate a sample's AB1 traces into a consensus sequence.
     Consensus(SampleArgs),
+    /// List the positions of a sample a reviewer should look at, with their evidence.
+    Review(SampleArgs),
     /// Call variants from reviewed consensus sequences with the core alone.
     Call(CallArgs),
     /// Derive notation and conformance findings from a variants document.

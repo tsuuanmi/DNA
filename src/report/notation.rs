@@ -143,21 +143,26 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
         },
         notation,
         conformance,
-        empop: empop.map(|export| EmpopResult {
-            ranges_text: export.ranges_text(),
-            mitotype: export.mitotype_text(),
-            ranges: export.ranges,
-            cut: export
-                .cut
-                .into_iter()
-                .map(|cut| CutResult {
-                    start: cut.start,
-                    end: cut.end,
-                    reason: cut.reason.label(),
-                })
-                .collect(),
-        }),
+        empop: empop.map(project_empop),
     })
+}
+
+/// Projects an EMPOP query as `notation/v1` and `review/v1` publish it.
+pub(super) fn project_empop(export: Export) -> EmpopResult {
+    EmpopResult {
+        ranges_text: export.ranges_text(),
+        mitotype: export.mitotype_text(),
+        ranges: export.ranges,
+        cut: export
+            .cut
+            .into_iter()
+            .map(|cut| CutResult {
+                start: cut.start,
+                end: cut.end,
+                reason: cut.reason.label(),
+            })
+            .collect(),
+    }
 }
 
 /// Renders each read's represented calls and lists, per distinct call, the reads

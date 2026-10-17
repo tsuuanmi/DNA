@@ -16,9 +16,11 @@ FASTA reference ─────────────────────�
 consensus FASTA + TOML ──► input::sequence ──► ReadEvidence ──► alignment ─► variant_calling ──► CalledRead ──► variants/v1
 
 variants/v1 + TOML + FASTA ──► input::variants ──► normalization ─► nomenclature ─► conformance ──► notation/v1
+
+AB1s + TOML + FASTA ──► sample placement pass ──► consensus ──► SampleAnalysis::call ──► review list ──► review/v1
 ```
 
-`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_core::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. Each
+`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_core::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. `review` runs the sample placement pass and the consensus as `consensus` does, calls the consensus in process (below), and lists the positions a reviewer should look at with their evidence labels ([review list](../reference/review.md)). Each
 stage consumes the validated output of the previous stage and produces a new
 typed result; no stage mutates shared state.
 
@@ -79,7 +81,7 @@ The read has already located itself at this boundary. Its orientation and covere
 
 ## Sample placement pass
 
-`sample`, `consensus`, and the public `sample_analysis::analyze_sanger` share one
+`sample`, `consensus`, `review`, and the public `sample_analysis::analyze_sanger` share one
 pass over a sample's traces (`sample_analysis::reads::place`). Each trace runs
 the one-read path once and becomes an admitted `ReadObservation` or a rejected
 read (SRS-SAMPLE-027, SRS-SAMPLE-029, SRS-SAMPLE-030). Aggregation into the sample evidence and
@@ -121,9 +123,25 @@ FASTA text keeps record names and sequence identities equal to those of the
 two commands. It is implemented in `pipeline`, beside the commands it composes,
 as an inherent method of `SampleAnalysis`.
 
+## Review list
+
+`review` builds one `dna.review/v1` per sample (SRS-API-014). It loads the
+inputs once, runs the placement pass under the operation log like `consensus`
+(`sample_analysis::analyze`, the body of `analyze_sanger_outcome`), and when a
+read is admitted calls the consensus with `SampleAnalysis::call`. A sample
+whose reads are all rejected, or whose call fails, still gets its document
+with that status. `report::review` then derives the items and their labels
+from the analysis alone: the consensus sites, every read's observations
+(`SampleAnalysis::observations`) and the core's trust in each call
+(`SampleAnalysis::trust`), the Sanger scan position and relative quality of
+each call, and the call's notation, callable ranges, and EMPOP query. It
+never reads a truth, and it changes no call. The rules and their thresholds
+are in the [review reference](../reference/review.md); their version is the
+`review` plugin version.
+
 ## Output boundary
 
-Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, `dna.sample_evidence/v10`, `dna.variants/v1`, and `dna.notation/v1`, including schemas, examples, coordinate semantics, and publication-visible fields.
+Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, `dna.sample_evidence/v10`, `dna.variants/v1`, `dna.notation/v1`, `dna.consensus/v1`, and `dna.review/v1`, including schemas, examples, coordinate semantics, and publication-visible fields.
 
 ## Interpretation boundary
 

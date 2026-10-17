@@ -1,0 +1,210 @@
+# DNA Review JSON
+
+`dna review <sample-id> <trace>... --reference <reference.fasta>` writes one
+deterministic document, `results/<sample-id>.review.json`, identified as
+`dna.review/v1` (SRS-API-014, [PROP-0004](../proposals/0004-review-triage.md)).
+It lists the positions of one sample a reviewer should look at, each with the
+evidence labels that make it quick to settle. It never states the reviewer's
+conclusion.
+
+The authoritative schema is
+[`schemas/review-v1.schema.json`](schemas/review-v1.schema.json); the
+synthetic example is
+[`examples/review-v1.example.json`](examples/review-v1.example.json).
+
+## Command
+
+The command runs the in-process path of SRS-API-012 once per sample: the
+sample placement pass, the consensus, and `SampleAnalysis::call` (the
+consensus's decided edits, then the notation and the EMPOP query the profile
+declares). Traces, reference, and configuration (`DNA_CONFIG`) are read as by
+[`dna consensus`](consensus.md), and reads are rejected the same way. The
+operation log is `logs/<sample-id>.log`.
+
+Every sample gets a document. `status` says how far it got:
+
+- `called`: the analysis and the call succeeded;
+- `rejected`: every read was rejected; the document lists the reads with their
+  causes and has no items;
+- `call_failed`: the analysis succeeded but the call failed; `error` carries
+  the failure text, and the items are those of the consensus and the reads,
+  without calls.
+
+An unreadable input, an invalid configuration, or an existing target still
+fails the command without output.
+
+## Fields
+
+- `schema_version`, `sample_id`, `status`, and `error` (only for
+  `call_failed`).
+- `provenance`:
+  - the reference `name`, `topology`, and sequence `sha256`;
+  - `configuration_sha256` and the target `profile`;
+  - `plugins`: `sanger`, `core`, `consensus`, `decided`, then
+    `normalization` and `nomenclature` when the profile declares notation,
+    `empop` when it also declares `[empop]`, and `review`;
+  - `rules`: the version of the labelling rules below, equal to the `review`
+    plugin version. `clear` depends on it.
+- `reads`: the admitted reads in the sample's read order (content SHA-256),
+  each with `name` (the trace stem), `sha256`, `strand` (`forward` or
+  `reverse`, its placement), and `admitted: true`; then the rejected reads
+  with `name`, `sha256`, `admitted: false`, and `rejection` as in
+  [`dna.consensus/v1`](consensus.md).
+- `calls` (`called`, under a profile that declares notation): the sample's
+  calls in the profile notation, distinct and in reference order, as
+  `SampleAnalysis::call` gives them: `call` (`309.1C`), `position`,
+  insertion `ordinal`, `reference` (`null` for an inserted base), `alternate`
+  (`null` for a deleted base), and the `convention` that labels it, when one
+  does ([notation](notation.md)).
+- `callable` (`called`): the call's callable reference segments, merged where
+  they overlap or touch, as 1-based inclusive `start`/`end` ranges.
+- `empop` (`called`, when the profile declares `[empop]`): the EMPOP query,
+  as in [`dna.notation/v1`](notation.md#empop-query).
+- `items`: the review items, in priority order (below).
+- `summary`:
+  - `items`, `checks`, `variants`: item counts;
+  - `labels`: for every label, the number of items carrying it, zeros
+    included, in the label order below;
+  - `clear`: `status` is `called` and no item is a `check`.
+
+## Items
+
+An item is one consensus site, or one position or run of positions outside
+every site, inside the profile's reportable regions (a site is clipped to
+them). It has:
+
+- `first`, `last`: its first and last reference columns, each a `position`
+  and an insertion `ordinal` (`309.1` is `309`/`1`). In version 1 both
+  ordinals are `0`, and an item holds the insertions after its last position
+  (`315.1C` in `303`–`315`).
+- `kind`: `check` when a label leaves the item unassured
+  (`strands_disagree`, `possible_heteroplasmy`, `estimated_length`,
+  `undecided`, `not_covered`), whatever its calls; otherwise `variant` (it
+  has calls). The read labels `one_read`, `one_strand`, `noisy_signal`,
+  `read_edge`, and `phase_shift` are context and do not make a check.
+- `decision`: `called` (decided, and every position callable),
+  `partly_callable`, or `not_callable` (no position callable).
+- `sequence`: the decided sequence: a site's call (`N` where undecided, empty
+  when every position is deleted), or the reference base of a position the
+  consensus decided outside every site; `null` when nothing was decided.
+- `calls`: the texts of the `calls` whose position lies in
+  `first.position`..`last.position`.
+- `labels`: the evidence labels, ordered by rank, then name, then position or
+  read.
+- `evidence`: for every admitted read that covers a position of the item, in
+  read order: `read`, `sha256`, `strand`, and `positions`, one per covered
+  reference position in order:
+  - `position`, `ordinal` (`0`);
+  - `base`: the read's base on the reference strand, `-` for a deletion, `N`
+    when unresolved;
+  - `state`: `reference`, `alternate`, `deletion`, `unresolved`, or `masked`,
+    as in [sample evidence](sample-evidence/README.md);
+  - `call`: the read's 0-based call index (`null` for a deletion);
+  - `scope`: how far the core trusts that call (`SampleAnalysis::trust`):
+    `full`, or `base` for a leading call the modality rescued, which shows
+    its base only and no run length, end, or indel (`null` for a deletion);
+  - `scan`: the trace scan position of that call, so a viewer can jump to the
+    peak (`null` for a deletion);
+  - `quality`: the call's relative quality score (`null` for a deletion);
+  - `second`: the strongest profile channel other than the read's base, with
+    its `share` rounded to three decimals; `null` without a profile or for an
+    unresolved base.
+
+Items come from three sources:
+
+1. **Sites.** Every consensus site ([consensus](consensus.md)). A site with no
+   call and no label that leaves it unassured is DNA's own decision and is not
+   an item.
+2. **Second bases.** Every callable position outside every site where
+   `possible_heteroplasmy` fires: a one-position item.
+3. **Gaps.** Every maximal run of positions outside every site that is not
+   callable: `not_covered` when no admitted read's reference segments cover
+   any of it, otherwise `undecided` plus the labels of its covering reads.
+   For `call_failed`, the admitted reads' callable reference segments stand
+   in for `callable`.
+
+A call that no such item holds (for example one the notation moved out of its
+site) is a one-position item of its own.
+
+### Priority
+
+Each label has a rank; an item's priority is the lowest rank of its labels,
+and `5` for a variant without a label. Items are ordered by priority, then
+`first` (position, then ordinal), then `last`.
+
+| Rank | Labels |
+|---:|---|
+| 0 | `strands_disagree` |
+| 1 | `possible_heteroplasmy` |
+| 2 | `estimated_length`, `undecided` |
+| 3 | `one_read`, `one_strand` |
+| 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
+
+## Labels (rules version 1)
+
+Every label is computed from DNA's own evidence, never from a truth. A read's
+strand is its placement orientation. A read's call is judged with the core's
+trust in it (`SampleAnalysis::trust`): its mask, whether it is trusted
+(informative and outside the read-end margin), and whether the bounded-run
+exemption lifts the margin (ADR-0076).
+
+- `strands_disagree` `{reads: [{read, strand, role}]}`: the site has
+  supporting and opposing reads, and a supporting read lies on another strand
+  than an opposing one. Lists the supporting, then the opposing reads.
+- `possible_heteroplasmy` `{position, base, reads: [{read, strand, share}]}`:
+  at one position, a read reads it cleanly when its observation is
+  `reference` or `alternate`, its call is unmasked and trusted or exempt, and
+  it has a profile. Its second base is the strongest profile channel other
+  than its call, and the share that channel's weight. It qualifies when the
+  share is at least `0.15` and the second base is not the base the same read
+  shows at the previous or next reference position (a neighbour shadow). The
+  label fires when both strands read the position cleanly and a qualifying
+  read on each strand shows the same second base, or when only one strand
+  reads it cleanly and one read qualifies. The base most qualifying reads show
+  is reported (then A/C/G/T order), with each of them and its share.
+- `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
+  runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
+  not callable.
+- `undecided`: the site is `unresolved`, `contested` without a call, or its
+  call holds an `N`; or a gap is covered but not callable.
+- `one_read` `{read}`: a variant site with exactly one supporting read.
+- `one_strand` `{strand, reads}`: a variant site whose supporting reads all
+  lie on one strand.
+- For every admitted read covering a position of the item whose call there is
+  not clean, one label per label and read:
+  - `phase_shift` `{read, from}`: the call is masked but still anchors the
+    alignment; `from` is the first reference position of the read's masked
+    stretch that reaches the item, walking back in the read's own direction;
+  - `noisy_signal` `{read, reason}`: the call is masked otherwise; `reason`
+    is the modality's mask reason, verbatim;
+  - `read_edge` `{read}`: the call is unmasked but neither trusted nor exempt:
+    it lies inside the read-end margin of a read end, an untrimmed call, or a
+    masked call.
+- `not_covered`: no admitted read covers the gap.
+
+`phase_shift` and `noisy_signal` read the core's view of the modality's masks;
+their counts may move when the modality's per-call verdicts carry their own
+reasons ([PROP-0008](../proposals/0008-pipeline-responsibilities.md)).
+
+## Not in version 1
+
+- Inserted calls, which have no reference position, are not listed in
+  `evidence`; their item's `sequence` and `calls` carry them.
+- Watched positions, which a profile declares for every sample
+  ([PROP-0004](../proposals/0004-review-triage.md#review-list-canonical-output)),
+  come in a later revision with the raw signal they need.
+
+## Determinism
+
+The same traces, reference, configuration, and DNA version give a
+byte-identical document, whatever the number of workers. Reads follow content
+order, items the priority order above, labels their own order, and evidence
+reference order. Shares are rounded to three decimals. Thresholds are fixed:
+`0.15` (`>=`) for the second-base share.
+
+## Schema
+
+The schema reuses `dna.notation/v1` (reference, profile, plugins, call text,
+convention, EMPOP query) and `dna.consensus/v1` (read rejection, run) by their
+`$id`, so a validator must register those schemas too;
+`tools/python/scripts/validate_result_schemas.py` does.

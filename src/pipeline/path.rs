@@ -71,6 +71,13 @@ pub(super) fn notation_output(sample_id: &str) -> Result<PathBuf> {
     Ok(output)
 }
 
+/// Returns and validates the deterministic CLI publication path for the review list.
+pub(super) fn review_output(sample_id: &str) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{sample_id}.review.json"));
+    validate_output(&output)?;
+    Ok(output)
+}
+
 /// Returns the validated UTF-8 trace stem shared by result and log paths.
 pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
     trace

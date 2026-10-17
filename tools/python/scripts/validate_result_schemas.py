@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, sample-evidence, variants, notation, and consensus result contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, and review result contracts."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
+from referencing import Registry, Resource
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "docs" / "reference"
@@ -25,15 +26,51 @@ NOTATION_SCHEMA = CONTRACTS / "schemas" / "notation-v1.schema.json"
 NOTATION_EXAMPLE = CONTRACTS / "examples" / "notation-v1.example.json"
 CONSENSUS_SCHEMA = CONTRACTS / "schemas" / "consensus-v1.schema.json"
 CONSENSUS_EXAMPLE = CONTRACTS / "examples" / "consensus-v1.example.json"
+REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
+REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
+# Review labels that leave an item unassured, so that it is a check.
+REVIEW_UNASSURED = frozenset(
+    {
+        "strands_disagree",
+        "possible_heteroplasmy",
+        "estimated_length",
+        "undecided",
+        "not_covered",
+    }
+)
+# Review labels by rank, in the summary's key order (PROP-0004).
+REVIEW_LABELS = {
+    "strands_disagree": 0,
+    "possible_heteroplasmy": 1,
+    "estimated_length": 2,
+    "undecided": 2,
+    "one_read": 3,
+    "one_strand": 3,
+    "noisy_signal": 4,
+    "not_covered": 4,
+    "phase_shift": 4,
+    "read_edge": 4,
+}
+# Priority of a variant item without a label.
+UNLABELLED = 5
 
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def schema_registry() -> Registry[Any]:
+    """Every result schema by its `$id`, so a schema can reuse another's definitions."""
+    resources = []
+    for path in sorted((CONTRACTS / "schemas").glob("*.schema.json")):
+        schema = load_json(path)
+        resources.append((schema["$id"], Resource.from_contents(schema)))
+    return Registry().with_resources(resources)
+
+
 def validator(path: Path, errors: list[str]) -> Draft202012Validator:
     schema = load_json(path)
-    built = Draft202012Validator(schema)
+    built = Draft202012Validator(schema, registry=schema_registry())
     try:
         built.check_schema(schema)
     except SchemaError as exc:
@@ -984,6 +1021,96 @@ def rejected_consensus_shapes(
     ]
 
 
+def validate_review(document: Any, label: str, errors: list[str]) -> None:
+    """Check a review document's item order, kinds, and summary counts."""
+    if not isinstance(document, dict):
+        return
+    items = document.get("items")
+    summary = document.get("summary")
+    if not isinstance(items, list) or not isinstance(summary, dict):
+        return
+    previous: tuple[int, int, int] | None = None
+    counts = dict.fromkeys(REVIEW_LABELS, 0)
+    checks = 0
+    for index, item in enumerate(items):
+        names = {entry.get("label") for entry in item.get("labels", [])}
+        priority = min(
+            (REVIEW_LABELS[name] for name in names if name in REVIEW_LABELS),
+            default=UNLABELLED,
+        )
+        first = item.get("first", {})
+        order = (priority, first.get("position", 0), first.get("ordinal", 0))
+        if previous is not None and order < previous:
+            errors.append(f"{label}: item {index} is out of priority order")
+        previous = order
+        unassured = bool(names & REVIEW_UNASSURED)
+        kind = "variant" if item.get("calls") and not unassured else "check"
+        if item.get("kind") != kind:
+            errors.append(
+                f"{label}: item {index} kind disagrees with its calls and labels"
+            )
+        if kind == "check":
+            checks += 1
+            if not names:
+                errors.append(f"{label}: check item {index} has no label")
+        for name in names:
+            if name in counts:
+                counts[name] += 1
+    if summary.get("items") != len(items) or summary.get("checks") != checks:
+        errors.append(f"{label}: summary item counts disagree with the items")
+    if summary.get("variants") != len(items) - checks:
+        errors.append(f"{label}: summary variant count disagrees with the items")
+    if summary.get("labels") != counts:
+        errors.append(f"{label}: summary label counts disagree with the items")
+    clear = document.get("status") == "called" and checks == 0
+    if summary.get("clear") != clear:
+        errors.append(f"{label}: summary clear disagrees with the status and checks")
+
+
+def rejected_review_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    unknown_label = copy.deepcopy(example)
+    unknown_label["items"][0]["labels"].append({"label": "watched"})
+    failed_without_error = copy.deepcopy(example)
+    failed_without_error["status"] = "call_failed"
+    for key in ("calls", "callable", "empop"):
+        failed_without_error.pop(key)
+    called_with_error = copy.deepcopy(example)
+    called_with_error["error"] = "the consensus has no segment"
+    rejected_with_items = copy.deepcopy(example)
+    rejected_with_items["status"] = "rejected"
+    for key in ("calls", "callable", "empop"):
+        rejected_with_items.pop(key)
+    missing_count = copy.deepcopy(example)
+    missing_count["summary"]["labels"].pop("read_edge")
+    inserted_evidence = copy.deepcopy(example)
+    inserted_evidence["items"][0]["evidence"][0]["positions"][0]["ordinal"] = 1
+    low_share = copy.deepcopy(example)
+    for item in low_share["items"]:
+        for entry in item["labels"]:
+            if entry["label"] == "possible_heteroplasmy":
+                entry["reads"][0]["share"] = 0.1
+    observed_length = copy.deepcopy(example)
+    for item in observed_length["items"]:
+        for entry in item["labels"]:
+            if entry["label"] == "estimated_length":
+                entry["runs"][0]["length_evidence"] = "in_phase"
+    no_rules = copy.deepcopy(example)
+    no_rules["provenance"].pop("rules")
+    return [
+        ("review label outside the rules", unknown_label),
+        ("failed review call without its error", failed_without_error),
+        ("called review with an error", called_with_error),
+        ("rejected review with items", rejected_with_items),
+        ("review summary without a label count", missing_count),
+        ("review evidence at an inserted column", inserted_evidence),
+        ("possible heteroplasmy below its share", low_share),
+        ("estimated length that a read shows", observed_length),
+        ("review without its rules version", no_rules),
+    ]
+
+
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1034,6 +1161,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="consensus result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--review",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="review result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
 
 
@@ -1046,18 +1181,23 @@ def main(argv: list[str] | None = None) -> int:
     variants_validator = validator(VARIANTS_SCHEMA, errors)
     notation_validator = validator(NOTATION_SCHEMA, errors)
     consensus_validator = validator(CONSENSUS_SCHEMA, errors)
+    review_validator = validator(REVIEW_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
     variants_paths = args.variants or [VARIANTS_EXAMPLE]
     notation_paths = args.notation or [NOTATION_EXAMPLE]
     consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
+    review_paths = args.review or [REVIEW_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
     validate_documents(variants_validator, variants_paths, errors)
     validate_documents(notation_validator, notation_paths, errors)
     validate_documents(consensus_validator, consensus_paths, errors)
+    validate_documents(review_validator, review_paths, errors)
+    for path in review_paths:
+        validate_review(load_json(path), str(path), errors)
     for path in consensus_paths:
         document = load_json(path)
         if isinstance(document, dict):
@@ -1266,6 +1406,15 @@ def main(argv: list[str] | None = None) -> int:
     assert_rejected(notation_validator, rejected_notation, errors)
     rejected_consensus = rejected_consensus_shapes(load_json(CONSENSUS_EXAMPLE))
     assert_rejected(consensus_validator, rejected_consensus, errors)
+    review_example = load_json(REVIEW_EXAMPLE)
+    rejected_review = rejected_review_shapes(review_example)
+    assert_rejected(review_validator, rejected_review, errors)
+    unordered_review = copy.deepcopy(review_example)
+    unordered_review["items"].reverse()
+    review_errors: list[str] = []
+    validate_review(unordered_review, "synthetic unordered review", review_errors)
+    if not review_errors:
+        errors.append("expected review items out of priority order to be rejected")
 
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
@@ -1275,10 +1424,11 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
-        f"{len(notation_paths)} notation, and {len(consensus_paths)} consensus document(s), "
+        f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, and "
+        f"{len(review_paths)} review document(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus)} "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review)} "
         "invalid shape(s)"
     )
     return 0

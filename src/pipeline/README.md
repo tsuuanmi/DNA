@@ -1,7 +1,7 @@
 # Pipeline
 
 Owns production operation orchestration for `analyze`, `basecall`, `sample`,
-`consensus`, `call`, and `notation`, and the in-process sample call.
+`consensus`, `review`, `call`, and `notation`, and the in-process sample call.
 
 Pipeline entry points accept operation values such as trace/reference paths,
 sample identifiers, and an explicit configuration path rather than CLI/`clap`
@@ -27,6 +27,11 @@ many workers as the available parallelism, which `mod.rs` reads once per
 process.
 `consensus.rs` then builds the consensus and publishes `dna.consensus/v1` with
 its FASTA.
+`review.rs` runs the same pass through `sample_analysis::analyze` under the
+operation log, calls the consensus with `SampleAnalysis::call` when a read is
+admitted, and publishes `dna.review/v1` for every sample: called, every read
+rejected, or the call failed. `plugins.rs` composes its workflow by the
+post-calling plugins the profile declares.
 `sample_call.rs` implements the public `SampleAnalysis::call`: it names an
 analysis's consensus segments as the consensus FASTA does and runs the
 scientific step of `call.rs` for a consensus document (`call_consensus`, which

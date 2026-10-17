@@ -26,7 +26,8 @@ each covered position of an interval as the core records it at a differential
 locus (`dna_core::sample::observations`),
 returns the rejected
 reads instead of an error when none is admitted (`analyze_sanger_outcome`, which
-`analyze_sanger` wraps), and defines the
+`analyze_sanger` wraps; its body over loaded inputs, `analyze`, also serves the
+`review` operation with the operation log as the read scope), and defines the
 public `ConsensusCall` and `NotationCall` types of `SampleAnalysis::call`, which
 `pipeline` implements because it composes the `consensus` report and the `call`
 pipeline.

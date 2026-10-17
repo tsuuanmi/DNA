@@ -6,14 +6,17 @@ deterministic JSON serialization, and atomic no-overwrite publication.
 Key children separate analysis, basecall, sample, signal, variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
 publication concerns. Every document's provenance records the workflow's
-plugins; analysis, sample, variants, and notation provenance also record the
-target-profile identity.
+plugins; analysis, sample, variants, notation, consensus, and review provenance
+also record the target-profile identity.
 
 Core records carry no Sanger evidence
 ([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 `call.rs` projects core-only calls into `dna.variants/v1`, `consensus.rs`
 projects a sample consensus into `dna.consensus/v1` and its FASTA (also
 rendered from the consensus alone, with the same record names),
+`review.rs` derives a sample's review items and labels from its analysis
+and call (rules version 1, the `review` plugin it declares) and projects
+`dna.review/v1`,
 and `notation.rs` renders the per-read notation once (`calls`, with each call's
 reference and called base and the reads containing it) and projects it for sample,
 call, and notation documents and builds `dna.notation/v1`. `sanger_call.rs` joins a call's reference-strand peaks and
@@ -21,7 +24,9 @@ relative quality, and
 `sample.rs` joins each read's Sanger attachment (integrity, callability,
 quality, noisy regions) by read identity and call index.
 
-Scientific decisions remain upstream.
+Scientific decisions remain upstream: the review rules label evidence the
+analysis and the call already hold, read the Sanger attachment only for each
+call's scan position and relative quality, and change no call.
 
 See [contracts](../../docs/reference/README.md),
 [output requirements](../../docs/requirements/output.md), and

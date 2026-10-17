@@ -4,7 +4,7 @@ type: proposal
 status: accepted
 owners: []
 created: 2026-10-14
-related-requirements: [SRS-CALL-005, SRS-CALL-009, SRS-SAMPLE-029, SRS-CONS-001]
+related-requirements: [SRS-CALL-005, SRS-CALL-009, SRS-SAMPLE-029, SRS-CONS-001, SRS-API-014]
 related-decisions: [ADR-0018, ADR-0019, ADR-0065, ADR-0067, ADR-0068, ADR-0073, ADR-0074]
 implementation: []
 ---
@@ -829,6 +829,15 @@ Not yet reviewed.
 
 ## Implementation
 
-None in DNA. Phase 0 is measured with draft detectors in the evaluation
-harness (`dna-eval run --triage`); they are research and not rules of this
-system.
+- **Review list, version 1.** `dna review` and `dna.review/v1` (SRS-API-014,
+  [review reference](../reference/review.md)), the post-calling plugin
+  `review` 1 (rules version 1). Every label of the table above except
+  `watched` is implemented; `phase_shift` and `noisy_signal` read the core's
+  view of the masks until PROP-0008 step 4, and `possible_heteroplasmy` reads
+  each read's A/C/G/T profile through the core's observations.
+- **Pending.** Watched positions (a later revision of the document, with the
+  raw signal they need from the modality), inserted calls in the evidence, and
+  the validation plan's recall, burden, and label-precision measurements.
+- **Not in DNA.** Phase 0 is measured with draft detectors in the evaluation
+  harness (`dna-eval run --triage`); they are research and not rules of this
+  system. Pass, review, and rerun outcomes are not implemented.
