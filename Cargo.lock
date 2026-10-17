@@ -266,8 +266,9 @@ dependencies = [
  "chrono",
  "clap",
  "dna-core",
+ "dna-empop",
  "dna-kernel",
- "dna-post",
+ "dna-normalize",
  "dna-sanger",
  "noodles-fasta",
  "predicates",
@@ -292,6 +293,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "dna-empop"
+version = "0.1.0"
+dependencies = [
+ "dna-kernel",
+]
+
+[[package]]
 name = "dna-eval"
 version = "0.1.0"
 dependencies = [
@@ -299,7 +307,7 @@ dependencies = [
  "dna",
  "dna-core",
  "dna-kernel",
- "dna-post",
+ "dna-normalize",
  "dna-sanger",
  "rusqlite",
  "serde",
@@ -323,7 +331,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dna-post"
+name = "dna-normalize"
 version = "0.1.0"
 dependencies = [
  "dna-kernel",

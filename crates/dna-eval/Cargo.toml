@@ -22,7 +22,7 @@ thiserror.workspace = true
 toml.workspace = true
 
 [dev-dependencies]
-dna-post.workspace = true
+dna-normalize.workspace = true
 tempfile.workspace = true
 
 [lints]

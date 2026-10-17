@@ -8,8 +8,8 @@ use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedNotation, NamedRead};
+use dna_empop::conformance;
 use dna_kernel::error::{Result, VariantsError};
-use dna_post::conformance;
 
 use super::Operation;
 use super::represent;

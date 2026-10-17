@@ -101,7 +101,7 @@ never reaches the engine.
 
 Sequence-edit conversion, whole-haplotype application, deterministic edit
 ordering, and anchored public-variant rendering are target-independent mechanics
-owned by the `variant_representation` module of `dna-post`.
+owned by the `variant_representation` module of `dna-normalize`.
 
 `variant_normalization` and `variant_nomenclature` both reuse those mechanics
 while owning separate policy and error boundaries.

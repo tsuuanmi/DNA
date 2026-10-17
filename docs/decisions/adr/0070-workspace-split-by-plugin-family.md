@@ -39,7 +39,9 @@ PROP-0002 phase 5a untangled the sources along those families in place:
      aggregation.
    - `dna-sanger` is the Sanger modality, from ABIF decoding to
      `ReadEvidence`.
-   - `dna-post` holds the post-calling plugins: representation,
+   - `dna-post` holds the post-calling plugins (split by
+     [ADR-0077](0077-normalize-and-empop-crates.md) into `dna-normalize` and
+     `dna-empop`): representation,
      normalization, nomenclature, and conformance.
    - `dna` holds the CLI, the pipelines, the configuration envelope, input
      orchestration, the consensus-sequence and variants-document adapters,

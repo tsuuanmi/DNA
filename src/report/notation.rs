@@ -14,13 +14,13 @@ use crate::model::notation_result::{
 use crate::model::result::ReferenceResult;
 use crate::model::sample_result::{SampleNotationCallResult, SampleNotationResult};
 use crate::report::json::{project_plugins, project_profile};
+use dna_empop::conformance::Finding;
 use dna_kernel::error::{ReportError, RepresentationError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::{ConformanceRule, NotationStyle, ProfileIdentity};
 use dna_kernel::variant::Variant;
-use dna_post::conformance::Finding;
-use dna_post::variant_representation::{sort_edits, variants_to_edits};
+use dna_normalize::variant_representation::{sort_edits, variants_to_edits};
 
 /// Every read's represented calls and the profile style to render them in.
 pub(crate) struct SampleNotation {

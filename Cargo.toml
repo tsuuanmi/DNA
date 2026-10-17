@@ -18,7 +18,8 @@ chrono.workspace = true
 clap.workspace = true
 dna-core.workspace = true
 dna-kernel.workspace = true
-dna-post.workspace = true
+dna-empop.workspace = true
+dna-normalize.workspace = true
 dna-sanger.workspace = true
 noodles-fasta.workspace = true
 serde.workspace = true
@@ -54,7 +55,8 @@ publish = false
 dna = { path = ".", version = "0.1.0" }
 dna-core = { path = "crates/dna-core", version = "0.1.0" }
 dna-kernel = { path = "crates/dna-kernel", version = "0.1.0" }
-dna-post = { path = "crates/dna-post", version = "0.1.0" }
+dna-empop = { path = "crates/dna-empop", version = "0.1.0" }
+dna-normalize = { path = "crates/dna-normalize", version = "0.1.0" }
 dna-sanger = { path = "crates/dna-sanger", version = "0.1.0" }
 assert_cmd = "2"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }

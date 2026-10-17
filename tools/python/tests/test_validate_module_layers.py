@@ -58,7 +58,7 @@ class CrateMapTests(unittest.TestCase):
                 "crates/dna-core/src/alignment/mod.rs": (
                     "use dna_sanger::model::basecalls::BaseCalls;\n"
                 ),
-                "crates/dna-post/src/conformance.rs": "use dna_core::read_call::call_read;\n",
+                "crates/dna-empop/src/conformance.rs": "use dna_core::read_call::call_read;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
@@ -68,7 +68,7 @@ class CrateMapTests(unittest.TestCase):
             result.stderr,
         )
         self.assertIn(
-            "post module conformance must not depend on core module read_call",
+            "empop module conformance must not depend on core module read_call",
             result.stderr,
         )
 
@@ -150,14 +150,14 @@ class CrateMapTests(unittest.TestCase):
     def test_rejects_a_plugin_depending_on_the_facade(self) -> None:
         result = self.run_map(
             {
-                "crates/dna-post/Cargo.toml": '[dependencies]\ndna = "0"\n',
-                "crates/dna-post/src/conformance.rs": "use dna::sample_call;\n",
+                "crates/dna-empop/Cargo.toml": '[dependencies]\ndna = "0"\n',
+                "crates/dna-empop/src/conformance.rs": "use dna::sample_call;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("post must not depend on dna\n", result.stderr)
+        self.assertIn("empop must not depend on dna\n", result.stderr)
         self.assertIn(
-            "post module conformance must not depend on dna module sample_call",
+            "empop module conformance must not depend on dna module sample_call",
             result.stderr,
         )
 

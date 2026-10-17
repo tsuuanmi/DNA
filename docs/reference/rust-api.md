@@ -12,7 +12,9 @@ modules, including configuration, internal models, scientific stages, and
 reporting, are private implementation detail.
 
 The workspace plugin crates (`dna-kernel`, `dna-core`, `dna-sanger`,
-`dna-post`; [ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md))
+`dna-normalize`, `dna-empop`;
+[ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),
+[ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md))
 are unpublished implementation crates, not part of this boundary. The `dna`
 facade re-exports exactly these public items from them:
 - `error` is `dna_kernel::error`;

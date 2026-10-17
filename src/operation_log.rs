@@ -45,12 +45,13 @@ use dna_kernel::error::{Error, Result};
 const DEFAULT_LOG_DIRECTORY: &str = "logs";
 /// Crates whose events form the operation log: the facade and the plugin crates
 /// it composes (ADR-0069).
-const CRATE_TARGETS: [&str; 5] = [
+const CRATE_TARGETS: [&str; 6] = [
     env!("CARGO_CRATE_NAME"),
     "dna_kernel",
     "dna_core",
     "dna_sanger",
-    "dna_post",
+    "dna_normalize",
+    "dna_empop",
 ];
 static RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 

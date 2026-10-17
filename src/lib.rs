@@ -26,14 +26,14 @@ pub mod profile {
 /// Optional haplotype-preserving representation normalization of called
 /// variants.
 pub mod variant_normalization {
-    pub use dna_post::variant_normalization::{
+    pub use dna_normalize::variant_normalization::{
         NormalizationPolicy, VariantNormalizationResult, normalize,
     };
 }
 
 /// Optional profile-driven target nomenclature of normalized variants.
 pub mod variant_nomenclature {
-    pub use dna_post::variant_nomenclature::{
+    pub use dna_normalize::variant_nomenclature::{
         NomenclatureInput, VariantNomenclatureResult, apply, from_normalization,
     };
 }
