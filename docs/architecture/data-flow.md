@@ -43,6 +43,13 @@ FASTA ------> alignment
                        sample evidence --> report joins SangerAttachment
 ```
 
+A sample's consensus document is called from its decided edits, without
+placing a segment again (ADR-0078):
+
+```text
+dna.consensus/v1 --> input::consensus --> dna_core::consensus::decided --> CalledRead --> called variants
+```
+
 Reviewed consensus sequences take a shorter path into the same core:
 
 ```text
@@ -102,6 +109,7 @@ The source-specific paths are intentionally different:
 | Source | Path to called variants |
 |---|---|
 | Sanger ABIF | chromatogram -> base calling/signal/callability/QC -> `ReadEvidence` -> core caller (implemented) |
+| consensus document (`dna.consensus/v1`) | the consensus's decided edits (implemented, `call`, `SampleAnalysis::call`) |
 | assembled/consensus FASTA | `ReadEvidence` -> core caller (implemented, `call`) |
 | FASTQ / NGS reads | read QC/preprocessing -> mapping -> NGS caller |
 | BAM / CRAM | validated aligned-read evidence -> NGS caller |

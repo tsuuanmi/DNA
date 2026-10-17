@@ -19,6 +19,12 @@ for bases, shared-weight profiles for IUPAC codes, no masks or vetoes, and
 vouched read ends. The configuration, profile, and reference loaders in
 `mod.rs` are shared by both adapters.
 
+[`consensus.rs`](consensus.rs) reads a `dna.consensus/v1` document for `call`
+(PROP-0006): the sample, the reference identity, the segments, and the sites
+with their runs, back into the core's consensus model, under the same
+configuration, profile, and reference rules; the segments are named as the
+consensus FASTA names them.
+
 [`variants.rs`](variants.rs) reads a `dna.variants/v1` document for the
 post-calling plugins: the sample, the reference identity, and each read's
 eligible variants, under the same configuration, profile, and reference rules.

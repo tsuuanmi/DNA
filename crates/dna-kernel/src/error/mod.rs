@@ -14,6 +14,7 @@ mod basecalling;
 mod call_evidence;
 mod callability;
 mod config;
+mod consensus_document;
 mod evidence;
 mod fasta;
 mod locus;
@@ -35,6 +36,7 @@ pub use basecalling::BasecallingError;
 pub use call_evidence::CallEvidenceError;
 pub use callability::CallabilityError;
 pub use config::ConfigError;
+pub use consensus_document::ConsensusDocumentError;
 pub use evidence::EvidenceError;
 pub use fasta::FastaError;
 pub use locus::LocusWindowError;
@@ -127,6 +129,18 @@ pub enum Error {
     /// A variants document cannot be used for the requested operation.
     #[error("invalid variants document: {0}")]
     Variants(VariantsError),
+    /// Consensus-document bytes were not valid JSON of the expected shape.
+    #[error("invalid consensus document {path}: {source}")]
+    ConsensusParse {
+        /// The consensus document.
+        path: PathBuf,
+        /// Underlying JSON parse failure.
+        #[source]
+        source: ForeignError,
+    },
+    /// A consensus document cannot be called.
+    #[error("invalid consensus document: {0}")]
+    ConsensusDocument(ConsensusDocumentError),
     /// DNA-derived base re-calling failed.
     #[error("base re-calling failed: {0}")]
     Basecalling(BasecallingError),
@@ -211,6 +225,7 @@ stage_failures!(
     Fasta(FastaError),
     Sequence(SequenceError),
     Variants(VariantsError),
+    ConsensusDocument(ConsensusDocumentError),
     Basecalling(BasecallingError),
     Signal(SignalError),
     Callability(CallabilityError),

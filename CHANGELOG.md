@@ -310,6 +310,19 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `call` given a sample's consensus document (`dna call <id>
+  <id>.consensus.json`), and `SampleAnalysis::call`, report the edits the
+  consensus decided without placing its segments on the reference again
+  (PROP-0006, ADR-0078, SRS-VAR-021). Each site's call is aligned against its
+  own interval only, gaps take their 3'-most placement, the record rules
+  apply, and a length change of the run at a segment's end is excluded as
+  `run_boundary`. New plugin `decided` 1; a FASTA sequence keeps the placement
+  path. **Breaking:** SRS-API-012 now means the consensus's decided edits, and
+  the `dna.variants/v1` reads of a consensus input are its segments (revised
+  in place, unreleased). Development panel v5: `haplotype_lod` 14 samples
+  better and none worse, 8 samples that failed now call, and no EMPOP range
+  covers a position the consensus left undecided.
+
 - The evaluation harness's own measures (strict, IUPAC-compatible, and the
   haplotype measures, the approval endpoint `haplotype_lod` included) judge
   insertions and deletions at 309, 455, 463, and 573 like any other: DNA is

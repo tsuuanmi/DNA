@@ -118,11 +118,12 @@ Variants of a sample from its traces (recommended): build the consensus, then ca
 ```bash
 cargo run --release -- consensus AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
-cargo run --release -- call AB0442 results/AB0442.consensus.fasta \
+cargo run --release -- call AB0442 results/AB0442.consensus.json \
   --reference references/rCRS.fasta
 ```
 
-The consensus adjudicates between the reads, and `call` names its variants in
+The consensus adjudicates between the reads, and `call` reports exactly the
+edits it decided, without placing the segments again, in
 `results/AB0442.variants.json`. `sample` remains the per-read evidence for
 review; its notation is the union of the reads' calls, not a decision
 ([workflow](docs/reference/consensus.md#workflow)).

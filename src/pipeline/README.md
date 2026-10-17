@@ -27,17 +27,19 @@ many workers as the available parallelism, which `mod.rs` reads once per
 process.
 `consensus.rs` then builds the consensus and publishes `dna.consensus/v1` with
 its FASTA.
-`sample_call.rs` implements the public `SampleAnalysis::call`: it renders an
-analysis's consensus FASTA from its segments, reads it with `call`'s record
-rules, and runs the scientific step of `call.rs` (`call_sequences`, which the
-`call` command shares) with the analysis's configuration, profile, and
-reference, without paths, logs, or publication. It lives here, not in `sample_analysis`,
+`sample_call.rs` implements the public `SampleAnalysis::call`: it names an
+analysis's consensus segments as the consensus FASTA does and runs the
+scientific step of `call.rs` for a consensus document (`call_consensus`, which
+the `call` command shares: the consensus's decided edits, SRS-VAR-021) with the
+analysis's configuration, profile, and reference, without paths, logs, or
+publication. It lives here, not in `sample_analysis`,
 because it composes `report` and the `call` pipeline, which depend on
 `sample_analysis`.
 `notation.rs` runs the post-calling plugins over one variants document:
 representation, conformance, the EMPOP query, and `dna.notation/v1`; `sample_call.rs`
-builds the same query in process. `call.rs` runs the core
-alone over reviewed consensus sequences: the sequence
+builds the same query in process. `call.rs` runs `call`: over a consensus document, the consensus's decided
+edits (`call_consensus`); over reviewed consensus sequences, the core
+alone: the sequence
 adapter, `read_call`, optional notation, and `dna.variants/v1`.
 `sample.rs` splits every read into its `CalledRead`, which the neutral `sample`
 aggregation consumes, and its Sanger attachment, which `sample_metrics.rs` and

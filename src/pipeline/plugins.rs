@@ -3,6 +3,7 @@
 
 use crate::input::sequence::PLUGIN as SEQUENCE;
 use dna_core::consensus::PLUGIN as CONSENSUS_PLUGIN;
+use dna_core::consensus::decided::PLUGIN as DECIDED;
 use dna_core::read_call::PLUGIN as CORE;
 use dna_empop::conformance::PLUGIN as CONFORMANCE;
 use dna_empop::export::PLUGIN as EMPOP;
@@ -17,6 +18,7 @@ const REGISTRY: &[&PluginDescriptor] = &[
     &SEQUENCE,
     &CORE,
     &CONSENSUS_PLUGIN,
+    &DECIDED,
     &NORMALIZATION,
     &NOMENCLATURE,
     &CONFORMANCE,
@@ -39,6 +41,16 @@ pub(crate) const CALL_WITH_NOTATION: &[&PluginDescriptor] = composition(
     REGISTRY,
     &[],
     &[&SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE],
+);
+/// Plugins of the `call` workflow over a consensus document, in execution order.
+pub(crate) const CALL_CONSENSUS: &[&PluginDescriptor] =
+    composition(REGISTRY, &[Contract::Consensus], &[&DECIDED]);
+/// Plugins of the `call` workflow over a consensus document with notation, in
+/// execution order.
+pub(crate) const CALL_CONSENSUS_WITH_NOTATION: &[&PluginDescriptor] = composition(
+    REGISTRY,
+    &[Contract::Consensus],
+    &[&DECIDED, &NORMALIZATION, &NOMENCLATURE],
 );
 /// Plugins of the `notation` workflow over a variants document, in execution order.
 const NOTATION: &[&PluginDescriptor] = composition(

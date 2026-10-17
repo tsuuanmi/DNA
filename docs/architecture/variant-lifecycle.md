@@ -91,6 +91,7 @@ scientific paths.
 | Input/source | Source-specific evidence path | Variant boundary |
 |---|---|---|
 | Sanger ABIF | ABIF -> chromatogram -> base calling / signal / callability / QC -> `ReadEvidence` | core caller (`dna_core::read_call`) -> `CalledVariantSet` |
+| consensus document (`dna.consensus/v1`) | the consensus's sites and segments | decided edits (`dna_core::consensus::decided`, ADR-0078) -> `CalledVariantSet` |
 | assembled/consensus FASTA sequence | sequence -> `ReadEvidence` (vouched ends) | core caller (`dna_core::read_call`) -> `CalledVariantSet` |
 | FASTQ / NGS reads | reads -> QC/preprocessing -> mapping -> read/depth evidence | NGS caller -> `CalledVariantSet` |
 | BAM / CRAM | validated aligned-read input -> read/depth/mapping evidence | NGS caller -> `CalledVariantSet` |
