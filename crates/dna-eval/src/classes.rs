@@ -1,7 +1,8 @@
 //! Discrepancy classes: which part of DNA, if any, owns a sample's
 //! difference from the truth.
 //!
-//! A sample takes the first class whose measure is not concordant, from the
+//! A sample that failed, or with a side that has no allele, is not compared.
+//! Any other takes the first class whose measure is not concordant, from the
 //! measures that compare the most content to those that compare the least:
 //! a sequence that differs even IUPAC-compatibly, then one that differs only
 //! at a truth heteroplasmy, then the same sequence written differently, then
@@ -27,19 +28,22 @@ pub(crate) enum Discrepancy {
     /// Haplotype discordant, haplotype IUPAC-compatible concordant: the
     /// sequences differ only at a truth heteroplasmy.
     Heteroplasmy,
-    /// Haplotype IUPAC-compatible not concordant: the sequences differ.
+    /// Haplotype IUPAC-compatible discordant: the sequences differ.
     Sequence,
-    /// DNA or the truth gave nothing to compare.
+    /// Not applicable under a measure: DNA or the truth has no allele.
+    NotComparable,
+    /// DNA failed on the sample, or the truth has no record of it.
     Failed,
 }
 
 impl Discrepancy {
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: [Self; 7] = [
         Self::None,
         Self::Coverage,
         Self::Representation,
         Self::Heteroplasmy,
         Self::Sequence,
+        Self::NotComparable,
         Self::Failed,
     ];
 
@@ -58,6 +62,7 @@ impl Discrepancy {
             Self::Representation => "representation",
             Self::Heteroplasmy => "heteroplasmy",
             Self::Sequence => "sequence",
+            Self::NotComparable => "not_comparable",
             Self::Failed => "failed",
         }
     }
@@ -70,6 +75,7 @@ impl Discrepancy {
             Self::Representation => "dna-normalize, or a truth minority form",
             Self::Heteroplasmy => "core minor signal (deferred)",
             Self::Sequence => "core, or the truth (adjudication)",
+            Self::NotComparable => "the input, or coverage",
             Self::Failed => "core or the input",
         }
     }
@@ -79,12 +85,13 @@ impl Discrepancy {
     /// that does not report it).
     pub(crate) fn of(class: impl Fn(Measure) -> Option<Class>) -> Option<Self> {
         let classes = Self::MEASURES.map(&class);
-        if classes
-            .iter()
-            .flatten()
-            .any(|class| *class == Class::Failed)
-        {
-            return Some(Self::Failed);
+        for (excluded, discrepancy) in [
+            (Class::Failed, Self::Failed),
+            (Class::NotApplicable, Self::NotComparable),
+        ] {
+            if classes.iter().flatten().any(|class| *class == excluded) {
+                return Some(discrepancy);
+            }
         }
         let mut decided = Self::MEASURES.into_iter().zip(classes);
         let first = decided.try_fold(None, |found, (measure, class)| {
@@ -107,7 +114,7 @@ impl Discrepancy {
             Self::Representation => Some(Measure::Primary),
             Self::Heteroplasmy => Some(Measure::Haplotype),
             Self::Sequence => Some(Measure::HaplotypeIupacCompatible),
-            Self::None | Self::Failed => None,
+            Self::None | Self::NotComparable | Self::Failed => None,
         }
     }
 
@@ -151,7 +158,7 @@ mod tests {
         assert_eq!(classify([bad, bad, bad, bad]), Some(Discrepancy::Sequence));
         assert_eq!(
             classify(["not_applicable", good, good, good]),
-            Some(Discrepancy::Sequence)
+            Some(Discrepancy::NotComparable)
         );
         assert_eq!(classify(["failed"; 4]), Some(Discrepancy::Failed));
     }

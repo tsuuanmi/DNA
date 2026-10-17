@@ -386,12 +386,15 @@ It lists the `uncovered` truth alleles as well.
 ## Discrepancy classes
 
 Each sample takes one class, which names the part of DNA (or the lab) that
-owns its difference from the truth (ADR-0077). The class is the first of these
-whose measure is not concordant (`discordant` or `not_applicable`):
+owns its difference from the truth (ADR-0077). A sample that failed under a
+measure is `failed`, and one not applicable under a measure (a side without an
+allele) is `not_comparable`; any other takes the first of these whose measure
+is discordant:
 
 | Class | Measure | Difference | Owner |
 |---|---|---|---|
-| `failed` | any | DNA or the truth gave nothing to compare | core or the input |
+| `failed` | any | DNA failed, or the truth has no record | core or the input |
+| `not_comparable` | any | DNA or the truth has no allele | the input, or coverage |
 | `sequence` | haplotype IUPAC-compatible | the sequences differ | core, or the truth (adjudication) |
 | `heteroplasmy` | haplotype | only at a truth IUPAC code | core minor signal (deferred) |
 | `representation` | primary | the same sequence written differently | `dna-normalize`, or a truth minority form |

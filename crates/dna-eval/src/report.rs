@@ -811,8 +811,9 @@ impl<'a> Report<'a> {
             }
         }
         text.push_str(
-            "\n## Discrepancy classes\n\nEach sample not retired takes the first class whose \
-             measure is not concordant: sequence (haplotype IUPAC-compatible), heteroplasmy \
+            "\n## Discrepancy classes\n\nEach sample not retired that failed or has a side \
+             without an allele is `failed` or `not_comparable`; any other takes the first class \
+             whose measure is not concordant: sequence (haplotype IUPAC-compatible), heteroplasmy \
              (haplotype), representation (primary), coverage (strict). A window column counts \
              the samples with a discordant position of their class in it.\n\n\
              | Class | Owner | Samples |",
@@ -1257,13 +1258,13 @@ mod tests {
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tsequence\t\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
              discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tsequence\t\t2\t0\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\t2\t0\t",
             "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
@@ -1328,7 +1329,8 @@ mod tests {
             "| exact | discordant | 1 |",
             "| regression | 1 | 1 | 0 | 0 | 0 |",
             "| coverage | core callability, or the lab's assay | 6 | 0 | 6 | 0 | 0 | 0 |",
-            "| sequence | core, or the truth (adjudication) | 11 | 0 | 0 | 0 | 0 | 5 |",
+            "| sequence | core, or the truth (adjudication) | 5 | 0 | 0 | 0 | 0 | 5 |",
+            "| not_comparable | the input, or coverage | 6 | 0 | 0 | 0 | 0 | 0 |",
         ] {
             assert!(summary.contains(line), "{line}");
         }

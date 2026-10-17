@@ -16,7 +16,7 @@ remain independently versioned and are never silently changed in place.
   of the rest ([notation convention](docs/validation/evaluation-harness.md#notation-convention)).
 - Discrepancy classes in the evaluation harness: `dna-eval run` gives every
   sample one class from its statuses (`failed`, `sequence`, `heteroplasmy`,
-  `representation`, `coverage`, or `none`), naming the part of DNA that owns
+  `representation`, `coverage`, `not_comparable`, or `none`), naming the part of DNA that owns
   its difference from the truth, with the windows involved (`class`,
   `class_regions` in `scores.tsv`). The summary counts the classes per window
   and, against a baseline, the samples whose class changed
