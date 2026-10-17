@@ -139,8 +139,20 @@ impl Row<'_> {
 
     /// The sample's discrepancy class.
     pub(crate) fn discrepancy(&self) -> Discrepancy {
-        Discrepancy::of(|measure| Some(Class::of(self.status(measure).label())))
-            .unwrap_or(Discrepancy::Failed)
+        Discrepancy::of(
+            |measure| Some(Class::of(self.status(measure).label())),
+            self.unanalysed(),
+        )
+        .unwrap_or(Discrepancy::Failed)
+    }
+
+    /// Whether every primary difference is a DNA call outside the truth's
+    /// analysed intervals.
+    fn unanalysed(&self) -> bool {
+        let (Ok(primary), Some(truth)) = (self.comparison(Measure::Primary), self.truth) else {
+            return false;
+        };
+        Discrepancy::only_unanalysed(&primary.reasons, &primary.positions, &truth.intervals)
     }
 
     /// The sample's cause, scope, and findings, on the truth's written `forms` and
@@ -868,7 +880,7 @@ impl<'a> Report<'a> {
             "\n## Discrepancy classes\n\nEach sample not retired that failed or has a side \
              without an allele is `failed` or `not_comparable`; any other takes the first class \
              whose measure is not concordant: sequence (haplotype IUPAC-compatible), heteroplasmy \
-             (haplotype), representation (primary), coverage (strict). A window column counts \
+             (haplotype), unanalysed or representation (primary), coverage (strict). A window column counts \
              the samples with a discordant position of their class in it.\n\n\
              | Class | Owner | Samples |",
         );
@@ -906,8 +918,14 @@ impl<'a> Report<'a> {
         let mut moves = BTreeMap::<(&str, &str), usize>::new();
         for row in current {
             let before = baseline
+                .classes
                 .get(&row.sample.id)
-                .and_then(Discrepancy::of_statuses)
+                .and_then(|label| Discrepancy::from_label(label))
+                .or_else(|| {
+                    baseline
+                        .get(&row.sample.id)
+                        .and_then(Discrepancy::of_statuses)
+                })
                 .map_or("(absent)", Discrepancy::label);
             let now = row.discrepancy().label();
             if before != now {

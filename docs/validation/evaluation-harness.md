@@ -306,7 +306,11 @@ difference (`16190.1C` and `16193.1C` in the C run 16190–16193, `248DEL` and
 
 - the comparable intervals are the HV regions within DNA's callable
   intervals (merged where they touch), or the HV regions when DNA reports
-  none; there is no circular seam inside them;
+  none, and within the truth's analysed intervals when it records any: a
+  stretch the reviewers did not analyse holds no truth to compare. There is
+  no circular seam inside them;
+- a DNA allele outside the truth's analysed intervals raises no `dna_only`
+  (the primary rules, the lab's own comparator, still count it);
 - in each, both sides' alleles are applied to the reference: an allele
   replaces as many bases as its reference has (`514`, `CA`, `-` deletes 514
   and 515; equally many alternate bases substitute them one by one),
@@ -397,6 +401,7 @@ is discordant:
 | `not_comparable` | any | DNA or the truth has no allele | the input, or coverage |
 | `sequence` | haplotype IUPAC-compatible | the sequences differ | core, or the truth (adjudication) |
 | `heteroplasmy` | haplotype | only at a truth IUPAC code | core minor signal (deferred) |
+| `unanalysed` | primary | every primary difference is a DNA call outside the truth's analysed intervals | a review where the truth has no analysis |
 | `representation` | primary | the same sequence written differently | `dna-normalize`, or a truth minority form |
 | `coverage` | strict | a truth allele where DNA has no callable base | core callability, or the lab's assay |
 | `none` | — | every measure concordant | — |
@@ -436,6 +441,7 @@ database; nothing is listed by hand, and the truth is only read.
 | | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
 | | every untrusted call lies within the read-end margin of its read's own end (`read_edge`) or carries a weak-signal veto (`weak_call`) | `lab`: read quality |
 | | otherwise (`untrusted_call`) | `dna`: its callability policy |
+| `unanalysed` (each window) | DNA calls where the reviewers did not analyse (`outside_truth_intervals`) | `undetermined`: only a review there verifies them |
 | `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
 | | the truth writes it (`dna_minority_form`) | `dna`: its notation |
 | | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |

@@ -17,6 +17,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The evaluation harness's haplotype measures compare only inside the
+  truth's analysed intervals: a DNA call where the reviewers did not analyse
+  no longer counts against DNA there (the primary, strict, and
+  IUPAC-compatible measures, the lab's rules, are unchanged). A sample whose
+  only primary differences are such calls takes the new class `unanalysed`,
+  cause `undetermined` (`outside_truth_intervals`)
+  ([measures](docs/validation/evaluation-harness.md#measures)).
 - `local_shadow` minor kind and minor rule sets in the draft triage
   (evaluation harness only, #70): a read's neighbour-compatible minor channel
   counts as a shadow only where at least 0.05 of the read's calls within 10

@@ -135,6 +135,19 @@ pub(crate) fn findings(
         }
         Discrepancy::Coverage => coverage(sample),
         Discrepancy::Representation => representation(sample, forms, reference),
+        // DNA reports where the reviewers did not look: only a review there
+        // verifies it.
+        Discrepancy::Unanalysed => sample
+            .regions
+            .iter()
+            .map(|region| {
+                Finding::new(
+                    Cause::Undetermined,
+                    "outside_truth_intervals",
+                    Some(region.label().to_owned()),
+                )
+            })
+            .collect(),
         Discrepancy::Heteroplasmy => heteroplasmy(sample),
         Discrepancy::Sequence => sequence(sample),
     };
