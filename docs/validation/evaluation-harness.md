@@ -28,6 +28,10 @@ cargo run --release -p dna-eval -- power \
 cargo run --release -p dna-eval -- approve \
   --prereg <committed-prereg.toml> --output results/<new-directory> \
   --threads <1-256>
+
+cargo run --release -p dna-eval -- convention \
+  --truth <statistics.sqlite> --profile config/profiles/human-mtdna-rcrs.toml \
+  --reference references/rCRS.fasta --output <new-directory>
 ```
 
 Every path is an argument. `run` needs a new or empty output directory, and
@@ -131,6 +135,27 @@ it also reports, per bound, the most leaks among the lower-bound samples
 that still meet it and the binomial chance of at most that many at the true
 rate. The pre-registration records the lower-bound projection as
 `projected_n`.
+
+## Notation convention
+
+`dna-eval convention` measures how far DNA's notation agrees with the way the
+lab's reviewers write their own calls, without traces. Every truth sample
+whose calls are plain A/C/G/T substitutions, deletions, and insertions is
+rebuilt as anchored variants (runs of deleted positions as one deletion,
+insertion ordinals `1, 2, …` without a gap as one insertion) and goes through
+DNA's right-aligned [normalization](../design/variant-normalization.md) and
+the profile's nomenclature windows, as DNA's own calls do, with a deletion
+trade bounded by the windows and every base taken as read. A sample whose
+written calls come back unchanged is a fixed point of DNA's notation; a
+changed one shows a convention DNA writes differently. A sample with an
+IUPAC call, or calls DNA cannot apply, is skipped.
+
+The output directory, new or empty, holds `convention.tsv`: per change
+pattern, most samples first and at most 200, its sample count, the
+truth-only calls, and the DNA-only calls. It names no sample. The command
+prints the samples checked, unchanged (with their share), changed, the
+patterns, and the samples skipped. The truth is only read; it is never
+rewritten or scored as DNA output.
 
 ## Inputs
 

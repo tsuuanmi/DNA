@@ -6,12 +6,13 @@ the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
 with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
 `sample_analysis` capability it runs, on `dna-core` and `dna-sanger` only
-to name the evidence types the draft triage reads, and on `dna-kernel` to load
-the reference the haplotype measures apply alleles to; its tests use
+to name the evidence types the draft triage reads, on `dna-kernel` to load
+the reference the haplotype measures apply alleles to, and on `dna-normalize`
+to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
-- `main.rs` — command line (`run`, `panel`, `approve`, `power`), run orchestration, output
+- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`), run orchestration, output
   directory, and the `run.json` header.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
@@ -51,6 +52,9 @@ equivalence. No crate depends on it, and it is not part of the release.
   evidence ([triage](triage/README.md)).
 - `approve/` — the pre-registered approval run on a hold-out panel and its
   power projection ([approve](approve/README.md)).
+- `convention.rs` — `convention`: every IUPAC-free truth sample's calls
+  through DNA's normalization and nomenclature windows, and the change
+  patterns where DNA writes them differently.
 - `error.rs` — failures that stop a run.
 
 `build.rs` records the git revision the harness is built from, and whether
