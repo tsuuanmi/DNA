@@ -38,8 +38,8 @@ rule make `call` safer; they cannot make it say what the consensus decided.
 ## Goals
 
 - `SampleAnalysis::call` and the recommended workflow report exactly the
-  edits the consensus decided, at the positions it decided them, with no
-  second alignment.
+  edits the consensus decided, at the positions it decided them, without
+  placing a record on the reference again.
 - One authoritative path from consensus decisions to called variants and
   notation.
 - `dna call` on a FASTA sequence from elsewhere (a reviewer-edited consensus,
@@ -67,11 +67,31 @@ rule make `call` safer; they cannot make it say what the consensus decided.
 ## Proposed design
 
 1. **Decided edits come from the consensus.** For each consensus segment, the
-   called variants are its `called` sites whose call differs from the
-   reference, as anchored variants in reference coordinates; a `contested`
-   site contributes the reference, as now, and an `unresolved` one nothing.
-   The callable reference segments are the segment's interval less its
-   unresolved positions (SRS-ALN-015). Nothing is aligned.
+   called variants come from its `called` sites whose call differs from the
+   reference, in reference coordinates, so no record is placed again:
+   - a site decided by its run structure (`runs`, ADR-0074) gives one edit
+     per run, as ADR-0072 writes it: a length change as an insertion or
+     deletion at the run's 3' end, a changed base as a substitution;
+   - any other site gives the edits of an alignment of its call against its
+     reference interval alone. That alignment is bounded to the site and
+     holds no `N`, since an undecided run is undecided whole.
+
+   A `contested` site between one read and one other contributes the
+   reference, as now. A contested site without a sequence, and an
+   `unresolved` one, write `N`: they contribute nothing and are not
+   callable. The callable reference segments are the segment's interval less
+   those positions (SRS-ALN-015).
+   The consensus applied the run-bound rule (ADR-0071) when it decided a
+   length, so the document path does not apply `run_boundary` again: an
+   unresolved bound only removes that position from the callable bases.
+   Expected outcome for the run-bound class: the decided `315.1C` or `309`
+   insertion is reported, and `310` is not callable.
+
+   A length labelled `phase_loss` or `reference_frame` is an estimate or an
+   assumption, not an observation (ADR-0074). It is reported as today, where
+   it already reaches `call` through the FASTA, and its label stays visible in
+   `sites[].runs`; triage keeps routing it to review. The document path does
+   not make it a firmer call than the FASTA path does.
 2. **Notation as now.** The variants go through normalization and the
    nomenclature windows with those callable segments as the readable bases.
 3. **Entry points.**
