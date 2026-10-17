@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 
 use crate::baseline::{Class, Statuses};
 use crate::cause::forms::Forms;
-use crate::cause::{self, Cause, Finding};
+use crate::cause::{self, Cause, Finding, Scope};
 use crate::classes::Discrepancy;
 use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Region, Side};
 use crate::estimate::{self, Estimate, Observation};
@@ -143,9 +143,13 @@ impl Row<'_> {
             .unwrap_or(Discrepancy::Failed)
     }
 
-    /// The sample's cause and findings, on the truth's written `forms` and
+    /// The sample's cause, scope, and findings, on the truth's written `forms` and
     /// `reference`; `None` for a sample without a discrepancy.
-    pub(crate) fn cause(&self, forms: &Forms, reference: &str) -> Option<(Cause, Vec<Finding>)> {
+    pub(crate) fn cause(
+        &self,
+        forms: &Forms,
+        reference: &str,
+    ) -> Option<(Cause, Scope, Vec<Finding>)> {
         let discrepancy = self.discrepancy();
         let regions = self.discrepancy_regions(discrepancy);
         let called = self.outcome.result.as_ref().ok();
@@ -309,7 +313,7 @@ pub(crate) struct Report<'a> {
     check: &'a TruthCheck,
     estimates: Vec<(Weighting, Metric, Estimate)>,
     /// Per row, its cause and findings.
-    causes: Vec<Option<(Cause, Vec<Finding>)>>,
+    causes: Vec<Option<(Cause, Scope, Vec<Finding>)>>,
 }
 
 impl<'a> Report<'a> {
@@ -414,16 +418,18 @@ impl<'a> Report<'a> {
              haplotype_status\thaplotype_concordant\thaplotype_blocks\t\
              haplotype_iupac_compatible_status\thaplotype_iupac_compatible_concordant\t\
              haplotype_iupac_compatible_blocks\thaplotype_lod_status\thaplotype_lod_concordant\t\
-             haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\tcause\tcause_evidence\t\
+             haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\tcause\tcause_scope\t\
+             cause_evidence\t\
              traces\trejected_traces\tfailure\n",
         );
         for (row, cause) in self.rows.iter().zip(&self.causes) {
             let sample = row.sample;
-            let (cause, cause_evidence) = cause.as_ref().map_or_else(
-                || (String::new(), String::new()),
-                |(cause, findings)| {
+            let (cause, cause_scope, cause_evidence) = cause.as_ref().map_or_else(
+                || (String::new(), String::new(), String::new()),
+                |(cause, scope, findings)| {
                     (
                         cause.label().to_owned(),
+                        scope.label().to_owned(),
                         findings
                             .iter()
                             .map(Finding::text)
@@ -513,7 +519,8 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
-                 {haplotype}\t{below_lod}\t{}\t{class_regions}\t{cause}\t{cause_evidence}\t\
+                 {haplotype}\t{below_lod}\t{}\t{class_regions}\t{cause}\t{cause_scope}\t\
+                 {cause_evidence}\t\
                  {traces}\t{rejected}\t{failure}",
                 sample.id,
                 sample.batch,
@@ -927,16 +934,25 @@ impl<'a> Report<'a> {
             .iter()
             .zip(&self.causes)
             .filter(|(row, _)| !row.sample.retired);
-        let mut headline = BTreeMap::<(Discrepancy, Cause), usize>::new();
-        let mut routed = BTreeMap::<(Cause, &str), usize>::new();
+        let columns = [
+            (Cause::Dna, Scope::Defect),
+            (Cause::Dna, Scope::Deferred),
+            (Cause::Lab, Scope::Defect),
+            (Cause::Technology, Scope::Defect),
+            (Cause::Undetermined, Scope::Defect),
+        ];
+        let mut headline = BTreeMap::<(Discrepancy, Cause, Scope), usize>::new();
+        let mut routed = BTreeMap::<(Cause, Scope, &str), usize>::new();
         for (row, cause) in current {
-            let Some((cause, findings)) = cause else {
+            let Some((cause, scope, findings)) = cause else {
                 continue;
             };
-            *headline.entry((row.discrepancy(), *cause)).or_default() += 1;
+            *headline
+                .entry((row.discrepancy(), *cause, *scope))
+                .or_default() += 1;
             let evidence = findings
                 .iter()
-                .map(|finding| (finding.cause, finding.evidence))
+                .map(|finding| (finding.cause, finding.scope, finding.evidence))
                 .collect::<BTreeSet<_>>();
             for key in evidence {
                 *routed.entry(key).or_default() += 1;
@@ -944,22 +960,18 @@ impl<'a> Report<'a> {
         }
         text.push_str(
             "\nCause of each sample's discrepancy, the first of dna, lab, technology, and \
-             undetermined among its findings:\n\n| Class |",
+             undetermined among its findings, a defect before an item deferred by design:\n\n\
+             | Class | dna | dna (deferred) | lab | technology | undetermined |\n\
+             |---|---:|---:|---:|---:|---:|\n",
         );
-        for cause in Cause::ALL {
-            let _ = write!(text, " {} |", cause.label());
-        }
-        text.push_str("\n|---|");
-        text.push_str(&"---:|".repeat(Cause::ALL.len()));
-        text.push('\n');
         for discrepancy in Discrepancy::ALL
             .into_iter()
             .filter(|discrepancy| *discrepancy != Discrepancy::None)
         {
             let _ = write!(text, "| {} |", discrepancy.label());
-            for cause in Cause::ALL {
+            for (cause, scope) in columns {
                 let count = headline
-                    .get(&(discrepancy, cause))
+                    .get(&(discrepancy, cause, scope))
                     .copied()
                     .unwrap_or_default();
                 let _ = write!(text, " {count} |");
@@ -968,10 +980,15 @@ impl<'a> Report<'a> {
         }
         text.push_str(
             "\nSamples with a finding of each cause and evidence (a sample can need more \
-             than one of them):\n\n| Cause | Evidence | Samples |\n|---|---|---:|\n",
+             than one of them):\n\n| Cause | Scope | Evidence | Samples |\n|---|---|---|---:|\n",
         );
-        for ((cause, evidence), count) in routed {
-            let _ = writeln!(text, "| {} | {evidence} | {count} |", cause.label());
+        for ((cause, scope, evidence), count) in routed {
+            let _ = writeln!(
+                text,
+                "| {} | {} | {evidence} | {count} |",
+                cause.label(),
+                scope.label()
+            );
         }
     }
 
@@ -1355,24 +1372,24 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tlab:no_read@16189\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tdefect\tlab:no_read@16189\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tundetermined:one_strand@16189\t2\t1\t",
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tdefect\tundetermined:one_strand@16189\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
-            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdna:dna_failure\t\
+            "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tundetermined:not_comparable\t2\t1\t",
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
              dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
-             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tundetermined:adjudicate\t2\t0\t",
+             discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tdefect\tundetermined:adjudicate\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
-             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tundetermined:not_comparable\t2\t0\t",
-            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tlab\tlab:truth_missing\t\
+             not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t2\t0\t",
+            "S09\tb1\t\thard\t4.5\t4.5\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tlab\tdefect\tlab:truth_missing\t\
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {

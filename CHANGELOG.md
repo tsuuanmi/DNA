@@ -12,8 +12,9 @@ remain independently versioned and are never silently changed in place.
 
 - Discrepancy causes in the evaluation harness: `dna-eval run` gives each
   sample with a discrepancy a cause, `dna`, `lab`, `technology`, or
-  `undetermined`, with its findings (`cause`, `cause_evidence` in
-  `scores.tsv`), read from the reads' evidence at each position, the
+  `undetermined`, a scope (`defect`, or `deferred` for IUPAC codes DNA does
+  not write by design), and its findings (`cause`, `cause_scope`,
+  `cause_evidence` in `scores.tsv`), read from the reads' evidence at each position, the
   limit-of-detection signals, and how the reviewers write each window
   sequence over the whole truth. The summary counts causes per class and
   samples per cause and evidence

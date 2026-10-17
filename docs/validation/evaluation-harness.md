@@ -413,7 +413,10 @@ Each sample with a discrepancy also has a cause: who accounts for it, so the
 difference reaches the one who can act on it. Every discordant position of
 the sample's class gives a finding, `cause:evidence@position` (or `@window`)
 in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
-`technology`, and `undetermined` among them. The causes come from the
+`technology`, and `undetermined` among them. Each finding also has a scope
+(`cause_scope` for the sample): `defect`, or `deferred` for an item left
+undone by design, such as the IUPAC codes DNA does not write; a defect comes
+before a deferred item. The causes come from the
 admitted reads' evidence at each region position, the limit-of-detection
 signals, and how the reviewers write each sequence over the whole truth
 database; nothing is listed by hand, and the truth is only read.
@@ -423,11 +426,13 @@ database; nothing is listed by hand, and the truth is only read.
 | `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
 | | a read covers it with a call masked for phase loss: dephased or mixed signal, or a segment after a repeat run (`phase_loss`) | `technology` |
 | | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
-| | otherwise: read cleanly or unresolved, yet not callable (`uncallable`) | `dna`: its callability (read-end margin, an `N` the consensus left) |
+| | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
+| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
+| | otherwise: read as `N` (`unresolved_call`), or read cleanly yet untrusted, as within the read-end margin beside a masked stretch (`untrusted_call`) | `dna`: its callability policy |
 | `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
 | | the truth writes it (`dna_minority_form`) | `dna`: its notation |
 | | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
-| `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`second_base_shown`) | `dna`: DNA writes no IUPAC code |
+| `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`iupac_not_reported`) | `dna`, deferred: DNA writes no IUPAC code by design |
 | | a read shows it only at 3 % or more (`below_lod`) | `technology` |
 | | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
 | | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
@@ -441,8 +446,10 @@ The written forms group the truth's IUPAC-free samples by the sequence of
 each repeat window, so DNA's form and the truth's are compared for the same
 sequence; outside the windows no sequence groups them, and the count of
 samples carrying each side's calls is a proxy. A sample can need more than
-one party: the summary counts the samples per class and cause, and per cause
-and evidence the samples with such a finding.
+one party: the summary counts the samples per class and cause, deferred DNA
+items apart, and per cause, scope, and evidence the samples with such a
+finding. Insertions are not judged under `sequence` yet: reads showing the
+reference at an anchor do not exclude one.
 
 ## Estimates
 
@@ -632,7 +639,7 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes) and findings (`cause`, `cause_evidence`); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |

@@ -6,11 +6,12 @@ whether DNA, the lab (its assay, runs, or reviewers' truth), or the
 sequencing technology accounts for each difference, read from the evidence,
 so the difference reaches the one who can act on it.
 
-- `mod.rs` — the rules per discrepancy class, the findings (cause, evidence,
-  position or window), and the sample's cause.
-- `loci.rs` — per region position, what the admitted reads show: covered,
+- `mod.rs` — the rules per discrepancy class, the findings (cause, scope,
+  evidence, position or window), and the sample's cause and scope.
+- `loci.rs` — per region position, what the admitted reads and the consensus show: covered,
   observed cleanly on each strand, something other than the reference,
-  masked for phase loss or for weak signal, unresolved; and the faint second
+  masked for phase loss or for weak signal, unresolved, a tie the consensus
+  left `N`, a run stretch it left undecided; and the faint second
   bases (3 % or more). The runner takes it from the sample analysis.
 - `forms.rs` — how the reviewers write each sequence over the whole truth:
   per repeat window and window sequence, the samples per written form, and

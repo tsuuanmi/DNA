@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 
 use dna::sample_analysis::SampleAnalysis;
 use dna_core::model::alignment::Orientation;
+use dna_core::model::consensus::SiteState;
 use dna_core::model::sample_evidence::LocusState;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_sanger::model::callability::PhaseState;
@@ -14,26 +15,31 @@ use dna_sanger::model::callability::PhaseState;
 pub(crate) const FAINT: u16 = 30;
 
 /// Some admitted read covers the position.
-pub(crate) const COVERED: u8 = 1;
+pub(crate) const COVERED: u16 = 1;
 /// A forward read observes it cleanly: a base or a gap, unmasked.
-pub(crate) const FORWARD: u8 = 2;
+pub(crate) const FORWARD: u16 = 2;
 /// A reverse read observes it cleanly.
-pub(crate) const REVERSE: u8 = 4;
+pub(crate) const REVERSE: u16 = 4;
 /// A clean read observes something other than the reference there.
-pub(crate) const OTHER: u8 = 8;
+pub(crate) const OTHER: u16 = 8;
 /// A read covers it with a call masked for phase loss: dephased or mixed
 /// signal, or a segment starting after a repeat run.
-pub(crate) const PHASE: u8 = 16;
+pub(crate) const PHASE: u16 = 16;
 /// A read covers it with a call masked for weak signal or irregular spacing.
-pub(crate) const SIGNAL: u8 = 32;
+pub(crate) const SIGNAL: u16 = 32;
 /// A read covers it with an unresolved call (`N`).
-pub(crate) const UNRESOLVED: u8 = 64;
+pub(crate) const UNRESOLVED: u16 = 64;
+/// The consensus decided the position by a tie of clean reads and wrote `N`.
+pub(crate) const CONTESTED: u16 = 128;
+/// The position lies in a stretch of whole runs the consensus left undecided:
+/// no read shows both ends of the run.
+pub(crate) const RUN_UNREAD: u16 = 256;
 
 /// The flags of every region position, and the faint second bases.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Loci {
-    /// The regions, 1-based inclusive, with one flag byte per position.
-    regions: Vec<([usize; 2], Vec<u8>)>,
+    /// The regions, 1-based inclusive, with the flags of each position.
+    regions: Vec<([usize; 2], Vec<u16>)>,
     /// Positions and bases at which some clean read has a channel, other
     /// than its own call, at [`FAINT`] or more.
     pub(crate) faint: BTreeSet<(i64, char)>,
@@ -41,7 +47,7 @@ pub(crate) struct Loci {
 
 impl Loci {
     /// The flags at a 1-based position; 0 outside the regions.
-    pub(crate) fn at(&self, position: i64) -> u8 {
+    pub(crate) fn at(&self, position: i64) -> u16 {
         let Ok(position) = usize::try_from(position) else {
             return 0;
         };
@@ -54,12 +60,21 @@ impl Loci {
 
     /// Loci over one region from `start` with the given flags, for tests.
     #[cfg(test)]
-    pub(crate) fn of(start: usize, flags: Vec<u8>, faint: &[(i64, char)]) -> Self {
+    pub(crate) fn of(start: usize, flags: Vec<u16>, faint: &[(i64, char)]) -> Self {
         let end = start + flags.len() - 1;
         Self {
             regions: vec![([start, end], flags)],
             faint: faint.iter().copied().collect(),
         }
+    }
+
+    fn flags(&mut self, position: usize) -> Option<&mut u16> {
+        self.regions.iter_mut().find_map(|([start, end], flags)| {
+            (*start..=*end)
+                .contains(&position)
+                .then(|| flags.get_mut(position - *start))
+                .flatten()
+        })
     }
 
     /// Whether clean reads on both strands observe the position and every
@@ -90,6 +105,24 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Loci> {
     ) else {
         return Ok(loci);
     };
+    for site in &analysis.consensus.sites {
+        let flag = match site.state {
+            SiteState::Contested if site.call.is_none() => CONTESTED,
+            SiteState::Unresolved if site.last_0based > site.first_0based => RUN_UNREAD,
+            SiteState::Called
+                if site.last_0based > site.first_0based
+                    && site.call.as_deref().is_some_and(|call| call.contains('N')) =>
+            {
+                RUN_UNREAD
+            }
+            _ => continue,
+        };
+        for position in site.first_0based + 1..=site.last_0based + 1 {
+            if let Some(flags) = loci.flags(position) {
+                *flags |= flag;
+            }
+        }
+    }
     let reads = analysis
         .evidence
         .reads
@@ -101,14 +134,10 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Loci> {
             )
         })
         .collect::<Vec<_>>();
+    let mut faints = BTreeSet::new();
     for locus in analysis.observations(first, last)? {
         let position = locus.position_1based;
-        let Some(flags) = loci.regions.iter_mut().find_map(|([start, end], flags)| {
-            (*start..=*end)
-                .contains(&position)
-                .then(|| flags.get_mut(position - *start))
-                .flatten()
-        }) else {
+        let Some(flags) = loci.flags(position) else {
             continue;
         };
         for observation in &locus.observations {
@@ -163,11 +192,12 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Loci> {
             for base in Nucleotide::ALL {
                 let weight = profile.weights[base.channel_index()];
                 if base.as_char() != call && faint(weight) {
-                    loci.faint.insert((position, base.as_char()));
+                    faints.insert((position, base.as_char()));
                 }
             }
         }
     }
+    loci.faint = faints;
     Ok(loci)
 }
 

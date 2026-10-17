@@ -4,9 +4,9 @@
 //! one who can act on it.
 //!
 //! Every discordant position of the sample's class gives a [`Finding`] with
-//! its cause and the evidence for it; the sample's cause is the first of
-//! `dna`, `lab`, `technology`, `undetermined` among them. The truth is only
-//! read.
+//! its cause, its [`Scope`], and the evidence for it; the sample's cause and
+//! scope are the first of `dna`, `lab`, `technology`, `undetermined`, a
+//! defect before a deferred item, among them. The truth is only read.
 
 pub(crate) mod forms;
 pub(crate) mod loci;
@@ -17,7 +17,7 @@ use crate::classes::Discrepancy;
 use crate::compare::{self, Allele, Comparison, Failure, Region};
 use crate::lod;
 use forms::{Forms, Majority};
-use loci::{Loci, PHASE, SIGNAL};
+use loci::{CONTESTED, COVERED, Loci, PHASE, RUN_UNREAD, SIGNAL, UNRESOLVED};
 
 /// Who accounts for a difference from the truth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -33,8 +33,6 @@ pub(crate) enum Cause {
 }
 
 impl Cause {
-    pub(crate) const ALL: [Self; 4] = [Self::Dna, Self::Lab, Self::Technology, Self::Undetermined];
-
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Dna => "dna",
@@ -45,10 +43,30 @@ impl Cause {
     }
 }
 
+/// Whether a difference is a defect to fix or an item deferred by design.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Scope {
+    /// A defect to fix.
+    Defect,
+    /// Deferred by design: DNA writes no IUPAC code for a point
+    /// heteroplasmy (SRS-VAR-009), a deferral the user made.
+    Deferred,
+}
+
+impl Scope {
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Defect => "defect",
+            Self::Deferred => "deferred",
+        }
+    }
+}
+
 /// One cause with its evidence.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Finding {
     pub(crate) cause: Cause,
+    pub(crate) scope: Scope,
     /// What shows it, such as `no_second_base`.
     pub(crate) evidence: &'static str,
     /// The position or window it concerns, when one does.
@@ -59,8 +77,16 @@ impl Finding {
     fn new(cause: Cause, evidence: &'static str, at: Option<String>) -> Self {
         Self {
             cause,
+            scope: Scope::Defect,
             evidence,
             at,
+        }
+    }
+
+    fn deferred(self) -> Self {
+        Self {
+            scope: Scope::Deferred,
+            ..self
         }
     }
 
@@ -90,13 +116,13 @@ pub(crate) struct Sample<'a> {
     pub(crate) signals: Option<&'a lod::Signals>,
 }
 
-/// The findings of one sample, sorted, and its cause; `None` for a sample
-/// without a discrepancy.
+/// The findings of one sample, sorted, and its cause and scope; `None` for
+/// a sample without a discrepancy.
 pub(crate) fn findings(
     sample: &Sample<'_>,
     forms: &Forms,
     reference: &str,
-) -> Option<(Cause, Vec<Finding>)> {
+) -> Option<(Cause, Scope, Vec<Finding>)> {
     let mut found = match sample.discrepancy {
         Discrepancy::None => return None,
         Discrepancy::Failed => failed(sample.failure),
@@ -113,7 +139,7 @@ pub(crate) fn findings(
     }
     found.sort();
     found.dedup();
-    Some((found[0].cause, found))
+    Some((found[0].cause, found[0].scope, found))
 }
 
 fn failed(failure: Option<&Failure>) -> Vec<Finding> {
@@ -128,9 +154,11 @@ fn failed(failure: Option<&Failure>) -> Vec<Finding> {
 }
 
 /// A truth allele where DNA has no callable base: no read there is the lab's
-/// (a missing or short trace); phase loss is the technology's; weak signal
-/// the run's; a base read cleanly or unresolved that DNA does not call is
-/// DNA's callability.
+/// (a missing or short trace); phase loss is the technology's, and so is a
+/// run the consensus left undecided because no read shows both its ends;
+/// weak signal is the run's; a tie of clean reads is for the reviewer; a
+/// base read as `N`, or read cleanly yet untrusted (the read-end margin
+/// beside a masked stretch), is DNA's callability policy.
 fn coverage(sample: &Sample<'_>) -> Vec<Finding> {
     let Some(loci) = sample.loci else {
         return Vec::new();
@@ -143,14 +171,20 @@ fn coverage(sample: &Sample<'_>) -> Vec<Finding> {
         .filter_map(|allele| {
             let anchor = compare::anchor(&allele.position)?;
             let flags = loci.at(anchor);
-            let (cause, evidence) = if flags == 0 {
+            let (cause, evidence) = if flags & COVERED == 0 {
                 (Cause::Lab, "no_read")
             } else if flags & PHASE != 0 {
                 (Cause::Technology, "phase_loss")
             } else if flags & SIGNAL != 0 {
                 (Cause::Lab, "weak_signal")
+            } else if flags & CONTESTED != 0 {
+                (Cause::Undetermined, "contested_reads")
+            } else if flags & RUN_UNREAD != 0 {
+                (Cause::Technology, "run_unread")
+            } else if flags & UNRESOLVED != 0 {
+                (Cause::Dna, "unresolved_call")
             } else {
-                (Cause::Dna, "uncallable")
+                (Cause::Dna, "untrusted_call")
             };
             Some(Finding::new(cause, evidence, Some(allele.position.clone())))
         })
@@ -197,7 +231,8 @@ fn representation(sample: &Sample<'_>, forms: &Forms, reference: &str) -> Vec<Fi
 }
 
 /// A truth IUPAC code where DNA reports a base: DNA's when a read shows the
-/// second base at the limit of detection (DNA writes no IUPAC code); the
+/// second base at the limit of detection, deferred since DNA writes no IUPAC
+/// code by design; the
 /// technology's when one shows it only faintly; the truth's, for a re-check,
 /// when clean reads on both strands show no second base at all.
 fn heteroplasmy(sample: &Sample<'_>) -> Vec<Finding> {
@@ -217,7 +252,14 @@ fn heteroplasmy(sample: &Sample<'_>) -> Vec<Finding> {
             let (cause, evidence) = if code.len() != 2 {
                 (Cause::Undetermined, "iupac_code")
             } else if signals.shown(position, code) {
-                (Cause::Dna, "second_base_shown")
+                return Some(
+                    Finding::new(
+                        Cause::Dna,
+                        "iupac_not_reported",
+                        Some(allele.position.clone()),
+                    )
+                    .deferred(),
+                );
             } else if code
                 .iter()
                 .any(|base| loci.faint.contains(&(position, *base)))
@@ -299,7 +341,7 @@ mod tests {
 
     fn texts(sample: &Sample<'_>) -> Vec<String> {
         findings(sample, &Forms::default(), "")
-            .map(|(_, findings)| findings.iter().map(Finding::text).collect())
+            .map(|(_, _, findings)| findings.iter().map(Finding::text).collect())
             .unwrap_or_default()
     }
 
@@ -327,12 +369,20 @@ mod tests {
     #[test]
     fn a_coverage_gap_goes_to_whoever_left_the_position_unread() {
         // Positions 1-4: unread, phase loss, weak signal, read cleanly.
+        // Positions 5-6: a tie of clean reads, a run no read shows whole.
         let loci = Loci::of(
             1,
-            vec![0, COVERED | PHASE, COVERED | SIGNAL, COVERED | FORWARD],
+            vec![
+                0,
+                COVERED | PHASE,
+                COVERED | SIGNAL,
+                COVERED | FORWARD,
+                COVERED | CONTESTED,
+                COVERED | RUN_UNREAD,
+            ],
             &[],
         );
-        let uncovered = ["1", "2", "3", "4"]
+        let uncovered = ["1", "2", "3", "4", "5", "6"]
             .map(|position| Allele::new(position, "A", "G"))
             .to_vec();
         let comparison = comparison(&[], Vec::new(), Vec::new(), uncovered);
@@ -349,10 +399,12 @@ mod tests {
         assert_eq!(
             texts(&gap),
             [
-                "dna:uncallable@4",
+                "dna:untrusted_call@4",
                 "lab:no_read@1",
                 "lab:weak_signal@3",
-                "technology:phase_loss@2"
+                "technology:phase_loss@2",
+                "technology:run_unread@6",
+                "undetermined:contested_reads@5"
             ]
         );
         assert_eq!(
@@ -391,7 +443,7 @@ mod tests {
         assert_eq!(
             texts(&site),
             [
-                "dna:second_base_shown@16192",
+                "dna:iupac_not_reported@16192",
                 "lab:no_second_base@16189",
                 "technology:below_lod@16190",
                 "undetermined:one_strand@16191"
