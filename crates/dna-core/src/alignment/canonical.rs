@@ -56,6 +56,45 @@ pub(crate) fn right_align(
     }
 }
 
+/// Moves each deletion of a vouched read 3' across the query calls that
+/// `unresolved` names (an `N` without evidence, which scores the same against
+/// any reference base) and the repeat-equivalent bases beyond them, so an
+/// `N` beside a deletion does not decide where it lies: the 3'-most of the
+/// equally scoring placements. The score is unchanged by construction.
+pub(crate) fn cross_unresolved(
+    alignment: &mut RawAlignment,
+    unresolved: impl Fn(usize) -> bool,
+    modulo_length: Option<usize>,
+) {
+    loop {
+        let mut shifted = false;
+        for run in gap_runs(&alignment.columns).into_iter().rev() {
+            if run.kind != GapKind::Deletion {
+                continue;
+            }
+            let Some(following) = alignment.columns.get(run.end) else {
+                continue;
+            };
+            if gap_kind(following).is_some() {
+                continue;
+            }
+            let crosses = following.query_index.is_some_and(&unresolved);
+            let Some(candidate) =
+                shift_deletion(&alignment.columns, run, following, modulo_length, crosses)
+            else {
+                continue;
+            };
+            alignment.columns = candidate;
+            shifted = true;
+            break;
+        }
+        if !shifted {
+            alignment.metrics = traceback::metrics(&alignment.columns);
+            return;
+        }
+    }
+}
+
 fn gap_runs(columns: &[RawColumn]) -> Vec<GapRun> {
     let mut runs = Vec::new();
     let mut index = 0;
@@ -89,19 +128,22 @@ fn shifted_right(
     }
 
     match run.kind {
-        GapKind::Deletion => shift_deletion(columns, run, following, modulo_length),
+        GapKind::Deletion => shift_deletion(columns, run, following, modulo_length, false),
         GapKind::Insertion => shift_insertion(columns, run, following, modulo_length),
     }
 }
 
+/// The deletion moved one base right, across a reference base equal to its
+/// first deleted base, or with `crosses`, across any reference base.
 fn shift_deletion(
     columns: &[RawColumn],
     run: GapRun,
     following: &RawColumn,
     modulo_length: Option<usize>,
+    crosses: bool,
 ) -> Option<Vec<RawColumn>> {
     let first = columns.get(run.start)?;
-    if first.reference_base != following.reference_base {
+    if first.reference_base != following.reference_base && !crosses {
         return None;
     }
     if crosses_circular_seam(

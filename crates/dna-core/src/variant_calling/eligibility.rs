@@ -10,7 +10,9 @@
 //! where the read resolves that run's end (`run_boundary`): the call beyond it
 //! is informative and reads another base, unmasked or anchoring. A masked
 //! evidence call — a supporting call, or a flanking call of a deletion, which
-//! has none — contributes its modality's mask reason.
+//! has none — contributes its modality's mask reason. A mapped call read as
+//! `N` places nothing (`unresolved_flank`): an `N` beside a deletion leaves
+//! which bases it removes undecided.
 //!
 //! A run the read bounds is exempt from `read_end` where the margin's edge is
 //! the read losing phase right after a repeat run, not a read end (ADR-0076):
@@ -328,8 +330,8 @@ impl<'a> ReadEligibility<'a> {
 
     /// Eligibility reasons against a variant's calls, each reported once:
     /// `read_end` for any mapped call, `run_boundary` for a run-length edit
-    /// the read does not bound, then the mask reasons of its evidence calls in
-    /// call order.
+    /// the read does not bound, `unresolved_flank` for a mapped call read as
+    /// `N`, then the mask reasons of its evidence calls in call order.
     ///
     /// `orientation` is the read's placement, which relates the variant's
     /// reference-strand alleles to the read's calls.
@@ -367,6 +369,14 @@ impl<'a> ReadEligibility<'a> {
         }
         if self.unbounded_run(kind, edited, orientation, &evidence) {
             reasons.push(VariantExclusionReason::RunBoundary);
+        }
+        if mapped.iter().any(|&index| {
+            self.evidence
+                .calls()
+                .get(index)
+                .is_some_and(|call| call.base == 'N')
+        }) {
+            reasons.push(VariantExclusionReason::UnresolvedFlank);
         }
         for reason in evidence.iter().filter_map(|&index| self.mask_reason(index)) {
             if !reasons.contains(&reason) {

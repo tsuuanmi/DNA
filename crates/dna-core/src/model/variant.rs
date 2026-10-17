@@ -68,7 +68,7 @@ pub struct Variant {
 
 /// Stable reason a primary-difference candidate was not reportable.
 ///
-/// The core owns the first six reasons. Every other reason comes from the
+/// The core owns the first seven reasons. Every other reason comes from the
 /// read's modality evidence and is reported verbatim; the core never
 /// interprets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +83,9 @@ pub enum VariantExclusionReason {
     ReadEnd,
     /// A run-length edit at an end of the run the read does not resolve.
     RunBoundary,
+    /// A mapped call is unresolved (`N`): a deletion it flanks, or an edit
+    /// it maps, has no observed base to place it.
+    UnresolvedFlank,
     /// The read was placed away from the reference interval its source
     /// declares, so none of its calls describe that interval.
     PlacementConflict,
@@ -99,6 +102,7 @@ impl VariantExclusionReason {
             Self::OutsideTargetRegion => "outside_target_region",
             Self::ReadEnd => "read_end",
             Self::RunBoundary => "run_boundary",
+            Self::UnresolvedFlank => "unresolved_flank",
             Self::PlacementConflict => "placement_conflict",
             Self::Evidence(reason) => reason.label(),
         }
@@ -218,6 +222,8 @@ mod tests {
                 "outside_target_region",
             ),
             (VariantExclusionReason::ReadEnd, "read_end"),
+            (VariantExclusionReason::RunBoundary, "run_boundary"),
+            (VariantExclusionReason::UnresolvedFlank, "unresolved_flank"),
             (
                 VariantExclusionReason::PlacementConflict,
                 "placement_conflict",

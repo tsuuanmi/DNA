@@ -90,7 +90,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
         value["provenance"]["plugins"],
         serde_json::json!([
             {"id": "sanger", "family": "modality", "version": 3},
-            {"id": "core", "family": "core", "version": 5},
+            {"id": "core", "family": "core", "version": 6},
         ])
     );
     assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
@@ -1127,10 +1127,12 @@ fn publishes_mixed_and_weak_segments_without_a_repeat() -> Result<(), Box<dyn st
 }
 
 /// Regression: an indel flank whose two strongest channels tie is an unresolved
-/// `N` with no primary event; it is omitted from public calls instead of
-/// aborting the analysis.
+/// `N` with no primary event; the analysis does not fail, and the deletion it
+/// flanks is not reported, since an `N` cannot place it (`unresolved_flank`,
+/// SRS-VAR-018).
 #[test]
-fn omits_unresolved_indel_flank_without_failing() -> Result<(), Box<dyn std::error::Error>> {
+fn excludes_a_deletion_with_an_unresolved_flank_without_failing()
+-> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let trace = directory.path().join("trace.ab1");
     let reference = directory.path().join("reference.fa");
@@ -1145,29 +1147,17 @@ fn omits_unresolved_indel_flank_without_failing() -> Result<(), Box<dyn std::err
     run(&trace, &reference, &config, directory.path()).success();
 
     let value = read_result(directory.path(), &trace)?;
-    let variants = value["variants"]
-        .as_array()
-        .ok_or("variants must be an array")?;
-    assert_eq!(variants.len(), 1);
-    assert_eq!(variants[0]["kind"], "DEL");
-    let calls = variants[0]["calls"]
-        .as_array()
-        .ok_or("calls must be an array")?;
-    assert_eq!(calls.len(), 1, "the unresolved flank is omitted");
-    assert_eq!(calls[0]["role"], "flanking");
-    assert!(matches!(
-        calls[0]["base"].as_str(),
-        Some("A" | "C" | "G" | "T")
-    ));
-    assert_call_evidence(&calls[0]);
+    assert_eq!(value["variants"].as_array().map(Vec::len), Some(0));
+    // The `N` itself (`non_canonical_allele`) and the deletion it flanks.
+    assert_eq!(value["warnings"]["excluded_variant_candidates"], 2);
     Ok(())
 }
 
 /// Regression: a flank whose four channels all qualify is called `N` despite a
-/// primary event; the result schema allows only A/C/G/T call bases, so the
-/// unresolved flank is omitted rather than published.
+/// primary event; the deletion it flanks is not reported (`unresolved_flank`).
 #[test]
-fn omits_mixed_signal_indel_flank_called_n() -> Result<(), Box<dyn std::error::Error>> {
+fn excludes_a_deletion_with_a_mixed_signal_flank_called_n() -> Result<(), Box<dyn std::error::Error>>
+{
     let directory = tempdir()?;
     let trace = directory.path().join("trace.ab1");
     let reference = directory.path().join("reference.fa");
@@ -1186,19 +1176,9 @@ fn omits_mixed_signal_indel_flank_called_n() -> Result<(), Box<dyn std::error::E
     run(&trace, &reference, &config, directory.path()).success();
 
     let value = read_result(directory.path(), &trace)?;
-    let variants = value["variants"]
-        .as_array()
-        .ok_or("variants must be an array")?;
-    assert_eq!(variants.len(), 1);
-    let calls = variants[0]["calls"]
-        .as_array()
-        .ok_or("calls must be an array")?;
-    assert_eq!(calls.len(), 1, "the unresolved flank is omitted");
-    assert!(
-        calls
-            .iter()
-            .all(|call| matches!(call["base"].as_str(), Some("A" | "C" | "G" | "T")))
-    );
+    assert_eq!(value["variants"].as_array().map(Vec::len), Some(0));
+    // The `N` itself (`non_canonical_allele`) and the deletion it flanks.
+    assert_eq!(value["warnings"]["excluded_variant_candidates"], 2);
     Ok(())
 }
 

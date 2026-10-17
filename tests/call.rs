@@ -103,7 +103,7 @@ fn calls_variants_from_consensus_sequences_with_the_core_alone()
         value["provenance"]["plugins"],
         json!([
             {"id": "sequence", "family": "modality", "version": 1},
-            {"id": "core", "family": "core", "version": 5},
+            {"id": "core", "family": "core", "version": 6},
         ])
     );
     assert!(value.get("notation").is_none());
@@ -277,5 +277,81 @@ fn a_record_placed_away_from_its_declared_interval_calls_nothing()
         assert_eq!(variant["eligible"], false);
         assert_eq!(variant["exclusion_reasons"], json!(["placement_conflict"]));
     }
+    Ok(())
+}
+
+#[test]
+fn a_deletion_beside_unresolved_bases_takes_the_3_prime_placement()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let sequences = directory.path().join("consensus.fasta");
+    // As HVS-III's AC repeat: the consensus decided one AC unit's deletion
+    // but left three bases of the repeat unresolved. Every placement of the
+    // deletion from the repeat's G onwards scores the same; only the 3'-most
+    // keeps the G, as the consensus did.
+    let flank = reference_sequence(120);
+    let (before, after) = flank.split_at(60);
+    let sequence = format!("{before}AGCACACACACACCG{after}");
+    write_reference(&reference, &sequence)?;
+    write_config_with_margin(&config, 0)?;
+    let record = format!("{before}ANNANACACACCG{after}");
+    fs::write(&sequences, format!(">{SAMPLE_ID}\n{record}\n"))?;
+
+    run(&sequences, &reference, &config, directory.path()).success();
+
+    let value: Value = serde_json::from_slice(&fs::read(
+        directory
+            .path()
+            .join("results")
+            .join(format!("{SAMPLE_ID}.variants.json")),
+    )?)?;
+    assert_eq!(
+        value["reads"][0]["variants"],
+        json!([{
+            "position": 71,
+            "reference": "CAC",
+            "alternate": "C",
+            "kind": "DEL",
+            "eligible": true,
+            "exclusion_reasons": [],
+        }])
+    );
+    Ok(())
+}
+
+#[test]
+fn a_deletion_after_an_unresolved_base_is_not_reported() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let sequences = directory.path().join("consensus.fasta");
+    let sequence = reference_sequence(160);
+    write_reference(&reference, &sequence)?;
+    write_config_with_margin(&config, 0)?;
+    // Base 72 unresolved and 73-74 (TC, outside any repeat) deleted: the N
+    // cannot say whether the deletion follows it.
+    let record = format!("{}N{}", &sequence[..71], &sequence[74..]);
+    fs::write(&sequences, format!(">{SAMPLE_ID}\n{record}\n"))?;
+
+    run(&sequences, &reference, &config, directory.path()).success();
+
+    let value: Value = serde_json::from_slice(&fs::read(
+        directory
+            .path()
+            .join("results")
+            .join(format!("{SAMPLE_ID}.variants.json")),
+    )?)?;
+    let variants = value["reads"][0]["variants"]
+        .as_array()
+        .ok_or("variants must be an array")?;
+    assert_eq!(variants.len(), 1);
+    assert_eq!(variants[0]["kind"], "DEL");
+    assert_eq!(variants[0]["eligible"], false);
+    assert_eq!(
+        variants[0]["exclusion_reasons"],
+        json!(["unresolved_flank"])
+    );
     Ok(())
 }

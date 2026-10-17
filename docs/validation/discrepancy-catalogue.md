@@ -77,7 +77,7 @@ so they are approximate.
 | Topic | Samples | Owner | Status |
 |---|---:|---|---|
 | Consensus record re-aligned by `call` and placed elsewhere | 24 | core | fixed (SRS-VAR-017); not counted above |
-| Consensus to `call`: the AC-repeat deletion the consensus decides at `523–524` is re-placed beside unresolved `513–516` | 31 | core | open |
+| Consensus to `call`: the AC-repeat deletion the consensus decides at `523–524` is re-placed beside unresolved `513–516` | 31 | core | fixed (SRS-ALN-017, SRS-VAR-018) |
 | Consensus to `call`: an `N` at a decided run's bound (`310`) | 8 | core | open |
 | HVS-II run lengths that no read shows | about 250 | core | TODO: phase recovery |
 | Calls at run exits in HVS-II (`310C`, `310DEL 311DEL`) and HVS-III `568–573` | about 125 | core | open |

@@ -257,7 +257,7 @@ fn overlaps(segments: &[ReferenceSegment], [first, last]: [usize; 2]) -> bool {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "core",
     family: PluginFamily::Core,
-    version: 5,
+    version: 6,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::ReadEvidence],
     config_sections: &["alignment", "sample_reconciliation", "variant_calling"],
