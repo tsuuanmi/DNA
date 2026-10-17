@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-17
 related-requirements: [SRS-NOM-016, SRS-NOM-017]
 related-decisions: [ADR-0069, ADR-0077]
-implementation: [PR-96]
+implementation: [PR-96, PR-99]
 ---
 
 # Proposal: EMPOP export and labelled report conventions
@@ -308,7 +308,7 @@ Planned in two increments, each its own pull request.
     `sequence` and 13 `representation`. Each also differs otherwise, or its
     call sits in a run shorter than 10.
 
-**Increment 2, the EMPOP export** (`empop` 1, `notation/v1` **Breaking**):
+**Increment 2, the EMPOP export** (#99; `empop` 1, `notation/v1` **Breaking**):
 
 - `[empop]` is an empty table: declaring it turns the export on, and it
   requires `[notation]`. It has no keys. The region order is the profile's,
