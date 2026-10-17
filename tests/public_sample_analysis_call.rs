@@ -1,5 +1,5 @@
 //! Public `SampleAnalysis::call`: the `consensus` then `call` workflow in
-//! process.
+//! process, which calls the consensus's decided edits (PROP-0006).
 
 pub mod support;
 
@@ -115,7 +115,8 @@ fn calls_a_sample_like_consensus_then_call_without_side_effects()
     assert!(!directory.path().join("results").exists());
     assert!(!directory.path().join("logs").exists());
 
-    // The CLI pair publishes the same calls and identities.
+    // The CLI pair, `call` given the consensus document, publishes the same
+    // calls and identities.
     let workdir = directory.path().join("cli");
     fs::create_dir(&workdir)?;
     let consensus = cli(
@@ -126,16 +127,29 @@ fn calls_a_sample_like_consensus_then_call_without_side_effects()
         &format!("{SAMPLE_ID}.consensus.json"),
     )?;
     assert_eq!(consensus["rejected_reads"], serde_json::json!([]));
-    let fasta: PathBuf = workdir
+    let document: PathBuf = workdir
         .join("results")
-        .join(format!("{SAMPLE_ID}.consensus.fasta"));
+        .join(format!("{SAMPLE_ID}.consensus.json"));
     let variants = cli(
         &workdir,
         &config,
-        &[&fasta, Path::new("--reference"), &reference],
+        &[&document, Path::new("--reference"), &reference],
         "call",
         &format!("{SAMPLE_ID}.variants.json"),
     )?;
+    assert_eq!(
+        variants["provenance"]["plugins"]
+            .as_array()
+            .map(|plugins| plugins
+                .iter()
+                .map(|plugin| plugin["id"].clone())
+                .collect::<Vec<_>>()),
+        Some(vec![
+            serde_json::json!("decided"),
+            serde_json::json!("normalization"),
+            serde_json::json!("nomenclature"),
+        ])
+    );
     let calls = variants["notation"]["calls"]
         .as_array()
         .ok_or("notation calls must be an array")?
@@ -175,6 +189,23 @@ fn calls_a_sample_like_consensus_then_call_without_side_effects()
         variants["provenance"]["profile"]["sha256"],
         analysis.profile.sha256.as_str()
     );
+
+    // The consensus FASTA still takes the sequence path: the record is placed
+    // again, and here it gives the same call.
+    let sequences = directory.path().join("sequences");
+    fs::create_dir(&sequences)?;
+    let fasta: PathBuf = workdir
+        .join("results")
+        .join(format!("{SAMPLE_ID}.consensus.fasta"));
+    let placed = cli(
+        &sequences,
+        &config,
+        &[&fasta, Path::new("--reference"), &reference],
+        "call",
+        &format!("{SAMPLE_ID}.variants.json"),
+    )?;
+    assert_eq!(placed["provenance"]["plugins"][0]["id"], "sequence");
+    assert_eq!(placed["notation"]["calls"], variants["notation"]["calls"]);
     Ok(())
 }
 

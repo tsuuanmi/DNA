@@ -336,9 +336,10 @@ impl SampleAnalysis {
 }
 ```
 
-It validates the sample identifier, renders the consensus FASTA `dna
-consensus` would publish for that sample, and calls its records as `dna call`
-reads them from that file, with the configuration, profile, and reference of
+It validates the sample identifier and calls the consensus's decided edits as
+`dna call` calls the consensus document `dna consensus` would publish for that
+sample (SRS-VAR-021, ADR-0078): each segment, named as in the consensus FASTA,
+without being placed again, with the configuration, profile, and reference of
 the analysis. It fails where `call` would fail, for example when the consensus
 has no segment. Like `analyze_sanger`, it opens no log, derives no output path,
 serializes nothing, and publishes nothing. A caller that runs many samples in

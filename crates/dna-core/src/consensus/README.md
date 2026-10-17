@@ -12,6 +12,12 @@ behind every non-trivial decision.
   `variant_calling::eligibility` for the trusted calls and for the run-end
   test of insertions and deletions (ADR-0071).
 - `decide.rs`: decision rule version 1 over clean observations.
+- `decided.rs`: the consensus's decided edits as called records
+  (SRS-VAR-021, ADR-0078, plugin `decided`): each segment's columns from its
+  sites, each site's call aligned against its own interval (an `N` stands for
+  its position and is not callable), gaps moved 3'-most, then the record rules
+  of `variant_calling`, and a length change of a segment-edge run excluded as
+  `run_boundary`.
 - `mod.rs`: the entry point `build`, which handles stretches of whole
   reference runs, segment assembly, and the `consensus` plugin descriptor.
   Each stretch is decided by its run structure (ADR-0074): composition, then
@@ -19,7 +25,7 @@ behind every non-trivial decision.
   `reference_frame`), or position by position.
 
 The module reads only `CalledRead` records, so it is modality-neutral
-(ADR-0069). It uses no profile window or filename. It never calls variants:
-`dna call` calls the consensus FASTA.
+(ADR-0069). It uses no profile window or filename. `decided.rs` turns its
+decisions into called records; it never places a segment again.
 
 See [dna-core](../README.md).

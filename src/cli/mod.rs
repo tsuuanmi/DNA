@@ -82,7 +82,8 @@ pub struct CallArgs {
     /// Stable sample identifier used only for result/log naming and provenance.
     pub sample_id: String,
 
-    /// FASTA files whose records are reviewed consensus sequences of the sample.
+    /// FASTA files whose records are reviewed consensus sequences of the sample,
+    /// or the sample's `dna.consensus/v1` document alone (its decided edits).
     #[arg(required = true, num_args = 1..)]
     pub sequences: Vec<PathBuf>,
 

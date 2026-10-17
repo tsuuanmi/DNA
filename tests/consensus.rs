@@ -266,3 +266,52 @@ fn one_worker_and_many_publish_the_same_documents_and_log() -> Result<(), Box<dy
     );
     Ok(())
 }
+
+/// `call` takes the consensus document on its own, of the requested sample
+/// (PROP-0006).
+#[test]
+fn call_takes_a_consensus_document_alone_and_of_its_sample()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif(&forward, &alternate())?;
+    write_abif(&reverse, &reverse_complement(&alternate()))?;
+    run(&[&forward, &reverse], &reference, &config, directory.path()).success();
+    let results = directory.path().join("results");
+    let document = results.join(format!("{SAMPLE_ID}.consensus.json"));
+    let fasta = results.join(format!("{SAMPLE_ID}.consensus.fasta"));
+    let call = |sample: &str, inputs: &[&PathBuf]| {
+        let mut command = Command::new(dna_binary());
+        command
+            .current_dir(directory.path())
+            .env("DNA_CONFIG", &config)
+            .arg("call")
+            .arg(sample);
+        for input in inputs {
+            command.arg(input);
+        }
+        command.arg("--reference").arg(&reference).assert()
+    };
+    call(SAMPLE_ID, &[&document, &fasta])
+        .failure()
+        .stderr(predicates::str::contains(
+            "a consensus document is called on its own",
+        ));
+    call("sample-2", &[&document])
+        .failure()
+        .stderr(predicates::str::contains(
+            "document sample \"sample-1\" is not the requested sample \"sample-2\"",
+        ));
+    call(SAMPLE_ID, &[&document]).success();
+    let variants: Value = serde_json::from_slice(&fs::read(
+        results.join(format!("{SAMPLE_ID}.variants.json")),
+    )?)?;
+    assert_eq!(variants["provenance"]["plugins"][0]["id"], "decided");
+    assert_eq!(variants["reads"][0]["name"], format!("{SAMPLE_ID}_5-32"));
+    Ok(())
+}

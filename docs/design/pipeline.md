@@ -109,14 +109,13 @@ happens.
 ## Consensus call in process
 
 `SampleAnalysis::call` completes the recommended `consensus` then `call`
-workflow without files (SRS-API-012). It renders the consensus FASTA the
-`consensus` command would publish for the given sample identifier from the
-consensus segments alone, with the same record names and line rules as the
-consensus document's FASTA, and parses it with the record rules of a sequence
-file given to `call`. The records then run the scientific step the `call`
-command runs (`pipeline::call::call_sequences`: the core call of each record,
-then the notation), borrowing the configuration, profile, and reference the
-analysis loaded. The notation is rendered once (`report::notation_calls`, the
+workflow without files (SRS-API-012). It names each segment as the consensus
+FASTA does (rendering the FASTA from the segments and parsing it with the
+record rules of a sequence file given to `call`), then runs the scientific
+step `call` runs on a consensus document (`pipeline::call::call_consensus`:
+each segment called from the consensus's decided edits by
+`dna_core::consensus::decided`, then the notation; SRS-VAR-021, ADR-0078),
+borrowing the configuration, profile, and reference the analysis loaded. The notation is rendered once (`report::notation_calls`, the
 rendering the variants document projects too). The round trip through the
 FASTA text keeps record names and sequence identities equal to those of the
 two commands. It is implemented in `pipeline`, beside the commands it composes,

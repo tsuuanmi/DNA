@@ -32,7 +32,8 @@ impl SampleAnalysis {
             sample_id,
             &self.consensus,
         ))?;
-        let Called { reads, notation } = call::call_sequences(
+        let Called { reads, notation } = call::call_consensus(
+            &self.consensus,
             &sequences,
             &loaded.config,
             &loaded.profile,

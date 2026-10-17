@@ -1,7 +1,7 @@
 ---
 id: PROP-0006
 type: proposal
-status: accepted
+status: implemented
 owners: []
 created: 2026-10-17
 related-requirements: [SRS-API-012, SRS-VAR-015, SRS-VAR-017, SRS-ALN-015]
@@ -207,4 +207,41 @@ consensus, which is the fix. Callers that pass a FASTA see no change.
 
 ## Implementation
 
-None yet.
+ADR-0078 records the decision; SRS-VAR-021 and SRS-API-012 hold the rules.
+Item 0's canonical placement landed earlier (ADR-0047 §1 amendment). Its
+tandem-repeat stretch growth was measured and parked: it gains fewer strict
+concordances than it costs.
+
+Items 1 to 4: `dna_core::consensus::decided` (plugin `decided` 1),
+`dna call <id>.consensus.json`, and `SampleAnalysis::call` on the same path.
+`dna.variants/v1` is revised in place: the reads of a consensus input are its
+segments.
+
+Two choices differ from the text above, both from measurement:
+- **The record rules stay.** Item 1 proposed not applying `run_boundary`
+  again. Waiving it, even only for stretches whose every run length a read
+  showed, reported lengths the consensus could not bound and measured worse.
+  The decided variants are judged by the record rules. A length change of the
+  run at a segment's first or last position is also excluded, since no read
+  shows that run's outer end.
+- **Ties in a site's own alignment** prefer a pair, then a deletion, then an
+  insertion. The deletion trade of normalization settles a deletion beside a
+  substitution (`16297C 16298DEL`); its gap was fixed separately (#103).
+
+Measured on development panel v5 against main (`haplotype_lod`):
+- 14 samples become concordant and none become discordant;
+- primary: 13 better, 1 worse (a stretch decided position by position next
+  to an `N`, `16027C`, which PROP-0008 step 3 covers);
+- 8 samples that failed to call now call;
+- no exported EMPOP range covers a position the consensus left undecided (16
+  positions in 13 samples before, 0 now);
+- callable yield is unchanged to the fourth decimal.
+
+Equivalence: of the 7,144 consensus segments without an `N`, 7,135 give the
+same notation as the FASTA path. In the other 9:
+- the FASTA path misplaced a record that starts inside the HVS-II run
+  (`301C 302C`);
+- or the FASTA path's alignment chose a substitution where the consensus
+  decided a deletion at the HVS-I read start (`16037G` against `16038DEL`,
+  `16031C` against `16031DEL`);
+- or a length at a segment-edge run that the document path now excludes.

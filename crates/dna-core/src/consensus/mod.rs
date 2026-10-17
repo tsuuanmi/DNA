@@ -11,6 +11,7 @@
 //! trusted, no support veto) decide, under decision rule version 1.
 
 mod decide;
+pub mod decided;
 mod observe;
 
 use std::collections::{BTreeMap, BTreeSet};

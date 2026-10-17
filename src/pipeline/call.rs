@@ -4,14 +4,17 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::config::Config;
+use crate::input::consensus::{self, ConsensusInputs};
 use crate::input::sequence::{self, CallInputs, SequenceRead};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedCall, SampleNotation};
+use dna_core::consensus::decided;
 use dna_core::model::called_read::CalledRead;
+use dna_core::model::consensus::Consensus;
 use dna_core::read_call::{self, CoreRun, ReadIdentity};
-use dna_kernel::error::Result;
+use dna_kernel::error::{ConsensusDocumentError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 
@@ -47,21 +50,45 @@ fn call(
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
-    let inputs = sequence::load_call(sequences, reference, config_path)?;
     let output = path::call_output(sample_id)?;
-    tracing::info!(
-        event = "call_inputs_loaded",
-        reads = inputs.reads.len(),
-        reference_name = ?inputs.reference.name,
-        reference_sha256 = %inputs.reference.sequence_sha256,
-        config_sha256 = %inputs.config.source_sha256,
-        profile_id = ?inputs.profile.identity().id,
-        profile_sha256 = %inputs.profile.identity().sha256,
-        output_path = ?output.display().to_string(),
-    );
-
-    drop(stage);
-    let completed = complete(sample_id, inputs)?;
+    let document = sequences.iter().any(|path| {
+        path.extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+    });
+    let completed = if document {
+        let [document] = sequences else {
+            return Err(ConsensusDocumentError::Mixed.into());
+        };
+        let inputs = consensus::load_call(sample_id, document, reference, config_path)?;
+        tracing::info!(
+            event = "call_inputs_loaded",
+            input = "consensus",
+            reads = inputs.reads.len(),
+            reference_name = ?inputs.reference.name,
+            reference_sha256 = %inputs.reference.sequence_sha256,
+            config_sha256 = %inputs.config.source_sha256,
+            profile_id = ?inputs.profile.identity().id,
+            profile_sha256 = %inputs.profile.identity().sha256,
+            output_path = ?output.display().to_string(),
+        );
+        drop(stage);
+        complete_consensus(sample_id, inputs)?
+    } else {
+        let inputs = sequence::load_call(sequences, reference, config_path)?;
+        tracing::info!(
+            event = "call_inputs_loaded",
+            input = "sequence",
+            reads = inputs.reads.len(),
+            reference_name = ?inputs.reference.name,
+            reference_sha256 = %inputs.reference.sequence_sha256,
+            config_sha256 = %inputs.config.source_sha256,
+            profile_id = ?inputs.profile.identity().id,
+            profile_sha256 = %inputs.profile.identity().sha256,
+            output_path = ?output.display().to_string(),
+        );
+        drop(stage);
+        complete(sample_id, inputs)?
+    };
 
     let _stage = tracing::info_span!("reporting").entered();
     let result = report::build_call(completed)?;
@@ -103,6 +130,31 @@ pub(super) fn complete(sample_id: &str, inputs: CallInputs) -> Result<CompletedC
         plugin::CALL_WITH_NOTATION
     } else {
         plugin::CALL
+    };
+    Ok(CompletedCall {
+        sample_id: sample_id.to_owned(),
+        reference: inputs.reference,
+        profile: inputs.profile.identity().clone(),
+        reads,
+        notation,
+        plugins,
+    })
+}
+
+/// Calls a consensus document's decided edits and derives the notation over
+/// loaded inputs, without output paths, operation logs, or publication.
+fn complete_consensus(sample_id: &str, inputs: ConsensusInputs) -> Result<CompletedCall> {
+    let Called { reads, notation } = call_consensus(
+        &inputs.consensus,
+        &inputs.reads,
+        &inputs.config,
+        &inputs.profile,
+        &inputs.reference,
+    )?;
+    let plugins = if notation.is_some() {
+        plugin::CALL_CONSENSUS_WITH_NOTATION
+    } else {
+        plugin::CALL_CONSENSUS
     };
     Ok(CompletedCall {
         sample_id: sample_id.to_owned(),
@@ -162,6 +214,52 @@ pub(super) fn call_sequences(
                     input_name: read.name.clone(),
                     input_sha256: read.sha256.clone(),
                     declared: declared(&read.name, reference.sequence.len()),
+                },
+                sequence::read_evidence(read)?,
+                reference,
+                &run,
+            )
+            .map(CalledRead::without_excluded_positions)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let _stage = tracing::info_span!("nomenclature").entered();
+    let notation = represent::represent(&reads, reference, profile)?;
+    Ok(Called { reads, notation })
+}
+
+/// The scientific step of `call` over a consensus (PROP-0006): each segment,
+/// given as its FASTA record in `sequences`, is called from the consensus's
+/// decided edits without being placed again, then the notation is derived.
+pub(super) fn call_consensus(
+    consensus: &Consensus,
+    sequences: &[SequenceRead],
+    config: &Config,
+    profile: &Profile,
+    reference: &Reference,
+) -> Result<Called> {
+    let run = CoreRun {
+        config: &config.core,
+        configuration_sha256: &config.source_sha256,
+        regions: &profile.regions,
+    };
+    let reads = sequences
+        .iter()
+        .enumerate()
+        .map(|(index, read)| {
+            tracing::info!(
+                event = "call_segment_started",
+                read = ?read.name,
+                sha256 = %read.sha256,
+                bases = read.sequence.len(),
+            );
+            decided::call_segment(
+                consensus,
+                index,
+                ReadIdentity {
+                    input_name: read.name.clone(),
+                    input_sha256: read.sha256.clone(),
+                    declared: None,
                 },
                 sequence::read_evidence(read)?,
                 reference,

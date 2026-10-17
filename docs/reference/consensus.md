@@ -68,11 +68,11 @@ The method is described in [design](../design/consensus.md).
 
 ## FASTA
 
-The FASTA has one record per segment, with 70-column lines. It is valid input
-for `dna call <sample-id> results/<sample-id>.consensus.fasta --reference
-<reference.fasta>`, which writes the consensus's `dna.variants/v1` document.
-It carries only the sequence: a length labelled `phase_loss` or
-`reference_frame` reads there like any other, so review it in `sites[].runs`.
+The FASTA has one record per segment, with 70-column lines. It carries only
+the sequence: a length labelled `phase_loss` or `reference_frame` reads there
+like any other, so review it in `sites[].runs`. `dna call` accepts it as a
+reviewed sequence and places each record again; the recommended call reads the
+document instead (below).
 
 ## Workflow
 
@@ -80,8 +80,10 @@ To turn a sample's traces into variants:
 
 1. `dna consensus <id> <trace>... --reference <fasta>` writes the consensus
    and its FASTA.
-2. `dna call <id> results/<id>.consensus.fasta --reference <fasta>` writes
-   `results/<id>.variants.json` (`dna.variants/v1`) with its notation.
+2. `dna call <id> results/<id>.consensus.json --reference <fasta>` writes
+   `results/<id>.variants.json` (`dna.variants/v1`) with its notation: the
+   edits the consensus decided, at the positions it decided them, without
+   placing the segments again (SRS-VAR-021, ADR-0078).
 3. Optionally, `dna notation <id> results/<id>.variants.json --reference
    <fasta>` adds the conformance findings.
 
