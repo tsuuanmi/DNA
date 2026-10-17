@@ -17,7 +17,8 @@ so the difference reaches the one who can act on it.
   bases (3 % or more). The runner takes it from the sample analysis.
 - `forms.rs` — how the reviewers write each sequence over the whole truth:
   per repeat window and window sequence, the samples per written form, and
-  outside the windows the calls each sample carries (a proxy).
+  outside the windows the samples per set of calls (a proxy); written as
+  `forms.tsv` and read back for the same truth database.
 
 It depends on `classes`, `compare`, and `lod` for the sample's class,
 comparisons, and limit-of-detection signals, and on DNA's sample analysis

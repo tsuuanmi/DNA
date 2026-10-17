@@ -60,6 +60,8 @@ const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_BASELINE_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted development `triage_policies.tsv`.
 const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
+/// Largest accepted `forms.tsv`.
+const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest DNA configuration file the harness reads its margins from.
 const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 
@@ -193,6 +195,10 @@ struct RunArgs {
     /// `triage*` outputs; research only.
     #[arg(long)]
     triage: bool,
+    /// An earlier run's `forms.tsv` for the same truth database, read
+    /// instead of indexing the whole database.
+    #[arg(long)]
+    forms: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -253,10 +259,6 @@ fn run(cli: &RunArgs) -> Result<String> {
         .map(|sample| sample.id.as_str())
         .collect::<BTreeSet<_>>();
     let truth = load_truth(&cli.truth, &wanted)?;
-    // How the reviewers write each window sequence, over the whole truth,
-    // for the cause of a representation discrepancy.
-    let corpus = truth::sample_ids(&cli.truth)?;
-    let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
     // The haplotype measures apply alleles to this sequence; a sample DNA
     // analyses on another sequence fails.
     let reference = dna_kernel::reference::load(&cli.reference, ReferenceTopology::Linear)
@@ -264,8 +266,23 @@ fn run(cli: &RunArgs) -> Result<String> {
             path: cli.reference.clone(),
             message: error.to_string(),
         })?;
-    let forms = Forms::new(corpus.samples.values(), &reference.sequence);
-    drop(corpus);
+    // How the reviewers write each window sequence, over the whole truth,
+    // for the cause of a representation discrepancy.
+    let forms = if let Some(path) = &cli.forms {
+        let text = read(path, "forms", MAX_FORMS_BYTES)?;
+        let text = String::from_utf8(text).map_err(|error| Error::Forms {
+            path: path.clone(),
+            message: error.to_string(),
+        })?;
+        Forms::parse(&text, &truth.sha256).map_err(|message| Error::Forms {
+            path: path.clone(),
+            message,
+        })?
+    } else {
+        let corpus = truth::sample_ids(&cli.truth)?;
+        let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
+        Forms::new(corpus.samples.values(), &reference.sequence)
+    };
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let outcomes = runner::run(
@@ -324,6 +341,7 @@ fn run(cli: &RunArgs) -> Result<String> {
     {
         write(&cli.output, name, &contents)?;
     }
+    write(&cli.output, "forms.tsv", &forms.table(&truth.sha256))?;
     let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
     json.push('\n');
     write(&cli.output, "run.json", &json)?;

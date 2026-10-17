@@ -14,7 +14,7 @@ cargo run --release -p dna-eval -- run \
   --manifest <panel.tsv> --truth <statistics.sqlite> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
-  --threads <1-256> [--triage]
+  --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -452,7 +452,10 @@ Any other discrepancy is `undetermined` (`adjudicate`, `not_comparable`).
 The written forms group the truth's IUPAC-free samples by the sequence of
 each repeat window, so DNA's form and the truth's are compared for the same
 sequence; outside the windows no sequence groups them, and the count of
-samples carrying each side's calls is a proxy. A sample can need more than
+samples carrying each side's calls is a proxy. Each run writes this index as
+`forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
+earlier run's instead of indexing the whole database, and a file written for
+another database stops the run. A sample can need more than
 one party: the summary counts the samples per class and cause, deferred DNA
 items apart, and per cause, scope, and evidence the samples with such a
 finding. Insertions are not judged under `sequence` yet: reads showing the
@@ -662,6 +665,7 @@ Phase-0 results are in
 | `triage_minor.tsv` | with `--triage`, per policy of the minor-signal measurement: its rule, A without and with it and the cost, moved samples and burden, IUPAC sites and those caught (in regions that pass without the rule, and in any region), and per measure the passed samples and leaks without and with the rule, the upper bound, and the corpus rate |
 | `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
 | `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
+| `forms.tsv` | how the reviewers write each sequence over the whole truth database, keyed by its SHA-256: per repeat window and window sequence the samples per written form, and the samples per set of calls outside the windows (`-` for an empty one); no sample identifiers |
 | `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 
 Every file except `run.json` depends only on the panel, the truth, DNA's
