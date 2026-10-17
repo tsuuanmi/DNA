@@ -8,7 +8,7 @@
 
 use crate::report::{ReadRepresentation, SampleNotation};
 use dna_core::model::called_read::CalledRead;
-use dna_kernel::error::{Error, NomenclatureError, Result};
+use dna_kernel::error::Result;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Notation, Profile};
 use dna_kernel::variant::{CalledVariantSet, Variant};
@@ -61,9 +61,8 @@ pub(crate) fn represent_variants(
     Ok(Some(SampleNotation { style, reads }))
 }
 
-/// Normalizes one read's calls, then applies the profile windows. An edit that
-/// straddles a window cannot take that representation (SRS-NOM-007), so the
-/// read keeps its normalized form.
+/// Normalizes one read's calls, then applies the profile windows; a window an
+/// edit straddles keeps its normalized form (SRS-NOM-007).
 fn represent_read(
     reference: &Reference,
     profile: &Profile,
@@ -75,13 +74,10 @@ fn represent_read(
         variants,
     };
     let normalized = normalize_with(reference, &called, policy)?;
-    match variant_nomenclature::apply_with(reference, profile, from_normalization(&normalized)) {
-        Ok(represented) => Ok(represented.represented_variants),
-        Err(Error::VariantNomenclature(NomenclatureError::WindowCrossing { .. })) => {
-            Ok(normalized.normalized_variants)
-        }
-        Err(error) => Err(error),
-    }
+    Ok(
+        variant_nomenclature::apply_with(reference, profile, from_normalization(&normalized))?
+            .represented_variants,
+    )
 }
 
 #[cfg(test)]
@@ -150,32 +146,21 @@ mod tests {
     }
 
     #[test]
-    fn keeps_the_normalized_form_for_an_edit_crossing_the_hv2_window() -> TestResult {
+    fn an_edit_crossing_the_hv2_window_keeps_its_form_and_hv3_is_represented() -> TestResult {
         let reference = rcrs()?;
+        // A deletion of 302-303 crosses HVS-II and stays as normalized; the
+        // AC-unit deletion at 515-516 still takes HVS-III's 523DEL 524DEL.
         let crossing = public(301, "AAC", "A");
-        let normalized = normalize_with(
-            &reference,
-            &CalledVariantSet {
-                reference: reference.identity(),
-                variants: vec![crossing.clone()],
-            },
-            NormalizationPolicy::RightAligned,
-        )?;
-        let profile = human_mtdna()?;
-        assert!(matches!(
-            variant_nomenclature::apply_with(&reference, &profile, from_normalization(&normalized)),
-            Err(Error::VariantNomenclature(
-                NomenclatureError::WindowCrossing { window }
-            )) if window == "HVS-II"
-        ));
-
         let represented = represent_read(
             &reference,
-            &profile,
+            &human_mtdna()?,
             NormalizationPolicy::RightAligned,
-            vec![Variant::from(&called(301, "AAC", "A", VariantKind::Del))],
+            vec![
+                Variant::from(&called(301, "AAC", "A", VariantKind::Del)),
+                Variant::from(&called(514, "CAC", "C", VariantKind::Del)),
+            ],
         )?;
-        assert_eq!(represented, [crossing]);
+        assert_eq!(represented, [crossing, public(522, "CAC", "C")]);
         Ok(())
     }
 

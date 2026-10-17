@@ -27,8 +27,8 @@ the key is omitted. The examples below use the shipped human-mtDNA profile
    human-mtDNA profile names the HVS-II 303-315 and HVS-I 16181-16193 poly-C
    windows and the HVS-III 513-524 AC repeat in forensic form
    (`309.1C 315.1C`, `310C 315DEL`, `513A 523DEL 524DEL`,
-   `16183C 16184A 16189C`). A read with an edit that straddles a window keeps
-   its normalized form instead.
+   `16183C 16184A 16189C`). A window that an edit straddles keeps its
+   normalized form instead; the read's other windows are still represented.
 4. The `per_base_decimal` style renders the represented variants one call per
    changed base:
    - substitution: `<position><base>`, for example `73G`;

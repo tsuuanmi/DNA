@@ -113,9 +113,11 @@ The `sample`, `call`, and `notation` commands compose this per read when the pro
 indel placement by `variant_normalization` and then passed through the profile
 windows, so that, for example, the HV2F and HV3R descriptions of one poly-C
 haplotype converge before they are compared. Composition lives in
-`pipeline::represent`, following ADR-0060 §7. An edit that straddles a
-window keeps its normalized form, because SRS-NOM-007 forbids partially
-rewriting it.
+`pipeline::represent`, following ADR-0060 §7. A window that an edit
+straddles keeps its normalized form, because SRS-NOM-007 forbids partially
+rewriting it; the read's other windows are still represented, so one
+crossing edit, such as a deletion of 512-513 beside HVS-III, no longer leaves
+an HVS-II run-length change in its raw `309.1C 309.2T 310C` form.
 
 Rendering in the profile's notation style (`per_base_decimal`) is mechanical
 serialization (ADR-0060 §8) and lives in `report::notation` (SRS-NOM-011); the report groups

@@ -204,6 +204,15 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Window representation now applies per window rather than per read
+  (SRS-NOM-007, SRS-NOM-010). An edit that crosses one nomenclature window
+  leaves that window in its normalized form, but no longer prevents the
+  read's other windows from taking their forensic form: for example a
+  deletion of 512-513 beside HVS-III no longer leaves HVS-II's
+  `309.1C 315.1C` as `309.1C 309.2T 310C`. **Breaking for library
+  consumers:** `dna::variant_nomenclature::apply` no longer fails with
+  `NomenclatureError::WindowCrossing`, which is removed. The `nomenclature`
+  plugin version rises to 2.
 - **Breaking for library and log consumers:** the post-calling crate
   `dna-post` is split into `dna-normalize` (representation, normalization,
   nomenclature) and `dna-empop` (conformance) (ADR-0077). Rust paths under

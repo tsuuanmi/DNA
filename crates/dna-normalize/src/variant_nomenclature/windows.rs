@@ -10,9 +10,11 @@ use dna_kernel::error::{NomenclatureError, Result};
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::profile::{Anchor, NomenclatureWindow, WindowRule};
 
-/// Represents every window; edits outside all windows pass through. The
-/// reference must carry every window sequence (checked again here so the
-/// engine never rewrites edits against a different sequence).
+/// Represents every window; edits outside all windows pass through, and so
+/// do the edits of a window that an edit crosses: that window keeps its
+/// normalized form while the others are still represented. The reference
+/// must carry every window sequence (checked again here so the engine never
+/// rewrites edits against a different sequence).
 pub(super) fn represent_windows(
     windows: &[NomenclatureWindow],
     reference: &str,
@@ -36,10 +38,8 @@ pub(super) fn represent_windows(
             continue;
         }
         if !inside.iter().all(|edit| contained(edit, window.start, end)) {
-            return Err(NomenclatureError::WindowCrossing {
-                window: window.name.clone(),
-            }
-            .into());
+            output.extend(inside);
+            continue;
         }
         output.extend(
             represent(window, &shift_left(&inside, window.start))?
@@ -469,13 +469,17 @@ mod tests {
     }
 
     #[test]
-    fn rejects_an_edit_crossing_a_window_boundary() -> TestResult {
+    fn a_window_an_edit_crosses_keeps_its_form_and_the_others_are_represented() -> TestResult {
         let rcrs = rcrs()?;
-        assert!(matches!(
-            represent_windows(&human_mtdna()?.windows, &rcrs, &[edit(300, 304, "")]),
-            Err(Error::VariantNomenclature(NomenclatureError::WindowCrossing { window }))
-                if window == "HVS-II"
-        ));
+        // A deletion of 511-513 crosses HVS-III; a C inserted at the start of
+        // the left HVS-II run still converges on 309.1C.
+        let crossing = edit(510, 513, "");
+        let represented = represent_windows(
+            &human_mtdna()?.windows,
+            &rcrs,
+            &[edit(303, 303, "C"), crossing.clone()],
+        )?;
+        assert_eq!(represented, [edit(309, 309, "C"), crossing]);
         Ok(())
     }
 }

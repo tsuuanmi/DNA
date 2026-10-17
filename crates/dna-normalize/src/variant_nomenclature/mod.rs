@@ -142,7 +142,7 @@ pub fn apply_with(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "nomenclature",
     family: PluginFamily::PostCalling,
-    version: 1,
+    version: 2,
     provides: &[Contract::Nomenclature],
     requires: &[Contract::NormalizedVariants],
     config_sections: &[],
