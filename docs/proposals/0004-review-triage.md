@@ -392,6 +392,26 @@ the remaining labels; variants without a label last. Only positions DNA
 cannot assure are `check`; a variant every read shows cleanly on both
 strands is listed as a `variant` with no label, for completeness.
 
+**Watched positions.** A target profile may declare positions the
+laboratory wants to see in every sample, each with a reason:
+
+```toml
+[[review.watch]]
+positions = [73]
+reason = "read start of the forward HV2 read"
+```
+
+Each watched position is always an item, labelled `watched` with the
+profile's reason, and carries the raw signal of every read that covers it,
+including calls the modality trimmed or masked: the base, the peak heights,
+the number of qualifying channels, and the trace scan position. A watched
+position changes nothing else: not the calls, the consensus, the callable
+ranges, or any trust. The list is the profile's data, so another profile (for
+example one for a given population) declares its own; the core has no
+position in its code. The raw signal at a position is the modality's to give.
+Its agreement with the truth at each watched position is measured like any
+label.
+
 **Availability.** Most labels come from what the analysis holds today:
 `strands_disagree`, `one_read`, `one_strand`, `read_edge`,
 `estimated_length`, `undecided`, and `not_covered`; `phase_shift` and
@@ -460,6 +480,8 @@ Decided 2026-10-17 (user):
   engine choice;
 - rules and labels must generalize: no position-specific rules, and every
   threshold is checked on samples it was not tuned on.
+- a profile may declare watched positions; they only add review items with
+  their raw signal and never change a call.
 
 ## Alternatives considered
 
