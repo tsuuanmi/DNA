@@ -1,7 +1,7 @@
 ---
 id: PROP-0006
 type: proposal
-status: draft
+status: accepted
 owners: []
 created: 2026-10-17
 related-requirements: [SRS-API-012, SRS-VAR-015, SRS-VAR-017, SRS-ALN-015]
@@ -203,7 +203,7 @@ consensus, which is the fix. Callers that pass a FASTA see no change.
   is approved for implementation and measurement, and this order (canonical
   placement before the consensus, the laboratory's conventions after it) is
   the design direction.
-- Pending: the contract change to SRS-API-012 and the `dna call` input.
+- 2026-10-17, user: the contract change is approved. SRS-API-012 becomes "exactly the consensus's decided edits", and `dna call` accepts the consensus document (`dna.consensus/v1`) as an input beside a FASTA sequence. Whether the variants document of a consensus input is a revision in place or a new version is settled with the implementation, under the versioning policy.
 
 ## Implementation
 
