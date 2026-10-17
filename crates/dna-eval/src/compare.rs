@@ -412,6 +412,41 @@ fn comparable(intervals: &[(i64, i64)], analysed: &[(i64, i64)]) -> Vec<(i64, i6
 }
 
 /// Closed intervals sorted and merged where they touch.
+/// DNA's callable yield in one HV region: the truth's analysed positions
+/// there, and how many of them DNA's callable intervals cover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Yield {
+    pub(crate) region: &'static str,
+    pub(crate) callable: u64,
+    pub(crate) analysed: u64,
+}
+
+impl Yield {
+    /// `HV1=330/342`.
+    pub(crate) fn text(&self) -> String {
+        format!("{}={}/{}", self.region, self.callable, self.analysed)
+    }
+}
+
+/// Per HV region, the truth's analysed positions and those DNA's callable
+/// intervals cover.
+pub(crate) fn callable_yield(callable: &[(i64, i64)], analysed: &[(i64, i64)]) -> [Yield; 3] {
+    let length = |intervals: &[(i64, i64)]| {
+        intervals
+            .iter()
+            .map(|(start, end)| u64::try_from(end - start + 1).unwrap_or(0))
+            .sum::<u64>()
+    };
+    HV_REGIONS.map(|(region, start, end)| {
+        let analysed = intersect(&[(start, end)], &merged(analysed));
+        Yield {
+            region,
+            callable: length(&intersect(&analysed, &merged(callable))),
+            analysed: length(&analysed),
+        }
+    })
+}
+
 fn merged(intervals: &[(i64, i64)]) -> Vec<(i64, i64)> {
     let mut sorted = intervals.to_vec();
     sorted.sort_unstable();
@@ -1355,6 +1390,18 @@ pub(crate) mod tests {
                 &["263G", "309.1C", "309.2C", "310.1C"]
             ),
             [N, N, N]
+        );
+    }
+
+    #[test]
+    fn callable_yield_counts_analysed_positions_dna_calls() {
+        let yields = callable_yield(
+            &[(16024, 16100), (16090, 16200), (73, 340)],
+            &[(16024, 16365), (73, 300), (438, 576)],
+        );
+        assert_eq!(
+            yields.map(|value| value.text()),
+            ["HV1=177/342", "HV2=228/228", "HV3=0/139"]
         );
     }
 
