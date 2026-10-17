@@ -14,9 +14,11 @@ The query is the evidence's informative interval. Calls with an *unresolved*
 mask enter it as `N` without a profile; calls with an *anchoring* mask keep
 their base and profile. `orient.rs` also derives the masked-base counts and the
 callable reference segments: the reference observed by unmasked calls that
-read a resolved base. Before that, `runs.rs`
-re-expresses masked repeat stretches of the selected alignment as one length
-edit per run (ADR-0072).
+read a resolved base. Before that, on a read whose ends are vouched (a
+consensus record), `canonical.rs` moves a deletion beside an `N` without
+evidence 3' across it (SRS-ALN-017), and `runs.rs` re-expresses masked
+repeat stretches of the selected alignment as one length edit per run
+(ADR-0072).
 
 This module does not extract variants or mutate upstream signal evidence.
 
