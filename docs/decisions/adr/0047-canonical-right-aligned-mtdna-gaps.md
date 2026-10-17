@@ -48,6 +48,23 @@ DNA MUST first retain only tracebacks with the maximum scientific alignment scor
 the configured profile-aware Gotoh model. Canonicalization MUST NOT choose a lower-scoring
 path merely because its gap lies farther to the right.
 
+**Amendment (2026-10-17, user).** The optimal score chooses the read's
+*explanation*: which of its calls match, are substituted, are inserted, or face
+a deletion. It no longer chooses the *placement* among the sequence-equivalent
+placements of that explanation. Two placements are sequence-equivalent when a
+gap moves one base at a time by the shared move of `dna_kernel::model::placement`
+and the alignment's primary-base score (each call's profile replaced by its
+primary base) stays the same: no moved call turns from a match into a mismatch
+and no gap joins another. Among them the 3'-most is taken even where the
+profile score is lower. With profile-weighted scores, the optimum put a gap
+where the read's own calls happened to be weakest, so two reads of one
+sequence described an AC-repeat insertion at `513.1C 513.2A` and at
+`524.1A 524.2C`, and the consensus, voting on placements, lost it (118
+contested AC sites on development panel v5, 4 after the change). The score
+recorded for the alignment stays the optimal explanation's. Section 8 holds for
+substitution scoring; the profile still decides the explanation, not where an
+equivalent gap sits.
+
 ### 2. Canonicalization applies only to repeat-equivalent optimal paths
 
 Two optimal paths may be canonicalized together only when their difference is a shift of the

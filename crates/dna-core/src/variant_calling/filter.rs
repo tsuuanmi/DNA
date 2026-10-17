@@ -29,8 +29,18 @@ pub(super) fn apply(
         if !in_region(variant.position_1based, regions) {
             reasons.push(VariantExclusionReason::OutsideTargetRegion);
         }
-        reasons.extend(support_vetoes(&variant, evidence)?);
-        reasons.extend(eligibility.reasons(&variant, orientation));
+        let eligibility_reasons = eligibility.reasons(&variant, orientation);
+        // An insertion into a repeat the read bounds is judged on its
+        // placements along the repeat, not on the calls its 3'-most placement
+        // happens to take as inserted.
+        let repeat = variant.kind == VariantKind::Ins
+            && !eligibility_reasons.contains(&VariantExclusionReason::RunBoundary)
+            && eligibility.repeat_unvetoed(&supporting_calls(&variant));
+        let vetoes = support_vetoes(&variant, evidence)?;
+        if !repeat {
+            reasons.extend(vetoes);
+        }
+        reasons.extend(eligibility_reasons);
         observed.push(ObservedVariant {
             variant: variant.clone(),
             exclusion_reasons: reasons.clone(),
@@ -57,6 +67,16 @@ fn in_region(position_1based: usize, regions: &[[usize; 2]]) -> bool {
     regions
         .iter()
         .any(|[start, end]| *start <= position_1based && position_1based <= *end)
+}
+
+/// The variant's supporting calls, in mapping order.
+fn supporting_calls(variant: &Variant) -> Vec<usize> {
+    variant
+        .calls
+        .iter()
+        .filter(|mapping| mapping.role == VariantCallRole::Supporting)
+        .map(|mapping| mapping.call_index_0based)
+        .collect()
 }
 
 /// The vetoes raised by any supporting call that apply to the variant's kind,

@@ -121,14 +121,20 @@ pub(super) fn observe(
             length_only[call] = inserted || matches[call];
         }
     }
-    let clean_call = |index: usize| {
+    // Unmasked and trusted, whatever its support vetoes.
+    let trusted_call = |index: usize| {
         calls.get(index).is_some_and(|call| {
             call.mask.is_none()
-                && call.vetoes == VetoSet::default()
                 && (eligibility.trusted(index)
                     || (eligibility.run_exempt(index) && length_only[index])
                     || (eligibility.bound_exempt(index) && matches[index]))
         })
+    };
+    let clean_call = |index: usize| {
+        trusted_call(index)
+            && calls
+                .get(index)
+                .is_some_and(|call| call.vetoes == VetoSet::default())
     };
     let interval = read.evidence.informative();
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
@@ -192,10 +198,14 @@ pub(super) fn observe(
             let evidence = inserted.iter().map(|(_, call)| *call).collect::<Vec<_>>();
             let unbounded =
                 eligibility.unbounded_run(VariantKind::Ins, &bases, orientation, &evidence);
+            // As in variant calling: an insertion into a repeat the read
+            // bounds is judged on its placements along the repeat.
+            let repeat = !unbounded && eligibility.repeat_unvetoed(&evidence);
+            let inserted_clean = |call: usize| clean_call(call) || (repeat && trusted_call(call));
             let clean = !unbounded
                 && inserted
                     .iter()
-                    .all(|(base, call)| canonical(*base) && clean_call(*call))
+                    .all(|(base, call)| canonical(*base) && inserted_clean(*call))
                 && bounded(before[previous_column], after[offset]);
             junctions.insert(
                 previous_position,
@@ -208,6 +218,9 @@ pub(super) fn observe(
                             let mut char = observed_char(*base, *call, None);
                             if unbounded {
                                 char.trust = char.trust.min(Trust::Unmasked);
+                            } else if repeat && char.trust == Trust::Unmasked && trusted_call(*call)
+                            {
+                                char.trust = Trust::Clean;
                             }
                             char
                         })

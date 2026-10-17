@@ -88,6 +88,17 @@ Three dynamic-programming matrices track match, insertion, and deletion states. 
 
 ### Substep 6.4 — Traceback
 
+After the traceback, `canonical.rs` moves every gap to its 3'/right-most
+sequence-equivalent placement (ADR-0047, SRS-ALN-012). The one-base move is the
+shared rule of `dna_kernel::model::placement` (`crosses`: a gap moves across a
+reference base equal to its first inserted or deleted base); variant
+normalization (`right.rs`) uses the same rule on edits, so the core and the
+normalizer are two adapters of one rule. A move is kept when the alignment's
+primary-base score is unchanged, scoring each call by its primary base alone:
+the moved call stays a match and no gap joins another. The profile score is
+not compared, so a read's signal purity never decides where an equivalent gap
+sits; the alignment keeps the optimal explanation's score.
+
 The traceback internally decodes the selected path into equal-length gapped query and
 gapped reference strings, an operation-run string (e.g. `5M`, `3M1I1M`), and
 alignment metrics. Compact analysis v9 emits only the selected alignment summary and

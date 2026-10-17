@@ -2,6 +2,7 @@
 
 use super::TradeBounds;
 use crate::variant_representation::{RepresentationResult, SequenceEdit, apply_edits, sort_edits};
+use dna_kernel::model::placement;
 
 pub(super) fn right_align(
     reference: &str,
@@ -77,22 +78,21 @@ fn shift_right_once(reference: &str, edits: &[SequenceEdit], index: usize) -> Op
             Some(base) if !attached => base,
             _ => *reference_bytes.get(edit.start)?,
         };
-        if first_inserted != crossed {
+        if !placement::crosses(first_inserted, crossed) {
             return None;
         }
-        let mut alternate = edit.alternate.as_bytes()[1..].to_vec();
-        alternate.push(crossed);
         return Some(SequenceEdit {
             start: edit.start + 1,
             end: edit.end + 1,
-            alternate: String::from_utf8(alternate).ok()?,
+            alternate: String::from_utf8(placement::rotated(edit.alternate.as_bytes(), crossed))
+                .ok()?,
         });
     }
 
     if edit.alternate.is_empty() {
         let first_deleted = *reference_bytes.get(edit.start)?;
         let following = *reference_bytes.get(edit.end)?;
-        if first_deleted != following {
+        if !placement::crosses(first_deleted, following) {
             return None;
         }
         return Some(SequenceEdit {

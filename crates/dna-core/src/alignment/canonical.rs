@@ -1,9 +1,21 @@
-//! Canonical right alignment for repeat-equivalent optimal gap placements.
+//! Canonical right alignment: every gap of the optimal alignment moved to
+//! its 3'/right-most sequence-equivalent placement (ADR-0047).
+//!
+//! The optimal score chooses the read's explanation: which bases are
+//! matched, substituted, inserted, or deleted. Among the placements of that
+//! explanation that describe the same sequence, the 3'-most is taken, whatever
+//! the profile score of each placement: a read's signal purity must not decide
+//! where an equivalent gap sits, or two reads of one sequence would describe it
+//! at two places. A move is sequence-equivalent when the one-base move of
+//! [`placement`] allows it and it keeps the alignment's primary-base score: no
+//! moved call changes from a match to a mismatch, and no gap joins another.
 
 use crate::alignment::AlignmentConfig;
 use crate::alignment::scoring::{scaled, substitution};
 use crate::alignment::traceback::{self, RawAlignment, RawColumn};
 use dna_kernel::error::{AlignmentError, Result};
+use dna_kernel::model::nucleotide::Nucleotide;
+use dna_kernel::model::placement;
 use dna_kernel::read_evidence::EvidenceProfile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +47,7 @@ pub(crate) fn right_align(
         .into());
     }
 
+    let mut primary = primary_score(&alignment.columns, config)?;
     loop {
         let runs = gap_runs(&alignment.columns);
         let mut shifted = false;
@@ -42,9 +55,11 @@ pub(crate) fn right_align(
             let Some(candidate) = shifted_right(&alignment.columns, run, modulo_length) else {
                 continue;
             };
-            if score(&candidate, profiles, config)? != expected_score {
+            let candidate_primary = primary_score(&candidate, config)?;
+            if candidate_primary != primary {
                 continue;
             }
+            primary = candidate_primary;
             alignment.columns = candidate;
             alignment.metrics = traceback::metrics(&alignment.columns);
             shifted = true;
@@ -78,9 +93,9 @@ pub(crate) fn cross_unresolved(
             if gap_kind(following).is_some() {
                 continue;
             }
-            let crosses = following.query_index.is_some_and(&unresolved);
+            let across = following.query_index.is_some_and(&unresolved);
             let Some(candidate) =
-                shift_deletion(&alignment.columns, run, following, modulo_length, crosses)
+                shift_deletion(&alignment.columns, run, following, modulo_length, across)
             else {
                 continue;
             };
@@ -134,16 +149,19 @@ fn shifted_right(
 }
 
 /// The deletion moved one base right, across a reference base equal to its
-/// first deleted base, or with `crosses`, across any reference base.
+/// first deleted base, or with `across_unresolved`, across any reference base.
 fn shift_deletion(
     columns: &[RawColumn],
     run: GapRun,
     following: &RawColumn,
     modulo_length: Option<usize>,
-    crosses: bool,
+    across_unresolved: bool,
 ) -> Option<Vec<RawColumn>> {
     let first = columns.get(run.start)?;
-    if first.reference_base != following.reference_base && !crosses {
+    let equivalent = byte(first.reference_base)
+        .zip(byte(following.reference_base))
+        .is_some_and(|(first, crossed)| placement::crosses(first, crossed));
+    if !equivalent && !across_unresolved {
         return None;
     }
     if crosses_circular_seam(
@@ -169,7 +187,7 @@ fn shift_insertion(
     modulo_length: Option<usize>,
 ) -> Option<Vec<RawColumn>> {
     let first = columns.get(run.start)?;
-    if first.query_base != following.reference_base {
+    if !placement::crosses(byte(first.query_base)?, byte(following.reference_base)?) {
         return None;
     }
     let following_reference = following.reference_index?;
@@ -234,6 +252,36 @@ fn score(
     }
 
     Ok(total)
+}
+
+/// A column base as a byte; `None` for a non-ASCII symbol.
+fn byte(base: char) -> Option<u8> {
+    u8::try_from(base).ok()
+}
+
+/// The alignment's score with each call's profile replaced by its primary
+/// base alone: what changes only when a call changes between a match and a
+/// mismatch, or gaps open or close.
+fn primary_score(columns: &[RawColumn], config: &AlignmentConfig) -> Result<i64> {
+    let primaries = columns
+        .iter()
+        .map(|column| {
+            Nucleotide::from_char(column.query_base).map(|base| {
+                let mut weights = [0.0; 4];
+                weights[base.channel_index()] = 1.0;
+                EvidenceProfile { weights }
+            })
+        })
+        .collect::<Vec<_>>();
+    let indexed = columns
+        .iter()
+        .enumerate()
+        .map(|(index, column)| RawColumn {
+            query_index: column.query_index.map(|_| index),
+            ..column.clone()
+        })
+        .collect::<Vec<_>>();
+    score(&indexed, &primaries, config)
 }
 
 const fn gap_kind(column: &RawColumn) -> Option<GapKind> {
@@ -359,7 +407,10 @@ mod tests {
     }
 
     #[test]
-    fn profile_score_can_prevent_equivalent_primary_insertion_shift() -> Result<()> {
+    fn profile_score_does_not_prevent_an_equivalent_insertion_shift() -> Result<()> {
+        // The inserted A's profile reads C: the shift lowers the profile
+        // score, yet the primary bases describe the same sequence, so the
+        // insertion still takes the run's 3' end (ADR-0047 §1).
         let mut profiles = one_hot("CAAAG");
         profiles[1] = Some(EvidenceProfile {
             weights: [0.0, 1.0, 0.0, 0.0],
@@ -380,8 +431,73 @@ mod tests {
                 .columns
                 .iter()
                 .position(|column| column.reference_base == '-'),
-            Some(1)
+            Some(3)
         );
+        // The score kept is the optimal explanation's, not the placement's.
+        assert_eq!(alignment.score, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn an_insertion_does_not_cross_a_substituted_call() -> Result<()> {
+        // CA+A inserted before a call that reads T where the reference has A:
+        // moving across it would turn that mismatch into an inserted base.
+        let profiles = one_hot("CAATG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('A', '-', Some(1), None),
+            column('A', 'A', Some(2), Some(1)),
+            column('T', 'A', Some(3), Some(2)),
+            column('G', 'G', Some(4), Some(3)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+        assert_eq!(
+            alignment
+                .columns
+                .iter()
+                .position(|column| column.reference_base == '-'),
+            Some(2)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn an_ac_unit_insertion_takes_the_repeats_3_prime_end_whatever_the_profiles() -> Result<()> {
+        // As HVS-III's AC repeat with one more CA unit, read with call
+        // purities that vary: the profile score would place the insertion
+        // mid-repeat, but every read must describe it at the 3' end.
+        let reference = "TTAGCTAAGCACACACACACACCGCTGCTAACCCC";
+        let read = "TTAGCTAAGCACACACACACACACCGCTGCTAACCCC";
+        let purities = [0.88, 0.93, 0.85, 0.9, 0.97];
+        let profiles = read
+            .bytes()
+            .enumerate()
+            .map(|(index, base)| {
+                let channel = Nucleotide::from_char(char::from(base))?.channel_index();
+                let purity = purities[index % purities.len()];
+                let mut weights = [(1.0 - purity) / 3.0; 4];
+                weights[channel] = purity;
+                Some(EvidenceProfile { weights })
+            })
+            .collect::<Vec<_>>();
+        let placements =
+            crate::alignment::gotoh::align(read, &profiles, reference, &config(), None)?;
+        let inserted = placements[0]
+            .columns
+            .iter()
+            .scan(None, |previous, column| {
+                let anchor = *previous;
+                if column.reference_index.is_some() {
+                    *previous = column.reference_index;
+                }
+                Some((column.reference_index.is_none(), anchor))
+            })
+            .filter_map(|(inserted, anchor)| inserted.then_some(anchor))
+            .collect::<Vec<_>>();
+        // After the repeat's last C (index 21), before CCG.
+        assert_eq!(inserted, [Some(21), Some(21)]);
         Ok(())
     }
 

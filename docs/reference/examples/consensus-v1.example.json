@@ -7,7 +7,7 @@
       "topology": "circular",
       "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
     },
-    "configuration_sha256": "7c9319627b34b6edaecdba2967d3b31f1be58db86134f2c507eaa28a22eda762",
+    "configuration_sha256": "b7328a9ac3e4302012d3206311f8c777af63e68d1ee9fc69126c7deae7f05de0",
     "profile": {
       "id": "human-mtdna-rcrs",
       "sha256": "55e4ea8efb2c719e9a2a356d6adf87d21f5892a931279d5da5ba42ffd4b2ce39"
@@ -21,12 +21,12 @@
       {
         "id": "core",
         "family": "core",
-        "version": 7
+        "version": 8
       },
       {
         "id": "consensus",
         "family": "core",
-        "version": 3
+        "version": 4
       }
     ]
   },

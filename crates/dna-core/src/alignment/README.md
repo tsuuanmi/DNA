@@ -14,7 +14,10 @@ The query is the evidence's informative interval. Calls with an *unresolved*
 mask enter it as `N` without a profile; calls with an *anchoring* mask keep
 their base and profile. `orient.rs` also derives the masked-base counts and the
 callable reference segments: the reference observed by unmasked calls that
-read a resolved base. Before that, on a read whose ends are vouched (a
+read a resolved base. `canonical.rs` places every gap at its 3'-most
+sequence-equivalent placement with the shared move of
+`dna_kernel::model::placement`, keeping a move when the primary-base score is
+unchanged (SRS-ALN-012). Before that, on a read whose ends are vouched (a
 consensus record), `canonical.rs` moves a deletion beside an `N` without
 evidence 3' across it (SRS-ALN-017), and `runs.rs` re-expresses masked
 repeat stretches of the selected alignment as one length edit per run
