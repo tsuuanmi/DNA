@@ -76,18 +76,30 @@ The rule vocabulary and its structure preconditions are in the
 
 | Window | Structure | Rules, in order |
 | --- | --- | --- |
-| HVS-II | C runs around T310 | run lengths at 309/315; duplicated anchor `311T 315.1C`; anchor deletion `310C 315DEL`; one-base gain ending in C as substitutions + EMPOP `315.1C` |
-| HVS-III | `AC` tandem repeat | one-motif loss as substitutions + `523DEL 524DEL` |
-| HVS-I | C runs around T16189 | phylogenetic `16183C 16184A 16189C`; anchor deletion `16189C 16193DEL` |
+| HVS-II 303-315 | C runs around T310 | run lengths at 309 and 315, the rest left-anchored (`309.1C 315.1C`, `312T 315.1C 315.2C 315.3C`); duplicated anchor `311T 315.1C`; anchor deletion `310C 315DEL`; one-base gain ending in C as substitutions + `315.1C` |
+| HVS-III 512-524 | `AC` tandem repeat | whole-copy loss or gain at the 3' end plus substitutions (`523DEL 524DEL`, `513A 523DEL 524DEL`, `524.1A 524.2C`) |
+| HVS-I 16180-16193 | A-tract, then C runs around T16189 | phylogenetic `16183C 16184A 16189C`; the A-tract and C-tract rule (`16183DEL`, `16188.1C`, `16182C 16183C 16189C`, `16189C 16190T 16193.1C 16193.2C`); anchor deletion `16189C 16193DEL` |
 
-These encode the `mtdna_raw` profiles. Its "preserve interpreted
-substitutions" rule is the same as keeping the normalized form here, so it has
-no separate implementation. Its EMPOP terminal rule also accepts multi-base
-gains through a full edit-script derivation; DNA accepts only the validated
-one-base gain and otherwise keeps the normalized form.
+The rules follow the lab's reviewer convention (ADR-0077). Each reproduces the
+form most reviewers wrote for every window sequence of at least 5 corpus
+samples (`crates/dna-normalize/tests/data/lab-convention.tsv`); the research
+prototype of the same rules reproduced the form of about 99.97 % of all corpus
+samples. Where the corpus departs
+from SWGDAM or EMPOP, the corpus wins: reviewers never write `310C` for a
+missing T310. The windows start before the repeats where the corpus writes a
+flank base together with them (`513A 523DEL 524DEL`; `16181C 16182C 16183C
+16189C`).
 
-An edit crossing a window boundary fails closed rather than being partly
-rewritten.
+A window that an edit crosses keeps its normalized form, and the read's other
+windows are still represented. In `sample`, `call`, and `notation`, a window
+also keeps its normalized form when its representation would place a call where
+the read reads nothing (a substituted or deleted base, or an insertion's anchor
+base, outside the read's callable segments): a rule rewrites the whole window's
+sequence, and over an unread base that sequence is the reference's. A window
+the read reads only in part can still take a form whose meaning rests on an
+unread base; on development panel v5 one sample takes `16182DEL 16183DEL
+16188.1C 16188.2C` where the read leaves 16189-16193 unread and the truth writes
+`16182C 16183C 16189C`.
 
 ## Adding a target
 

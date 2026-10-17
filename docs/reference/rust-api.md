@@ -469,12 +469,14 @@ human-mtDNA profile declares:
 
 | Window | Forms |
 | --- | --- |
-| HVS-II 303-315 poly-C around T310 | C-run lengths at 309/315 (`309.1C`, `315.1C`), `311T 315.1C`, `310C 315DEL`, EMPOP terminal `315.1C` |
-| HVS-III 513-524 AC repeat | one-motif loss as `523DEL 524DEL` plus substitutions, e.g. `513A` |
-| HVS-I 16181-16193 poly-C around T16189 | `16183C 16184A 16189C`, `16189C 16193DEL` |
+| HVS-II 303-315 poly-C around T310 | C-run lengths at 309/315 (`309.1C`, `315.1C`), the rest left-anchored (`312T 315.1C 315.2C 315.3C`), `311T 315.1C`, `310C 315DEL`, terminal `315.1C` |
+| HVS-III 512-524 AC repeat | whole-copy loss or gain at the 3' end plus substitutions (`523DEL 524DEL`, `513A 523DEL 524DEL`, `524.1A 524.2C`) |
+| HVS-I 16180-16193 A-tract and poly-C around T16189 | `16183C 16184A 16189C`, `16183DEL`, `16188.1C`, `16182C 16183C 16189C`, `16189C 16190T 16193.1C`, `16189C 16193DEL` |
 
-Variants outside the windows and window haplotypes no rule represents keep
-their normalized form; an edit crossing a window boundary fails explicitly.
+Variants outside the windows, window haplotypes no rule represents, and a
+window an edit crosses keep their normalized form. `apply_read` also keeps the
+normalized form of a window whose representation would place a call outside a
+read's callable reference intervals.
 Decimal strings such as `309.1C` remain an outer notation concern. Sanger
 artifact interpretation, sample reconciliation, and NGS-specific behavior are
 not implemented by this API.

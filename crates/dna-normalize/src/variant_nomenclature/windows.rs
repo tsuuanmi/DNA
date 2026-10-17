@@ -5,6 +5,8 @@
 //! the same window haplotype wins, and a window no rule matches keeps its
 //! normalized representation.
 
+use std::ops::Range;
+
 use crate::variant_representation::{SequenceEdit, apply_edits, sort_edits};
 use dna_kernel::error::{NomenclatureError, Result};
 use dna_kernel::model::nucleotide::is_canonical;
@@ -19,6 +21,7 @@ pub(super) fn represent_windows(
     windows: &[NomenclatureWindow],
     reference: &str,
     normalized: &[SequenceEdit],
+    readable: Option<&[Range<usize>]>,
 ) -> Result<Vec<SequenceEdit>> {
     let mut remaining = normalized.to_vec();
     let mut output = Vec::with_capacity(normalized.len());
@@ -41,19 +44,36 @@ pub(super) fn represent_windows(
             output.extend(inside);
             continue;
         }
-        output.extend(
-            represent(window, &shift_left(&inside, window.start))?
-                .into_iter()
-                .map(|edit| SequenceEdit {
-                    start: edit.start + window.start,
-                    end: edit.end + window.start,
-                    alternate: edit.alternate,
-                }),
-        );
+        let represented = represent(window, &shift_left(&inside, window.start))?
+            .into_iter()
+            .map(|edit| shifted(edit, window.start))
+            .collect::<Vec<_>>();
+        // A representation that places a call where the read reads nothing
+        // is not one the read shows; the window keeps its normalized form.
+        if readable.is_some_and(|readable| !represented.iter().all(|edit| read_at(edit, readable)))
+        {
+            output.extend(inside);
+        } else {
+            output.extend(represented);
+        }
     }
     output.extend(remaining);
     sort_edits(&mut output);
     Ok(output)
+}
+
+/// Whether the read reads every reference base `edit` calls: its substituted
+/// or deleted bases, or an insertion's anchor base (none before position 1).
+fn read_at(edit: &SequenceEdit, readable: &[Range<usize>]) -> bool {
+    let (first, last) = if edit.start == edit.end {
+        let Some(anchor) = edit.start.checked_sub(1) else {
+            return true;
+        };
+        (anchor, anchor + 1)
+    } else {
+        (edit.start, edit.end)
+    };
+    (first..last).all(|base| readable.iter().any(|range| range.contains(&base)))
 }
 
 /// Applies the first rule that reproduces the local haplotype, or keeps
@@ -88,6 +108,9 @@ fn candidate(
         WindowRule::AnchoredRunLengths(anchor) => {
             anchored_run_lengths(reference, *anchor, alternate)
         }
+        WindowRule::AnchoredTract { anchor, lead } => {
+            anchored_tract(reference, *anchor, *lead, alternate)
+        }
         WindowRule::AnchorDuplication(anchor) => anchor_duplication(reference, *anchor, alternate),
         WindowRule::AnchorDeletion(anchor) => anchor_deletion(reference, *anchor, source),
         WindowRule::TerminalRepeatInsertion(anchor) => {
@@ -114,13 +137,11 @@ fn anchored_run_lengths(
     if bytes
         .iter()
         .any(|&base| base != anchor.repeat && base != anchor.base)
-        || alternate.matches(char::from(anchor.base)).count() != 1
     {
         return None;
     }
+    // The first anchor base splits the window; the left run is repeat bases.
     let alternate_anchor = bytes.iter().position(|&base| base == anchor.base)?;
-    let right_run = reference.len() - anchor.index - 1;
-    let alternate_right_run = alternate.len() - alternate_anchor - 1;
     let mut edits = Vec::new();
     if alternate_anchor < anchor.index {
         edits.push(edit(alternate_anchor, anchor.index, ""));
@@ -131,20 +152,101 @@ fn anchored_run_lengths(
             alternate_anchor - anchor.index,
         ));
     }
-    if alternate_right_run < right_run {
-        edits.push(edit(
-            reference.len() - (right_run - alternate_right_run),
-            reference.len(),
-            "",
-        ));
-    } else if alternate_right_run > right_run {
-        edits.push(insertion(
-            reference.len(),
+    let right = anchor.index + 1;
+    edits.extend(
+        left_anchored(
+            &reference[right..],
+            &alternate[alternate_anchor + 1..],
             anchor.repeat,
-            alternate_right_run - right_run,
+        )?
+        .into_iter()
+        .map(|item| shifted(item, right)),
+    );
+    (!edits.is_empty()).then_some(edits)
+}
+
+fn anchored_tract(
+    reference: &str,
+    anchor: Anchor,
+    lead: usize,
+    alternate: &str,
+) -> Option<Vec<SequenceEdit>> {
+    let lead_base = reference.as_bytes()[0];
+    let bytes = alternate.as_bytes();
+    let alternate_lead = bytes.iter().take_while(|&&base| base == lead_base).count();
+    let rest = &bytes[alternate_lead..];
+    let right_run = reference.len() - anchor.index - 1;
+    let left_run = anchor.index - lead;
+    // The anchored form: the anchor sits after a left run and before a right
+    // run of its reference length, every other base is a repeat or anchor
+    // base, and the lead run did not grow.
+    let anchored = rest.len() > right_run + 1
+        && rest[rest.len() - right_run - 1] == anchor.base
+        && rest
+            .iter()
+            .all(|&base| base == anchor.repeat || base == anchor.base)
+        && alternate_lead <= lead;
+    let whole = || left_anchored(reference, alternate, anchor.repeat);
+    if !anchored {
+        return whole();
+    }
+    let alternate_left = rest.len() - right_run - 1;
+    let left = &rest[..alternate_left];
+    if alternate_left > left_run && left[left_run..].iter().any(|&base| base != anchor.repeat) {
+        return whole();
+    }
+    let mut edits = Vec::new();
+    if alternate_lead < lead {
+        edits.push(edit(alternate_lead, lead, ""));
+    }
+    for (offset, &base) in left.iter().take(left_run).enumerate() {
+        if base != anchor.repeat {
+            edits.push(substitution(lead + offset, base));
+        }
+    }
+    if alternate_left > left_run {
+        edits.push(insertion(
+            anchor.index,
+            anchor.repeat,
+            alternate_left - left_run,
         ));
+    } else if alternate_left < left_run {
+        edits.push(edit(lead + alternate_left, anchor.index, ""));
+    }
+    let right = anchor.index + 1;
+    for (offset, &base) in rest[alternate_left + 1..].iter().enumerate() {
+        if base != reference.as_bytes()[right + offset] {
+            edits.push(substitution(right + offset, base));
+        }
     }
     (!edits.is_empty()).then_some(edits)
+}
+
+/// `alternate` written left-anchored against `reference`: position-wise
+/// substitutions, then the extra bases as insertions after the last reference
+/// base when they are all `repeat`, or the missing bases deleted from the 3'
+/// end; `None` when the extra bases are not all `repeat`.
+fn left_anchored(reference: &str, alternate: &str, repeat: u8) -> Option<Vec<SequenceEdit>> {
+    let shared = reference.len().min(alternate.len());
+    let mut edits = substitutions(&reference[..shared], &alternate[..shared]);
+    if alternate.len() > reference.len() {
+        let extra = &alternate.as_bytes()[reference.len()..];
+        if extra.iter().any(|&base| base != repeat) {
+            return None;
+        }
+        edits.push(insertion(reference.len(), repeat, extra.len()));
+    } else if alternate.len() < reference.len() {
+        edits.push(edit(alternate.len(), reference.len(), ""));
+    }
+    Some(edits)
+}
+
+fn shifted(item: SequenceEdit, offset: usize) -> SequenceEdit {
+    SequenceEdit {
+        start: item.start + offset,
+        end: item.end + offset,
+        alternate: item.alternate,
+    }
 }
 
 fn anchor_duplication(
@@ -209,12 +311,28 @@ fn terminal_repeat_insertion(
 }
 
 fn motif_shift(reference: &str, motif: &str, alternate: &str) -> Option<Vec<SequenceEdit>> {
-    let terminal = reference.len().checked_sub(motif.len())?;
-    if !reference.ends_with(motif) || alternate.len() != terminal {
+    if !reference.ends_with(motif) || motif.is_empty() {
         return None;
     }
-    let mut candidate = substitutions(&reference[..terminal], alternate);
-    candidate.push(edit(terminal, reference.len(), ""));
+    if alternate.len() <= reference.len() {
+        let lost = reference.len() - alternate.len();
+        if !lost.is_multiple_of(motif.len()) {
+            return None;
+        }
+        let kept = alternate.len();
+        let mut candidate = substitutions(&reference[..kept], alternate);
+        if lost > 0 {
+            candidate.push(edit(kept, reference.len(), ""));
+        }
+        return Some(candidate);
+    }
+    let (head, extra) = alternate.split_at(reference.len());
+    if !extra.len().is_multiple_of(motif.len()) || extra != motif.repeat(extra.len() / motif.len())
+    {
+        return None;
+    }
+    let mut candidate = substitutions(reference, head);
+    candidate.push(edit(reference.len(), reference.len(), extra));
     Some(candidate)
 }
 
@@ -313,7 +431,7 @@ mod tests {
         reference: &str,
         normalized: &[SequenceEdit],
     ) -> Result<Vec<SequenceEdit>> {
-        let output = represent_windows(windows, reference, normalized)?;
+        let output = represent_windows(windows, reference, normalized, None)?;
         assert_eq!(
             apply_edits(reference, &output).map_err(NomenclatureError::from)?,
             apply_edits(reference, normalized).map_err(NomenclatureError::from)?,
@@ -429,7 +547,7 @@ mod tests {
         let mut reference = rcrs()?;
         reference.replace_range(512..524, "GTGTGTGTGTGT");
         assert!(matches!(
-            represent_windows(&human_mtdna()?.windows, &reference, &[edit(72, 73, "G")]),
+            represent_windows(&human_mtdna()?.windows, &reference, &[edit(72, 73, "G")], None),
             Err(Error::VariantNomenclature(
                 NomenclatureError::ReferenceMotifMismatch { window }
             )) if window == "HVS-III"
@@ -478,8 +596,69 @@ mod tests {
             &human_mtdna()?.windows,
             &rcrs,
             &[edit(303, 303, "C"), crossing.clone()],
+            None,
         )?;
         assert_eq!(represented, [edit(309, 309, "C"), crossing]);
+        Ok(())
+    }
+
+    /// The rendered `per_base_decimal` calls of window-local `edits`.
+    fn calls(window: &NomenclatureWindow, edits: &[SequenceEdit]) -> Vec<String> {
+        let mut calls = Vec::new();
+        for item in edits {
+            let first = window.start + item.start;
+            if item.start == item.end {
+                for (ordinal, base) in item.alternate.chars().enumerate() {
+                    calls.push((
+                        (first, ordinal + 1),
+                        format!("{first}.{}{base}", ordinal + 1),
+                    ));
+                }
+            } else if item.alternate.is_empty() {
+                for position in first + 1..=window.start + item.end {
+                    calls.push(((position, 0), format!("{position}DEL")));
+                }
+            } else {
+                for (offset, base) in item.alternate.chars().enumerate() {
+                    let position = first + offset + 1;
+                    calls.push(((position, 0), format!("{position}{base}")));
+                }
+            }
+        }
+        calls.sort();
+        calls.into_iter().map(|(_, call)| call).collect()
+    }
+
+    #[test]
+    fn writes_the_corpus_sequences_in_the_lab_convention() -> TestResult {
+        let profile = human_mtdna()?;
+        let table = include_str!("../../tests/data/lab-convention.tsv");
+        let mut checked = 0;
+        for line in table.lines().filter(|line| !line.starts_with('#')).skip(1) {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            let [name, sequence, form, ..] = fields[..] else {
+                return Err(format!("malformed row {line:?}").into());
+            };
+            let window = profile
+                .windows
+                .iter()
+                .find(|window| window.name == name)
+                .ok_or("unknown window")?;
+            if sequence == window.sequence {
+                assert_eq!(form, "reference");
+                checked += 1;
+                continue;
+            }
+            let source = [edit(0, window.sequence.len(), sequence)];
+            let represented = represent(window, &source)?;
+            assert_eq!(
+                calls(window, &represented).join(" "),
+                form,
+                "{name} {sequence}"
+            );
+            checked += 1;
+        }
+        assert_eq!(checked, 90);
         Ok(())
     }
 }

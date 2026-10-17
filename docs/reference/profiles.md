@@ -44,12 +44,13 @@ Each `[[nomenclature.windows]]` table:
 
 | Rule | Structure | Representation |
 |---|---|---|
-| `anchored_run_lengths` | anchored homopolymer of repeat bases around one anchor | anchor movement as run-length change at the run ends |
+| `anchored_run_lengths` | anchored homopolymer of repeat bases around one anchor | the lab convention: the first anchor base splits the window; the left run's length changes at its 3' end, and the rest is written left-anchored against the right run (substitutions, then repeat-base insertions or deletions at the window's 3' end) |
+| `anchored_tract` | anchored homopolymer led by a run of another base, then repeat bases around one anchor | the lab convention for a lead run before anchored runs: with the anchor before a right run of its reference length, the lead run's length changes at its 3' end, the left run is written left-anchored with its length change at its 3' end, and the right run as substitutions; otherwise the whole window is written left-anchored |
 | `anchor_duplication` | anchored homopolymer, repeat base after the anchor | duplicated anchor as the base after it plus a terminal repeat insertion |
 | `anchor_deletion` | anchored homopolymer, repeat base after the anchor | deleted anchor as a repeat base plus deletion of the last run base |
 | `terminal_repeat_insertion` | anchored homopolymer | one-base gain ending in the repeat base as substitutions plus a terminal insertion, when no longer than the normalized form |
 | `canonical_haplotype` | any | the declared substitutions, when they reproduce the window haplotype |
-| `motif_shift` | tandem repeat | loss of one motif copy as substitutions plus deletion of the terminal copy |
+| `motif_shift` | tandem repeat | loss or gain of whole motif copies at the window's 3' end, plus position-wise substitutions against the remaining reference; an unchanged length as substitutions |
 
 A rule only proposes; the first candidate that reproduces the window haplotype
 exactly is used, and a window no rule matches keeps its normalized form

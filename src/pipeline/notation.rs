@@ -74,7 +74,7 @@ fn notation(
             .document
             .reads
             .into_iter()
-            .map(|read| (read.sha256, read.variants)),
+            .map(|read| (read.sha256, read.variants, read.callable)),
         &inputs.reference,
         &inputs.profile,
     )?

@@ -105,6 +105,7 @@ enum RawStructure {
 #[serde(rename_all = "snake_case")]
 enum RawRule {
     AnchoredRunLengths,
+    AnchoredTract,
     AnchorDuplication,
     AnchorDeletion,
     TerminalRepeatInsertion,
@@ -379,6 +380,25 @@ fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
                 }
                 WindowRule::AnchoredRunLengths(anchor)
             }
+            RawRule::AnchoredTract => {
+                let anchor = require_anchor(&name, anchor)?;
+                let lead = bytes
+                    .iter()
+                    .take_while(|&&byte| byte == bytes[0])
+                    .count();
+                let runs = &bytes[lead..];
+                if bytes[0] == anchor.repeat
+                    || bytes[0] == anchor.base
+                    || anchor.index <= lead
+                    || !repeat_runs_around(runs, anchor)
+                {
+                    return Err(invalid(
+                        &name,
+                        "anchored_tract needs a lead run, then repeat bases around one anchor with a run on each side",
+                    ));
+                }
+                WindowRule::AnchoredTract { anchor, lead }
+            }
             RawRule::AnchorDuplication => {
                 WindowRule::AnchorDuplication(require_run_after_anchor(&name, anchor, bytes)?)
             }
@@ -408,6 +428,19 @@ fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
         sequence,
         rules: validated,
     })
+}
+
+/// Whether `bytes` are repeat bases around exactly one anchor base, with at
+/// least one repeat base on each side.
+fn repeat_runs_around(bytes: &[u8], anchor: Anchor) -> bool {
+    let first = bytes.iter().position(|&byte| byte == anchor.base);
+    first.is_some()
+        && first == bytes.iter().rposition(|&byte| byte == anchor.base)
+        && bytes
+            .iter()
+            .all(|&byte| byte == anchor.base || byte == anchor.repeat)
+        && bytes.first() == Some(&anchor.repeat)
+        && bytes.last() == Some(&anchor.repeat)
 }
 
 fn require_anchor(name: &str, anchor: Option<Anchor>) -> Result<Anchor> {

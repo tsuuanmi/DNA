@@ -33,6 +33,8 @@ pub(crate) struct DocumentRead {
     pub(crate) sha256: String,
     /// Eligible variants, in document order.
     pub(crate) variants: Vec<Variant>,
+    /// Callable reference segments, 0-based half-open.
+    pub(crate) callable: Vec<std::ops::Range<usize>>,
 }
 
 /// A validated variants document.
@@ -73,7 +75,19 @@ struct RawReference {
 struct RawRead {
     name: String,
     sha256: String,
+    alignment: RawAlignment,
     variants: Vec<RawVariant>,
+}
+
+#[derive(Deserialize)]
+struct RawAlignment {
+    callable_reference_segments: Vec<RawSegment>,
+}
+
+#[derive(Deserialize)]
+struct RawSegment {
+    start: usize,
+    end: usize,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +182,12 @@ fn parse(
                 name: read.name,
                 sha256: read.sha256,
                 variants,
+                callable: read
+                    .alignment
+                    .callable_reference_segments
+                    .iter()
+                    .map(|segment| segment.start..segment.end)
+                    .collect(),
             })
         })
         .collect::<Result<_>>()?;
@@ -205,6 +225,8 @@ fn to_variant(read: &str, contig: &str, raw: RawVariant) -> Result<Variant> {
 mod tests {
     use dna_kernel::model::reference::ReferenceTopology;
 
+    use std::ops::Range;
+
     use super::*;
 
     fn reference() -> Reference {
@@ -218,7 +240,7 @@ mod tests {
 
     fn document(schema: &str, sample: &str, kind: &str) -> String {
         format!(
-            r#"{{"schema_version":"{schema}","sample_id":"{sample}","provenance":{{"reference":{{"name":"rCRS","topology":"circular","sha256":"{}"}}}},"reads":[{{"name":"HV1","sha256":"00","variants":[{{"position":2,"reference":"C","alternate":"T","kind":"{kind}","eligible":true,"exclusion_reasons":[]}},{{"position":3,"reference":"G","alternate":"A","kind":"SNV","eligible":false,"exclusion_reasons":["read_end"]}}]}}]}}"#,
+            r#"{{"schema_version":"{schema}","sample_id":"{sample}","provenance":{{"reference":{{"name":"rCRS","topology":"circular","sha256":"{}"}}}},"reads":[{{"name":"HV1","sha256":"00","alignment":{{"callable_reference_segments":[{{"start":0,"end":4}}]}},"variants":[{{"position":2,"reference":"C","alternate":"T","kind":"{kind}","eligible":true,"exclusion_reasons":[]}},{{"position":3,"reference":"G","alternate":"A","kind":"SNV","eligible":false,"exclusion_reasons":["read_end"]}}]}}]}}"#,
             hex_sha256(b"ACGT")
         )
     }
@@ -238,6 +260,7 @@ mod tests {
         let parsed = read(&text, "s")?;
         assert_eq!(parsed.sha256, hex_sha256(text.as_bytes()));
         assert_eq!(parsed.reads[0].name, "HV1");
+        assert_eq!(parsed.reads[0].callable, vec![Range { start: 0, end: 4 }]);
         assert_eq!(
             parsed.reads[0].variants,
             [Variant {

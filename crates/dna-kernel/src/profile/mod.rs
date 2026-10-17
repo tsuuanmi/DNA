@@ -239,7 +239,7 @@ mod tests {
             .collect();
         assert_eq!(
             windows,
-            [("HVS-II", 302, 4), ("HVS-III", 512, 1), ("HVS-I", 16180, 2)]
+            [("HVS-II", 302, 4), ("HVS-III", 511, 1), ("HVS-I", 16179, 3)]
         );
         Ok(())
     }
