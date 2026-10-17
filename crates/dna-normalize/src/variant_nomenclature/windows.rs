@@ -90,8 +90,9 @@ fn read_at(edit: &SequenceEdit, readable: &[Range<usize>]) -> bool {
 /// it calls: the anchor and the run after it, plus the base before the anchor
 /// when the left run's length changes (`anchored_run_lengths`); the end of the
 /// lead run, the start of the left run, the anchor, and the run after it
-/// (`anchored_tract`); and the two terminal motif copies when the length
-/// changes (`motif_shift`).
+/// (`anchored_tract`); the two terminal motif copies when the length
+/// changes (`motif_shift`); and the whole window for `canonical_haplotype`,
+/// whose choice compares the whole window with its declared haplotype.
 fn decisive(window: &NomenclatureWindow, rule: &WindowRule, source: &[SequenceEdit]) -> Vec<usize> {
     let length = window.sequence.len();
     let alternate = apply_edits(&window.sequence, source).unwrap_or_default();
@@ -123,7 +124,7 @@ fn decisive(window: &NomenclatureWindow, rule: &WindowRule, source: &[SequenceEd
                 (length.saturating_sub(2 * motif.len())..length).collect()
             }
         }
-        WindowRule::CanonicalHaplotype(_) => Vec::new(),
+        WindowRule::CanonicalHaplotype(_) => (0..length).collect(),
     }
 }
 
@@ -574,6 +575,23 @@ mod tests {
                 edit(16183, 16184, "A"),
                 edit(16188, 16189, "C")
             ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_phylogenetic_form_needs_the_whole_window_read() -> TestResult {
+        let rcrs = rcrs()?;
+        let source = [
+            edit(16182, 16182, "C"),
+            edit(16188, 16189, "C"),
+            edit(16192, 16193, ""),
+        ];
+        // 16186 (0-based 16185) is unread: the window keeps its source edits.
+        let gapped = [16_000..16_185, 16_186..16_300];
+        assert_eq!(
+            represent_windows(&human_mtdna()?.windows, &rcrs, &source, Some(&gapped))?,
+            source
         );
         Ok(())
     }
