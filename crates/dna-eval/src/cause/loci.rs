@@ -260,6 +260,7 @@ fn faint(weight: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dna::sample_analysis::TrustScope;
     use dna_kernel::read_evidence::{EvidenceReason, MaskedAlignment};
 
     fn trust(
@@ -278,6 +279,8 @@ mod tests {
             trusted,
             exempt,
             withheld_by,
+            scope: TrustScope::Full,
+            second: None,
         }
     }
 

@@ -33,11 +33,10 @@ use observe::{Char, ReadObservations, SiteValue, Trust, observe};
 /// listed at each site follow it.
 #[must_use]
 pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CoreConfig) -> Consensus {
-    let length = reference.len();
     let bases = reference.sequence.as_bytes();
     let observed = reads
         .iter()
-        .map(|read| observe(read, &config.variant_calling, length))
+        .map(|read| observe(read, &config.variant_calling, bases))
         .collect::<Vec<_>>();
     let covered = observed
         .iter()
@@ -1152,7 +1151,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 5,
+    version: 6,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledVariants],
     config_sections: &[],
@@ -1278,6 +1277,7 @@ mod tests {
             });
             evidence = evidence.with_call(index, call);
         }
+        let evidence = evidence.with_signal_edges(8);
         let alignment = align_best(&evidence, &reference, &alignment())?;
         let read = CalledRead {
             input_name: "r".into(),
@@ -1296,7 +1296,7 @@ mod tests {
             max_indel_length: 50,
             read_end_margin: 8,
         };
-        Ok(observe(&read, &settings, reference.sequence.len()))
+        Ok(observe(&read, &settings, reference.sequence.as_bytes()))
     }
 
     #[test]
@@ -1455,6 +1455,7 @@ mod tests {
                 },
                 position,
                 beside_unresolved: false,
+                identity_only: false,
             }
         };
         let mut positions = BTreeMap::new();

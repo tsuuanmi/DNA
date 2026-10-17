@@ -35,5 +35,6 @@ pub(crate) fn call(
         &eligibility,
         alignment.orientation,
         regions,
+        reference,
     )
 }

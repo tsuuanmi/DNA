@@ -237,12 +237,12 @@ pub(crate) fn read_evidence(read: &SequenceRead) -> Result<ReadEvidence> {
                     weights: channels.map(|channel| if channel { share } else { 0.0 }),
                 }
             });
-            CallEvidence {
-                base: if canonical { symbol } else { 'N' },
+            CallEvidence::new(
+                if canonical { symbol } else { 'N' },
                 profile,
-                mask: None,
-                vetoes: VetoSet::default(),
-            }
+                None,
+                VetoSet::default(),
+            )
         })
         .collect::<Vec<_>>();
     let informative = 0..calls.len();

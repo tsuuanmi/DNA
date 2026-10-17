@@ -29,7 +29,7 @@ use dna_kernel::variant::ReferenceIdentity;
 pub use crate::model::read_observation::{RejectedRead, RejectionCause};
 pub use dna_core::model::consensus::Consensus;
 pub use dna_core::model::sample_evidence::SampleEvidence;
-pub use dna_core::model::trust::{CallTrust, Withholder};
+pub use dna_core::model::trust::{CallTrust, TrustScope, Withholder};
 pub use dna_empop::export::{Cut, CutReason, Export as EmpopExport};
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 

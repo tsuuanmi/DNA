@@ -9,8 +9,11 @@ Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
 ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md))
 and imports no Sanger type.
 - `eligibility.rs` decides which calls of a read can support a variant. Calls
-  near an uninformative call (outside the informative interval, or masked as
-  unresolved) give `read_end` (ADR-0062). An edit that changes the length of
+  the modality places at a signal edge (`CallEvidence::edge`), or within the
+  margin of a read end it does not vouch for, give `read_end` (ADR-0062). A
+  call vouched for by its base only supports a substitution but no indel and
+  shows no run's end; one that may sit one position off gives
+  `unresolved_flank` (SRS-VAR-018). An edit that changes the length of
   a run of one base whose end the read does not resolve gives
   `run_boundary` (ADR-0071); the sample consensus applies the same run-end
   test to the indels it weighs. An insertion into a repeat the read bounds is
@@ -19,7 +22,8 @@ and imports no Sanger type.
   evidence calls give their mask reason, verbatim.
 - `filter.rs` applies the region gate and reports the union of the supporting
   calls' modality vetoes, in vocabulary order and filtered by scope, except
-  for an insertion `repeat_unvetoed` clears.
+  for an insertion `repeat_unvetoed` clears; it reads the reference around a
+  substitution for the one-position-shift test.
 - A masked call is no SNV candidate in `extract.rs`.
 
 The core never interprets a modality label; the Sanger labels are produced in

@@ -73,6 +73,7 @@ pub(crate) fn observe(
         &callability,
         &quality,
         &config.sanger.sanger_evidence,
+        config.core.variant_calling.read_end_margin,
     )?;
     tracing::info!(
         event = "read_evidence_completed",

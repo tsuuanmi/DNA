@@ -153,6 +153,15 @@ impl VetoSet {
     }
 }
 
+/// The second base of a call's signal, as the modality sees it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SecondBase {
+    /// The second base on the read strand: A, C, G, or T.
+    pub base: char,
+    /// Its share of the call's two strongest bases, in `[0, 0.5]`.
+    pub share: f64,
+}
+
 /// Evidence for one called position, in call order.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CallEvidence {
@@ -164,6 +173,38 @@ pub struct CallEvidence {
     pub mask: Option<CallMask>,
     /// Support vetoes the modality raises against the call.
     pub vetoes: VetoSet,
+    /// The modality withholds the call as too close to an edge of its usable
+    /// signal: the core reports such a call's variants as `read_end`.
+    pub edge: bool,
+    /// The modality vouches for the call's base only: it neither counts
+    /// towards a run's length nor shows where a run ends, and it supports no
+    /// insertion and bounds no deletion.
+    pub identity_only: bool,
+    /// The second base of the call's signal, when the modality sees one;
+    /// evidence for review, read by no calling rule.
+    pub second: Option<SecondBase>,
+}
+
+impl CallEvidence {
+    /// A call with `base`, `profile`, `mask`, and `vetoes`, outside every
+    /// signal edge, trusted for runs, and without a second base.
+    #[must_use]
+    pub const fn new(
+        base: char,
+        profile: Option<EvidenceProfile>,
+        mask: Option<CallMask>,
+        vetoes: VetoSet,
+    ) -> Self {
+        Self {
+            base,
+            profile,
+            mask,
+            vetoes,
+            edge: false,
+            identity_only: false,
+            second: None,
+        }
+    }
 }
 
 /// Labels the core owns; a modality may not reuse them.
@@ -255,6 +296,44 @@ impl ReadEvidence {
         })
     }
 
+    /// The same evidence with every call within `margin` calls of an
+    /// uninformative call marked as at a signal edge (`edge`). An
+    /// uninformative call lies outside the informative interval or is masked
+    /// without anchoring; the read's ends count as uninformative unless the
+    /// modality vouches for them. A call is clear of the edges when more than
+    /// `margin` informative calls, itself included, separate it from the
+    /// nearest uninformative call on each side.
+    #[must_use]
+    pub fn with_signal_edges(mut self, margin: usize) -> Self {
+        let informative = self
+            .calls
+            .iter()
+            .enumerate()
+            .map(|(index, call)| {
+                self.informative.contains(&index)
+                    && call
+                        .mask
+                        .is_none_or(|mask| mask.alignment == MaskedAlignment::Anchoring)
+            })
+            .collect::<Vec<_>>();
+        let end = match self.ends {
+            ReadEnds::Unvouched => 0,
+            ReadEnds::Vouched => margin,
+        };
+        let mut before = vec![0_usize; informative.len()];
+        let mut run = end;
+        for (index, &flag) in informative.iter().enumerate() {
+            run = if flag { run + 1 } else { 0 };
+            before[index] = run;
+        }
+        run = end;
+        for index in (0..informative.len()).rev() {
+            run = if informative[index] { run + 1 } else { 0 };
+            self.calls[index].edge = before[index] <= margin || run <= margin;
+        }
+        self
+    }
+
     /// The same evidence with the modality vouching for the read's ends.
     #[must_use]
     pub fn with_vouched_ends(mut self) -> Self {
@@ -299,12 +378,7 @@ impl ReadEvidence {
                     weights[channel] = 1.0;
                     EvidenceProfile { weights }
                 });
-                CallEvidence {
-                    base,
-                    profile,
-                    mask: None,
-                    vetoes: VetoSet::default(),
-                }
+                CallEvidence::new(base, profile, None, VetoSet::default())
             })
             .collect::<Vec<_>>();
         let informative = 0..calls.len();
@@ -344,12 +418,7 @@ mod tests {
 
     #[test]
     fn rejects_inconsistent_evidence() {
-        let call = CallEvidence {
-            base: 'A',
-            profile: None,
-            mask: None,
-            vetoes: VetoSet::default(),
-        };
+        let call = CallEvidence::new('A', None, None, VetoSet::default());
         assert!(ReadEvidence::new(vec![call; 2], 1..3, Vec::new()).is_err());
         let mut vetoed = call;
         vetoed.vetoes.insert(1);
@@ -378,6 +447,36 @@ mod tests {
         vetoed = call;
         vetoed.vetoes.insert(0);
         assert!(ReadEvidence::new(vec![vetoed, call], 0..2, vec![PEAK]).is_ok());
+    }
+
+    #[test]
+    fn marks_calls_within_the_margin_of_an_uninformative_call() -> Result<()> {
+        let call = CallEvidence::new('A', None, None, VetoSet::default());
+        let masked = CallEvidence {
+            mask: Some(CallMask {
+                alignment: MaskedAlignment::Unresolved,
+                reason: EvidenceReason::new("weak_signal"),
+                onset: MaskOnset::Other,
+            }),
+            ..call
+        };
+        let mut calls = vec![call; 12];
+        calls[7] = masked;
+        let edges = |evidence: ReadEvidence| {
+            evidence
+                .with_signal_edges(2)
+                .calls()
+                .iter()
+                .map(|call| if call.edge { 'e' } else { '.' })
+                .collect::<String>()
+        };
+        // Informative calls 1..11; the masked call at 7 and both ends of the
+        // interval are edges.
+        let evidence = ReadEvidence::new(calls.clone(), 1..11, Vec::new())?;
+        assert_eq!(edges(evidence), "eee..eeeeeee");
+        let vouched = ReadEvidence::new(calls, 0..12, Vec::new())?.with_vouched_ends();
+        assert_eq!(edges(vouched), ".....eeeee..");
+        Ok(())
     }
 
     #[test]

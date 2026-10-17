@@ -7,6 +7,7 @@ use crate::model::variant::{
     VariantExclusionReason, VariantKind,
 };
 use dna_kernel::error::{Result, VariantError};
+use dna_kernel::model::reference::{Reference, ReferenceTopology};
 use dna_kernel::read_evidence::{ReadEvidence, VetoScope, VetoSet};
 
 /// Removes normalized candidates outside the profile regions, vetoed by their
@@ -20,6 +21,7 @@ pub(super) fn apply(
     eligibility: &ReadEligibility<'_>,
     orientation: Orientation,
     regions: &[[usize; 2]],
+    reference: &Reference,
 ) -> Result<VariantCallingResult> {
     let mut reported = Vec::with_capacity(extracted.reported.len());
     let mut observed = Vec::with_capacity(extracted.reported.len());
@@ -41,6 +43,12 @@ pub(super) fn apply(
             reasons.extend(vetoes);
         }
         reasons.extend(eligibility_reasons);
+        if variant.kind == VariantKind::Snv
+            && !reasons.contains(&VariantExclusionReason::UnresolvedFlank)
+            && unanchored(&variant, eligibility, reference)
+        {
+            reasons.push(VariantExclusionReason::UnresolvedFlank);
+        }
         observed.push(ObservedVariant {
             variant: variant.clone(),
             exclusion_reasons: reasons.clone(),
@@ -61,6 +69,40 @@ pub(super) fn apply(
         observed,
         excluded,
     })
+}
+
+/// Whether a substitution rests on a call vouched for by its base only that
+/// may sit one position off (see `ReadEligibility::unanchored`).
+fn unanchored(variant: &Variant, eligibility: &ReadEligibility<'_>, reference: &Reference) -> bool {
+    let bases = reference.sequence.as_bytes();
+    let length = bases.len();
+    let Some(position) = variant.position_1based.checked_sub(1) else {
+        return false;
+    };
+    let circular = reference.topology == ReferenceTopology::Circular;
+    let at = |offset: isize| {
+        let shifted = position.checked_add_signed(offset)?;
+        let index = if circular && length > 0 {
+            (shifted + length) % length
+        } else {
+            shifted
+        };
+        bases.get(index).map(|&base| char::from(base))
+    };
+    let adjacent = [
+        if position == 0 && circular {
+            bases.last().map(|&base| char::from(base))
+        } else {
+            at(-1)
+        },
+        at(1),
+    ];
+    let Some(base) = variant.alternate.chars().next() else {
+        return false;
+    };
+    supporting_calls(variant)
+        .iter()
+        .any(|&index| eligibility.unanchored(index, base, adjacent))
 }
 
 fn in_region(position_1based: usize, regions: &[[usize; 2]]) -> bool {
@@ -175,12 +217,7 @@ mod tests {
                 for &index in *raised {
                     set.insert(index);
                 }
-                CallEvidence {
-                    base: 'A',
-                    profile: None,
-                    mask: None,
-                    vetoes: set,
-                }
+                CallEvidence::new('A', None, None, set)
             })
             .collect::<Vec<_>>();
         let informative = 0..calls.len();
@@ -201,6 +238,12 @@ mod tests {
             &eligibility,
             Orientation::Forward,
             regions,
+            &Reference {
+                name: "test".into(),
+                sequence: "ACGT".repeat(8),
+                topology: ReferenceTopology::Linear,
+                sequence_sha256: String::new(),
+            },
         )
     }
 

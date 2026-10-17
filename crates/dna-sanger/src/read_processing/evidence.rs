@@ -5,7 +5,9 @@
 //! each call's basecall-independent locus profile, the callability mask with
 //! its phase-state reason, the trim interval, and the support vetoes the
 //! Sanger evidence raises against each call (peak floor, relative quality, and
-//! mixed signal for substitutions).
+//! mixed signal for substitutions), each call's distance from the edges of the
+//! read's usable signal, the leading calls the signal vouches for by their
+//! base alone, and each call's second base.
 
 use super::SangerEvidenceConfig;
 use crate::model::basecalls::BaseCalls;
@@ -13,9 +15,10 @@ use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::SignalAnalysis;
 use dna_kernel::error::{AlignmentError, Result, VariantError};
+use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence, SupportVeto,
-    VetoScope, VetoSet,
+    CallEvidence, CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence, SecondBase,
+    SupportVeto, VetoScope, VetoSet,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -55,7 +58,13 @@ const PEAK: usize = 0;
 const QUALITY: usize = 1;
 const MIXED: usize = 2;
 
-/// Builds one read's core evidence from its Sanger products.
+/// Builds one read's core evidence from its Sanger products. A call within
+/// `edge_margin` calls of the trim interval's ends, of a masked call that
+/// does not anchor the alignment, or of the read's physical ends is at an
+/// edge of the read's usable signal (`edge`). The leading calls the signal
+/// vouches for by their base (SRS-CALL-014) are then unmasked,
+/// trusted for their base only, and freed of the relative-quality veto, and
+/// the informative interval starts at the first of them.
 ///
 /// # Errors
 ///
@@ -68,6 +77,7 @@ pub fn read_evidence(
     callability: &ReadCallability,
     quality: &QualityControlResult,
     config: &SangerEvidenceConfig,
+    edge_margin: usize,
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
     if callability.mask.len() != count {
@@ -126,14 +136,91 @@ pub fn read_evidence(
                 vetoes.insert(MIXED);
             }
             Ok(CallEvidence {
-                base: call.primary,
-                profile: signal.loci[index].profile,
-                mask: call_mask(callability, index),
-                vetoes,
+                second: second_base(call),
+                ..CallEvidence::new(
+                    call.primary,
+                    signal.loci[index].profile,
+                    call_mask(callability, index),
+                    vetoes,
+                )
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    ReadEvidence::new(evidence, start..end, SUPPORT_VETOES.to_vec())
+    let edged = ReadEvidence::new(evidence, start..end, SUPPORT_VETOES.to_vec())?
+        .with_signal_edges(edge_margin);
+    let leading = leading_identity(calls, callability);
+    let Some(&first) = leading.first() else {
+        return Ok(edged);
+    };
+    let mut evidence = edged.calls().to_vec();
+    for &index in &leading {
+        let call = &mut evidence[index];
+        let mut vetoes = VetoSet::default();
+        if call.vetoes.contains(PEAK) {
+            vetoes.insert(PEAK);
+        }
+        *call = CallEvidence {
+            mask: None,
+            vetoes,
+            edge: false,
+            identity_only: true,
+            ..*call
+        };
+    }
+    ReadEvidence::new(evidence, first.min(start)..end, SUPPORT_VETOES.to_vec())
+}
+
+/// The primary peak height of a call with a canonical primary base.
+fn primary_height(call: &crate::model::basecalls::BaseCall) -> Option<i32> {
+    let channel = Nucleotide::from_char(call.primary)?.channel_index();
+    call.peaks.get(channel).map(|peak| peak.height)
+}
+
+/// The calls before the read's callable span that its signal vouches for by
+/// their base: a canonical primary with no other qualifying channel and a
+/// primary peak at least the read's median primary peak. A read starts with
+/// noise its masked stretch only leaves where a whole window is clean, so
+/// strong, unambiguous calls inside that stretch are masked with it; the
+/// rule judges each call against the read itself, never a position. Such a
+/// call shows its base only, not a run's length or end.
+fn leading_identity(calls: &BaseCalls, callability: &ReadCallability) -> Vec<usize> {
+    let mut heights = calls
+        .calls
+        .iter()
+        .filter_map(primary_height)
+        .collect::<Vec<_>>();
+    heights.sort_unstable();
+    let Some(&median) = heights.get(heights.len() / 2) else {
+        return Vec::new();
+    };
+    let start = callability.callable_start_0based.min(calls.calls.len());
+    (0..start)
+        .filter(|&index| {
+            let call = &calls.calls[index];
+            callability.mask.get(index).copied().flatten().is_some()
+                && call.qualifying_channels.len() == 1
+                && primary_height(call).is_some_and(|height| height >= median)
+        })
+        .collect()
+}
+
+/// The second base of a call's signal: the highest peak of the other three
+/// channels, with its share of the primary and that peak together.
+fn second_base(call: &crate::model::basecalls::BaseCall) -> Option<SecondBase> {
+    let primary = Nucleotide::from_char(call.primary)?.channel_index();
+    let first = call.peaks.get(primary)?.height;
+    let (channel, second) = call
+        .peaks
+        .iter()
+        .enumerate()
+        .filter(|(channel, _)| *channel != primary)
+        .map(|(channel, peak)| (channel, peak.height))
+        .max_by_key(|(channel, height)| (*height, std::cmp::Reverse(*channel)))?;
+    let total = f64::from(first) + f64::from(second);
+    (second > 0 && total > 0.0).then(|| SecondBase {
+        base: Nucleotide::ALL[channel].as_char(),
+        share: f64::from(second) / total,
+    })
 }
 
 /// The mask of a call: `post_homopolymer` when its segment starts right after
@@ -290,7 +377,7 @@ mod tests {
     #[test]
     fn raises_peak_and_quality_vetoes_at_their_boundaries() -> Result<()> {
         let (calls, signal, callability, quality) = products(&[149, 150, 150], &[31, 30, 31]);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config())?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
         let vetoes = evidence
             .calls()
             .iter()
@@ -304,7 +391,7 @@ mod tests {
     fn raises_the_mixed_veto_for_substitutions_only() -> Result<()> {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
         calls.calls[0].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config())?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
         assert!(evidence.calls()[0].vetoes.contains(MIXED));
         assert_eq!(
             evidence.support_vetoes()[MIXED].scope,
@@ -336,7 +423,7 @@ mod tests {
         for &(start, end, state, _) in &segments {
             callability.mask[start..end].fill((state != PhaseState::InPhase).then_some(state));
         }
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config())?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
         let masks = [0, 7, 12, 17, 22].map(|index| evidence.calls()[index].mask);
         let expected = [
             Some((MaskedAlignment::Unresolved, WEAK_SIGNAL, MaskOnset::Other)),
@@ -360,6 +447,71 @@ mod tests {
         assert_eq!(
             masks.map(|mask| mask.map(|mask| (mask.alignment, mask.reason, mask.onset))),
             expected
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn vouches_for_strong_unambiguous_leading_calls_by_their_base() -> Result<()> {
+        // Calls 0-3 lead a mixed stretch; the read's median primary peak is 200.
+        let (mut calls, signal, mut callability, mut quality) = products(
+            &[300, 100, 300, 300, 200, 200, 200, 200],
+            &[25, 25, 25, 25, 40, 40, 40, 40],
+        );
+        calls.calls[2].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
+        callability.segments = vec![
+            PhaseSegment {
+                call_start_0based: 0,
+                call_end_0based_exclusive: 4,
+                state: PhaseState::Mixed,
+                after_repeat: false,
+                shadow: None,
+            },
+            PhaseSegment {
+                call_start_0based: 4,
+                call_end_0based_exclusive: 8,
+                state: PhaseState::InPhase,
+                after_repeat: false,
+                shadow: None,
+            },
+        ];
+        callability.mask[..4].fill(Some(PhaseState::Mixed));
+        callability.callable_start_0based = 4;
+        quality.trim_start_0based = 4;
+        quality.retained_sequence = "A".repeat(4);
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 1)?;
+        let vouched = evidence
+            .calls()
+            .iter()
+            .map(|call| call.identity_only)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            vouched,
+            [true, false, false, true, false, false, false, false]
+        );
+        let first = evidence.calls()[0];
+        assert!(first.mask.is_none() && !first.edge && !first.vetoes.contains(QUALITY));
+        assert!(evidence.calls()[1].mask.is_some());
+        assert_eq!(evidence.informative(), 0..8);
+        // Every other call keeps the edge it had before: call 4 sits next to
+        // the trim start.
+        assert!(evidence.calls()[4].edge && !evidence.calls()[5].edge);
+        Ok(())
+    }
+
+    #[test]
+    fn gives_each_call_its_second_base() -> Result<()> {
+        let (mut calls, signal, callability, quality) = products(&[200], &[31]);
+        calls.calls[0].peaks[2].height = 50;
+        calls.calls[0].peaks[1].height = 10;
+        calls.calls[0].peaks[3].height = 0;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
+        assert_eq!(
+            evidence.calls()[0].second,
+            Some(SecondBase {
+                base: 'G',
+                share: 0.2
+            })
         );
         Ok(())
     }

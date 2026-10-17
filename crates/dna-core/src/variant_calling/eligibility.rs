@@ -2,10 +2,12 @@
 //!
 //! A call is informative when it lies inside the read's informative interval
 //! and is not masked as unresolved; anchoring masked calls still carry
-//! alignment information. A mapped call within `read_end_margin` calls of an
-//! uninformative call cannot support a variant (`read_end`): the alignment has
-//! no information there, so a difference close to it may be an edge artifact.
-//! The read's ends count as uninformative unless its modality vouches for them.
+//! alignment information. A mapped call the modality places at an edge of its
+//! usable signal (`CallEvidence::edge`) cannot support a variant
+//! (`read_end`); neither can one within `read_end_margin` calls of a read end
+//! the modality does not vouch for, where no technology places an indel. A
+//! call the modality vouches for by its base only (`identity_only`) supports
+//! a substitution but no insertion or deletion, and shows no run's end.
 //! An edit that changes the length of a run of one base can be judged only
 //! where the read resolves that run's end (`run_boundary`): the call beyond it
 //! is informative and reads another base, unmasked or anchoring. A masked
@@ -21,7 +23,7 @@
 //! never gains trust.
 
 use crate::model::alignment::Orientation;
-use crate::model::trust::{CallTrust, Withholder};
+use crate::model::trust::{CallTrust, TrustScope, Withholder};
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
 use crate::variant_calling::VariantCallingConfig;
 use dna_kernel::read_evidence::{MaskOnset, MaskedAlignment, ReadEnds, ReadEvidence, VetoScope};
@@ -32,8 +34,8 @@ const EXEMPTION_MINIMUM_CALLS: usize = 2;
 
 /// Trusted calls of one read.
 pub(crate) struct ReadEligibility<'a> {
-    /// Per call: at least `read_end_margin` informative calls separate it from
-    /// the nearest uninformative call on both sides.
+    /// Per call: the modality places it clear of its signal edges, and it lies
+    /// more than `read_end_margin` calls from an unvouched read end.
     trusted: Vec<bool>,
     /// Per call: informative calls ending at it, and starting at it (a
     /// vouched read end counts as a full margin).
@@ -83,8 +85,15 @@ impl<'a> ReadEligibility<'a> {
             run = if informative[index] { run + 1 } else { 0 };
             after[index] = run;
         }
-        let trusted = (0..calls)
-            .map(|index| before[index] > margin && after[index] > margin)
+        let ends = match evidence.ends() {
+            ReadEnds::Unvouched => margin,
+            ReadEnds::Vouched => 0,
+        };
+        let trusted = evidence
+            .calls()
+            .iter()
+            .enumerate()
+            .map(|(index, call)| !call.edge && index >= ends && index + ends < calls)
             .collect();
         let mut eligibility = Self {
             trusted,
@@ -149,7 +158,9 @@ impl<'a> ReadEligibility<'a> {
         if right >= calls.len()
             || !self.resolves(left, base)
             || !self.resolves(right, base)
-            || calls[left..=right].iter().any(|call| call.mask.is_some())
+            || calls[left..=right]
+                .iter()
+                .any(|call| call.mask.is_some() || call.identity_only)
         {
             return false;
         }
@@ -295,7 +306,11 @@ impl<'a> ReadEligibility<'a> {
         if kind == VariantKind::Snv {
             return (first == start && !before) || (first == end && !after);
         }
-        !(before && after && calls[start..=end].iter().all(|call| call.mask.is_none()))
+        !(before
+            && after
+            && calls[start..=end]
+                .iter()
+                .all(|call| call.mask.is_none() && !call.identity_only))
     }
 
     /// Whether the read's physical ends bound its evidence (ADR-0069).
@@ -310,6 +325,7 @@ impl<'a> ReadEligibility<'a> {
             return false;
         };
         self.evidence.informative().contains(&index)
+            && !call.identity_only
             && call.base != base
             && call.base != 'N'
             && call
@@ -420,6 +436,32 @@ impl<'a> ReadEligibility<'a> {
         withheld
     }
 
+    /// Whether the call at `index`, vouched for by its base only, may sit one
+    /// position off: a neighbouring call in read order is not an unmasked,
+    /// canonical call of the informative interval that the modality trusts
+    /// for more than its base (a masked call, even an anchoring one, or a
+    /// call vouched for by its base only can shift with it), and `base`, on
+    /// the reference strand, is the reference base at an adjacent position.
+    /// A shift of one position then explains the call as the reference, so it
+    /// places no substitution (`unresolved_flank`).
+    pub(crate) fn unanchored(&self, index: usize, base: char, adjacent: [Option<char>; 2]) -> bool {
+        let calls = self.evidence.calls();
+        if !calls.get(index).is_some_and(|call| call.identity_only) {
+            return false;
+        }
+        let placed = |neighbour: Option<usize>| {
+            neighbour
+                .and_then(|neighbour| calls.get(neighbour).map(|call| (neighbour, call)))
+                .is_some_and(|(neighbour, call)| {
+                    self.evidence.informative().contains(&neighbour)
+                        && !call.identity_only
+                        && dna_kernel::model::nucleotide::is_canonical(call.base)
+                        && call.mask.is_none()
+                })
+        };
+        !(placed(index.checked_sub(1)) && placed(Some(index + 1))) && adjacent.contains(&Some(base))
+    }
+
     /// Whether the call at `index` has at least `read_end_margin` informative
     /// calls between it and the nearest uninformative call on both sides.
     pub(crate) fn trusted(&self, index: usize) -> bool {
@@ -466,8 +508,18 @@ impl<'a> ReadEligibility<'a> {
             .iter()
             .map(|mapping| mapping.call_index_0based)
             .collect::<Vec<_>>();
-        if mapped.iter().any(|index| !self.trusted(*index))
-            && !self.exempt(kind, edited, orientation, &evidence, &mapped)
+        // A call vouched for by its base only places no insertion or
+        // deletion.
+        let identity_only = kind != VariantKind::Snv
+            && mapped.iter().any(|&index| {
+                self.evidence
+                    .calls()
+                    .get(index)
+                    .is_some_and(|call| call.identity_only)
+            });
+        if identity_only
+            || (mapped.iter().any(|index| !self.trusted(*index))
+                && !self.exempt(kind, edited, orientation, &evidence, &mapped))
         {
             reasons.push(VariantExclusionReason::ReadEnd);
         }
@@ -517,6 +569,12 @@ pub fn read_trust(evidence: &ReadEvidence, config: &VariantCallingConfig) -> Vec
             } else {
                 eligibility.withholders(index)
             },
+            scope: if call.identity_only {
+                TrustScope::Base
+            } else {
+                TrustScope::Full
+            },
+            second: call.second,
         })
         .collect()
 }
@@ -684,7 +742,7 @@ mod tests {
                 read = read.with_call(index, call);
             }
         }
-        read
+        read.with_signal_edges(8)
     }
 
     #[test]
@@ -704,6 +762,7 @@ mod tests {
             call.mask = read.calls()[19].mask;
             close = close.with_call(index, call);
         }
+        let close = close.with_signal_edges(8);
         assert!(!ReadEligibility::new(&close, &settings(8)).run_exempt(13));
     }
 
@@ -743,9 +802,59 @@ mod tests {
         }
     }
 
+    /// `ACGTACGTACGT` with call 5 vouched for by its base only and, when
+    /// `masked`, its left neighbour masked.
+    fn identity_read(masked: bool) -> ReadEvidence {
+        let mut read = ReadEvidence::clean("ACGTACGTACGT");
+        let mut call = read.calls()[5];
+        call.identity_only = true;
+        read = read.with_call(5, call);
+        if masked {
+            let mut call = read.calls()[4];
+            call.mask = Some(CallMask {
+                alignment: MaskedAlignment::Anchoring,
+                reason: EvidenceReason::new("dephased_signal"),
+                onset: MaskOnset::Other,
+            });
+            read = read.with_call(4, call);
+        }
+        read
+    }
+
+    #[test]
+    fn an_identity_only_call_supports_a_substitution_but_no_indel() {
+        let read = identity_read(false);
+        let eligibility = ReadEligibility::new(&read, &settings(0));
+        let reasons = |kind| {
+            eligibility.reasons(
+                &variant(&read, kind, &[mapping(VariantCallRole::Supporting, 5)]),
+                Orientation::Forward,
+            )
+        };
+        assert!(reasons(VariantKind::Snv).is_empty());
+        assert_eq!(reasons(VariantKind::Ins), [VariantExclusionReason::ReadEnd]);
+        // It shows no run's end either.
+        assert!(!eligibility.resolves(5, 'A'));
+    }
+
+    #[test]
+    fn an_identity_only_call_beside_a_masked_call_may_sit_one_position_off() {
+        let anchored = identity_read(false);
+        let loose = identity_read(true);
+        let unanchored = |read: &ReadEvidence, adjacent| {
+            ReadEligibility::new(read, &settings(0)).unanchored(5, 'G', adjacent)
+        };
+        // A neighbour is masked, even anchoring, and the base is the
+        // reference next to it: a one-position shift explains it.
+        assert!(unanchored(&loose, [Some('G'), Some('T')]));
+        // Another base at both adjacent positions, or both neighbours placed.
+        assert!(!unanchored(&loose, [Some('A'), Some('T')]));
+        assert!(!unanchored(&anchored, [Some('G'), Some('T')]));
+    }
+
     #[test]
     fn flags_calls_within_the_margin_of_the_informative_interval_ends() {
-        let read = evidence(32, 5..25, &[]);
+        let read = evidence(32, 5..25, &[]).with_signal_edges(3);
         let eligibility = ReadEligibility::new(&read, &settings(3));
         for (index, read_end) in [(7, true), (8, false), (21, false), (22, true)] {
             assert_eq!(
@@ -766,13 +875,15 @@ mod tests {
     #[test]
     fn trusts_calls_at_vouched_read_ends() {
         let unvouched = evidence(16, 0..16, &[]);
-        let vouched = unvouched.clone().with_vouched_ends();
+        let vouched = unvouched.clone().with_vouched_ends().with_signal_edges(3);
+        let unvouched = unvouched.with_signal_edges(3);
         let masked = evidence(
             16,
             0..16,
             &[(4, 5, MaskedAlignment::Unresolved, "weak_signal")],
         )
-        .with_vouched_ends();
+        .with_vouched_ends()
+        .with_signal_edges(3);
         let snv = |read: &ReadEvidence, index| {
             ReadEligibility::new(read, &settings(3))
                 .reasons(
@@ -863,7 +974,8 @@ mod tests {
                 (15, 20, MaskedAlignment::Unresolved, "mixed_signal"),
                 (30, 35, MaskedAlignment::Anchoring, "dephased_signal"),
             ],
-        );
+        )
+        .with_signal_edges(3);
         let eligibility = ReadEligibility::new(&read, &settings(3));
         let read_end = |index| {
             eligibility
