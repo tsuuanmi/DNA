@@ -422,8 +422,8 @@ in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
 (`cause_scope` for the sample): `defect`, or `deferred` for an item left
 undone by design, such as the IUPAC codes DNA does not write; a defect comes
 before a deferred item. The causes come from the
-admitted reads' evidence at each region position (with the read-end margin,
-repeat length, and support thresholds read from DNA's configuration), the limit-of-detection
+admitted reads' evidence at each region position (with the core's own trust
+verdict on each call, `SampleAnalysis::trust`), the limit-of-detection
 signals, and how the reviewers write each sequence over the whole truth
 database; nothing is listed by hand, and the truth is only read.
 
@@ -436,10 +436,10 @@ database; nothing is listed by hand, and the truth is only read.
 | | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
 | | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
 | | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
-| | a clean but untrusted call lies within the read-end margin of a stretch masked for phase loss, or of the read's end where DNA attributes that end to a repeat run: its tail starts after one, or a run of at least `repeat_min_length` reaches the end (`beside_phase_loss`) | `technology` |
+| | a clean call the core does not trust, withheld by a call masked for phase loss: dephased or mixed signal, or a segment DNA starts after a repeat run (`beside_phase_loss`) | `technology` |
 | | a weak-signal veto denies a call that reads the reference (`veto_out_of_scope`) | `dna`: the veto guards variant support |
 | | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
-| | every untrusted call lies within the read-end margin of its read's own end (`read_edge`) or carries a weak-signal veto (`weak_call`) | `lab`: read quality |
+| | every untrusted call is withheld by its read's own end, its trim, or a call masked for weak signal (`read_edge`), or carries a weak-signal veto (`weak_call`); an ADR-0076 exemption counts as trust | `lab`: read quality |
 | | otherwise (`untrusted_call`) | `dna`: its callability policy |
 | `unanalysed` (each window) | DNA calls where the reviewers did not analyse (`outside_truth_intervals`) | `undetermined`: only a review there verifies them |
 | `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |

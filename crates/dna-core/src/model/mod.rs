@@ -6,4 +6,5 @@ pub mod consensus;
 pub mod coordinate;
 pub mod reference_call;
 pub mod sample_evidence;
+pub mod trust;
 pub mod variant;
