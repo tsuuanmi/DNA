@@ -60,37 +60,38 @@ reviewers do not record the HVS-I C-tract length. It is handled by a labelled
 convention that classifies a call and never deletes it
 ([PROP-0007](../proposals/0007-empop-export-and-report-conventions.md)).
 
-## Development panel v5 (revision b075635)
+## Development panel v5 (revision f6b979e)
 
-Of 16,410 active samples, 13,302 agree with the truth on every measure. The
-harness classes and causes the rest. A sample's cause is its first defect, in
-the order `dna`, `lab`, `undetermined`; a sample with deferred findings only
-takes the first of them:
+Of 16,410 active samples, 12,877 agree with the truth on every measure. Since
+revision f6b979e every measure except the primary judges insertions and
+deletions at `309`, `455`, `463`, and `573` like any other position; only the
+primary keeps the laboratory's exception. A sample's cause is its first
+defect, in the order `dna`, `lab`, `undetermined`; a sample with deferred
+findings only takes the first of them:
 
 | Class | Samples | dna | lab | undetermined | dna (deferred) | lab (deferred) | technology (deferred) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| coverage | 1,593 | 91 | 656 | 25 | 415 | 0 | 406 |
-| heteroplasmy | 992 | 0 | 84 | 86 | 656 | 0 | 166 |
-| sequence | 346 | 12 | 2 | 301 | 0 | 31 | 0 |
-| unanalysed | 133 | 0 | 0 | 133 | 0 | 0 | 0 |
-| representation | 33 | 11 | 22 | 0 | 0 | 0 | 0 |
+| sequence | 1,125 | 13 | 2 | 1,079 | 0 | 31 | 0 |
+| coverage | 1,301 | 84 | 579 | 37 | 396 | 0 | 205 |
+| heteroplasmy | 941 | 0 | 84 | 76 | 623 | 0 | 158 |
+| unanalysed | 126 | 0 | 0 | 126 | 0 | 0 | 0 |
+| representation | 29 | 8 | 21 | 0 | 0 | 0 | 0 |
 | failed | 9 | 9 | 0 | 0 | 0 | 0 | 0 |
 | not_comparable | 2 | 0 | 0 | 2 | 0 | 0 | 0 |
 
 Under the working hypothesis this splits the work:
 
-- **the core now**: 123 samples (`dna`);
-- **the laboratory**: 764 samples (`lab`), most of them no read or weak
+- **the core now**: 114 samples (`dna`);
+- **the laboratory**: 686 samples (`lab`), most of them no read or weak
   signal at `73`, plus the truth re-check below;
-- **a reviewer**: 547 samples (`undetermined`), of which 301 sequence
-  differences to adjudicate and 133 calls where the reviewers did not
-  analyse;
-- **deferred**: 1,674 samples, being the IUPAC output (1,071), the
-  reviewers' HVS-I length convention (31), and signal processing (572).
+- **a reviewer**: 1,320 samples (`undetermined`), most of them sequence
+  differences at the HVS-II C-tract (see *Sequence*);
+- **deferred**: 1,413 samples, being the IUPAC output (1,019), the
+  reviewers' HVS-I length convention (31), and signal processing (363).
 
-Since revision 7931e9e the `sequence` class fell from 879 to 346 samples and
-`coverage` rose from 1,336 to 1,593: calls DNA could not stand behind became
-abstentions (see *Fixed*).
+Judging the special positions made 738 more samples discordant on the
+`haplotype_lod` measure (corpus rate 0.065 to 0.111), 695 of them at `309`:
+DNA's unlabelled HVS-II C-run length (see *Open and TODO*) is now visible.
 
 **Coverage** (a truth allele where DNA has no callable base). By finding:
 - `lab`: no read covers it (`no_read`, mostly `73G` at the HVS-II forward
@@ -111,14 +112,17 @@ second base in any clean read (`lab`, for a truth re-check), and one strand or
 a code of three bases (`undetermined`). Most sit in the HVS-I C-tract and the
 regions `101-301`, `16051-16179`, and `16196-16365`.
 
-**Sequence** (the sequences differ). By the region of the differing blocks:
-the HVS-II C-tract (110 samples, half with a length difference), the HVS-I
-C-tract (77), the HVS-I read start `16024-16050` (76), and fewer elsewhere.
-DNA's defects here are phantom calls inside the HVS-I C-tract (`16185-16193`, 12 samples); 2 samples
-have clean reads on both strands showing the reference where the truth has an
-allele (`lab`, re-check); in 31 every DNA-only call is an HVS-I C-run length
-the reviewers do not record (`lab`, deferred, `convention_not_recorded`); the
-other 301 go to adjudication.
+**Sequence** (the sequences differ). 873 of the 1,125 samples differ in the
+HVS-II C-tract, most of them the `303-309` run length DNA writes at the
+reference length where the truth has `309.1C` or `309.2C`; the rest are in
+the HVS-I C-tract (77), the HVS-I read start `16024-16050` (76), `568-576`
+(52), and elsewhere. The harness does not yet judge an insertion under this
+class, so these go to adjudication (`undetermined`) rather than to a cause.
+DNA's defects here are phantom calls inside the HVS-I C-tract (13 samples); 2
+samples have clean reads on both strands showing the reference where the
+truth has an allele (`lab`, re-check); in 31 every DNA-only call is an HVS-I
+C-run length the reviewers do not record (`lab`, deferred,
+`convention_not_recorded`).
 
 **Unanalysed** (DNA calls only where the reviewers did not analyse). Mostly
 the HVS-II run exit (`310C`, `310DEL`, `311DEL`, `312-318DEL`) and `574C`.
@@ -140,6 +144,7 @@ which go to the reviewers for notation consistency.
 | An AC-repeat insertion placed differently by two reads, lost in the consensus (`524.1A 524.2C`) | ADR-0047 §1 amendment: one 3'-most placement whatever the profile score; contested AC sites 118 to 4 |
 | An insertion into a repeat vetoed on whichever call alignment took as inserted | SRS-VAR-020: judged on the repeat's placements |
 | DNA calls where the reviewers did not analyse counted as defects | the `unanalysed` class |
+| Indel lengths at `309`, `455`, `463`, and `573` never judged | every measure but the primary judges them |
 | HVS-I and HVS-II C-tract and AC-repeat notation, the deletion trade to `16298`, the insertion shift `16172C` blocked | `dna-normalize` window rules |
 
 ## Open and TODO
@@ -149,14 +154,15 @@ which go to the reviewers for notation consistency.
 | Consensus to `call`: an `N` at a decided run's bound (`310`) drops a decided length | core | [PROP-0006](../proposals/0006-call-consensus-decisions.md) (accepted); the decided length is now not callable rather than reported as the reference |
 | Calls DNA does not trust at the AC repeat (`523`/`524`) | core | open |
 | Phantom calls inside the HVS-I C-tract (`16185-16193`) | core | open |
-| DNA writes the HVS-II C run `303-309` at the reference length without a label in about 600 samples where the truth has `309.1C` or `309.2C`: the forward read shows the run's 5' end and is masked from `310`, and the only read reaching `310` is untrusted, so no read bounds the run, yet the consensus forms no run site and decides it position by position. The measures cannot see it, since the rules leave indel lengths at `309`, `455`, `463`, and `573` out | core | planned: seed a run site where no trusted read bounds a run while some read disagrees on it, so the length is labelled (`phase_loss`, `reference_frame`) or left undecided; an informational count of special-position length differences in the harness first |
+| DNA writes the HVS-II C run `303-309` at the reference length without a label in about 600 samples where the truth has `309.1C` or `309.2C`: the forward read shows the run's 5' end and is masked from `310`, and the only read reaching `310` is untrusted, so no read bounds the run, yet the consensus forms no run site and decides it position by position. Visible since the haplotype measures judge the special positions (695 samples at `309`) | core | planned after PROP-0006: seed a run site where no trusted read bounds a run while some read disagrees on it; a length the consensus only estimates (`phase_loss`, `reference_frame`) is then not callable in `call` |
 | `call` re-places a consensus `N`, so the variants document asserts a position the consensus left undecided (16 positions, 13 samples on dev v5; `empop_undecided` in the harness) | core | PROP-0006 follow-up: the consensus-to-`call` interface loss, visible through the EMPOP query |
 | A read whose signal collapses inside a C-tract (`16189C`) is classed `read_edge` (lab), since DNA marks a phase loss only after a run; it is a technology limit | Sanger callability | TODO, signal work: attribute signal loss within a run |
 | `73` lost after the 3'-most placement of a nearby insertion merges stretches (5 samples) | core | known, coverage only |
 | Weak calls that read the reference leave `N` | core | parked: trusting them decides run lengths (measured: more regressions than fixes); a reviewer flag instead of a call is an option |
 | Consensus stretches grown over tandem-repeat units | core | parked: fewer strict concordances than it gains |
 | The limit-of-detection check counts dephased reads' mixtures after a C-tract as a second base | evaluation harness | watch: leaks clustered at `316-320` or `16194-16199` would point to it |
-| Heteroplasmy output (IUPAC) | core | deferred |
+| Heteroplasmy output (IUPAC) | core | deferred; a minimal two-strand caller was measured and gains little (most truth heteroplasmy is not shown on both strands at 10 %) |
+| Sequence-class causes for insertions | evaluation harness | open: insertions go to adjudication |
 
 ## Truth re-check
 
