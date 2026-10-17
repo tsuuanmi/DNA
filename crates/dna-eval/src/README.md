@@ -34,8 +34,8 @@ equivalence. No crate depends on it, and it is not part of the release.
   two-base IUPAC positions no read shows, which haplotype LoD compares
   compatibly.
 - `haplotype.rs` — the haplotype equivalence of two edit sets: both applied
-  to the reference over each comparable interval, once per way of taking
-  the special-position indels, and cut into blocks where their lengths agree;
+  to the reference over each comparable interval and cut into blocks where
+  their lengths agree;
   built once per sample and read under exact or compatible symbols.
 - `classes.rs` — the discrepancy class of a sample from its statuses: the
   part of DNA that owns its difference from the truth.

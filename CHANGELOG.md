@@ -303,6 +303,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The evaluation harness's own measures (strict, IUPAC-compatible, and the
+  haplotype measures, the approval endpoint `haplotype_lod` included) judge
+  insertions and deletions at 309, 455, 463, and 573 like any other: DNA is
+  target-agnostic, and only the primary measure, the lab's rules, keeps the
+  lab's exception for these positions. The haplotype measures no longer
+  build each interval with the other side's special-position indels.
+  Development panel v5: the primary measure is unchanged; 738 samples become
+  discordant on `haplotype_lod` (695 at 309, 44 at 573, 1 at 455/463), its
+  corpus not-concordant rate goes from 0.0650 to 0.1112, and the `sequence`
+  class from 346 to 1,125 samples, mostly the HVS-II 303-309 run DNA writes
+  at the reference length without a label.
+
 - The evaluation harness's discrepancy causes read the core's own trust
   verdict on each call (`SampleAnalysis::trust`, `CallTrust`: mask, vetoes,
   `read_end` trust, ADR-0076 exemption, and what withholds trust) instead of

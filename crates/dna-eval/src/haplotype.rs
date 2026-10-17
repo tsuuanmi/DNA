@@ -14,18 +14,13 @@
 //! difference may continue past the interval, where one side has no callable
 //! base.
 //!
-//! Special edits (indels the comparison rules leave out) must not decide a
-//! difference by themselves. Each interval is therefore built three ways:
-//! each side with its own special edits, both with DNA's, and both with the
-//! truth's. One way decides the whole interval: the first that leaves no
-//! block over any non-special edit, or else the first with the fewest blocks
-//! over one; an edit is explained when that way finds no block over it.
+//! An edit is explained when no differing block lies over it.
 //!
 //! Symbols are compared exactly or, when the caller gives a `compatible`
 //! test, a truth symbol written by a lenient truth allele also matches a DNA
-//! symbol it is compatible with. An interval where every way has two edits at one
-//! base or insertion ordinal, or an edit that cannot be applied or leaves the
-//! interval, is not decided.
+//! symbol it is compatible with. An interval where a side has two edits at
+//! one base or insertion ordinal, or an edit that cannot be applied or leaves
+//! the interval, is not decided.
 
 use std::collections::BTreeMap;
 
@@ -43,8 +38,6 @@ pub(crate) struct Edit<'a> {
     /// The ASCII symbols written there, empty for deleted bases; `None` when
     /// the allele cannot be applied.
     pub(crate) symbols: Option<&'a str>,
-    /// Whether the comparison rules leave the edit out.
-    pub(crate) special: bool,
     /// Whether a truth edit's symbols may match a compatible DNA symbol under
     /// an IUPAC-compatible symbol test.
     pub(crate) lenient: bool,
@@ -121,24 +114,12 @@ impl Block {
     }
 }
 
-/// One comparable interval: the bases of its non-special edits on either
-/// side, and the pieces whose symbols differ, per way it could be built
-/// (each side's own special edits first).
+/// One comparable interval and the pieces whose symbols differ.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Interval {
     start: i64,
     end: i64,
-    edits: Vec<(i64, i64)>,
-    ways: Vec<Vec<Block>>,
-}
-
-/// The edits whose `special` flag is `keep`.
-fn special<'a>(edits: &[Edit<'a>], keep: bool) -> Vec<Edit<'a>> {
-    edits
-        .iter()
-        .filter(|edit| edit.special == keep)
-        .copied()
-        .collect()
+    blocks: Vec<Block>,
 }
 
 /// Both sides' sequences over the comparable intervals, built once for every
@@ -163,78 +144,27 @@ impl Haplotypes {
                 let within = |edit: &&Edit<'_>| (start..=end).contains(&edit.base);
                 let dna = dna.iter().filter(within).copied().collect::<Vec<_>>();
                 let truth = truth.iter().filter(within).copied().collect::<Vec<_>>();
-                let (dna_special, truth_special) = (special(&dna, true), special(&truth, true));
-                let mut ways = vec![(dna.clone(), Vec::new(), truth.clone(), Vec::new())];
-                if dna_special != truth_special {
-                    ways.push((
-                        dna.clone(),
-                        Vec::new(),
-                        special(&truth, false),
-                        dna_special.clone(),
-                    ));
-                    ways.push((
-                        special(&dna, false),
-                        truth_special,
-                        truth.clone(),
-                        Vec::new(),
-                    ));
-                }
-                let edits = special(&dna, false)
-                    .iter()
-                    .chain(&special(&truth, false))
-                    .map(|edit| (edit.base, edit.last()))
-                    .collect();
-                let ways = ways
-                    .into_iter()
-                    .filter_map(|(dna, dna_borrowed, truth, truth_borrowed)| {
-                        pieces(
-                            reference,
-                            (start, end),
-                            [(&dna, &dna_borrowed), (&truth, &truth_borrowed)],
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                (!ways.is_empty()).then_some(Interval {
-                    start,
-                    end,
-                    edits,
-                    ways,
-                })
+                let blocks = pieces(reference, (start, end), [&dna, &truth])?;
+                Some(Interval { start, end, blocks })
             })
             .collect();
         Self { intervals }
     }
 
-    /// The differing blocks under `compatible` (exact symbols when `None`) of
-    /// the way that decides each interval.
+    /// The differing blocks of each interval under `compatible` (exact
+    /// symbols when `None`).
     pub(crate) fn equivalence(&self, compatible: Option<fn(&str, &str) -> bool>) -> Equivalence {
         Equivalence {
             intervals: self
                 .intervals
                 .iter()
                 .map(|interval| {
-                    let ways = interval.ways.iter().map(|blocks| {
-                        blocks
-                            .iter()
-                            .filter(|block| block.differs(compatible))
-                            .cloned()
-                            .collect::<Vec<_>>()
-                    });
-                    // The first way with the fewest blocks over a non-special
-                    // edit; `min_by_key` keeps the first of equal ones.
-                    let blocks = ways
-                        .min_by_key(|blocks| {
-                            blocks
-                                .iter()
-                                .filter(|block| {
-                                    interval
-                                        .edits
-                                        .iter()
-                                        .any(|&(first, last)| block.overlaps(first, last))
-                                })
-                                .count()
-                        })
-                        .unwrap_or_default();
+                    let blocks = interval
+                        .blocks
+                        .iter()
+                        .filter(|block| block.differs(compatible))
+                        .cloned()
+                        .collect();
                     Decided {
                         start: interval.start,
                         end: interval.end,
@@ -252,7 +182,7 @@ pub(crate) struct Equivalence {
     intervals: Vec<Decided>,
 }
 
-/// One built interval and the differing blocks of the way that decides it.
+/// One built interval and its differing blocks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Decided {
     start: i64,
@@ -261,9 +191,9 @@ struct Decided {
 }
 
 impl Equivalence {
-    /// Whether an edit over `first..=last` lies in a built interval whose
-    /// deciding way finds no differing block over it: its side writes the
-    /// same sequence as the other there.
+    /// Whether an edit over `first..=last` lies in a built interval with no
+    /// differing block over it: its side writes the same sequence as the
+    /// other there.
     pub(crate) fn explains(&self, first: i64, last: i64) -> bool {
         self.intervals.iter().any(|interval| {
             interval.start <= first
@@ -275,8 +205,7 @@ impl Equivalence {
         })
     }
 
-    /// The differing blocks of each interval's deciding way, in reference
-    /// order.
+    /// The differing blocks of each interval, in reference order.
     pub(crate) fn blocks(&self) -> impl Iterator<Item = &Block> {
         self.intervals.iter().flat_map(|interval| &interval.blocks)
     }
@@ -285,26 +214,19 @@ impl Equivalence {
 /// What one side writes at one anchor base.
 #[derive(Debug, Default)]
 struct Column<'a> {
-    /// The replacing symbols, empty for a deletion, and whether the side
-    /// wrote them itself; `None` keeps the reference.
+    /// The replacing symbols, empty for a deletion, and whether a lenient
+    /// allele wrote them; `None` keeps the reference.
     base: Option<(&'a str, bool)>,
-    /// Inserted symbols by ordinal, and whether the side wrote them itself.
+    /// Inserted symbols by ordinal, and whether a lenient allele wrote them.
     inserted: BTreeMap<u32, (&'a str, bool)>,
 }
 
-/// One side's own and borrowed edits by anchor base, or `None` when they
-/// cannot be applied inside `start..=end`.
-fn columns<'a>(
-    (start, end): (i64, i64),
-    own: &[Edit<'a>],
-    borrowed: &[Edit<'a>],
-) -> Option<BTreeMap<i64, Column<'a>>> {
+/// One side's edits by anchor base, or `None` when they cannot be applied
+/// inside `start..=end`.
+fn columns<'a>((start, end): (i64, i64), edits: &[Edit<'a>]) -> Option<BTreeMap<i64, Column<'a>>> {
     let mut columns = BTreeMap::<i64, Column<'a>>::new();
-    let edits = own
-        .iter()
-        .map(|edit| (edit, edit.lenient))
-        .chain(borrowed.iter().map(|edit| (edit, false)));
-    for (edit, written) in edits {
+    for edit in edits {
+        let written = edit.lenient;
         let symbols = edit.symbols?;
         if edit.last() > end || edit.base < start {
             return None;
@@ -345,15 +267,14 @@ fn columns<'a>(
 }
 
 /// The pieces of one interval whose symbols differ, or `None` when a side
-/// cannot be applied or the interval leaves the reference. Each side is its
-/// own edits and the edits it borrows from the other side.
+/// cannot be applied or the interval leaves the reference.
 fn pieces(
     reference: &str,
     (start, end): (i64, i64),
-    [(dna, dna_borrowed), (truth, truth_borrowed)]: [(&[Edit<'_>], &[Edit<'_>]); 2],
+    [dna, truth]: [&[Edit<'_>]; 2],
 ) -> Option<Vec<Block>> {
-    let dna = columns((start, end), dna, dna_borrowed)?;
-    let truth = columns((start, end), truth, truth_borrowed)?;
+    let dna = columns((start, end), dna)?;
+    let truth = columns((start, end), truth)?;
     let mut found = Vec::new();
     let mut first = start;
     let (mut local_dna, mut local_truth) = (Local::default(), Local::default());
@@ -421,15 +342,11 @@ mod tests {
     const REFERENCE: &str = "ACCCCTGG";
 
     /// Edits from tokens: `7A` (substitution), `5-` (deletion), `2.1C`
-    /// (insertion), `2CC-` (a deletion of two bases), `*` before a token
-    /// for a special edit.
+    /// (insertion), `2CC-` (a deletion of two bases).
     fn edits(tokens: &[&'static str]) -> Vec<Edit<'static>> {
         tokens
             .iter()
             .map(|token| {
-                let (special, token) = token
-                    .strip_prefix('*')
-                    .map_or((false, *token), |token| (true, token));
                 let (position, symbol) = token.split_at(token.len() - 1);
                 let digits = position
                     .find(|symbol: char| symbol.is_ascii_alphabetic())
@@ -445,7 +362,6 @@ mod tests {
                     ordinal,
                     span: i64::try_from(span.len().max(1)).unwrap_or(1),
                     symbols: Some(if symbol == "-" { "" } else { symbol }),
-                    special,
                     lenient: true,
                 }
             })
@@ -523,7 +439,6 @@ mod tests {
             ordinal: None,
             span: 2,
             symbols: Some("AT"),
-            special: false,
             lenient: true,
         };
         let equivalence =
@@ -548,73 +463,17 @@ mod tests {
     }
 
     #[test]
-    fn special_edits_cannot_decide_a_difference() {
-        // A special length difference in the run 2-5, and the next C run
-        // placement written differently: each side with its own special
-        // edits differs to the end, with the same ones it does not, so the
-        // shared way decides and leaves no block.
-        let dna = ["*5.1C", "6.1G"];
-        let truth = ["*5.1C", "*5.2C", "7.1G"];
-        let equivalence = haplotypes(&dna, &truth).equivalence(None);
-        assert_eq!(equivalence.blocks().count(), 0);
-        assert!(equivalence.explains(6, 6) && equivalence.explains(7, 7));
-        // A special insertion and a deletion that write the other side's
-        // substitution (as `455.1T 459DEL` writes `456T`): equal only with
-        // each side's own special edits.
-        let equivalence = haplotypes(&["*1.1C", "6-"], &["6C"]).equivalence(None);
-        assert!(equivalence.explains(1, 1) && equivalence.explains(6, 6));
-        assert_eq!(equivalence.blocks().count(), 0);
-        // A real difference stays one under every way.
-        let equivalence = haplotypes(&["*5.1C", "7A"], &["7T"]).equivalence(None);
-        assert!(!equivalence.explains(7, 7));
-    }
-
-    #[test]
-    fn one_way_decides_a_whole_interval() {
-        let block = |start, end| Block {
-            start,
-            end,
-            dna: "A".into(),
-            truth: "C".into(),
-            truth_written: vec![true],
-            open: false,
-        };
-        let interval = |ways| Haplotypes {
-            intervals: vec![Interval {
-                start: 1,
-                end: 20,
-                edits: vec![(3, 3), (15, 15)],
-                ways,
-            }],
-        };
-        // The way with DNA's special edits leaves the edit at 3, the way with
-        // the truth's the one at 15, and no way both: one way decides, so
-        // the two are not explained together.
-        let mixed = interval(vec![
-            vec![block(1, 20)],
-            vec![block(15, 15)],
-            vec![block(3, 3)],
-        ])
-        .equivalence(None);
-        assert!(!(mixed.explains(3, 3) && mixed.explains(15, 15)));
+    fn a_run_length_difference_is_a_difference_wherever_it_lies() {
+        // One C more in the run 2-5 on the truth's side: a block, whatever
+        // the position, and the placement of the next insertion still
+        // explained when both sides write it the same way.
+        let equivalence =
+            haplotypes(&["5.1C", "6.1G"], &["5.1C", "5.2C", "6.1G"]).equivalence(None);
         assert_eq!(
-            mixed.blocks().map(Block::text).collect::<Vec<_>>(),
-            ["1-20:A/C"]
+            equivalence.blocks().map(Block::text).collect::<Vec<_>>(),
+            ["5-8+:CCTGGG/CCCTGGG"]
         );
-        // A way without a block over a non-special edit decides, even
-        // after a way with fewer blocks elsewhere.
-        let clear =
-            interval(vec![vec![block(1, 20)], vec![block(8, 8), block(10, 10)]]).equivalence(None);
-        assert!(clear.explains(3, 3) && clear.explains(15, 15));
-        assert_eq!(clear.blocks().count(), 2);
-        // Otherwise the first way with the fewest blocks over one.
-        let fewest = interval(vec![
-            vec![block(3, 3), block(15, 15)],
-            vec![block(15, 15)],
-            vec![block(3, 3)],
-        ])
-        .equivalence(None);
-        assert!(fewest.explains(3, 3) && !fewest.explains(15, 15));
+        assert!(!equivalence.explains(5, 5));
     }
 
     #[test]
@@ -626,7 +485,6 @@ mod tests {
             ordinal: None,
             span: 1,
             symbols: None,
-            special: false,
             lenient: true,
         };
         assert_eq!(

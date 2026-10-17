@@ -272,7 +272,9 @@ and the truth as tool B:
 - `N/A` when either side has no allele;
 - insertions and deletions at 309, 455, 463, and 573, and at their `.n`
   insertion positions, are left out ("special" positions); substitutions
-  there count;
+  there count. This is the lab's rule, and only the primary measure keeps
+  it. DNA is target-agnostic, so the strict, IUPAC-compatible, and
+  haplotype measures judge a run length at these positions like any other;
 - `N` when a position both sides call holds different allele sets
   (`comparison.py` also skips 309.1, 309.2, and 573.1, which hold insertions
   and are special already);
@@ -286,11 +288,11 @@ and the truth as tool B:
 A truth allele where DNA has no callable base is therefore not counted, and
 a truth IUPAC allele differs from any definite base DNA calls.
 
-**Strict.** The primary rules, and a truth-only allele in an HV region also
+**Strict.** The primary rules with the special positions judged, and a truth-only allele in an HV region also
 counts inside the truth's analysed intervals: where DNA has no callable base
 it is missed (rule `uncovered`). This makes DNA's coverage gaps visible.
 
-**IUPAC-compatible.** The primary rules, and DNA's base matches a truth IUPAC
+**IUPAC-compatible.** The primary rules with the special positions judged, and DNA's base matches a truth IUPAC
 code that admits it, like `iupac_bases_compatible`: two alleles with the same
 position and reference match when their called bases share a possible base
 (`16189C` and `16189Y`), and where DNA calls nothing inside its callable
@@ -298,7 +300,7 @@ intervals its base is the reference, which matches a truth IUPAC allele whose
 code admits the reference (`16189Y` over a reference `T`).
 
 **Haplotype and haplotype IUPAC-compatible.** The primary and the
-IUPAC-compatible rules, applied only to alleles that do not describe the same
+IUPAC-compatible rules, with the special positions judged, applied only to alleles that do not describe the same
 sequence on both sides, so a haplotype written or placed differently is not a
 difference (`16190.1C` and `16193.1C` in the C run 16190–16193, `248DEL` and
 `249DEL` over `AA`, `514DEL 515DEL` and `523DEL 524DEL` in the AC repeat,
@@ -330,33 +332,17 @@ difference (`16190.1C` and `16193.1C` in the C run 16190–16193, `248DEL` and
   truth calls nothing stays a difference;
 - alleles whose bases lie in the interval outside every block describe the
   same sequence and leave the comparison; the rules decide the rest, special
-  positions still left out of them, and `N/A` is decided on all alleles.
+  positions included, and `N/A` is decided on all alleles.
   An interval where one side has two alleles at one base or insertion
   ordinal, or an allele that cannot be applied (an insertion without an
   ordinal, an ordinal on a reference base, an inserted `-`, a reference or
   alternate that is empty or not ASCII, or bases past the interval), cannot
   be built and stays under the rules.
 
-Special-position indels are left out of the rules, as in `comparison.py`, so
-their lengths must not decide a difference in the sequences either, yet they
-can write a placement (`455.1T 459DEL` equals `456T`; `573.1C` equals
-`570.1C`). Each interval is therefore built three ways when the sides'
-special-position indels differ: each side with its own, both with DNA's, and
-both with the truth's. One way decides the whole interval: the first that
-leaves no block over any allele the rules count, or else the first with the
-fewest such blocks (a count of blocks, not of unexplained alleles, so a tie
-falls to the earlier way; this errs toward discordance). An allele leaves the comparison when the deciding way
-finds no block over its bases, so two alleles of one interval are never
-explained by two different ways. With their own indels, `455.1T 459DEL` against `456T`
-is one sequence; with the same indels, `309.1C 315.1C` against
-`309.1C 309.2C 310.1C` is (only the excluded 309.2C length differs). A
-difference that remains under every way stays a difference.
-
-Only representation therefore changes a status: a sample is concordant on a
-haplotype measure exactly when, apart from special-position indel lengths,
-every allele the base rules count describes the same sequence as the other
-side's, or the base rules find it concordant anyway. A sample concordant
-under the base rules stays concordant.
+Only representation therefore changes a status relative to the base rules
+with the special positions judged: a sample is concordant on a haplotype
+measure exactly when every allele the rules count describes the same sequence
+as the other side's, or the rules find it concordant anyway.
 
 **Haplotype LoD.** The haplotype measure, except at a truth heteroplasmy
 the traces cannot show (`lod.rs`). A truth substitution to a two-base IUPAC
