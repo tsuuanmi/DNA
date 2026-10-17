@@ -15,7 +15,7 @@ pub(super) fn right_align(
 
         let mut moved = false;
         for index in order {
-            let Some(shifted) = shift_right_once(reference, &normalized[index]) else {
+            let Some(shifted) = shift_right_once(reference, &normalized, index) else {
                 continue;
             };
             let mut candidate = normalized.clone();
@@ -35,12 +35,37 @@ pub(super) fn right_align(
     Ok(normalized)
 }
 
-fn shift_right_once(reference: &str, edit: &SequenceEdit) -> Option<SequenceEdit> {
+/// The edit at `index` moved one base to the right, when the base it crosses
+/// allows it. A deletion crosses a reference base equal to its first deleted
+/// base. An insertion crosses a reference base equal to its first inserted
+/// base; while it does not yet follow a reference base equal to its first
+/// inserted base, it also crosses a base that a substitution makes equal to
+/// it, so it reaches the 3' end of a reference run of its base (`16172C` takes
+/// an inserted C from 16171 to 16174), yet one at the end of a run stays there
+/// (`16262.1C 16263C`).
+fn shift_right_once(reference: &str, edits: &[SequenceEdit], index: usize) -> Option<SequenceEdit> {
     let reference_bytes = reference.as_bytes();
+    let edit = &edits[index];
 
     if edit.start == edit.end {
         let first_inserted = *edit.alternate.as_bytes().first()?;
-        let crossed = *reference_bytes.get(edit.start)?;
+        let attached = edit
+            .start
+            .checked_sub(1)
+            .and_then(|before| reference_bytes.get(before))
+            == Some(&first_inserted);
+        let substituted = edits
+            .iter()
+            .find(|other| {
+                other.start == edit.start
+                    && other.end == edit.start + 1
+                    && other.alternate.len() == 1
+            })
+            .and_then(|substitution| substitution.alternate.as_bytes().first().copied());
+        let crossed = match substituted {
+            Some(base) if !attached => base,
+            _ => *reference_bytes.get(edit.start)?,
+        };
         if first_inserted != crossed {
             return None;
         }

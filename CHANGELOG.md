@@ -204,6 +204,12 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Right-aligned normalization takes an insertion across a base that a
+  substitution of the same haplotype makes equal to its first inserted base,
+  until the insertion follows a reference run of that base: with `16172C`, an
+  inserted C is written `16174.1C` rather than `16171.1C`, as the lab's
+  reviewers write it, while `16262.1C 16263C` stays. The `normalization`
+  plugin version rises to 2.
 - Window representation now applies per window rather than per read
   (SRS-NOM-007, SRS-NOM-010). An edit that crosses one nomenclature window
   leaves that window in its normalized form, but no longer prevents the

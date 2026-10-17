@@ -124,7 +124,7 @@ pub fn normalize_with(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "normalization",
     family: PluginFamily::PostCalling,
-    version: 1,
+    version: 2,
     provides: &[Contract::NormalizedVariants],
     requires: &[Contract::CalledVariants],
     config_sections: &[],

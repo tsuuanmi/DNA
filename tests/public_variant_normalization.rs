@@ -163,6 +163,28 @@ fn normalization_preserves_phase_across_nearby_edits() -> Result<(), Box<dyn std
 }
 
 #[test]
+fn an_insertion_crosses_a_substituted_base_of_its_own() -> Result<(), Box<dyn std::error::Error>> {
+    // As 16172C with an inserted C at 16171: the sample's C run is 4-6 plus
+    // the inserted C, so the insertion belongs after 6 (16174.1C), although
+    // the reference base it crosses at 4 is T.
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = "GAATCCAG";
+    write_reference(&reference_path, sequence)?;
+    let insertion = variant(3, "A", "AC", VariantKind::Ins);
+    let snv = variant(4, "T", "C", VariantKind::Snv);
+    let called = called(sequence, vec![insertion, snv.clone()]);
+
+    let result = normalize(&reference_path, &called)?;
+
+    assert_eq!(
+        result.normalized_variants,
+        vec![snv, variant(6, "C", "CC", VariantKind::Ins)]
+    );
+    Ok(())
+}
+
+#[test]
 fn right_alignment_stops_at_the_mtdna_coordinate_seam() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let reference_path = directory.path().join("reference.fa");

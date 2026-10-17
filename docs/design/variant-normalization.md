@@ -81,9 +81,14 @@ canonical:         A
 ### Insertion shift
 
 An insertion at one reference boundary can shift one base right when its first
-inserted base equals the crossed reference base. The inserted sequence is
-rotated while the boundary moves so the represented haplotype remains
-sequence-equivalent.
+inserted base equals the crossed reference base. While the insertion does not
+yet follow a reference base equal to its first inserted base, it can also cross
+a base that a substitution of the same haplotype makes equal to it, so it
+reaches the 3' end of a reference run of its base: with `16172C`, an inserted C
+moves from 16171 to `16174.1C`, as the lab's reviewers write it. An insertion
+already at the end of a run stays there (`16262.1C 16263C`). The inserted
+sequence is rotated while the boundary moves so the represented haplotype
+remains sequence-equivalent.
 
 For tandem repeats this one-base operation naturally composes into whole-motif
 movement.
