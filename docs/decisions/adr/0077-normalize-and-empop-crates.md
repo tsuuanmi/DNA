@@ -77,7 +77,9 @@ it must never be guessed from the lab form.
      needs its own labelled report policy, which classifies and never deletes.
    - Every difference from the truth is classified by its owner in the
      [discrepancy catalogue](../../validation/discrepancy-catalogue.md). A
-     class not handled yet stays there as a TODO.
+     class not handled yet stays there as a TODO. Reviewer truth can be wrong:
+     a difference that the read evidence attributes to the truth goes to the
+     reviewers for a re-check and does not change DNA.
 
 ## Alternatives considered
 

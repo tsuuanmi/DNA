@@ -2,8 +2,14 @@
 
 This catalogue sorts every difference between DNA's calls and reviewer truth on
 the development panel by the layer that owns it. Each class says whether the
-core caller must fix it, normalization can fix it, or it is not handled yet. A
-class that is not handled yet is a TODO here, with its reason.
+core caller must fix it, normalization can fix it, the truth needs a reviewer's
+re-check, or it is not handled yet. A class that is not handled yet is a TODO
+here, with its reason.
+
+Reviewer truth is the reference, not an infallible one. A difference becomes a
+DNA defect only when the read evidence shows that DNA is wrong. When the
+evidence supports DNA, DNA is not changed: the case goes to the reviewers for
+a re-check (see *Truth re-check*).
 
 The layers and their boundary are those of
 [ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md) §5:
@@ -16,20 +22,19 @@ The layers and their boundary are those of
 
 ## Classification rule
 
-A sample is classified from the harness measures. Each row applies only when
-the rows above it do not.
+A sample takes the first class, in this order, whose measure is not
+concordant. "Not concordant" includes not applicable.
 
-| Measures | Class | Owner |
-|---|---|---|
-| DNA failed on the sample | failed | core or input |
-| strict discordant, primary concordant | coverage: a truth allele where DNA has no callable base | core callability, or the laboratory's assay |
-| primary discordant, haplotype concordant | representation: the same sequence written another way | `dna-normalize` when DNA's form differs from the reviewers' majority form for that sequence; otherwise a minority form in the truth, recorded only |
-| haplotype discordant, haplotype IUPAC-compatible concordant | heteroplasmy: a truth IUPAC code where DNA reports a base | core minor-signal evidence |
-| haplotype IUPAC-compatible discordant | sequence: DNA and the truth describe different sequences | core logic, unless adjudication finds a truth error |
+| Order | Measure not concordant | Class | Owner |
+|---:|---|---|---|
+| 1 | DNA failed on the sample | failed | core or input |
+| 2 | haplotype IUPAC-compatible | sequence: DNA and the truth describe different sequences | core logic, unless the evidence supports DNA (truth re-check) |
+| 3 | haplotype | heteroplasmy: a truth IUPAC code where DNA reports a base | core minor-signal evidence, or a truth re-check where no read shows the second base |
+| 4 | primary | representation: the same sequence written another way | `dna-normalize` when DNA's form differs from the reviewers' majority form, measured on the corpus with `dna-eval convention`; otherwise a minority form in the truth, recorded for the reviewers |
+| 5 | strict | coverage: a truth allele where DNA has no callable base | core callability, or the laboratory's assay |
 
-The reviewers' majority form per window sequence is measured on the reviewed
-corpus. The [design](../design/variant-nomenclature.md) describes the window
-rules that follow it.
+The [design](../design/variant-nomenclature.md) describes the window rules that
+follow the reviewers' majority form.
 
 A convention that changes content is not normalization. For example, the
 reviewers do not record the HVS-I C-tract length. A policy for such a
@@ -38,16 +43,18 @@ convention classifies a call and never deletes it, and it is a TODO
 
 ## Development panel v5 (revision 7931e9e)
 
-Of 16,410 active samples, 3,201 differ from the truth on at least one measure.
-Region attributions use the first differing allele, so they are approximate.
+Of 16,410 active samples, 13,207 agree with the truth on every measure. The
+harness classifies the rest. The topic breakdowns below come from a research
+pass, which attributes a sample to the region of its first differing allele,
+so they are approximate.
 
 | Class | Samples | Owner | Status |
 |---|---:|---|---|
-| Coverage | 1,336 | core callability or assay | TODO; see below |
-| Heteroplasmy | 948 | core | TODO, deferred: threshold optimization is not current work |
-| Representation | 31 | `dna-normalize` or truth minority form | in progress; see below |
-| Sequence | about 870 | core, or adjudication | partly fixed; see below |
 | Failed | 9 | core or input | TODO |
+| Sequence | 879 | core, or truth re-check | partly fixed; see below |
+| Heteroplasmy | 948 | core, or truth re-check | TODO, deferred: threshold optimization is not current work |
+| Representation | 31 | `dna-normalize`, or truth minority form | see below |
+| Coverage | 1,336 | core callability or assay | TODO; see below |
 
 **Coverage.**
 - About 1,087 samples have the uncovered allele outside the repeat windows,
@@ -57,13 +64,13 @@ Region attributions use the first differing allele, so they are approximate.
   where DNA abstains (`N`).
 
 **Representation.**
-- The HVS-I and HVS-II C-tract and AC-repeat window rules are done.
-- An HVS-I deletion that trades 3′ across substitutions to `16298` is in
-  progress.
-- An insertion shift that `16172C` blocks is in progress.
-- About two thirds of the remaining 31 are minority forms in the truth. DNA
-  already writes the majority form there, for example `523DEL 524DEL` against
-  the truth's `514DEL 515DEL`.
+- Fixed:
+  - the HVS-I and HVS-II C-tract and AC-repeat window rules;
+  - the deletion that trades 3′ across substitutions to `16298`;
+  - the insertion shift that `16172C` blocked.
+- About two thirds of the remaining 31 are minority forms in the truth: DNA
+  already writes the majority form, for example `523DEL 524DEL` against the
+  truth's `514DEL 515DEL`. They go to the reviewers for notation consistency.
 
 **Sequence.**
 
@@ -77,6 +84,24 @@ Region attributions use the first differing allele, so they are approximate.
 | HVS-I C-tract lengths that the reviewers do not record (`16193.1C`) | 47 | report convention | TODO |
 | AC-repeat insertions DNA misses (`524.1A 524.2C`) | 51 | core | open |
 | Read-start and other differences outside the windows (e.g. `16031DEL`) | about 240 | core, or adjudication | open |
+
+## Truth re-check
+
+A case where the read evidence supports DNA goes on a re-check list for the
+reviewers. DNA is not changed for it. The list names samples, so it is kept
+with the run outputs under `results/` on the lab server and never in
+repository documents. A corrected truth reaches the harness through the
+statistics database, whose changes the panel's truth digests detect. Until
+then the case still counts as a leak in an approval run, as pre-registered
+([PROP-0005](../proposals/0005-evaluation-feedback-loop.md)).
+
+Candidates on development panel v5:
+
+| Candidate | Samples | Evidence |
+|---|---:|---|
+| Truth substitutions all one position early | 1 | DNA writes a known haplogroup motif. |
+| Truth heteroplasmy with no second base in any read | 99 | Both strands read one base cleanly, and the code's other base stays below 3 % in every covering read. Most are C-tract positions such as `16189Y`. |
+| Truth notation minority form | 21 | Same sequence; for example `514DEL 515DEL` is written by 24 of 58,807 corpus samples with that sequence, against `523DEL 524DEL`. |
 
 ## Updating the catalogue
 
