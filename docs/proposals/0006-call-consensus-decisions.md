@@ -5,7 +5,7 @@ status: draft
 owners: []
 created: 2026-10-17
 related-requirements: [SRS-API-012, SRS-VAR-015, SRS-VAR-017, SRS-ALN-015]
-related-decisions: [ADR-0073, ADR-0074, ADR-0077]
+related-decisions: [ADR-0047, ADR-0073, ADR-0074, ADR-0077]
 implementation: []
 ---
 
@@ -35,6 +35,13 @@ three classes with this one cause on development panel v5:
 Each fix so far patches one symptom of the same gap. The guard and the tie
 rule make `call` safer; they cannot make it say what the consensus decided.
 
+The same gap exists before the consensus. Reads vote on their alignment
+columns, and an equivalent edit placed differently by two reads splits the
+vote. On development panel v5 a gained `AC` unit is placed at `513.1C 513.2A`
+by one read and `524.1A 524.2C` by another: the consensus sees two
+one-against-one ties, keeps the reference at both, and loses an insertion that
+every read shows (116 contested AC sites, 112 with the truth `524.1A 524.2C`).
+
 ## Goals
 
 - `SampleAnalysis::call` and the recommended workflow report exactly the
@@ -52,6 +59,10 @@ rule make `call` safer; they cannot make it say what the consensus decided.
   `reference_frame` length stays labelled as it is.
 - Notation rules; the decided variants go through `dna-normalize` as now
   (ADR-0077 §5).
+- Trusting weak calls: making a weak call that reads the reference count
+  towards a decision was measured and set aside, because such a call also
+  decides run lengths (development panel v5: 21 regressions against 11 fixes
+  in the narrowest variant).
 
 ## Evidence and research
 
@@ -63,8 +74,31 @@ rule make `call` safer; they cannot make it say what the consensus decided.
   from `513` to `523` scores the same.
 - Run bounds: [known limitations](../validation/known-limitations.md),
   "Run lengths lost between consensus and call".
+- AC placement: profile-aware alignment scoring sets an insertion in a tandem
+  repeat where the read's own call purities are lowest, and the canonical
+  3'-most shift of ADR-0047 is refused because it changes that score. The
+  post-calling `normalization` plugin would place it at `524.1A 524.2C`, but it
+  runs after the vote. Reads' placements on panel v5: reverse reads mostly
+  after 513, forward reads after 524, 513, 523, or 522; deletions agree.
 
 ## Proposed design
+
+0. **Order: one canonical form before the vote, the lab's notation after.**
+   - Each read's alignment places every indel at its single sequence-equivalent
+     3'-most position before any read is observed: a shift is taken when every
+     moved column stays a match and the read's bases are unchanged, whatever
+     the profile score. The score still chooses which edits explain the read;
+     it no longer chooses among equivalent placements (an amendment of
+     ADR-0047 §1). One implementation of the equivalent shift serves alignment
+     and post-calling normalization.
+   - The consensus votes on those canonical observations. It also grows a
+     stretch over whole tandem-repeat units, not only homopolymer runs, so a
+     placement that still differs cannot split a vote.
+   - Conventions of the laboratory stay after the consensus, in
+     `dna-normalize`: the deletion trade, the nomenclature windows, and
+     convention labels. They decide how a decided sequence is written, never
+     what it is (ADR-0077 §5). The deletion trade crosses substitutions, so it
+     is not an equivalent shift and never runs before the vote.
 
 1. **Decided edits come from the consensus.** For each consensus segment, the
    called variants come from its `called` sites whose call differs from the
@@ -73,8 +107,9 @@ rule make `call` safer; they cannot make it say what the consensus decided.
      per run, as ADR-0072 writes it: a length change as an insertion or
      deletion at the run's 3' end, a changed base as a substitution;
    - any other site gives the edits of an alignment of its call against its
-     reference interval alone. That alignment is bounded to the site and
-     holds no `N`, since an undecided run is undecided whole.
+     reference interval alone, placed by the same canonical shift as in item
+     0. That alignment is bounded to the site and holds no `N`, since an
+     undecided run is undecided whole.
 
    A `contested` site between one read and one other contributes the
    reference, as now. A contested site without a sequence, and an
@@ -127,6 +162,12 @@ An ADR records the decision once this proposal is accepted.
 
 ## Validation plan
 
+- Item 0, first, on development panel v5 against main: no new
+  `haplotype_lod` discordance and at least as many fixes as regressions; the
+  contested AC sites, the samples with the truth `524.1A 524.2C`, the
+  insertions whose eligibility changes because other calls become the
+  inserted ones, and the HVS-II insertions at `309`–`315`.
+
 - Equivalence: for every development-panel consensus segment without an `N`,
   the document path and the FASTA path give the same variants and notation.
 - Development panel v5: the three classes above resolve to the consensus's
@@ -158,8 +199,11 @@ consensus, which is the fix. Callers that pass a FASTA see no change.
 
 ## Decision
 
-Pending: needs the user's decision on the contract change to SRS-API-012
-and the `dna call` input.
+- 2026-10-17, user: item 0. The canonical placement in alignment (option A)
+  is approved for implementation and measurement, and this order (canonical
+  placement before the consensus, the laboratory's conventions after it) is
+  the design direction.
+- Pending: the contract change to SRS-API-012 and the `dna call` input.
 
 ## Implementation
 
