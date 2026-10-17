@@ -21,9 +21,9 @@ indel_placement = "right"
 # One call per changed base: 73G, 249DEL, 309.1C.
 style = "per_base_decimal"
 
-# Repeat windows whose sequence-equivalent haplotypes take one forensic
-# representation (EMPOP/ISFG conventions). Rules are tried in order; the first
-# whose candidate reproduces the window haplotype wins.
+# Repeat windows whose sequence-equivalent haplotypes take one representation:
+# the form the lab's reviewers write (ADR-0077). Rules are tried in order; the
+# first whose candidate reproduces the window haplotype wins.
 [[nomenclature.windows]]
 name = "HVS-II"
 start = 303
@@ -33,17 +33,17 @@ rules = ["anchored_run_lengths", "anchor_duplication", "anchor_deletion", "termi
 
 [[nomenclature.windows]]
 name = "HVS-III"
-start = 513
-sequence = "GCACACACACAC"
+start = 512
+sequence = "AGCACACACACAC"
 structure = { kind = "tandem_repeat", motif = "AC" }
 rules = ["motif_shift"]
 
 [[nomenclature.windows]]
 name = "HVS-I"
-start = 16181
-sequence = "AAACCCCCTCCCC"
+start = 16180
+sequence = "AAAACCCCCTCCCC"
 structure = { kind = "anchored_homopolymer", repeat_base = "C", anchor = 16189, anchor_base = "T" }
-rules = ["canonical_haplotype", "anchor_deletion"]
+rules = ["canonical_haplotype", "anchored_tract", "anchor_deletion"]
 canonical_haplotype = [
   { position = 16183, base = "C" },
   { position = 16184, base = "A" },

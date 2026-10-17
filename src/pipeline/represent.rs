@@ -8,7 +8,9 @@
 
 use crate::report::{ReadRepresentation, SampleNotation};
 use dna_core::model::called_read::CalledRead;
-use dna_kernel::error::{Error, NomenclatureError, Result};
+use std::ops::Range;
+
+use dna_kernel::error::Result;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Notation, Profile};
 use dna_kernel::variant::{CalledVariantSet, Variant};
@@ -28,6 +30,11 @@ pub(crate) fn represent(
             (
                 read.input_sha256.clone(),
                 read.variants.reported.iter().map(Variant::from).collect(),
+                read.alignment
+                    .callable_segments
+                    .iter()
+                    .map(|segment| segment.start_0based..segment.end_0based_exclusive)
+                    .collect(),
             )
         }),
         reference,
@@ -35,9 +42,10 @@ pub(crate) fn represent(
     )
 }
 
-/// Represents each read's eligible variants, given with its content identity.
+/// Represents each read's eligible variants, given with its content identity
+/// and its callable reference segments (0-based, half-open).
 pub(crate) fn represent_variants(
-    reads: impl IntoIterator<Item = (String, Vec<Variant>)>,
+    reads: impl IntoIterator<Item = (String, Vec<Variant>, Vec<Range<usize>>)>,
     reference: &Reference,
     profile: &Profile,
 ) -> Result<Option<SampleNotation>> {
@@ -51,37 +59,40 @@ pub(crate) fn represent_variants(
     let policy = NormalizationPolicy::for_placement(indel_placement);
     let reads = reads
         .into_iter()
-        .map(|(input_sha256, variants)| {
+        .map(|(input_sha256, variants, callable)| {
             Ok(ReadRepresentation {
                 input_sha256,
-                variants: represent_read(reference, profile, policy, variants)?,
+                variants: represent_read(reference, profile, policy, variants, &callable)?,
             })
         })
         .collect::<Result<_>>()?;
     Ok(Some(SampleNotation { style, reads }))
 }
 
-/// Normalizes one read's calls, then applies the profile windows. An edit that
-/// straddles a window cannot take that representation (SRS-NOM-007), so the
-/// read keeps its normalized form.
+/// Normalizes one read's calls, then applies the profile windows. A window an
+/// edit straddles keeps its normalized form (SRS-NOM-007), and so does one
+/// whose representation would place a call where the read reads nothing
+/// (SRS-NOM-010): a window rule rewrites the whole window's sequence, which over
+/// an unread base is the reference's, not the read's.
 fn represent_read(
     reference: &Reference,
     profile: &Profile,
     policy: NormalizationPolicy,
     variants: Vec<Variant>,
+    callable: &[Range<usize>],
 ) -> Result<Vec<Variant>> {
     let called = CalledVariantSet {
         reference: reference.identity(),
         variants,
     };
     let normalized = normalize_with(reference, &called, policy)?;
-    match variant_nomenclature::apply_with(reference, profile, from_normalization(&normalized)) {
-        Ok(represented) => Ok(represented.represented_variants),
-        Err(Error::VariantNomenclature(NomenclatureError::WindowCrossing { .. })) => {
-            Ok(normalized.normalized_variants)
-        }
-        Err(error) => Err(error),
-    }
+    Ok(variant_nomenclature::apply_read(
+        reference,
+        profile,
+        from_normalization(&normalized),
+        callable,
+    )?
+    .represented_variants)
 }
 
 #[cfg(test)]
@@ -96,6 +107,10 @@ mod tests {
     use dna_kernel::variant;
 
     use super::*;
+
+    /// A read of the whole reference, and one of HVS-I.
+    const WHOLE: Range<usize> = 0..16_569;
+    const READ: Range<usize> = 16_043..16_379;
 
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -144,38 +159,87 @@ mod tests {
             &human_mtdna()?,
             NormalizationPolicy::RightAligned,
             vec![Variant::from(&called(303, "C", "CC", VariantKind::Ins))],
+            &[WHOLE],
         )?;
         assert_eq!(represented, [public(309, "C", "CC")]);
         Ok(())
     }
 
     #[test]
-    fn keeps_the_normalized_form_for_an_edit_crossing_the_hv2_window() -> TestResult {
+    fn an_edit_crossing_the_hv2_window_keeps_its_form_and_hv3_is_represented() -> TestResult {
         let reference = rcrs()?;
+        // A deletion of 302-303 crosses HVS-II and stays as normalized; the
+        // AC-unit deletion at 515-516 still takes HVS-III's 523DEL 524DEL.
         let crossing = public(301, "AAC", "A");
-        let normalized = normalize_with(
-            &reference,
-            &CalledVariantSet {
-                reference: reference.identity(),
-                variants: vec![crossing.clone()],
-            },
-            NormalizationPolicy::RightAligned,
-        )?;
-        let profile = human_mtdna()?;
-        assert!(matches!(
-            variant_nomenclature::apply_with(&reference, &profile, from_normalization(&normalized)),
-            Err(Error::VariantNomenclature(
-                NomenclatureError::WindowCrossing { window }
-            )) if window == "HVS-II"
-        ));
-
         let represented = represent_read(
             &reference,
-            &profile,
+            &human_mtdna()?,
             NormalizationPolicy::RightAligned,
-            vec![Variant::from(&called(301, "AAC", "A", VariantKind::Del))],
+            vec![
+                Variant::from(&called(301, "AAC", "A", VariantKind::Del)),
+                Variant::from(&called(514, "CAC", "C", VariantKind::Del)),
+            ],
+            &[WHOLE],
         )?;
-        assert_eq!(represented, [crossing]);
+        assert_eq!(represented, [crossing, public(522, "CAC", "C")]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_window_whose_form_would_call_an_unread_base_keeps_its_form() -> TestResult {
+        let reference = rcrs()?;
+        // 16183C read before an unread stretch 16184-16191: the HVS-I rule
+        // would write it as 16183DEL 16188.1C, a call where the read shows
+        // nothing, so the window keeps 16183C.
+        let call = called(16183, "A", "C", VariantKind::Snv);
+        let partial = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            vec![Variant::from(&call)],
+            &[16_043..16_183, 16_191..16_379],
+        )?;
+        assert_eq!(partial, [public(16183, "A", "C")]);
+        let whole = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            vec![Variant::from(&call)],
+            &[READ],
+        )?;
+        assert_eq!(whole, [public(16182, "AA", "A"), public(16188, "C", "CC")]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_window_whose_form_rests_on_an_unread_base_keeps_its_form() -> TestResult {
+        let reference = rcrs()?;
+        // 16182C 16183C read, but 16189-16192 unread: the HVS-I rule would
+        // take T16189 from the reference and write 16182DEL 16183DEL
+        // 16188.1C 16188.2C, a form that holds only if 16189 is T.
+        let calls = vec![
+            Variant::from(&called(16182, "A", "C", VariantKind::Snv)),
+            Variant::from(&called(16183, "A", "C", VariantKind::Snv)),
+        ];
+        let partial = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            calls.clone(),
+            &[16_077..16_188, 16_192..16_379],
+        )?;
+        assert_eq!(partial, [public(16182, "A", "C"), public(16183, "A", "C")]);
+        let whole = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            calls,
+            &[READ],
+        )?;
+        assert_eq!(
+            whole,
+            [public(16181, "AAA", "A"), public(16188, "C", "CCC")]
+        );
         Ok(())
     }
 

@@ -112,7 +112,7 @@ fn derives_the_in_process_notation_and_reports_conformance()
         notation["provenance"]["plugins"],
         json!([
             {"id": "normalization", "family": "post_calling", "version": 1},
-            {"id": "nomenclature", "family": "post_calling", "version": 1},
+            {"id": "nomenclature", "family": "post_calling", "version": 2},
             {"id": "conformance", "family": "post_calling", "version": 1},
         ])
     );

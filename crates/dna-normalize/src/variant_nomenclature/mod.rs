@@ -9,6 +9,7 @@
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 mod windows;
 
+use std::ops::Range;
 use std::path::Path;
 
 use crate::variant_normalization::VariantNormalizationResult;
@@ -76,8 +77,8 @@ pub struct VariantNomenclatureResult {
 ///
 /// Returns [`Error`](dna_kernel::error::Error) when the reference cannot be loaded,
 /// is not the profile's reference, does not match the input reference identity
-/// or a profile window sequence, an edit crosses a window boundary, or the input
-/// variants do not reconstruct the supplied haplotype.
+/// or a profile window sequence, or the input variants do not reconstruct the
+/// supplied haplotype.
 pub fn apply(
     reference_path: &Path,
     profile: &Profile,
@@ -93,12 +94,38 @@ pub fn apply(
 ///
 /// # Errors
 ///
-/// Returns `NomenclatureError` when the input does not match the reference or
-/// an edit crosses a window.
+/// Returns `NomenclatureError` when the input does not match the reference.
 pub fn apply_with(
     reference: &Reference,
     profile: &Profile,
     input: NomenclatureInput<'_>,
+) -> Result<VariantNomenclatureResult> {
+    represent(reference, profile, input, None)
+}
+
+/// Applies a profile's windows to one read's haplotype, as [`apply_with`],
+/// except that a window keeps its normalized form when its representation
+/// would place a call where the read reads nothing: a substituted or deleted
+/// base, or an insertion's anchor base, outside every `readable` reference
+/// interval (0-based, half-open).
+///
+/// # Errors
+///
+/// Returns `NomenclatureError` when the input does not match the reference.
+pub fn apply_read(
+    reference: &Reference,
+    profile: &Profile,
+    input: NomenclatureInput<'_>,
+    readable: &[Range<usize>],
+) -> Result<VariantNomenclatureResult> {
+    represent(reference, profile, input, Some(readable))
+}
+
+fn represent(
+    reference: &Reference,
+    profile: &Profile,
+    input: NomenclatureInput<'_>,
+    readable: Option<&[Range<usize>]>,
 ) -> Result<VariantNomenclatureResult> {
     if input.reference.name != reference.name || input.reference.sha256 != reference.sequence_sha256
     {
@@ -117,8 +144,12 @@ pub fn apply_with(
         return Err(NomenclatureError::InconsistentInput.into());
     }
 
-    let represented_edits =
-        windows::represent_windows(&profile.windows, &reference.sequence, &normalized_edits)?;
+    let represented_edits = windows::represent_windows(
+        &profile.windows,
+        &reference.sequence,
+        &normalized_edits,
+        readable,
+    )?;
     if apply_edits(&reference.sequence, &represented_edits).map_err(NomenclatureError::from)?
         != input.alternate_sequence
     {
@@ -142,7 +173,7 @@ pub fn apply_with(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "nomenclature",
     family: PluginFamily::PostCalling,
-    version: 1,
+    version: 2,
     provides: &[Contract::Nomenclature],
     requires: &[Contract::NormalizedVariants],
     config_sections: &[],

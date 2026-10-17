@@ -355,7 +355,7 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
             {"id": "sanger", "family": "modality", "version": 3},
             {"id": "core", "family": "core", "version": 5},
             {"id": "normalization", "family": "post_calling", "version": 1},
-            {"id": "nomenclature", "family": "post_calling", "version": 1},
+            {"id": "nomenclature", "family": "post_calling", "version": 2},
         ])
     );
     assert_eq!(

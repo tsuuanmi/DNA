@@ -204,6 +204,29 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- Window representation now applies per window rather than per read
+  (SRS-NOM-007, SRS-NOM-010). An edit that crosses one nomenclature window
+  leaves that window in its normalized form, but no longer prevents the
+  read's other windows from taking their forensic form: for example a
+  deletion of 512-513 beside HVS-III no longer leaves HVS-II's
+  `309.1C 315.1C` as `309.1C 309.2T 310C`. **Breaking for library
+  consumers:** `dna::variant_nomenclature::apply` no longer fails with
+  `NomenclatureError::WindowCrossing`, which is removed. The `nomenclature`
+  plugin version rises to 2.
+- The nomenclature windows follow the lab's reviewer convention (ADR-0077,
+  SRS-NOM-005, SRS-NOM-014, SRS-NOM-015). HVS-II writes any C/T haplotype as
+  the left run's length at 309 and the rest left-anchored with C insertions
+  after 315 (`312T 315.1C 315.2C 315.3C`); HVS-III now starts at 512 and
+  writes whole AC-copy losses and gains at its 3' end (`513A 523DEL 524DEL`,
+  `524.1A 524.2C`); HVS-I now starts at 16180 and gains the `anchored_tract`
+  rule for the A-tract and C-tract (`16183DEL`, `16188.1C`,
+  `16182C 16183C 16189C`, `16189C 16190T 16193.1C 16193.2C`). In `sample`,
+  `call`, and `notation`, a window keeps its normalized form when its
+  representation would place a call where the read reads nothing, or rests
+  on a base the read does not read. Every window sequence of at least 5
+  reviewed corpus samples now takes the form most reviewers wrote; on
+  development panel v5 the primary measure gains 60 samples, strict 56, and
+  IUPAC-compatible 80, with no regression on any measure.
 - **Breaking for library and log consumers:** the post-calling crate
   `dna-post` is split into `dna-normalize` (representation, normalization,
   nomenclature) and `dna-empop` (conformance) (ADR-0077). Rust paths under

@@ -13,7 +13,9 @@ reproduces the window haplotype wins, and the complete alternate haplotype is
 proven unchanged. `windows.rs` owns the generic engine and the rule
 implementations; no target windows, bases, or references are hard-coded here.
 The shipped human-mtDNA profile declares the HVS-II 303-315 and HVS-I
-16181-16193 poly-C windows and the HVS-III 513-524 AC repeat.
+16180-16193 poly-C windows and the HVS-III 512-524 AC repeat, in the lab's
+reviewer convention. `apply_read` keeps a window's normalized form when its
+representation would call a base the read does not read.
 
 Target-independent edit/application/render mechanics live in the
 `variant_representation` module of this crate; this module owns only nomenclature policy.

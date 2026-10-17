@@ -86,12 +86,6 @@ pub enum NomenclatureError {
         /// Window name declared by the profile, for example `"HVS-II"`.
         window: String,
     },
-    /// An edit straddles a window boundary.
-    #[error("variant edit crosses the {window} nomenclature window")]
-    WindowCrossing {
-        /// Window name declared by the profile, for example `"HVS-II"`.
-        window: String,
-    },
     /// A window rule would change the local haplotype.
     #[error("{window} representation changed the local haplotype")]
     LocalHaplotypeChanged {

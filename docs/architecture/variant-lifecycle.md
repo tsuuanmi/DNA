@@ -256,4 +256,5 @@ Target-specific nomenclature is data: a target profile (ADR-0063) declares
 reference windows with ordered rules, and the generic engine applies the first
 rule that reproduces each window haplotype, verifying that the complete
 represented haplotype is unchanged. The shipped human-mtDNA profile declares the
-HVS-II 303-315, HVS-III 513-524, and HVS-I 16181-16193 windows.
+HVS-II 303-315, HVS-III 512-524, and HVS-I 16180-16193 windows in the lab's
+reviewer convention (ADR-0077).

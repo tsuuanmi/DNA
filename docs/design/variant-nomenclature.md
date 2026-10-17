@@ -76,18 +76,39 @@ The rule vocabulary and its structure preconditions are in the
 
 | Window | Structure | Rules, in order |
 | --- | --- | --- |
-| HVS-II | C runs around T310 | run lengths at 309/315; duplicated anchor `311T 315.1C`; anchor deletion `310C 315DEL`; one-base gain ending in C as substitutions + EMPOP `315.1C` |
-| HVS-III | `AC` tandem repeat | one-motif loss as substitutions + `523DEL 524DEL` |
-| HVS-I | C runs around T16189 | phylogenetic `16183C 16184A 16189C`; anchor deletion `16189C 16193DEL` |
+| HVS-II 303-315 | C runs around T310 | run lengths at 309 and 315, the rest left-anchored (`309.1C 315.1C`, `312T 315.1C 315.2C 315.3C`); duplicated anchor `311T 315.1C`; anchor deletion `310C 315DEL`; one-base gain ending in C as substitutions + `315.1C` |
+| HVS-III 512-524 | `AC` tandem repeat | whole-copy loss or gain at the 3' end plus substitutions (`523DEL 524DEL`, `513A 523DEL 524DEL`, `524.1A 524.2C`) |
+| HVS-I 16180-16193 | A-tract, then C runs around T16189 | phylogenetic `16183C 16184A 16189C`; the A-tract and C-tract rule (`16183DEL`, `16188.1C`, `16182C 16183C 16189C`, `16189C 16190T 16193.1C 16193.2C`); anchor deletion `16189C 16193DEL` |
 
-These encode the `mtdna_raw` profiles. Its "preserve interpreted
-substitutions" rule is the same as keeping the normalized form here, so it has
-no separate implementation. Its EMPOP terminal rule also accepts multi-base
-gains through a full edit-script derivation; DNA accepts only the validated
-one-base gain and otherwise keeps the normalized form.
+The rules follow the lab's reviewer convention (ADR-0077). Each reproduces the
+form most reviewers wrote for every window sequence of at least 5 corpus
+samples (`crates/dna-normalize/tests/fixtures/lab-convention.tsv`); the research
+prototype of the same rules reproduced the form of about 99.97 % of all corpus
+samples. Where the corpus departs
+from SWGDAM or EMPOP, the corpus wins: reviewers never write `310C` for a
+missing T310. The windows start before the repeats where the corpus writes a
+flank base together with them (`513A 523DEL 524DEL`; `16181C 16182C 16183C
+16189C`).
 
-An edit crossing a window boundary fails closed rather than being partly
-rewritten.
+A window that an edit crosses keeps its normalized form, and the read's other
+windows are still represented. In `sample`, `call`, and `notation`, a rule may
+also rely only on bases the read reads, inside its callable segments: a rule
+rewrites the whole window's sequence, and over an unread base that sequence is
+the reference's, not the read's. A window therefore keeps its normalized form
+when its representation would call an unread base (a substituted or deleted
+base, or an insertion's anchor base), or when the bases its choice of form
+rests on are unread:
+
+- `anchored_run_lengths`: the anchor and the run after it, and the base before
+  the anchor when the left run's length changes;
+- `anchored_tract`: the last lead base, the first left-run base, the anchor,
+  and the run after it;
+- the other anchor rules: the anchor and the run after it;
+- `motif_shift`: the two terminal motif copies when the length changes.
+
+Without that, a read that leaves 16189-16193 unread would see its readable
+`16182C 16183C` rewritten as `16182DEL 16183DEL 16188.1C 16188.2C`, a form that
+holds only if 16189 is T.
 
 ## Adding a target
 
@@ -113,9 +134,11 @@ The `sample`, `call`, and `notation` commands compose this per read when the pro
 indel placement by `variant_normalization` and then passed through the profile
 windows, so that, for example, the HV2F and HV3R descriptions of one poly-C
 haplotype converge before they are compared. Composition lives in
-`pipeline::represent`, following ADR-0060 §7. An edit that straddles a
-window keeps its normalized form, because SRS-NOM-007 forbids partially
-rewriting it.
+`pipeline::represent`, following ADR-0060 §7. A window that an edit
+straddles keeps its normalized form, because SRS-NOM-007 forbids partially
+rewriting it; the read's other windows are still represented, so one
+crossing edit, such as a deletion of 512-513 beside HVS-III, no longer leaves
+an HVS-II run-length change in its raw `309.1C 309.2T 310C` form.
 
 Rendering in the profile's notation style (`per_base_decimal`) is mechanical
 serialization (ADR-0060 §8) and lives in `report::notation` (SRS-NOM-011); the report groups
