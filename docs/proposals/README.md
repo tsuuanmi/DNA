@@ -19,7 +19,7 @@ Accepted/Implemented -> Superseded
 ## Active proposals
 
 - [PROP-0001 — Modular DNA Analysis Platform](0001-modular-dna-analysis-platform.md) — **Implementing**; public Rust API, canonical contracts, multiple input modalities, replaceable scientific implementations and data providers, and downstream analysis modules.
-- [PROP-0004 — Review triage](0004-review-triage.md) — **Draft**; catalogue errors and sort regions, traces, and samples into pass, review, and rerun with typed reasons, as DNA's [purpose](../requirements/SRS.md#purpose) states.
+- [PROP-0004 — Review triage](0004-review-triage.md) — **Accepted**; DNA's canonical per-sample review list (`dna.review/v1`): the positions a reviewer should look at, with evidence-based labels and no conclusion, for the laboratory's review tool.
 - [PROP-0005 — Evaluation method and fast feedback loop](0005-evaluation-feedback-loop.md) — **Draft**; labels, metrics, fixed test panels drawn from about 100,000 reviewed samples, and a cached evidence → rules → compare loop for validating triage rules. Harness v0 (`dna-eval`, ADR-0075) is implemented.
 - [PROP-0008 — One responsibility per pipeline step](0008-pipeline-responsibilities.md) — **Accepted**; the modality decides trust as per-call verdicts, the core asserts only what a placed read shows whole, the consensus votes stretch sequences on bounded reads, and the core splits into align, call, sample, and consensus crates.
 
