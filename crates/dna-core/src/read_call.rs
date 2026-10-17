@@ -4,8 +4,9 @@ use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use std::time::Instant;
 
 use crate::alignment::{self, AlignmentConfig, RawAlignmentConfig};
+use crate::model::alignment::ReferenceSegment;
 use crate::model::called_read::CalledRead;
-use crate::model::variant::VariantKind;
+use crate::model::variant::{VariantExclusionReason, VariantKind};
 use crate::sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use crate::variant_calling::{self, RawVariantCallingConfig, VariantCallingConfig};
 use dna_kernel::error::{AlignmentError, Error, Result};
@@ -126,6 +127,10 @@ pub struct ReadIdentity {
     pub input_name: String,
     /// SHA-256 content identity of the read's source.
     pub input_sha256: String,
+    /// The 1-based closed reference interval the source declares it covers,
+    /// as a consensus segment does; a placement that overlaps no part of it
+    /// excludes every call (`placement_conflict`).
+    pub declared: Option<[usize; 2]>,
 }
 
 /// Places one read's evidence on the reference and calls its variants; the
@@ -170,13 +175,22 @@ pub fn call_read(
     drop(stage);
     let _stage = tracing::info_span!("variant_calling").entered();
     let stage_started = Instant::now();
-    let variants = variant_calling::call(
+    let mut variants = variant_calling::call(
         &alignment,
         reference,
         &evidence,
         &config.variant_calling,
         run.regions,
     )?;
+    if let Some(declared) = identity.declared
+        && !overlaps(&alignment.reference_segments, declared)
+    {
+        tracing::warn!(
+            event = "read_placement_conflict",
+            declared = %format_args!("{}..={}", declared[0], declared[1]),
+        );
+        variants = variants.excluded_for(VariantExclusionReason::PlacementConflict);
+    }
     let snvs = variants
         .reported
         .iter()
@@ -231,13 +245,46 @@ pub fn call_read(
     })
 }
 
+/// Whether any placed segment overlaps the 1-based closed `declared` interval.
+fn overlaps(segments: &[ReferenceSegment], [first, last]: [usize; 2]) -> bool {
+    segments.iter().any(|segment| {
+        segment.start_0based < last && first.saturating_sub(1) < segment.end_0based_exclusive
+    })
+}
+
 /// Core caller: evidence-profile alignment, per-read variant calling, and
 /// sample aggregation.
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "core",
     family: PluginFamily::Core,
-    version: 4,
+    version: 5,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::ReadEvidence],
     config_sections: &["alignment", "sample_reconciliation", "variant_calling"],
 };
+
+#[cfg(test)]
+mod placement_tests {
+    use super::*;
+
+    fn segment(start_0based: usize, end_0based_exclusive: usize) -> ReferenceSegment {
+        ReferenceSegment {
+            start_0based,
+            end_0based_exclusive,
+        }
+    }
+
+    #[test]
+    fn a_placement_overlaps_its_declared_interval_by_one_base_or_more() {
+        // 1-based 100..=150 is 0-based 99..150.
+        assert!(overlaps(&[segment(140, 200)], [100, 150]));
+        assert!(overlaps(&[segment(0, 100)], [100, 150]));
+        assert!(!overlaps(&[segment(0, 99)], [100, 150]));
+        assert!(!overlaps(&[segment(150, 200)], [100, 150]));
+        // Either part of a placement across the origin counts.
+        assert!(overlaps(
+            &[segment(16_500, 16_569), segment(0, 120)],
+            [100, 150]
+        ));
+    }
+}

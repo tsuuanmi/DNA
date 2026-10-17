@@ -121,6 +121,20 @@ pub(super) struct Called {
     pub(super) notation: Option<SampleNotation>,
 }
 
+/// The reference interval a record name declares, as a consensus segment's
+/// `<sample-id>_<first>-<last>` does (1-based, closed, within the reference);
+/// `None` for any other name.
+fn declared(name: &str, reference_length: usize) -> Option<[usize; 2]> {
+    let (_, interval) = name.rsplit_once('_')?;
+    let (first, last) = interval.split_once('-')?;
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit());
+    if !digits(first) || !digits(last) {
+        return None;
+    }
+    let (first, last) = (first.parse::<usize>().ok()?, last.parse::<usize>().ok()?);
+    (1 <= first && first <= last && last <= reference_length).then_some([first, last])
+}
+
 /// The scientific step of `call`: calls every consensus sequence with the
 /// core, then derives the notation.
 pub(super) fn call_sequences(
@@ -147,6 +161,7 @@ pub(super) fn call_sequences(
                 ReadIdentity {
                     input_name: read.name.clone(),
                     input_sha256: read.sha256.clone(),
+                    declared: declared(&read.name, reference.sequence.len()),
                 },
                 sequence::read_evidence(read)?,
                 reference,
@@ -158,4 +173,29 @@ pub(super) fn call_sequences(
     let _stage = tracing::info_span!("nomenclature").entered();
     let notation = represent::represent(&reads, reference, profile)?;
     Ok(Called { reads, notation })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_consensus_record_name_declares_its_interval() {
+        assert_eq!(
+            declared("2514526_15803-15920", 16_569),
+            Some([15_803, 15_920])
+        );
+        assert_eq!(declared("a_b_1-70", 160), Some([1, 70]));
+        for name in [
+            "HV1",
+            "sample_70-1",
+            "sample_0-5",
+            "sample_1-161",
+            "sample_1-",
+            "sample_+1-5",
+            "sample-1-5",
+        ] {
+            assert_eq!(declared(name, 160), None, "{name}");
+        }
+    }
 }

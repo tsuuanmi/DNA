@@ -92,6 +92,7 @@ pub(crate) fn observe(
         ReadIdentity {
             input_name: trace.source_name.clone(),
             input_sha256: trace.source_sha256.clone(),
+            declared: None,
         },
         evidence,
         reference,

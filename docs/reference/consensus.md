@@ -22,7 +22,9 @@ The method is described in [design](../design/consensus.md).
   [sample read registry](sample-evidence/reads-coverage.md).
 - **`segments[]`:** the consensus sequence.
   - `name`: the FASTA record identifier, `<sample-id>_<first>-<last>` in
-    1-based reference positions.
+    1-based reference positions. `call` places the record and excludes
+    every variant of it (`placement_conflict`) when the placement does not
+    overlap that interval.
   - `reference`: the covered interval, 0-based half-open.
   - `sequence`: upper-case `A`, `C`, `G`, `T`, and `N` where undecided.
     Inserted bases are spliced in, and deleted positions are left out.
