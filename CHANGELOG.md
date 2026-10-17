@@ -310,6 +310,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Consensus lengths (PROP-0008 step 3). A reference homopolymer of at least
+  four bases that no read shows cleanly with both neighbours, while some read
+  differs on it, is decided by its run structure, so its length is labelled
+  (SRS-CONS-004). A run of length evidence `phase_loss` or `reference_frame`
+  keeps its site even at the reference length (SRS-CONS-007). `call` of the
+  consensus document leaves such a run's 3' end, where a change of its length
+  is written, not callable and excludes a change there as `run_boundary`; the
+  run's composition stays callable (SRS-VAR-021). Plugins `consensus` 5 and
+  `decided` 2. Development panel v5: `haplotype_lod` 677 samples better and
+  5 worse; strict 549 worse, all truth insertions at `309` after a run whose
+  length is an estimate.
+
 - `call` given a sample's consensus document (`dna call <id>
   <id>.consensus.json`), and `SampleAnalysis::call`, report the edits the
   consensus decided without placing its segments on the reference again

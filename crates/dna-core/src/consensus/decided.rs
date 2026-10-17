@@ -10,19 +10,27 @@
 //! placement over the segment, the move of ADR-0047 that read alignment
 //! uses. The variants are then extracted and judged from those columns as
 //! a record's are, under the same rules (ADR-0071, SRS-VAR-018): a length the
-//! consensus could not bound, an estimate, or a stretch it decided position
-//! by position stays excluded where a record of the same sequence would
-//! exclude it. What changes is the placement: every base sits where the
-//! consensus decided it, and an `N` stands only for the position the
-//! consensus left undecided. One rule is the segment's own: a length change
-//! of the reference run at the segment's first or last position is excluded
-//! as `run_boundary`, since no read shows that run's outer end (ADR-0071).
+//! consensus could not bound, or a stretch it decided position by position,
+//! stays excluded where a record of the same sequence would exclude it. What
+//! changes is the placement: every base sits where the consensus decided it,
+//! and an `N` stands only for the position the consensus left undecided. Two
+//! rules are the segment's own, both excluding a change as `run_boundary`:
+//! - a length change of the reference run at the segment's first or last
+//!   position, since no read shows that run's outer end (ADR-0071);
+//! - a change at the 3' end of a run whose length the consensus only
+//!   estimated or assumed (`phase_loss`, `reference_frame`), where a change
+//!   of its length is written; that position is not callable either. The
+//!   run's other positions, and so its composition, stay callable
+//!   (PROP-0008 step 3).
 
 use crate::model::alignment::{
     Alignment, AlignmentColumn, AlignmentMetrics, Orientation, ReferenceSegment,
 };
 use crate::model::called_read::CalledRead;
-use crate::model::consensus::{Consensus, ConsensusSegment};
+use std::collections::BTreeSet;
+use std::ops::Range;
+
+use crate::model::consensus::{Consensus, ConsensusSegment, RunEvidence};
 use crate::model::variant::{Variant, VariantExclusionReason, VariantKind};
 use crate::read_call::{CoreRun, ReadIdentity};
 use crate::variant_calling;
@@ -53,9 +61,36 @@ pub fn call_segment(
         .segments
         .get(index)
         .ok_or(VariantError::Inconsistent("no consensus segment at index"))?;
-    let columns = right_aligned(columns(consensus, segment, reference.sequence.as_bytes())?);
+    let (columns, estimated) = columns(consensus, segment, reference.sequence.as_bytes())?;
+    let columns = right_aligned(columns);
     let metrics = metrics(&columns);
-    let callable_segments = callable(&columns);
+    let cut = estimated
+        .iter()
+        .filter_map(|range| run_end(&columns, range))
+        .collect::<BTreeSet<_>>();
+    let callable_segments = callable(&columns)
+        .into_iter()
+        .flat_map(|segment| {
+            let mut pieces = Vec::new();
+            let mut start = segment.start_0based;
+            for &position in cut.range(segment.start_0based..segment.end_0based_exclusive) {
+                if position > start {
+                    pieces.push(ReferenceSegment {
+                        start_0based: start,
+                        end_0based_exclusive: position,
+                    });
+                }
+                start = position + 1;
+            }
+            if segment.end_0based_exclusive > start {
+                pieces.push(ReferenceSegment {
+                    start_0based: start,
+                    end_0based_exclusive: segment.end_0based_exclusive,
+                });
+            }
+            pieces
+        })
+        .collect();
     let alignment = Alignment {
         orientation: Orientation::Forward,
         score: 0,
@@ -81,8 +116,14 @@ pub fn call_segment(
     let edges = edge_runs(segment, reference.sequence.as_bytes());
     for observed in &mut variants.observed {
         let variant = &observed.variant;
-        if variant.kind != VariantKind::Snv
-            && edges.iter().any(|run| touches(variant, *run))
+        let edge =
+            variant.kind != VariantKind::Snv && edges.iter().any(|run| touches(variant, *run));
+        // A change of the length of a run the consensus only estimated or
+        // assumed (`phase_loss`, `reference_frame`): PROP-0008 step 3.
+        let estimate = changed(variant)
+            .iter()
+            .any(|position| cut.contains(position));
+        if (edge || estimate)
             && !observed
                 .exclusion_reasons
                 .contains(&VariantExclusionReason::RunBoundary)
@@ -107,6 +148,37 @@ pub fn call_segment(
         alignment,
         variants,
     })
+}
+
+/// The 3'-most reference position of the run whose calls are `range`, the
+/// deleted positions beside it included: where a 3'-normalized change of the
+/// run's length is written. A run inserted whole ends at the position before
+/// it.
+fn run_end(columns: &[AlignmentColumn], range: &Range<usize>) -> Option<usize> {
+    let marked = |column: &AlignmentColumn| {
+        column
+            .original_call_index_0based
+            .is_some_and(|call| range.contains(&call))
+    };
+    let mut end = columns.iter().rposition(marked)?;
+    while end + 1 < columns.len() && columns[end + 1].query_base == '-' {
+        end += 1;
+    }
+    columns[..=end]
+        .iter()
+        .rev()
+        .find_map(|column| column.reference_index_0based)
+}
+
+/// The reference positions a variant changes: a substitution's position, a
+/// deletion's deleted positions, both positions beside an insertion.
+fn changed(variant: &Variant) -> Vec<usize> {
+    let anchor = variant.position_1based.saturating_sub(1);
+    match variant.kind {
+        VariantKind::Snv => vec![anchor],
+        VariantKind::Del => (anchor + 1..anchor + variant.reference.len()).collect(),
+        VariantKind::Ins => vec![anchor, anchor + 1],
+    }
 }
 
 /// The reference runs holding the segment's first and last positions,
@@ -144,12 +216,14 @@ fn touches(variant: &Variant, (first, last): (usize, usize)) -> bool {
 
 /// The segment's alignment columns: reference bases outside the sites, each
 /// site's call aligned against its interval, and the segment sequence's
-/// call indices, which must account for every base of it.
+/// call indices, which must account for every base of it. Also the
+/// call-index ranges of the runs whose length the consensus only estimated
+/// or assumed.
 fn columns(
     consensus: &Consensus,
     segment: &ConsensusSegment,
     bases: &[u8],
-) -> Result<Vec<AlignmentColumn>> {
+) -> Result<(Vec<AlignmentColumn>, Vec<Range<usize>>)> {
     let sequence = segment.sequence.as_bytes();
     let mismatch =
         || VariantError::Inconsistent("consensus segment sequence does not match its sites");
@@ -163,6 +237,7 @@ fn columns(
     sites.sort_by_key(|site| site.first_0based);
     // (whether a call is read, the reference position), in order.
     let mut steps: Vec<(bool, Option<usize>)> = Vec::with_capacity(sequence.len());
+    let mut estimated = Vec::new();
     let mut position = segment.start_0based;
     for site in sites {
         if site.first_0based < position {
@@ -176,6 +251,16 @@ fn columns(
             .call
             .clone()
             .unwrap_or_else(|| "N".repeat(interval.len()));
+        let mut start = steps.iter().filter(|(reads, _)| *reads).count();
+        for run in &site.runs {
+            if matches!(
+                run.evidence,
+                RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
+            ) {
+                estimated.push(start..start + run.length);
+            }
+            start += run.length;
+        }
         steps.extend(align(decided.as_bytes(), interval).into_iter().map(
             |operation| match operation {
                 Operation::Pair(offset) => (true, Some(site.first_0based + offset)),
@@ -210,7 +295,7 @@ fn columns(
     if call != sequence.len() {
         return Err(mismatch().into());
     }
-    Ok(columns)
+    Ok((columns, estimated))
 }
 
 /// One column of a site's alignment: a call paired with a reference offset,
@@ -224,9 +309,13 @@ enum Operation {
 
 /// Cost of a substitution; an `N` pairs with any base at no cost.
 const MISMATCH: u32 = 2;
-/// Cost of opening and of extending an insertion or a deletion.
+/// Cost of opening and of extending an insertion or a deletion. A gap of two
+/// bases plus a substitution costs more than two one-base gaps, so a length
+/// change in each of two runs stays two insertions or deletions rather than
+/// one gap across the runs' boundary and a substitution; substitutions stay
+/// cheaper than an insertion plus a deletion of as many bases.
 const GAP_OPEN: u32 = 3;
-const GAP_EXTEND: u32 = 1;
+const GAP_EXTEND: u32 = 2;
 
 /// The least-cost global alignment of a site's `call` against its reference
 /// `interval`, affine in gaps. Traced back from the 3' end, a pair comes
@@ -478,7 +567,7 @@ fn metrics(columns: &[AlignmentColumn]) -> AlignmentMetrics {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "decided",
     family: PluginFamily::Core,
-    version: 1,
+    version: 2,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::Consensus],
     config_sections: &[],
@@ -677,6 +766,35 @@ mod tests {
             edits(&read),
             [(8, "TT".into(), "T".into(), vec!["run_boundary"])]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn an_estimated_run_length_is_not_callable() -> Result<()> {
+        // A sixth T the consensus only estimated: the run's 3' end is not
+        // callable, and the insertion there is excluded.
+        let read = called(
+            1,
+            22,
+            "ACGATTTTTTCAGGCTAGCATCG",
+            vec![site(
+                5,
+                9,
+                Some("TTTTTT"),
+                SiteState::Called,
+                vec![ConsensusRun {
+                    base: 'T',
+                    length: 6,
+                    evidence: RunEvidence::PhaseLoss,
+                }],
+            )],
+        )?;
+        assert_eq!(
+            edits(&read),
+            [(9, "T".into(), "TT".into(), vec!["run_boundary"])]
+        );
+        assert_eq!(callable(&read), [(0, 8), (9, 22)]);
+        assert!(read.variants.reported.is_empty());
         Ok(())
     }
 

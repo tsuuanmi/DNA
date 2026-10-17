@@ -298,8 +298,68 @@ stored results.
   estimators is a later decision;
 - the steps run in the order 0 to 5.
 
+2026-10-17, user: step 3 cuts only the length of an estimated run, its 3'
+end, and keeps its composition callable; this narrows option (i) after the
+measured variants below.
+
 An ADR records the architecture when step 4 or 5 lands.
 
 ## Implementation
 
-None yet.
+- Step 0: callable yield in the harness (#105).
+- Step 1: the independent fixes (#103).
+- Step 2: PROP-0006, `call` from the consensus's decisions (#106).
+- Step 3: consensus lengths (`consensus` 5, `decided` 2):
+  - a reference homopolymer of at least four bases that no read shows
+    cleanly with both neighbours, while some read differs on it, seeds a
+    stretch (SRS-CONS-004). Runs of two or three were measured and left out:
+    they caught mixed signal at a heteroplasmic base (`195Y`, `16093Y`);
+  - a run of length evidence `phase_loss` or `reference_frame` keeps its site
+    even where its length equals the reference (SRS-CONS-007), so the label
+    reaches `call`;
+  - `call` of the consensus document leaves such a run's length uncallable:
+    its 3'-most position, the deleted positions beside it included, where a
+    change of its length is written, leaves the callable segments, and a
+    change there is excluded as `run_boundary` (SRS-VAR-021). The run's other
+    positions stay callable, since the reads show its composition: this
+    narrows option (i), which cut the whole run;
+  - a site's own alignment costs a gap extension 2, so a length change in
+    each of two runs stays two indels rather than one gap across their
+    boundary and a substitution.
+
+  Measured on development panel v5 against main (discordant share of all
+  samples, then samples better and worse):
+
+  | Measure | Main | Step 3 | Better | Worse |
+  |---|---:|---:|---:|---:|
+  | primary | 0.0910 | 0.0863 | 81 | 5 |
+  | strict | 0.2146 | 0.2476 | 8 | 549 |
+  | haplotype | 0.1251 | 0.0847 | 666 | 4 |
+  | `haplotype_lod` | 0.1098 | 0.0688 | 677 | 5 |
+
+  - Most of the `haplotype_lod` gain is the HVS-II `303-309` length that the
+    consensus asserted unlabelled at the reference length.
+  - The strict cost is coverage: the truth's `309` insertions after a
+    `303-309` run whose length is an estimate are no longer callable.
+  - Callable yield: HV1 0.9895 to 0.9892, HV2 0.9898 to 0.9894, HV3 0.9899
+    to 0.9901.
+  - Variants measured on the way (`haplotype_lod` better and worse, strict
+    better and worse):
+
+    | Variant | `haplotype_lod` | strict |
+    |---|---:|---:|
+    | seed and label, no cut (option (ii)) | 82 / 24 | 64 / 4 |
+    | cut the whole run (option (i)) | 687 / 4 | 32 / 2,073 |
+    | cut the whole run, `phase_loss` only | 129 / 3 | 24 / 548 |
+    | cut the 3' end (chosen) | 677 / 5 | 8 / 549 |
+    | cut from the shortest in-phase length to the 3' end | 677 / 5 | 8 / 549 |
+
+    The whole-run cut also made about 1,840 samples' HVS-I `16183C` and
+    `16189C` uncallable, although the reads show that composition. The
+    shortest in-phase length almost always equals the decided one, so the
+    last variant changed nothing and would have needed a new consensus
+    field.
+  - Left open: 41 samples whose primary status the whole-run cut fixed stay
+    as before, with `310C`, `310DEL 311DEL`, or `310DEL`–`312DEL` just past
+    the estimated `303-309` run. They are not new; they are the next item in
+    that window.

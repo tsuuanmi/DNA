@@ -56,6 +56,7 @@ consensus. Each consequence was guarded separately:
   - 8 samples that failed to call now call;
   - no exported EMPOP range covers a position the consensus left undecided
     (16 positions before, 0 now).
-- A length estimate (`phase_loss`, `reference_frame`) is still reported
-  where a record of the same sequence would report it. Making it uncallable
-  is PROP-0008 step 3.
+- A length estimate (`phase_loss`, `reference_frame`) is not callable
+  (PROP-0008 step 3, `decided` 2): the run's 3' end, where a change of its
+  length is written, leaves the callable segments, and a change there is
+  excluded as `run_boundary`. The run's composition stays callable.
