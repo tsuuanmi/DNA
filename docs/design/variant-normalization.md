@@ -86,11 +86,31 @@ only substitutions lie in the stretch it crosses and the same haplotype needs
 no more edits: the bases in between are written as substitutions, which may
 replace substitutions the deletion passes. The 3'-most such placement wins.
 With `16297C`, `16293DEL 16298C` becomes `16293C 16298DEL`, as the lab's
-reviewers write it (35 corpus samples DNA wrote the other way); a plain run
-shift is the trade without substitutions. Across the reviewed corpus (about
-101,000 IUPAC-free samples, each haplotype called from its sequence), the
-trade makes DNA write 43 more samples the reviewers' way and 1 fewer, where a
-deletion at the HVS-I window's last base (`16193DEL 16194T`) moves outside it.
+reviewers write it; a plain run shift is the trade without substitutions.
+
+A trade asserts every base of the stretch it crosses, so it has two more
+bounds, given as `TradeBounds`:
+
+- **Read bases.** Every base of the stretch must lie in the read's callable
+  segments; otherwise the rewritten substitutions would describe bases the
+  read does not show.
+- **Window boundaries.** The stretch may not cross a boundary of a profile
+  nomenclature window, in either direction: inside a window, the window's
+  rule owns the representation (`16193DEL 16194T` keeps its deletion at the
+  HVS-I window's last base). Normalization takes the window spans as data and
+  applies no window rule (SRS-VN-010).
+
+The sample workflow passes both; `normalize_with` bounds neither. Calling every
+IUPAC-free reviewed corpus haplotype (about 101,000 samples) from its
+sequence, the trades DNA makes span 1, 5, 6, or 10 bases (the longest is
+`513DEL` to `523DEL` inside HVS-III), so the 20-base bound is twice the
+longest. The trade makes DNA write 36 more of those samples the reviewers'
+way (35 of them `16293C 16298DEL`) and none fewer; on development panel v5,
+3 more samples are concordant and none regress.
+
+A candidate whose edits would overlap, such as a deletion shifted onto a
+substituted base, describes no haplotype and is rejected like one that
+changes the sequence.
 
 ### Insertion shift
 

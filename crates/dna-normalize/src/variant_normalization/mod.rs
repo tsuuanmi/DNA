@@ -7,6 +7,7 @@
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 mod right;
 
+use std::ops::Range;
 use std::path::Path;
 
 use crate::variant_representation::{apply_edits, render_edits, variants_to_edits};
@@ -35,6 +36,18 @@ impl NormalizationPolicy {
             IndelPlacement::Right => Self::RightAligned,
         }
     }
+}
+
+/// Where a deletion trade of the right-alignment policy may rewrite a
+/// haplotype's description (SRS-VN-008). The default bounds nothing.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TradeBounds<'a> {
+    /// Reference spans (0-based, half-open), such as a profile's nomenclature
+    /// windows, whose boundaries a trade may not cross.
+    pub windows: &'a [Range<usize>],
+    /// Reference segments a read reads (0-based, half-open); a trade may only
+    /// cross read bases. `None` when every base is read.
+    pub readable: Option<&'a [Range<usize>]>,
 }
 
 /// Source and normalized representations of one unchanged called haplotype.
@@ -84,6 +97,22 @@ pub fn normalize_with(
     called: &CalledVariantSet,
     policy: NormalizationPolicy,
 ) -> Result<VariantNormalizationResult> {
+    normalize_read(reference, called, policy, TradeBounds::default())
+}
+
+/// Normalizes one read's calls against an already loaded reference, a
+/// deletion trade kept within `bounds`; see [`normalize`].
+///
+/// # Errors
+///
+/// Returns `NormalizationError` when the variants do not match the reference or
+/// cannot be represented as edits.
+pub fn normalize_read(
+    reference: &Reference,
+    called: &CalledVariantSet,
+    policy: NormalizationPolicy,
+    bounds: TradeBounds<'_>,
+) -> Result<VariantNormalizationResult> {
     if called.reference.name != reference.name
         || called.reference.sha256 != reference.sequence_sha256
     {
@@ -97,10 +126,13 @@ pub fn normalize_with(
         apply_edits(&reference.sequence, &source_edits).map_err(NormalizationError::from)?;
 
     let normalized_edits = match policy {
-        NormalizationPolicy::RightAligned => {
-            right::right_align(&reference.sequence, &alternate_sequence, &source_edits)
-                .map_err(NormalizationError::from)?
-        }
+        NormalizationPolicy::RightAligned => right::right_align(
+            &reference.sequence,
+            &alternate_sequence,
+            &source_edits,
+            bounds,
+        )
+        .map_err(NormalizationError::from)?,
     };
 
     if apply_edits(&reference.sequence, &normalized_edits).map_err(NormalizationError::from)?

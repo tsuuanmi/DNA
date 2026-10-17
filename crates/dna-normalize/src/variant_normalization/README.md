@@ -9,7 +9,9 @@ the exact source variant representation, and may select another
 sequence-equivalent representation only when the reconstructed haplotype remains
 identical.
 
-`right.rs` owns the 3'/right-most policy (`RightAligned`). Shared target-independent
+`right.rs` owns the 3'/right-most policy (`RightAligned`), including the
+deletion trade, which `TradeBounds` keeps to read bases and inside or outside
+each nomenclature window span the caller gives as data. Shared target-independent
 sequence-edit conversion, haplotype application, edit ordering, and anchored
 variant rendering live in this crate's `variant_representation.rs` and are
 reused by both normalization and nomenclature.
