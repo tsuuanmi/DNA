@@ -1,7 +1,7 @@
 ---
 id: PROP-0004
 type: proposal
-status: draft
+status: accepted
 owners: []
 created: 2026-10-14
 related-requirements: [SRS-CALL-005, SRS-CALL-009, SRS-SAMPLE-029, SRS-CONS-001]
@@ -324,27 +324,93 @@ The record belongs with the release evidence (ADR-0018).
   visible.
 - **Canonical order.** Findings and reasons are listed in a canonical order.
 
-### Review packet
+### Review list (canonical output)
 
-A review item tells the reviewer what to decide and gives the evidence for
-it:
+Decided 2026-10-17. DNA replaces Tracy as the variant caller of the
+laboratory's pipeline (`mtdna_raw`), and Review uses DNA's evidence to guide
+the reviewer. DNA does **not** write the reviewer's conclusion: no issue text,
+no requirement, no re-extraction primers. It lists the positions a reviewer
+should look at, with the evidence-based labels that make each one quick to
+settle. The laboratory integrates the output on its side from DNA's build;
+DNA only defines the output.
 
-- **Question.** The location (region, site, or interval), and what is
-  uncertain.
-- **Candidates.** The possible answers, with DNA's leading candidate if it
-  has one.
-- **Evidence per candidate.** Which reads and strands support it, their
-  quality, peak ratios, and callability state.
-- **Why not passed.** Which finding is open, and which rules did not clear it
-  and by what margin.
-- **Where to look.** Trace names and scan positions, so a viewer can jump to
-  the chromatogram.
-- **Priority.** Items ordered by expected impact, for example a site that
-  changes the haplotype before a convention note.
+**Document.** One document per sample, `dna.review/v1`, written by
+`dna review <sample-id> <trace>... --reference <fasta>` as
+`results/<sample-id>.review.json`. The command runs the in-process path of
+SRS-API-012 (sample analysis, consensus, `call`, notation), so the
+laboratory's tool calls DNA once per sample. Every sample gets a document:
+when every read is rejected, or the call fails, the document carries that
+status and the rejected reads with their causes instead of an error. Its
+schema reuses the `notation/v1` definitions (calls with convention labels,
+callable ranges, the EMPOP query) by reference rather than copying them.
+It carries:
 
-Reviewer answers, collected downstream as structured choices among the
-candidates, become ground truth. That truth is what later promotes a review
-rule to a pass rule, which is how B goes down.
+- provenance (reference, configuration, profile, plugins with versions, and
+  the version of the labelling rules, since `clear` depends on them);
+- the reads: file name, content SHA-256, strand, admitted or rejected with
+  the cause;
+- the sample's calls in the profile notation, with their convention labels
+  (as in `notation/v1`);
+- the callable ranges and the EMPOP query (as in `notation/v1`);
+- the **items**, ordered by priority;
+- a summary: counts per label, and `clear` when no item is a `check`.
+
+**Item.** One consensus site or stretch, or one position outside any site,
+given by its first and last rCRS columns (`position` and an insertion
+`ordinal`, so `309.1` is `309`/`1`). A run window is settled once: `309.1C
+309.2C 315.1C` in one stretch is one item, with the stretch's run structure
+attached, not three.
+
+- `kind`: `variant` (DNA calls a difference from the reference) or `check`
+  (DNA could not assure the position);
+- what DNA decided there: its call, `not_callable`, or the reference;
+- `labels`: evidence for the reviewer, each computed from DNA's own evidence
+  and never from a truth:
+
+| Label | Means | Evidence it carries |
+|---|---|---|
+| `strands_disagree` | clean reads of both strands disagree on the item's decided sequence: a supporting read on one strand and an opposing read on the other, as the consensus counts them (a conflict) | each read's sequence |
+| `one_read` | a single read shows the call | the read |
+| `one_strand` | only one strand reads the position cleanly | the strand and reads |
+| `possible_heteroplasmy` | a second base is shown by the reads beyond their shadow | the base, its share per read, the strands showing it |
+| `phase_shift` | a covering read loses phase at or before the position | the read and where its shift starts |
+| `noisy_signal` | a covering read is masked here | the read and the modality's reason, verbatim |
+| `read_edge` | the position is inside a read's edge margin | the read |
+| `estimated_length` | a run's length is an estimate, so its 3' end is not callable | the run, its evidence (`phase_loss`, `reference_frame`) |
+| `undecided` | no clean observation, or a tie | the reads that cover it |
+| `not_covered` | no admitted read covers it inside the profile's regions | — |
+
+- `evidence`: the reads behind the labels: name, strand, the sequence each
+  read shows over the item, its call indices and, from the modality, the
+  trace scan position of each call (so Review can jump to the peak), the
+  per-call relative quality, and the second-base share where one applies.
+
+**Priority.** Within each priority, items follow rCRS order (position, then
+ordinal), so the document is deterministic. `strands_disagree`, then `possible_heteroplasmy`, then
+`estimated_length` and `undecided`, then `one_read` and `one_strand`, then
+the remaining labels; variants without a label last. Only positions DNA
+cannot assure are `check`; a variant every read shows cleanly on both
+strands is listed as a `variant` with no label, for completeness.
+
+**Availability.** Most labels come from what the analysis holds today:
+`strands_disagree`, `one_read`, `one_strand`, `read_edge`,
+`estimated_length`, `undecided`, and `not_covered`; `phase_shift` and
+`noisy_signal` are provisional until the modality's verdicts carry their
+reasons (PROP-0008 step 4). `possible_heteroplasmy` needs a per-call verdict
+from the modality (the second base and its share), because the core must not
+read Sanger peaks; that verdict is the first piece of PROP-0008 step 4. The
+counts of the strand labels move when step 4 unifies trust; their shape does
+not.
+
+**Two strands.** A position read cleanly by both strands must agree, or it
+is a `strands_disagree` check. A position only one strand covers is called
+when its reads are clean and labelled `one_strand`; it is not a check by
+itself.
+
+**Over time.** DNA's labels replace Review's own check flags, or Review lets
+the reviewer choose the engine. Each reviewer action on an item (accepted,
+changed) is information the laboratory can return to measure each label's
+precision in production, where no truth exists.
 
 ### Rerun request
 
@@ -358,14 +424,16 @@ A rerun names:
 
 ### Ownership and contract
 
-- **Sanger plugin:** trace findings that depend on the chemistry.
-- **Core:** region and sample decisions over the consensus and
-  `ReadEvidence`, with no modality types.
+- **Modality:** trace findings that depend on the chemistry, and the trust
+  verdicts the labels read (PROP-0008).
+- **Core and sample evidence:** the items and labels over the consensus and
+  the reads, with no modality types (PROP-0008, `dna-sample`).
 - **Policy:** configuration or the target profile, versioned and recorded in
   every outcome.
-- **Contract:** open. Either a `triage` section in `dna.consensus`, or a
-  separate `dna.triage/v1` document from a `triage` command over a sample's
-  results.
+- **Contract:** `dna.review/v1`, the canonical per-sample output for the
+  laboratory's tool, assembled by the facade. A new contract: an SRS-API
+  requirement, a reference page, a schema and an example, and a CHANGELOG
+  entry come with it.
 
 ### Decisions so far
 
@@ -380,6 +448,18 @@ Agreed in review on 2026-10-14:
   diagnose the error later;
 - rules are measured against about 100,000 samples with reviewer results,
   with a fast feedback loop (PROP-0005).
+
+Decided 2026-10-17 (user):
+
+- DNA replaces Tracy in the laboratory's pipeline and gives Review its
+  evidence; the laboratory integrates `dna.review/v1` itself from DNA's build;
+- DNA lists positions and labels, never the reviewer's conclusion;
+- one strand is a label, not a review trigger; two strands that disagree are
+  a conflict;
+- over time DNA's labels replace Review's check flags, or Review offers an
+  engine choice;
+- rules and labels must generalize: no position-specific rules, and every
+  threshold is checked on samples it was not tuned on.
 
 ## Alternatives considered
 
@@ -396,6 +476,19 @@ Agreed in review on 2026-10-14:
   lab acts on traces.
 
 ## Validation plan
+
+Review list (on development panel v5, then on a readiness panel of later
+batches):
+
+- **recall**: every position where DNA's sample result differs from the truth
+  (haplotype measures, inside the truth's analysed intervals) is an item,
+  except where DNA's call is clean on both strands;
+- **burden**: items and `check` items per sample (median, 90th percentile),
+  and the share of `clear` samples;
+- **label precision**: for each label, the share of its items where the truth
+  differs from DNA's call or holds a code (for `possible_heteroplasmy`);
+- **leaks among `clear` samples**: the approval measure of PROP-0005, before
+  any auto-pass is allowed.
 
 - **Phase 0, before any production code.** Stage 1 detectors from today's
   evidence, measured with the method of
