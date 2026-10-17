@@ -233,6 +233,7 @@ impl SampleAnalysis {
         first_1based: usize,
         last_1based: usize,
     ) -> dna::error::Result<Vec<LocusObservations>>;
+    pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>>;
 }
 
 #[non_exhaustive]
@@ -265,6 +266,15 @@ impl RejectionCause {
 - `regions()` returns the reportable regions of the target profile the
   analysis ran with (inclusive, 1-based), so a caller reads them from the
   profile rather than repeating them.
+- `trust(input_sha256)` returns, for the admitted read with that content
+  SHA-256, the core's trust in each of its calls (`CallTrust`, `dna_core`):
+  its mask (reason and onset, as the modality gave them), whether it is
+  unresolved, the support vetoes raised on it by label, whether it is trusted
+  under `read_end` and whether an ADR-0076 exemption applies, and what
+  withholds trust (`Withholder`: the read's own end, its trim, or a masked
+  call, before then after the call), empty when trusted. It is the verdict
+  variant calling and the consensus reach, computed on demand; diagnostic
+  evidence for evaluation and review, not a calling contract.
 - `observations(first_1based, last_1based)` returns, for each position of
   the inclusive interval that an admitted read covers, a `LocusObservations`
   (`dna_core`): the position, its reference base, and every covering read's

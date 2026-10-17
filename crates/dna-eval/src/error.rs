@@ -44,10 +44,6 @@ pub(crate) enum Error {
     /// malformed.
     #[error("forms {path}: {message}")]
     Forms { path: PathBuf, message: String },
-    /// A setting the harness reads from DNA's configuration is missing or
-    /// invalid.
-    #[error("configuration {path}: {message}")]
-    Config { path: PathBuf, message: String },
     /// The baseline scores are invalid.
     #[error("invalid baseline scores: {0}")]
     Baseline(#[from] BaselineError),

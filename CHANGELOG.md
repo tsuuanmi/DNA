@@ -265,6 +265,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The evaluation harness's discrepancy causes read the core's own trust
+  verdict on each call (`SampleAnalysis::trust`, `CallTrust`: mask, vetoes,
+  `read_end` trust, ADR-0076 exemption, and what withholds trust) instead of
+  re-deriving it from four configuration keys. A read's end counts as phase
+  loss only where DNA attributes it so (a phase-loss mask label, or a segment
+  after a repeat run); development panel v5 moves `beside_phase_loss` from
+  141 to 43 findings, mostly to `read_edge` (45 to 112), and statuses and
+  classes are unchanged.
 - Right-aligned normalization takes an insertion across a base that a
   substitution of the same haplotype makes equal to its first inserted base,
   until the insertion follows a reference run of that base: with `16172C`, an

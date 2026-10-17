@@ -21,6 +21,7 @@
 //! never gains trust.
 
 use crate::model::alignment::Orientation;
+use crate::model::trust::{CallTrust, Withholder};
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
 use crate::variant_calling::VariantCallingConfig;
 use dna_kernel::read_evidence::{MaskOnset, MaskedAlignment, ReadEnds, ReadEvidence, VetoScope};
@@ -377,6 +378,48 @@ impl<'a> ReadEligibility<'a> {
         })
     }
 
+    /// What withholds trust from the call at `index`, before then after it
+    /// in read order: on each side whose informative run is within the
+    /// margin, the nearest uninformative call or the read's own end. Empty
+    /// when the call is trusted; an uninformative call is withheld by itself.
+    pub(crate) fn withholders(&self, index: usize) -> Vec<Withholder> {
+        let calls = self.evidence.calls();
+        let interval = self.evidence.informative();
+        let withholder = |call: usize| {
+            if interval.contains(&call) {
+                calls[call]
+                    .mask
+                    .map_or(Withholder::Untrimmed, Withholder::Masked)
+            } else {
+                Withholder::Untrimmed
+            }
+        };
+        let Some(&before) = self.before.get(index) else {
+            return Vec::new();
+        };
+        if before == 0 {
+            return vec![withholder(index)];
+        }
+        let mut withheld = Vec::new();
+        if before <= self.margin {
+            withheld.push(
+                index
+                    .checked_sub(before)
+                    .map_or(Withholder::ReadEnd, withholder),
+            );
+        }
+        let after = self.after[index];
+        if after <= self.margin {
+            let beyond = index + after;
+            withheld.push(if beyond < calls.len() {
+                withholder(beyond)
+            } else {
+                Withholder::ReadEnd
+            });
+        }
+        withheld
+    }
+
     /// Whether the call at `index` has at least `read_end_margin` informative
     /// calls between it and the nearest uninformative call on both sides.
     pub(crate) fn trusted(&self, index: usize) -> bool {
@@ -448,6 +491,36 @@ impl<'a> ReadEligibility<'a> {
     }
 }
 
+/// The core's trust in every call of a read, as its variant calling and
+/// consensus judge it (diagnostic evidence, not a calling contract).
+#[must_use]
+pub fn read_trust(evidence: &ReadEvidence, config: &VariantCallingConfig) -> Vec<CallTrust> {
+    let eligibility = ReadEligibility::new(evidence, config);
+    let vocabulary = evidence.support_vetoes();
+    evidence
+        .calls()
+        .iter()
+        .enumerate()
+        .map(|(index, call)| CallTrust {
+            mask: call.mask,
+            unresolved: call.base == 'N',
+            vetoes: vocabulary
+                .iter()
+                .enumerate()
+                .filter(|(veto, _)| call.vetoes.contains(*veto))
+                .map(|(_, veto)| veto.reason)
+                .collect(),
+            trusted: eligibility.trusted(index),
+            exempt: eligibility.run_exempt(index) || eligibility.bound_exempt(index),
+            withheld_by: if eligibility.trusted(index) {
+                Vec::new()
+            } else {
+                eligibility.withholders(index)
+            },
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::model::variant::VariantCallMapping;
@@ -480,6 +553,30 @@ mod tests {
         let length = calls.len();
         ReadEvidence::new(calls, 0..length, vocabulary)
             .unwrap_or_else(|_| ReadEvidence::clean(sequence))
+    }
+
+    #[test]
+    fn names_what_withholds_trust_on_each_side() {
+        use crate::model::trust::Withholder;
+        // Calls 2-19 informative, 10-11 masked as unresolved; a margin of 3.
+        let read = evidence(
+            20,
+            2..20,
+            &[(10, 12, MaskedAlignment::Unresolved, "dephased_signal")],
+        );
+        let eligibility = ReadEligibility::new(&read, &settings(3));
+        assert_eq!(eligibility.withholders(4), [Withholder::Untrimmed]);
+        let masked = |index: usize| match eligibility.withholders(index).as_slice() {
+            [Withholder::Masked(mask)] => Some(mask.reason.label()),
+            _ => None,
+        };
+        assert_eq!(masked(8), Some("dephased_signal"));
+        assert_eq!(masked(11), Some("dephased_signal"));
+        assert_eq!(eligibility.withholders(18), [Withholder::ReadEnd]);
+        assert!(eligibility.withholders(6).is_empty() || eligibility.trusted(6));
+        let trust = read_trust(&read, &settings(3));
+        assert!(trust[6].trusted && trust[6].withheld_by.is_empty());
+        assert!(!trust[18].trusted);
     }
 
     #[test]

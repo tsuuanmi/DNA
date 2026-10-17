@@ -19,6 +19,7 @@ use dna_core::consensus;
 use dna_core::model::called_read::CalledRead;
 use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 use dna_core::sample;
+use dna_core::variant_calling::read_trust;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Profile, ProfileIdentity};
@@ -27,6 +28,7 @@ use dna_kernel::variant::ReferenceIdentity;
 pub use crate::model::read_observation::{RejectedRead, RejectionCause};
 pub use dna_core::model::consensus::Consensus;
 pub use dna_core::model::sample_evidence::SampleEvidence;
+pub use dna_core::model::trust::{CallTrust, Withholder};
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 
 pub use crate::variant_analysis::ReferenceSegment;
@@ -64,6 +66,18 @@ pub struct SampleAnalysis {
 }
 
 impl SampleAnalysis {
+    /// The core's trust in every call of the admitted read whose content
+    /// SHA-256 is `input_sha256`, as its variant calling and consensus judge
+    /// it; `None` for another read. Diagnostic evidence for evaluation and
+    /// review, not a calling contract.
+    #[must_use]
+    pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>> {
+        self.called
+            .iter()
+            .find(|read| read.input_sha256 == input_sha256)
+            .map(|read| read_trust(&read.evidence, &self.loaded.config.core.variant_calling))
+    }
+
     /// The reportable regions of the target profile the analysis ran with:
     /// inclusive 1-based reference intervals, as the profile declares them.
     #[must_use]

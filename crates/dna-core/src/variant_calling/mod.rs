@@ -3,6 +3,7 @@
 mod config;
 
 pub use config::{RawVariantCallingConfig, VariantCallingConfig};
+pub use eligibility::read_trust;
 
 mod anchor;
 pub(crate) mod eligibility;
