@@ -1,5 +1,5 @@
 //! Serializable `dna.notation/v1` contract: post-calling notation of a
-//! variants document and its conformance findings.
+//! variants document, its conformance findings, and its EMPOP query.
 
 use serde::Serialize;
 
@@ -15,6 +15,26 @@ pub(crate) struct NotationResult {
     pub(crate) notation: SampleNotationResult,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) conformance: Option<ConformanceResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) empop: Option<EmpopResult>,
+}
+
+/// An offline EMPOP query: interpretation ranges and an rCRS-coded mitotype.
+#[derive(Debug, Serialize)]
+pub(crate) struct EmpopResult {
+    /// 1-based inclusive ranges, in the profile's region order.
+    pub(crate) ranges: Vec<[usize; 2]>,
+    pub(crate) ranges_text: String,
+    pub(crate) mitotype: String,
+    pub(crate) cut: Vec<CutResult>,
+}
+
+/// Positions inside a record that no range covers, and why.
+#[derive(Debug, Serialize)]
+pub(crate) struct CutResult {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) reason: &'static str,
 }
 
 /// Identities of the inputs and plugins that produced the notation.

@@ -22,8 +22,10 @@ SHA-256 of the file bytes in `provenance.profile`.
 | `normalization` | `indel_placement` | with `notation` | `right` (3'/right-most, never across the FASTA seam) |
 | `notation` | `style` | with `normalization` | `per_base_decimal` (`73G`, `249DEL`, `309.1C`) |
 | `nomenclature` | `windows` | no | non-empty array of tables, in reference order without overlap |
+| | `conventions` | no, with `notation` | array of tables, in reference order without overlap |
 | `conformance` | `rules` | with `notation` | non-empty, without repetition: `insertion_at_run_end`, `insertion_matches_run` ([notation result](notation.md#rules)) |
 | | `minimum_run_length` | with `rules` | at least `2`: the shortest reference homopolymer the rules apply to |
+| `empop` | (none) | no, with `notation` | an empty table: `notation` exports an EMPOP query ([notation result](notation.md#empop-query)) |
 
 `normalization` and `notation` form the notation chain of `sample`, `call`, and
 `notation`, and are declared together or not at all. `conformance` declares the
@@ -55,3 +57,25 @@ Each `[[nomenclature.windows]]` table:
 A rule only proposes; the first candidate that reproduces the window haplotype
 exactly is used, and a window no rule matches keeps its normalized form
 ([design](../design/variant-nomenclature.md)).
+
+Each `[[nomenclature.conventions]]` table declares a report convention: rendered
+calls that the target's reviewers write differently. A covered call is
+labelled with the convention in every notation view and kept; no call is
+dropped or rewritten (SRS-NOM-017).
+
+| Key | Validation |
+|---|---|
+| `name` | non-empty, unique |
+| `label` | `not_recorded`: the reviewers do not record the call |
+| `kind` | `run_length` |
+| `window` | `[start, end]`, inclusive 1-based positions with `1 <= start <= end` |
+| `base` | A/C/G/T: the run's base |
+| `minimum_run` | at least `2` |
+
+`run_length` covers an inserted `base` whose anchor lies in `window`, and a
+deleted `base` in `window`, when the read's represented haplotype has an
+uninterrupted run of `base` of at least `minimum_run` bases at the call,
+counting a deleted base in the run it shortens. A substitution is never
+covered. The shipped human-mtDNA profile declares `hvs1_c_length`
+(`16180-16193`, `C`, `10`): the reviewers do not record the length of the
+uninterrupted HVS-I C run that `16189C` creates.

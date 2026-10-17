@@ -6,7 +6,8 @@ use serde::Deserialize;
 
 use super::window::{Anchor, NomenclatureWindow, WindowRule};
 use super::{
-    Conformance, ConformanceRule, IndelPlacement, Notation, NotationStyle, Profile, ProfileIdentity,
+    Conformance, ConformanceRule, Convention, ConventionKind, ConventionLabel, IndelPlacement,
+    Notation, NotationStyle, Profile, ProfileIdentity,
 };
 use crate::error::{ProfileError, Result};
 use crate::model::nucleotide::{Nucleotide, is_canonical};
@@ -29,7 +30,13 @@ pub(super) struct RawProfile {
     nomenclature: Option<RawNomenclature>,
     notation: Option<RawNotation>,
     conformance: Option<RawConformance>,
+    empop: Option<RawEmpop>,
 }
+
+/// `[empop]` takes no keys: declaring it turns the export on.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawEmpop {}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -73,6 +80,26 @@ enum RawNotationStyle {
 #[serde(deny_unknown_fields)]
 struct RawNomenclature {
     windows: Vec<RawWindow>,
+    #[serde(default)]
+    conventions: Vec<RawConvention>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawConvention {
+    name: String,
+    label: ConventionLabel,
+    kind: RawConventionKind,
+    /// Inclusive 1-based window.
+    window: [usize; 2],
+    base: char,
+    minimum_run: usize,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RawConventionKind {
+    RunLength,
 }
 
 #[derive(Debug, Deserialize)]
@@ -199,15 +226,29 @@ impl RawProfile {
                 })
             }
         };
-        let windows = match self.nomenclature {
+        if self.empop.is_some() && notation.is_none() {
+            return Err(ProfileError::Constraint("empop requires the notation it exports").into());
+        }
+        let (windows, conventions) = match self.nomenclature {
             Some(nomenclature) if nomenclature.windows.is_empty() => {
                 return Err(ProfileError::Constraint(
                     "nomenclature.windows must contain at least one window",
                 )
                 .into());
             }
-            Some(nomenclature) => validate_windows(nomenclature.windows)?,
-            None => Vec::new(),
+            Some(nomenclature) => {
+                if !nomenclature.conventions.is_empty() && notation.is_none() {
+                    return Err(ProfileError::Constraint(
+                        "nomenclature.conventions require the notation they label",
+                    )
+                    .into());
+                }
+                (
+                    validate_windows(nomenclature.windows)?,
+                    validate_conventions(nomenclature.conventions)?,
+                )
+            }
+            None => (Vec::new(), Vec::new()),
         };
         Ok(Profile {
             identity: ProfileIdentity {
@@ -220,6 +261,8 @@ impl RawProfile {
             windows,
             notation,
             conformance,
+            conventions,
+            empop: self.empop.is_some(),
         })
     }
 }
@@ -272,6 +315,60 @@ fn validate_windows(raw: Vec<RawWindow>) -> Result<Vec<NomenclatureWindow>> {
         windows.push(validated);
     }
     Ok(windows)
+}
+
+fn validate_conventions(raw: Vec<RawConvention>) -> Result<Vec<Convention>> {
+    let mut conventions: Vec<Convention> = Vec::with_capacity(raw.len());
+    for convention in raw {
+        let RawConvention {
+            name,
+            label,
+            kind,
+            window,
+            base,
+            minimum_run,
+        } = convention;
+        let invalid = |reason| ProfileError::InvalidConvention {
+            convention: name.clone(),
+            reason,
+        };
+        if name.trim().is_empty() {
+            return Err(ProfileError::Constraint(
+                "nomenclature convention names must not be empty",
+            )
+            .into());
+        }
+        let [start, end] = window;
+        if start == 0 || start > end || end > MAX_REFERENCE_LENGTH {
+            return Err(
+                invalid("window must satisfy 1 <= start <= end within the reference").into(),
+            );
+        }
+        if let Some(previous) = conventions.last()
+            && start <= previous.window[1]
+        {
+            return Err(invalid("conventions must be in reference order without overlap").into());
+        }
+        if conventions.iter().any(|other| other.name == name) {
+            return Err(invalid("convention names must be unique").into());
+        }
+        let kind = match kind {
+            RawConventionKind::RunLength => {
+                let base = base_byte(base).ok_or_else(|| invalid("base must be A/C/G/T"))?;
+                if minimum_run < 2 {
+                    return Err(invalid("minimum_run must be at least 2").into());
+                }
+                ConventionKind::RunLength { base, minimum_run }
+            }
+        };
+        conventions.push(Convention {
+            name,
+            label,
+            kind,
+            window,
+        });
+    }
+    Ok(conventions)
 }
 
 fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
@@ -599,6 +696,97 @@ rules = ["motif_shift"]
         let profile = validated(minimal)??;
         assert_eq!(profile.notation, None);
         assert!(profile.windows.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn validates_report_conventions() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let convention = |name: &str, window: &str, base: &str, minimum: &str| {
+            format!(
+                "[[nomenclature.conventions]]\nname = \"{name}\"\nlabel = \"not_recorded\"\n\
+                 kind = \"run_length\"\nwindow = {window}\nbase = \"{base}\"\nminimum_run = {minimum}\n"
+            )
+        };
+        let declared = format!(
+            "{VALID}{}{}",
+            convention("g-length", "[11, 16]", "G", "5"),
+            convention("t-length", "[21, 27]", "T", "3")
+        );
+        let conventions = validated(&declared)??.conventions;
+        assert_eq!(
+            conventions
+                .iter()
+                .map(|convention| (convention.name.as_str(), convention.window, convention.kind))
+                .collect::<Vec<_>>(),
+            [
+                (
+                    "g-length",
+                    [11, 16],
+                    ConventionKind::RunLength {
+                        base: b'G',
+                        minimum_run: 5
+                    }
+                ),
+                (
+                    "t-length",
+                    [21, 27],
+                    ConventionKind::RunLength {
+                        base: b'T',
+                        minimum_run: 3
+                    }
+                ),
+            ]
+        );
+        assert_eq!(conventions[0].label, ConventionLabel::NotRecorded);
+        assert!(validated(VALID)??.conventions.is_empty());
+        let reason = |text: &str| match validated(text) {
+            Ok(Err(Error::Profile(ProfileError::InvalidConvention { reason, .. }))) => Some(reason),
+            _ => None,
+        };
+        let overlapping = format!(
+            "{VALID}{}{}",
+            convention("g-length", "[11, 16]", "G", "5"),
+            convention("t-length", "[16, 27]", "T", "3")
+        );
+        assert_eq!(
+            reason(&overlapping),
+            Some("conventions must be in reference order without overlap")
+        );
+        assert_eq!(
+            reason(&format!("{VALID}{}", convention("n", "[16, 11]", "G", "5"))),
+            Some("window must satisfy 1 <= start <= end within the reference")
+        );
+        assert_eq!(
+            reason(&format!("{VALID}{}", convention("n", "[11, 16]", "N", "5"))),
+            Some("base must be A/C/G/T")
+        );
+        assert_eq!(
+            reason(&format!("{VALID}{}", convention("n", "[11, 16]", "G", "1"))),
+            Some("minimum_run must be at least 2")
+        );
+        let without_notation = declared
+            .replace("[normalization]\nindel_placement = \"right\"\n", "")
+            .replace("[notation]\nstyle = \"per_base_decimal\"\n", "");
+        assert!(matches!(
+            validated(&without_notation)?,
+            Err(Error::Profile(ProfileError::Constraint(_)))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn declares_the_empop_export_with_notation()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        assert!(!validated(VALID)??.empop);
+        assert!(validated(&format!("{VALID}[empop]\n"))??.empop);
+        assert!(parse(&format!("{VALID}[empop]\nranges = 1\n")).is_err());
+        let without_notation = format!("{VALID}[empop]\n")
+            .replace("[normalization]\nindel_placement = \"right\"\n", "")
+            .replace("[notation]\nstyle = \"per_base_decimal\"\n", "");
+        assert!(matches!(
+            validated(&without_notation)?,
+            Err(Error::Profile(ProfileError::Constraint(_)))
+        ));
         Ok(())
     }
 

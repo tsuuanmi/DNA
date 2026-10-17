@@ -30,7 +30,9 @@ pub(crate) enum Cause {
     Dna,
     /// The lab: a missing or poor trace, or a truth the reads contradict.
     Lab,
-    /// The technology: signal Sanger sequencing cannot resolve here.
+    /// The technology: the lab did its part, but the read's signal shows
+    /// dephasing, noise, or length heterogeneity the core cannot resolve.
+    /// Always deferred, to signal processing.
     Technology,
     /// The evidence does not decide; adjudication does.
     Undetermined,
@@ -53,7 +55,9 @@ pub(crate) enum Scope {
     /// A defect to fix.
     Defect,
     /// Deferred by design: DNA writes no IUPAC code for a point
-    /// heteroplasmy (SRS-VAR-009), a deferral the user made.
+    /// heteroplasmy (SRS-VAR-009), the reviewers' convention does not record
+    /// a call, or the signal needs processing the core does not do
+    /// (every `technology` finding); deferrals the user made.
     Deferred,
 }
 
@@ -78,10 +82,16 @@ pub(crate) struct Finding {
 }
 
 impl Finding {
+    /// A finding of `cause`: deferred to signal processing for the
+    /// technology, a defect otherwise.
     fn new(cause: Cause, evidence: &'static str, at: Option<String>) -> Self {
         Self {
             cause,
-            scope: Scope::Defect,
+            scope: if cause == Cause::Technology {
+                Scope::Deferred
+            } else {
+                Scope::Defect
+            },
             evidence,
             at,
         }
@@ -115,6 +125,8 @@ pub(crate) struct Sample<'a> {
     /// The windows of the class's discordant positions.
     pub(crate) regions: &'a BTreeSet<Region>,
     pub(crate) dna: &'a [Allele],
+    /// DNA's calls a profile convention labels `not_recorded`.
+    pub(crate) not_recorded: Option<&'a BTreeSet<Allele>>,
     pub(crate) truth: &'a [Allele],
     pub(crate) loci: Option<&'a Loci>,
     pub(crate) signals: Option<&'a lod::Signals>,
@@ -135,6 +147,19 @@ pub(crate) fn findings(
         }
         Discrepancy::Coverage => coverage(sample),
         Discrepancy::Representation => representation(sample, forms, reference),
+        // DNA reports where the reviewers did not look: only a review there
+        // verifies it.
+        Discrepancy::Unanalysed => sample
+            .regions
+            .iter()
+            .map(|region| {
+                Finding::new(
+                    Cause::Undetermined,
+                    "outside_truth_intervals",
+                    Some(region.label().to_owned()),
+                )
+            })
+            .collect(),
         Discrepancy::Heteroplasmy => heteroplasmy(sample),
         Discrepancy::Sequence => sequence(sample),
     };
@@ -334,14 +359,38 @@ fn heteroplasmy(sample: &Sample<'_>) -> Vec<Finding> {
         .collect()
 }
 
-/// The sequences differ: a DNA-only call where clean reads on both strands
-/// show the reference is DNA's (a phantom); a truth-only call there is the
-/// truth's, for a re-check. Insertions are left to adjudication, since reads
-/// showing the reference at the anchor do not exclude one.
+/// The sequences differ: when every DNA-only call is one a profile
+/// convention labels `not_recorded` and the truth has no call of its own,
+/// the reviewers' convention, deferred (SRS-NOM-017). Otherwise a DNA-only
+/// call where clean reads on both strands show the reference is DNA's (a
+/// phantom); a truth-only call there is the truth's, for a re-check.
+/// Insertions are left to adjudication, since reads showing the reference at
+/// the anchor do not exclude one.
 fn sequence(sample: &Sample<'_>) -> Vec<Finding> {
     let (Some(loci), Some(comparison)) = (sample.loci, sample.comparison) else {
         return Vec::new();
     };
+    if let Some(not_recorded) = sample.not_recorded
+        && comparison.truth_unique.is_empty()
+        && !comparison.dna_unique.is_empty()
+        && comparison
+            .dna_unique
+            .iter()
+            .all(|allele| not_recorded.contains(allele))
+    {
+        return sample
+            .regions
+            .iter()
+            .map(|region| {
+                Finding::new(
+                    Cause::Lab,
+                    "convention_not_recorded",
+                    Some(region.label().to_owned()),
+                )
+                .deferred()
+            })
+            .collect();
+    }
     let shown = |allele: &Allele| {
         !allele.position.contains('.')
             && comparison.positions.contains(&allele.position)
@@ -419,6 +468,7 @@ mod tests {
             primary: Some(comparison),
             regions,
             dna: &[],
+            not_recorded: None,
             truth,
             loci: Some(loci),
             signals: Some(signals),
@@ -582,6 +632,85 @@ mod tests {
             texts(&differs),
             ["dna:phantom@100", "lab:reads_show_reference@101"]
         );
+    }
+
+    #[test]
+    fn a_length_call_the_reviewers_do_not_record_is_their_convention() {
+        let loci = Loci::of(16193, vec![COVERED | FORWARD | REVERSE], &[]);
+        let length = Allele::new("16193.1", "-", "C");
+        let not_recorded = BTreeSet::from([length.clone()]);
+        let signals = lod::Signals::default();
+        let regions = BTreeSet::from([Region::Hv1PolyC]);
+        let texts_of = |dna_unique: Vec<Allele>, truth_unique: Vec<Allele>| {
+            let comparison = comparison(&["16193.1"], dna_unique, truth_unique, Vec::new());
+            let differs = Sample {
+                not_recorded: Some(&not_recorded),
+                ..sample(
+                    Discrepancy::Sequence,
+                    &comparison,
+                    &[],
+                    &loci,
+                    &signals,
+                    &regions,
+                )
+            };
+            findings(&differs, &Forms::default(), "").map(|(cause, scope, findings)| {
+                (
+                    cause.label(),
+                    scope.label(),
+                    findings.iter().map(Finding::text).collect::<Vec<_>>(),
+                )
+            })
+        };
+        assert_eq!(
+            texts_of(vec![length.clone()], Vec::new()),
+            Some((
+                "lab",
+                "deferred",
+                vec!["lab:convention_not_recorded@hv1_polyc".to_owned()]
+            ))
+        );
+        // A truth-only call, or an unlabelled DNA-only call, is content.
+        for (dna, truth) in [
+            (vec![length.clone()], vec![Allele::new("16189", "T", "C")]),
+            (vec![length, Allele::new("16194", "A", "C")], Vec::new()),
+        ] {
+            assert_ne!(
+                texts_of(dna, truth).map(|(_, _, findings)| findings),
+                Some(vec!["lab:convention_not_recorded@hv1_polyc".to_owned()])
+            );
+        }
+    }
+
+    #[test]
+    fn a_technology_limit_is_deferred_to_signal_processing() {
+        // 1: phase loss; 2: a clean call withheld by the read's own end.
+        let loci = Loci::of(1, vec![COVERED | PHASE, COVERED | FORWARD | EDGE], &[]);
+        let signals = lod::Signals::default();
+        let regions = BTreeSet::new();
+        let head = |positions: &[&str]| {
+            let uncovered = positions
+                .iter()
+                .map(|position| Allele::new(position, "A", "G"))
+                .collect();
+            let comparison = comparison(&[], Vec::new(), Vec::new(), uncovered);
+            findings(
+                &sample(
+                    Discrepancy::Coverage,
+                    &comparison,
+                    &[],
+                    &loci,
+                    &signals,
+                    &regions,
+                ),
+                &Forms::default(),
+                "",
+            )
+            .map(|(cause, scope, _)| (cause, scope))
+        };
+        assert_eq!(head(&["1"]), Some((Cause::Technology, Scope::Deferred)));
+        // A lab defect heads a sample that also meets a technology limit.
+        assert_eq!(head(&["1", "2"]), Some((Cause::Lab, Scope::Defect)));
     }
 
     #[test]

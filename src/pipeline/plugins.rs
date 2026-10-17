@@ -5,6 +5,7 @@ use crate::input::sequence::PLUGIN as SEQUENCE;
 use dna_core::consensus::PLUGIN as CONSENSUS_PLUGIN;
 use dna_core::read_call::PLUGIN as CORE;
 use dna_empop::conformance::PLUGIN as CONFORMANCE;
+use dna_empop::export::PLUGIN as EMPOP;
 use dna_kernel::plugin::{Contract, PluginDescriptor, composition, validate_registry};
 use dna_normalize::variant_nomenclature::PLUGIN as NOMENCLATURE;
 use dna_normalize::variant_normalization::PLUGIN as NORMALIZATION;
@@ -19,6 +20,7 @@ const REGISTRY: &[&PluginDescriptor] = &[
     &NORMALIZATION,
     &NOMENCLATURE,
     &CONFORMANCE,
+    &EMPOP,
 ];
 
 /// Plugins of the `basecall` workflow, in execution order.
@@ -39,17 +41,44 @@ pub(crate) const CALL_WITH_NOTATION: &[&PluginDescriptor] = composition(
     &[&SEQUENCE, &CORE, &NORMALIZATION, &NOMENCLATURE],
 );
 /// Plugins of the `notation` workflow over a variants document, in execution order.
-pub(crate) const NOTATION: &[&PluginDescriptor] = composition(
+const NOTATION: &[&PluginDescriptor] = composition(
     REGISTRY,
     &[Contract::CalledVariants],
     &[&NORMALIZATION, &NOMENCLATURE],
 );
 /// Plugins of the `notation` workflow with conformance checks, in execution order.
-pub(crate) const NOTATION_WITH_CONFORMANCE: &[&PluginDescriptor] = composition(
+const NOTATION_WITH_CONFORMANCE: &[&PluginDescriptor] = composition(
     REGISTRY,
     &[Contract::CalledVariants],
     &[&NORMALIZATION, &NOMENCLATURE, &CONFORMANCE],
 );
+/// Plugins of the `notation` workflow with the EMPOP export, in execution order.
+const NOTATION_WITH_EMPOP: &[&PluginDescriptor] = composition(
+    REGISTRY,
+    &[Contract::CalledVariants],
+    &[&NORMALIZATION, &NOMENCLATURE, &EMPOP],
+);
+/// Plugins of the `notation` workflow with conformance checks and the EMPOP
+/// export, in execution order.
+const NOTATION_WITH_CONFORMANCE_AND_EMPOP: &[&PluginDescriptor] = composition(
+    REGISTRY,
+    &[Contract::CalledVariants],
+    &[&NORMALIZATION, &NOMENCLATURE, &CONFORMANCE, &EMPOP],
+);
+
+/// Plugins of the `notation` workflow, by the post-calling plugins the
+/// profile declares.
+pub(crate) const fn notation(
+    conformance: bool,
+    empop: bool,
+) -> &'static [&'static PluginDescriptor] {
+    match (conformance, empop) {
+        (false, false) => NOTATION,
+        (true, false) => NOTATION_WITH_CONFORMANCE,
+        (false, true) => NOTATION_WITH_EMPOP,
+        (true, true) => NOTATION_WITH_CONFORMANCE_AND_EMPOP,
+    }
+}
 /// Plugins of the `sample` workflow with notation, in execution order.
 pub(crate) const SAMPLE_WITH_NOTATION: &[&PluginDescriptor] = composition(
     REGISTRY,

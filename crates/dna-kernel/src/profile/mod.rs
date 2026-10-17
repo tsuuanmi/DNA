@@ -44,6 +44,70 @@ pub struct Profile {
     pub notation: Option<Notation>,
     /// Notation conventions checked on represented calls, when declared.
     pub conformance: Option<Conformance>,
+    /// Report conventions that label represented calls, in reference order
+    /// without overlap.
+    pub conventions: Vec<Convention>,
+    /// Whether the `notation` workflow exports an EMPOP query (`[empop]`).
+    pub empop: bool,
+}
+
+/// A report convention: rendered calls of one kind in one window that the
+/// target's reviewers write differently. A call it covers is labelled, never
+/// dropped or rewritten.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Convention {
+    /// Convention name, unique within the profile.
+    pub name: String,
+    /// What the convention means for a covered call.
+    pub label: ConventionLabel,
+    /// Which calls it covers.
+    pub kind: ConventionKind,
+    /// Inclusive 1-based window of the covered calls.
+    pub window: [usize; 2],
+}
+
+/// What a report convention means for the calls it covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConventionLabel {
+    /// The reviewers do not record the call.
+    NotRecorded,
+}
+
+impl ConventionLabel {
+    /// Stable machine-readable label recorded in results.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::NotRecorded => "not_recorded",
+        }
+    }
+}
+
+/// Which rendered calls of its window a report convention covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConventionKind {
+    /// The length of a run of one base: an inserted `base` whose anchor lies
+    /// in the window, or a deleted `base` in the window, where the
+    /// represented haplotype has an uninterrupted run of `base` of at least
+    /// `minimum_run` bases at the call. A substitution is never covered.
+    RunLength {
+        /// The run's base, as an ASCII byte.
+        base: u8,
+        /// Shortest run, in the represented haplotype, whose length the
+        /// convention covers.
+        minimum_run: usize,
+    },
+}
+
+impl ConventionKind {
+    /// Stable machine-readable label recorded in results.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::RunLength { .. } => "run_length",
+        }
+    }
 }
 
 /// Notation conventions that represented calls are checked against; findings

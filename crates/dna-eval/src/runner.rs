@@ -19,10 +19,13 @@ use std::time::Instant;
 
 use std::num::NonZeroUsize;
 
-use dna::sample_analysis::{self, SampleAnalysis, SampleOutcome};
+use dna::sample_analysis::{
+    self, Consensus, ConventionLabel, EmpopExport, NotationCall, SampleAnalysis, SampleOutcome,
+};
+use dna_core::model::consensus::SiteState;
 use sha2::{Digest, Sha256};
 
-use crate::cause::loci::{self, Loci, Margins};
+use crate::cause::loci::{self, Loci};
 use crate::compare::{Allele, Failure};
 use crate::error::{Error, Result};
 use crate::evidence::{self, Evidence};
@@ -39,6 +42,8 @@ pub(crate) struct Called {
     pub(crate) rejected: usize,
     /// The profile-notation calls as alleles.
     pub(crate) alleles: Vec<Allele>,
+    /// The calls a profile convention labels `not_recorded` (SRS-NOM-017).
+    pub(crate) not_recorded: BTreeSet<Allele>,
     /// Callable reference intervals of the consensus, closed and 1-based.
     pub(crate) intervals: Vec<(i64, i64)>,
     /// Where some read shows a second base at the limit of detection.
@@ -48,6 +53,72 @@ pub(crate) struct Called {
     pub(crate) loci: Loci,
     /// Identities of the configuration, reference, and profile.
     pub(crate) identity: Identity,
+    /// The sample's EMPOP query, when the profile declares one.
+    pub(crate) empop: Option<Empop>,
+}
+
+/// A sample's EMPOP query (PROP-0007), and the consensus decisions its
+/// ranges rest on.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct Empop {
+    /// `16024-16365 73-340`.
+    pub(crate) ranges: String,
+    /// `73G 263G 309.1C`.
+    pub(crate) mitotype: String,
+    /// Positions inside the ranges the consensus left undecided (`N`, or no
+    /// call): none, if the export is sound. Where a call changes the length,
+    /// its `N`s less the positions the ranges leave out.
+    pub(crate) undecided: usize,
+    /// Positions inside the ranges at a tie the consensus resolved: DNA's
+    /// decision, exported as such.
+    pub(crate) ties: usize,
+}
+
+impl Empop {
+    fn of(export: &EmpopExport, consensus: &Consensus) -> Self {
+        let inside = |position: usize| {
+            export
+                .ranges
+                .iter()
+                .any(|&[start, end]| (start..=end).contains(&position))
+        };
+        let mut empop = Self {
+            ranges: export.ranges_text(),
+            mitotype: export.mitotype_text(),
+            ..Self::default()
+        };
+        for site in &consensus.sites {
+            let positions = (site.first_0based + 1..=site.last_0based + 1).collect::<Vec<_>>();
+            let within = positions
+                .iter()
+                .filter(|position| inside(**position))
+                .count();
+            match site.call.as_deref() {
+                None => empop.undecided += within,
+                // A call of the reference's length reads position by position.
+                Some(call) if call.len() == positions.len() => {
+                    empop.undecided += call
+                        .bytes()
+                        .zip(&positions)
+                        .filter(|(base, position)| *base == b'N' && inside(**position))
+                        .count();
+                    if site.state == SiteState::Contested {
+                        empop.ties += within;
+                    }
+                }
+                // A length change places its `N`s nowhere in particular: the
+                // ranges must leave out at least as many of its positions.
+                Some(call) => {
+                    let unresolved = call.bytes().filter(|base| *base == b'N').count();
+                    empop.undecided += unresolved.saturating_sub(positions.len() - within);
+                    if site.state == SiteState::Contested {
+                        empop.ties += within;
+                    }
+                }
+            }
+        }
+        empop
+    }
 }
 
 /// Scientific identities DNA reports for a sample.
@@ -96,14 +167,14 @@ impl Threads {
 
 /// Runs DNA over every sample with `threads` workers on `reference`, the
 /// FASTA path and the SHA-256 of the sequence the harness compares on (a
-/// sample DNA analyses on another sequence fails), with DNA's configuration
-/// and the margins the harness reads from it, taking each sample's
+/// sample DNA analyses on another sequence fails), with DNA's configuration,
+/// taking each sample's
 /// draft triage evidence when `triage` is set: from the analysis, even when
 /// its call then fails, or from the rejected reads when none is admitted.
 pub(crate) fn run(
     samples: &[Sample],
     (reference, reference_sha256): (&Path, &str),
-    (config, margins): (&Path, Margins),
+    config: &Path,
     threads: Threads,
     triage: bool,
 ) -> Result<Vec<Outcome>> {
@@ -136,33 +207,35 @@ pub(crate) fn run(
             );
         }
         let evidence = triage.then(|| evidence::extract(&analysis));
-        (call(&analysis, &sample.id, margins), evidence)
+        (call(&analysis, &sample.id), evidence)
     })
 }
 
 /// Calls an analysed sample's consensus and converts the calls into alleles
 /// and the callable segments into intervals.
-fn call(
-    analysis: &SampleAnalysis,
-    sample_id: &str,
-    margins: Margins,
-) -> std::result::Result<Called, Failure> {
+fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Called, Failure> {
     let result = analysis
         .call(sample_id)
         .map_err(|error| Failure::Dna(error.to_string()))?;
-    let alleles = result
-        .notation
-        .ok_or(Failure::Notation)?
+    let notation = result.notation.as_ref().ok_or(Failure::Notation)?;
+    let allele = |call: &NotationCall| {
+        let position = if call.ordinal == 0 {
+            call.position.to_string()
+        } else {
+            format!("{}.{}", call.position, call.ordinal)
+        };
+        let base = |base: Option<char>| base.map_or_else(|| "-".to_owned(), String::from);
+        Allele::new(&position, &base(call.reference), &base(call.alternate))
+    };
+    let alleles = notation.iter().map(allele).collect();
+    let not_recorded = notation
         .iter()
-        .map(|call| {
-            let position = if call.ordinal == 0 {
-                call.position.to_string()
-            } else {
-                format!("{}.{}", call.position, call.ordinal)
-            };
-            let base = |base: Option<char>| base.map_or_else(|| "-".to_owned(), String::from);
-            Allele::new(&position, &base(call.reference), &base(call.alternate))
+        .filter(|call| {
+            call.convention
+                .as_ref()
+                .is_some_and(|convention| convention.label == ConventionLabel::NotRecorded)
         })
+        .map(allele)
         .collect();
     // Half-open 0-based segments become closed 1-based intervals.
     let intervals = result
@@ -177,10 +250,16 @@ fn call(
         })
         .collect();
     let signals = lod::signals(analysis).map_err(|error| Failure::Dna(error.to_string()))?;
-    let loci = loci::extract(analysis, margins).map_err(|error| Failure::Dna(error.to_string()))?;
+    let loci = loci::extract(analysis).map_err(|error| Failure::Dna(error.to_string()))?;
+    let empop = result
+        .empop
+        .as_ref()
+        .map(|export| Empop::of(export, &analysis.consensus));
     Ok(Called {
         rejected: analysis.rejected.len(),
+        empop,
         alleles,
+        not_recorded,
         intervals,
         signals,
         loci,
@@ -287,6 +366,47 @@ mod tests {
 
     use super::*;
     use crate::manifest::Weight;
+    use dna_core::model::consensus::{ConsensusSite, ConsensusSummary};
+
+    #[test]
+    fn counts_the_consensus_decisions_an_empop_range_rests_on() {
+        let site = |first: usize, reference: &str, call: Option<&str>, state| ConsensusSite {
+            first_0based: first - 1,
+            last_0based: first + reference.len() - 2,
+            reference: reference.into(),
+            call: call.map(Into::into),
+            state,
+            supporting: Vec::new(),
+            opposing: Vec::new(),
+            uninformative: Vec::new(),
+            runs: Vec::new(),
+        };
+        let consensus = Consensus {
+            segments: Vec::new(),
+            sites: vec![
+                // Undecided, outside the ranges: sound.
+                site(10, "A", None, SiteState::Unresolved),
+                // Undecided inside a range.
+                site(20, "C", None, SiteState::Unresolved),
+                // A stretch read position by position: its `N` at 31 lies
+                // outside the ranges, its decided bases inside.
+                site(30, "CCCT", Some("CNCC"), SiteState::Called),
+                // A length change: two `N`s, one position left out.
+                site(40, "CCT", Some("CCCNN"), SiteState::Called),
+                // A tie the consensus resolved as the reference.
+                site(50, "G", Some("G"), SiteState::Contested),
+            ],
+            summary: ConsensusSummary::default(),
+        };
+        let export = EmpopExport {
+            ranges: vec![[11, 30], [32, 41], [50, 50]],
+            mitotype: Vec::new(),
+            cut: Vec::new(),
+        };
+        let empop = Empop::of(&export, &consensus);
+        assert_eq!((empop.undecided, empop.ties), (2, 1));
+        assert_eq!(empop.ranges, "11-30 32-41 50-50");
+    }
 
     fn sample(id: &str, traces: Vec<PathBuf>) -> Sample {
         let weight = Weight {
@@ -350,6 +470,8 @@ mod tests {
                 _ => Ok(Called {
                     rejected: 0,
                     alleles: vec![Allele::new(&sample.id[1..], "A", "G")],
+                    not_recorded: BTreeSet::new(),
+                    empop: None,
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

@@ -7,6 +7,7 @@
 //! engine and its haplotype-preservation proof.
 
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
+pub mod conventions;
 mod windows;
 
 use std::ops::Range;
@@ -105,9 +106,10 @@ pub fn apply_with(
 
 /// Applies a profile's windows to one read's haplotype, as [`apply_with`],
 /// except that a window keeps its normalized form when its representation
-/// would place a call where the read reads nothing: a substituted or deleted
+/// would place a call where the read reads nothing (a substituted or deleted
 /// base, or an insertion's anchor base, outside every `readable` reference
-/// interval (0-based, half-open).
+/// interval, 0-based and half-open), or would rest on a decisive base of the
+/// window the read does not read (SRS-NOM-010).
 ///
 /// # Errors
 ///
@@ -173,7 +175,7 @@ fn represent(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "nomenclature",
     family: PluginFamily::PostCalling,
-    version: 2,
+    version: 3,
     provides: &[Contract::Nomenclature],
     requires: &[Contract::NormalizedVariants],
     config_sections: &[],

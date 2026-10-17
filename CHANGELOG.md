@@ -8,7 +8,75 @@ remain independently versioned and are never silently changed in place.
 
 ## [Unreleased]
 
+Plugin versions rise with every change to a plugin's output, also before a
+release (`docs/governance/versioning.md`). Two changes are recorded without
+a bump of their own (2026-10-17, user: no retroactive bump): the
+`nomenclature` window form resting only on a wholly read window (#77) shares
+the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
+`normalization` 2 of #78.
+
 ### Added
+
+- The EMPOP query (SRS-NOM-018, PROP-0007 increment 2): when the profile
+  declares `[empop]`, as the human-mtDNA profile does, `dna notation` adds an
+  offline `empop` query to `dna.notation/v1`, and `SampleAnalysis::call`
+  gives it as `ConsensusCall::empop`. It is sent nowhere. The query has
+  interpretation ranges over the positions exactly one record calls (no `N`,
+  no excluded variant), the represented calls inside them with an insertion
+  written by its anchor, as EMPOP numbers it, and the record positions cut,
+  with their reason. New post-calling plugin `empop` 1 in `dna-empop`.
+  **Breaking:** `dna.notation/v1` adds the optional `empop`, revised in place
+  (unreleased); the profile gains `[empop]`. The evaluation harness writes
+  each query to `scores.tsv` (`empop_ranges`, `empop_mitotype`), with the
+  positions inside its ranges that the consensus left undecided or decided by
+  a tie (`empop_undecided`, `empop_ties`), and summarises them.
+
+- Every `technology` finding of the evaluation harness's discrepancy causes
+  is deferred, to signal processing in `dna-sanger`: the core is judged on
+  good input, or input the lab made poor. A defect heads a sample before a
+  deferred item, so a sample with both a `lab` and a `technology` finding is
+  the lab's. The summary's cause table lists defects first, then deferred
+  items, each in cause order (`technology (deferred)` replaces
+  `technology`). Statuses and classes are unchanged.
+
+- Report conventions (SRS-NOM-017, PROP-0007 increment 1): a profile's
+  `[[nomenclature.conventions]]` labels the rendered calls the reviewers
+  write differently, and keeps them. The human-mtDNA profile declares
+  `hvs1_c_length` (`not_recorded`): the length calls of the uninterrupted
+  HVS-I C run that `16189C` creates (C10 and longer). Every notation view
+  carries the label as `convention` on a labelled call, and
+  `SampleAnalysis::call` carries it on `NotationCall`. The `nomenclature`
+  plugin is version 3. **Breaking:** `dna.variants/v1`,
+  `dna.sample_evidence/v10`, and `dna.notation/v1` add the optional
+  `notation.calls[].convention`, revised in place (unreleased). The
+  evaluation harness gives a `sequence` difference made only of such calls,
+  with no truth-only call, the cause `lab`, deferred
+  (`convention_not_recorded`): 31 samples on development panel v5, all
+  previously `undetermined`. The summary's cause table adds a
+  `lab (deferred)` column.
+
+- The evaluation harness's haplotype measures compare only inside the
+  truth's analysed intervals: a DNA call where the reviewers did not analyse
+  no longer counts against DNA there (the primary, strict, and
+  IUPAC-compatible measures, the lab's rules, are unchanged). A sample whose
+  only primary differences are such calls takes the new class `unanalysed`,
+  cause `undetermined` (`outside_truth_intervals`)
+  ([measures](docs/validation/evaluation-harness.md#measures)).
+- `local_shadow` minor kind and minor rule sets in the draft triage
+  (evaluation harness only, #70): a read's neighbour-compatible minor channel
+  counts as a shadow only where at least 0.05 of the read's calls within 10
+  show the same shadow, and a policy's `minor` is a set of rules any of which
+  marks (`upstream@100+local_shadow@80`); the pre-registration parses
+  `+`-joined rules.
+- The `haplotype_lod` measure (evaluation harness only, #71): the haplotype
+  measure, except that a truth two-base IUPAC substitution the reads do not
+  observe at the 10 % limit of detection compares IUPAC-compatibly.
+  `scores.tsv` adds its status, code, and blocks and `below_lod`; it is the
+  approval safety endpoint
+  ([measures](docs/validation/evaluation-harness.md#measures)).
+- Readiness panels (evaluation harness only, #72): `dna-eval run` reads a
+  `readiness` panel as well as `dev`, and `power` reads a development or
+  readiness run; any other (hold-out) panel is still refused.
 
 - Discrepancy causes in the evaluation harness: `dna-eval run` gives each
   sample with a discrepancy a cause, `dna`, `lab`, `technology`, or
@@ -235,6 +303,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- The evaluation harness's discrepancy causes read the core's own trust
+  verdict on each call (`SampleAnalysis::trust`, `CallTrust`: mask, vetoes,
+  `read_end` trust, ADR-0076 exemption, and what withholds trust) instead of
+  re-deriving it from four configuration keys. A read's end counts as phase
+  loss only where DNA attributes it so (a phase-loss mask label, or a segment
+  after a repeat run); development panel v5 moves `beside_phase_loss` from
+  141 to 43 findings, mostly to `read_edge` (45 to 112), and statuses and
+  classes are unchanged.
 - Right-aligned normalization takes an insertion across a base that a
   substitution of the same haplotype makes equal to its first inserted base,
   until the insertion follows a reference run of that base: with `16172C`, an
@@ -520,6 +596,32 @@ remain independently versioned and are never silently changed in place.
 
 ### Fixed
 
+- Alignment places every gap at its 3'-most sequence-equivalent placement
+  whatever the read's profile scores (ADR-0047 §1 amended, SRS-ALN-012): the
+  optimal score chooses the explanation, and a move is kept when the
+  primary-base score is unchanged. With profile-weighted scores two reads of
+  one sequence placed an AC-repeat insertion at `513.1C 513.2A` and at
+  `524.1A 524.2C`, and the consensus lost it (118 contested AC sites on
+  development panel v5, now 4). The one-base move is shared with variant
+  normalization (`dna_kernel::model::placement`). An insertion into a repeat
+  the read bounds is judged for support vetoes on its placements along the
+  repeat, in variant calling and the consensus alike (SRS-VAR-020), so a
+  weak call that happens to be taken as the inserted one no longer decides.
+  The `core` plugin version rises to 8 and `consensus` to 4. Development
+  panel v5 against main: 232 more samples concordant on haplotype LoD and
+  227 on the primary measure; the one LoD regression is a truth C-shadow
+  listed for re-check.
+- `dna call` and `SampleAnalysis::call` no longer report a position DNA
+  excluded a call at as callable (SRS-VAR-019). A record's callable
+  reference segments leave out every position of an excluded variant (a
+  substitution's position, a deletion's deleted positions, both positions
+  beside an insertion's junction), so an excluded call is undecided rather
+  than read as the reference, and a record excluded for `placement_conflict`
+  contributes no callable segments at all; per-read sample evidence is
+  unchanged. The `core` plugin version rises to 7. Development panel v5:
+  102 more samples concordant on haplotype LoD and 97 on the primary
+  measure, no regression; 287 samples lose 441 callable positions inside the
+  HV regions (at most 7).
 - `call` writes an AC-repeat deletion that a consensus decided at `523–524`
   there, rather than as `513DEL 514DEL` beside the unresolved bases the
   consensus left at `513–516`. On a reviewed consensus record, whose ends are

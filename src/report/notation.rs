@@ -9,22 +9,29 @@
 use std::collections::BTreeMap;
 
 use crate::model::notation_result::{
-    ConformanceResult, FindingResult, NotationProvenanceResult, NotationResult, SourceResult,
+    ConformanceResult, CutResult, EmpopResult, FindingResult, NotationProvenanceResult,
+    NotationResult, SourceResult,
 };
 use crate::model::result::ReferenceResult;
-use crate::model::sample_result::{SampleNotationCallResult, SampleNotationResult};
+use crate::model::sample_result::{
+    ConventionResult, SampleNotationCallResult, SampleNotationResult,
+};
 use crate::report::json::{project_plugins, project_profile};
 use dna_empop::conformance::Finding;
+use dna_empop::export::Export;
 use dna_kernel::error::{ReportError, RepresentationError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
-use dna_kernel::profile::{ConformanceRule, NotationStyle, ProfileIdentity};
+use dna_kernel::profile::{ConformanceRule, Convention, NotationStyle, ProfileIdentity};
 use dna_kernel::variant::Variant;
+use dna_normalize::variant_nomenclature::conventions::{Call, Labels};
 use dna_normalize::variant_representation::{sort_edits, variants_to_edits};
 
-/// Every read's represented calls and the profile style to render them in.
+/// Every read's represented calls, the profile style to render them in, and
+/// the profile's report conventions that label them.
 pub(crate) struct SampleNotation {
     pub(crate) style: NotationStyle,
+    pub(crate) conventions: Vec<Convention>,
     pub(crate) reads: Vec<ReadRepresentation>,
 }
 
@@ -54,6 +61,8 @@ pub(crate) struct CompletedNotation {
     /// The profile's rules and each read's findings, in document read order,
     /// when the profile declares conformance.
     pub(crate) conformance: Option<(Vec<ConformanceRule>, Vec<Vec<Finding>>)>,
+    /// The EMPOP query, when the profile declares `[empop]`.
+    pub(crate) empop: Option<Export>,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
@@ -69,6 +78,7 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
         reads,
         notation,
         conformance,
+        empop,
         plugins,
     } = completed;
     let identities = reads
@@ -133,6 +143,20 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
         },
         notation,
         conformance,
+        empop: empop.map(|export| EmpopResult {
+            ranges_text: export.ranges_text(),
+            mitotype: export.mitotype_text(),
+            ranges: export.ranges,
+            cut: export
+                .cut
+                .into_iter()
+                .map(|cut| CutResult {
+                    start: cut.start,
+                    end: cut.end,
+                    reason: cut.reason.label(),
+                })
+                .collect(),
+        }),
     })
 }
 
@@ -161,7 +185,7 @@ pub(super) fn project(
     }
     let calls = calls(reference, notation)?
         .into_iter()
-        .map(|(call, reads)| {
+        .map(|(call, CallReads { reads, convention })| {
             let mut reads = reads
                 .into_iter()
                 .map(index)
@@ -170,6 +194,10 @@ pub(super) fn project(
             reads.dedup();
             Ok(SampleNotationCallResult {
                 call: call.text,
+                convention: convention.map(|convention| ConventionResult {
+                    name: convention.name.clone(),
+                    label: convention.label.label(),
+                }),
                 reads: reads
                     .into_iter()
                     .map(|index| {
@@ -203,19 +231,29 @@ pub(crate) struct NotationCall {
     pub(crate) alternate: Option<char>,
 }
 
+/// The reads containing one distinct call, and the report convention that
+/// labels it.
+pub(crate) struct CallReads<'a> {
+    /// Content identities of the reads, in the notation's read order.
+    pub(crate) reads: Vec<&'a str>,
+    /// The convention every read containing the call labels it with
+    /// (SRS-NOM-017); `None` when one read labels it otherwise or not at all.
+    pub(crate) convention: Option<&'a Convention>,
+}
+
 /// The distinct calls of every read's represented variants, in reference
-/// order, each with the content identities of the reads containing it, in the
-/// notation's read order: the one rendering `project` and the in-process
-/// consensus call build on.
+/// order, each with the reads containing it and its convention: the one
+/// rendering `project` and the in-process consensus call build on.
 pub(crate) fn calls<'a>(
     reference: &Reference,
     notation: &'a SampleNotation,
-) -> dna_kernel::error::Result<BTreeMap<NotationCall, Vec<&'a str>>> {
+) -> dna_kernel::error::Result<BTreeMap<NotationCall, CallReads<'a>>> {
     let render = match notation.style {
         NotationStyle::PerBaseDecimal => render,
     };
-    let mut calls = BTreeMap::<NotationCall, Vec<&str>>::new();
+    let mut calls = BTreeMap::<NotationCall, CallReads<'a>>::new();
     for representation in &notation.reads {
+        let labels = Labels::new(&notation.conventions, reference, &representation.variants);
         for call in render(
             &reference.name,
             &reference.sequence,
@@ -223,10 +261,30 @@ pub(crate) fn calls<'a>(
         )
         .map_err(ReportError::Representation)?
         {
-            calls
-                .entry(call)
-                .or_default()
-                .push(&representation.input_sha256);
+            let convention = labels
+                .of(Call {
+                    position: call.position,
+                    ordinal: call.ordinal,
+                    reference: call.reference,
+                    alternate: call.alternate,
+                })
+                .map_err(ReportError::Representation)?;
+            let read = representation.input_sha256.as_str();
+            match calls.entry(call) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(CallReads {
+                        reads: vec![read],
+                        convention,
+                    });
+                }
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    let entry = entry.get_mut();
+                    entry.reads.push(read);
+                    if entry.convention != convention {
+                        entry.convention = None;
+                    }
+                }
+            }
         }
     }
     Ok(calls)
@@ -350,6 +408,66 @@ mod tests {
     #[test]
     fn renders_a_leading_insertion_before_the_first_base() -> Result<(), RepresentationError> {
         assert_eq!(texts(&[variant(1, "G", "CG", VariantKind::Ins)])?, ["0.1C"]);
+        Ok(())
+    }
+
+    #[test]
+    fn labels_a_call_only_when_every_read_containing_it_does() -> dna_kernel::error::Result<()> {
+        use dna_kernel::checksum::hex_sha256;
+        use dna_kernel::model::reference::ReferenceTopology;
+        use dna_kernel::profile::{ConventionKind, ConventionLabel};
+
+        // `CCCCTCCC` at 1-8, then `A`: with `5C` the run is C8.
+        let sequence = "CCCCTCCCAGG".to_owned();
+        let reference = Reference {
+            name: "synthetic".into(),
+            sequence_sha256: hex_sha256(sequence.as_bytes()),
+            sequence,
+            topology: ReferenceTopology::Linear,
+        };
+        let joined = variant(5, "T", "C", VariantKind::Snv);
+        let longer = variant(8, "C", "CC", VariantKind::Ins);
+        let read = |name: &str, variants: Vec<Variant>| ReadRepresentation {
+            input_sha256: name.into(),
+            variants,
+        };
+        let notation = SampleNotation {
+            style: NotationStyle::PerBaseDecimal,
+            conventions: vec![Convention {
+                name: "c_length".into(),
+                label: ConventionLabel::NotRecorded,
+                kind: ConventionKind::RunLength {
+                    base: b'C',
+                    minimum_run: 8,
+                },
+                window: [1, 8],
+            }],
+            // Read c has no `5C`: its `8.1C` lengthens a C3, not the C8.
+            reads: vec![
+                read("a", vec![joined.clone(), longer.clone()]),
+                read("b", vec![joined, longer.clone()]),
+                read("c", vec![longer]),
+            ],
+        };
+        let labelled =
+            |notation: &SampleNotation| -> dna_kernel::error::Result<Vec<(String, bool)>> {
+                Ok(calls(&reference, notation)?
+                    .into_iter()
+                    .map(|(call, reads)| (call.text, reads.convention.is_some()))
+                    .collect())
+            };
+        assert_eq!(
+            labelled(&notation)?,
+            [("5C".to_owned(), false), ("8.1C".to_owned(), false)]
+        );
+        let agreeing = SampleNotation {
+            reads: notation.reads.into_iter().take(2).collect(),
+            ..notation
+        };
+        assert_eq!(
+            labelled(&agreeing)?,
+            [("5C".to_owned(), false), ("8.1C".to_owned(), true)]
+        );
         Ok(())
     }
 

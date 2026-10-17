@@ -184,6 +184,61 @@ reviewer consensus sequences:
 - the checker reported exactly the two samples whose notation differs from
   the reviewers' in this way, and nothing else.
 
+## Report conventions
+
+A report convention labels calls that the target's reviewers write
+differently, and keeps them (SRS-NOM-017). It is not a window rule: a window
+rule chooses among sequence-equivalent forms, while a convention covers calls
+that change content, so it may label a call but never drop one (ADR-0077 §5).
+
+The labelling runs on each read's rendered calls after representation. For
+`run_length`, it rebuilds the read's represented haplotype, keyed by reference
+position and insertion ordinal. For a covered call, it measures the
+uninterrupted run of the convention's base:
+- an inserted base: the run that holds it;
+- a deleted base: the run across the junction it leaves, plus the deleted
+  base.
+
+A run shorter than `minimum_run` leaves the call unlabelled. A call that two
+reads label differently, or that one read leaves unlabelled, is unlabelled.
+
+The shipped human-mtDNA profile declares `hvs1_c_length`. The reviewers do not
+record the length of the uninterrupted HVS-I C run that `16189C` creates
+(`16184-16193`, C10 and longer), which carries length heterogeneity. With
+`T16189`, the two short runs are read through. A length call there is
+evidence, so it stays unlabelled. On development panel v5 (main `4e6f8d1`), 31
+`sequence` samples differ from the truth only by labelled calls, and the
+[evaluation harness](../validation/evaluation-harness.md#discrepancy-causes)
+gives them to the lab as deferred. Two `16193DEL` samples whose `16185T`
+splits the run (C8) stay unlabelled.
+
+## EMPOP query
+
+`dna-empop`'s `export` builds the offline EMPOP query of `notation`
+(SRS-NOM-018). The same query comes from `SampleAnalysis::call`. It formats and
+decides nothing (ADR-0077 §5). EMPOP reads an omission inside a range as the
+reference, so a range covers only the positions exactly one record calls: the
+records' callable segments, which already leave out every `N` and every
+excluded variant's positions (SRS-VAR-019). A record position no range covers
+is listed as `unresolved`, `excluded_variant`, or `overlap`.
+
+The mitotype follows EMPOP's numbering, which places an insertion `X.k` at
+`X`. A range that holds `X` claims the complete list of insertions after `X`,
+so an insertion is written when its anchor lies in a range. That list is
+complete because an excluded insertion cuts `X` itself: where `X` survives,
+every insertion DNA observed after `X` is eligible. An insertion whose anchor
+is cut is not written, even when `X+1` is in a range.
+
+A tie the consensus resolved is DNA's decision. If it is wrong, it is wrong in
+the haplotype and in the query alike, so the query exports it as decided.
+
+On development panel v5:
+- the query is byte-equal to the laboratory's exporter (`mtdna_raw`'s
+  `EmpopProfile`) given the same ranges and calls, for every sample;
+- inside the positions both declare, DNA's mitotype equals the reviewers' in
+  most samples once hotspot length differences, which EMPOP's standard query
+  disregards, are set aside. The rest is mainly truth IUPAC codes.
+
 ## Scientific basis
 
 This policy follows the forensic mtDNA convention that insertion notation is

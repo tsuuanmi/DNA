@@ -303,7 +303,7 @@ pub(crate) struct Side<'a> {
     pub(crate) intervals: &'a [(i64, i64)],
 }
 
-fn inside(position: &str, intervals: &[(i64, i64)]) -> bool {
+pub(crate) fn inside(position: &str, intervals: &[(i64, i64)]) -> bool {
     anchor(position).is_some_and(|base| {
         intervals
             .iter()
@@ -383,14 +383,25 @@ pub(crate) struct Comparison {
 
 /// The intervals a haplotype measure compares as sequences: the HV regions
 /// within DNA's callable intervals (merged where they touch), or the HV
-/// regions when DNA reports none.
-fn comparable(intervals: &[(i64, i64)]) -> Vec<(i64, i64)> {
-    let regions = HV_REGIONS.map(|(_, start, end)| (start, end));
-    if intervals.is_empty() {
-        let mut regions = regions.to_vec();
-        regions.sort_unstable();
-        return regions;
+/// regions when DNA reports none; and within the truth's analysed intervals
+/// when it records any, since a stretch the reviewers did not analyse holds
+/// no truth to compare.
+fn comparable(intervals: &[(i64, i64)], analysed: &[(i64, i64)]) -> Vec<(i64, i64)> {
+    let regions = HV_REGIONS.map(|(_, start, end)| (start, end)).to_vec();
+    let mut comparable = if intervals.is_empty() {
+        regions
+    } else {
+        intersect(&regions, &merged(intervals))
+    };
+    if !analysed.is_empty() {
+        comparable = intersect(&comparable, &merged(analysed));
     }
+    comparable.sort_unstable();
+    comparable
+}
+
+/// Closed intervals sorted and merged where they touch.
+fn merged(intervals: &[(i64, i64)]) -> Vec<(i64, i64)> {
     let mut sorted = intervals.to_vec();
     sorted.sort_unstable();
     let mut merged = Vec::<(i64, i64)>::new();
@@ -400,17 +411,19 @@ fn comparable(intervals: &[(i64, i64)]) -> Vec<(i64, i64)> {
             _ => merged.push((start, end)),
         }
     }
-    let mut comparable = regions
-        .iter()
-        .flat_map(|&(region_start, region_end)| {
-            merged.iter().filter_map(move |&(start, end)| {
-                let (start, end) = (start.max(region_start), end.min(region_end));
+    merged
+}
+
+/// The overlaps of two sets of closed intervals.
+fn intersect(left: &[(i64, i64)], right: &[(i64, i64)]) -> Vec<(i64, i64)> {
+    left.iter()
+        .flat_map(|&(left_start, left_end)| {
+            right.iter().filter_map(move |&(start, end)| {
+                let (start, end) = (start.max(left_start), end.min(left_end));
                 (start <= end).then_some((start, end))
             })
         })
-        .collect::<Vec<_>>();
-    comparable.sort_unstable();
-    comparable
+        .collect()
 }
 
 /// The allele as an edit of the reference, or `None` without an anchor base.
@@ -452,7 +465,8 @@ fn bases_of(allele: &Allele) -> Option<(i64, i64)> {
 }
 
 /// Both sides' sequences over the comparable intervals (the HV regions
-/// within DNA's callable intervals, or the HV regions when DNA reports none)
+/// within DNA's callable intervals, or the HV regions when DNA reports none,
+/// and within the truth's analysed intervals when it records any)
 /// on `reference`, built once for the haplotype measures. With `below`, only
 /// the truth IUPAC alleles at those positions write symbols that match
 /// compatibly (`haplotype_lod`); without it, every truth allele does.
@@ -481,7 +495,7 @@ pub(crate) fn haplotypes(
     };
     Haplotypes::new(
         reference,
-        &comparable(dna.intervals),
+        &comparable(dna.intervals, truth.intervals),
         &edits(dna.alleles, &|_| true),
         &edits(truth.alleles, &truth_lenient),
     )
@@ -562,9 +576,18 @@ pub(crate) fn compare(
             positions.insert(position.clone());
         }
     }
+    // A haplotype measure compares only where the reviewers analysed: a DNA
+    // allele outside the truth's analysed intervals has no truth to differ
+    // from.
+    let analysed = |allele: &&Allele| {
+        !measure.haplotype()
+            || truth.intervals.is_empty()
+            || inside(&allele.position, truth.intervals)
+    };
     for allele in dna_unique
         .iter()
         .filter(|allele| hv_region(&allele.position).is_some())
+        .filter(analysed)
     {
         reasons.insert(Reason::DnaOnly);
         positions.insert(allele.position.clone());
@@ -857,6 +880,41 @@ pub(crate) mod tests {
             &haplotypes(dna, truth, rcrs(), lod),
             &below,
         )
+    }
+
+    #[test]
+    fn a_haplotype_measure_ignores_dna_calls_where_the_truth_has_no_analysis() {
+        // The truth analysed HVS-II to 302 only; DNA reads it all and calls
+        // 263G with the truth and 310C beyond it.
+        let dna = alleles(&["263G", "310C"]);
+        let truth = alleles(&["263G"]);
+        let dna_side = Side {
+            alleles: &dna,
+            intervals: &FULL,
+        };
+        let truth_side = Side {
+            alleles: &truth,
+            intervals: &[(73, 302), (438, 576), (16024, 16365)],
+        };
+        assert_eq!(
+            compared(dna_side, truth_side, Measure::Haplotype).concordance,
+            Concordance::Concordant
+        );
+        // The lab's rules still count it.
+        assert_eq!(
+            compared(dna_side, truth_side, Measure::Primary).reasons,
+            BTreeSet::from([Reason::DnaOnly])
+        );
+        // Inside the truth's intervals, a DNA-only call differs.
+        let dna = alleles(&["263G", "150T"]);
+        let dna_side = Side {
+            alleles: &dna,
+            intervals: &FULL,
+        };
+        assert_eq!(
+            compared(dna_side, truth_side, Measure::Haplotype).concordance,
+            Concordance::Discordant
+        );
     }
 
     #[test]
@@ -1286,10 +1344,19 @@ pub(crate) mod tests {
     fn comparable_intervals_are_hv_regions_within_callable_intervals() {
         // The tests' reference loaded.
         assert_eq!(rcrs().len(), 16_569);
-        assert_eq!(comparable(&[]), [(73, 340), (438, 576), (16024, 16365)]);
         assert_eq!(
-            comparable(&[(16300, 16400), (1, 100), (101, 200), (500, 600)]),
+            comparable(&[], &[]),
+            [(73, 340), (438, 576), (16024, 16365)]
+        );
+        assert_eq!(
+            comparable(&[(16300, 16400), (1, 100), (101, 200), (500, 600)], &[]),
             [(73, 200), (500, 576), (16300, 16365)]
+        );
+        // Within the truth's analysed intervals: HVS-II to 302, HVS-III
+        // around a gap at 523-525.
+        assert_eq!(
+            comparable(&[(1, 600)], &[(73, 302), (438, 522), (526, 576)]),
+            [(73, 302), (438, 522), (526, 576)]
         );
     }
 

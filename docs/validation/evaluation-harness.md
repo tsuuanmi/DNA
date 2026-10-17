@@ -306,7 +306,11 @@ difference (`16190.1C` and `16193.1C` in the C run 16190–16193, `248DEL` and
 
 - the comparable intervals are the HV regions within DNA's callable
   intervals (merged where they touch), or the HV regions when DNA reports
-  none; there is no circular seam inside them;
+  none, and within the truth's analysed intervals when it records any: a
+  stretch the reviewers did not analyse holds no truth to compare. There is
+  no circular seam inside them;
+- a DNA allele outside the truth's analysed intervals raises no `dna_only`
+  (the primary rules, the lab's own comparator, still count it);
 - in each, both sides' alleles are applied to the reference: an allele
   replaces as many bases as its reference has (`514`, `CA`, `-` deletes 514
   and 515; equally many alternate bases substitute them one by one),
@@ -397,6 +401,7 @@ is discordant:
 | `not_comparable` | any | DNA or the truth has no allele | the input, or coverage |
 | `sequence` | haplotype IUPAC-compatible | the sequences differ | core, or the truth (adjudication) |
 | `heteroplasmy` | haplotype | only at a truth IUPAC code | core minor signal (deferred) |
+| `unanalysed` | primary | every primary difference is a DNA call outside the truth's analysed intervals | a review where the truth has no analysis |
 | `representation` | primary | the same sequence written differently | `dna-normalize`, or a truth minority form |
 | `coverage` | strict | a truth allele where DNA has no callable base | core callability, or the lab's assay |
 | `none` | — | every measure concordant | — |
@@ -410,40 +415,58 @@ from its `scores.tsv` when it reports all four measures.
 ## Discrepancy causes
 
 Each sample with a discrepancy also has a cause: who accounts for it, so the
-difference reaches the one who can act on it. Every discordant position of
+difference reaches the one who can act on it. The core is judged on the
+working hypothesis that its input signal is good, or clearly poor through the
+lab. Each cause says which case applies:
+- `lab`: the lab did poorly (a missing or short trace, a weak run, or a truth
+  the reads contradict);
+- `technology`: the lab did its part, but the read shows dephasing, noise, or
+  length heterogeneity that the core cannot resolve and signal processing in
+  `dna-sanger` may later;
+- `dna`: a core defect;
+- `undetermined`: a reviewer decides.
+
+Every discordant position of
 the sample's class gives a finding, `cause:evidence@position` (or `@window`)
 in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
 `technology`, and `undetermined` among them. Each finding also has a scope
 (`cause_scope` for the sample): `defect`, or `deferred` for an item left
-undone by design, such as the IUPAC codes DNA does not write; a defect comes
-before a deferred item. The causes come from the
-admitted reads' evidence at each region position (with the read-end margin,
-repeat length, and support thresholds read from DNA's configuration), the limit-of-detection
+undone by design. Three kinds are deferred:
+- the IUPAC codes DNA does not write;
+- a call the reviewers' convention does not record;
+- signal processing in `dna-sanger`, which takes every `technology` finding.
+
+A defect comes before a deferred item, so a sample with both a `lab` and a
+`technology` finding is the lab's. The causes come from the
+admitted reads' evidence at each region position (with the core's own trust
+verdict on each call, `SampleAnalysis::trust`), the limit-of-detection
 signals, and how the reviewers write each sequence over the whole truth
 database; nothing is listed by hand, and the truth is only read.
 
 | Class | Evidence | Cause |
 |---|---|---|
 | `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
-| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` |
-| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology` |
+| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` deferred |
+| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology`, deferred: signal processing |
 | | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
 | | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
-| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
+| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology`, deferred: signal processing |
 | | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
-| | a clean but untrusted call lies within the read-end margin of a stretch masked for phase loss, or of the read's end where DNA attributes that end to a repeat run: its tail starts after one, or a run of at least `repeat_min_length` reaches the end (`beside_phase_loss`) | `technology` |
+| | a clean call the core does not trust, withheld by a call masked for phase loss: dephased or mixed signal, or a segment DNA starts after a repeat run (`beside_phase_loss`) | `technology`, deferred: signal processing |
 | | a weak-signal veto denies a call that reads the reference (`veto_out_of_scope`) | `dna`: the veto guards variant support |
 | | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
-| | every untrusted call lies within the read-end margin of its read's own end (`read_edge`) or carries a weak-signal veto (`weak_call`) | `lab`: read quality |
+| | every untrusted call is withheld by its read's own end, its trim, or a call masked for weak signal (`read_edge`), or carries a weak-signal veto (`weak_call`); an ADR-0076 exemption counts as trust | `lab`: read quality |
 | | otherwise (`untrusted_call`) | `dna`: its callability policy |
+| `unanalysed` (each window) | DNA calls where the reviewers did not analyse (`outside_truth_intervals`) | `undetermined`: only a review there verifies them |
 | `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
 | | the truth writes it (`dna_minority_form`) | `dna`: its notation |
 | | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
 | `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`iupac_not_reported`) | `dna`, deferred: DNA writes no IUPAC code by design |
-| | a read shows it only at 3 % or more (`below_lod`) | `technology` |
+| | a read shows it only at 3 % or more (`below_lod`) | `technology`, deferred: signal processing |
 | | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
 | | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
-| `sequence` (each SNV or deletion) | a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
+| `sequence` (each window) | every DNA-only call is one a profile convention labels `not_recorded` (SRS-NOM-017), and the truth has no call of its own (`convention_not_recorded`) | `lab`, deferred: the reviewers' convention |
+| `sequence` (each SNV or deletion) | otherwise, a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
 | | a truth-only call there (`reads_show_reference`) | `lab`: the truth, for a re-check |
 | `failed` | no record in the truth, an unreadable trace, or every trace rejected | `lab` |
 | | a DNA error | `dna` |
@@ -456,10 +479,27 @@ samples carrying each side's calls is a proxy. Each run writes this index as
 `forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
 earlier run's instead of indexing the whole database, and a file written for
 another database stops the run. A sample can need more than
-one party: the summary counts the samples per class and cause, deferred DNA
-items apart, and per cause, scope, and evidence the samples with such a
+one party: the summary counts the samples per class and cause, defects
+first and then deferred items, each in cause order, and per cause, scope, and evidence the samples with such a
 finding. Insertions are not judged under `sequence` yet: reads showing the
 reference at an anchor do not exclude one.
+
+## EMPOP queries
+
+When the profile declares `[empop]`, each sample's EMPOP query
+(`SampleAnalysis::call`, SRS-NOM-018) is written to `scores.tsv`. The harness
+checks it against the consensus. A range must not cover a position the
+consensus left undecided (`empop_undecided`):
+- a site without a call counts its positions inside the ranges;
+- a call of the reference's length counts its `N`s inside them;
+- a call that changes the length counts its `N`s less the site positions the
+  ranges leave out.
+
+The export follows the variants document, so a nonzero count means that `call`
+placed a consensus `N` elsewhere: a consensus-to-`call` interface loss, not an
+export defect. A tie the consensus resolved is exported as DNA's decision;
+`empop_ties` counts its positions. The summary gives the samples with a query
+and the positions and samples of each count.
 
 ## Estimates
 
@@ -649,12 +689,12 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
-| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
+| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), the EMPOP queries, coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
 | `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (and `minor_unavailable=…` when the minor channels could not be read), poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
 | `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |

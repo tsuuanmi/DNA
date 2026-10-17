@@ -112,9 +112,19 @@ fn derives_the_in_process_notation_and_reports_conformance()
         notation["provenance"]["plugins"],
         json!([
             {"id": "normalization", "family": "post_calling", "version": 2},
-            {"id": "nomenclature", "family": "post_calling", "version": 2},
+            {"id": "nomenclature", "family": "post_calling", "version": 3},
             {"id": "conformance", "family": "post_calling", "version": 1},
+            {"id": "empop", "family": "post_calling", "version": 1},
         ])
+    );
+    assert_eq!(
+        notation["empop"],
+        json!({
+            "ranges": [[73, 340]],
+            "ranges_text": "73-340",
+            "mitotype": "73G 309.1C 309.2C 313.1G",
+            "cut": [],
+        })
     );
     assert_eq!(
         notation["provenance"]["source"],
@@ -130,6 +140,46 @@ fn derives_the_in_process_notation_and_reports_conformance()
             "findings": [{"rule": "insertion_matches_run", "read": "HV2", "calls": ["313.1G"]}],
         })
     );
+    Ok(())
+}
+
+#[test]
+fn an_unresolved_base_splits_the_empop_range() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let config = directory.path().join("dna.toml");
+    write_config_with_profile(&config, &human_mtdna_profile())?;
+    let sequences = directory.path().join("consensus.fasta");
+    // HVS-II with an `N` at 200 (before the 309 insertions, so the index
+    // in the record is the reference position less 73).
+    let mut record = hvs2(&rcrs()?);
+    record.replace_range(200 - 73..200 - 72, "N");
+    fs::write(&sequences, format!(">HV2\n{record}\n"))?;
+    let sequences = sequences.to_string_lossy().into_owned();
+    dna(directory.path(), &config, &["call", SAMPLE_ID, &sequences]).success();
+    let document = directory
+        .path()
+        .join("results")
+        .join(format!("{SAMPLE_ID}.variants.json"))
+        .to_string_lossy()
+        .into_owned();
+    dna(
+        directory.path(),
+        &config,
+        &["notation", SAMPLE_ID, &document],
+    )
+    .success();
+    let notation: Value = serde_json::from_slice(&fs::read(
+        directory
+            .path()
+            .join("results")
+            .join(format!("{SAMPLE_ID}.notation.json")),
+    )?)?;
+    assert_eq!(notation["empop"]["ranges_text"], "73-199 201-340");
+    assert_eq!(
+        notation["empop"]["cut"],
+        json!([{"start": 200, "end": 200, "reason": "unresolved"}])
+    );
+    assert_eq!(notation["empop"]["mitotype"], "73G 309.1C 309.2C 313.1G");
     Ok(())
 }
 

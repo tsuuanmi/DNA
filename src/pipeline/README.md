@@ -35,7 +35,8 @@ reference, without paths, logs, or publication. It lives here, not in `sample_an
 because it composes `report` and the `call` pipeline, which depend on
 `sample_analysis`.
 `notation.rs` runs the post-calling plugins over one variants document:
-representation, conformance, and `dna.notation/v1`. `call.rs` runs the core
+representation, conformance, the EMPOP query, and `dna.notation/v1`; `sample_call.rs`
+builds the same query in process. `call.rs` runs the core
 alone over reviewed consensus sequences: the sequence
 adapter, `read_call`, optional notation, and `dna.variants/v1`.
 `sample.rs` splits every read into its `CalledRead`, which the neutral `sample`

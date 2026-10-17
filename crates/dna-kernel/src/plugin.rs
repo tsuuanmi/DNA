@@ -46,6 +46,8 @@ pub enum Contract {
     Nomenclature,
     /// Notation-convention findings.
     Conformance,
+    /// An offline EMPOP query: interpretation ranges and a mitotype.
+    EmpopQuery,
     /// An adjudicated sample consensus sequence.
     Consensus,
 }

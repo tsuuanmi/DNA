@@ -10,7 +10,8 @@ It depends on no other DNA crate.
 - `plugin.rs` — plugin descriptor types and their compile-time validation.
 - [profile](profile/README.md) — target profiles.
 - [reference](reference/README.md) — FASTA loading and reference identity.
-- [model](model/README.md) — shared vocabulary: nucleotides and references.
+- [model](model/README.md) — shared vocabulary: nucleotides, references, and
+  the one-base move of 3'/right-most indel placement.
 - `checksum.rs` — SHA-256 identities; `bounds.rs` — configuration range checks.
 
 The `test-support` feature exposes evidence and profile fixtures to the tests

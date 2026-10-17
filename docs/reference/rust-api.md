@@ -233,6 +233,7 @@ impl SampleAnalysis {
         first_1based: usize,
         last_1based: usize,
     ) -> dna::error::Result<Vec<LocusObservations>>;
+    pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>>;
 }
 
 #[non_exhaustive]
@@ -265,6 +266,15 @@ impl RejectionCause {
 - `regions()` returns the reportable regions of the target profile the
   analysis ran with (inclusive, 1-based), so a caller reads them from the
   profile rather than repeating them.
+- `trust(input_sha256)` returns, for the admitted read with that content
+  SHA-256, the core's trust in each of its calls (`CallTrust`, `dna_core`):
+  its mask (reason and onset, as the modality gave them), whether it is
+  unresolved, the support vetoes raised on it by label, whether it is trusted
+  under `read_end` and whether an ADR-0076 exemption applies, and what
+  withholds trust (`Withholder`: the read's own end, its trim, or a masked
+  call, before then after the call), empty when trusted. It is the verdict
+  variant calling and the consensus reach, computed on demand; diagnostic
+  evidence for evaluation and review, not a calling contract.
 - `observations(first_1based, last_1based)` returns, for each position of
   the inclusive interval that an admitted read covers, a `LocusObservations`
   (`dna_core`): the position, its reference base, and every covering read's
@@ -339,6 +349,7 @@ parallel calls `analyze_sanger` with `NonZeroUsize::MIN` workers, then `call`.
 pub struct ConsensusCall {
     pub callable_segments: Vec<ReferenceSegment>,
     pub notation: Option<Vec<NotationCall>>,
+    pub empop: Option<EmpopExport>,
 }
 
 #[non_exhaustive]
@@ -348,6 +359,7 @@ pub struct NotationCall {
     pub reference: Option<char>,
     pub alternate: Option<char>,
     pub text: String,
+    pub convention: Option<Convention>,
 }
 ```
 
@@ -363,7 +375,16 @@ pub struct NotationCall {
   the base an insertion follows), the insertion `ordinal` (`0` for a
   substitution or deletion), the `reference` base (`None` for an inserted
   base), the called `alternate` base (`None` for a deleted base), and the
-  rendered `text` (`16189C`, `309.1C`, `249DEL`).
+  rendered `text` (`16189C`, `309.1C`, `249DEL`). `convention` is the
+  profile report convention that labels the call (SRS-NOM-017), the
+  `notation.calls[].convention` of the document; the call is kept either way.
+  `Convention`, `ConventionKind`, and `ConventionLabel` are the profile types
+  of `dna_kernel::profile`, re-exported from `sample_analysis`.
+- `empop` is the EMPOP query `dna notation` would export from the
+  `dna.variants/v1` document (SRS-NOM-018), or `None` when the profile
+  declares no `[empop]`. `EmpopExport` (`ranges`, `mitotype`, `cut`, with
+  `ranges_text()` and `mitotype_text()`), `Cut`, and `CutReason` are the types
+  of `dna_empop::export`, re-exported from `sample_analysis`.
 
 ## Variant Normalization
 
@@ -406,8 +427,13 @@ pub struct VariantNormalizationResult {
 
 `RightAligned` selects sequence-equivalent 3'/right-most insertion and
 deletion representations without rotating across the FASTA coordinate seam
-(a profile's `indel_placement = "right"`). Every accepted movement must reconstruct exactly the same complete
-alternate sequence as the source calls.
+(a profile's `indel_placement = "right"`). A deletion that cannot shift
+further may also move 3' across substitutions it can replace (the deletion
+trade, SRS-VN-008: `16293DEL 16298C` becomes `16293C 16298DEL`), which
+rewrites those substitutions. `normalize` bounds the trade by nothing; the
+DNA workflows bound it by the read's callable bases and the profile's
+nomenclature windows. Every accepted movement must reconstruct exactly the
+same complete alternate sequence as the source calls.
 
 Normalization is optional and does not apply nomenclature windows,
 sample reconciliation, VCF/HGVS formatting, genotype interpretation, or
@@ -474,9 +500,12 @@ human-mtDNA profile declares:
 | HVS-I 16180-16193 A-tract and poly-C around T16189 | `16183C 16184A 16189C`, `16183DEL`, `16188.1C`, `16182C 16183C 16189C`, `16189C 16190T 16193.1C`, `16189C 16193DEL` |
 
 Variants outside the windows, window haplotypes no rule represents, and a
-window an edit crosses keep their normalized form. `apply_read` also keeps the
-normalized form of a window whose representation would place a call outside a
-read's callable reference intervals.
+window an edit crosses keep their normalized form. The DNA workflows apply the
+windows per read with `dna_normalize::variant_nomenclature::apply_read`, which
+the facade does not re-export: it also keeps the normalized form of a window
+whose representation would place a call outside the read's callable
+reference intervals, or would rest on a decisive base the read does not read
+(SRS-NOM-010).
 Decimal strings such as `309.1C` remain an outer notation concern. Sanger
 artifact interpretation, sample reconciliation, and NGS-specific behavior are
 not implemented by this API.

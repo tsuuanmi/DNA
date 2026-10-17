@@ -1749,6 +1749,8 @@ mod tests {
             result: Ok(Called {
                 rejected: 0,
                 alleles,
+                not_recorded: BTreeSet::new(),
+                empop: None,
                 intervals: vec![(16024, 16365)],
                 signals: crate::lod::Signals::default(),
                 loci: crate::cause::loci::Loci::default(),

@@ -7,7 +7,7 @@
       "topology": "circular",
       "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
     },
-    "configuration_sha256": "7c9319627b34b6edaecdba2967d3b31f1be58db86134f2c507eaa28a22eda762",
+    "configuration_sha256": "b7328a9ac3e4302012d3206311f8c777af63e68d1ee9fc69126c7deae7f05de0",
     "profile": {
       "id": "human-mtdna-rcrs",
       "sha256": "a2933c9570798ef2ec1ffab49219201dd09d10681ccda91359a55af1ee9fdf90"
@@ -21,10 +21,15 @@
       {
         "id": "nomenclature",
         "family": "post_calling",
-        "version": 2
+        "version": 3
       },
       {
         "id": "conformance",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "empop",
         "family": "post_calling",
         "version": 1
       }
@@ -80,6 +85,22 @@
         ]
       },
       {
+        "call": "16189C",
+        "reads": [
+          "HV1"
+        ]
+      },
+      {
+        "call": "16193.1C",
+        "convention": {
+          "name": "hvs1_c_length",
+          "label": "not_recorded"
+        },
+        "reads": [
+          "HV1"
+        ]
+      },
+      {
         "call": "16223T",
         "reads": [
           "HV1"
@@ -99,6 +120,35 @@
         "calls": [
           "313.1G"
         ]
+      }
+    ]
+  },
+  "empop": {
+    "ranges": [
+      [
+        16024,
+        16365
+      ],
+      [
+        73,
+        340
+      ],
+      [
+        438,
+        560
+      ],
+      [
+        562,
+        576
+      ]
+    ],
+    "ranges_text": "16024-16365 73-340 438-560 562-576",
+    "mitotype": "73G 263G 309.1C 309.2C 313.1G 489C 573.1C 16189C 16193.1C 16223T",
+    "cut": [
+      {
+        "start": 561,
+        "end": 561,
+        "reason": "unresolved"
       }
     ]
   }

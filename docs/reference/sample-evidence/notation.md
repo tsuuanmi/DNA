@@ -36,6 +36,15 @@ the key is omitted. The examples below use the shipped human-mtDNA profile
    - insertion: `<anchor>.<ordinal><base>` after the preceding reference base,
      for example `309.1C 309.2C`; an insertion before position 1 uses anchor `0`.
 
+5. A [report convention](../profiles.md#schema-version-1) of the profile labels
+   each call it covers: `convention` gives its `name` and `label`
+   (`not_recorded`: the reviewers do not record the call). The call is kept,
+   and the haplotype is unchanged (SRS-NOM-017). A call that one read
+   containing it does not label stays unlabelled. The human-mtDNA profile
+   labels the length calls of the uninterrupted HVS-I C run that `16189C`
+   creates, for example:
+   `{"call": "16193.1C", "convention": {"name": "hvs1_c_length", "label": "not_recorded"}, "reads": ["HV1"]}`.
+
 `calls` is ordered by position and then insertion ordinal. Each call lists, in
 `reads[]` order, every read whose represented variants contain it.
 

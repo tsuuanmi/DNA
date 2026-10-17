@@ -19,14 +19,18 @@ use dna_core::consensus;
 use dna_core::model::called_read::CalledRead;
 use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 use dna_core::sample;
+use dna_core::variant_calling::read_trust;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
+pub use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel};
 use dna_kernel::profile::{Profile, ProfileIdentity};
 use dna_kernel::variant::ReferenceIdentity;
 
 pub use crate::model::read_observation::{RejectedRead, RejectionCause};
 pub use dna_core::model::consensus::Consensus;
 pub use dna_core::model::sample_evidence::SampleEvidence;
+pub use dna_core::model::trust::{CallTrust, Withholder};
+pub use dna_empop::export::{Cut, CutReason, Export as EmpopExport};
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 
 pub use crate::variant_analysis::ReferenceSegment;
@@ -64,6 +68,18 @@ pub struct SampleAnalysis {
 }
 
 impl SampleAnalysis {
+    /// The core's trust in every call of the admitted read whose content
+    /// SHA-256 is `input_sha256`, as its variant calling and consensus judge
+    /// it; `None` for another read. Diagnostic evidence for evaluation and
+    /// review, not a calling contract.
+    #[must_use]
+    pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>> {
+        self.called
+            .iter()
+            .find(|read| read.input_sha256 == input_sha256)
+            .map(|read| read_trust(&read.evidence, &self.loaded.config.core.variant_calling))
+    }
+
     /// The reportable regions of the target profile the analysis ran with:
     /// inclusive 1-based reference intervals, as the profile declares them.
     #[must_use]
@@ -119,6 +135,9 @@ pub struct ConsensusCall {
     /// order, as `notation.calls` of `dna.variants/v1`; `None` when the profile
     /// declares no notation.
     pub notation: Option<Vec<NotationCall>>,
+    /// The EMPOP query `dna notation` would export from the `dna.variants/v1`
+    /// document (PROP-0007); `None` when the profile declares no `[empop]`.
+    pub empop: Option<EmpopExport>,
 }
 
 /// One per-base call in the profile notation.
@@ -136,6 +155,9 @@ pub struct NotationCall {
     pub alternate: Option<char>,
     /// The rendered call, for example `309.1C`, `249DEL`, or `16189C`.
     pub text: String,
+    /// The profile's report convention labelling the call (SRS-NOM-017),
+    /// when one does; the call is kept either way.
+    pub convention: Option<Convention>,
 }
 
 /// Runs the Sanger adapter over one sample's traces: each trace is processed

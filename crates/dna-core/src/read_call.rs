@@ -182,6 +182,7 @@ pub fn call_read(
         &config.variant_calling,
         run.regions,
     )?;
+    let mut alignment = alignment;
     if let Some(declared) = identity.declared
         && !overlaps(&alignment.reference_segments, declared)
     {
@@ -190,6 +191,9 @@ pub fn call_read(
             declared = %format_args!("{}..={}", declared[0], declared[1]),
         );
         variants = variants.excluded_for(VariantExclusionReason::PlacementConflict);
+        // The placement is what is wrong: nothing the record reads there is
+        // callable (SRS-VAR-017).
+        alignment.callable_segments.clear();
     }
     let snvs = variants
         .reported
@@ -257,7 +261,7 @@ fn overlaps(segments: &[ReferenceSegment], [first, last]: [usize; 2]) -> bool {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "core",
     family: PluginFamily::Core,
-    version: 6,
+    version: 8,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::ReadEvidence],
     config_sections: &["alignment", "sample_reconciliation", "variant_calling"],

@@ -18,7 +18,7 @@ records, so any modality that produces `ReadEvidence` can feed it.
 |---|---|---|
 | call column | the base on its position | the call is unmasked, trusted (`read_end`), canonical, and raises no support veto |
 | deletion column | a deleted position | the nearest calls on both sides are clean |
-| inserted calls before a position | the inserted bases at the junction after the previous position | every inserted call and both neighbouring calls are clean |
+| inserted calls before a position | the inserted bases at the junction after the previous position | every inserted call and both neighbouring calls are clean; an insertion into a repeat the read bounds is judged for support vetoes on the repeat's placements, as in variant calling (SRS-VAR-020) |
 
 Each observed base also records its trust level, `observe::Trust`, and its
 reference position (none for an inserted base). Each level implies the ones

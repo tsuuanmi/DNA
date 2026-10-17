@@ -13,10 +13,13 @@ and imports no Sanger type.
   unresolved) give `read_end` (ADR-0062). An edit that changes the length of
   a run of one base whose end the read does not resolve gives
   `run_boundary` (ADR-0071); the sample consensus applies the same run-end
-  test to the indels it weighs. Masked evidence calls give their mask reason,
-  verbatim.
+  test to the indels it weighs. An insertion into a repeat the read bounds is
+  judged for support vetoes on its placements along the repeat
+  (`repeat_unvetoed`, SRS-VAR-020), which the consensus shares. Masked
+  evidence calls give their mask reason, verbatim.
 - `filter.rs` applies the region gate and reports the union of the supporting
-  calls' modality vetoes, in vocabulary order and filtered by scope.
+  calls' modality vetoes, in vocabulary order and filtered by scope, except
+  for an insertion `repeat_unvetoed` clears.
 - A masked call is no SNV candidate in `extract.rs`.
 
 The core never interprets a modality label; the Sanger labels are produced in

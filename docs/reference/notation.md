@@ -20,8 +20,8 @@ supplied reference. Only eligible variants are represented.
   - the reference `name`, `topology`, and sequence `sha256`;
   - `configuration_sha256`;
   - the target `profile`;
-  - `plugins`: `normalization` and `nomenclature`, then `conformance` when the
-    profile declares it;
+  - `plugins`: `normalization` and `nomenclature`, then `conformance` and
+    `empop` when the profile declares them;
   - `source`: the `schema_version` and the SHA-256 of the variants document's
     bytes.
 - `notation`: the per-read view of [sample notation](sample-evidence/notation.md),
@@ -34,6 +34,38 @@ supplied reference. Only eligible variants are represented.
 
   Findings are reported, never applied. A finding names a convention that the
   representation does not follow; it is not an error in the haplotype.
+
+## EMPOP query
+
+When the profile declares `[empop]`, `empop` is an offline query for EMPOP
+(SRS-NOM-018, PROP-0007). DNA sends it nowhere. EMPOP reads the omission of
+sequence inside a declared range as the reference, so a range covers only
+positions that DNA decided:
+
+- `ranges`: 1-based inclusive interpretation ranges, in the profile's region
+  order and, within a region, in position order. A range covers the positions
+  exactly one record calls: its callable reference segments, which already
+  leave out every `N` and the positions of every excluded variant
+  (SRS-VAR-019). Ranges that touch merge.
+- `ranges_text`: the same, as EMPOP takes it (`16024-16365 73-340 438-576`).
+- `mitotype`: the represented calls inside the ranges, space-separated,
+  distinct, and ordered by position and then insertion ordinal. EMPOP numbers
+  an insertion `X.k` at `X`, so an insertion is written when its anchor `X`
+  lies in a range. An excluded insertion cuts `X` itself, so a range that
+  includes `X` lists every insertion after `X`. A labelled call
+  ([report convention](sample-evidence/notation.md)) is written too: the
+  query must not misstate the sequence, and EMPOP's standard query disregards
+  hotspot length differences anyway.
+- `cut`: positions inside a profile region and a record that no range
+  covers, as `start`, `end`, and `reason`:
+  - `unresolved`: the record does not call it (`N`);
+  - `excluded_variant`: a position of a variant excluded from reporting;
+  - `overlap`: two records call it.
+
+A tie the consensus resolved is DNA's decision and is exported as such. The
+query covers only what the variants document states: when `call` places a
+consensus `N` at another reference position than the consensus site, the
+range follows the document ([catalogue](../validation/discrepancy-catalogue.md)).
 
 ## Rules
 

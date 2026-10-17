@@ -4,12 +4,12 @@
 use std::collections::BTreeSet;
 
 use dna::sample_analysis::SampleAnalysis;
-use dna::sample_analysis::SangerAttachment;
+use dna::sample_analysis::{CallTrust, Withholder};
 use dna_core::model::alignment::Orientation;
 use dna_core::model::consensus::SiteState;
 use dna_core::model::sample_evidence::LocusState;
 use dna_kernel::model::nucleotide::Nucleotide;
-use dna_sanger::model::callability::{PhaseSegment, PhaseState};
+use dna_kernel::read_evidence::{CallMask, MaskOnset};
 
 /// A second channel at or above this share of a read's profile, in
 /// thousandths, is a faint second base; below it, none (3 %).
@@ -51,20 +51,6 @@ pub(crate) const MIXED_CALL: u16 = 8192;
 /// A read's call there reads the reference yet carries a weak-signal
 /// support veto, which the consensus also applies to it.
 pub(crate) const WEAK_REFERENCE: u16 = 16384;
-
-/// What the harness reads from DNA's configuration to place a read's trust.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Margins {
-    /// `variant_calling.read_end_margin`: calls within it of an
-    /// uninformative call or a read end do not support a variant.
-    pub(crate) read_end: usize,
-    /// `callability.repeat_min_length`: the shortest repeat run.
-    pub(crate) repeat: usize,
-    /// `sanger_evidence.minimum_peak_height`.
-    pub(crate) minimum_peak: usize,
-    /// `sanger_evidence.relative_quality_threshold`.
-    pub(crate) relative_quality: usize,
-}
 
 /// The flags of every region position, and the faint second bases.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -117,12 +103,12 @@ impl Loci {
 }
 
 /// Takes the flags of every region of `analysis`, placing a clean call's
-/// trust with `margins`.
+/// trust from the core's own verdict.
 ///
 /// # Errors
 ///
 /// Returns DNA's error when the observations cannot be read.
-pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error::Result<Loci> {
+pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Loci> {
     let regions = analysis.regions();
     let mut loci = Loci {
         regions: regions
@@ -162,7 +148,7 @@ pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error
         .map(|read| {
             (
                 read.alignment.orientation,
-                analysis.reads.get(&read.input_sha256),
+                analysis.trust(&read.input_sha256),
             )
         })
         .collect::<Vec<_>>();
@@ -173,9 +159,14 @@ pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error
             continue;
         };
         for observation in &locus.observations {
-            let Some(&(orientation, sanger)) = reads.get(observation.read_index) else {
+            let Some((orientation, trust)) = reads.get(observation.read_index) else {
                 continue;
             };
+            let orientation = *orientation;
+            let call_trust = trust
+                .as_ref()
+                .zip(observation.call_index_0based)
+                .and_then(|(trust, call)| trust.get(call));
             *flags |= COVERED;
             match observation.state {
                 LocusState::Reference | LocusState::Alternate | LocusState::Deletion => {
@@ -186,32 +177,15 @@ pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error
                     if observation.state != LocusState::Reference {
                         *flags |= OTHER;
                     }
-                    if let (Some(sanger), Some(call)) = (sanger, observation.call_index_0based) {
+                    if let Some(call_trust) = call_trust {
                         let reference = observation.state == LocusState::Reference;
-                        *flags |= trust(sanger, call, reference, margins);
+                        *flags |= standing(call_trust, reference);
                     }
                 }
                 LocusState::Unresolved => *flags |= UNRESOLVED,
                 LocusState::Masked => {
-                    let segment =
-                        sanger
-                            .zip(observation.call_index_0based)
-                            .and_then(|(sanger, call)| {
-                                sanger.callability.segments.iter().find(|segment| {
-                                    (segment.call_start_0based..segment.call_end_0based_exclusive)
-                                        .contains(&call)
-                                })
-                            });
-                    *flags |= match segment {
-                        Some(segment)
-                            if segment.after_repeat
-                                || matches!(
-                                    segment.state,
-                                    PhaseState::Dephased | PhaseState::Mixed
-                                ) =>
-                        {
-                            PHASE
-                        }
+                    *flags |= match call_trust.and_then(|trust| trust.mask) {
+                        Some(mask) if phase_loss(mask) => PHASE,
                         _ => SIGNAL,
                     };
                 }
@@ -237,98 +211,45 @@ pub(crate) fn extract(analysis: &SampleAnalysis, margins: Margins) -> dna::error
     Ok(loci)
 }
 
-/// Where a read's clean `call` stands against its uninformative calls: beside
-/// a call masked for phase loss (dephased or mixed, or after a repeat run),
-/// or its own end where DNA attributes the read's end to a repeat run
-/// ([`BESIDE_PHASE_LOSS`]); a call with more than one qualifying channel
+/// Sanger mask labels of phase loss: the read loses phase (dephased or
+/// mixed signal, or a segment starting after a repeat run).
+const PHASE_LOSS: [&str; 3] = ["dephased_signal", "mixed_signal", "post_homopolymer"];
+
+/// Whether a mask is phase loss: its label, or its onset after a run.
+fn phase_loss(mask: CallMask) -> bool {
+    mask.onset == MaskOnset::AfterRun || PHASE_LOSS.contains(&mask.reason.label())
+}
+
+/// Where a read's clean call stands, from the core's verdict on it
+/// ([`CallTrust`]): withheld from trust by a call masked for phase loss
+/// ([`BESIDE_PHASE_LOSS`]); with more than one qualifying channel
 /// ([`MIXED_CALL`]) or a weak-signal veto ([`WEAK_CALL`], or
-/// [`WEAK_REFERENCE`] on a call that reads the reference); within the
-/// margin of its first or last
-/// callable call inside its trim interval ([`EDGE`]); or neither
-/// ([`INSIDE`]).
-fn trust(sanger: &SangerAttachment, call: usize, reference: bool, margins: Margins) -> u16 {
-    let callability = &sanger.callability;
-    // The read's own ends: its callable span within its trim interval.
-    let (start, end) = (
-        callability
-            .callable_start_0based
-            .max(sanger.quality.trim_start_0based),
-        callability
-            .callable_end_0based_exclusive
-            .min(sanger.quality.trim_end_0based_exclusive),
-    );
-    let margin = margins.read_end;
-    let vetoed = sanger.calls.calls.get(call).map(|base_call| {
-        let highest = base_call
-            .peaks
+/// [`WEAK_REFERENCE`] on a call that reads the reference); withheld by the
+/// read's own end, its trim, or a call masked for weak signal
+/// ([`EDGE`]); or trusted, an ADR-0076 exemption included ([`INSIDE`]).
+fn standing(trust: &CallTrust, reference: bool) -> u16 {
+    let withheld = !trust.trusted && !trust.exempt;
+    if withheld
+        && trust
+            .withheld_by
             .iter()
-            .map(|peak| usize::try_from(peak.height).unwrap_or(0))
-            .max()
-            .unwrap_or(0);
-        let quality = sanger
-            .quality
-            .per_call
-            .get(call)
-            .map_or(0, |quality| usize::from(quality.relative_quality_score));
-        (
-            highest < margins.minimum_peak || quality <= margins.relative_quality,
-            base_call.qualifying_channels.len() > 1,
-        )
-    });
-    let near = |segment: &PhaseSegment| {
-        segment.call_start_0based <= call + margin
-            && call < segment.call_end_0based_exclusive + margin
-    };
-    let phase_loss = |segment: &PhaseSegment| {
-        segment.after_repeat || matches!(segment.state, PhaseState::Dephased | PhaseState::Mixed)
-    };
-    let interior = callability.segments.iter().filter(|segment| {
-        segment.state != PhaseState::InPhase
-            && segment.call_start_0based >= start
-            && segment.call_end_0based_exclusive <= end
-    });
-    if interior
-        .clone()
-        .any(|segment| phase_loss(segment) && near(segment))
+            .any(|withholder| matches!(withholder, Withholder::Masked(mask) if phase_loss(*mask)))
     {
         return BESIDE_PHASE_LOSS;
     }
-    match vetoed {
-        Some((_, true)) => return MIXED_CALL,
-        Some((true, false)) if reference => return WEAK_REFERENCE,
-        Some((true, false)) => return WEAK_CALL,
-        _ => {}
-    }
-    if call + margin >= end {
-        // DNA attributes the read's end to a repeat run: its tail starts
-        // after one, or a run of the shortest repeat length reaches the end.
-        let tail = callability.segments.iter().find(|segment| {
-            (segment.call_start_0based..segment.call_end_0based_exclusive).contains(&end)
-        });
-        if tail.is_some_and(|segment| segment.after_repeat)
-            || run_at_end(sanger.calls.primary_sequence.as_bytes(), end, margins)
-        {
-            return BESIDE_PHASE_LOSS;
-        }
-        return EDGE;
-    }
-    if call < start + margin { EDGE } else { INSIDE }
-}
-
-/// Whether a run of one base at least `margins.repeat` long, within
-/// `margins.read_end` calls before `end` up to the repeat length after it,
-/// reaches the end: its last call is at most two before `end` or later.
-fn run_at_end(bases: &[u8], end: usize, margins: Margins) -> bool {
-    let first = end.saturating_sub(margins.read_end);
-    let Some(window) = bases.get(first..(end + margins.repeat).min(bases.len())) else {
-        return false;
+    let vetoed = |labels: &[&str]| {
+        trust
+            .vetoes
+            .iter()
+            .any(|veto| labels.contains(&veto.label()))
     };
-    let mut offset = first;
-    window.chunk_by(|left, right| left == right).any(|run| {
-        let last = offset + run.len() - 1;
-        offset += run.len();
-        run.len() >= margins.repeat && last + 2 >= end
-    })
+    if vetoed(&["mixed_supporting_dna"]) {
+        return MIXED_CALL;
+    }
+    if vetoed(&["peak_below_minimum", "relative_quality_not_above_threshold"]) {
+        return if reference { WEAK_REFERENCE } else { WEAK_CALL };
+    }
+    if withheld { EDGE } else { INSIDE }
 }
 
 /// Whether a profile weight reaches [`FAINT`].
@@ -339,21 +260,92 @@ fn faint(weight: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dna_kernel::read_evidence::{EvidenceReason, MaskedAlignment};
+
+    fn trust(
+        trusted: bool,
+        exempt: bool,
+        withheld_by: Vec<Withholder>,
+        vetoes: &[&'static str],
+    ) -> CallTrust {
+        CallTrust {
+            mask: None,
+            unresolved: false,
+            vetoes: vetoes
+                .iter()
+                .map(|label| EvidenceReason::new(label))
+                .collect(),
+            trusted,
+            exempt,
+            withheld_by,
+        }
+    }
+
+    fn masked(label: &'static str, onset: MaskOnset) -> Withholder {
+        Withholder::Masked(CallMask {
+            alignment: MaskedAlignment::Unresolved,
+            reason: EvidenceReason::new(label),
+            onset,
+        })
+    }
 
     #[test]
-    fn a_run_reaches_the_end_only_when_it_ends_at_it() {
-        let margins = Margins {
-            read_end: 12,
-            repeat: 8,
-            minimum_peak: 150,
-            relative_quality: 30,
-        };
-        // Calls 0-11 then a run of nine C at 12-20, the read ending at 20.
-        let bases = b"ACGTACGTACGTCCCCCCCCCTTT";
-        assert!(run_at_end(bases, 20, margins));
-        // The same run, but the read ends at 23, three calls after it.
-        assert!(!run_at_end(bases, 23, margins));
-        // A run of only seven.
-        assert!(!run_at_end(b"ACGTACGTACGTCCCCCCCTTT", 19, margins));
+    fn a_calls_standing_follows_the_cores_verdict() {
+        // Withheld by a dephased segment on one side and the read end on
+        // the other: phase loss comes first.
+        let beside = trust(
+            false,
+            false,
+            vec![
+                Withholder::ReadEnd,
+                masked("dephased_signal", MaskOnset::Other),
+            ],
+            &[],
+        );
+        assert_eq!(standing(&beside, true), BESIDE_PHASE_LOSS);
+        let after_run = trust(
+            false,
+            false,
+            vec![masked("weak_signal", MaskOnset::AfterRun)],
+            &[],
+        );
+        assert_eq!(standing(&after_run, true), BESIDE_PHASE_LOSS);
+        // Withheld by the read end or a weak-signal segment: the read's edge.
+        assert_eq!(
+            standing(&trust(false, false, vec![Withholder::ReadEnd], &[]), true),
+            EDGE
+        );
+        assert_eq!(
+            standing(
+                &trust(
+                    false,
+                    false,
+                    vec![masked("weak_signal", MaskOnset::Other)],
+                    &[]
+                ),
+                true
+            ),
+            EDGE
+        );
+        // An ADR-0076 exemption is trust.
+        let exempt = trust(
+            false,
+            true,
+            vec![masked("dephased_signal", MaskOnset::Other)],
+            &[],
+        );
+        assert_eq!(standing(&exempt, true), INSIDE);
+        // Vetoes, by label.
+        assert_eq!(
+            standing(
+                &trust(true, false, Vec::new(), &["mixed_supporting_dna"]),
+                true
+            ),
+            MIXED_CALL
+        );
+        let weak = trust(true, false, Vec::new(), &["peak_below_minimum"]);
+        assert_eq!(standing(&weak, true), WEAK_REFERENCE);
+        assert_eq!(standing(&weak, false), WEAK_CALL);
+        assert_eq!(standing(&trust(true, false, Vec::new(), &[]), true), INSIDE);
     }
 }

@@ -103,7 +103,7 @@ fn calls_variants_from_consensus_sequences_with_the_core_alone()
         value["provenance"]["plugins"],
         json!([
             {"id": "sequence", "family": "modality", "version": 1},
-            {"id": "core", "family": "core", "version": 6},
+            {"id": "core", "family": "core", "version": 8},
         ])
     );
     assert!(value.get("notation").is_none());
@@ -269,6 +269,11 @@ fn a_record_placed_away_from_its_declared_interval_calls_nothing()
         reads[1]["alignment"]["reference_segments"],
         json!([{"start": 0, "end": 70}])
     );
+    // Nothing the misplaced record reads stands for the reference.
+    assert_eq!(
+        reads[1]["alignment"]["callable_reference_segments"],
+        json!([])
+    );
     let variants = reads[1]["variants"]
         .as_array()
         .ok_or("variants must be an array")?;
@@ -352,6 +357,12 @@ fn a_deletion_after_an_unresolved_base_is_not_reported() -> Result<(), Box<dyn s
     assert_eq!(
         variants[0]["exclusion_reasons"],
         json!(["unresolved_flank"])
+    );
+    // Neither the N at 72 nor the excluded deletion of 73-74 reads as the
+    // reference (SRS-VAR-019).
+    assert_eq!(
+        value["reads"][0]["alignment"]["callable_reference_segments"],
+        json!([{"start": 0, "end": 71}, {"start": 74, "end": 160}])
     );
     Ok(())
 }

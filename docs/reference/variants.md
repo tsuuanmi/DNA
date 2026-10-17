@@ -25,7 +25,11 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
     [sample read registry](sample-evidence/reads-coverage.md). A consensus
     masks no call, so `masked_bases` is `0`. Its `N` and IUPAC codes count
     in `unresolved_bases` and observe no base, so the callable reference
-    segments are the mapped ones less those positions.
+    segments are the mapped ones less those positions, and less every
+    position of an excluded variant (SRS-VAR-019): a substitution's
+    position, a deletion's deleted positions, and both positions beside an
+    insertion's junction. A position DNA excluded a call at is not read as
+    the reference.
   - `variants[]`: every observed variant of the read, sorted by `position`,
     `reference`, and `alternate`. Each has the anchored `reference` and
     `alternate` alleles, its `kind` (`SNV`, `INS`, or `DEL`), `eligible`, and
@@ -35,7 +39,8 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
     labels reported verbatim. `unresolved_flank` excludes a variant with a
     mapped call read as `N`, such as a deletion beside an unresolved base. `placement_conflict` excludes every variant of a record whose
     name declares a reference interval (`<id>_<first>-<last>`, 1-based, as
-    consensus segments are named) that its placement does not overlap.
+    consensus segments are named) that its placement does not overlap, and
+    such a record has no callable reference segments.
 - `notation` (only when the profile declares notation): the same per-read view
   as in [sample evidence](sample-evidence/notation.md). Each rendered call
   lists the reads whose represented eligible calls contain it.

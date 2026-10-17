@@ -100,7 +100,8 @@ bounds, given as `TradeBounds`:
   HVS-I window's last base). Normalization takes the window spans as data and
   applies no window rule (SRS-VN-010).
 
-The sample workflow passes both; `normalize_with` bounds neither. Calling every
+The sample, call, and notation workflows pass both; `normalize_with` bounds
+neither. Calling every
 IUPAC-free reviewed corpus haplotype (about 101,000 samples) from its
 sequence, the trades DNA makes span 1, 5, 6, or 10 bases (the longest is
 `513DEL` to `523DEL` inside HVS-III), so the 20-base bound is twice the
@@ -173,7 +174,8 @@ It does not own:
 
 - chromatogram interpretation or caller eligibility;
 - Sanger alignment traceback canonicalization;
-- mtDNA 309/315, 513-524, 16189/16193 nomenclature-window rules;
+- the mtDNA nomenclature-window rules (HVS-II 303-315, HVS-III 512-524,
+  HVS-I 16180-16193);
 - sample consensus/reconciliation;
 - VCF/HGVS serialization or interchange normalization.
 

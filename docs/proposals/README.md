@@ -22,12 +22,12 @@ Accepted/Implemented -> Superseded
 - [PROP-0004 — Review triage](0004-review-triage.md) — **Draft**; catalogue errors and sort regions, traces, and samples into pass, review, and rerun with typed reasons, as DNA's [purpose](../requirements/SRS.md#purpose) states.
 - [PROP-0005 — Evaluation method and fast feedback loop](0005-evaluation-feedback-loop.md) — **Draft**; labels, metrics, fixed test panels drawn from about 100,000 reviewed samples, and a cached evidence → rules → compare loop for validating triage rules. Harness v0 (`dna-eval`, ADR-0075) is implemented.
 - [PROP-0006 — Call the consensus's decisions without re-aligning them](0006-call-consensus-decisions.md) — **Accepted**; `call` reports the edits the consensus decided instead of aligning its FASTA again, which loses where `N`s sit (placement, run bounds, AC deletions), and every read places an equivalent indel at one canonical position before the consensus votes, with the laboratory's conventions applied after it.
-- [PROP-0007 — EMPOP export and labelled report conventions](0007-empop-export-and-report-conventions.md) — **Draft**; an offline EMPOP query (ranges and mitotype) in `notation/v1` whose ranges cover only decided positions, and profile conventions that label calls the reviewers do not record instead of deleting them.
 
 ## Implemented proposals
 
 - [PROP-0002 — Plugin-first architecture](0002-plugin-first-architecture.md) — **Implemented**; modality plugins, a standalone core over per-read evidence, and post-calling plugins, delivered in phases with exit criteria.
 - [PROP-0003 — Sample consensus](0003-sample-consensus.md) — **Implemented**; `dna consensus` adjudicates between a sample's reads into a consensus sequence that `dna call` calls (ADR-0073). Run-length refinement and IUPAC heteroplasmy are deferred.
+- [PROP-0007 — EMPOP export and labelled report conventions](0007-empop-export-and-report-conventions.md) — **Implemented**; an offline EMPOP query (ranges and mitotype) in `notation/v1` whose ranges cover only positions DNA decided, and profile conventions that label calls the reviewers do not record instead of deleting them.
 
 Use [0000-template.md](0000-template.md) for new proposals. The [roadmap](roadmap.md) is a non-normative queue of future directions, not a substitute for a reviewed proposal.
 

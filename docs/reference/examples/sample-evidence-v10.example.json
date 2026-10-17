@@ -21,7 +21,7 @@
       {
         "id": "core",
         "family": "core",
-        "version": 6
+        "version": 8
       },
       {
         "id": "normalization",
@@ -31,7 +31,7 @@
       {
         "id": "nomenclature",
         "family": "post_calling",
-        "version": 2
+        "version": 3
       }
     ]
   },

@@ -2,7 +2,8 @@
 //! (ADR-0069).
 //!
 //! Only the fields post-calling needs are read: the sample, the reference
-//! identity, and each read's eligible variants. The document's own provenance
+//! identity, and each read's segments, eligible variants, and excluded
+//! variants. The document's own provenance
 //! stays with the document, which the consumer identifies by its SHA-256.
 
 use std::fs;
@@ -35,6 +36,11 @@ pub(crate) struct DocumentRead {
     pub(crate) variants: Vec<Variant>,
     /// Callable reference segments, 0-based half-open.
     pub(crate) callable: Vec<std::ops::Range<usize>>,
+    /// Mapped reference segments, 0-based half-open.
+    pub(crate) reference: Vec<std::ops::Range<usize>>,
+    /// Variants excluded from reporting, with their alleles as written:
+    /// only their positions are used.
+    pub(crate) excluded: Vec<Variant>,
 }
 
 /// A validated variants document.
@@ -81,6 +87,7 @@ struct RawRead {
 
 #[derive(Deserialize)]
 struct RawAlignment {
+    reference_segments: Vec<RawSegment>,
     callable_reference_segments: Vec<RawSegment>,
 }
 
@@ -172,22 +179,31 @@ fn parse(
         .reads
         .into_iter()
         .map(|read| {
-            let variants = read
+            let (eligible, excluded): (Vec<_>, Vec<_>) = read
                 .variants
                 .into_iter()
-                .filter(|variant| variant.eligible)
-                .map(|variant| to_variant(&read.name, &reference.name, variant))
+                .partition(|variant| variant.eligible);
+            let variants = eligible
+                .into_iter()
+                .map(|variant| to_variant(&read.name, &reference.name, variant, true))
                 .collect::<Result<_>>()?;
+            let excluded = excluded
+                .into_iter()
+                .map(|variant| to_variant(&read.name, &reference.name, variant, false))
+                .collect::<Result<_>>()?;
+            let segments = |segments: &[RawSegment]| {
+                segments
+                    .iter()
+                    .map(|segment| segment.start..segment.end)
+                    .collect()
+            };
             Ok(DocumentRead {
+                callable: segments(&read.alignment.callable_reference_segments),
+                reference: segments(&read.alignment.reference_segments),
                 name: read.name,
                 sha256: read.sha256,
                 variants,
-                callable: read
-                    .alignment
-                    .callable_reference_segments
-                    .iter()
-                    .map(|segment| segment.start..segment.end)
-                    .collect(),
+                excluded,
             })
         })
         .collect::<Result<_>>()?;
@@ -197,7 +213,9 @@ fn parse(
     })
 }
 
-fn to_variant(read: &str, contig: &str, raw: RawVariant) -> Result<Variant> {
+/// A document variant; `canonical` requires A/C/G/T alleles, as an
+/// eligible variant has, while an excluded one may carry other codes.
+fn to_variant(read: &str, contig: &str, raw: RawVariant, canonical: bool) -> Result<Variant> {
     let invalid = || VariantsError::InvalidVariant {
         read: read.to_owned(),
         position: raw.position,
@@ -208,8 +226,9 @@ fn to_variant(read: &str, contig: &str, raw: RawVariant) -> Result<Variant> {
         "DEL" => VariantKind::Del,
         _ => return Err(invalid().into()),
     };
-    let canonical = |allele: &str| !allele.is_empty() && allele.chars().all(is_canonical);
-    if raw.position == 0 || !canonical(&raw.reference) || !canonical(&raw.alternate) {
+    let valid =
+        |allele: &str| !allele.is_empty() && (!canonical || allele.chars().all(is_canonical));
+    if raw.position == 0 || !valid(&raw.reference) || !valid(&raw.alternate) {
         return Err(invalid().into());
     }
     Ok(Variant {
@@ -240,7 +259,7 @@ mod tests {
 
     fn document(schema: &str, sample: &str, kind: &str) -> String {
         format!(
-            r#"{{"schema_version":"{schema}","sample_id":"{sample}","provenance":{{"reference":{{"name":"rCRS","topology":"circular","sha256":"{}"}}}},"reads":[{{"name":"HV1","sha256":"00","alignment":{{"callable_reference_segments":[{{"start":0,"end":4}}]}},"variants":[{{"position":2,"reference":"C","alternate":"T","kind":"{kind}","eligible":true,"exclusion_reasons":[]}},{{"position":3,"reference":"G","alternate":"A","kind":"SNV","eligible":false,"exclusion_reasons":["read_end"]}}]}}]}}"#,
+            r#"{{"schema_version":"{schema}","sample_id":"{sample}","provenance":{{"reference":{{"name":"rCRS","topology":"circular","sha256":"{}"}}}},"reads":[{{"name":"HV1","sha256":"00","alignment":{{"reference_segments":[{{"start":0,"end":4}}],"callable_reference_segments":[{{"start":0,"end":4}}]}},"variants":[{{"position":2,"reference":"C","alternate":"T","kind":"{kind}","eligible":true,"exclusion_reasons":[]}},{{"position":3,"reference":"G","alternate":"A","kind":"SNV","eligible":false,"exclusion_reasons":["read_end"]}}]}}]}}"#,
             hex_sha256(b"ACGT")
         )
     }
@@ -261,6 +280,15 @@ mod tests {
         assert_eq!(parsed.sha256, hex_sha256(text.as_bytes()));
         assert_eq!(parsed.reads[0].name, "HV1");
         assert_eq!(parsed.reads[0].callable, vec![Range { start: 0, end: 4 }]);
+        assert_eq!(parsed.reads[0].reference, vec![Range { start: 0, end: 4 }]);
+        assert_eq!(
+            parsed.reads[0]
+                .excluded
+                .iter()
+                .map(|variant| variant.position_1based)
+                .collect::<Vec<_>>(),
+            [3]
+        );
         assert_eq!(
             parsed.reads[0].variants,
             [Variant {
