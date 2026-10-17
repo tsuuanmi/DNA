@@ -6,7 +6,7 @@ the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
 with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
 `sample_analysis` capability it runs, on `dna-core` and `dna-sanger` only
-to name the evidence types the draft triage reads, on `dna-kernel` to load
+to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` to load
 the reference the haplotype measures apply alleles to, and on `dna-normalize`
 to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
@@ -38,6 +38,9 @@ equivalence. No crate depends on it, and it is not part of the release.
   built once per sample and read under exact or compatible symbols.
 - `classes.rs` — the discrepancy class of a sample from its statuses: the
   part of DNA that owns its difference from the truth.
+- `cause/` — the cause of a sample's discrepancy (DNA, the lab, or the
+  technology) from the reads' evidence and the truth's written forms
+  ([cause](cause/README.md)).
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the

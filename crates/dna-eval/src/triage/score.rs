@@ -1751,6 +1751,7 @@ mod tests {
                 alleles,
                 intervals: vec![(16024, 16365)],
                 signals: crate::lod::Signals::default(),
+                loci: crate::cause::loci::Loci::default(),
                 identity: Identity {
                     configuration_sha256: "c".into(),
                     reference_name: "r".into(),

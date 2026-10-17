@@ -14,7 +14,7 @@ cargo run --release -p dna-eval -- run \
   --manifest <panel.tsv> --truth <statistics.sqlite> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
-  --threads <1-256> [--triage]
+  --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -407,6 +407,60 @@ truth is measured on the corpus with `dna-eval convention`, not per sample.
 The class follows from the statuses alone, so a baseline run's classes come
 from its `scores.tsv` when it reports all four measures.
 
+## Discrepancy causes
+
+Each sample with a discrepancy also has a cause: who accounts for it, so the
+difference reaches the one who can act on it. Every discordant position of
+the sample's class gives a finding, `cause:evidence@position` (or `@window`)
+in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
+`technology`, and `undetermined` among them. Each finding also has a scope
+(`cause_scope` for the sample): `defect`, or `deferred` for an item left
+undone by design, such as the IUPAC codes DNA does not write; a defect comes
+before a deferred item. The causes come from the
+admitted reads' evidence at each region position (with the read-end margin,
+repeat length, and support thresholds read from DNA's configuration), the limit-of-detection
+signals, and how the reviewers write each sequence over the whole truth
+database; nothing is listed by hand, and the truth is only read.
+
+| Class | Evidence | Cause |
+|---|---|---|
+| `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
+| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` |
+| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology` |
+| | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
+| | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
+| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology` |
+| | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
+| | a clean but untrusted call lies within the read-end margin of a stretch masked for phase loss, or of the read's end where DNA attributes that end to a repeat run: its tail starts after one, or a run of at least `repeat_min_length` reaches the end (`beside_phase_loss`) | `technology` |
+| | a weak-signal veto denies a call that reads the reference (`veto_out_of_scope`) | `dna`: the veto guards variant support |
+| | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
+| | every untrusted call lies within the read-end margin of its read's own end (`read_edge`) or carries a weak-signal veto (`weak_call`) | `lab`: read quality |
+| | otherwise (`untrusted_call`) | `dna`: its callability policy |
+| `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
+| | the truth writes it (`dna_minority_form`) | `dna`: its notation |
+| | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
+| `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`iupac_not_reported`) | `dna`, deferred: DNA writes no IUPAC code by design |
+| | a read shows it only at 3 % or more (`below_lod`) | `technology` |
+| | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
+| | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
+| `sequence` (each SNV or deletion) | a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
+| | a truth-only call there (`reads_show_reference`) | `lab`: the truth, for a re-check |
+| `failed` | no record in the truth, an unreadable trace, or every trace rejected | `lab` |
+| | a DNA error | `dna` |
+
+Any other discrepancy is `undetermined` (`adjudicate`, `not_comparable`).
+The written forms group the truth's IUPAC-free samples by the sequence of
+each repeat window, so DNA's form and the truth's are compared for the same
+sequence; outside the windows no sequence groups them, and the count of
+samples carrying each side's calls is a proxy. Each run writes this index as
+`forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
+earlier run's instead of indexing the whole database, and a file written for
+another database stops the run. A sample can need more than
+one party: the summary counts the samples per class and cause, deferred DNA
+items apart, and per cause, scope, and evidence the samples with such a
+finding. Insertions are not judged under `sequence` yet: reads showing the
+reference at an anchor do not exclude one.
+
 ## Estimates
 
 For each weighting (`corpus` = `weight_corpus`, `pool` = `weight`), each
@@ -595,12 +649,12 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); distinct and rejected traces; failure (`<kind>: <message>`) |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
 | `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
-| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, and with a baseline the samples whose class changed), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
+| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
 | `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (and `minor_unavailable=…` when the minor channels could not be read), poor traces, the traces a rerun asks for, and the status under each measure |
 | `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
 | `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |
@@ -611,6 +665,7 @@ Phase-0 results are in
 | `triage_minor.tsv` | with `--triage`, per policy of the minor-signal measurement: its rule, A without and with it and the cost, moved samples and burden, IUPAC sites and those caught (in regions that pass without the rule, and in any region), and per measure the passed samples and leaks without and with the rule, the upper bound, and the corpus rate |
 | `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
 | `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
+| `forms.tsv` | how the reviewers write each sequence over the whole truth database, keyed by its SHA-256: per repeat window and window sequence the samples per written form, and the samples per set of calls outside the windows (`-` for an empty one); no sample identifiers |
 | `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 
 Every file except `run.json` depends only on the panel, the truth, DNA's

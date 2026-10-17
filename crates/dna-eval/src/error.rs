@@ -40,6 +40,14 @@ pub(crate) enum Error {
     /// The reference cannot be loaded.
     #[error("reference {path}: {message}")]
     Reference { path: PathBuf, message: String },
+    /// An earlier run's written forms are for another truth database or
+    /// malformed.
+    #[error("forms {path}: {message}")]
+    Forms { path: PathBuf, message: String },
+    /// A setting the harness reads from DNA's configuration is missing or
+    /// invalid.
+    #[error("configuration {path}: {message}")]
+    Config { path: PathBuf, message: String },
     /// The baseline scores are invalid.
     #[error("invalid baseline scores: {0}")]
     Baseline(#[from] BaselineError),

@@ -12,6 +12,7 @@
 
 mod approve;
 mod baseline;
+mod cause;
 mod classes;
 mod compare;
 mod convention;
@@ -39,6 +40,8 @@ use clap::{Args, Parser, Subcommand};
 use dna_kernel::model::reference::ReferenceTopology;
 use serde::Serialize;
 
+use crate::cause::forms::Forms;
+use crate::cause::loci::Margins;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
 use crate::manifest::Manifest;
@@ -57,6 +60,10 @@ const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_BASELINE_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted development `triage_policies.tsv`.
 const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
+/// Largest accepted `forms.tsv`.
+const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
+/// Largest DNA configuration file the harness reads its margins from.
+const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -188,6 +195,10 @@ struct RunArgs {
     /// `triage*` outputs; research only.
     #[arg(long)]
     triage: bool,
+    /// An earlier run's `forms.tsv` for the same truth database, read
+    /// instead of indexing the whole database.
+    #[arg(long)]
+    forms: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -255,12 +266,29 @@ fn run(cli: &RunArgs) -> Result<String> {
             path: cli.reference.clone(),
             message: error.to_string(),
         })?;
+    // How the reviewers write each window sequence, over the whole truth,
+    // for the cause of a representation discrepancy.
+    let forms = if let Some(path) = &cli.forms {
+        let text = read(path, "forms", MAX_FORMS_BYTES)?;
+        let text = String::from_utf8(text).map_err(|error| Error::Forms {
+            path: path.clone(),
+            message: error.to_string(),
+        })?;
+        Forms::parse(&text, &truth.sha256).map_err(|message| Error::Forms {
+            path: path.clone(),
+            message,
+        })?
+    } else {
+        let corpus = truth::sample_ids(&cli.truth)?;
+        let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
+        Forms::new(corpus.samples.values(), &reference.sequence)
+    };
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let outcomes = runner::run(
         &manifest.samples,
         (&cli.reference, &reference.sequence_sha256),
-        &cli.config,
+        (&cli.config, margins(&cli.config)?),
         threads,
         cli.triage,
     )?;
@@ -273,7 +301,12 @@ fn run(cli: &RunArgs) -> Result<String> {
         &reference.sequence,
     );
     let check = TruthCheck::new(&manifest, &truth.database);
-    let report = Report::new(&rows, baseline.as_ref(), &check);
+    let report = Report::new(
+        &rows,
+        baseline.as_ref(),
+        &check,
+        (&forms, reference.sequence.as_str()),
+    );
     let triage_started = Instant::now();
     let triage = cli
         .triage
@@ -308,6 +341,7 @@ fn run(cli: &RunArgs) -> Result<String> {
     {
         write(&cli.output, name, &contents)?;
     }
+    write(&cli.output, "forms.tsv", &forms.table(&truth.sha256))?;
     let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
     json.push('\n');
     write(&cli.output, "run.json", &json)?;
@@ -353,6 +387,36 @@ fn convention(args: &ConventionArgs) -> Result<String> {
     let convention = convention::check(database.samples.values(), &reference, &profile);
     write(&args.output, "convention.tsv", &convention.table())?;
     Ok(convention.summary())
+}
+
+/// The margins and thresholds the discrepancy causes read from DNA's
+/// configuration (`variant_calling.read_end_margin`,
+/// `callability.repeat_min_length`, and the `sanger_evidence` support
+/// thresholds).
+fn margins(config: &Path) -> Result<Margins> {
+    let invalid = |message: String| Error::Config {
+        path: config.to_path_buf(),
+        message,
+    };
+    let text = read(config, "configuration", MAX_CONFIG_BYTES)?;
+    let text = std::str::from_utf8(&text).map_err(|error| invalid(error.to_string()))?;
+    let value = text
+        .parse::<toml::Table>()
+        .map_err(|error| invalid(error.to_string()))?;
+    let setting = |section: &str, key: &str| {
+        value
+            .get(section)
+            .and_then(|section| section.get(key))
+            .and_then(toml::Value::as_integer)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| invalid(format!("{section}.{key} must be a non-negative integer")))
+    };
+    Ok(Margins {
+        read_end: setting("variant_calling", "read_end_margin")?,
+        repeat: setting("callability", "repeat_min_length")?,
+        minimum_peak: setting("sanger_evidence", "minimum_peak_height")?,
+        relative_quality: setting("sanger_evidence", "relative_quality_threshold")?,
+    })
 }
 
 /// `dna-eval power`: the projection as Markdown.
