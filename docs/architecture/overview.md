@@ -65,7 +65,9 @@ DNA is a Cargo workspace of plugin-family crates
 - `dna-kernel` holds the shared contracts;
 - `dna-core` is the core caller;
 - `dna-sanger` is the Sanger modality;
-- `dna-post` holds the post-calling plugins;
+- `dna-normalize` holds post-calling representation, normalization, and
+  nomenclature, and `dna-empop` holds conformance
+  ([ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md));
 - the `dna` facade at the repository root composes them;
 - `dna-eval` is the evaluation harness: it runs DNA over a test panel through
   the facade's library and compares the calls with reviewer truth

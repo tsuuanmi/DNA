@@ -12,8 +12,8 @@ use dna_kernel::error::{Error, NomenclatureError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Notation, Profile};
 use dna_kernel::variant::{CalledVariantSet, Variant};
-use dna_post::variant_nomenclature::{self, from_normalization};
-use dna_post::variant_normalization::{NormalizationPolicy, normalize_with};
+use dna_normalize::variant_nomenclature::{self, from_normalization};
+use dna_normalize::variant_normalization::{NormalizationPolicy, normalize_with};
 
 /// Represents every called read's eligible calls, or `None` when the profile
 /// declares no notation. The reference has already been checked against the

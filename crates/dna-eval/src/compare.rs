@@ -1320,16 +1320,17 @@ pub(crate) mod tests {
 
     /// DNA's post-calling plugins as the oracle: every single-base edit in
     /// and around the HVS-II and HVS-III repeat windows is normalized and
-    /// represented by `dna-post`, which proves the represented variants
+    /// represented by `dna-normalize`, which proves the represented variants
     /// rebuild the source haplotype. The haplotype comparison must find the
     /// source and represented alleles the same sequence, and any two edits
-    /// the same exactly when `dna-post`'s rebuilt sequences are equal.
+    /// the same exactly when `dna-normalize`'s rebuilt sequences are equal.
     #[test]
-    fn agrees_with_dna_post_on_sequence_equivalence() -> Result<(), Box<dyn std::error::Error>> {
+    fn agrees_with_dna_normalize_on_sequence_equivalence() -> Result<(), Box<dyn std::error::Error>>
+    {
         use dna_kernel::profile::Profile;
         use dna_kernel::variant::{CalledVariantSet, Variant, VariantKind};
-        use dna_post::variant_nomenclature::{apply_with, from_normalization};
-        use dna_post::variant_normalization::{NormalizationPolicy, normalize_with};
+        use dna_normalize::variant_nomenclature::{apply_with, from_normalization};
+        use dna_normalize::variant_normalization::{NormalizationPolicy, normalize_with};
 
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let reference = dna_kernel::reference::load(

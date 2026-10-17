@@ -58,16 +58,16 @@ jobs:
       - name: Plugin crates build and test alone
         shell: bash
         run: |
-          for crate in dna-kernel dna-core dna-sanger dna-post; do
+          for crate in dna-kernel dna-core dna-sanger dna-normalize dna-empop; do
             cargo test --locked --all-targets -p "$crate"
           done
-          for crate in dna-kernel dna-core dna-post; do
+          for crate in dna-kernel dna-core dna-normalize dna-empop; do
             if cargo tree --locked -e normal,dev -p "$crate" | grep -q 'dna-sanger'; then
               echo "$crate must not depend on dna-sanger" >&2
               exit 1
             fi
           done
-          for crate in dna dna-kernel dna-core dna-sanger dna-post; do
+          for crate in dna dna-kernel dna-core dna-sanger dna-normalize dna-empop; do
             if cargo tree --locked -e normal,dev -p "$crate" | grep -q 'dna-eval'; then
               echo "$crate must not depend on the evaluation harness dna-eval" >&2
               exit 1

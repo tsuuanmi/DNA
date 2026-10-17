@@ -4,10 +4,10 @@
 use crate::input::sequence::PLUGIN as SEQUENCE;
 use dna_core::consensus::PLUGIN as CONSENSUS_PLUGIN;
 use dna_core::read_call::PLUGIN as CORE;
+use dna_empop::conformance::PLUGIN as CONFORMANCE;
 use dna_kernel::plugin::{Contract, PluginDescriptor, composition, validate_registry};
-use dna_post::conformance::PLUGIN as CONFORMANCE;
-use dna_post::variant_nomenclature::PLUGIN as NOMENCLATURE;
-use dna_post::variant_normalization::PLUGIN as NORMALIZATION;
+use dna_normalize::variant_nomenclature::PLUGIN as NOMENCLATURE;
+use dna_normalize::variant_normalization::PLUGIN as NORMALIZATION;
 use dna_sanger::read_processing::PLUGIN as SANGER;
 
 /// Every plugin this build contains.

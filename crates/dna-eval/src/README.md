@@ -8,7 +8,7 @@ with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
 `sample_analysis` capability it runs, on `dna-core` and `dna-sanger` only
 to name the evidence types the draft triage reads, and on `dna-kernel` to load
 the reference the haplotype measures apply alleles to; its tests use
-`dna-post`'s normalization and nomenclature as the oracle of sequence
+`dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
 - `main.rs` — command line (`run`, `panel`, `approve`, `power`), run orchestration, output

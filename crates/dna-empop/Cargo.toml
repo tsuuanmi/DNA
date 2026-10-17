@@ -1,6 +1,6 @@
 [package]
-name = "dna-post"
-description = "DNA post-calling plugins: representation, normalization, nomenclature, and conformance"
+name = "dna-empop"
+description = "DNA post-calling notation conformance against forensic (EMPOP-style) conventions"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

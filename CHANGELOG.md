@@ -204,6 +204,14 @@ remain independently versioned and are never silently changed in place.
 
 ### Changed
 
+- **Breaking for library and log consumers:** the post-calling crate
+  `dna-post` is split into `dna-normalize` (representation, normalization,
+  nomenclature) and `dna-empop` (conformance) (ADR-0077). Rust paths under
+  `dna_post::` move to `dna_normalize::` or `dna_empop::`, and the operation
+  log target `dna_post` becomes `dna_normalize` and `dna_empop`. CLI outputs,
+  document contracts, the `dna::variant_normalization` and
+  `dna::variant_nomenclature` re-exports, and plugin identifiers and versions
+  are unchanged.
 - Bounded runs before a post-repeat phase loss are exempt from `read_end`
   (ADR-0076, SRS-VAR-013, SRS-CONS-003). An insertion or deletion of a run the
   read bounds with unmasked calls, and the consensus's observations of that

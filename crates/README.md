@@ -12,7 +12,8 @@ registry, and the reports.
 | [dna-kernel](dna-kernel/src/README.md) | shared contracts: errors, read evidence, called variants, target profiles, reference loading, plugin descriptors | — |
 | [dna-core](dna-core/src/README.md) | the core caller: alignment, variant calling, sample aggregation | `dna-kernel` |
 | [dna-sanger](dna-sanger/src/README.md) | the Sanger modality: ABIF decoding to `ReadEvidence` | `dna-kernel` |
-| [dna-post](dna-post/src/README.md) | post-calling plugins: representation, normalization, nomenclature, conformance | `dna-kernel` |
+| [dna-normalize](dna-normalize/src/README.md) | post-calling representation, normalization, and nomenclature in the lab's reviewer convention ([ADR-0077](../docs/decisions/adr/0077-normalize-and-empop-crates.md)) | `dna-kernel` |
+| [dna-empop](dna-empop/src/README.md) | post-calling conformance to forensic (EMPOP-style) notation conventions, offline | `dna-kernel` |
 | [dna-eval](dna-eval/src/README.md) | the evaluation harness: panel manifests, reviewer truth, comparison, and reports ([ADR-0075](../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)) | `dna` |
 
 The plugin crates never depend on one another, and only the facade composes

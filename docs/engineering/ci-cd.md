@@ -34,8 +34,8 @@ cargo test --workspace --locked --all-targets --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-features
 ```
 
-The rust-quality job also tests `dna-kernel`, `dna-core`, `dna-sanger`, and
-`dna-post` each on its own, and checks with `cargo tree` that the kernel, core,
+The rust-quality job also tests `dna-kernel`, `dna-core`, `dna-sanger`,
+`dna-normalize`, and `dna-empop` each on its own, and checks with `cargo tree` that the kernel, core,
 and post-calling crates never reach `dna-sanger` (ADR-0070) and that neither
 the `dna` facade nor a plugin crate reaches the evaluation harness `dna-eval`
 (ADR-0075). The harness

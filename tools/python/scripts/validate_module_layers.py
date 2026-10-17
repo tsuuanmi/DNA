@@ -6,7 +6,9 @@ member crate per plugin family under ``crates/``:
 - ``dna-kernel``: shared contracts;
 - ``dna-core``: the core caller;
 - ``dna-sanger``: the Sanger modality;
-- ``dna-post``: post-calling plugins;
+- ``dna-normalize``: post-calling representation, normalization, and
+  nomenclature;
+- ``dna-empop``: post-calling notation conformance;
 
 and the evaluation harness ``dna-eval``.
 
@@ -33,9 +35,10 @@ ALLOWED: dict[str, frozenset[str]] = {
     "kernel": frozenset(),
     "core": frozenset({"kernel"}),
     "sanger": frozenset({"kernel"}),
-    "post": frozenset({"kernel"}),
-    "dna": frozenset({"kernel", "core", "sanger", "post"}),
-    "eval": frozenset({"dna", "kernel", "core", "sanger", "post"}),
+    "normalize": frozenset({"kernel"}),
+    "empop": frozenset({"kernel"}),
+    "dna": frozenset({"kernel", "core", "sanger", "normalize", "empop"}),
+    "eval": frozenset({"dna", "kernel", "core", "sanger", "normalize", "empop"}),
 }
 # Source path prefix of each crate.
 PATH_PREFIXES = {("dna" if name == "dna" else f"dna_{name}"): name for name in ALLOWED}

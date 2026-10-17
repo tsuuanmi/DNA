@@ -114,3 +114,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0074](0074-run-structure-consensus.md) | Run-structure consensus and how a run length is known | Accepted |
 | [0075](0075-evaluation-harness-in-workspace.md) | Evaluation harness as a workspace crate | Accepted |
 | [0076](0076-bounded-run-read-end-exemption.md) | Bounded runs before a post-repeat phase loss are exempt from `read_end` | Accepted |
+| [0077](0077-normalize-and-empop-crates.md) | Post-calling split into normalize and EMPOP crates | Accepted |
