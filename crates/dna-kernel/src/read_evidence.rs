@@ -167,11 +167,12 @@ pub struct CallEvidence {
 }
 
 /// Labels the core owns; a modality may not reuse them.
-const CORE_REASONS: [&str; 6] = [
+const CORE_REASONS: [&str; 7] = [
     "non_canonical_allele",
     "indel_length_exceeded",
     "outside_target_region",
     "read_end",
+    "run_boundary",
     "unresolved_flank",
     "placement_conflict",
 ];
@@ -354,11 +355,17 @@ mod tests {
         vetoed.vetoes.insert(1);
         assert!(ReadEvidence::new(vec![vetoed], 0..1, vec![PEAK]).is_err());
         assert!(ReadEvidence::new(vec![call], 0..1, vec![PEAK, PEAK]).is_err());
-        let core = SupportVeto {
-            reason: EvidenceReason::new("read_end"),
-            ..PEAK
-        };
-        assert!(ReadEvidence::new(vec![call], 0..1, vec![core]).is_err());
+        // Every label the core owns is refused to a modality.
+        for label in CORE_REASONS {
+            let core = SupportVeto {
+                reason: EvidenceReason::new(label),
+                ..PEAK
+            };
+            assert!(
+                ReadEvidence::new(vec![call], 0..1, vec![core]).is_err(),
+                "{label}"
+            );
+        }
         let masked = CallEvidence {
             mask: Some(CallMask {
                 alignment: MaskedAlignment::Unresolved,

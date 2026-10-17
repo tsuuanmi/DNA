@@ -156,7 +156,7 @@ pub fn normalize_read(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "normalization",
     family: PluginFamily::PostCalling,
-    version: 2,
+    version: 3,
     provides: &[Contract::NormalizedVariants],
     requires: &[Contract::CalledVariants],
     config_sections: &[],

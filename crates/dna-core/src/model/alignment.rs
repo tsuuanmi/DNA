@@ -52,8 +52,9 @@ pub struct AlignmentMetrics {
     pub callable_identity: f64,
     /// Unresolved query bases, excluding masked calls.
     pub unresolved_query_bases: usize,
-    /// Query bases from masked calls: dephased calls align with their call
-    /// and profile, every other masked call as unresolved.
+    /// Query bases from masked calls: a call whose mask anchors the alignment
+    /// aligns with its call and profile, every other masked call as
+    /// unresolved.
     pub masked_query_bases: usize,
 }
 
