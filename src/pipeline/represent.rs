@@ -66,7 +66,11 @@ pub(crate) fn represent_variants(
             })
         })
         .collect::<Result<_>>()?;
-    Ok(Some(SampleNotation { style, reads }))
+    Ok(Some(SampleNotation {
+        style,
+        conventions: profile.conventions.clone(),
+        reads,
+    }))
 }
 
 /// Normalizes one read's calls, then applies the profile windows. A window an

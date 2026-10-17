@@ -19,7 +19,7 @@ use std::time::Instant;
 
 use std::num::NonZeroUsize;
 
-use dna::sample_analysis::{self, SampleAnalysis, SampleOutcome};
+use dna::sample_analysis::{self, ConventionLabel, NotationCall, SampleAnalysis, SampleOutcome};
 use sha2::{Digest, Sha256};
 
 use crate::cause::loci::{self, Loci};
@@ -39,6 +39,8 @@ pub(crate) struct Called {
     pub(crate) rejected: usize,
     /// The profile-notation calls as alleles.
     pub(crate) alleles: Vec<Allele>,
+    /// The calls a profile convention labels `not_recorded` (SRS-NOM-017).
+    pub(crate) not_recorded: BTreeSet<Allele>,
     /// Callable reference intervals of the consensus, closed and 1-based.
     pub(crate) intervals: Vec<(i64, i64)>,
     /// Where some read shows a second base at the limit of detection.
@@ -146,19 +148,25 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
     let result = analysis
         .call(sample_id)
         .map_err(|error| Failure::Dna(error.to_string()))?;
-    let alleles = result
-        .notation
-        .ok_or(Failure::Notation)?
+    let notation = result.notation.as_ref().ok_or(Failure::Notation)?;
+    let allele = |call: &NotationCall| {
+        let position = if call.ordinal == 0 {
+            call.position.to_string()
+        } else {
+            format!("{}.{}", call.position, call.ordinal)
+        };
+        let base = |base: Option<char>| base.map_or_else(|| "-".to_owned(), String::from);
+        Allele::new(&position, &base(call.reference), &base(call.alternate))
+    };
+    let alleles = notation.iter().map(allele).collect();
+    let not_recorded = notation
         .iter()
-        .map(|call| {
-            let position = if call.ordinal == 0 {
-                call.position.to_string()
-            } else {
-                format!("{}.{}", call.position, call.ordinal)
-            };
-            let base = |base: Option<char>| base.map_or_else(|| "-".to_owned(), String::from);
-            Allele::new(&position, &base(call.reference), &base(call.alternate))
+        .filter(|call| {
+            call.convention
+                .as_ref()
+                .is_some_and(|convention| convention.label == ConventionLabel::NotRecorded)
         })
+        .map(allele)
         .collect();
     // Half-open 0-based segments become closed 1-based intervals.
     let intervals = result
@@ -177,6 +185,7 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
     Ok(Called {
         rejected: analysis.rejected.len(),
         alleles,
+        not_recorded,
         intervals,
         signals,
         loci,
@@ -346,6 +355,7 @@ mod tests {
                 _ => Ok(Called {
                     rejected: 0,
                     alleles: vec![Allele::new(&sample.id[1..], "A", "G")],
+                    not_recorded: BTreeSet::new(),
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

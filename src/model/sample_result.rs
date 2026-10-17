@@ -36,7 +36,17 @@ pub(crate) struct SampleNotationResult {
 #[derive(Debug, Serialize)]
 pub(crate) struct SampleNotationCallResult {
     pub(crate) call: String,
+    /// The report convention labelling the call, when one does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) convention: Option<ConventionResult>,
     pub(crate) reads: Vec<String>,
+}
+
+/// A profile report convention a call falls under; the call is kept.
+#[derive(Debug, Serialize)]
+pub(crate) struct ConventionResult {
+    pub(crate) name: String,
+    pub(crate) label: &'static str,
 }
 
 /// Scientific identities shared by every sample read.

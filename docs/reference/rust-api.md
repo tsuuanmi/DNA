@@ -358,6 +358,7 @@ pub struct NotationCall {
     pub reference: Option<char>,
     pub alternate: Option<char>,
     pub text: String,
+    pub convention: Option<Convention>,
 }
 ```
 
@@ -373,7 +374,11 @@ pub struct NotationCall {
   the base an insertion follows), the insertion `ordinal` (`0` for a
   substitution or deletion), the `reference` base (`None` for an inserted
   base), the called `alternate` base (`None` for a deleted base), and the
-  rendered `text` (`16189C`, `309.1C`, `249DEL`).
+  rendered `text` (`16189C`, `309.1C`, `249DEL`). `convention` is the
+  profile report convention that labels the call (SRS-NOM-017), the
+  `notation.calls[].convention` of the document; the call is kept either way.
+  `Convention`, `ConventionKind`, and `ConventionLabel` are the profile types
+  of `dna_kernel::profile`, re-exported from `sample_analysis`.
 
 ## Variant Normalization
 

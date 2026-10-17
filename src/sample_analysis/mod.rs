@@ -22,6 +22,7 @@ use dna_core::sample;
 use dna_core::variant_calling::read_trust;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
+pub use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel};
 use dna_kernel::profile::{Profile, ProfileIdentity};
 use dna_kernel::variant::ReferenceIdentity;
 
@@ -150,6 +151,9 @@ pub struct NotationCall {
     pub alternate: Option<char>,
     /// The rendered call, for example `309.1C`, `249DEL`, or `16189C`.
     pub text: String,
+    /// The profile's report convention labelling the call (SRS-NOM-017),
+    /// when one does; the call is kept either way.
+    pub convention: Option<Convention>,
 }
 
 /// Runs the Sanger adapter over one sample's traces: each trace is processed

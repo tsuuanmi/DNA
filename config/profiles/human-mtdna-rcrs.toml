@@ -50,6 +50,19 @@ canonical_haplotype = [
   { position = 16189, base = "C" },
 ]
 
+# Report conventions: calls the lab's reviewers do not record. A covered call
+# is labelled in every notation view and kept; the haplotype is unchanged
+# (SRS-NOM-017). The reviewers do not record the length of the uninterrupted
+# HVS-I C run that 16189C creates (C10 and longer); with T16189 the two short
+# runs are read through, and their length calls stay unlabelled.
+[[nomenclature.conventions]]
+name = "hvs1_c_length"
+label = "not_recorded"
+kind = "run_length"
+window = [16180, 16193]
+base = "C"
+minimum_run = 10
+
 # Notation conventions the `notation` command checks represented calls against;
 # findings are reported, never applied. Following EMPOP/ISFG practice in the
 # control-region C stretches, a homopolymer length variant is written as an

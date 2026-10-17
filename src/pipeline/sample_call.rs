@@ -51,13 +51,14 @@ impl SampleAnalysis {
                 .collect(),
             notation: calls.map(|calls| {
                 calls
-                    .into_keys()
-                    .map(|call| NotationCall {
+                    .into_iter()
+                    .map(|(call, reads)| NotationCall {
                         position: call.position,
                         ordinal: call.ordinal,
                         reference: call.reference,
                         alternate: call.alternate,
                         text: call.text,
+                        convention: reads.convention.cloned(),
                     })
                     .collect()
             }),

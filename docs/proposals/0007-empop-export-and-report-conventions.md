@@ -1,10 +1,10 @@
 ---
 id: PROP-0007
 type: proposal
-status: draft
+status: implementing
 owners: []
 created: 2026-10-17
-related-requirements: [SRS-NOM-016]
+related-requirements: [SRS-NOM-016, SRS-NOM-017]
 related-decisions: [ADR-0069, ADR-0077]
 implementation: []
 ---
@@ -26,7 +26,7 @@ Two things can go wrong there:
 - **A convention that changes content.** The reviewers do not record the
   HVS-I C-tract length (`16193.1C`). DNA does record it, as its evidence shows.
   ADR-0077 §5 rules out handling this in normalization, which must preserve
-  the haplotype. On development panel v5, 47 sequence-class samples differ
+  the haplotype. On development panel v5, 31 sequence-class samples differ
   from the truth only by such a length call, and the evaluation harness cannot
   yet tell them apart from DNA defects.
 
@@ -35,7 +35,8 @@ Two things can go wrong there:
 1. An offline EMPOP query in the `notation` output: interpretation ranges and
    an rCRS-coded mitotype, built from the sample's calls.
 2. Every position inside an exported range was decided by DNA. No range covers
-   an `N`, a contested site, or an excluded call.
+   a position DNA left undecided (`N`) or excluded. A tie the consensus
+   resolved is exported as DNA's decision, as in the haplotype.
 3. A labelled report convention for calls that the reviewers' convention does
    not record. Such a call is classified and kept, never deleted, and the
    haplotype stays complete.
@@ -72,7 +73,9 @@ Two things can go wrong there:
 - **Development panel v5:**
   - consensus `N` positions inside truth intervals: 43,182 in 7,423 samples
     (main `711c43e`), before the planned support-veto scope change;
-  - 47 sequence-class samples differ only by an HVS-I C-tract length call.
+  - 47 sequence-class samples differ only inside HVS-I 16180–16194. In 31
+    of them, the only difference is an HVS-I C-tract length call (main
+    `4e6f8d1`).
 
 ## Proposed design
 
@@ -115,7 +118,7 @@ It decides nothing about the sequence. The rules:
   - `ranges`: 1-based inclusive pairs, plus the rendered `ranges_text`;
   - `mitotype`: the space-separated tokens;
   - `cut`: the excluded positions with their reason (`unresolved`,
-    `contested`, `excluded_variant`), so a reviewer sees why a range is split.
+    `excluded_variant`, `overlap`), so a reviewer sees why a range is split.
 
   The contract change follows the
   [versioning policy](../governance/versioning.md#public-json-contracts):
@@ -133,13 +136,16 @@ The profile declares conventions that do not record a call. For example:
 [[nomenclature.conventions]]
 name = "hvs1_c_length"
 label = "not_recorded"
-# A length change of the C run in this window, after window representation.
-window = [16180, 16193]
 kind = "run_length"
+# A length change of an uninterrupted C run of at least 10 in this window.
+window = [16180, 16193]
+base = "C"
+minimum_run = 10
 ```
 
 The nomenclature plugin labels each represented call that a convention covers
-with that convention (`convention: "hvs1_c_length"`). The labelled call stays
+with that convention (`"convention": {"name": "hvs1_c_length", "label":
+"not_recorded"}`). The labelled call stays
 in `notation`, the haplotype is unchanged, and no output drops a call. A rule
 matches only on the represented call and the reference, never on read
 evidence, and asserts no base: SRS-NOM rules apply.
@@ -186,7 +192,8 @@ Downstream:
   - the haplotype rebuilt from the labelled notation is identical.
 - **Invariant, development panel v5:**
   - every position inside an exported range is decided by the consensus
-    (no `N`, no contested site, no excluded call);
+    (no `N`, no excluded call); the positions on a tie the consensus resolved
+    as the reference are counted;
   - the sequence rebuilt from rCRS and the mitotype over the ranges equals
     the consensus sequence there.
 - **Equivalence, Python check (ADR-0066):** given the same calls and
@@ -196,7 +203,7 @@ Downstream:
   - how often DNA's mitotype equals the truth's;
   - how often DNA's ranges lie inside the truth's intervals;
   - the differences, by class.
-- **Harness:** the 47 HVS-I length samples move to `lab`
+- **Harness:** the 31 HVS-I length samples move to `lab`
   `convention_not_recorded`, deferred. No haplotype measure changes.
 
 ## Rollout and rollback
@@ -231,11 +238,84 @@ data policy is unchanged.
 - the HVS-I C-tract length convention is a labelled policy in `dna-normalize`
   that never deletes a call.
 
-The rest is under review.
+2026-10-17, user, on the Researcher's review of the implementation plan:
+- a `run_length` convention covers a call only inside an uninterrupted run of
+  at least `minimum_run` bases (10 for HVS-I). With `T16189`, the reads
+  resolve the two short runs, and a recorded length there is real;
+- a range never covers a position DNA left undecided or excluded. A tie the
+  consensus resolved is exported as DNA's decision.
 
 ## Implementation
 
-None yet. The range rule "less every position of an excluded variant" is met
-by the core's callable segments of a called record (SRS-VAR-019): the `empop`
-plugin takes the records' callable segments as they are, without a second
-cut.
+Planned in two increments, each its own pull request.
+
+**Increment 1, labelled conventions** (`nomenclature` 3):
+
+- Profile keys:
+
+  ```toml
+  [[nomenclature.conventions]]
+  name = "hvs1_c_length"
+  label = "not_recorded"
+  kind = "run_length"
+  window = [16180, 16193]
+  base = "C"
+  minimum_run = 10
+  ```
+
+  - `label` takes one value, `not_recorded`.
+  - `kind` takes one value, `run_length`. It covers an inserted `base` whose
+    anchor lies in `window`, and a deleted `base` in `window`, both judged
+    per rendered call. The read's represented haplotype must have an
+    uninterrupted run of `base` of at least `minimum_run` at the call,
+    counting a deleted base in the run it shortens. Substitutions are never
+    covered, so `16194C` and `16189C` stay content.
+  - Conventions may not overlap.
+- Labels are applied per rendered call, after representation, by
+  `dna_normalize::variant_nomenclature`. Rendering itself stays in the
+  facade.
+- Every notation view carries the label as `convention` on a labelled call:
+  `variants/v1`, `sample_evidence/v10` and `notation/v1`, each revised in
+  place and recorded as **Breaking**. `SampleAnalysis::call` carries it too.
+- Harness: a `sequence`-class sample whose DNA-only calls all carry
+  `not_recorded`, and which has no truth-only call, takes the cause `lab`,
+  scope `deferred`, evidence `convention_not_recorded`.
+- Measured on development panel v5 (main `4e6f8d1`): 31 of the 47 HVS-I-only
+  sequence samples differ only by a C-length call (29 by `16193.kC`, 2 by
+  `16193DEL`). The others differ in content (for example `16194C`, or a call
+  where the truth has `16189C`) and keep their cause.
+  - With `minimum_run = 10`, 29 of the 31 move to `lab`, deferred. The two
+    `16193DEL` samples have `16185T`, which splits the run (C8), so they
+    stay unlabelled.
+  - 2 more samples move: their only other difference is a truth IUPAC code
+    that the class's IUPAC-compatible measure admits.
+  - 31 samples move in all, every one from `undetermined`. Statuses, classes
+    and every other `scores.tsv` field are unchanged.
+  - 35 samples with a DNA-only HVS-I C-length call keep another cause: 22
+    `sequence` and 13 `representation`. Each also differs otherwise, or its
+    call sits in a run shorter than 10.
+
+**Increment 2, the EMPOP export** (`empop` 1, `notation/v1` **Breaking**):
+
+- `[empop]` is an empty table: declaring it turns the export on, and it
+  requires `[notation]`. It has no keys. The region order is the profile's,
+  the ranges come from the evidence, and no tunable is needed.
+- The range rule "less every position of an excluded variant" is already met
+  by the core's callable segments of a called record (SRS-VAR-019). The
+  plugin takes the records' callable segments as they are, without a second
+  cut.
+- The `cut` reasons come from the variants document only:
+  - `excluded_variant`: a gap in a record's callable segments that overlaps
+    an excluded variant's positions;
+  - `unresolved`: any other gap inside a record's reference segments (`N`,
+    masked);
+  - `overlap`: a position that two records cover callably, which never
+    happens in the consensus path.
+- A tie is handled as the consensus handled it.
+  - A tie with no decision is already `N`, so it is cut as `unresolved`.
+  - A one-against-one tie that the consensus resolved as the reference
+    (SRS-CONS) is DNA's decision, in the haplotype and in the export alike.
+  - The development-panel invariant check (harness, which holds the
+    consensus) counts the exported positions on such ties.
+- `dna-empop` takes rendered calls as plain position, ordinal and text. It
+  does not depend on `dna-normalize`.

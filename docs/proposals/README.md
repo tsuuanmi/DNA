@@ -21,7 +21,7 @@ Accepted/Implemented -> Superseded
 - [PROP-0001 — Modular DNA Analysis Platform](0001-modular-dna-analysis-platform.md) — **Implementing**; public Rust API, canonical contracts, multiple input modalities, replaceable scientific implementations and data providers, and downstream analysis modules.
 - [PROP-0004 — Review triage](0004-review-triage.md) — **Draft**; catalogue errors and sort regions, traces, and samples into pass, review, and rerun with typed reasons, as DNA's [purpose](../requirements/SRS.md#purpose) states.
 - [PROP-0005 — Evaluation method and fast feedback loop](0005-evaluation-feedback-loop.md) — **Draft**; labels, metrics, fixed test panels drawn from about 100,000 reviewed samples, and a cached evidence → rules → compare loop for validating triage rules. Harness v0 (`dna-eval`, ADR-0075) is implemented.
-- [PROP-0007 — EMPOP export and labelled report conventions](0007-empop-export-and-report-conventions.md) — **Draft**; an offline EMPOP query (ranges and mitotype) in `notation/v1` whose ranges cover only decided positions, and profile conventions that label calls the reviewers do not record instead of deleting them.
+- [PROP-0007 — EMPOP export and labelled report conventions](0007-empop-export-and-report-conventions.md) — **Implementing** (labelled conventions done; the EMPOP export next); an offline EMPOP query (ranges and mitotype) in `notation/v1` whose ranges cover only decided positions, and profile conventions that label calls the reviewers do not record instead of deleting them.
 
 ## Implemented proposals
 

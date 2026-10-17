@@ -115,6 +115,8 @@ pub(crate) struct Sample<'a> {
     /// The windows of the class's discordant positions.
     pub(crate) regions: &'a BTreeSet<Region>,
     pub(crate) dna: &'a [Allele],
+    /// DNA's calls a profile convention labels `not_recorded`.
+    pub(crate) not_recorded: Option<&'a BTreeSet<Allele>>,
     pub(crate) truth: &'a [Allele],
     pub(crate) loci: Option<&'a Loci>,
     pub(crate) signals: Option<&'a lod::Signals>,
@@ -347,14 +349,38 @@ fn heteroplasmy(sample: &Sample<'_>) -> Vec<Finding> {
         .collect()
 }
 
-/// The sequences differ: a DNA-only call where clean reads on both strands
-/// show the reference is DNA's (a phantom); a truth-only call there is the
-/// truth's, for a re-check. Insertions are left to adjudication, since reads
-/// showing the reference at the anchor do not exclude one.
+/// The sequences differ: when every DNA-only call is one a profile
+/// convention labels `not_recorded` and the truth has no call of its own,
+/// the reviewers' convention, deferred (SRS-NOM-017). Otherwise a DNA-only
+/// call where clean reads on both strands show the reference is DNA's (a
+/// phantom); a truth-only call there is the truth's, for a re-check.
+/// Insertions are left to adjudication, since reads showing the reference at
+/// the anchor do not exclude one.
 fn sequence(sample: &Sample<'_>) -> Vec<Finding> {
     let (Some(loci), Some(comparison)) = (sample.loci, sample.comparison) else {
         return Vec::new();
     };
+    if let Some(not_recorded) = sample.not_recorded
+        && comparison.truth_unique.is_empty()
+        && !comparison.dna_unique.is_empty()
+        && comparison
+            .dna_unique
+            .iter()
+            .all(|allele| not_recorded.contains(allele))
+    {
+        return sample
+            .regions
+            .iter()
+            .map(|region| {
+                Finding::new(
+                    Cause::Lab,
+                    "convention_not_recorded",
+                    Some(region.label().to_owned()),
+                )
+                .deferred()
+            })
+            .collect();
+    }
     let shown = |allele: &Allele| {
         !allele.position.contains('.')
             && comparison.positions.contains(&allele.position)
@@ -432,6 +458,7 @@ mod tests {
             primary: Some(comparison),
             regions,
             dna: &[],
+            not_recorded: None,
             truth,
             loci: Some(loci),
             signals: Some(signals),
@@ -595,6 +622,54 @@ mod tests {
             texts(&differs),
             ["dna:phantom@100", "lab:reads_show_reference@101"]
         );
+    }
+
+    #[test]
+    fn a_length_call_the_reviewers_do_not_record_is_their_convention() {
+        let loci = Loci::of(16193, vec![COVERED | FORWARD | REVERSE], &[]);
+        let length = Allele::new("16193.1", "-", "C");
+        let not_recorded = BTreeSet::from([length.clone()]);
+        let signals = lod::Signals::default();
+        let regions = BTreeSet::from([Region::Hv1PolyC]);
+        let texts_of = |dna_unique: Vec<Allele>, truth_unique: Vec<Allele>| {
+            let comparison = comparison(&["16193.1"], dna_unique, truth_unique, Vec::new());
+            let differs = Sample {
+                not_recorded: Some(&not_recorded),
+                ..sample(
+                    Discrepancy::Sequence,
+                    &comparison,
+                    &[],
+                    &loci,
+                    &signals,
+                    &regions,
+                )
+            };
+            findings(&differs, &Forms::default(), "").map(|(cause, scope, findings)| {
+                (
+                    cause.label(),
+                    scope.label(),
+                    findings.iter().map(Finding::text).collect::<Vec<_>>(),
+                )
+            })
+        };
+        assert_eq!(
+            texts_of(vec![length.clone()], Vec::new()),
+            Some((
+                "lab",
+                "deferred",
+                vec!["lab:convention_not_recorded@hv1_polyc".to_owned()]
+            ))
+        );
+        // A truth-only call, or an unlabelled DNA-only call, is content.
+        for (dna, truth) in [
+            (vec![length.clone()], vec![Allele::new("16189", "T", "C")]),
+            (vec![length, Allele::new("16194", "A", "C")], Vec::new()),
+        ] {
+            assert_ne!(
+                texts_of(dna, truth).map(|(_, _, findings)| findings),
+                Some(vec!["lab:convention_not_recorded@hv1_polyc".to_owned()])
+            );
+        }
     }
 
     #[test]

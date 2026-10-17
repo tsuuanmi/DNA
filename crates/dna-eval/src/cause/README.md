@@ -7,7 +7,11 @@ sequencing technology accounts for each difference, read from the evidence,
 so the difference reaches the one who can act on it.
 
 - `mod.rs` — the rules per discrepancy class, the findings (cause, scope,
-  evidence, position or window), and the sample's cause and scope.
+  evidence, position or window), and the sample's cause and scope. A
+  `sequence` difference made only of DNA calls that a profile convention
+  labels `not_recorded` (SRS-NOM-017), with no truth-only call, is the
+  reviewers' convention, deferred; the runner takes the labels from
+  `SampleAnalysis::call`.
 - `loci.rs` — per region position, what the admitted reads and the consensus show: covered,
   observed cleanly on each strand, something other than the reference,
   masked for phase loss or for weak signal, unresolved, a tie the consensus
