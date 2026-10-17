@@ -44,18 +44,28 @@ pub(super) fn represent_windows(
             output.extend(inside);
             continue;
         }
-        let represented = represent(window, &shift_left(&inside, window.start))?
+        let local = shift_left(&inside, window.start);
+        let (represented, rule) = represent(window, &local)?;
+        let represented = represented
             .into_iter()
             .map(|edit| shifted(edit, window.start))
             .collect::<Vec<_>>();
-        // A representation that places a call where the read reads nothing
-        // is not one the read shows; the window keeps its normalized form.
-        if readable.is_some_and(|readable| !represented.iter().all(|edit| read_at(edit, readable)))
-        {
-            output.extend(inside);
-        } else {
-            output.extend(represented);
-        }
+        // A rule may rely only on bases the read reads: the bases its choice
+        // of form rests on, and every base it calls. Otherwise the window
+        // keeps its normalized form.
+        let shown = readable.is_none_or(|readable| {
+            let base = |index: usize| {
+                readable
+                    .iter()
+                    .any(|range| range.contains(&(window.start + index)))
+            };
+            rule.is_none_or(|rule| {
+                decisive(window, rule, &local)
+                    .iter()
+                    .all(|&index| base(index))
+            }) && represented.iter().all(|edit| read_at(edit, readable))
+        });
+        output.extend(if shown { represented } else { inside });
     }
     output.extend(remaining);
     sort_edits(&mut output);
@@ -76,9 +86,53 @@ fn read_at(edit: &SequenceEdit, readable: &[Range<usize>]) -> bool {
     (first..last).all(|base| readable.iter().any(|range| range.contains(&base)))
 }
 
-/// Applies the first rule that reproduces the local haplotype, or keeps
-/// `source` when none does.
-fn represent(window: &NomenclatureWindow, source: &[SequenceEdit]) -> Result<Vec<SequenceEdit>> {
+/// The window-local bases a rule's choice of form rests on, beyond the bases
+/// it calls: the anchor and the run after it, plus the base before the anchor
+/// when the left run's length changes (`anchored_run_lengths`); the end of the
+/// lead run, the start of the left run, the anchor, and the run after it
+/// (`anchored_tract`); and the two terminal motif copies when the length
+/// changes (`motif_shift`).
+fn decisive(window: &NomenclatureWindow, rule: &WindowRule, source: &[SequenceEdit]) -> Vec<usize> {
+    let length = window.sequence.len();
+    let alternate = apply_edits(&window.sequence, source).unwrap_or_default();
+    match rule {
+        WindowRule::AnchoredRunLengths(anchor) => {
+            let mut bases = (anchor.index..length).collect::<Vec<_>>();
+            if alternate
+                .as_bytes()
+                .iter()
+                .position(|&base| base == anchor.base)
+                != Some(anchor.index)
+            {
+                bases.push(anchor.index - 1);
+            }
+            bases
+        }
+        WindowRule::AnchoredTract { anchor, lead } => {
+            let mut bases = vec![lead - 1, *lead];
+            bases.extend(anchor.index..length);
+            bases
+        }
+        WindowRule::AnchorDuplication(anchor)
+        | WindowRule::AnchorDeletion(anchor)
+        | WindowRule::TerminalRepeatInsertion(anchor) => (anchor.index..length).collect(),
+        WindowRule::MotifShift { motif } => {
+            if alternate.len() == length {
+                Vec::new()
+            } else {
+                (length.saturating_sub(2 * motif.len())..length).collect()
+            }
+        }
+        WindowRule::CanonicalHaplotype(_) => Vec::new(),
+    }
+}
+
+/// Applies the first rule that reproduces the local haplotype, with that
+/// rule, or keeps `source` when none does.
+fn represent<'a>(
+    window: &'a NomenclatureWindow,
+    source: &[SequenceEdit],
+) -> Result<(Vec<SequenceEdit>, Option<&'a WindowRule>)> {
     let reference = window.sequence.as_str();
     let alternate = apply_edits(reference, source).map_err(NomenclatureError::from)?;
     for rule in &window.rules {
@@ -87,7 +141,7 @@ fn represent(window: &NomenclatureWindow, source: &[SequenceEdit]) -> Result<Vec
         };
         sort_edits(&mut candidate);
         return if apply_edits(reference, &candidate).ok().as_deref() == Some(alternate.as_str()) {
-            Ok(candidate)
+            Ok((candidate, Some(rule)))
         } else {
             Err(NomenclatureError::LocalHaplotypeChanged {
                 window: window.name.clone(),
@@ -95,7 +149,7 @@ fn represent(window: &NomenclatureWindow, source: &[SequenceEdit]) -> Result<Vec
             .into())
         };
     }
-    Ok(source.to_vec())
+    Ok((source.to_vec(), None))
 }
 
 fn candidate(
@@ -632,7 +686,7 @@ mod tests {
     #[test]
     fn writes_the_corpus_sequences_in_the_lab_convention() -> TestResult {
         let profile = human_mtdna()?;
-        let table = include_str!("../../tests/data/lab-convention.tsv");
+        let table = include_str!("../../tests/fixtures/lab-convention.tsv");
         let mut checked = 0;
         for line in table.lines().filter(|line| !line.starts_with('#')).skip(1) {
             let fields = line.split('\t').collect::<Vec<_>>();
@@ -650,7 +704,7 @@ mod tests {
                 continue;
             }
             let source = [edit(0, window.sequence.len(), sequence)];
-            let represented = represent(window, &source)?;
+            let (represented, _) = represent(window, &source)?;
             assert_eq!(
                 calls(window, &represented).join(" "),
                 form,

@@ -82,7 +82,7 @@ The rule vocabulary and its structure preconditions are in the
 
 The rules follow the lab's reviewer convention (ADR-0077). Each reproduces the
 form most reviewers wrote for every window sequence of at least 5 corpus
-samples (`crates/dna-normalize/tests/data/lab-convention.tsv`); the research
+samples (`crates/dna-normalize/tests/fixtures/lab-convention.tsv`); the research
 prototype of the same rules reproduced the form of about 99.97 % of all corpus
 samples. Where the corpus departs
 from SWGDAM or EMPOP, the corpus wins: reviewers never write `310C` for a
@@ -91,15 +91,24 @@ flank base together with them (`513A 523DEL 524DEL`; `16181C 16182C 16183C
 16189C`).
 
 A window that an edit crosses keeps its normalized form, and the read's other
-windows are still represented. In `sample`, `call`, and `notation`, a window
-also keeps its normalized form when its representation would place a call where
-the read reads nothing (a substituted or deleted base, or an insertion's anchor
-base, outside the read's callable segments): a rule rewrites the whole window's
-sequence, and over an unread base that sequence is the reference's. A window
-the read reads only in part can still take a form whose meaning rests on an
-unread base; on development panel v5 one sample takes `16182DEL 16183DEL
-16188.1C 16188.2C` where the read leaves 16189-16193 unread and the truth writes
-`16182C 16183C 16189C`.
+windows are still represented. In `sample`, `call`, and `notation`, a rule may
+also rely only on bases the read reads, inside its callable segments: a rule
+rewrites the whole window's sequence, and over an unread base that sequence is
+the reference's, not the read's. A window therefore keeps its normalized form
+when its representation would call an unread base (a substituted or deleted
+base, or an insertion's anchor base), or when the bases its choice of form
+rests on are unread:
+
+- `anchored_run_lengths`: the anchor and the run after it, and the base before
+  the anchor when the left run's length changes;
+- `anchored_tract`: the last lead base, the first left-run base, the anchor,
+  and the run after it;
+- the other anchor rules: the anchor and the run after it;
+- `motif_shift`: the two terminal motif copies when the length changes.
+
+Without that, a read that leaves 16189-16193 unread would see its readable
+`16182C 16183C` rewritten as `16182DEL 16183DEL 16188.1C 16188.2C`, a form that
+holds only if 16189 is T.
 
 ## Adding a target
 

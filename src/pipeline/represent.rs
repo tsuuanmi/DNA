@@ -212,6 +212,38 @@ mod tests {
     }
 
     #[test]
+    fn a_window_whose_form_rests_on_an_unread_base_keeps_its_form() -> TestResult {
+        let reference = rcrs()?;
+        // 16182C 16183C read, but 16189-16192 unread: the HVS-I rule would
+        // take T16189 from the reference and write 16182DEL 16183DEL
+        // 16188.1C 16188.2C, a form that holds only if 16189 is T.
+        let calls = vec![
+            Variant::from(&called(16182, "A", "C", VariantKind::Snv)),
+            Variant::from(&called(16183, "A", "C", VariantKind::Snv)),
+        ];
+        let partial = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            calls.clone(),
+            &[16_077..16_188, 16_192..16_379],
+        )?;
+        assert_eq!(partial, [public(16182, "A", "C"), public(16183, "A", "C")]);
+        let whole = represent_read(
+            &reference,
+            &human_mtdna()?,
+            NormalizationPolicy::RightAligned,
+            calls,
+            &[READ],
+        )?;
+        assert_eq!(
+            whole,
+            [public(16181, "AAA", "A"), public(16188, "C", "CCC")]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn produces_notation_only_when_the_profile_declares_it() -> TestResult {
         let reference = rcrs()?;
         let mut profile = human_mtdna()?;
