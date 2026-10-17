@@ -17,6 +17,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The evaluation harness reports DNA's callable yield: per sample and HV
+  region, the truth's analysed positions that DNA's callable intervals cover
+  (`callable_yield` in `scores.tsv`), and per region in the summary the
+  positions, their share, and the samples short of full yield. It feeds no
+  status (PROP-0008 step 0), so a change that makes calls uncallable shows
+  what it costs.
+
 - The EMPOP query (SRS-NOM-018, PROP-0007 increment 2): when the profile
   declares `[empop]`, as the human-mtDNA profile does, `dna notation` adds an
   offline `empop` query to `dna.notation/v1`, and `SampleAnalysis::call`
