@@ -310,6 +310,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Signal-edge verdicts and the read start (PROP-0008 step 4, part 1). The
+  core's `read_end` margin around trim ends and masked calls is now the
+  modality's verdict per call (`CallEvidence::edge`); the core keeps only the
+  margin at a read end the modality does not vouch for (SRS-VAR-013,
+  SRS-CALL-013). Before the callable span, a masked call with one qualifying
+  channel and a primary peak at least the read's median is vouched for by its
+  base only (SRS-CALL-014): it supports a substitution, never an insertion,
+  deletion, or run end, and not where it may sit one position off
+  (`unresolved_flank`, SRS-VAR-018). Every call carries its second base and
+  share (SRS-CALL-015). Plugins `core` 9, `consensus` 6, `sanger` 4.
+  **Breaking (Rust API):** `CallEvidence` gains `edge`, `identity_only`, and
+  `second`, with `CallEvidence::new`; `CallTrust` gains `scope`
+  (`TrustScope`) and `second` and is no longer `Eq`. Development panel v5:
+  truth `73G` uncallable in 192 samples instead of 745; `haplotype_lod` 2
+  better and 3 worse.
+
 - Consensus lengths (PROP-0008 step 3). A reference homopolymer of at least
   four bases that no read shows cleanly with both neighbours, while some read
   differs on it, is decided by its run structure, so its length is labelled

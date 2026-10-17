@@ -22,14 +22,18 @@ modality-neutral core.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.
 
+  - the signal-edge verdict of every call (SRS-CALL-013), the leading calls
+    vouched for by their base only (SRS-CALL-014), and every call's second
+    base (SRS-CALL-015).
+
   This file is the only place where Sanger peaks, relative quality,
   qualifying channels, and phase states turn into core evidence.
 
 `config.rs` owns the `[sanger_evidence]` section and `SangerConfig`, which
 validates every Sanger-owned section together, including the cross-section
 check of the relative-quality threshold. `mod.rs` also declares the Sanger
-plugin descriptor. The trim's context margin comes from the composer, which
-passes the core's `read_end_margin`.
+plugin descriptor. The trim's context margin and the signal-edge margin come
+from the composer, which passes the core's `read_end_margin`.
 
 This module does not use reference context and does not decide variant
 eligibility: it supplies labels, and the core reports them.

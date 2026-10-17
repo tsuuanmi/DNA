@@ -34,12 +34,12 @@ fn evidence(call_count: usize) -> ReadEvidence {
 const PROFILE: [f64; 4] = [0.1, 0.2, 0.3, 0.4];
 
 fn call(base: char, profile: Option<[f64; 4]>) -> CallEvidence {
-    CallEvidence {
+    CallEvidence::new(
         base,
-        profile: profile.map(|weights| EvidenceProfile { weights }),
-        mask: None,
-        vetoes: VetoSet::default(),
-    }
+        profile.map(|weights| EvidenceProfile { weights }),
+        None,
+        VetoSet::default(),
+    )
 }
 
 /// Runs aggregation over owned reads with no rejected read.

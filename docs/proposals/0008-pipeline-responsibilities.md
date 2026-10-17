@@ -170,13 +170,14 @@ rules that stay in the core:
 - `placement_conflict`;
 - an excluded call is not callable (SRS-VAR-019);
 - the repeat-equivalent judgement of an insertion's calls (SRS-VAR-020);
-- a placement margin, counted as today, around unresolved calls (`N`) and
-  around a physical end the modality does not vouch for (SRS-VAR-015),
-  because an indel there cannot be placed by any technology.
+- a placement margin, counted as today, around a physical end the modality
+  does not vouch for (SRS-VAR-015), because an indel there cannot be placed
+  by any technology. An `N` is handled by `unresolved_flank` (SRS-VAR-018),
+  not by a margin.
 
 The signal-edge margin around the trim ends and masked calls is the
-modality's, expressed as verdicts. For reviewed sequences, whose only
-uninformative calls are `N`, the outcome does not change.
+modality's, expressed as verdicts. For reviewed sequences, which have no
+masked calls and vouched ends, the outcome does not change.
 
 ### Consensus
 
@@ -363,3 +364,54 @@ An ADR records the architecture when step 4 or 5 lands.
     as before, with `310C`, `310DEL 311DEL`, or `310DEL`–`312DEL` just past
     the estimated `303-309` run. They are not new; they are the next item in
     that window.
+- Step 4, part 1: signal-edge verdicts and the read start (`core` 9,
+  `consensus` 6, `sanger` 4). The position-73 coverage loss moved here, since
+  the core's margin around modality-masked calls was what kept strong
+  leading calls untrusted:
+  - the margin split. `CallEvidence` carries the modality's signal-edge
+    verdict (`edge`), and the core keeps only the margin at a read end the
+    modality does not vouch for (SRS-VAR-013, SRS-CALL-013). Before any rule
+    change, development panel v5 was byte-identical to main in every
+    harness output;
+  - the leading-edge verdict. Before the callable span, a masked call with
+    one qualifying channel and a primary peak at least the read's median is
+    vouched for by its base only (SRS-CALL-014). Such a call supports a
+    substitution but no insertion or deletion and no run's end, and where a
+    neighbour is not an unmasked call trusted for more than its base and its
+    base is the reference base next to it, it may sit one position off and
+    places nothing (`unresolved_flank`, SRS-VAR-018, SRS-CONS-003); nor
+    does it show a position of a reference homopolymer of at least four
+    bases the read does not bound with calls trusted for more than their
+    base, since that position would carry a run length no read shows;
+  - each call's second base and its share (SRS-CALL-015), evidence only.
+
+  Measured on development panel v5 against main (samples better and worse;
+  the shift rule's effect in brackets, without it):
+
+  | Measure | Better | Worse |
+  |---|---:|---:|
+  | primary | 3 | 103 (199) |
+  | strict | 329 | 78 (142) |
+  | `haplotype_lod` | 2 | 3 (39) |
+
+  - 553 of the 745 samples whose truth `73G` DNA left uncallable now call
+    it; 487 of them are `haplotype_lod`-concordant.
+  - Of the primary and strict regressions, 100 and 74 are only new DNA
+    alleles outside the truth's analysed interval (mostly `73G` where the
+    reviewers start at `79`).
+  - Leading calls vouched for by their base, against the truth inside its
+    intervals: at truth variants 1,646 used and right, 8 set aside by the
+    shift rule (`93G`, `16362C`, `16357C`, which become uncallable); at
+    reference positions 12,778 used and right, 6 used and wrong, 193 set
+    aside. HVS-I, HVS-II and HVS-III read starts all contribute.
+  - Callable yield: HV2 0.9894 to 0.9910, HV3 0.9901 to 0.9905, HV1 as
+    before.
+  - Placement: no read changes orientation; 38,813 reads extend at their
+    start, 472 move an end by a few positions, and 34 reads become ambiguous
+    while 17 others resolve (51 samples).
+  - The run rule turned one sample (`573`-`576`) from discordant to not
+    callable and changed nothing else.
+  - Left open (`haplotype_lod`, 3 samples): strong single-channel G calls at
+    the HVS-I read start (`16025G`, `16026G`), probably dye blobs, a false
+    variant class the rescue introduces; and a deletion placed differently
+    at `16038`, a side effect of the earlier informative interval.

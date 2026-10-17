@@ -272,7 +272,10 @@ impl RejectionCause {
   unresolved, the support vetoes raised on it by label, whether it is trusted
   under `read_end` and whether an ADR-0076 exemption applies, and what
   withholds trust (`Withholder`: the read's own end, its trim, or a masked
-  call, before then after the call), empty when trusted. It is the verdict
+  call, before then after the call), empty when trusted, what the modality
+  vouches for (`TrustScope`: `Full`, or `Base` for a leading call vouched
+  for by its base only, SRS-CALL-014), and the call's second base and share
+  (SRS-CALL-015). It is the verdict
   variant calling and the consensus reach, computed on demand; diagnostic
   evidence for evaluation and review, not a calling contract.
 - `observations(first_1based, last_1based)` returns, for each position of

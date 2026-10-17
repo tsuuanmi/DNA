@@ -146,7 +146,16 @@ The core caller does not read callability directly. The Sanger adapter
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
 - the mask is *anchoring* for a `dephased` call and *unresolved* otherwise;
 - its reason is `post_homopolymer` when the segment starts in the window after
-  a repeat run, and otherwise the state label.
+  a repeat run, and otherwise the state label;
+- every call within `variant_calling.read_end_margin` calls of an
+  uninformative call or a read end is at a signal edge (SRS-CALL-013);
+- before the callable span, a masked call with one qualifying channel and a
+  primary peak at least the read's median primary peak is unmasked and
+  vouched for by its base only (SRS-CALL-014). A read's start is noisy, and
+  its masked stretch only ends where a whole window is clean, so such calls
+  are masked with their noisy neighbours; on development panel v5 they read
+  the reviewers' base at 1,650 of 1,650 truth variants;
+- every call carries its second base and its share (SRS-CALL-015).
 
 - **Quality control** trims to the callable span plus up to
   `variant_calling.read_end_margin` calls of an adjacent dephased segment

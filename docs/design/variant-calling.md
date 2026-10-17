@@ -63,13 +63,20 @@ score strictly greater than `sanger_evidence.relative_quality_threshold`. Insert
 Deletions have no supporting trace base, so their flanks are not subjected to
 peak or quality thresholds; their caller anchor must still be in a region.
 Read eligibility (ADR-0062, ADR-0067, SRS-VAR-013) then marks a variant
-ineligible when any of its mapped calls lies within `read_end_margin` calls of
-an uninformative call (`read_end`). A call is informative when it lies inside
-the trim interval and is unmasked or dephased; calls beyond the trim interval
-and masked calls aligned as unresolved are not. A difference therefore needs
-that many informative calls between it and the nearest place where the
-alignment has no information, at the read's ends and around internal masked
-segments alike. The calls of a run the read bounds are exempt where the
+ineligible when any of its mapped calls is one the modality places at an edge
+of the read's usable signal (`read_end`), or lies within `read_end_margin`
+calls of a physical read end the modality does not vouch for. The Sanger
+modality places at an edge every call within `read_end_margin` calls of an
+uninformative call: a call beyond the trim interval, a masked call aligned as
+unresolved, or a read end (SRS-CALL-013). A difference therefore needs that
+many informative calls between it and the nearest place where the alignment
+has no information, at the read's ends and around internal masked segments
+alike. A leading call the modality vouches for by its base only
+(SRS-CALL-014) supports a substitution, but no insertion or deletion and no
+run's end; and where one of its neighbours is masked, `N`, or vouched for
+by its base only, and its base is the reference base next to it, it may sit
+one position off, so it supports no substitution either (`unresolved_flank`,
+SRS-VAR-018). The calls of a run the read bounds are exempt where the
 margin's edge is the read losing phase right after a repeat run (ADR-0076):
 an insertion or deletion of that run is then not `read_end`, and the
 consensus trusts the run's calls where they match the reference or are

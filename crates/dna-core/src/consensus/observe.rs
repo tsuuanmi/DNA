@@ -50,6 +50,9 @@ pub(super) struct Char {
     /// loses phase: the base shows that run's end only as `anchored_end`, the
     /// run being as long as its in-phase calls or one longer (ADR-0074).
     pub(super) beside_unresolved: bool,
+    /// The modality vouches for the call's base only: it neither counts
+    /// towards a run nor shows a run's end.
+    pub(super) identity_only: bool,
 }
 
 impl Char {
@@ -60,12 +63,12 @@ impl Char {
 
     /// The call shows where a neighbouring run ends.
     pub(super) fn resolving(self) -> bool {
-        self.trust >= Trust::Anchoring
+        self.trust >= Trust::Anchoring && !self.identity_only
     }
 
     /// The call counts towards its run.
     pub(super) fn unmasked(self) -> bool {
-        self.trust >= Trust::Unmasked
+        self.trust >= Trust::Unmasked && !self.identity_only
     }
 }
 
@@ -102,8 +105,9 @@ pub(super) struct ReadObservations {
 pub(super) fn observe(
     read: &CalledRead,
     config: &VariantCallingConfig,
-    reference_length: usize,
+    bases: &[u8],
 ) -> ReadObservations {
+    let reference_length = bases.len();
     let calls = read.evidence.calls();
     let eligibility = ReadEligibility::new(&read.evidence, config);
     let orientation = read.alignment.orientation;
@@ -136,6 +140,11 @@ pub(super) fn observe(
                 .get(index)
                 .is_some_and(|call| call.vetoes == VetoSet::default())
     };
+    // A clean call that may also place an insertion or deletion: not one the
+    // modality vouches for by its base only.
+    let placing_call = |index: usize| {
+        clean_call(index) && calls.get(index).is_some_and(|call| !call.identity_only)
+    };
     let interval = read.evidence.informative();
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
@@ -159,8 +168,60 @@ pub(super) fn observe(
         },
         position,
         beside_unresolved: false,
+        identity_only: calls
+            .get(call)
+            .is_some_and(|evidence| evidence.identity_only),
     };
     let columns = &read.alignment.columns;
+    // A call vouched for by its base only that may sit one position off.
+    let reference_at = |position: usize| bases.get(position).map(|&base| char::from(base));
+    let unanchored = |call: usize, base: char, position: usize| {
+        let adjacent = [
+            (position + reference_length - 1) % reference_length,
+            (position + 1) % reference_length,
+        ]
+        .map(reference_at);
+        Some(base) != reference_at(position) && eligibility.unanchored(call, base, adjacent)
+    };
+    // A call vouched for by its base only shows a position of a reference
+    // homopolymer of at least `SEEDED_RUN` bases only where the read bounds
+    // that run with calls trusted for more than their base: otherwise the
+    // position would carry a run length no read shows.
+    let placed_at = columns
+        .iter()
+        .filter_map(|column| {
+            Some((
+                column.reference_index_0based?,
+                (column.original_call_index_0based?, column.query_base),
+            ))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let unbounded_run = |call: usize, position: usize| {
+        if !calls
+            .get(call)
+            .is_some_and(|evidence| evidence.identity_only)
+        {
+            return false;
+        }
+        let Some(&base) = bases.get(position) else {
+            return false;
+        };
+        let mut first = position;
+        while first > 0 && bases[first - 1] == base {
+            first -= 1;
+        }
+        let mut last = position;
+        while last + 1 < reference_length && bases[last + 1] == base {
+            last += 1;
+        }
+        let shows = |bound: Option<usize>| {
+            bound
+                .and_then(|bound| placed_at.get(&bound))
+                .is_some_and(|&(call, read)| placing_call(call) && read != char::from(base))
+        };
+        last + 1 - first >= super::SEEDED_RUN
+            && !(shows(first.checked_sub(1)) && shows(Some(last + 1)))
+    };
     // Nearest call at or before, and at or after, every column.
     let mut before = Vec::with_capacity(columns.len());
     let mut last = None;
@@ -175,7 +236,7 @@ pub(super) fn observe(
         after[offset] = next;
     }
     let bounded = |left: Option<usize>, right: Option<usize>| {
-        left.is_some_and(clean_call) && right.is_some_and(clean_call)
+        left.is_some_and(placing_call) && right.is_some_and(placing_call)
     };
 
     let mut positions = BTreeMap::new();
@@ -201,7 +262,10 @@ pub(super) fn observe(
             // As in variant calling: an insertion into a repeat the read
             // bounds is judged on its placements along the repeat.
             let repeat = !unbounded && eligibility.repeat_unvetoed(&evidence);
-            let inserted_clean = |call: usize| clean_call(call) || (repeat && trusted_call(call));
+            let inserted_clean = |call: usize| {
+                (clean_call(call) || (repeat && trusted_call(call)))
+                    && calls.get(call).is_some_and(|call| !call.identity_only)
+            };
             let clean = !unbounded
                 && inserted
                     .iter()
@@ -240,13 +304,25 @@ pub(super) fn observe(
                 chars: Vec::new(),
             }
         } else {
+            // A call that may sit one position off, or that would show a run
+            // the read does not bound, shows nothing here.
+            let shifted = column.original_call_index_0based.is_some_and(|call| {
+                unanchored(call, column.query_base, position) || unbounded_run(call, position)
+            });
             Observation {
                 value: SiteValue::Base(column.query_base),
                 clean: canonical(column.query_base)
+                    && !shifted
                     && column.original_call_index_0based.is_some_and(clean_call),
                 chars: column
                     .original_call_index_0based
-                    .map(|call| observed_char(column.query_base, call, Some(position)))
+                    .map(|call| {
+                        let mut char = observed_char(column.query_base, call, Some(position));
+                        if shifted {
+                            char.trust = Trust::Nothing;
+                        }
+                        char
+                    })
                     .into_iter()
                     .collect(),
             }
@@ -351,6 +427,7 @@ impl ReadObservations {
                     trust: Trust::Nothing,
                     position: Some(position),
                     beside_unresolved: false,
+                    identity_only: false,
                 });
             }
             chars.extend(observation.chars.iter().copied());
