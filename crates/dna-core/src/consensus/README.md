@@ -16,10 +16,13 @@ behind every non-trivial decision.
   (SRS-VAR-021, ADR-0078, plugin `decided`): each segment's columns from its
   sites, each site's call aligned against its own interval (an `N` stands for
   its position and is not callable), gaps moved 3'-most, then the record rules
-  of `variant_calling`, and a length change of a segment-edge run excluded as
-  `run_boundary`.
+  of `variant_calling`; a length change of a segment-edge run, and a change
+  at the 3' end of a run of length evidence `phase_loss` or
+  `reference_frame`, excluded as `run_boundary`, with that end left out of
+  the callable segments.
 - `mod.rs`: the entry point `build`, which handles stretches of whole
-  reference runs, segment assembly, and the `consensus` plugin descriptor.
+  reference runs (seeded by clean differences and by disputed runs no read
+  bounds), segment assembly, and the `consensus` plugin descriptor.
   Each stretch is decided by its run structure (ADR-0074): composition, then
   lengths with their evidence (`in_phase`, `anchored_end`, `phase_loss`,
   `reference_frame`), or position by position.

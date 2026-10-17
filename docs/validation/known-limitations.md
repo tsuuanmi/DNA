@@ -13,7 +13,7 @@ These are current interpretation/validation boundaries, not future promises.
 - Mixed or secondary signal remains evidence; it is not automatically biological heteroplasmy.
 - Unresolved evidence remains unresolved rather than being forced into a definitive biological claim.
 - The sample consensus (`dna consensus`, ADR-0073, ADR-0074) writes `N` where no read observes a position or run cleanly.
-  - **Run lengths that no read shows.** A run whose two ends no single read shows takes the reference frame between the ends that reads locate (`reference_frame`), or the in-phase length before a read loses phase (`phase_loss`). Both are labelled in `sites[].runs` but not in the FASTA.
+  - **Run lengths that no read shows.** A run whose two ends no single read shows takes the reference frame between the ends that reads locate (`reference_frame`), or the in-phase length before a read loses phase (`phase_loss`). Both are labelled in `sites[].runs` but not in the FASTA, and `dna call` of the consensus document leaves such a run's 3' end, where its length change is written, not callable (SRS-VAR-021).
   - **Length-heteroplasmic tracts.** In a tract such as HVS-I 16184–16193 with `16189C`, the length is therefore a frame or an estimate, never a measurement.
   - **Dominant HVS-I lengths.** A dominant HVS-I length that a read does show (`anchored_end`) is still reported as a length change, although reviewers by convention do not record it.
   - **Unread runs.** A run that no read reads stays `N`, so most remaining misses are HVS-II length calls.

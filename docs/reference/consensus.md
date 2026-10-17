@@ -29,7 +29,8 @@ The method is described in [design](../design/consensus.md).
   - `sequence`: upper-case `A`, `C`, `G`, `T`, and `N` where undecided.
     Inserted bases are spliced in, and deleted positions are left out.
 - **`sites[]`:** decided intervals whose call differs from the reference,
-  that were not called outright, or whose clean observations disagreed.
+  that were not called outright, whose clean observations disagreed, or that
+  hold a run of length evidence `phase_loss` or `reference_frame`.
   - `start`, `end`: the interval in 1-based inclusive reference positions.
     It covers one position, or a stretch of whole reference runs.
   - `reference`: the reference sequence over the interval.
@@ -83,7 +84,9 @@ To turn a sample's traces into variants:
 2. `dna call <id> results/<id>.consensus.json --reference <fasta>` writes
    `results/<id>.variants.json` (`dna.variants/v1`) with its notation: the
    edits the consensus decided, at the positions it decided them, without
-   placing the segments again (SRS-VAR-021, ADR-0078).
+   placing the segments again (SRS-VAR-021, ADR-0078). For a run of length
+   evidence `phase_loss` or `reference_frame`, the run's 3' end, where a
+   change of its length is written, is not callable there.
 3. Optionally, `dna notation <id> results/<id>.variants.json --reference
    <fasta>` adds the conformance findings.
 

@@ -50,6 +50,12 @@ still contributes the bases its alignment places on the run.
   seeds that neighbour. A clean deletion that brings two runs of one base
   together seeds both of them. In both cases the reads' runs merge with the
   neighbouring run.
+- A reference homopolymer of at least four bases that no read shows cleanly
+  together with both neighbouring positions, while some read differs on it or
+  its neighbours (a substitution, a deletion, or an insertion, clean or not).
+  Decided position by position, such a run would take the reference length
+  unlabelled; as a stretch, its length gets a label (Step 3). Shorter runs
+  are left out: their disputes are mostly mixed signal at one base.
 
 Each seed grows to the whole reference run containing it. Overlapping or
 touching intervals merge into stretches, and a stretch never crosses the

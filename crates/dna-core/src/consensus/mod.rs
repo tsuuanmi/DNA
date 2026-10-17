@@ -909,12 +909,20 @@ fn groups_of(chars: &[Char]) -> Vec<Vec<Char>> {
     groups
 }
 
+/// The shortest reference homopolymer a disputed, unbounded run seeds a
+/// stretch for. Shorter runs hold few length variants, and their disputes are
+/// mostly mixed signal at a heteroplasmic base. A method constant: it matches
+/// the human-mtDNA profile's conformance minimum run length, which the
+/// consensus does not read.
+const SEEDED_RUN: usize = 4;
+
 /// Reference intervals where any read cleanly differs from the reference (an
-/// unclean difference decides nothing and must not widen a stretch), together
-/// with the neighbouring reference runs a substituted base or a deletion joins:
-/// each grown
-/// to whole reference runs on both sides, overlapping or touching intervals
-/// merged. A stretch never crosses the reference origin.
+/// unclean difference alone decides nothing and does not widen a stretch),
+/// together with the neighbouring reference runs a substituted base or a
+/// deletion joins, and every homopolymer of at least [`SEEDED_RUN`] bases that
+/// no read shows cleanly with both ends while some read differs on it: each
+/// grown to whole reference runs on both sides, overlapping or touching
+/// intervals merged. A stretch never crosses the reference origin.
 fn stretches(observed: &[ReadObservations], bases: &[u8]) -> Vec<(usize, usize)> {
     let length = bases.len();
     let mut seeds = BTreeSet::new();
@@ -961,6 +969,41 @@ fn stretches(observed: &[ReadObservations], bases: &[u8]) -> Vec<(usize, usize)>
                 seeds.insert(position + 1);
             }
         }
+    }
+    // A homopolymer of at least `SEEDED_RUN` bases that no read shows whole
+    // and cleanly, with both of its ends, while some read differs on it,
+    // cleanly or not, is decided by its run structure: decided position by
+    // position, it would assert a length no read shows (ADR-0071).
+    let mut first = 1;
+    while first + 1 < length {
+        let mut last = first;
+        while last + 1 < length && bases[last + 1] == bases[first] {
+            last += 1;
+        }
+        if last + 1 - first >= SEEDED_RUN && last + 1 < length && !seeds.contains(&first) {
+            let bounded = observed.iter().any(|read| {
+                (first - 1..=last + 1).all(|position| {
+                    read.positions
+                        .get(&position)
+                        .is_some_and(|observation| observation.clean)
+                })
+            });
+            let differs = observed.iter().any(|read| {
+                (first - 1..=last + 1).any(|position| {
+                    read.positions.get(&position).is_some_and(|observation| {
+                        observation.value != SiteValue::Base(char::from(bases[position]))
+                    })
+                }) || (first - 1..=last).any(|position| {
+                    read.junctions.get(&position).is_some_and(|observation| {
+                        observation.value != SiteValue::Insertion(String::new())
+                    })
+                })
+            });
+            if !bounded && differs {
+                seeds.insert(first);
+            }
+        }
+        first = last + 1;
     }
     let run_start = |mut position: usize| {
         while position > 0 && bases[position - 1] == bases[position] {
@@ -1059,9 +1102,18 @@ fn assemble(
             SiteState::Unresolved => {}
         }
         let reference = String::from_utf8_lossy(&bases[*first..=*last]).into_owned();
+        // A run length that is an estimate keeps its label even where it
+        // equals the reference.
+        let estimated = decision.runs.iter().any(|run| {
+            matches!(
+                run.evidence,
+                RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
+            )
+        });
         if decision.value.as_deref() != Some(reference.as_str())
             || decision.state != SiteState::Called
             || !decision.opposing.is_empty()
+            || estimated
         {
             sites.push(ConsensusSite {
                 first_0based: *first,
@@ -1100,7 +1152,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 4,
+    version: 5,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledVariants],
     config_sections: &[],
@@ -1557,6 +1609,53 @@ mod tests {
         let decision = decide_stretch(&[reverse], 6, 18, WINDOW.as_bytes());
         assert_eq!(decision.value.as_deref(), Some("CCCCCCCCCTCCCCCC"));
         assert_eq!(decision.runs[0], run('C', 9, RunEvidence::AnchoredEnd));
+    }
+
+    #[test]
+    fn a_disputed_run_no_read_bounds_seeds_a_stretch() {
+        // A C inserted into the C7 run (0-based 6-12) through masked calls: the
+        // read shows neither run end cleanly, yet it differs on the run.
+        let inserting = || {
+            rows(
+                "i",
+                0,
+                "GTCAAACCCCCCC-TCCCCCGCTT",
+                "GTCAAACCCCCCCCTCCCCCGCTT",
+                "ccccccmmmmmmmmmccccccccc",
+            )
+        };
+        assert_eq!(stretches(&[inserting()], WINDOW.as_bytes()), [(6, 12)]);
+        // A read that shows both ends of the run cleanly bounds it.
+        let bounding = rows("b", 0, WINDOW, WINDOW, &"c".repeat(WINDOW.len()));
+        assert!(stretches(&[inserting(), bounding], WINDOW.as_bytes()).is_empty());
+    }
+
+    #[test]
+    fn an_estimated_length_equal_to_the_reference_keeps_its_site() {
+        let estimated = |evidence: RunEvidence| {
+            let decision = Decision {
+                value: Some(TRACT[7..=16].into()),
+                state: SiteState::Called,
+                supporting: vec!["f".into()],
+                opposing: Vec::new(),
+                uninformative: Vec::new(),
+                runs: vec![
+                    run('C', 5, evidence),
+                    run('T', 1, RunEvidence::InPhase),
+                    run('C', 4, RunEvidence::InPhase),
+                ],
+            };
+            let decided = BTreeMap::from([(7, (16, decision))]);
+            let mut consensus = Consensus {
+                segments: Vec::new(),
+                sites: Vec::new(),
+                summary: ConsensusSummary::default(),
+            };
+            assemble(&[7], &decided, TRACT.as_bytes(), 1, &mut consensus);
+            consensus.sites.len()
+        };
+        assert_eq!(estimated(RunEvidence::ReferenceFrame), 1);
+        assert_eq!(estimated(RunEvidence::InPhase), 0);
     }
 
     #[test]
