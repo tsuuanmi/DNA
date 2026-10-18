@@ -279,6 +279,17 @@ The truth side is compared as stored in the database; DNA's side uses its
 notation. Every sample is compared under six measures: primary, strict,
 IUPAC-compatible, the two haplotype measures, and haplotype LoD.
 
+Run lengths a profile convention leaves unrecorded (`not_recorded`,
+SRS-NOM-017) are not compared under any measure, on either side: an
+insertion of the convention's base anchored in its window, or a deletion of
+it there, is left out when that side's haplotype with its substitutions only
+has a run of the base of at least `minimum_run` at the call. The reviewers do
+not write such a length (`hvs1_c_length`: 1.1 % of the truth's samples with
+`16189C` carry an indel at 16180-16195), so DNA's length and the reference
+length the truth keeps are no difference. Counting the run without either
+side's insertions and deletions keeps an over-estimated length from carrying
+a run across the minimum.
+
 **Primary.** The lab's concordance (`mtdna_raw`, `src/core/comparison.py`,
 `SampleComparator.is_concordant`), with DNA as tool A (the automated caller)
 and the truth as tool B:

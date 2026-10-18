@@ -27,6 +27,7 @@ mod report;
 mod runner;
 mod triage;
 mod truth;
+mod unrecorded;
 mod workload;
 mod zones;
 
@@ -432,6 +433,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         &outcomes,
         &truth.database.samples,
         &reference.sequence,
+        &profile.conventions,
     );
     let check = TruthCheck::new(&manifest, &truth.database);
     let report = Report::new(
@@ -523,7 +525,7 @@ fn run(cli: &RunArgs) -> Result<String> {
 
 /// The target profile `config` names, resolved against the configuration
 /// file's directory when relative, as DNA resolves it (SRS-CFG-002).
-fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profile> {
+pub(crate) fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profile> {
     let failure = |message: String| Error::Profile {
         path: config.to_path_buf(),
         message,

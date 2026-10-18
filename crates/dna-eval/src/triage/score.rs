@@ -1839,6 +1839,7 @@ mod tests {
             &outcomes,
             &records,
             compare::tests::rcrs(),
+            &[],
         );
         let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
@@ -1988,7 +1989,13 @@ mod tests {
         };
         evidence.minor = vec![vec![Vec::new(); 21]];
         evidence.minor[0][9] = vec![minor(Strand::Forward), minor(Strand::Reverse)];
-        let rows = crate::report::rows(&manifest.samples, &runs, &records, compare::tests::rcrs());
+        let rows = crate::report::rows(
+            &manifest.samples,
+            &runs,
+            &records,
+            compare::tests::rcrs(),
+            &[],
+        );
         let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
         let measured = triage.reported().ok_or("a measurement")?;
@@ -2039,7 +2046,13 @@ mod tests {
             evidence.minor = Vec::new();
             evidence.minor_failure = Some("cannot read the observations: broken".into());
         }
-        let rows = crate::report::rows(&manifest.samples, &runs, &records, compare::tests::rcrs());
+        let rows = crate::report::rows(
+            &manifest.samples,
+            &runs,
+            &records,
+            compare::tests::rcrs(),
+            &[],
+        );
         // S0's status (its placement leak) does not depend on the evidence.
         assert_eq!(rows[0].status(Measure::Primary), Status::Discordant);
         let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
