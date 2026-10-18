@@ -47,6 +47,9 @@ pub(crate) enum Error {
     /// The forced-window list is invalid.
     #[error("invalid forced windows {path}: {message}")]
     ForcedWindows { path: PathBuf, message: String },
+    /// The current-data month is not `YYYY-MM`.
+    #[error("invalid current-data month {value:?}: expected YYYY-MM")]
+    CurrentSince { value: String },
     /// The review window is not a positive number of positions.
     #[error("invalid review window {window}: it must be at least 1")]
     ReviewWindow { window: i64 },

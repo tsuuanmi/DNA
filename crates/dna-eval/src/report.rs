@@ -341,6 +341,9 @@ pub(crate) struct Report<'a> {
     causes: Vec<Option<(Cause, Scope, Vec<Finding>)>>,
     /// The review workload of every row.
     review: Review,
+    /// The first batch month (`YYYY-MM`) of the current data, whose slice
+    /// the summary reports first.
+    current_since: Option<String>,
 }
 
 /// Default window of the review workload, in positions.
@@ -431,7 +434,26 @@ impl<'a> Report<'a> {
             estimates,
             causes,
             review: Review::of(rows, REVIEW_WINDOW, None),
+            current_since: None,
         }
+    }
+
+    /// The same report with the samples whose batch date is in or after
+    /// `since` (`YYYY-MM`) reported first as the current data.
+    pub(crate) fn with_current_since(mut self, since: Option<String>) -> Self {
+        self.current_since = since;
+        self
+    }
+
+    /// Whether a row belongs to the current data.
+    fn current(&self, row: &Row<'_>) -> bool {
+        self.current_since.as_deref().is_some_and(|since| {
+            row.sample
+                .batch_date
+                .as_deref()
+                .and_then(|date| date.get(..7))
+                .is_some_and(|month| month >= since)
+        })
     }
 
     /// The same report with the review workload over windows of `window`
@@ -778,6 +800,47 @@ impl<'a> Report<'a> {
         let counted = self.review.counted(self.rows);
         if counted.is_empty() {
             return;
+        }
+        if let Some(since) = &self.current_since {
+            let current = counted
+                .iter()
+                .filter(|(row, _)| self.current(row))
+                .collect::<Vec<_>>();
+            if !current.is_empty() {
+                let span = self.review.windows.iter().map(Window::length).sum::<i64>();
+                let total = span * i64::try_from(current.len()).unwrap_or(i64::MAX);
+                let positions = current
+                    .iter()
+                    .map(|(_, workload)| workload.positions)
+                    .sum::<i64>();
+                let unreviewed = current
+                    .iter()
+                    .filter(|(_, workload)| !workload.unreviewed.is_empty())
+                    .count();
+                let clear = current
+                    .iter()
+                    .filter(|(_, workload)| workload.checks == 0)
+                    .count();
+                let share = |part: f64, whole: f64| {
+                    if whole > 0.0 {
+                        100.0 * part / whole
+                    } else {
+                        0.0
+                    }
+                };
+                let _ = write!(
+                    text,
+                    "\n## Review workload on current data\n\nSamples with a batch date in or after \
+                     {since}: {}.\n\n| Measure | Value |\n|---|---:|\n\
+                     | Positions to review | {positions} ({:.2} %) |\n\
+                     | Samples with an unreviewed difference | {unreviewed} ({:.2} %) |\n\
+                     | Clear samples (no check item) | {clear} ({:.2} %) |\n",
+                    current.len(),
+                    share(positions as f64, total as f64),
+                    share(unreviewed as f64, current.len() as f64),
+                    share(clear as f64, current.len() as f64),
+                );
+            }
         }
         let samples = counted.len();
         let span = self.review.windows.iter().map(Window::length).sum::<i64>();
@@ -1602,6 +1665,29 @@ impl<'a> Report<'a> {
                 let _ = write!(text, " {count} |");
             }
             text.push('\n');
+        }
+        if let Some(since) = &self.current_since {
+            let mut current = BTreeMap::<(Measure, Change), usize>::new();
+            for row in self.rows.iter().filter(|row| self.current(row)) {
+                for measure in Measure::ALL {
+                    if let Some(change) = self.change(row, measure) {
+                        *current.entry((measure, change)).or_default() += 1;
+                    }
+                }
+            }
+            let _ = write!(
+                text,
+                "\nThe same on current data (batch date in or after {since}):\n\n| Change |"
+            );
+            table_header(text, "|---|");
+            for change in Change::ALL {
+                let _ = write!(text, "| {} |", change.label());
+                for measure in Measure::ALL {
+                    let count = current.get(&(measure, change)).copied().unwrap_or_default();
+                    let _ = write!(text, " {count} |");
+                }
+                text.push('\n');
+            }
         }
     }
 }

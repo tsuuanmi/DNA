@@ -208,6 +208,10 @@ struct RunArgs {
     /// learned on this run's panel overstates its effect.
     #[arg(long)]
     forced_windows: Option<PathBuf>,
+    /// First batch month (`YYYY-MM`) of the current data: the summary reports
+    /// the samples whose manifest `batch_date` is in or after it first.
+    #[arg(long)]
+    current_since: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -239,6 +243,22 @@ fn runnable(manifest: &Manifest) -> Result<()> {
         }),
         _ => Ok(()),
     }
+}
+
+/// Whether `value` is a month written `YYYY-MM`.
+fn is_month(value: &str) -> bool {
+    value.len() == 7
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if index == 4 {
+                byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+        && matches!(
+            &value[5..],
+            "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"
+        )
 }
 
 fn run(cli: &RunArgs) -> Result<String> {
@@ -292,6 +312,13 @@ fn run(cli: &RunArgs) -> Result<String> {
         let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
         Forms::new(corpus.samples.values(), &reference.sequence)
     };
+    if let Some(since) = &cli.current_since
+        && !is_month(since)
+    {
+        return Err(Error::CurrentSince {
+            value: since.clone(),
+        });
+    }
     if cli.review_window < 1 {
         return Err(Error::ReviewWindow {
             window: cli.review_window,
@@ -336,7 +363,8 @@ fn run(cli: &RunArgs) -> Result<String> {
         &check,
         (&forms, reference.sequence.as_str()),
     )
-    .with_review(cli.review_window, forced);
+    .with_review(cli.review_window, forced)
+    .with_current_since(cli.current_since.clone());
     let triage_started = Instant::now();
     let triage = cli
         .triage
@@ -598,6 +626,9 @@ struct Header {
     baseline: Option<PathBuf>,
     /// Window of the review workload, in positions.
     review_window: i64,
+    /// First batch month of the current data, when given.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    current_since: Option<String>,
     /// The forced-window list the workload also counts as reviewed.
     #[serde(skip_serializing_if = "Option::is_none")]
     forced_windows: Option<PathBuf>,
@@ -742,6 +773,7 @@ fn header(
         identities: identities.into_iter().collect(),
         baseline: cli.baseline.as_deref().map(absolute),
         review_window: cli.review_window,
+        current_since: cli.current_since.clone(),
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         samples: Measure::ALL
             .into_iter()
@@ -843,6 +875,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+
+    #[test]
+    fn current_data_months_are_year_dash_month() {
+        assert!(is_month("2026-01") && is_month("2025-12"));
+        assert!(!is_month("2026-1") && !is_month("2026-13") && !is_month("2026/01"));
+    }
 
     fn panel(name: Option<&str>) -> Manifest {
         Manifest {
