@@ -158,7 +158,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 5)
+## Labels (rules version 6)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -190,11 +190,13 @@ exemption lifts the margin (ADR-0076).
   with enough calls (`calls`, the sample's own taken out), and the second
   base is not the base the same read shows at the previous or next reference
   position (a neighbour shadow). The neighbour test stays until DNA handles
-  noisy regions itself. The label fires when both strands read the position cleanly and a qualifying
-  read on each strand shows the same second base, or when only one strand
-  reads it cleanly and one read qualifies. The base most qualifying reads show
-  is reported (then A/C/G/T order), with each of them, its share, and its
-  threshold.
+  noisy regions itself. The label fires only when both strands read the
+  position cleanly and a qualifying read on each strand shows the same second
+  base: a site only one strand reads cleanly gives no label (rules version 6;
+  on the current development data one-strand flags were 3 % precise against
+  90 % for two-strand ones, so they cost reviewers far more than they found).
+  The base most qualifying reads show is reported (then A/C/G/T order), with
+  each of them, its share, and its threshold.
 - `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
   runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
   not callable.
