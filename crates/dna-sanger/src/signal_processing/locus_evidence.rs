@@ -82,11 +82,53 @@ pub(super) fn calculate(
             corrected_amplitudes,
             snrs,
             profile: EvidenceProfile::from_corrected_amplitudes(corrected_amplitudes),
+            channel_widths: std::array::from_fn(|channel| {
+                half_width(
+                    &trace.channels[channel],
+                    event_position,
+                    channel_baselines[channel],
+                    corrected_amplitudes[channel],
+                    context_sample_start..context_sample_end,
+                )
+            }),
         };
         validate_evidence(&record, config.window_size_bases)?;
         evidence.push(record);
     }
     Ok(evidence)
+}
+
+/// The width of one channel's peak at `event`: the contiguous samples around
+/// it, within `context`, where the channel stays at or above its baseline plus
+/// half of `amplitude`; zero without positive amplitude.
+fn half_width(
+    channel: &[i32],
+    event: usize,
+    baseline: f64,
+    amplitude: f64,
+    context: std::ops::Range<usize>,
+) -> usize {
+    if amplitude <= 0.0 || !context.contains(&event) {
+        return 0;
+    }
+    let half = baseline + amplitude / 2.0;
+    let above = |position: usize| {
+        channel
+            .get(position)
+            .is_some_and(|&value| f64::from(value) >= half)
+    };
+    if !above(event) {
+        return 0;
+    }
+    let mut first = event;
+    while first > context.start && above(first - 1) {
+        first -= 1;
+    }
+    let mut last = event;
+    while last + 1 < context.end && above(last + 1) {
+        last += 1;
+    }
+    last - first + 1
 }
 
 fn validate_evidence(evidence: &LocusEvidence, context_width: usize) -> Result<()> {

@@ -93,6 +93,7 @@ mod tests {
             corrected_amplitudes: [total, 0.0, 0.0, 0.0],
             snrs: [total, 0.0, 0.0, 0.0],
             profile: EvidenceProfile::from_corrected_amplitudes([total, 0.0, 0.0, 0.0]),
+            channel_widths: [0; 4],
         }
     }
 

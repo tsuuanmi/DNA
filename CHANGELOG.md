@@ -344,6 +344,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Edge calls vouched for by their own signal (SRS-CALL-017). At an end of a
+  read's informative interval, a scored call at a signal edge whose signal is
+  unambiguous (one qualifying channel, a primary peak at least the read's
+  median, a second share below 0.10, a peak no broader than 1.5 times the
+  read's median width, regular spacing, no phase loss beyond the end, and not
+  the base of its neighbour towards the end) has its verdict on its base taken
+  off the edge; its indel verdict keeps the edge. Signal processing now
+  measures each channel's peak width. Plugin `sanger` 5. Development panel
+  v5: positions to review 3.28 to 3.20 %, clear samples 39.36 to 40.56 %,
+  samples with an unreviewed difference unchanged; `315.1C` called in 126
+  more samples, `73G` in 56; `strict` 33 better and 1 worse.
+
 - `Alignment` is read-only outside `dna-align` (ADR-0079 follow-up): its
   orientation, segments, origin flag, and metrics are getters, and the cuts
   of its callable segments (an excluded variant's positions, SRS-VAR-019; a
