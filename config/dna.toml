@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 12
+schema_version = 13
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -86,6 +86,11 @@ minimum_overlap_agreement = 0.50
 # (SRS-VAR-020).
 minimum_peak_height = 150
 relative_quality_threshold = 30
+# A call below the peak floor whose relative quality is at least
+# `peak_rescue_quality` still shows its base (its indel stays withheld): a low
+# absolute peak at a weak read end or in a weak dye context is not a doubtful
+# base when the call stands clear of its neighbourhood.
+peak_rescue_quality = 50
 # Read-edge rules (SRS-CALL-013 to SRS-CALL-018). Calls within
 # `signal_edge_margin` of an end of the usable signal lie at a signal edge.
 signal_edge_margin = 12

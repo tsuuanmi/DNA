@@ -79,6 +79,9 @@ pub struct SangerEvidenceConfig {
     pub minimum_peak_height: i32,
     /// Relative quality a supporting call must exceed.
     pub relative_quality_threshold: u8,
+    /// Relative quality at or above which a call below the peak floor still
+    /// shows its base; its indel stays withheld.
+    pub peak_rescue_quality: u8,
     /// Calls from an end of the usable signal that lie at a signal edge
     /// (SRS-CALL-013).
     pub signal_edge_margin: usize,
@@ -125,6 +128,7 @@ pub struct SangerEvidenceConfig {
 pub struct RawSangerEvidenceConfig {
     pub(crate) minimum_peak_height: i32,
     pub(crate) relative_quality_threshold: u8,
+    pub(crate) peak_rescue_quality: u8,
     pub(crate) signal_edge_margin: usize,
     pub(crate) leading_height_fraction: f64,
     pub(crate) post_repeat_margin: usize,
@@ -181,6 +185,12 @@ impl RawSangerEvidenceConfig {
             )
             .into());
         }
+        if self.peak_rescue_quality <= self.relative_quality_threshold {
+            return Err(ConfigError::Constraint(
+                "sanger_evidence.peak_rescue_quality must exceed relative_quality_threshold",
+            )
+            .into());
+        }
         if self.post_repeat_minimum_calls == 0 || self.start_norm_calls == 0 {
             return Err(ConfigError::Constraint(
                 "sanger_evidence.post_repeat_minimum_calls and start_norm_calls must be positive",
@@ -190,6 +200,7 @@ impl RawSangerEvidenceConfig {
         Ok(SangerEvidenceConfig {
             minimum_peak_height: self.minimum_peak_height,
             relative_quality_threshold: self.relative_quality_threshold,
+            peak_rescue_quality: self.peak_rescue_quality,
             signal_edge_margin: self.signal_edge_margin,
             leading_height_fraction: self.leading_height_fraction,
             post_repeat_margin: self.post_repeat_margin,

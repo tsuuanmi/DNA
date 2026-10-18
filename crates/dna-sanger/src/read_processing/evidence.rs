@@ -118,8 +118,14 @@ pub fn read_evidence(
                 ..CallEvidence::scored(call.primary, signal.loci[index].profile)
             };
             // Peak floor and relative quality withhold the base and an
-            // indel; mixed signal withholds the base only.
-            if highest_peak < config.minimum_peak_height {
+            // indel; mixed signal withholds the base only. A call below the
+            // peak floor whose relative quality reaches the rescue level still
+            // shows its base: a low absolute peak (a weak read end, a weak
+            // dye context) is not a doubtful call when it stands clear of its
+            // neighbourhood.
+            if highest_peak < config.minimum_peak_height
+                && score.relative_quality_score < config.peak_rescue_quality
+            {
                 evidence.identity.withheld.insert(PEAK_BELOW_MINIMUM)?;
                 evidence.indel.withheld.insert(PEAK_BELOW_MINIMUM)?;
             }
@@ -635,6 +641,7 @@ mod tests {
         SangerEvidenceConfig {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
+            peak_rescue_quality: 50,
             signal_edge_margin: margin,
             leading_height_fraction: 1.0,
             post_repeat_margin: margin,
@@ -767,6 +774,25 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(vetoes, [(true, false), (false, true), (false, false)]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_clear_call_below_the_peak_floor_keeps_its_base_and_indel() -> Result<()> {
+        // Below the floor at quality 49 and 50; the rescue level is 50.
+        let (calls, signal, callability, quality) = products(&[149, 149], &[49, 50]);
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
+        let withheld = evidence
+            .calls()
+            .iter()
+            .map(|call| {
+                (
+                    call.identity.withheld.contains(PEAK_BELOW_MINIMUM),
+                    call.indel.withheld.contains(PEAK_BELOW_MINIMUM),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(withheld, [(true, true), (false, false)]);
         Ok(())
     }
 
