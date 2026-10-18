@@ -8,6 +8,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::error::{ReportError, RepresentationError};
 use crate::model::notation_result::{
     ConformanceResult, CutResult, EmpopResult, FindingResult, NotationProvenanceResult,
     NotationResult, SourceResult,
@@ -19,7 +20,6 @@ use crate::model::sample_result::{
 use crate::report::json::{project_plugins, project_profile};
 use dna_empop::conformance::Finding;
 use dna_empop::export::Export;
-use dna_kernel::error::{ReportError, RepresentationError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::{ConformanceRule, Convention, NotationStyle, ProfileIdentity};
@@ -68,7 +68,7 @@ pub(crate) struct CompletedNotation {
 }
 
 /// Builds `dna.notation/v1` without filesystem side effects.
-pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<NotationResult> {
+pub(crate) fn build(completed: CompletedNotation) -> crate::error::Result<NotationResult> {
     let CompletedNotation {
         sample_id,
         reference,
@@ -91,7 +91,7 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
         .collect::<Vec<_>>();
     let conformance = conformance
         .map(
-            |(rules, findings)| -> dna_kernel::error::Result<ConformanceResult> {
+            |(rules, findings)| -> crate::error::Result<ConformanceResult> {
                 if findings.len() != reads.len() {
                     return Err(ReportError::Inconsistent(
                         "conformance findings do not match the document reads",
@@ -115,7 +115,7 @@ pub(crate) fn build(completed: CompletedNotation) -> dna_kernel::error::Result<N
                                 .collect(),
                         })
                     })
-                    .collect::<dna_kernel::error::Result<_>>()?;
+                    .collect::<crate::error::Result<_>>()?;
                 Ok(ConformanceResult {
                     rules: rules.into_iter().map(ConformanceRule::label).collect(),
                     findings,
@@ -176,7 +176,7 @@ pub(super) fn project(
     identities: &[&str],
     names: &[String],
     notation: &SampleNotation,
-) -> dna_kernel::error::Result<SampleNotationResult> {
+) -> crate::error::Result<SampleNotationResult> {
     let index = |identity: &str| {
         identities
             .iter()
@@ -211,10 +211,10 @@ pub(super) fn project(
                             .cloned()
                             .ok_or(ReportError::MissingRead { index }.into())
                     })
-                    .collect::<dna_kernel::error::Result<_>>()?,
+                    .collect::<crate::error::Result<_>>()?,
             })
         })
-        .collect::<dna_kernel::error::Result<_>>()?;
+        .collect::<crate::error::Result<_>>()?;
     Ok(SampleNotationResult {
         style: notation.style.label(),
         calls,
@@ -252,7 +252,7 @@ pub(crate) struct CallReads<'a> {
 pub(crate) fn calls<'a>(
     reference: &Reference,
     notation: &'a SampleNotation,
-) -> dna_kernel::error::Result<BTreeMap<NotationCall, CallReads<'a>>> {
+) -> crate::error::Result<BTreeMap<NotationCall, CallReads<'a>>> {
     let render = match notation.style {
         NotationStyle::PerBaseDecimal => render,
     };
@@ -417,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn labels_a_call_only_when_every_read_containing_it_does() -> dna_kernel::error::Result<()> {
+    fn labels_a_call_only_when_every_read_containing_it_does() -> crate::error::Result<()> {
         use dna_kernel::checksum::hex_sha256;
         use dna_kernel::model::reference::ReferenceTopology;
         use dna_kernel::profile::{ConventionKind, ConventionLabel};
@@ -454,13 +454,12 @@ mod tests {
                 read("c", vec![longer]),
             ],
         };
-        let labelled =
-            |notation: &SampleNotation| -> dna_kernel::error::Result<Vec<(String, bool)>> {
-                Ok(calls(&reference, notation)?
-                    .into_iter()
-                    .map(|(call, reads)| (call.text, reads.convention.is_some()))
-                    .collect())
-            };
+        let labelled = |notation: &SampleNotation| -> crate::error::Result<Vec<(String, bool)>> {
+            Ok(calls(&reference, notation)?
+                .into_iter()
+                .map(|(call, reads)| (call.text, reads.convention.is_some()))
+                .collect())
+        };
         assert_eq!(
             labelled(&notation)?,
             [("5C".to_owned(), false), ("8.1C".to_owned(), false)]

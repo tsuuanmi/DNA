@@ -22,11 +22,11 @@ mod runs;
 mod sanger;
 mod shadow;
 
+use crate::error::Result;
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PositionEvidence, ReadCallability};
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
-use dna_kernel::error::Result;
 
 /// Plain thresholds of the core, assembled from the configuration.
 #[derive(Debug, Clone, Copy)]

@@ -10,5 +10,6 @@ everything from ABIF bytes to one read's `ReadEvidence`. It depends only on
 - [basecalling](basecalling/README.md), [signal_processing](signal_processing/README.md), [callability](callability/README.md), and [quality_control](quality_control/README.md) — the reference-free stages.
 - [read_processing](read_processing/README.md) — stage orchestration, `SangerConfig`, the Sanger plugin descriptor, and the `ReadEvidence` adapter.
 - [model](model/README.md) — canonical Sanger evidence.
+- [error](error/README.md) — the Sanger stage failures, `SangerError`.
 
 See [crates](../../README.md).

@@ -14,13 +14,13 @@ use std::path::{Path, PathBuf};
 use tracing::{Dispatch, Span};
 
 use crate::config::Config;
+use crate::error::{Result, SampleError};
 use crate::input::sanger::{self, SampleInputs};
 use dna_core::consensus;
 use dna_core::model::called_read::CalledRead;
 use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 use dna_core::sample;
 use dna_core::variant_calling::read_trust;
-use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
 pub use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel};
 use dna_kernel::profile::{Profile, ProfileIdentity};
@@ -100,18 +100,18 @@ impl SampleAnalysis {
     ///
     /// Returns [`SampleError::InvalidInterval`]
     /// when `first_1based` is zero or greater than `last_1based`, and
-    /// [`Error`](dna_kernel::error::Error) when the placed reads are
+    /// [`Error`](crate::error::Error) when the placed reads are
     /// inconsistent, which the analysis already rules out.
     pub fn observations(
         &self,
         first_1based: usize,
         last_1based: usize,
     ) -> Result<Vec<LocusObservations>> {
-        sample::observations(
+        Ok(sample::observations(
             &self.called.iter().collect::<Vec<_>>(),
             first_1based,
             last_1based,
-        )
+        )?)
     }
 }
 
@@ -173,7 +173,7 @@ pub struct NotationCall {
 ///
 /// # Errors
 ///
-/// Returns [`Error`](dna_kernel::error::Error) when an input or configuration
+/// Returns [`Error`](crate::error::Error) when an input or configuration
 /// file is unreadable or invalid, when a read fails other than by rejection
 /// (the first such read in trace order), or when no read is admitted
 /// (`SampleError::NoAdmittedReads`; [`analyze_sanger_outcome`] returns those
@@ -282,12 +282,12 @@ pub(crate) fn aggregate(placed: &PlacedReads, config: &Config) -> Result<SampleE
             input_sha256: read.input_sha256.clone(),
         })
         .collect::<Vec<_>>();
-    sample::aggregate(
+    Ok(sample::aggregate(
         &placed.called.iter().collect::<Vec<_>>(),
         &rejected,
         &config.core.sample_reconciliation,
         &config.core.variant_calling,
-    )
+    )?)
 }
 
 /// Builds the consensus of the admitted reads in the evidence's read order.

@@ -1,9 +1,9 @@
 //! Rolling sample-domain baseline, noise, and peak-SNR features.
 
+use crate::error::{Result, SignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::signal::SignalWindow;
 use crate::signal_processing::SignalProcessingConfig;
-use dna_kernel::error::{Result, SignalError};
 
 use super::statistics::{self, SpanEstimates};
 

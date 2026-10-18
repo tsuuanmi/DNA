@@ -10,7 +10,7 @@ use crate::report::{ReadRepresentation, SampleNotation};
 use dna_core::model::called_read::CalledRead;
 use std::ops::Range;
 
-use dna_kernel::error::Result;
+use crate::error::Result;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{Notation, Profile};
 use dna_kernel::variant::{CalledVariantSet, Variant};
@@ -134,10 +134,10 @@ mod tests {
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
     fn rcrs() -> Result<Reference> {
-        reference::load(
+        Ok(reference::load(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("references/rCRS.fasta"),
             ReferenceTopology::Circular,
-        )
+        )?)
     }
 
     fn called(

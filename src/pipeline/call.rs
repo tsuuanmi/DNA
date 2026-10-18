@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::config::Config;
+use crate::error::{ConsensusDocumentError, Error, Result};
 use crate::input::consensus::{self, ConsensusInputs};
 use crate::input::sequence::{self, CallInputs, SequenceRead};
 use crate::operation_log::OperationLog;
@@ -14,7 +15,6 @@ use dna_core::consensus::decided;
 use dna_core::model::called_read::CalledRead;
 use dna_core::model::consensus::Consensus;
 use dna_core::read_call::{self, CoreRun, ReadIdentity};
-use dna_kernel::error::{ConsensusDocumentError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 
@@ -220,6 +220,7 @@ pub(super) fn call_sequences(
                 &run,
             )
             .map(CalledRead::without_excluded_positions)
+            .map_err(Error::from)
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -266,6 +267,7 @@ pub(super) fn call_consensus(
                 &run,
             )
             .map(CalledRead::without_excluded_positions)
+            .map_err(Error::from)
         })
         .collect::<Result<Vec<_>>>()?;
 

@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 use noodles_fasta as fasta;
 
 use crate::config::Config;
+use crate::error::{KernelError, Result, SequenceError};
 use dna_kernel::checksum::hex_sha256;
-use dna_kernel::error::{Error, Result, SequenceError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, ReadEvidence};
@@ -93,7 +93,7 @@ pub(crate) fn from_fasta(bytes: &[u8]) -> Result<Vec<SequenceRead>> {
 
 /// Loads every record of one FASTA file.
 fn load(path: &Path) -> Result<Vec<SequenceRead>> {
-    let metadata = fs::metadata(path).map_err(|source| Error::Read {
+    let metadata = fs::metadata(path).map_err(|source| KernelError::Read {
         kind: "sequence",
         path: path.to_path_buf(),
         source,
@@ -105,7 +105,7 @@ fn load(path: &Path) -> Result<Vec<SequenceRead>> {
         }
         .into());
     }
-    let bytes = fs::read(path).map_err(|source| Error::Read {
+    let bytes = fs::read(path).map_err(|source| KernelError::Read {
         kind: "sequence",
         path: path.to_path_buf(),
         source,

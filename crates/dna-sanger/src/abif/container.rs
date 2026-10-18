@@ -1,7 +1,7 @@
 //! Strict ABIF directory parsing and exact tag lookup.
 
 use crate::abif::reader::Reader;
-use dna_kernel::error::{AbifError, Result, Tag};
+use crate::error::{AbifError, Result, Tag};
 
 const DIRECTORY_ENTRY_SIZE: usize = 28;
 const ROOT_ENTRY_OFFSET: usize = 6;
@@ -168,7 +168,7 @@ fn element_payload_size(
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::error::Error;
+    use crate::error::SangerError as Error;
 
     use super::*;
 

@@ -11,11 +11,11 @@
 //! phase loss (ADR-0076), and each call's second base.
 
 use super::SangerEvidenceConfig;
+use crate::error::{ProductsError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::SignalAnalysis;
-use dna_kernel::error::{AlignmentError, Result, VariantError};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
@@ -62,7 +62,7 @@ const POST_REPEAT_MINIMUM_CALLS: usize = 2;
 ///
 /// # Errors
 ///
-/// Returns `AlignmentError` or `VariantError` when the Sanger products disagree
+/// Returns `ProductsError` when the Sanger products disagree
 /// on call count, trim, or call identity, and `EvidenceError` when the evidence
 /// is invalid.
 pub fn read_evidence(
@@ -75,13 +75,10 @@ pub fn read_evidence(
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
     if callability.mask.len() != count {
-        return Err(AlignmentError::Inconsistent(
-            "callability mask and quality evidence disagree in call count",
-        )
-        .into());
+        return Err(ProductsError::MaskCountMismatch.into());
     }
     if signal.loci.len() != count {
-        return Err(AlignmentError::CallCountMismatch {
+        return Err(ProductsError::CallCountMismatch {
             loci: signal.loci.len(),
             qualities: count,
         }
@@ -89,7 +86,7 @@ pub fn read_evidence(
     }
     let (start, end) = (quality.trim_start_0based, quality.trim_end_0based_exclusive);
     if start > end || end > count {
-        return Err(AlignmentError::InvalidTrim {
+        return Err(ProductsError::InvalidTrim {
             start,
             end,
             profiles: count,
@@ -97,7 +94,7 @@ pub fn read_evidence(
         .into());
     }
     if quality.retained_sequence.len() != end - start {
-        return Err(AlignmentError::RetainedLengthMismatch {
+        return Err(ProductsError::RetainedLengthMismatch {
             bases: quality.retained_sequence.len(),
             profiles: end - start,
         }
@@ -108,17 +105,17 @@ pub fn read_evidence(
             let call = calls
                 .calls
                 .get(index)
-                .ok_or(VariantError::MissingCall { index })?;
+                .ok_or(ProductsError::MissingCall { index })?;
             let score = &quality.per_call[index];
             if call.index_0based != index || score.index_0based != index {
-                return Err(VariantError::CallMismatch { index }.into());
+                return Err(ProductsError::CallMismatch { index }.into());
             }
             let highest_peak = call
                 .peaks
                 .iter()
                 .map(|peak| peak.height)
                 .max()
-                .ok_or(VariantError::NoChannelPeaks { index })?;
+                .ok_or(ProductsError::NoChannelPeaks { index })?;
             let mut evidence = CallEvidence {
                 second: second_base(call),
                 ..CallEvidence::scored(call.primary, signal.loci[index].profile)
@@ -182,7 +179,11 @@ pub fn read_evidence(
         })
         .collect::<Vec<_>>();
     mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, edge_margin);
-    ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())
+    Ok(ReadEvidence::new(
+        evidence,
+        informative,
+        REASON_ORDER.to_vec(),
+    )?)
 }
 
 /// Marks every run of one base the read bounds right before it loses phase

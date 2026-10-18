@@ -1,8 +1,8 @@
 //! One authoritative read-level reference-guided scientific path.
 
 use crate::config::Config;
+use crate::error::{Error, Result};
 use crate::model::read_observation::ReadObservation;
-use dna_kernel::error::{Error, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_kernel::read_evidence::Placement;
@@ -115,11 +115,11 @@ pub(crate) fn observe(
         Ok(called) => called,
         Err(error) => {
             let Some(rejection) = PlacementRejection::of(&error) else {
-                return Err(error);
+                return Err(error.into());
             };
             return Ok(Observation::Unplaced {
                 rejection,
-                error,
+                error: error.into(),
                 sanger: Box::new(SangerRejection {
                     integrity: signal.integrity,
                     callability,

@@ -7,7 +7,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
-use dna::error::{Error, ProfileError};
+use dna::error::{KernelError, ProfileError};
 use dna::profile::Profile;
 use dna::variant::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
 use dna::variant_nomenclature;
@@ -41,7 +41,7 @@ fn variant(position_1based: usize, reference: &str, alternate: &str, kind: Varia
 fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
-) -> Result<VariantNormalizationResult, Error> {
+) -> Result<VariantNormalizationResult, KernelError> {
     variant_normalization::normalize(reference_path, called, NormalizationPolicy::RightAligned)
 }
 
@@ -258,7 +258,7 @@ fn a_profile_fails_closed_on_another_reference() -> Result<(), Box<dyn std::erro
     );
     assert!(matches!(
         result,
-        Err(Error::Profile(ProfileError::ReferenceMismatch { profile }))
+        Err(KernelError::Profile(ProfileError::ReferenceMismatch { profile }))
             if profile == "human-mtdna-rcrs"
     ));
     Ok(())

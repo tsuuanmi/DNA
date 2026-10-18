@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 use crate::config::defaults::{DEFAULT_CONFIG_PATH, MAX_CONFIG_BYTES};
 use crate::config::types::{Config, RawConfig};
+use crate::error::{ConfigError, KernelError, Result};
 use dna_kernel::checksum::hex_sha256;
-use dna_kernel::error::{ConfigError, Error, Result};
 
 /// Resolves the authoritative configuration path without performing I/O.
 pub(crate) fn resolve_path() -> PathBuf {
@@ -16,7 +16,7 @@ pub(crate) fn resolve_path() -> PathBuf {
 
 /// Loads and validates one explicit configuration file.
 pub(crate) fn load_path(path: &Path) -> Result<Config> {
-    let metadata = fs::metadata(path).map_err(|source| Error::Read {
+    let metadata = fs::metadata(path).map_err(|source| KernelError::Read {
         kind: "configuration",
         path: path.to_path_buf(),
         source,
@@ -27,7 +27,7 @@ pub(crate) fn load_path(path: &Path) -> Result<Config> {
         }
         .into());
     }
-    let bytes = fs::read(path).map_err(|source| Error::Read {
+    let bytes = fs::read(path).map_err(|source| KernelError::Read {
         kind: "configuration",
         path: path.to_path_buf(),
         source,
@@ -39,7 +39,7 @@ pub(crate) fn load_path(path: &Path) -> Result<Config> {
         .into());
     }
     let text = std::str::from_utf8(&bytes).map_err(ConfigError::NotUtf8)?;
-    let raw: RawConfig = toml::from_str(text).map_err(|source| Error::ConfigParse {
+    let raw: RawConfig = toml::from_str(text).map_err(|source| KernelError::ConfigParse {
         path: path.to_path_buf(),
         source: Box::new(source),
     })?;
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_keys() -> Result<()> {
-        let directory = tempdir().map_err(|source| Error::Output {
+        let directory = tempdir().map_err(|source| KernelError::Output {
             path: PathBuf::from("temporary directory"),
             source,
         })?;
@@ -65,7 +65,7 @@ mod tests {
             &path,
             "schema_version=7\nunknown=true\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n",
         )
-        .map_err(|source| Error::Output {
+        .map_err(|source| KernelError::Output {
             path: path.clone(),
             source,
         })?;

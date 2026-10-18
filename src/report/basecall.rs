@@ -1,13 +1,13 @@
 //! Typed assembly of the reference-free basecall result.
 
 use crate::config::Config;
+use crate::error::{ReportError, Result};
 use crate::model::basecall_result::{
     BasecallProvenanceResult, BasecallReadResult, BasecallResult, BasecallWarningSummaryResult,
 };
 use crate::model::result::{InputResult, IntervalResult};
 use crate::report::json::project_plugins;
 use crate::report::{callability, signal};
-use dna_kernel::error::{ReportError, Result};
 use dna_kernel::plugin::PluginDescriptor;
 use dna_sanger::model::basecalls::BaseCalls;
 use dna_sanger::model::callability::ReadCallability;

@@ -1,6 +1,6 @@
 //! Observation-only signal-processing failures.
 
-use super::LocusWindowError;
+use dna_kernel::error::LocusWindowError;
 
 /// Why signal-quality evidence could not be derived from the trace.
 #[derive(Debug, thiserror::Error)]

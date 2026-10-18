@@ -4,11 +4,11 @@
 //! composes the consensus FASTA of `report` and the scientific step of the
 //! `call` pipeline, which depend on `sample_analysis`.
 
+use crate::error::Result;
 use crate::input::sequence;
 use crate::report;
 use crate::sample_analysis::{ConsensusCall, NotationCall, ReferenceSegment, SampleAnalysis};
 use dna_empop::export::{self, Record};
-use dna_kernel::error::Result;
 use dna_kernel::variant::Variant;
 
 use super::call::{self, Called};
@@ -22,7 +22,7 @@ impl SampleAnalysis {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`](dna_kernel::error::Error) when the sample identifier
+    /// Returns [`Error`](crate::error::Error) when the sample identifier
     /// is invalid or a stage of `call` fails, as the command would; for
     /// example when the consensus has no segment.
     pub fn call(&self, sample_id: &str) -> Result<ConsensusCall> {

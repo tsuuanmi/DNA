@@ -1,7 +1,7 @@
 //! Per-call ambiguity and peak-spacing penalties.
 
+use crate::error::{QualityControlError, Result};
 use crate::model::basecalls::BaseCalls;
-use dna_kernel::error::{QualityControlError, Result};
 use dna_kernel::model::nucleotide::is_canonical;
 
 /// Computes safe local ambiguity and spacing penalties per call.

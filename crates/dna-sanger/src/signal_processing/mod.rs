@@ -12,10 +12,10 @@ mod statistics;
 
 pub(crate) use statistics::round_metric;
 
+use crate::error::{Result, SignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
-use dna_kernel::error::{Result, SignalError};
 
 /// Fails a read with fewer calls than one window (SRS-SIG-007).
 ///
@@ -63,8 +63,8 @@ pub(crate) fn analyze(
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{CallabilityError, SangerError as Error};
     use crate::model::signal::ShortRead;
-    use dna_kernel::error::{CallabilityError, Error};
 
     use super::*;
 

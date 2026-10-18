@@ -4,7 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use dna_kernel::error::{Error, Result};
+use crate::error::{KernelError, Result};
 
 struct TemporaryFile {
     path: PathBuf,
@@ -22,17 +22,18 @@ impl Drop for TemporaryFile {
 /// Writes bytes to a sibling and atomically links them to a new target.
 pub(crate) fn publish(path: &Path, bytes: &[u8]) -> Result<()> {
     if path.exists() {
-        return Err(Error::Path {
+        return Err(KernelError::Path {
             kind: "output",
             path: path.to_path_buf(),
             reason: "target already exists",
-        });
+        }
+        .into());
     }
     let parent = path
         .parent()
         .filter(|value| !value.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    fs::create_dir_all(parent).map_err(|source| Error::Output {
+    fs::create_dir_all(parent).map_err(|source| KernelError::Output {
         path: parent.to_path_buf(),
         source,
     })?;
@@ -41,33 +42,36 @@ pub(crate) fn publish(path: &Path, bytes: &[u8]) -> Result<()> {
         path: temporary_path.clone(),
         published: false,
     };
-    file.write_all(bytes).map_err(|source| Error::Output {
-        path: temporary_path.clone(),
-        source,
-    })?;
-    file.sync_all().map_err(|source| Error::Output {
+    file.write_all(bytes)
+        .map_err(|source| KernelError::Output {
+            path: temporary_path.clone(),
+            source,
+        })?;
+    file.sync_all().map_err(|source| KernelError::Output {
         path: temporary_path.clone(),
         source,
     })?;
     drop(file);
-    fs::hard_link(&temporary_path, path).map_err(|source| Error::Output {
+    fs::hard_link(&temporary_path, path).map_err(|source| KernelError::Output {
         path: path.to_path_buf(),
         source,
     })?;
     if let Err(source) = fs::remove_file(&temporary_path) {
         let _ = fs::remove_file(path);
-        return Err(Error::Output {
+        return Err(KernelError::Output {
             path: temporary_path,
             source,
-        });
+        }
+        .into());
     }
     temporary.published = true;
     if let Err(source) = File::open(parent).and_then(|directory| directory.sync_all()) {
         let _ = fs::remove_file(path);
-        return Err(Error::Output {
+        return Err(KernelError::Output {
             path: parent.to_path_buf(),
             source,
-        });
+        }
+        .into());
     }
     Ok(())
 }
@@ -85,18 +89,20 @@ fn create_temporary(path: &Path) -> Result<(PathBuf, File)> {
             Ok(file) => return Ok((temporary_path, file)),
             Err(source) if source.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(source) => {
-                return Err(Error::Output {
+                return Err(KernelError::Output {
                     path: temporary_path,
                     source,
-                });
+                }
+                .into());
             }
         }
     }
-    Err(Error::Path {
+    Err(KernelError::Path {
         kind: "temporary output",
         path: path.to_path_buf(),
         reason: "could not reserve a sibling temporary file after 1024 attempts",
-    })
+    }
+    .into())
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 //! The per-position mask and callable span, with their invariants.
 
+use crate::error::{CallabilityError, Result};
 use crate::model::callability::{PhaseSegment, PhaseState, ReadCallability, RepeatRun};
-use dna_kernel::error::{CallabilityError, Result};
 
 /// Assembles the read's callability and checks that the segments partition the
 /// read in order.
@@ -47,7 +47,7 @@ pub(super) fn build(
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::error::Error;
+    use crate::error::SangerError as Error;
 
     use super::*;
 

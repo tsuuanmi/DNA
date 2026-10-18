@@ -20,7 +20,8 @@ This is the `dna` facade crate. The plugin crates live in
 - [sample_analysis](sample_analysis/README.md) — the sample placement pass and the public typed Sanger sample capability (sample evidence and consensus from one pass).
 - [variant_analysis](variant_analysis/README.md) — public typed Sanger raw-to-variant capability.
 - `operation_log.rs` — append-only operational records rendered from `tracing` events, including records captured on worker threads and appended in read order.
-- `lib.rs` — the public API: `cli`, `run`, `sample_analysis`, `variant_analysis`, and re-exports of `error`, `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
+- `error.rs` — the application `Error`: a kernel failure or a Sanger failure, plus a failed operation whose error log could not be persisted; re-exports both crates' failure vocabularies.
+- `lib.rs` — the public API: `cli`, `run`, `error`, `sample_analysis`, `variant_analysis`, and re-exports of `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
 
 File-only modules use rustdoc/source comments. Do not create directories solely
 to attach README files.

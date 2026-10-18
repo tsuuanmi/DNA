@@ -19,9 +19,9 @@ use std::sync::OnceLock;
 use std::thread;
 use std::time::Instant;
 
+use crate::error::{Error, Result};
 use crate::operation_log::{OperationLog, Records};
 use crate::sample_analysis::reads::ReadScope;
-use dna_kernel::error::{Error, Result};
 
 /// Runs one AB1-to-reference analysis.
 pub(crate) fn analyze(trace: &Path, reference: &Path, config_path: &Path) -> Result<()> {

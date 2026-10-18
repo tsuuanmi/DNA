@@ -3,9 +3,9 @@
 use crate::basecalling::BasecallingConfig;
 use crate::basecalling::iupac;
 use crate::basecalling::peak;
+use crate::error::{BasecallingError, Result};
 use crate::model::basecalls::{BaseCall, BaseCalls, PrimaryPeakEvidence};
 use crate::model::sanger::Chromatogram;
-use dna_kernel::error::{BasecallingError, Result};
 
 /// Re-calls every vendor-defined locus from analyzed channel signals.
 pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<BaseCalls> {
