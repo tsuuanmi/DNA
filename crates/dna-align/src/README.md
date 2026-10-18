@@ -6,8 +6,9 @@ Owns placement, the core's first step
 does a read lie on the reference? It depends only on `dna-kernel`.
 
 Public surface: `align_best`, the `[alignment]` section (`AlignmentConfig`,
-`RawAlignmentConfig`), and the [model](model/README.md): an `Alignment` with
-a read-only view of its columns. `Alignment::placed` is the second producer
+`RawAlignmentConfig`), and the [model](model/README.md): a read-only `Alignment`,
+columns included, whose callable segments only its own methods narrow, so
+`dna-align` is its only writer. `Alignment::placed` is the second producer
 of alignments, for a source that places a read itself (the consensus's
 decided reads): it checks the invariants `align_best` guarantees and
 computes the metrics from the columns. The `test-support` feature adds

@@ -165,7 +165,7 @@ fn support_topology(
                 index: observation.read_index,
             })?;
         let has_profile = observation.profile.is_some();
-        match read.alignment.orientation {
+        match read.alignment.orientation() {
             Orientation::Forward => {
                 topology.forward_reads += 1;
                 if has_profile {
@@ -239,7 +239,7 @@ fn observation(
             .calls()
             .get(call_index_0based)
             .ok_or(SampleError::Inconsistent("masked locus lacks its call"))?;
-        read.alignment.orientation.reference_base(call.base)
+        read.alignment.orientation().reference_base(call.base)
     } else {
         column.query_base()
     };

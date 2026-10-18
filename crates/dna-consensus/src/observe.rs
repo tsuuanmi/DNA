@@ -122,7 +122,7 @@ pub(super) fn observe(
     let reference_length = bases.len();
     let calls = read.evidence.calls();
     let eligibility = Eligibility::new(&read.evidence, config);
-    let orientation = read.alignment.orientation;
+    let orientation = read.alignment.orientation();
     // Calls aligned as a match, and calls aligned as a match or inserted:
     // the only bounds, and the only run calls, a bounded-run exemption may
     // trust (ADR-0076); a substituted call keeps `read_end`.

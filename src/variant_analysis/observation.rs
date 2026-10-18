@@ -129,7 +129,7 @@ pub(crate) fn observe(
     };
 
     let excluded_variant_candidates = called.variants.excluded_count();
-    let reference_origin_wrap = called.alignment.wraps_origin;
+    let reference_origin_wrap = called.alignment.wraps_origin();
     let warning_total = read_warnings.unresolved_primary_calls
         + read_warnings.multi_channel_unresolved_calls
         + read_warnings.vendor_disagreements

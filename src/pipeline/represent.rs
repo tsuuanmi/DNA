@@ -31,7 +31,7 @@ pub(crate) fn represent(
                 read.input_sha256.clone(),
                 read.variants.reported.iter().map(Variant::from).collect(),
                 read.alignment
-                    .callable_segments
+                    .callable_segments()
                     .iter()
                     .map(|segment| segment.start_0based..segment.end_0based_exclusive)
                     .collect(),

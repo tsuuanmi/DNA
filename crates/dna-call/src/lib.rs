@@ -41,7 +41,7 @@ pub fn call(
         extracted,
         evidence,
         &eligibility,
-        alignment.orientation,
+        alignment.orientation(),
         regions,
         reference,
     )

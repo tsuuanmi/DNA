@@ -51,7 +51,7 @@ pub(super) fn aggregate(
         let impurity = profile_geometry::impurity(profile);
         impurity_sum += impurity;
         result.contributors += 1;
-        match read.alignment.orientation {
+        match read.alignment.orientation() {
             Orientation::Forward => {
                 add(&mut result.forward_support, profile.weights);
                 forward_impurity_sum += impurity;

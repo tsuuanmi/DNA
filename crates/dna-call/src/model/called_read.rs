@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::model::variant::{ExcludedVariant, VariantCallingResult};
-use dna_align::model::alignment::{Alignment, ReferenceSegment};
+use dna_align::model::alignment::Alignment;
 use dna_kernel::read_evidence::ReadEvidence;
 
 /// Modality-neutral products of one independently placed read.
@@ -52,34 +52,7 @@ impl CalledRead {
                 excluded.extend(ExcludedVariant::of(&observed.variant, Vec::new()).undecided);
             }
         }
-        self.alignment.callable_segments = self
-            .alignment
-            .callable_segments
-            .iter()
-            .flat_map(|segment| {
-                let mut pieces = Vec::new();
-                let mut start = segment.start_0based;
-                for position in excluded
-                    .range(segment.start_0based..segment.end_0based_exclusive)
-                    .copied()
-                {
-                    if position > start {
-                        pieces.push(ReferenceSegment {
-                            start_0based: start,
-                            end_0based_exclusive: position,
-                        });
-                    }
-                    start = position + 1;
-                }
-                if segment.end_0based_exclusive > start {
-                    pieces.push(ReferenceSegment {
-                        start_0based: start,
-                        end_0based_exclusive: segment.end_0based_exclusive,
-                    });
-                }
-                pieces
-            })
-            .collect();
+        self.alignment = self.alignment.without_callable(&excluded);
         self
     }
 }
@@ -154,7 +127,7 @@ mod tests {
         let segments = read
             .without_excluded_positions()
             .alignment
-            .callable_segments
+            .callable_segments()
             .iter()
             .map(|segment| (segment.start_0based, segment.end_0based_exclusive))
             .collect::<Vec<_>>();

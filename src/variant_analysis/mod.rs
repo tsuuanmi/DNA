@@ -77,7 +77,7 @@ pub fn analyze_sanger(
     let read = completed.read.called;
     let reference_segments = read
         .alignment
-        .reference_segments
+        .reference_segments()
         .iter()
         .map(|segment| ReferenceSegment {
             start_0based: segment.start_0based,
