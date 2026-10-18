@@ -121,6 +121,19 @@ pub(crate) struct Loaded {
     pub(crate) reference: Reference,
 }
 
+/// One item of a sample's review list that a reviewer must look at: a
+/// `check` item of `dna review` (SRS-API-015).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReviewCheck {
+    /// First reference position of the item (1-based).
+    pub first: usize,
+    /// Last reference position of the item (1-based, inclusive).
+    pub last: usize,
+    /// The item's label names, sorted.
+    pub labels: Vec<&'static str>,
+}
+
 /// Typed result of calling a sample's consensus (SRS-API-012).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

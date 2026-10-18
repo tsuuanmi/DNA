@@ -322,6 +322,19 @@ impl Local {
 }
 
 impl Block {
+    /// A closed block of `dna` against `truth`, for tests.
+    #[cfg(test)]
+    pub(crate) fn fixture(start: i64, end: i64, dna: &str, truth: &str) -> Self {
+        Self {
+            start,
+            end,
+            dna: dna.to_owned(),
+            truth: truth.to_owned(),
+            truth_written: vec![false; truth.len()],
+            open: false,
+        }
+    }
+
     fn of(start: i64, end: i64, dna: &Local, truth: &Local, open: bool) -> Self {
         Self {
             start,

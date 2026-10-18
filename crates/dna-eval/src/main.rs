@@ -27,6 +27,7 @@ mod report;
 mod runner;
 mod triage;
 mod truth;
+mod workload;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
@@ -61,6 +62,8 @@ const MAX_BASELINE_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted `forms.tsv`.
 const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
+/// Largest accepted forced-window list.
+const MAX_FORCED_BYTES: u64 = 1024 * 1024;
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -196,6 +199,15 @@ struct RunArgs {
     /// instead of indexing the whole database.
     #[arg(long)]
     forms: Option<PathBuf>,
+    /// Window of the review workload, in positions, aligned to each HV
+    /// region's first position.
+    #[arg(long, default_value_t = report::REVIEW_WINDOW)]
+    review_window: i64,
+    /// Windows always sent to review, one `start-end` (1-based, inclusive)
+    /// per line; the workload is reported again with them reviewed. A list
+    /// learned on this run's panel overstates its effect.
+    #[arg(long)]
+    forced_windows: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -280,6 +292,26 @@ fn run(cli: &RunArgs) -> Result<String> {
         let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
         Forms::new(corpus.samples.values(), &reference.sequence)
     };
+    if cli.review_window < 1 {
+        return Err(Error::ReviewWindow {
+            window: cli.review_window,
+        });
+    }
+    let forced = cli
+        .forced_windows
+        .as_ref()
+        .map(|path| -> Result<_> {
+            let text = read(path, "forced windows", MAX_FORCED_BYTES)?;
+            let text = String::from_utf8(text).map_err(|error| Error::ForcedWindows {
+                path: path.clone(),
+                message: error.to_string(),
+            })?;
+            workload::parse_forced(&text).map_err(|message| Error::ForcedWindows {
+                path: path.clone(),
+                message,
+            })
+        })
+        .transpose()?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let outcomes = runner::run(
@@ -303,7 +335,8 @@ fn run(cli: &RunArgs) -> Result<String> {
         baseline.as_ref(),
         &check,
         (&forms, reference.sequence.as_str()),
-    );
+    )
+    .with_review(cli.review_window, forced);
     let triage_started = Instant::now();
     let triage = cli
         .triage
@@ -563,6 +596,11 @@ struct Header {
     /// the run.
     identities: Vec<Identity>,
     baseline: Option<PathBuf>,
+    /// Window of the review workload, in positions.
+    review_window: i64,
+    /// The forced-window list the workload also counts as reviewed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    forced_windows: Option<PathBuf>,
     /// Outcome counts per measure.
     samples: BTreeMap<&'static str, Counts>,
     seconds: Seconds,
@@ -703,6 +741,8 @@ fn header(
         reference_path: absolute(&cli.reference),
         identities: identities.into_iter().collect(),
         baseline: cli.baseline.as_deref().map(absolute),
+        review_window: cli.review_window,
+        forced_windows: cli.forced_windows.as_deref().map(absolute),
         samples: Measure::ALL
             .into_iter()
             .map(|measure| (measure.label(), counts(measure)))

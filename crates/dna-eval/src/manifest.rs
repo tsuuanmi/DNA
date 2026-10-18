@@ -37,6 +37,8 @@ const TRACES: &str = "trace_paths";
 pub(crate) const RETIRED: &str = "retired";
 /// Optional column: the sample's truth digest when the panel was built.
 pub(crate) const TRUTH_DIGEST: &str = "truth_digest";
+/// Optional column: the batch's run date, `YYYY-MM-DD`.
+pub(crate) const BATCH_DATE: &str = "batch_date";
 
 /// One parsed and verified panel manifest.
 #[derive(Debug, Clone, PartialEq)]
@@ -70,6 +72,8 @@ pub(crate) struct Sample {
     pub(crate) retired: bool,
     /// The sample's truth digest when the panel was built, if recorded.
     pub(crate) truth_digest: Option<String>,
+    /// The batch's run date as written, when the manifest has the column.
+    pub(crate) batch_date: Option<String>,
     /// The row's fields as written, in column order.
     pub(crate) fields: Vec<String>,
 }
@@ -138,6 +142,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Manifest, ManifestError> {
     let optional = [
         columns.iter().position(|name| *name == RETIRED),
         columns.iter().position(|name| *name == TRUTH_DIGEST),
+        columns.iter().position(|name| *name == BATCH_DATE),
     ];
 
     let mut samples = Vec::new();
@@ -223,7 +228,7 @@ fn next_line(text: &str, offset: usize) -> Option<&str> {
 fn row(
     fields: &[&str],
     positions: [usize; 7],
-    [retired, truth_digest]: [Option<usize>; 2],
+    [retired, truth_digest, batch_date]: [Option<usize>; 3],
     line: usize,
 ) -> Result<Sample, ManifestError> {
     let [id, batch, stratum, weight, weight_corpus, anchor, traces] =
@@ -285,6 +290,7 @@ fn row(
         traces,
         retired,
         truth_digest,
+        batch_date: batch_date.map(|index| fields[index].to_owned()),
         fields: fields.iter().map(|field| (*field).to_owned()).collect(),
     })
 }
@@ -344,6 +350,19 @@ pub(crate) mod tests {
         assert!(!parsed.samples[0].retired);
         assert_eq!(parsed.samples[0].fields[0], "S2");
         assert_eq!(parsed.columns.len(), 7);
+        Ok(())
+    }
+
+    #[test]
+    fn reads_the_optional_batch_date_column() -> Result<(), ManifestError> {
+        let columns = "sample_id\tbatch\tbatch_date\tstratum\tweight\tweight_corpus\tanchor_candidate\ttrace_paths\n";
+        let body = "S1\tb\t2025-05-25\tclean\t0\t0\t0\t/t/a.ab1\n";
+        let text = format!(
+            "# body_sha256={:x}\n{columns}{body}",
+            Sha256::digest(body.as_bytes())
+        );
+        let parsed = parse(text.as_bytes())?;
+        assert_eq!(parsed.samples[0].batch_date.as_deref(), Some("2025-05-25"));
         Ok(())
     }
 

@@ -25,5 +25,7 @@ pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,
     calls as notation_calls,
 };
-pub(crate) use review::{CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review};
+pub(crate) use review::{
+    CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review, checks as review_checks,
+};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

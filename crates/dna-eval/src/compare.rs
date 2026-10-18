@@ -58,7 +58,7 @@ use crate::haplotype::{Block, Edit, Haplotypes};
 /// Positions whose insertions and deletions are left out of the comparison.
 const SPECIAL_POSITIONS: [&str; 4] = ["455", "463", "573", "309"];
 /// Hypervariable regions, closed at both ends.
-const HV_REGIONS: [(&str, i64, i64); 3] =
+pub(crate) const HV_REGIONS: [(&str, i64, i64); 3] =
     [("HV1", 16024, 16365), ("HV2", 73, 340), ("HV3", 438, 576)];
 /// Single-base codes for bases A, C, G, T; any other base is an IUPAC code.
 const DEFINITE: [&str; 4] = ["A", "C", "G", "T"];

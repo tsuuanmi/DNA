@@ -6,6 +6,8 @@
 //! `iupac_compatible_status` are read when present. Statuses fall into
 //! classes, so a run that scored on the fair scale (`exact`, `error`) stays
 //! comparable with one that reports concordance (`concordant`, `discordant`).
+//! The review workload (`review_positions`, `unreviewed`) is read when
+//! present.
 
 use std::collections::BTreeMap;
 
@@ -21,6 +23,9 @@ pub(crate) struct Statuses {
     pub(crate) samples: BTreeMap<String, BTreeMap<Measure, String>>,
     /// Each sample's discrepancy class, when the baseline reports one.
     pub(crate) classes: BTreeMap<String, String>,
+    /// Each sample's review workload, when the baseline reports one: its
+    /// positions to review and whether it has an unreviewed difference.
+    pub(crate) review: BTreeMap<String, (i64, bool)>,
 }
 
 impl Statuses {
@@ -92,6 +97,11 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
         })
         .collect::<Vec<_>>();
     let class = columns.iter().position(|name| *name == "class");
+    let review_columns = columns
+        .iter()
+        .position(|name| *name == "review_positions")
+        .zip(columns.iter().position(|name| *name == "unreviewed"));
+    let mut review = BTreeMap::new();
     let mut classes = BTreeMap::new();
     let mut samples = BTreeMap::new();
     for (offset, line) in lines.enumerate() {
@@ -111,6 +121,14 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
         if let Some(class) = class {
             classes.insert(fields[sample].to_owned(), fields[class].to_owned());
         }
+        if let Some((positions, unreviewed)) = review_columns
+            && let Ok(positions) = fields[positions].parse::<i64>()
+        {
+            review.insert(
+                fields[sample].to_owned(),
+                (positions, !fields[unreviewed].is_empty()),
+            );
+        }
         if samples.insert(fields[sample].to_owned(), row).is_some() {
             return Err(BaselineError::DuplicateSample {
                 line: line_number,
@@ -122,6 +140,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
         measures: measures.iter().map(|(measure, _)| *measure).collect(),
         samples,
         classes,
+        review,
     })
 }
 
