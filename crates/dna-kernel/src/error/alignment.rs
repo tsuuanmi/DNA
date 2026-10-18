@@ -48,32 +48,6 @@ pub enum AlignmentError {
         /// Configured minimum identity.
         minimum: f64,
     },
-    /// Signal loci and quality records disagree in count.
-    #[error("signal/quality call count mismatch: {loci} loci, {qualities} quality records")]
-    CallCountMismatch {
-        /// Signal locus count.
-        loci: usize,
-        /// Quality record count.
-        qualities: usize,
-    },
-    /// The trim interval does not fit the locus profiles.
-    #[error("invalid trim interval {start}..{end} for {profiles} locus profiles")]
-    InvalidTrim {
-        /// Trim start (0-based, inclusive).
-        start: usize,
-        /// Trim end (0-based, exclusive).
-        end: usize,
-        /// Locus profile count.
-        profiles: usize,
-    },
-    /// The retained sequence and its profiles differ in length.
-    #[error("retained sequence/profile length mismatch: {bases} bases, {profiles} profiles")]
-    RetainedLengthMismatch {
-        /// Retained base count.
-        bases: usize,
-        /// Retained profile count.
-        profiles: usize,
-    },
     /// The canonical traceback rescored differently from the dynamic program.
     #[error("traceback score {observed} disagrees with DP score {expected}")]
     ScoreMismatch {

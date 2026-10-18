@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::config::Config;
+use crate::error::{KernelError, Result, VariantsError};
 use dna_kernel::checksum::hex_sha256;
-use dna_kernel::error::{Error, Result, VariantsError};
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
@@ -132,7 +132,7 @@ pub(crate) fn load_notation(
 }
 
 fn load(path: &Path, sample_id: &str, reference: &Reference) -> Result<VariantsDocument> {
-    let read_error = |source| Error::Read {
+    let read_error = |source| KernelError::Read {
         kind: "variants",
         path: path.to_path_buf(),
         source,
@@ -155,10 +155,11 @@ fn parse(
     sample_id: &str,
     reference: &Reference,
 ) -> Result<VariantsDocument> {
-    let raw: RawDocument = serde_json::from_slice(bytes).map_err(|error| Error::VariantsParse {
-        path,
-        source: Box::new(error),
-    })?;
+    let raw: RawDocument =
+        serde_json::from_slice(bytes).map_err(|error| KernelError::VariantsParse {
+            path,
+            source: Box::new(error),
+        })?;
     if raw.schema_version != SCHEMA_VERSION {
         return Err(VariantsError::UnsupportedSchema {
             found: raw.schema_version,

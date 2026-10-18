@@ -1,9 +1,9 @@
 //! Channel-local peak selection inside shared PLOC locus windows.
 
+use crate::error::{BasecallingError, Result};
 use crate::locus::{self, LocusWindow};
 use crate::model::basecalls::{ChannelPeak, PeakSource};
 use crate::model::sanger::Chromatogram;
-use dna_kernel::error::{BasecallingError, Result};
 use dna_kernel::model::nucleotide::Nucleotide;
 
 /// Builds the shared PLOC-defined windows and maps geometry failures to basecalling.

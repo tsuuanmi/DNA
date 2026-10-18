@@ -7,7 +7,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
-use dna::error::{Error, NormalizationError, RepresentationError};
+use dna::error::{KernelError, NormalizationError, RepresentationError};
 use dna::variant::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
 use dna::variant_normalization::{self, NormalizationPolicy};
 use support::write_reference;
@@ -39,7 +39,7 @@ fn variant(position_1based: usize, reference: &str, alternate: &str, kind: Varia
 fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
-) -> Result<variant_normalization::VariantNormalizationResult, Error> {
+) -> Result<variant_normalization::VariantNormalizationResult, KernelError> {
     variant_normalization::normalize(reference_path, called, NormalizationPolicy::RightAligned)
 }
 
@@ -244,7 +244,7 @@ fn rejects_reference_identity_mismatch() -> Result<(), Box<dyn std::error::Error
 
     assert!(matches!(
         normalize(&reference_path, &called),
-        Err(Error::VariantNormalization(
+        Err(KernelError::VariantNormalization(
             NormalizationError::ReferenceIdentityMismatch
         ))
     ));
@@ -261,7 +261,7 @@ fn rejects_source_allele_that_disagrees_with_reference() -> Result<(), Box<dyn s
 
     assert!(matches!(
         normalize(&reference_path, &called),
-        Err(Error::VariantNormalization(
+        Err(KernelError::VariantNormalization(
             NormalizationError::Representation(RepresentationError::ReferenceAlleleMismatch)
         ))
     ));

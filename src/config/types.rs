@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use crate::error::{ConfigError, Result};
 use dna_core::alignment::RawAlignmentConfig;
 use dna_core::read_call::{CoreConfig, RawCoreConfig};
 use dna_core::sample::RawSampleReconciliationConfig;
 use dna_core::variant_calling::RawVariantCallingConfig;
-use dna_kernel::error::{ConfigError, Result};
 use dna_sanger::basecalling::RawBasecallingConfig;
 use dna_sanger::callability::RawCallabilityConfig;
 use dna_sanger::quality_control::RawQualityControlConfig;
@@ -90,7 +90,7 @@ impl RawConfig {
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::error::{ConfigError, Error};
+    use crate::error::{ConfigError, Error, KernelError};
 
     use super::*;
 
@@ -107,15 +107,17 @@ mod tests {
     -> std::result::Result<(), toml::de::Error> {
         assert!(matches!(
             validate_raw(&VALID.replace("window_size_bases=10", "window_size_bases=11"))?,
-            Err(Error::Config(ConfigError::Constraint(rule)))
+            Err(Error::Kernel(KernelError::Config(ConfigError::Constraint(rule))))
                 if rule.starts_with("signal_processing.window_size_bases")
         ));
         assert!(matches!(
             validate_raw(&VALID.replace("secondary_peak_ratio=0.33", "secondary_peak_ratio=1.5"))?,
-            Err(Error::Config(ConfigError::NotFiniteInRange {
-                key: "basecalling.secondary_peak_ratio",
-                ..
-            }))
+            Err(Error::Kernel(KernelError::Config(
+                ConfigError::NotFiniteInRange {
+                    key: "basecalling.secondary_peak_ratio",
+                    ..
+                }
+            )))
         ));
         Ok(())
     }
@@ -161,7 +163,7 @@ mod tests {
         );
         assert!(matches!(
             validate_raw(&VALID.replace("'profiles/target.toml'", "''"))?,
-            Err(Error::Config(ConfigError::Constraint(rule))) if rule.starts_with("profile")
+            Err(Error::Kernel(KernelError::Config(ConfigError::Constraint(rule)))) if rule.starts_with("profile")
         ));
         assert!(
             toml::from_str::<RawConfig>(&VALID.replace("profile='profiles/target.toml'\n", ""))
@@ -175,10 +177,12 @@ mod tests {
     {
         assert!(matches!(
             validate_raw(&VALID.replace("schema_version=7", "schema_version=6"))?,
-            Err(Error::Config(ConfigError::UnsupportedSchemaVersion {
-                found: 6,
-                expected: 7
-            }))
+            Err(Error::Kernel(KernelError::Config(
+                ConfigError::UnsupportedSchemaVersion {
+                    found: 6,
+                    expected: 7
+                }
+            )))
         ));
         assert!(
             toml::from_str::<RawConfig>(&VALID.replace(

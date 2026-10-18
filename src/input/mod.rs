@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::config::{self, Config};
-use dna_kernel::error::{Error, Result};
+use crate::error::{KernelError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_kernel::reference;
@@ -21,7 +21,7 @@ fn load_config(path: &Path) -> Result<Config> {
 
 fn load_profile(config: &Config) -> Result<Profile> {
     require_regular_file(&config.profile_path, "profile")?;
-    Profile::load(&config.profile_path)
+    Ok(Profile::load(&config.profile_path)?)
 }
 
 /// Loads the reference with the profile's topology and fails closed when it is
@@ -33,17 +33,18 @@ fn load_reference(path: &Path, profile: &Profile) -> Result<Reference> {
 }
 
 fn require_regular_file(path: &Path, kind: &'static str) -> Result<()> {
-    let metadata = path.metadata().map_err(|source| Error::Read {
+    let metadata = path.metadata().map_err(|source| KernelError::Read {
         kind,
         path: path.to_path_buf(),
         source,
     })?;
     if !metadata.is_file() || metadata.len() == 0 {
-        return Err(Error::Path {
+        return Err(KernelError::Path {
             kind,
             path: path.to_path_buf(),
             reason: "path must be a non-empty regular file",
-        });
+        }
+        .into());
     }
     Ok(())
 }

@@ -455,3 +455,10 @@ An ADR records the architecture when step 4 or 5 lands.
   that bounds the run); callable yield HV2 0.9910 to 0.9909, HV3 0.9905 to
   0.9904; causes `dna` 1,212 to 1,178, `technology` 519 to 556, `lab` 370
   to 377.
+- Step 4, part 2c: `dna-sanger` owns its stage failures (`SangerError`:
+  decoding, re-calling, signal, callability, quality control, and one read's
+  products disagreeing while its evidence is assembled); the kernel keeps
+  only modality-neutral failures, and the `dna` facade's `Error` wraps the
+  kernel's and the modality's. Every failure renders with its former stage
+  prefix. Development panel v5: every harness output byte-identical to main,
+  failure text included; real traces identical.

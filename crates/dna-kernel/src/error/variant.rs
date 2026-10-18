@@ -26,24 +26,6 @@ pub enum VariantError {
         /// Call index (0-based).
         index: usize,
     },
-    /// A variant call mapping refers past the end of the quality records.
-    #[error("variant filter references missing quality index {index}")]
-    MissingQuality {
-        /// Call index (0-based).
-        index: usize,
-    },
-    /// The call and quality records at an index disagree on their own index.
-    #[error("variant filter call index {index} does not match call/quality records")]
-    CallMismatch {
-        /// Call index (0-based).
-        index: usize,
-    },
-    /// A supporting call has no channel peaks.
-    #[error("call index {index} has no channel peaks")]
-    NoChannelPeaks {
-        /// Call index (0-based).
-        index: usize,
-    },
     /// A coordinate computation overflowed.
     #[error("{0}")]
     Overflow(&'static str),

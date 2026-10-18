@@ -1,7 +1,7 @@
 //! Observation-only signal-quality windows, locus evidence, and noisy regions.
 
+use crate::error::{SangerError as Error, SignalError};
 use crate::model::locus_evidence::LocusEvidence;
-use dna_kernel::error::{Error, SignalError};
 
 /// Observation-only structural and amplitude integrity evidence for one trace.
 #[derive(Debug, Clone, PartialEq)]

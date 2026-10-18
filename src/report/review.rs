@@ -8,6 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::error::{ReportError, Result};
 use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::review_result::{
@@ -24,7 +25,6 @@ use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnaly
 use dna_core::model::alignment::{Orientation, ReferenceSegment};
 use dna_core::model::consensus::{ConsensusSite, RunEvidence, SiteState};
 use dna_core::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
-use dna_kernel::error::{ReportError, Result};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};

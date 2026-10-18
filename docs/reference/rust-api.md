@@ -17,7 +17,9 @@ The workspace plugin crates (`dna-kernel`, `dna-core`, `dna-sanger`,
 [ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md))
 are unpublished implementation crates, not part of this boundary. The `dna`
 facade re-exports exactly these public items from them:
-- `error` is `dna_kernel::error`;
+- `error` re-exports the failure vocabularies of `dna_kernel::error` (its
+  `Error` as `KernelError`) and of `dna_sanger::error`, beside the facade's
+  own [`Error`](#errors);
 - `variant` is `dna_kernel::variant`;
 - `profile` exposes `Profile` and `ProfileIdentity`;
 - `sample_analysis` exposes `SampleEvidence` and `Consensus` (`dna-core`) and
@@ -33,8 +35,8 @@ Types follow one evolution rule:
 - results that only the library produces (`VariantAnalysisResult`,
   `SampleAnalysis`, `RejectedRead`, `ConsensusCall`, `NotationCall`,
   `VariantNormalizationResult`, `VariantNomenclatureResult`) and the enums
-  `VariantKind`, `RejectionCause`, `NormalizationPolicy`, `cli::Command`, and
-  `error::Error` are
+  `VariantKind`, `RejectionCause`, `NormalizationPolicy`, `cli::Command`,
+  `error::Error`, `error::KernelError`, and `error::SangerError` are
   `#[non_exhaustive]`, so fields and variants can be added without a breaking
   change; callers read their fields and match enums with a wildcard arm;
 - the plugin-crate records re-exported by `sample_analysis` are the crates'
@@ -49,7 +51,7 @@ Types follow one evolution rule:
 
 ```rust
 impl Profile {
-    pub fn load(path: &Path) -> dna::error::Result<Profile>;
+    pub fn load(path: &Path) -> Result<Profile, dna::error::KernelError>;
     pub fn identity(&self) -> &ProfileIdentity;
 }
 
@@ -399,7 +401,7 @@ pub fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
     policy: NormalizationPolicy,
-) -> dna::error::Result<VariantNormalizationResult>
+) -> Result<VariantNormalizationResult, dna::error::KernelError>
 ```
 
 through:
@@ -467,7 +469,7 @@ pub fn apply(
     reference_path: &Path,
     profile: &Profile,
     input: NomenclatureInput<'_>,
-) -> dna::error::Result<VariantNomenclatureResult>
+) -> Result<VariantNomenclatureResult, dna::error::KernelError>
 ```
 
 through:
@@ -477,7 +479,7 @@ dna::variant_nomenclature::apply(...)
 ```
 
 The reference is loaded with the profile topology and must be the profile's
-reference when the profile pins one (`Error::Profile(ProfileError::ReferenceMismatch)`).
+reference when the profile pins one (`KernelError::Profile(ProfileError::ReferenceMismatch)`).
 
 The result preserves every prior representation and adds the selected target
 representation:
@@ -516,30 +518,50 @@ not implemented by this API.
 
 ## Errors
 
-Every fallible API returns `dna::error::Result<T>`, an alias for
-`Result<T, dna::error::Error>`. `Error` names the failing stage, and each stage
-variant wraps that stage's own `#[non_exhaustive]` failure enum, re-exported from
+Every fallible facade API returns `dna::error::Result<T>`, an alias for
+`Result<T, dna::error::Error>`. `Error` says which crate owns the failure:
+
+| `Error` variant | Wrapped failure |
+| --- | --- |
+| `Kernel` | `KernelError`, a failure of the shared kernel or the core |
+| `Sanger` | `SangerError`, a failure of the Sanger modality |
+| `OperationAndLog { operation, logging }` | an operation failure whose error log could not be persisted |
+
+`Kernel` and `Sanger` render transparently. The capabilities re-exported from
+the plugin crates (`Profile::load`, `variant_normalization::normalize`,
+`variant_nomenclature::apply`) return `Result<T, KernelError>`, which converts
+into `Error` with `?`. Each kernel and Sanger variant names a stage and wraps
+that stage's own `#[non_exhaustive]` failure enum, re-exported from
 `dna::error`:
 
-| `Error` variant | Wrapped failure | Display prefix |
+| Variant | Wrapped failure | Display prefix |
 | --- | --- | --- |
-| `Config` | `ConfigError` | `invalid configuration value:` |
-| `Profile` | `ProfileError` | `invalid target profile:` |
-| `Abif` | `AbifError` | `invalid ABIF input:` |
-| `Fasta` | `FastaError` | `invalid reference FASTA:` |
-| `Sequence` | `SequenceError` | `invalid sequence FASTA:` |
-| `Variants` | `VariantsError` | `invalid variants document:` |
-| `Basecalling` | `BasecallingError` | `base re-calling failed:` |
-| `Signal` | `SignalError` | `signal processing failed:` |
-| `Callability` | `CallabilityError` | `read callability failed:` |
-| `QualityControl` | `QualityControlError` | `quality control failed:` |
-| `Evidence` | `EvidenceError` | `read evidence failed:` |
-| `Alignment` | `AlignmentError` | `alignment failed:` |
-| `Variant` | `VariantError` | `variant calling failed:` |
-| `VariantNormalization` | `NormalizationError` | `variant normalization failed:` |
-| `VariantNomenclature` | `NomenclatureError` | `variant nomenclature failed:` |
-| `Sample` | `SampleError` | `sample evidence failed:` |
-| `Report` | `ReportError` | `failed to assemble analysis report:` |
+| `KernelError::Config` | `ConfigError` | `invalid configuration value:` |
+| `KernelError::Profile` | `ProfileError` | `invalid target profile:` |
+| `KernelError::Fasta` | `FastaError` | `invalid reference FASTA:` |
+| `KernelError::Sequence` | `SequenceError` | `invalid sequence FASTA:` |
+| `KernelError::Variants` | `VariantsError` | `invalid variants document:` |
+| `KernelError::ConsensusDocument` | `ConsensusDocumentError` | `invalid consensus document:` |
+| `KernelError::Evidence` | `EvidenceError` | `read evidence failed:` |
+| `KernelError::Alignment` | `AlignmentError` | `alignment failed:` |
+| `KernelError::Variant` | `VariantError` | `variant calling failed:` |
+| `KernelError::VariantNormalization` | `NormalizationError` | `variant normalization failed:` |
+| `KernelError::VariantNomenclature` | `NomenclatureError` | `variant nomenclature failed:` |
+| `KernelError::Sample` | `SampleError` | `sample evidence failed:` |
+| `KernelError::Report` | `ReportError` | `failed to assemble analysis report:` |
+| `SangerError::Abif` | `AbifError` | `invalid ABIF input:` |
+| `SangerError::Basecalling` | `BasecallingError` | `base re-calling failed:` |
+| `SangerError::Signal` | `SignalError` | `signal processing failed:` |
+| `SangerError::Callability` | `CallabilityError` | `read callability failed:` |
+| `SangerError::QualityControl` | `QualityControlError` | `quality control failed:` |
+| `SangerError::Products` | `ProductsError` | `alignment failed:` or `variant calling failed:` |
+
+`ProductsError` reports one read's Sanger products disagreeing while its core
+evidence is assembled (call counts, trim, a missing call or channel peaks),
+under the stage prefix the core gave it before the modality owned it, so
+command-line and log text is the same whichever crate fails. A Sanger
+configuration or evidence-validation failure is the kernel's
+(`SangerError::Kernel`).
 
 Failures that depend on observed values carry them as structured fields, for
 example `AlignmentError::LowIdentity { identity, minimum }`,
@@ -552,9 +574,9 @@ indicate a defect rather than bad input. `NormalizationError` and
 `NomenclatureError` wrap the shared `RepresentationError` for allele, edit, and
 anchoring failures.
 
-`Path` reports a rejected path with a static reason. `Read`, `Log`, and
+`KernelError::Path` reports a rejected path with a static reason. `Read`, `Log`, and
 `Output` keep the `std::io::Error` as their `source`. Third-party parser and serializer
-failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `Serialize`) are erased to `ForeignError`, so
+failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `ConsensusParse`, `Serialize`) are erased to `ForeignError`, so
 dependency types never appear in the public API. Stage failures render inline,
 `"<prefix> <failure>"`, and are reached by matching rather than through
 `std::error::Error::source`.

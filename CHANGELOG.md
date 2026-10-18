@@ -324,6 +324,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Sanger failures belong to the Sanger plugin (PROP-0008 step 4, part 2c).
+  `dna-sanger` owns `SangerError` with the ABIF, re-calling, signal,
+  callability, and quality-control failures, and `ProductsError` for one
+  read's Sanger products disagreeing while its evidence is assembled; the
+  kernel keeps only modality-neutral failures. Outputs, command-line
+  messages, and log text are unchanged. **Breaking (Rust API):**
+  `dna::error::Error` is now `Kernel(KernelError)`, `Sanger(SangerError)`, or
+  `OperationAndLog`; the kernel's former `Error` is re-exported as
+  `dna::error::KernelError`, and `Profile::load`,
+  `variant_normalization::normalize`, and `variant_nomenclature::apply`
+  return it; `VariantError` loses the unused `MissingQuality`.
+
 - Verdict scope (PROP-0008 step 4, part 2b). The consensus reads the
   modality's reasons by scope, as variant calling does (SRS-CONS-003); an
   insertion or deletion on a call vouched for by its base only is excluded

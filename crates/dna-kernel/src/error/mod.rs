@@ -8,45 +8,35 @@
 //! (`"<stage prefix>: <failure>"`) and are reached by matching, not through
 //! [`std::error::Error::source`].
 
-mod abif;
 mod alignment;
-mod basecalling;
 mod call_evidence;
-mod callability;
 mod config;
 mod consensus_document;
 mod evidence;
 mod fasta;
 mod locus;
 mod profile;
-mod quality_control;
 mod report;
 mod representation;
 mod sample;
 mod sequence;
-mod signal;
 mod variant;
 mod variants;
 
 use std::path::PathBuf;
 
-pub use abif::{AbifError, Tag};
 pub use alignment::AlignmentError;
-pub use basecalling::BasecallingError;
 pub use call_evidence::CallEvidenceError;
-pub use callability::CallabilityError;
 pub use config::ConfigError;
 pub use consensus_document::ConsensusDocumentError;
 pub use evidence::EvidenceError;
 pub use fasta::FastaError;
 pub use locus::LocusWindowError;
 pub use profile::ProfileError;
-pub use quality_control::QualityControlError;
 pub use report::ReportError;
 pub use representation::{NomenclatureError, NormalizationError, RepresentationError};
 pub use sample::SampleError;
 pub use sequence::SequenceError;
-pub use signal::SignalError;
 pub use variant::VariantError;
 pub use variants::VariantsError;
 
@@ -108,9 +98,6 @@ pub enum Error {
     /// A target profile is invalid or does not apply to the supplied reference.
     #[error("invalid target profile: {0}")]
     Profile(ProfileError),
-    /// The ABIF container or one of its required records is invalid.
-    #[error("invalid ABIF input: {0}")]
-    Abif(AbifError),
     /// The reference FASTA is invalid.
     #[error("invalid reference FASTA: {0}")]
     Fasta(FastaError),
@@ -141,18 +128,6 @@ pub enum Error {
     /// A consensus document cannot be called.
     #[error("invalid consensus document: {0}")]
     ConsensusDocument(ConsensusDocumentError),
-    /// DNA-derived base re-calling failed.
-    #[error("base re-calling failed: {0}")]
-    Basecalling(BasecallingError),
-    /// Observational signal-quality feature extraction failed.
-    #[error("signal processing failed: {0}")]
-    Signal(SignalError),
-    /// Signal-derived read callability could not be derived.
-    #[error("read callability failed: {0}")]
-    Callability(CallabilityError),
-    /// Quality scoring or end trimming failed.
-    #[error("quality control failed: {0}")]
-    QualityControl(QualityControlError),
     /// A modality's per-read evidence could not enter the core.
     #[error("read evidence failed: {0}")]
     Evidence(EvidenceError),
@@ -177,14 +152,6 @@ pub enum Error {
     /// A completed model could not be serialized.
     #[error("failed to serialize result JSON: {0}")]
     Serialize(#[source] ForeignError),
-    /// An operation failed and its terminal error record also could not be persisted.
-    #[error("{operation}; additionally failed to persist the operation error log: {logging}")]
-    OperationAndLog {
-        /// The original operation failure.
-        operation: Box<Error>,
-        /// The failure to record it in the operation log.
-        logging: Box<Error>,
-    },
     /// A log directory or append-only log file operation failed.
     #[error("failed to access log path {path}: {source}")]
     Log {
@@ -221,15 +188,10 @@ macro_rules! stage_failures {
 stage_failures!(
     Config(ConfigError),
     Profile(ProfileError),
-    Abif(AbifError),
     Fasta(FastaError),
     Sequence(SequenceError),
     Variants(VariantsError),
     ConsensusDocument(ConsensusDocumentError),
-    Basecalling(BasecallingError),
-    Signal(SignalError),
-    Callability(CallabilityError),
-    QualityControl(QualityControlError),
     Evidence(EvidenceError),
     Alignment(AlignmentError),
     Variant(VariantError),
@@ -247,18 +209,6 @@ mod tests {
     fn renders_stage_prefixed_messages_for_cli_and_logs() {
         let cases: Vec<(Error, &str)> = vec![
             (
-                AbifError::MissingSignature.into(),
-                "invalid ABIF input: missing ABIF signature",
-            ),
-            (
-                AbifError::MissingTag {
-                    tag: Tag(*b"PLOC"),
-                    number: 2,
-                }
-                .into(),
-                "invalid ABIF input: missing required tag PLOC.2",
-            ),
-            (
                 FastaError::UnsupportedBase { base: 'R' }.into(),
                 "invalid reference FASTA: unsupported reference base 'R'",
             ),
@@ -268,48 +218,6 @@ mod tests {
                 }
                 .into(),
                 "invalid configuration value: signal_processing.minimum_primary_snr must be finite and positive",
-            ),
-            (
-                BasecallingError::LocusWindow(LocusWindowError::InvalidWindow {
-                    start: 3,
-                    end: 3,
-                    position: 3,
-                })
-                .into(),
-                "base re-calling failed: invalid locus window 3..3 for locus position 3",
-            ),
-            (
-                SignalError::TooFewCalls {
-                    calls: 4,
-                    window: 5,
-                }
-                .into(),
-                "signal processing failed: 4 calls are fewer than window_size_bases 5",
-            ),
-            (
-                CallabilityError::TooFewPositions {
-                    positions: 1,
-                    minimum: 2,
-                }
-                .into(),
-                "read callability failed: 1 call positions are fewer than the minimum 2",
-            ),
-            (
-                CallabilityError::TooFewCallableCalls {
-                    callable: 12,
-                    minimum: 20,
-                }
-                .into(),
-                "read callability failed: 12 callable calls are fewer than minimum_callable_calls 20",
-            ),
-            (
-                QualityControlError::InvalidCallableSpan {
-                    start: 4,
-                    end: 2,
-                    calls: 10,
-                }
-                .into(),
-                "quality control failed: callable span 4..2 does not fit 10 calls",
             ),
             (
                 AlignmentError::LowIdentity {

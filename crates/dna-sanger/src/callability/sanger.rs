@@ -4,11 +4,11 @@
 //! This is the only file of the module that knows the Sanger types; it owns no
 //! thresholds.
 
+use crate::error::{CallabilityError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::PositionEvidence;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
-use dna_kernel::error::{CallabilityError, Result};
 use dna_kernel::model::nucleotide::Nucleotide;
 
 /// Builds one evidence record per call locus.

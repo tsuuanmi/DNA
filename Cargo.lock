@@ -276,6 +276,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "thiserror",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -343,6 +344,7 @@ version = "0.1.0"
 dependencies = [
  "dna-kernel",
  "serde",
+ "thiserror",
  "tracing",
 ]
 

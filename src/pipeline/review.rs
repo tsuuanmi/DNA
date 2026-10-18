@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use crate::error::Result;
 use crate::input::sanger;
 use crate::model::review_result::ItemKind;
 use crate::operation_log::OperationLog;
@@ -10,7 +11,6 @@ use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedReview, Reviewed};
 use crate::sample_analysis::{self, SampleOutcome};
-use dna_kernel::error::Result;
 
 use super::Operation;
 use super::sample::validate_sample_id;

@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use crate::basecalling;
 use crate::callability;
+use crate::error::{CallabilityError, Result};
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
 use crate::model::quality::QualityControlResult;
@@ -18,7 +19,6 @@ use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
 use crate::quality_control;
 use crate::signal_processing;
-use dna_kernel::error::{CallabilityError, Result};
 
 /// Warning counts shared by command-level operational summaries.
 pub struct ReadWarnings {

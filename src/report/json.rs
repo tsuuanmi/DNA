@@ -1,5 +1,6 @@
 //! Compact typed assembly and deterministic JSON serialization.
 
+use crate::error::{KernelError, ReportError, Result};
 use crate::model::read_observation::ReadObservation;
 use crate::model::result::{
     AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,
@@ -7,7 +8,6 @@ use crate::model::result::{
 };
 use crate::report::{callability, signal, variant};
 use dna_core::model::called_read::CalledRead;
-use dna_kernel::error::{Error, ReportError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
@@ -139,8 +139,8 @@ pub(crate) fn project_profile(profile: ProfileIdentity) -> ProfileResult {
 
 /// Serializes any typed result with a trailing newline for stable text files.
 pub(crate) fn serialize<T: serde::Serialize>(result: &T) -> Result<Vec<u8>> {
-    let mut bytes =
-        serde_json::to_vec_pretty(result).map_err(|error| Error::Serialize(Box::new(error)))?;
+    let mut bytes = serde_json::to_vec_pretty(result)
+        .map_err(|error| KernelError::Serialize(Box::new(error)))?;
     bytes.push(b'\n');
     Ok(bytes)
 }

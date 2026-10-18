@@ -7,11 +7,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 use crate::config::Config;
+use crate::error::{Result, SampleError};
 use crate::model::read_observation::{ReadObservation, RejectedRead, RejectionCause};
 use crate::variant_analysis;
 use crate::variant_analysis::observation::Observation;
 use dna_core::model::called_read::CalledRead;
-use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
@@ -207,7 +207,7 @@ fn place_one(
         Ok(prepared) => prepared,
         Err(error) => {
             let Some(short) = ShortRead::of(&error) else {
-                return Err(error);
+                return Err(error.into());
             };
             tracing::warn!(
                 event = "sample_read_rejected",
@@ -281,7 +281,7 @@ fn place_one(
 mod tests {
     use std::sync::Mutex;
 
-    use dna_kernel::error::Error;
+    use crate::error::{Error, KernelError};
 
     use super::*;
 
@@ -362,7 +362,9 @@ mod tests {
             let (settled, replayed) = run(threads, [None, Some(false), None, Some(true)]);
             assert!(matches!(
                 settled,
-                Ok(Err(Error::Sample(SampleError::NoReads)))
+                Ok(Err(Error::Kernel(KernelError::Sample(
+                    SampleError::NoReads
+                ))))
             ));
             assert_eq!(replayed, [0, 1]);
         }

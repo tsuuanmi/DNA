@@ -7,8 +7,8 @@ use dna_kernel::checksum::hex_sha256;
 
 use crate::abif::container::{AbifEntry, AbifFile, parse};
 use crate::abif::reader::Reader;
+use crate::error::{AbifError, Result, SangerError as Error, Tag};
 use crate::model::sanger::{Chromatogram, VendorEvidence};
-use dna_kernel::error::{AbifError, Error, Result, Tag};
 use dna_kernel::model::nucleotide::Nucleotide;
 
 /// Largest accepted ABIF container for Sanger input.
@@ -25,10 +25,12 @@ const TYPE_SHORT: u16 = 4;
 /// Returns `Error::Read` when the file cannot be read and `AbifError` when it
 /// is not a valid analyzed ABIF trace.
 pub fn load(path: &Path) -> Result<Chromatogram> {
-    let metadata = fs::metadata(path).map_err(|source| Error::Read {
-        kind: "AB1",
-        path: path.to_path_buf(),
-        source,
+    let metadata = fs::metadata(path).map_err(|source| {
+        Error::Kernel(dna_kernel::error::Error::Read {
+            kind: "AB1",
+            path: path.to_path_buf(),
+            source,
+        })
     })?;
     if metadata.len() == 0 || metadata.len() > MAX_ABIF_BYTES as u64 {
         return Err(AbifError::FileSize {
@@ -37,10 +39,12 @@ pub fn load(path: &Path) -> Result<Chromatogram> {
         }
         .into());
     }
-    let bytes = fs::read(path).map_err(|source| Error::Read {
-        kind: "AB1",
-        path: path.to_path_buf(),
-        source,
+    let bytes = fs::read(path).map_err(|source| {
+        Error::Kernel(dna_kernel::error::Error::Read {
+            kind: "AB1",
+            path: path.to_path_buf(),
+            source,
+        })
     })?;
     if bytes.is_empty() || bytes.len() > MAX_ABIF_BYTES {
         return Err(AbifError::FileSize {

@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::config::Config;
-use dna_kernel::error::{Result, SampleError};
+use crate::error::{Result, SampleError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_sanger::model::sanger::Chromatogram;
@@ -129,7 +129,7 @@ pub(crate) fn load_sample(
     let traces = trace_paths
         .iter()
         .map(|path| abif::load(path))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<std::result::Result<Vec<_>, _>>()?;
     let reference = load_reference(reference_path, &profile)?;
     Ok(SampleInputs {
         config,

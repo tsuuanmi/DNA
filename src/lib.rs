@@ -16,7 +16,9 @@ mod report;
 pub mod sample_analysis;
 pub mod variant_analysis;
 
-pub use dna_kernel::{error, variant};
+pub mod error;
+
+pub use dna_kernel::variant;
 
 /// Target profiles: knowledge about one sequencing target.
 pub mod profile {

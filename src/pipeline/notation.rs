@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::time::Instant;
 
+use crate::error::{Result, VariantsError};
 use crate::input::variants;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
@@ -10,7 +11,6 @@ use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedNotation, NamedRead};
 use dna_empop::conformance;
 use dna_empop::export::{self, Record};
-use dna_kernel::error::{Result, VariantsError};
 
 use super::Operation;
 use super::represent;

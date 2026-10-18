@@ -2,26 +2,28 @@
 
 use std::path::{Path, PathBuf};
 
-use dna_kernel::error::{Error, Result};
+use crate::error::{KernelError, Result};
 
 fn validate_output(output: &Path) -> Result<()> {
     if output.exists() {
-        return Err(Error::Path {
+        return Err(KernelError::Path {
             kind: "output",
             path: output.to_path_buf(),
             reason: "target already exists",
-        });
+        }
+        .into());
     }
     let parent = output
         .parent()
         .filter(|value| !value.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     if parent.exists() && !parent.is_dir() {
-        return Err(Error::Path {
+        return Err(KernelError::Path {
             kind: "output directory",
             path: parent.to_path_buf(),
             reason: "path exists but is not a directory",
-        });
+        }
+        .into());
     }
     Ok(())
 }
@@ -84,9 +86,12 @@ pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
         .file_stem()
         .and_then(|value| value.to_str())
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| Error::Path {
-            kind: "AB1",
-            path: trace.to_path_buf(),
-            reason: "file stem must be valid non-empty UTF-8",
+        .ok_or_else(|| {
+            KernelError::Path {
+                kind: "AB1",
+                path: trace.to_path_buf(),
+                reason: "file stem must be valid non-empty UTF-8",
+            }
+            .into()
         })
 }

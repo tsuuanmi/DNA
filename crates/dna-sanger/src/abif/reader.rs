@@ -1,6 +1,6 @@
 //! Checked big-endian reads over untrusted ABIF bytes.
 
-use dna_kernel::error::AbifError;
+use crate::error::AbifError;
 
 /// Result of a bounds-checked read.
 type ReadResult<T> = Result<T, AbifError>;

@@ -1,10 +1,10 @@
 //! Basecall-independent signal evidence at each canonical Sanger locus.
 
+use crate::error::{Result, SignalError};
 use crate::locus::{self, LocusWindow};
 use crate::model::locus_evidence::LocusEvidence;
 use crate::model::sanger::Chromatogram;
 use crate::signal_processing::SignalProcessingConfig;
-use dna_kernel::error::{Result, SignalError};
 use dna_kernel::read_evidence::EvidenceProfile;
 
 use super::statistics::{self, SpanEstimates};

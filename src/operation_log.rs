@@ -40,7 +40,7 @@ use tracing::{Dispatch, Event, Level, Metadata, Subscriber};
 use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
 use tracing_subscriber::registry::{LookupSpan, Registry};
 
-use dna_kernel::error::{Error, Result};
+use crate::error::{Error, KernelError, Result};
 
 const DEFAULT_LOG_DIRECTORY: &str = "logs";
 /// Crates whose events form the operation log: the facade and the plugin crates
@@ -120,13 +120,14 @@ impl OperationLog {
 
     fn open_in(directory: &Path, stem: &str) -> Result<Self> {
         if directory.as_os_str().is_empty() {
-            return Err(Error::Path {
+            return Err(KernelError::Path {
                 kind: "log directory",
                 path: directory.to_path_buf(),
                 reason: "path must be non-empty",
-            });
+            }
+            .into());
         }
-        fs::create_dir_all(directory).map_err(|source| Error::Log {
+        fs::create_dir_all(directory).map_err(|source| KernelError::Log {
             path: directory.to_path_buf(),
             source,
         })?;
@@ -135,7 +136,7 @@ impl OperationLog {
             .create(true)
             .append(true)
             .open(&path)
-            .map_err(|source| Error::Log {
+            .map_err(|source| KernelError::Log {
                 path: path.clone(),
                 source,
             })?;
@@ -221,10 +222,10 @@ impl OperationLog {
     }
 
     fn log_error(&self, source: io::Error) -> Error {
-        Error::Log {
+        Error::Kernel(KernelError::Log {
             path: self.path.clone(),
             source,
-        }
+        })
     }
 }
 
@@ -398,8 +399,6 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use dna_kernel::error::Error;
-
     use super::*;
 
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -552,7 +551,9 @@ mod tests {
         let log = OperationLog::open_in(directory.path(), "trace")?;
         log.in_scope(|| tracing::info!(event = "lost"));
 
-        assert!(matches!(log.check(), Err(Error::Log { path, .. }) if path.ends_with("trace.log")));
+        assert!(
+            matches!(log.check(), Err(Error::Kernel(KernelError::Log { path, .. })) if path.ends_with("trace.log"))
+        );
         assert!(log.check().is_ok());
         Ok(())
     }
@@ -579,10 +580,10 @@ mod tests {
     fn rejects_an_empty_log_directory() {
         assert!(matches!(
             OperationLog::open_in(Path::new(""), "trace"),
-            Err(Error::Path {
+            Err(Error::Kernel(KernelError::Path {
                 kind: "log directory",
                 ..
-            })
+            }))
         ));
     }
 }

@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use crate::error::{ReportError, Result};
 use crate::model::read_observation::{RejectedRead, RejectionCause};
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_result::{
@@ -19,7 +20,6 @@ use crate::report::sanger_call;
 use dna_core::model::alignment::Orientation;
 use dna_core::model::sample_evidence::SampleEvidence;
 use dna_core::read_call::PlacementRejection;
-use dna_kernel::error::{ReportError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;

@@ -3,9 +3,9 @@
 //! Everything here is derived from plain [`PositionEvidence`] records in call
 //! order; nothing refers to the chromatogram, the reference, or a profile.
 
+use crate::error::{CallabilityError, Result};
 use crate::model::callability::{PositionEvidence, PositionFeatures};
 use crate::signal_processing::round_metric;
-use dna_kernel::error::{CallabilityError, Result};
 
 /// Half-width, in calls, of the window whose median spacing anchors the
 /// spacing deviation of one position.
@@ -136,7 +136,7 @@ fn spacing_deviation(index: usize, spacings: &[f64]) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::error::Error;
+    use crate::error::SangerError as Error;
 
     use super::*;
 

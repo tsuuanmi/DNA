@@ -3,13 +3,13 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use crate::error::{Result, SampleError};
 use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
 use crate::sample_analysis::{self, reads};
-use dna_kernel::error::{Result, SampleError};
 
 use super::{Operation, represent, sample_metrics};
 

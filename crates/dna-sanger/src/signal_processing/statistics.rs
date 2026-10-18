@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use crate::error::{Result, SignalError};
 use crate::model::sanger::Chromatogram;
-use dna_kernel::error::{Result, SignalError};
 
 const NORMAL_MAD_SCALE: f64 = 0.674_489_75;
 const FIRST_DIFFERENCE_SCALE: f64 = std::f64::consts::SQRT_2;
@@ -168,8 +168,8 @@ fn median_selected_f64(values: &mut [f64]) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::error::{SangerError as Error, SignalError};
     use crate::model::sanger::VendorEvidence;
-    use dna_kernel::error::{Error, SignalError};
 
     use super::*;
 

@@ -11,13 +11,13 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::config::Config;
+use crate::error::{ConsensusDocumentError, KernelError, Result};
 use crate::input::sequence::{self, SequenceRead};
 use crate::report;
 use dna_core::model::consensus::{
     Consensus, ConsensusRun, ConsensusSegment, ConsensusSite, ConsensusSummary, RunEvidence,
     SiteState,
 };
-use dna_kernel::error::{ConsensusDocumentError, Error, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 
@@ -126,7 +126,7 @@ pub(crate) fn load_call(
     let config = load_config(config_path)?;
     let profile = load_profile(&config)?;
     let reference = load_reference(reference_path, &profile)?;
-    let read_error = |source| Error::Read {
+    let read_error = |source| KernelError::Read {
         kind: "consensus",
         path: document.to_path_buf(),
         source,
@@ -153,7 +153,7 @@ pub(crate) fn load_call(
 
 fn parse(bytes: &[u8], path: &Path, sample_id: &str, reference: &Reference) -> Result<Consensus> {
     let raw: RawDocument =
-        serde_json::from_slice(bytes).map_err(|error| Error::ConsensusParse {
+        serde_json::from_slice(bytes).map_err(|error| KernelError::ConsensusParse {
             path: path.to_path_buf(),
             source: Box::new(error),
         })?;

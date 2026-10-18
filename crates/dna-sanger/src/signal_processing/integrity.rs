@@ -1,9 +1,9 @@
 //! Observation-only Sanger integrity evidence derived from canonical loci and analyzed channels.
 
+use crate::error::{Result, SignalError};
 use crate::model::locus_evidence::LocusEvidence;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SangerIntegrity;
-use dna_kernel::error::{Result, SignalError};
 
 use super::statistics;
 

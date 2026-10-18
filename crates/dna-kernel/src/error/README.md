@@ -1,12 +1,14 @@
 # Error
 
-Owns the typed `Error` boundary, the shared `Result<T>` alias, and one failure
-vocabulary per stage (`AbifError`, `FastaError`, `SequenceError`,
-`VariantsError`, `ConfigError`, `ProfileError`, `BasecallingError`,
-`SignalError`, `CallabilityError`, `QualityControlError`, `EvidenceError`,
-`AlignmentError`, `VariantError`, `SampleError`, `ReportError`, and the
-representation, normalization, and nomenclature errors), plus shared `LocusWindowError` and
-`CallEvidenceError`.
+Owns the kernel's typed `Error`, the shared `Result<T>` alias, and one failure
+vocabulary per modality-neutral stage (`FastaError`, `SequenceError`,
+`VariantsError`, `ConsensusDocumentError`, `ConfigError`, `ProfileError`,
+`EvidenceError`, `AlignmentError`, `VariantError`, `SampleError`,
+`ReportError`, and the representation, normalization, and nomenclature
+errors), plus shared `LocusWindowError` and `CallEvidenceError`. The Sanger
+stage failures (decoding, re-calling, signal, callability, quality control)
+are the [Sanger plugin's](../../../dna-sanger/src/error/README.md); the `dna`
+facade wraps both.
 
 `Error` names the failing stage; the wrapped stage failure carries observed
 values as structured data, names fixed rules as distinct variants (some with

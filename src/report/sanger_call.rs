@@ -1,7 +1,7 @@
 //! Sanger evidence joined to core call records by call index.
 
+use crate::error::CallEvidenceError;
 use dna_core::model::alignment::Orientation;
-use dna_kernel::error::CallEvidenceError;
 use dna_sanger::model::basecalls::BaseCalls;
 use dna_sanger::model::quality::QualityControlResult;
 

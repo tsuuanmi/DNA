@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::error::{ReportError, Result};
 use crate::model::consensus_result::{
     ConsensusReadResult, ConsensusRejectedReadResult, ConsensusResult, ConsensusRunResult,
     ConsensusSegmentResult, ConsensusSiteResult, ConsensusSummaryResult,
@@ -13,7 +14,6 @@ use crate::report::json::{project_plugins, project_profile};
 use crate::report::sample::{project_rejection, reviewer_read_names};
 use dna_core::model::consensus::{Consensus, ConsensusSegment};
 use dna_core::model::sample_evidence::SampleEvidence;
-use dna_kernel::error::{ReportError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
