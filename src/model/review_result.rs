@@ -129,6 +129,12 @@ pub(crate) enum LabelResult {
     StrandsDisagree {
         reads: Vec<SideResult>,
     },
+    ReadDisagrees {
+        read: String,
+        strand: Orientation,
+        sequence: String,
+    },
+    NotCalled,
     PossibleHeteroplasmy {
         position: usize,
         base: char,
@@ -248,9 +254,11 @@ pub(crate) struct SummaryResult {
 #[derive(Debug, Default, PartialEq, Eq, Serialize)]
 pub(crate) struct LabelCounts {
     pub(crate) strands_disagree: usize,
+    pub(crate) read_disagrees: usize,
     pub(crate) possible_heteroplasmy: usize,
     pub(crate) estimated_length: usize,
     pub(crate) undecided: usize,
+    pub(crate) not_called: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,
     pub(crate) noisy_signal: usize,

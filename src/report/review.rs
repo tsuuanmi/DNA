@@ -25,6 +25,7 @@ use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnaly
 use dna_core::model::alignment::{Orientation, ReferenceSegment};
 use dna_core::model::consensus::{ConsensusSite, RunEvidence, SiteState};
 use dna_core::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
+use dna_core::model::variant::VariantKind;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
@@ -37,7 +38,7 @@ use dna_sanger::model::attachment::SangerAttachment;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 1,
+    version: 2,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -239,6 +240,9 @@ struct Sample<'a> {
     by_input: BTreeMap<&'a str, usize>,
     /// Every covered position's observations.
     loci: BTreeMap<usize, LocusObservations>,
+    /// The bases each read inserts after a position: by read index and the
+    /// 1-based position the insertion follows.
+    insertions: BTreeMap<(usize, usize), &'a str>,
 }
 
 struct Read<'a> {
@@ -307,6 +311,20 @@ impl<'a> Sample<'a> {
             .into_iter()
             .map(|locus| (locus.position_1based, locus))
             .collect();
+        let insertions = analysis
+            .evidence
+            .variants
+            .iter()
+            .filter(|variant| variant.kind == VariantKind::Ins)
+            .flat_map(|variant| {
+                variant.support.iter().map(|support| {
+                    (
+                        (support.read_index, variant.position_1based),
+                        variant.alternate.get(1..).unwrap_or_default(),
+                    )
+                })
+            })
+            .collect();
         Ok(Self {
             sequence: reference.sequence.as_bytes(),
             regions,
@@ -318,6 +336,7 @@ impl<'a> Sample<'a> {
             reads,
             by_input,
             loci,
+            insertions,
         })
     }
 
@@ -504,14 +523,21 @@ impl<'a> Sample<'a> {
             .map(|call| call.text.clone())
             .collect::<Vec<_>>();
         // A difference: DNA's calls when it has them in the profile notation,
-        // otherwise the consensus's own decision.
+        // otherwise the consensus's own decision. A decided difference that
+        // DNA does not call within a position of the item is `not_called`.
+        let decided_difference = site
+            .is_some_and(|site| decided && site.call.as_deref() != Some(site.reference.as_str()));
         let differs = if self.notation {
             !calls.is_empty()
         } else {
-            site.is_some_and(|site| {
-                decided && site.call.as_deref() != Some(site.reference.as_str())
-            })
+            decided_difference
         };
+        if self.notation && decided_difference && !called_near(self.calls, first, last) {
+            labels.push(LabelResult::NotCalled);
+        }
+        if let (Some(site), Some(sequence), true) = (site, sequence.as_deref(), decided) {
+            labels.extend(self.disagreeing(site, first, last, sequence));
+        }
         if let (true, Some(site)) = (differs, site) {
             let supporting = site
                 .supporting
@@ -651,6 +677,70 @@ impl<'a> Sample<'a> {
             })
             .collect::<Result<_>>()?;
         Ok((labels.into_values().collect(), evidence))
+    }
+
+    /// `read_disagrees` for each read that supports a decided site, or that
+    /// the consensus set aside there (`uninformative`), and still shows the
+    /// whole item, every call clean of the modality's reasons, as
+    /// another sequence than the decision: the consensus explained the
+    /// difference away by the read's bounds. Opposing reads are
+    /// `strands_disagree`'s. Only an unclipped site is compared.
+    fn disagreeing(
+        &self,
+        site: &ConsensusSite,
+        first: usize,
+        last: usize,
+        sequence: &str,
+    ) -> Vec<LabelResult> {
+        if site.first_0based + 1 != first || site.last_0based + 1 != last {
+            return Vec::new();
+        }
+        site.supporting
+            .iter()
+            .chain(&site.uninformative)
+            .filter_map(|input| self.by_input.get(input.as_str()).copied())
+            .filter_map(|index| {
+                let shown = self.shown(index, first, last)?;
+                (shown != sequence).then(|| LabelResult::ReadDisagrees {
+                    read: self.reads[index].name.to_owned(),
+                    strand: self.reads[index].strand,
+                    sequence: shown,
+                })
+            })
+            .collect()
+    }
+
+    /// The sequence one read shows over `first..=last` with the insertions
+    /// after each of its positions; `None` unless the read observes every
+    /// position as a base or a deletion, each call free of the modality's
+    /// reasons against its base, and anchoring or scored clear of the read's
+    /// edges (`read_end`, or exempt).
+    fn shown(&self, index: usize, first: usize, last: usize) -> Option<String> {
+        let read = self.reads.get(index)?;
+        let mut shown = String::new();
+        for position in first..=last {
+            let observation = self
+                .loci
+                .get(&position)?
+                .observations
+                .iter()
+                .find(|observation| observation.read_index == index)?;
+            match observation.state {
+                LocusState::Deletion => {}
+                LocusState::Unresolved => return None,
+                _ => {
+                    let base = observation.base.filter(|base| "ACGT".contains(*base))?;
+                    if !shows(read.trust.get(observation.call_index_0based?)?) {
+                        return None;
+                    }
+                    shown.push(base);
+                }
+            }
+            if let Some(inserted) = self.insertions.get(&(index, position)) {
+                shown.push_str(inserted);
+            }
+        }
+        Some(shown)
     }
 
     /// `possible_heteroplasmy` at one position, when it fires.
@@ -899,6 +989,25 @@ fn undecided(site: &ConsensusSite) -> bool {
         || site.call.as_ref().is_some_and(|call| call.contains('N'))
 }
 
+/// Whether DNA calls anything within one position of `first..=last`: a
+/// call the notation moved next to the item still answers its difference.
+fn called_near(calls: &[NotationCall], first: usize, last: usize) -> bool {
+    calls
+        .iter()
+        .any(|call| first <= call.position + 1 && call.position <= last + 1)
+}
+
+/// Whether a call shows its base for `read_disagrees`: no modality reason
+/// against its base, and anchoring, or scored clear of the read's edges.
+fn shows(trust: &CallTrust) -> bool {
+    trust.vetoes.is_empty()
+        && match trust.placement {
+            Placement::Scored => trust.trusted || trust.exempt,
+            Placement::Anchoring(_) => true,
+            Placement::Unresolved(_) => false,
+        }
+}
+
 /// Whether a label leaves its item unassured, so that the item is a check:
 /// strands that disagree, a possible heteroplasmy, an estimated length, an
 /// undecided position, or no read. The read labels (one read, one strand,
@@ -907,9 +1016,11 @@ const fn unassured(label: &LabelResult) -> bool {
     matches!(
         label,
         LabelResult::StrandsDisagree { .. }
+            | LabelResult::ReadDisagrees { .. }
             | LabelResult::PossibleHeteroplasmy { .. }
             | LabelResult::EstimatedLength { .. }
             | LabelResult::Undecided
+            | LabelResult::NotCalled
             | LabelResult::NotCovered
     )
 }
@@ -917,9 +1028,9 @@ const fn unassured(label: &LabelResult) -> bool {
 /// A label's rank: the lower, the earlier a reviewer looks.
 const fn rank(label: &LabelResult) -> u8 {
     match label {
-        LabelResult::StrandsDisagree { .. } => 0,
+        LabelResult::StrandsDisagree { .. } | LabelResult::ReadDisagrees { .. } => 0,
         LabelResult::PossibleHeteroplasmy { .. } => 1,
-        LabelResult::EstimatedLength { .. } | LabelResult::Undecided => 2,
+        LabelResult::EstimatedLength { .. } | LabelResult::Undecided | LabelResult::NotCalled => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
         LabelResult::NoisySignal { .. }
         | LabelResult::NotCovered
@@ -932,6 +1043,8 @@ const fn rank(label: &LabelResult) -> u8 {
 const fn name(label: &LabelResult) -> &'static str {
     match label {
         LabelResult::StrandsDisagree { .. } => "strands_disagree",
+        LabelResult::ReadDisagrees { .. } => "read_disagrees",
+        LabelResult::NotCalled => "not_called",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
         LabelResult::EstimatedLength { .. } => "estimated_length",
         LabelResult::Undecided => "undecided",
@@ -949,6 +1062,7 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
     let (position, read) = match label {
         LabelResult::PossibleHeteroplasmy { position, .. } => (*position, ""),
         LabelResult::OneRead { read }
+        | LabelResult::ReadDisagrees { read, .. }
         | LabelResult::NoisySignal { read, .. }
         | LabelResult::PhaseShift { read, .. }
         | LabelResult::ReadEdge { read } => (0, read.as_str()),
@@ -971,6 +1085,8 @@ fn summarize(items: &[ItemResult], status: ReviewStatus) -> SummaryResult {
         for label in names {
             let count = match label {
                 "strands_disagree" => &mut labels.strands_disagree,
+                "read_disagrees" => &mut labels.read_disagrees,
+                "not_called" => &mut labels.not_called,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "estimated_length" => &mut labels.estimated_length,
                 "undecided" => &mut labels.undecided,
@@ -1061,6 +1177,7 @@ fn round(share: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dna_kernel::read_evidence::EvidenceReason;
 
     const F: Orientation = Orientation::Forward;
     const R: Orientation = Orientation::Reverse;
@@ -1145,6 +1262,61 @@ mod tests {
         assert_eq!(one_strand(&[]), None);
     }
 
+    #[test]
+    fn a_call_next_to_the_item_answers_its_difference() {
+        let call = |position| NotationCall {
+            position,
+            ordinal: 0,
+            reference: Some('C'),
+            alternate: Some('T'),
+            text: format!("{position}T"),
+            convention: None,
+        };
+        assert!(called_near(&[call(9)], 10, 12));
+        assert!(called_near(&[call(13)], 10, 12));
+        assert!(called_near(&[call(11)], 10, 12));
+        assert!(!called_near(&[call(8), call(14)], 10, 12));
+        assert!(!called_near(&[], 10, 12));
+    }
+
+    #[test]
+    fn a_call_shows_its_base_only_without_reasons_and_clear_of_the_edges() {
+        const MIXED: EvidenceReason = EvidenceReason::new("mixed_supporting_dna");
+        const DEPHASED: EvidenceReason = EvidenceReason::new("dephased");
+        let trust = |placement, vetoes: Vec<EvidenceReason>, trusted, exempt| CallTrust {
+            placement,
+            unresolved: false,
+            vetoes,
+            trusted,
+            exempt,
+            withheld_by: Vec::new(),
+            scope: TrustScope::Full,
+            second: None,
+        };
+        assert!(shows(&trust(Placement::Scored, Vec::new(), true, false)));
+        assert!(shows(&trust(Placement::Scored, Vec::new(), false, true)));
+        assert!(!shows(&trust(Placement::Scored, Vec::new(), false, false)));
+        assert!(!shows(&trust(Placement::Scored, vec![MIXED], true, false)));
+        assert!(shows(&trust(
+            Placement::Anchoring(DEPHASED),
+            Vec::new(),
+            false,
+            false
+        )));
+        assert!(!shows(&trust(
+            Placement::Anchoring(DEPHASED),
+            vec![MIXED],
+            false,
+            false
+        )));
+        assert!(!shows(&trust(
+            Placement::Unresolved(DEPHASED),
+            Vec::new(),
+            true,
+            false
+        )));
+    }
+
     fn read(read: &str) -> String {
         read.to_owned()
     }
@@ -1160,15 +1332,23 @@ mod tests {
                 reads: vec![read("a")],
             },
             LabelResult::Undecided,
+            LabelResult::NotCalled,
             LabelResult::EstimatedLength { runs: Vec::new() },
+            LabelResult::ReadDisagrees {
+                read: read("a"),
+                strand: F,
+                sequence: "CC".to_owned(),
+            },
             LabelResult::StrandsDisagree { reads: Vec::new() },
         ];
         labels.sort_by(|left, right| key(left).cmp(&key(right)));
         assert_eq!(
             labels.iter().map(name).collect::<Vec<_>>(),
             [
+                "read_disagrees",
                 "strands_disagree",
                 "estimated_length",
+                "not_called",
                 "undecided",
                 "one_strand",
                 "not_covered",
@@ -1176,9 +1356,9 @@ mod tests {
                 "read_edge",
             ]
         );
-        assert_eq!(labels[6], LabelResult::ReadEdge { read: read("b") });
+        assert_eq!(labels[8], LabelResult::ReadEdge { read: read("b") });
         assert_eq!(priority(&labels), 0);
-        assert_eq!(priority(&labels[3..]), 3);
+        assert_eq!(priority(&labels[5..]), 3);
         assert_eq!(priority(&[]), UNLABELLED);
     }
 

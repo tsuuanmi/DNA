@@ -79,8 +79,9 @@ them). It has:
   ordinals are `0`, and an item holds the insertions after its last position
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
-  (`strands_disagree`, `possible_heteroplasmy`, `estimated_length`,
-  `undecided`, `not_covered`), whatever its calls; otherwise `variant`: it
+  (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy`,
+  `estimated_length`, `undecided`, `not_called`, `not_covered`), whatever its
+  calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference. The read labels `one_read`, `one_strand`, `noisy_signal`,
@@ -138,13 +139,13 @@ and `5` for a variant without a label. Items are ordered by priority, then
 
 | Rank | Labels |
 |---:|---|
-| 0 | `strands_disagree` |
+| 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy` |
-| 2 | `estimated_length`, `undecided` |
+| 2 | `estimated_length`, `not_called`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 1)
+## Labels (rules version 2)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -155,6 +156,16 @@ exemption lifts the margin (ADR-0076).
 - `strands_disagree` `{reads: [{read, strand, role}]}`: the site has
   supporting and opposing reads, and a supporting read lies on another strand
   than an opposing one. Lists the supporting, then the opposing reads.
+- `read_disagrees` `{read, strand, sequence}`: at a decided site that is not
+  clipped, a supporting or uninformative read shows the whole item as another
+  sequence than the decision: the consensus explained the difference away by
+  the read's bounds, for example a run length from a read whose run end only
+  anchors. The read shows the item when it observes every position as a base
+  or a deletion, each call without a modality reason against its base and
+  either anchoring or scored and trusted or exempt; its insertions after each
+  position of the item (its sample-evidence insertion variants) are part of
+  `sequence`. One label per such read. Opposing reads are
+  `strands_disagree`'s.
 - `possible_heteroplasmy` `{position, base, reads: [{read, strand, share}]}`:
   at one position, a read reads it cleanly when its observation is
   `reference` or `alternate`, its call is unmasked and trusted or exempt, and
@@ -172,6 +183,10 @@ exemption lifts the margin (ADR-0076).
 - `undecided`: the site is `unresolved` or `contested` (a tie, even one the
   consensus settled on the reference and whichever strands the tied reads are
   on), or its call holds an `N`; or a gap is covered but not callable.
+- `not_called`: with notation calls, the consensus decided another sequence
+  than the reference at the site, and DNA calls nothing within one position
+  of it: the call step excluded the difference (its positions are then not
+  callable, SRS-VAR-019), so the reviewer sees what the reads showed.
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
   lie on one strand. It describes the support of the call, so it can come

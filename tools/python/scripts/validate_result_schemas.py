@@ -32,18 +32,22 @@ REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
 REVIEW_UNASSURED = frozenset(
     {
         "strands_disagree",
+        "read_disagrees",
         "possible_heteroplasmy",
         "estimated_length",
         "undecided",
+        "not_called",
         "not_covered",
     }
 )
 # Review labels by rank, in the summary's key order (PROP-0004).
 REVIEW_LABELS = {
     "strands_disagree": 0,
+    "read_disagrees": 0,
     "possible_heteroplasmy": 1,
     "estimated_length": 2,
     "undecided": 2,
+    "not_called": 2,
     "one_read": 3,
     "one_strand": 3,
     "noisy_signal": 4,

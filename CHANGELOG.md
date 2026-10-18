@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- Two review labels (`review` plugin 2, rules version 2; `dna.review/v1`
+  revised in place: two label kinds and two summary counts, and `rules` is
+  any version from 1). `read_disagrees` makes an item a check when a read
+  the consensus counted for its decision, or set aside, still shows the whole
+  item as another sequence with every call free of the modality's reasons.
+  `not_called` makes an item a check when the consensus decided a difference
+  that DNA does not call within one position (an excluded variant). On
+  development panel v5 (16,413 samples): `clear` 6,460 → 6,424, leaks among
+  clear 238 → 234; `not_called` on 287 samples, mostly `315.1C` excluded at
+  311–316.
 - The review list (PROP-0004, SRS-API-014): `dna review <sample-id>
   <trace>... --reference <fasta>` runs the sample analysis, the consensus,
   and its call once and writes `results/<sample-id>.review.json`, a new
