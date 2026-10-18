@@ -76,6 +76,48 @@ fn run(
     command.arg("--reference").arg(reference).assert()
 }
 
+/// `dna review` judged against the run signal `signal`.
+fn run_with_signal(
+    traces: &[&PathBuf],
+    reference: &Path,
+    config: &Path,
+    workdir: &Path,
+    signal: &Path,
+) -> assert_cmd::assert::Assert {
+    let mut command = Command::new(dna_binary());
+    command
+        .current_dir(workdir)
+        .env("DNA_CONFIG", config)
+        .arg("review")
+        .arg(SAMPLE_ID);
+    for trace in traces {
+        command.arg(trace);
+    }
+    command
+        .arg("--reference")
+        .arg(reference)
+        .arg("--signal")
+        .arg(signal)
+        .assert()
+}
+
+/// `dna signal <run-id>` over `traces`, in `workdir`; returns its output.
+fn signal(run_id: &str, traces: &[&PathBuf], config: &Path, workdir: &Path) -> PathBuf {
+    let mut command = Command::new(dna_binary());
+    command
+        .current_dir(workdir)
+        .env("DNA_CONFIG", config)
+        .arg("signal")
+        .arg(run_id);
+    for trace in traces {
+        command.arg(trace);
+    }
+    command.assert().success();
+    workdir
+        .join("results")
+        .join(format!("{run_id}.signal.json"))
+}
+
 fn output(workdir: &Path) -> PathBuf {
     workdir
         .join("results")
@@ -121,7 +163,7 @@ const RANKS: [(&str, u64); 12] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 4);
+    assert_eq!(value["provenance"]["rules"], 5);
     let items = items(value)?;
     let mut previous = None;
     let mut counts = std::collections::BTreeMap::<&str, u64>::new();
@@ -331,11 +373,13 @@ fn a_second_base_on_both_strands_is_possible_heteroplasmy() -> Result<(), Box<dy
     assert_eq!(label["base"], "T");
     let reads = label["reads"].as_array().ok_or("reads must be an array")?;
     assert_eq!(reads.len(), 2);
-    assert!(
-        reads
-            .iter()
-            .all(|read| read["share"].as_f64() >= Some(0.15))
-    );
+    // Without a run signal the configured floor alone is the threshold.
+    assert!(reads.iter().all(|read| {
+        read["threshold"].as_f64() == Some(0.21)
+            && read["share"].as_f64() > read["threshold"].as_f64()
+            && read.get("calls").is_none()
+    }));
+    assert!(value["provenance"].get("signal").is_none());
     assert_eq!(first["sequence"], "G");
     assert_eq!(first["evidence"][0]["positions"][0]["second"]["base"], "T");
     Ok(())
@@ -393,5 +437,81 @@ fn reruns_are_identical_and_never_overwrite() -> Result<(), Box<dyn std::error::
         .failure()
         .stderr(predicates::str::contains("target already exists"));
     assert_eq!(fs::read(output(&workdir))?, documents[0]);
+    Ok(())
+}
+
+/// A run signal of the sample's run is recorded in provenance; with fewer
+/// reads than the minimum it gives no run level, so the floor decides
+/// (SRS-API-014, SRS-CALL-020).
+#[test]
+fn a_run_signal_of_the_samples_run_is_recorded() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (reference, config) = inputs(directory.path())?;
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    let mate = directory.path().join("read-mate.ab1");
+    write_abif_with_secondary_signal(&forward, QUERY, 10, b'T', 400)?;
+    let call = QUERY.len() - 1 - 10;
+    write_abif_with_secondary_signal(&reverse, &reverse_complement(QUERY), call, b'A', 400)?;
+    write_abif(&mate, QUERY)?;
+    let run_signal = signal(
+        "RUN1",
+        &[&forward, &reverse, &mate],
+        &config,
+        directory.path(),
+    );
+
+    run_with_signal(
+        &[&forward, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+        &run_signal,
+    )
+    .success();
+
+    let value = document(directory.path())?;
+    assert_consistent(&value)?;
+    let recorded = &value["provenance"]["signal"];
+    assert_eq!(recorded["run_id"], "RUN1");
+    assert_eq!(recorded["selection"], 2);
+    assert_eq!(recorded["sha256"].as_str().map(str::len), Some(64));
+    let first = &items(&value)?[0];
+    assert_eq!(label_names(first), ["possible_heteroplasmy"]);
+    let reads = first["labels"][0]["reads"]
+        .as_array()
+        .ok_or("reads must be an array")?;
+    assert!(
+        reads.iter().all(|read| {
+            read["threshold"].as_f64() == Some(0.21) && read.get("calls").is_none()
+        })
+    );
+    Ok(())
+}
+
+/// A run signal that holds none of the sample's traces is another run's:
+/// the command fails without output.
+#[test]
+fn refuses_another_runs_signal() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (reference, config) = inputs(directory.path())?;
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    let other = directory.path().join("other.ab1");
+    write_abif(&forward, &alternate())?;
+    write_abif(&reverse, &reverse_complement(&alternate()))?;
+    write_abif(&other, QUERY)?;
+    let run_signal = signal("RUN2", &[&other], &config, directory.path());
+
+    run_with_signal(
+        &[&forward, &reverse],
+        &reference,
+        &config,
+        directory.path(),
+        &run_signal,
+    )
+    .failure();
+
+    assert!(!output(directory.path()).exists());
     Ok(())
 }

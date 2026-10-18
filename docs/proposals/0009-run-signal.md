@@ -34,9 +34,9 @@ Recurring shadows read as mixtures, and real minors at quiet places read as nois
 
 - Judge a second channel against the level its own run shows, keyed so that the modality
   stays reference-free (ADR-0069).
-- One rule for the Sanger mixed verdict and for `possible_heteroplasmy`.
+- One scale and one threshold for the Sanger mixed verdict and for `possible_heteroplasmy`.
 - Fail closed:
-  - without a usable run signal, today's rules apply;
+  - without a usable run signal, the configured floor applies;
   - a run signal lifts a mixed verdict only where the run itself shows that shadow as
     common, and never adds one.
 - Reproducible: the run signal is an explicit, recorded input, not hidden state.
@@ -131,26 +131,34 @@ answers.
    - **Run mismatch.** A file from another run (no shared trace hash and another run id) is
      refused with a typed error. If the run id matches but the hashes are absent, the
      run signal is used and the mismatch is flagged.
-   - **Two minimums.** Below a minimum of reads for the whole file, the run signal is refused
-     with a logged reason and today's rules apply. A key with fewer than `minimum_calls`
-     observations falls back to today's rule for that key.
-3. **One estimate, two exact uses.** For a call's key, let `t = max(floor, quantile + margin)`,
-   computed from the run histogram minus the sample.
-   - **The Sanger mixed verdict (ADR-0027)** holds when today's qualifying-channel rule holds
-     **and** the second channel's share exceeds `t`. A run signal can therefore only lift a
-     mixed verdict whose shadow the run shows as common; it never adds one. Identity is withheld
-     no more often than today, so `undecided` can only fall: at recurring sites such as `16031`
-     and `527`.
-   - **The review's `possible_heteroplasmy`** fires when a clean call's share exceeds `t` (in
-     place of today's fixed `0.15`), with the neighbour-shadow and strand rules unchanged. It
-     can flag a real minor that sits above a quiet level but below today's ratio, and it
-     drops recurring shadows.
+   - **Two minimums.** Below a minimum of reads for the whole file, or for a key with fewer
+     than `minimum_calls` observations, the run signal gives no level and the floor applies.
+3. **One scale, one threshold, two uses** (amended in increment (ii)). Every rule that
+   judges a call's second channel reads the peak share of SRS-CALL-015,
+   `h_X / (h_primary + h_X)`, and one function owned by `dna_sanger::run_signal`,
+   `threshold(key, signal, config)` (SRS-CALL-020): `t = max(floor, level)` when the run
+   signal, minus the sample, holds the call's key with enough reads and calls, where
+   `level = median + max(margin, mad_factor × MAD)` of the key's shares; otherwise
+   `t = floor`. The floor is one configuration value, `signal_processing.second_floor`.
+   - **The review's `possible_heteroplasmy`** fires when a clean call's second peak share
+     exceeds `t`, with the neighbour-shadow and strand rules unchanged. It replaces today's
+     `0.15` profile weight, with or without a run signal. The neighbour-shadow rule stays
+     (2026-10-18, user): dropping it raised the review workload on the development panel
+     (the context level alone does not absorb read-start and read-end shadows), and
+     heteroplasmy is optional today. It goes when DNA handles noisy regions itself. The
+     published evidence `second` moves to the same peak scale. Review output therefore
+     changes without a run signal too, and the `review` plugin version says so.
+   - **The Sanger mixed verdict (ADR-0027)**, in increment (iii), uses the same `threshold()`
+     in place of its fixed `0.33` peak ratio, and ADR-0027 is amended then. A run signal can
+     only raise the threshold above the floor, so it lifts a mixed verdict only where the run
+     itself shows the shadow as common.
    - **Such a minor keeps its identity**: the consensus decides the primary base, and the
      review makes the position a check. Reporting it as IUPAC remains a separate, deferred
      decision.
-   - **Parameters.** `quantile`, `margin`, `floor`, `minimum_calls` and the minimum reads sit
-     in the existing `[signal_processing]` configuration section. They are fixed by research on
-     development runs and judged on a hold-out panel and on later runs.
+   - **Parameters.** `second_floor`, `margin`, `mad_factor`, `minimum_calls` and the minimum
+     reads sit in the existing `[signal_processing]` configuration section. One floor serves
+     both uses; it is fixed on development runs and judged on a hold-out panel and on later
+     runs.
 4. **A sample's result now depends on its run-mates** through one recorded file. Rerunning the
    sample with the same run signal file reproduces it exactly.
 
@@ -174,8 +182,9 @@ today.
   strict and `haplotype_lod` better/worse, with samples grouped by run.
 - **Measure the heteroplasmy work explicitly.** Report truth heteroplasmy recall and samples
   with a false `possible_heteroplasmy`, overall and by period. Report the flags the run signal
-  removes and the flags it adds, separately. It adds a flag where `t` is below `0.15` at a quiet
-  key, which is the intended recall gain. The false-flag rate at quiet keys on the hold-out is
+  removes and the flags it adds, separately, against today's rule, as a curve over the floor
+  with and without a run signal. A run signal adds no flag below the floor; the floor sets
+  the recall gain at quiet keys. The false-flag rate at quiet keys on the hold-out is
   the number to watch.
 - **Show the effect on `undecided`.** Report items at recurring sites (`16031`, `527`, `320`,
   `109`) before and after.
@@ -196,10 +205,11 @@ today.
 
 ## Rollout and rollback
 
-The run signal is an optional input. The `sanger` and `review` plugin versions rise with the
-change, so every output's provenance changes. Without `--signal`, nothing else changes:
-calls, verdicts and labels stay byte-identical apart from those versions. With the file, its
-identity is in provenance. Rollback is to stop passing the file.
+The run signal is an optional input. The `review` plugin version rises in increment (ii) and
+the `sanger` version in increment (iii). Moving to one scale and one threshold changes review
+labels and evidence with or without `--signal`; calls and verdicts change only in increment
+(iii). With the file, its identity is in provenance. Rollback of the run signal is to stop
+passing the file, which leaves the floor alone.
 
 ## Observability and operations
 
@@ -208,7 +218,7 @@ and its output identity. Sample commands log:
 
 - which run signal they used;
 - whether leave-one-out applied;
-- how many verdicts fell back to today's rule;
+- how many `possible_heteroplasmy` reads a run level judged and how many the floor alone judged;
 - any refusal reason.
 
 **Production flow.** The laboratory's run (plate) grouping lives in the review tool
@@ -224,8 +234,9 @@ beyond the run's. It is validated like any input file.
 ## Compatibility and migration
 
 This proposal adds a contract (`dna.signal/v1`), an optional input, and an optional
-`&RunSignal` argument to `analyze_sanger` (a public API change). Without the input, outputs
-change only in plugin versions. The review tool adds a per-run signal step to use it.
+`&RunSignal` argument to `analyze_sanger` (a public API change). The one-threshold amendment
+changes review output and configuration (`second_floor`, schema version 8) whether or not
+the input is given. The review tool adds a per-run signal step to use it.
 
 ## Decision
 
@@ -235,3 +246,7 @@ Pending.
 
 - Increment (i): the run signal (`dna_sanger::run_signal`, `dna signal`, `dna.signal/v1`,
   SRS-CALL-019, SRS-API-016), with no verdict change; no command reads a run signal yet.
+- Increment (ii): the canonical threshold (`run_signal::threshold`, SRS-CALL-020,
+  `second_floor`), `dna review --signal` (SRS-API-014), and `possible_heteroplasmy` and the
+  review evidence on the peak scale (`review` version 5). The evaluation harness builds run
+  signals per batch, falling back to the month, in process (`dna-eval run --run-signal`).

@@ -40,7 +40,7 @@ pub enum Command {
     /// Adjudicate a sample's AB1 traces into a consensus sequence.
     Consensus(SampleArgs),
     /// List the positions of a sample a reviewer should look at, with their evidence.
-    Review(SampleArgs),
+    Review(ReviewArgs),
     /// Call variants from reviewed consensus sequences with the core alone.
     Call(CallArgs),
     /// Record the second-channel signal a run's AB1 traces share.
@@ -80,6 +80,26 @@ pub struct SampleArgs {
     /// Single-contig reference FASTA shared by every trace.
     #[arg(long)]
     pub reference: PathBuf,
+}
+
+/// Arguments for a sample review.
+#[derive(Debug, Args)]
+pub struct ReviewArgs {
+    /// Stable sample identifier used only for result/log naming and provenance.
+    pub sample_id: String,
+
+    /// Independently processed ABIF/AB1 traces belonging to the sample.
+    #[arg(required = true, num_args = 1..)]
+    pub traces: Vec<PathBuf>,
+
+    /// Single-contig reference FASTA shared by every trace.
+    #[arg(long)]
+    pub reference: PathBuf,
+
+    /// The run signal (`dna.signal/v1`) of the sample's run, to judge second
+    /// bases against (PROP-0009).
+    #[arg(long)]
+    pub signal: Option<PathBuf>,
 }
 
 /// Arguments for a run signal over one run's traces.

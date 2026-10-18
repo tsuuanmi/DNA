@@ -30,6 +30,7 @@ pub use dna_consensus::model::consensus::Consensus;
 pub use dna_empop::export::{Cut, CutReason, Export as EmpopExport};
 pub use dna_sample::model::sample_evidence::SampleEvidence;
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
+pub use dna_sanger::run_signal::{Contributions, RunSignal};
 
 pub use crate::variant_analysis::ReferenceSegment;
 
@@ -66,6 +67,30 @@ pub struct SampleAnalysis {
 }
 
 impl SampleAnalysis {
+    /// What the admitted reads contribute to their run's signal
+    /// (SRS-CALL-019), summed over the sample, with the content SHA-256 of
+    /// those reads: what a run signal holds of this sample.
+    #[must_use]
+    pub fn signal_contributions(&self) -> (Vec<String>, Contributions) {
+        let mut traces = Vec::new();
+        let mut sum = Contributions::default();
+        for read in &self.called {
+            let Some(sanger) = self.reads.get(&read.input_sha256) else {
+                continue;
+            };
+            let own = dna_sanger::run_signal::contributions(&sanger.calls, &read.evidence);
+            traces.push(read.input_sha256.clone());
+            sum.calls += own.calls;
+            for (key, shares) in own.keys {
+                let into = sum.keys.entry(key).or_default();
+                for (share, count) in shares {
+                    *into.entry(share).or_default() += count;
+                }
+            }
+        }
+        (traces, sum)
+    }
+
     /// The core's trust in every call of the admitted read whose content
     /// SHA-256 is `input_sha256`, as its variant calling and consensus judge
     /// it; `None` for another read. Diagnostic evidence for evaluation and

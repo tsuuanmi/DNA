@@ -9,6 +9,13 @@ apply (`SELECTION` versions it). `read` processes one trace as a sample
 command does up to its core evidence and returns its contributions, or none
 for a read the sample commands reject.
 
+It also owns the one second-channel threshold (SRS-CALL-020):
+`threshold(key, signal, config)` is `signal_processing.second_floor`, raised
+to the key's run level (`RunSignal::level`) when a run signal holds the key
+with enough reads and calls. `Key::of` gives a call's key from its read's
+evidence. Every rule that judges a second peak share uses it: the review's
+`possible_heteroplasmy` now, the Sanger mixed verdict next (PROP-0009).
+
 The module sits above [read_processing](../read_processing/README.md): its
 selection reads the callability mask and the signal edges of the read's
 `ReadEvidence`. It reads no reference and no other read.

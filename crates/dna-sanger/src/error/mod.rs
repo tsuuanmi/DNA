@@ -8,12 +8,14 @@ mod abif;
 mod basecalling;
 mod callability;
 mod quality_control;
+mod run_signal;
 mod signal;
 
 pub use abif::{AbifError, Tag};
 pub use basecalling::BasecallingError;
 pub use callability::CallabilityError;
 pub use quality_control::QualityControlError;
+pub use run_signal::RunSignalError;
 pub use signal::SignalError;
 
 use dna_kernel::error::{ConfigError, EvidenceError};
@@ -40,6 +42,9 @@ pub enum SangerError {
     /// Quality control failed.
     #[error("quality control failed: {0}")]
     QualityControl(QualityControlError),
+    /// A run signal cannot be used.
+    #[error("invalid run signal: {0}")]
+    RunSignal(RunSignalError),
     /// The Sanger products of one read disagree while its core evidence is
     /// assembled.
     #[error("{0}")]
@@ -136,6 +141,12 @@ impl From<CallabilityError> for SangerError {
 impl From<QualityControlError> for SangerError {
     fn from(error: QualityControlError) -> Self {
         Self::QualityControl(error)
+    }
+}
+
+impl From<RunSignalError> for SangerError {
+    fn from(failure: RunSignalError) -> Self {
+        Self::RunSignal(failure)
     }
 }
 

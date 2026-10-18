@@ -9,8 +9,8 @@
 pub use dna_kernel::error::Error as KernelError;
 pub use dna_kernel::error::*;
 pub use dna_sanger::error::{
-    AbifError, BasecallingError, CallabilityError, ProductsError, QualityControlError, SangerError,
-    SignalError, Tag,
+    AbifError, BasecallingError, CallabilityError, ProductsError, QualityControlError,
+    RunSignalError, SangerError, SignalError, Tag,
 };
 
 /// Result type returned by DNA operations.
@@ -44,6 +44,12 @@ impl From<SangerError> for Error {
             SangerError::Kernel(failure) => Self::Kernel(failure),
             failure => Self::Sanger(failure),
         }
+    }
+}
+
+impl From<RunSignalError> for Error {
+    fn from(failure: RunSignalError) -> Self {
+        Self::Sanger(SangerError::RunSignal(failure))
     }
 }
 

@@ -11,6 +11,7 @@ use dna_kernel::reference;
 pub(crate) mod consensus;
 pub(crate) mod sanger;
 pub(crate) mod sequence;
+pub(crate) mod signal;
 pub(crate) mod variants;
 
 fn load_config(path: &Path) -> Result<Config> {

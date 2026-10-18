@@ -17,6 +17,10 @@
 //!
 //! The selection is one function, [`contributions`], shared by building a run
 //! signal and by taking a read out of it; [`SELECTION`] versions it.
+//!
+//! [`threshold`] is the one second-channel threshold every rule that judges a
+//! call's second peak share applies: the configured floor, raised to the
+//! key's run level when a run signal holds the key.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -29,6 +33,7 @@ use crate::model::sanger::Chromatogram;
 use crate::model::signal::ShortRead;
 use crate::read_processing::evidence::{PEAK_BELOW_MINIMUM, RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD};
 use crate::read_processing::{self, SangerConfig};
+use crate::signal_processing::{RunSignalParameters, SignalProcessingConfig};
 use dna_kernel::model::nucleotide::Nucleotide;
 
 /// Version of the call selection [`contributions`] applies.
@@ -48,6 +53,59 @@ pub struct Key {
     pub base: char,
     /// The other channel whose share is counted.
     pub second: char,
+}
+
+impl Key {
+    /// The key of call `index` of a read and its channel `second`: `None`
+    /// within two calls of either end or without a canonical context.
+    #[must_use]
+    pub fn of(evidence: &ReadEvidence, index: usize, second: char) -> Option<Self> {
+        let calls = evidence.calls();
+        let context = calls.get(index.checked_sub(FLANK)?..=index + FLANK)?;
+        let context: [char; 5] = std::array::from_fn(|offset| context[offset].base);
+        context
+            .iter()
+            .all(|&base| is_canonical(base))
+            .then(|| Self {
+                context,
+                base: context[FLANK],
+                second,
+            })
+    }
+}
+
+/// The second-channel threshold of one call (PROP-0009).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Threshold {
+    /// The share, as a fraction, the call's second channel must exceed.
+    pub share: f64,
+    /// The key's calls in the run signal, when its run level was usable.
+    pub calls: Option<u64>,
+}
+
+/// The canonical second-channel threshold (SRS-CALL-020): the configured
+/// `second_floor`, raised to the run level of the call's `key` when `signal`
+/// holds it with enough reads and calls ([`RunSignal::level`]). Without a
+/// key or a run signal the floor alone decides.
+#[must_use]
+pub fn threshold(
+    key: Option<&Key>,
+    signal: Option<&RunSignal>,
+    config: &SignalProcessingConfig,
+) -> Threshold {
+    let floor = config.second_floor;
+    key.zip(signal)
+        .and_then(|(key, signal)| {
+            let level = signal.level(key, &config.run_signal)?;
+            Some(Threshold {
+                share: level.max(floor),
+                calls: Some(signal.keys.get(key)?.values().sum()),
+            })
+        })
+        .unwrap_or(Threshold {
+            share: floor,
+            calls: None,
+        })
 }
 
 /// Counts of calls by a channel's share in thousandths (0 to 1000): its peak
@@ -205,6 +263,56 @@ impl RunSignal {
         signal
     }
 
+    /// Adds `reads` reads, of content `traces`, and their `contributions`.
+    pub fn include(
+        &mut self,
+        traces: impl IntoIterator<Item = String>,
+        reads: usize,
+        contributions: &Contributions,
+    ) {
+        self.traces.extend(traces);
+        self.reads += reads;
+        self.calls += contributions.calls;
+        for (key, histogram) in &contributions.keys {
+            let into = self.keys.entry(*key).or_default();
+            for (share, count) in histogram {
+                *into.entry(*share).or_default() += count;
+            }
+        }
+    }
+
+    /// The level above which a call of `key` stands out from its run:
+    /// `median + max(margin, mad_factor * MAD)` of the key's shares, as a
+    /// fraction. `None` when the run has fewer reads than `minimum_reads` or
+    /// the key fewer calls than `minimum_calls`.
+    #[must_use]
+    pub fn level(&self, key: &Key, parameters: &RunSignalParameters) -> Option<f64> {
+        if self.reads < parameters.minimum_reads {
+            return None;
+        }
+        let histogram = self.keys.get(key)?;
+        let calls = histogram.values().sum::<u64>();
+        if calls < parameters.minimum_calls {
+            return None;
+        }
+        let median = median(
+            histogram
+                .iter()
+                .map(|(&share, &count)| (u64::from(share), count)),
+            calls,
+        );
+        let mut deviations = BTreeMap::<u64, u64>::new();
+        for (&share, &count) in histogram {
+            *deviations
+                .entry(u64::from(share).abs_diff(median))
+                .or_default() += count;
+        }
+        let mad = median_of(&deviations, calls);
+        let median = median as f64 / 1000.0;
+        let spread = (parameters.mad_factor * mad as f64 / 1000.0).max(parameters.margin);
+        Some(median + spread)
+    }
+
     /// The same run signal without one read's contributions, so that a read
     /// is never judged against itself. Counts never fall below zero, and
     /// empty bins and keys are dropped; a read whose contributions exceed the
@@ -243,6 +351,30 @@ impl RunSignal {
         }
         signal
     }
+}
+
+/// The lower median of `values`, given as (value, count) pairs in increasing
+/// value order with `total` counts.
+fn median(values: impl Iterator<Item = (u64, u64)>, total: u64) -> u64 {
+    let middle = total.div_ceil(2).max(1);
+    let mut seen = 0;
+    let mut last = 0;
+    for (value, count) in values {
+        seen += count;
+        last = value;
+        if seen >= middle {
+            return value;
+        }
+    }
+    last
+}
+
+/// The lower median of a histogram with `total` counts.
+fn median_of(histogram: &BTreeMap<u64, u64>, total: u64) -> u64 {
+    median(
+        histogram.iter().map(|(&value, &count)| (value, count)),
+        total,
+    )
 }
 
 #[cfg(test)]
@@ -339,5 +471,106 @@ mod tests {
         let alone = RunSignal::build("run".into(), traces, [first]);
         assert_eq!(both.without(&second), alone);
         Ok(())
+    }
+
+    #[test]
+    fn a_level_needs_enough_reads_and_calls_and_stands_above_the_spread() {
+        let key = Key {
+            context: ['A', 'C', 'G', 'T', 'A'],
+            base: 'G',
+            second: 'C',
+        };
+        // 40 calls: 30 at 20 thousandths, 10 at 40.
+        let histogram = Histogram::from([(20, 30), (40, 10)]);
+        let signal = RunSignal {
+            run_id: "run".into(),
+            selection: SELECTION,
+            traces: BTreeSet::new(),
+            reads: 50,
+            calls: 40,
+            keys: BTreeMap::from([(key, histogram)]),
+        };
+        let parameters = RunSignalParameters {
+            minimum_reads: 40,
+            minimum_calls: 40,
+            margin: 0.05,
+            mad_factor: 4.0,
+        };
+        // Median 0.020, MAD 0: the margin sets the spread.
+        assert!((signal.level(&key, &parameters).unwrap_or(0.0) - 0.07).abs() < 1e-9);
+        let narrow = RunSignalParameters {
+            margin: 0.0001,
+            ..parameters
+        };
+        assert!((signal.level(&key, &narrow).unwrap_or(0.0) - 0.0201).abs() < 1e-9);
+        let few = RunSignalParameters {
+            minimum_calls: 41,
+            ..parameters
+        };
+        assert_eq!(signal.level(&key, &few), None);
+        let small = RunSignalParameters {
+            minimum_reads: 51,
+            ..parameters
+        };
+        assert_eq!(signal.level(&key, &small), None);
+    }
+
+    #[test]
+    fn the_threshold_is_the_floor_raised_to_a_usable_run_level() {
+        let key = Key {
+            context: ['A', 'C', 'G', 'T', 'A'],
+            base: 'G',
+            second: 'C',
+        };
+        // 40 calls at 300 thousandths: level 0.35 above a 0.21 floor.
+        let signal = RunSignal {
+            run_id: "run".into(),
+            selection: SELECTION,
+            traces: BTreeSet::new(),
+            reads: 50,
+            calls: 40,
+            keys: BTreeMap::from([(key, Histogram::from([(300, 40)]))]),
+        };
+        let config = SignalProcessingConfig {
+            window_size_bases: 10,
+            minimum_primary_snr: 3.0,
+            minimum_noisy_windows: 2,
+            second_floor: 0.21,
+            run_signal: RunSignalParameters {
+                minimum_reads: 40,
+                minimum_calls: 40,
+                margin: 0.05,
+                mad_factor: 4.0,
+            },
+        };
+        let floor = Threshold {
+            share: 0.21,
+            calls: None,
+        };
+        assert_eq!(threshold(None, Some(&signal), &config), floor);
+        assert_eq!(threshold(Some(&key), None, &config), floor);
+        let raised = threshold(Some(&key), Some(&signal), &config);
+        assert!((raised.share - 0.35).abs() < 1e-9);
+        assert_eq!(raised.calls, Some(40));
+        let low = RunSignal {
+            keys: BTreeMap::from([(key, Histogram::from([(20, 40)]))]),
+            ..signal.clone()
+        };
+        assert_eq!(
+            threshold(Some(&key), Some(&low), &config),
+            Threshold {
+                share: 0.21,
+                calls: Some(40)
+            }
+        );
+        let sparse = RunSignalParameters {
+            minimum_calls: 41,
+            ..config.run_signal
+        };
+        let config = SignalProcessingConfig {
+            run_signal: sparse,
+            ..config
+        };
+        assert_eq!(threshold(Some(&key), Some(&signal), &config), floor);
     }
 }

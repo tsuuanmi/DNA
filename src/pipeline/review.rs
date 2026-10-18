@@ -5,12 +5,14 @@ use std::time::Instant;
 
 use crate::error::Result;
 use crate::input::sanger;
-use crate::model::review_result::ItemKind;
+use crate::input::signal as input_signal;
+use crate::model::review_result::{ItemKind, LabelResult};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedReview, Reviewed};
 use crate::sample_analysis::{self, ConsensusCall, ReviewCheck, SampleAnalysis, SampleOutcome};
+use dna_sanger::run_signal::RunSignal;
 
 use super::Operation;
 use super::sample::validate_sample_id;
@@ -20,6 +22,7 @@ pub(crate) fn run(
     sample_id: &str,
     traces: &[PathBuf],
     reference: &Path,
+    signal: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
     validate_sample_id(sample_id)?;
@@ -32,19 +35,40 @@ pub(crate) fn run(
             reference_path = ?reference.display().to_string(),
         );
     })?
-    .run(|log, started| review(sample_id, traces, reference, config_path, log, started))
+    .run(|log, started| {
+        review(
+            sample_id,
+            traces,
+            reference,
+            signal,
+            config_path,
+            log,
+            started,
+        )
+    })
 }
 
 fn review(
     sample_id: &str,
     traces: &[PathBuf],
     reference: &Path,
+    signal: Option<&Path>,
     config_path: &Path,
     log: &OperationLog,
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
     let inputs = sanger::load_sample(traces, reference, config_path)?;
+    let signal = signal.map(input_signal::load).transpose()?;
+    if let Some((signal, sha256)) = &signal {
+        tracing::info!(
+            event = "review_signal_loaded",
+            run_id = ?signal.run_id,
+            sha256 = %sha256,
+            reads = signal.reads,
+            keys = signal.keys.len(),
+        );
+    }
     let output = path::review_output(sample_id)?;
     tracing::info!(
         event = "review_inputs_loaded",
@@ -81,7 +105,19 @@ fn review(
         configuration_sha256,
         outcome,
         plugins,
+        signal,
     })?;
+    let judged = result
+        .items
+        .iter()
+        .flat_map(|item| &item.labels)
+        .filter_map(|label| match label {
+            LabelResult::PossibleHeteroplasmy { reads, .. } => Some(reads),
+            _ => None,
+        })
+        .flatten()
+        .map(|read| read.calls.is_some())
+        .collect::<Vec<_>>();
     tracing::info!(
         event = "review_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -94,6 +130,8 @@ fn review(
             .filter(|item| item.kind == ItemKind::Check)
             .count(),
         clear = result.summary.clear,
+        heteroplasmy_reads_run_level = judged.iter().filter(|&&level| level).count(),
+        heteroplasmy_reads_floor = judged.iter().filter(|&&level| !level).count(),
     );
 
     drop(stage);
@@ -112,15 +150,20 @@ fn review(
 
 impl SampleAnalysis {
     /// The items of this analysis's review list that a reviewer must look at
-    /// (`check` items), given the call of its consensus, by the rules
-    /// `dna review` applies, without building or publishing the document.
+    /// (`check` items), given the call of its consensus and the run signal
+    /// it is judged against, if any, by the rules `dna review` applies,
+    /// without building or publishing the document.
     ///
     /// # Errors
     ///
     /// Returns [`ReportError`](crate::error::ReportError) when the analysis's
     /// records disagree, as `dna review` would.
-    pub fn review_checks(&self, call: &ConsensusCall) -> Result<Vec<ReviewCheck>> {
-        Ok(report::review_checks(self, call)?
+    pub fn review_checks(
+        &self,
+        call: &ConsensusCall,
+        signal: Option<&RunSignal>,
+    ) -> Result<Vec<ReviewCheck>> {
+        Ok(report::review_checks(self, call, signal)?
             .into_iter()
             .map(|(first, last, labels)| ReviewCheck {
                 first,

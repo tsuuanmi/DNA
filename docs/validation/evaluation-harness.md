@@ -15,7 +15,8 @@ cargo run --release -p dna-eval -- run \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
   --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv] \
-  [--review-window <bp>] [--forced-windows <file>] [--current-since <YYYY-MM>]
+  [--review-window <bp>] [--forced-windows <file>] [--current-since <YYYY-MM>] \
+  [--run-signal batch|month [--run-signal-batch-reads <n>]]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -256,6 +257,20 @@ sequence gets a failure row (kind `reference`).
 `--triage` also takes each sample's triage evidence from the same analysis
 and runs the [draft triage](#draft-triage); without it the run and its
 outputs are unchanged.
+
+`--run-signal` judges each sample's review against a run signal
+([PROP-0009](../proposals/0009-run-signal.md), SRS-CALL-020) built in
+process, the way `dna review --signal` would with a per-run file. A first
+pass analyses every sample and adds its admitted reads' contributions
+(`SampleAnalysis::signal_contributions`) to its groups' run signals: its
+manifest `batch` and its batch month (`batch_date`, `unknown` without one).
+A second pass runs DNA again and reviews each sample against its group's
+signal, the sample's own reads taken out. With `batch`, a sample uses its
+batch's signal when that batch has at least `--run-signal-batch-reads` reads
+(default 40), otherwise its month's; with `month`, always its month's. The
+manifest's batch stands for the laboratory's run, which the panel does not
+record. Without the flag, no run signal is built and the floor alone sets
+every threshold.
 
 ## Measures
 
@@ -715,6 +730,8 @@ Phase-0 results are in
 | File | Content |
 |---|---|
 | `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); DNA's callable yield per HV region (`callable_yield`, `HV1=330/342 HV2=268/268 HV3=139/139`: the truth's analysed positions there that DNA's callable intervals cover); distinct and rejected traces; failure (`<kind>: <message>`); the [review workload](#review-workload): check items, positions to review, whether the sample is clear (`Y` with no check item), unreviewed blocks, and with `--forced-windows` the blocks still unreviewed (`review_checks`, `review_positions`, `review_clear`, `unreviewed`, `unreviewed_forced`) |
+| `checks.tsv` | per sample and check item, in sample then item order: `first` and `last` (1-based) and the item's label names, space-separated |
+| `signals.tsv` | with `--run-signal`, per group (`batch:<batch>`, `month:<YYYY-MM>`): reads and selected calls, keys, and keys with at least 20, 40, and 100 calls |
 | `windows.tsv` | per review window, by region and start: the counted samples whose analysed intervals reach it, those with a check item in it, those without one that have an unreviewed difference in it, that share, and its Wilson 95 % upper bound |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |

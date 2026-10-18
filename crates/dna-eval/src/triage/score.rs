@@ -1752,6 +1752,7 @@ mod tests {
                 not_recorded: BTreeSet::new(),
                 empop: None,
                 checks: Vec::new(),
+                check_labels: Vec::new(),
                 intervals: vec![(16024, 16365)],
                 signals: crate::lod::Signals::default(),
                 loci: crate::cause::loci::Loci::default(),

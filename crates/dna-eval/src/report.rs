@@ -1832,6 +1832,7 @@ mod tests {
                 not_recorded: BTreeSet::new(),
                 empop: None,
                 checks: Vec::new(),
+                check_labels: Vec::new(),
                 signals: lod::Signals::default(),
                 loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {

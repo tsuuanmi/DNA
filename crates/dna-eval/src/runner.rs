@@ -8,7 +8,7 @@
 //! A sample that fails, or a DNA panic, yields a [`Failure`]; other samples
 //! continue. Outcomes are returned in sample order, whatever the thread count.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io;
 use std::panic::{self, AssertUnwindSafe};
@@ -20,7 +20,8 @@ use std::time::Instant;
 use std::num::NonZeroUsize;
 
 use dna::sample_analysis::{
-    self, Consensus, ConventionLabel, EmpopExport, NotationCall, SampleAnalysis, SampleOutcome,
+    self, Consensus, ConventionLabel, EmpopExport, NotationCall, RunSignal, SampleAnalysis,
+    SampleOutcome,
 };
 use dna_consensus::model::consensus::SiteState;
 use sha2::{Digest, Sha256};
@@ -58,6 +59,8 @@ pub(crate) struct Called {
     /// The review list's check items, each `first..=last` (1-based), as
     /// `dna review` builds them.
     pub(crate) checks: Vec<(i64, i64)>,
+    /// The same with each item's label names, space-separated.
+    pub(crate) check_labels: Vec<(i64, i64, String)>,
 }
 
 /// A sample's EMPOP query (PROP-0007), and the consensus decisions its
@@ -174,12 +177,118 @@ impl Threads {
 /// taking each sample's
 /// draft triage evidence when `triage` is set: from the analysis, even when
 /// its call then fails, or from the rejected reads when none is admitted.
+/// How samples are grouped into runs for their run signal (PROP-0009): the
+/// panel's batch when it has at least `batch_reads` reads, else the batch
+/// month; or the month alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Grouping {
+    Batch { batch_reads: usize },
+    Month,
+}
+
+/// A sample's run signal groups: its batch's and its month's.
+fn groups(sample: &Sample) -> [String; 2] {
+    let month = sample
+        .batch_date
+        .as_deref()
+        .and_then(|date| date.get(..7))
+        .unwrap_or("unknown");
+    [format!("batch:{}", sample.batch), format!("month:{month}")]
+}
+
+/// Runs DNA as [`run_once`] does; with a grouping, first builds each
+/// group's run signal from every sample's analysis, then runs again with
+/// each sample's review judged against its group's signal.
 pub(crate) fn run(
     samples: &[Sample],
     (reference, reference_sha256): (&Path, &str),
     config: &Path,
     threads: Threads,
     triage: bool,
+    grouping: Option<Grouping>,
+    report: &mut Vec<String>,
+) -> Result<Vec<Outcome>> {
+    let Some(grouping) = grouping else {
+        return run_once(
+            samples,
+            (reference, reference_sha256),
+            config,
+            threads,
+            triage,
+            &|_| None,
+        );
+    };
+    let signals = std::sync::Mutex::new(BTreeMap::<String, RunSignal>::new());
+    run_with(samples, threads, |sample, traces| {
+        if let Ok(SampleOutcome::Analyzed(analysis)) =
+            sample_analysis::analyze_sanger_outcome(traces, reference, config, NonZeroUsize::MIN)
+        {
+            let (reads, contributions) = analysis.signal_contributions();
+            let count = reads.len();
+            let mut signals = signals
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            for group in groups(sample) {
+                signals
+                    .entry(group.clone())
+                    .or_insert_with(|| RunSignal::build(group, BTreeSet::new(), []))
+                    .include(reads.clone(), count, &contributions);
+            }
+        }
+        (Err(Failure::Panic), None)
+    })?;
+    let signals = signals
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    *report = signals
+        .iter()
+        .map(|(group, signal)| {
+            let counts = signal
+                .keys
+                .values()
+                .map(|shares| shares.values().sum::<u64>())
+                .collect::<Vec<_>>();
+            let at_least = |minimum: u64| counts.iter().filter(|&&calls| calls >= minimum).count();
+            format!(
+                "{group}\t{}\t{}\t{}\t{}\t{}\t{}",
+                signal.reads,
+                signal.calls,
+                counts.len(),
+                at_least(20),
+                at_least(40),
+                at_least(100)
+            )
+        })
+        .collect();
+    let choose = |sample: &Sample| {
+        let [batch, month] = groups(sample);
+        match grouping {
+            Grouping::Batch { batch_reads } => signals
+                .get(&batch)
+                .filter(|signal| signal.reads >= batch_reads)
+                .or_else(|| signals.get(&month)),
+            Grouping::Month => signals.get(&month),
+        }
+    };
+    run_once(
+        samples,
+        (reference, reference_sha256),
+        config,
+        threads,
+        triage,
+        &choose,
+    )
+}
+
+/// Runs DNA over every sample once, judging each review against the run
+/// signal `signal` chooses for it, if any.
+fn run_once<'s>(
+    samples: &[Sample],
+    (reference, reference_sha256): (&Path, &str),
+    config: &Path,
+    threads: Threads,
+    triage: bool,
+    signal: &(dyn Fn(&Sample) -> Option<&'s RunSignal> + Sync),
 ) -> Result<Vec<Outcome>> {
     run_with(samples, threads, |sample, traces| {
         let failure = |error: dna::error::Error| Failure::Dna(error.to_string());
@@ -210,13 +319,17 @@ pub(crate) fn run(
             );
         }
         let evidence = triage.then(|| evidence::extract(&analysis));
-        (call(&analysis, &sample.id), evidence)
+        (call(&analysis, &sample.id, signal(sample)), evidence)
     })
 }
 
 /// Calls an analysed sample's consensus and converts the calls into alleles
 /// and the callable segments into intervals.
-fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Called, Failure> {
+fn call(
+    analysis: &SampleAnalysis,
+    sample_id: &str,
+    signal: Option<&RunSignal>,
+) -> std::result::Result<Called, Failure> {
     let result = analysis
         .call(sample_id)
         .map_err(|error| Failure::Dna(error.to_string()))?;
@@ -258,16 +371,21 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
         .empop
         .as_ref()
         .map(|export| Empop::of(export, &analysis.consensus));
-    let checks = analysis
-        .review_checks(&result)
+    let check_labels = analysis
+        .review_checks(&result, signal)
         .map_err(|error| Failure::Dna(error.to_string()))?
         .iter()
         .filter_map(|check| {
             Some((
                 i64::try_from(check.first).ok()?,
                 i64::try_from(check.last).ok()?,
+                check.labels.join(" "),
             ))
         })
+        .collect::<Vec<_>>();
+    let checks = check_labels
+        .iter()
+        .map(|&(first, last, _)| (first, last))
         .collect();
     Ok(Called {
         rejected: analysis.rejected.len(),
@@ -278,6 +396,7 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
         signals,
         loci,
         checks,
+        check_labels,
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -489,6 +608,7 @@ mod tests {
                     not_recorded: BTreeSet::new(),
                     empop: None,
                     checks: Vec::new(),
+                    check_labels: Vec::new(),
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

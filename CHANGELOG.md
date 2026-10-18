@@ -17,6 +17,19 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna review --signal <run.signal.json>` (PROP-0009, increment ii; SRS-API-014,
+  SRS-CALL-020): `possible_heteroplasmy` is judged against the sample's run
+  signal, with the sample's own reads taken out. A run signal holding none of
+  the sample's traces fails the command. Provenance records the run signal's
+  `run_id`, SHA-256, and selection; each qualifying read carries its
+  `threshold`, and `calls` when its key's run level was usable.
+- `dna-eval run --run-signal batch|month [--run-signal-batch-reads <n>]`
+  builds run signals in process (per manifest batch with enough reads, else
+  per batch month) and reviews every sample against its group's. Every run
+  now also writes `checks.tsv` (each check item with its labels), and with
+  `--run-signal`, `signals.tsv` (per group: reads, calls, keys, keys with at
+  least 20, 40, and 100 calls).
+
 - The run signal (PROP-0009, increment i; SRS-CALL-019, SRS-API-016):
   `dna signal <run-id> <trace>...` writes `results/<run-id>.signal.json`, a
   new contract `dna.signal/v1`. Per read-strand 5-mer, call base, and other
@@ -363,6 +376,21 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   self-contained explicit-target auditable release bundles with post-strip metadata verification, release SBOMs, and artifact attestations.
 
 ### Changed
+
+- One second-channel scale and threshold (PROP-0009, increment ii;
+  SRS-CALL-020). `dna_sanger::run_signal::threshold` is the configured
+  `signal_processing.second_floor`, raised to the call's key run level when a
+  run signal holds the key with enough reads and calls. The review's
+  `possible_heteroplasmy` now judges a clean call's second peak share
+  (SRS-CALL-015) against it in place of a fixed `0.15` profile weight, with
+  the neighbour-shadow and strand rules unchanged, and the review evidence
+  `second` moves to the peak scale. Configuration schema 8 adds
+  `second_floor` (0.16) and the `run_signal_*` keys; plugin `review` 5.
+  Development panel v5, current data (batch date 2026-01 on), test half:
+  without a run signal 3.96 % of samples with an unreviewed difference
+  (4.03 % before), 18.9 positions to review per sample (18.3), 47.7 % clear
+  (47.8 %); with batch run signals 4.01 %, 18.4, and 48.1 %. The floor was
+  chosen on the development half.
 
 - Start-of-read calls vouched for by their own signal (SRS-CALL-018). At a
   read's start, up to the edge margin past the callable span's start, a

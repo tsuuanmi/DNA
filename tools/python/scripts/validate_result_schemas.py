@@ -1118,11 +1118,11 @@ def rejected_review_shapes(
     missing_count["summary"]["labels"].pop("read_edge")
     inserted_evidence = copy.deepcopy(example)
     inserted_evidence["items"][0]["evidence"][0]["positions"][0]["ordinal"] = 1
-    low_share = copy.deepcopy(example)
-    for item in low_share["items"]:
+    no_threshold = copy.deepcopy(example)
+    for item in no_threshold["items"]:
         for entry in item["labels"]:
             if entry["label"] == "possible_heteroplasmy":
-                entry["reads"][0]["share"] = 0.1
+                entry["reads"][0].pop("threshold")
     observed_length = copy.deepcopy(example)
     for item in observed_length["items"]:
         for entry in item["labels"]:
@@ -1138,7 +1138,7 @@ def rejected_review_shapes(
         ("review item call the document does not list", unlisted_call),
         ("review summary without a label count", missing_count),
         ("review evidence at an inserted column", inserted_evidence),
-        ("possible heteroplasmy below its share", low_share),
+        ("possible heteroplasmy without its threshold", no_threshold),
         ("estimated length that a read shows", observed_length),
         ("review without its rules version", no_rules),
     ]

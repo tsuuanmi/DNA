@@ -25,7 +25,10 @@ equivalence. No crate depends on it, and it is not part of the release.
   DNA per sample, with typed failures, in sample order, and takes the
   positions where a read shows a second base at the limit of detection; with `run --triage` it
   also takes each sample's triage evidence, from the analysis even when the
-  call then fails, or from the rejected reads when none is admitted.
+  call then fails, or from the rejected reads when none is admitted. With
+  `run --run-signal` it first builds a run signal per batch and per batch
+  month from every sample's admitted reads, then runs again with each
+  sample's review judged against its group's signal.
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary
   (the lab's rules), strict, IUPAC-compatible, haplotype, and haplotype LoD
   measures, and the comparable intervals and edits of the haplotype measures.

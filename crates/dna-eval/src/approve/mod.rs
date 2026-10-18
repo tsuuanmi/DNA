@@ -201,6 +201,8 @@ pub(crate) fn approve(prereg_path: &Path, output: &Path, threads: usize) -> Resu
         &inputs.config,
         threads,
         true,
+        None,
+        &mut Vec::new(),
     )?;
     let rows = crate::report::rows(
         &manifest.samples,
