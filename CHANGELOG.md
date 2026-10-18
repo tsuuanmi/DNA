@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The evaluation harness measures the review workload: per sample its
+  check items, positions to review in windows of `--review-window`
+  positions (default 10), whether it is clear, and the `haplotype_lod`
+  difference blocks no check item overlaps (`unreviewed`); `windows.tsv`
+  ranks the windows by unreviewed differences, and `--forced-windows` reports
+  the workload again with a list of windows always reviewed. The review
+  items are `dna review`'s own, through the new
+  `SampleAnalysis::review_checks` (SRS-API-015). Existing columns and
+  outputs are unchanged; the new columns follow `failure`.
+
 - Two review labels (`review` plugin 2, rules version 2; `dna.review/v1`
   revised in place: two label kinds and two summary counts, and `rules` is
   any version from 1). `read_disagrees` makes an item a check when a read

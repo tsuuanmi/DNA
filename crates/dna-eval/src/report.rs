@@ -22,6 +22,7 @@ use crate::lod;
 use crate::manifest::Sample;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
+use crate::workload::{self, Window, Workload};
 
 /// One compared panel sample.
 pub(crate) struct Row<'a> {
@@ -338,6 +339,60 @@ pub(crate) struct Report<'a> {
     estimates: Vec<(Weighting, Metric, Estimate)>,
     /// Per row, its cause and findings.
     causes: Vec<Option<(Cause, Scope, Vec<Finding>)>>,
+    /// The review workload of every row.
+    review: Review,
+}
+
+/// Default window of the review workload, in positions.
+pub(crate) const REVIEW_WINDOW: i64 = 10;
+
+/// The review workload of a run: its windows, its forced windows, and each
+/// row's workload when the row was compared.
+struct Review {
+    window: i64,
+    windows: Vec<Window>,
+    forced: Option<Vec<(i64, i64)>>,
+    workloads: Vec<Option<Workload>>,
+}
+
+impl Review {
+    fn of(rows: &[Row<'_>], window: i64, forced: Option<Vec<(i64, i64)>>) -> Self {
+        let windows = workload::windows(window);
+        let workloads = rows
+            .iter()
+            .map(|row| {
+                let called = row.outcome.result.as_ref().ok()?;
+                let comparison = row.comparison(Measure::HaplotypeLod).ok()?;
+                Some(workload::of(
+                    &called.checks,
+                    &comparison.blocks,
+                    &windows,
+                    forced.as_deref().unwrap_or_default(),
+                ))
+            })
+            .collect();
+        Self {
+            window,
+            windows,
+            forced,
+            workloads,
+        }
+    }
+
+    /// The rows the workload counts: compared under `haplotype_lod` with a
+    /// concordant or discordant status, with their workloads.
+    fn counted<'r, 'a>(&'r self, rows: &'r [Row<'a>]) -> Vec<(&'r Row<'a>, &'r Workload)> {
+        rows.iter()
+            .zip(&self.workloads)
+            .filter(|(row, _)| {
+                matches!(
+                    row.status(Measure::HaplotypeLod),
+                    Status::Concordant | Status::Discordant
+                )
+            })
+            .filter_map(|(row, workload)| Some((row, workload.as_ref()?)))
+            .collect()
+    }
 }
 
 impl<'a> Report<'a> {
@@ -375,7 +430,15 @@ impl<'a> Report<'a> {
             check,
             estimates,
             causes,
+            review: Review::of(rows, REVIEW_WINDOW, None),
         }
+    }
+
+    /// The same report with the review workload over windows of `window`
+    /// positions, and `forced` windows counted as reviewed when given.
+    pub(crate) fn with_review(mut self, window: i64, forced: Option<Vec<(i64, i64)>>) -> Self {
+        self.review = Review::of(self.rows, window, forced);
+        self
     }
 
     /// The change under `measure`, or `None` without a baseline or when the
@@ -421,6 +484,7 @@ impl<'a> Report<'a> {
             ("scores.tsv", self.scores()),
             ("estimates.tsv", self.estimates()),
             ("anchors.tsv", self.anchors()),
+            ("windows.tsv", self.windows()),
         ];
         if let Some(diff) = self.diff() {
             files.push(("diff.tsv", diff));
@@ -445,10 +509,33 @@ impl<'a> Report<'a> {
              haplotype_lod_blocks\tbelow_lod\tclass\tclass_regions\tcause\tcause_scope\t\
              cause_evidence\tempop_ranges\tempop_mitotype\tempop_undecided\tempop_ties\t\
              callable_yield\t\
-             traces\trejected_traces\tfailure\n",
+             traces\trejected_traces\tfailure\t\
+             review_checks\treview_positions\treview_clear\tunreviewed\tunreviewed_forced\n",
         );
-        for (row, cause) in self.rows.iter().zip(&self.causes) {
+        for ((row, cause), workload) in self
+            .rows
+            .iter()
+            .zip(&self.causes)
+            .zip(&self.review.workloads)
+        {
             let sample = row.sample;
+            let review = workload.as_ref().map_or_else(
+                || "\t\t\t\t".to_owned(),
+                |workload| {
+                    format!(
+                        "{}\t{}\t{}\t{}\t{}",
+                        workload.checks,
+                        workload.positions,
+                        if workload.checks == 0 { "Y" } else { "N" },
+                        workload.unreviewed.join(" "),
+                        if self.review.forced.is_some() {
+                            workload.unreviewed_forced.join(" ")
+                        } else {
+                            String::new()
+                        },
+                    )
+                },
+            );
             let (cause, cause_scope, cause_evidence) = cause.as_ref().map_or_else(
                 || (String::new(), String::new(), String::new()),
                 |(cause, scope, findings)| {
@@ -564,7 +651,7 @@ impl<'a> Report<'a> {
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{detail}\t{}\t{}\t{uncovered}\t{}\t{}\t\
                  {haplotype}\t{below_lod}\t{}\t{class_regions}\t{cause}\t{cause_scope}\t\
                  {cause_evidence}\t{empop}\t{callable_yield}\t\
-                 {traces}\t{rejected}\t{failure}",
+                 {traces}\t{rejected}\t{failure}\t{review}",
                 sample.id,
                 sample.batch,
                 row.truth.map_or("", |truth| truth.batch.as_str()),
@@ -617,6 +704,209 @@ impl<'a> Report<'a> {
             );
         }
         text
+    }
+
+    /// Per window of the review workload: the counted samples whose
+    /// analysed intervals reach it, those with a check item in it, and those
+    /// with an unreviewed difference in it, as a share of the ones without a
+    /// check item there.
+    fn window_counts(&self) -> Vec<(usize, usize, usize, usize)> {
+        let counted = self.review.counted(self.rows);
+        self.review
+            .windows
+            .iter()
+            .enumerate()
+            .map(|(index, window)| {
+                let mut samples = 0;
+                let mut checked = 0;
+                let mut open = 0;
+                let mut escaped = 0;
+                for (row, workload) in &counted {
+                    let analysed = row.truth.is_some_and(|truth| {
+                        truth
+                            .intervals
+                            .iter()
+                            .any(|&(first, last)| window.overlaps(first, last))
+                    });
+                    if !analysed {
+                        continue;
+                    }
+                    samples += 1;
+                    if workload.checked[index] {
+                        checked += 1;
+                    } else {
+                        open += 1;
+                        escaped += usize::from(workload.escaped[index]);
+                    }
+                }
+                (samples, checked, open, escaped)
+            })
+            .collect()
+    }
+
+    /// `windows.tsv`: one row per review window, in region order.
+    fn windows(&self) -> String {
+        let mut text = String::from(
+            "region\tstart\tend\tsamples\tchecked\tunreviewed\tunreviewed_share\t\
+             unreviewed_upper95\n",
+        );
+        for (window, (samples, checked, open, escaped)) in
+            self.review.windows.iter().zip(self.window_counts())
+        {
+            let share = if open == 0 {
+                String::new()
+            } else {
+                format!("{:.4}", escaped as f64 / open as f64)
+            };
+            let _ = writeln!(
+                text,
+                "{}\t{}\t{}\t{samples}\t{checked}\t{escaped}\t{share}\t{:.4}",
+                window.region,
+                window.start,
+                window.end,
+                workload::wilson_upper(escaped, open),
+            );
+        }
+        text
+    }
+
+    /// The review workload: positions to review, samples with an
+    /// unreviewed difference overall, by region, and by batch month, clear
+    /// samples, the windows with the most unreviewed differences, and the
+    /// forced windows' and the baseline's effect.
+    fn review_section(&self, text: &mut String) {
+        let counted = self.review.counted(self.rows);
+        if counted.is_empty() {
+            return;
+        }
+        let samples = counted.len();
+        let span = self.review.windows.iter().map(Window::length).sum::<i64>();
+        let total = span * i64::try_from(samples).unwrap_or(i64::MAX);
+        let percent = |part: f64, whole: f64| {
+            if whole > 0.0 {
+                100.0 * part / whole
+            } else {
+                0.0
+            }
+        };
+        let positions = counted
+            .iter()
+            .map(|(_, workload)| workload.positions)
+            .sum::<i64>();
+        let unreviewed = counted
+            .iter()
+            .filter(|(_, workload)| !workload.unreviewed.is_empty())
+            .count();
+        let clear = counted
+            .iter()
+            .filter(|(_, workload)| workload.checks == 0)
+            .count();
+        let _ = write!(
+            text,
+            "\n## Review workload\n\nOver {samples} samples compared under `haplotype_lod`, \
+             in windows of {} positions over the HV regions. A reviewer looks at every window \
+             a check item touches; a difference block no check item overlaps is unreviewed.\n\n\
+             | Measure | Value |\n|---|---:|\n\
+             | Positions to review | {positions} ({:.2} %) |\n\
+             | Samples with an unreviewed difference | {unreviewed} ({:.2} %) |\n\
+             | Clear samples (no check item) | {clear} ({:.2} %) |\n",
+            self.review.window,
+            percent(positions as f64, total as f64),
+            percent(unreviewed as f64, samples as f64),
+            percent(clear as f64, samples as f64),
+        );
+        if self.review.forced.is_some() {
+            let positions = counted
+                .iter()
+                .map(|(_, workload)| workload.positions_forced)
+                .sum::<i64>();
+            let unreviewed = counted
+                .iter()
+                .filter(|(_, workload)| !workload.unreviewed_forced.is_empty())
+                .count();
+            let _ = write!(
+                text,
+                "| With forced windows: positions to review | {positions} ({:.2} %) |\n\
+                 | With forced windows: samples with an unreviewed difference | {unreviewed} \
+                 ({:.2} %) |\n",
+                percent(positions as f64, total as f64),
+                percent(unreviewed as f64, samples as f64),
+            );
+        }
+        if let Some(baseline) = self.baseline.filter(|baseline| !baseline.review.is_empty()) {
+            let before = counted
+                .iter()
+                .filter_map(|(row, _)| baseline.review.get(&row.sample.id))
+                .collect::<Vec<_>>();
+            let positions = before.iter().map(|(positions, _)| *positions).sum::<i64>();
+            let unreviewed = before.iter().filter(|(_, unreviewed)| *unreviewed).count();
+            let _ = writeln!(
+                text,
+                "| Baseline, same samples: positions to review | {positions} |\n\
+                 | Baseline, same samples: samples with an unreviewed difference | {unreviewed} \
+                 of {} |",
+                before.len()
+            );
+        }
+        text.push_str("\nSamples with an unreviewed difference, by region:\n\n| Region | Samples |\n|---|---:|\n");
+        let mut regions = BTreeMap::<&str, usize>::new();
+        for (_, workload) in &counted {
+            for region in workload.regions.iter().collect::<BTreeSet<_>>() {
+                *regions.entry(region).or_default() += 1;
+            }
+        }
+        for (region, count) in regions {
+            let _ = writeln!(text, "| {region} | {count} |");
+        }
+        text.push_str(
+            "\nBy batch month:\n\n| Month | Samples | With an unreviewed difference |\n|---|---:|---:|\n",
+        );
+        let mut months = BTreeMap::<String, (usize, usize)>::new();
+        for (row, workload) in &counted {
+            let month = row
+                .sample
+                .batch_date
+                .as_deref()
+                .and_then(|date| date.get(..7))
+                .filter(|month| {
+                    month.len() == 7
+                        && month.as_bytes()[4] == b'-'
+                        && month.bytes().filter(u8::is_ascii_digit).count() == 6
+                })
+                .unwrap_or("unknown")
+                .to_owned();
+            let entry = months.entry(month).or_default();
+            entry.0 += 1;
+            entry.1 += usize::from(!workload.unreviewed.is_empty());
+        }
+        for (month, (samples, unreviewed)) in months {
+            let _ = writeln!(text, "| {month} | {samples} | {unreviewed} |");
+        }
+        let mut ranked = self
+            .review
+            .windows
+            .iter()
+            .zip(self.window_counts())
+            .filter(|(_, (_, _, _, escaped))| *escaped > 0)
+            .collect::<Vec<_>>();
+        ranked.sort_by_key(|(window, (_, _, _, escaped))| {
+            (std::cmp::Reverse(*escaped), window.start)
+        });
+        text.push_str(
+            "\nWindows with the most unreviewed differences (forcing a window is a policy \
+             decision, learned on one run and judged on another):\n\n\
+             | Window | Samples | Checked | Unreviewed | Share of unchecked |\n|---|---:|---:|---:|---:|\n",
+        );
+        for (window, (samples, checked, open, escaped)) in ranked.into_iter().take(20) {
+            let _ = writeln!(
+                text,
+                "| {} {}-{} | {samples} | {checked} | {escaped} | {:.2} % |",
+                window.region,
+                window.start,
+                window.end,
+                percent(escaped as f64, open as f64),
+            );
+        }
     }
 
     /// `anchors.tsv`: every anchor candidate under each measure, with its
@@ -725,6 +1015,7 @@ impl<'a> Report<'a> {
         self.class_section(&mut text);
         self.secondary_section(&mut text);
         self.anchor_section(&mut text);
+        self.review_section(&mut text);
         self.baseline_section(&mut text);
 
         let mut failures = BTreeMap::<&str, usize>::new();
@@ -1454,6 +1745,7 @@ mod tests {
                 alleles,
                 not_recorded: BTreeSet::new(),
                 empop: None,
+                checks: Vec::new(),
                 signals: lod::Signals::default(),
                 loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {
@@ -1496,6 +1788,7 @@ mod tests {
                 "scores.tsv",
                 "estimates.tsv",
                 "anchors.tsv",
+                "windows.tsv",
                 "diff.tsv",
                 "summary.md"
             ]
@@ -1526,10 +1819,11 @@ mod tests {
              2\t1\ttruth_missing: the truth has no record of the sample",
         ];
         for line in expected {
-            assert!(scores.contains(&format!("{line}\n")), "{line}");
+            // The review workload columns follow the failure column.
+            assert!(scores.contains(&format!("{line}\t")), "{line}");
         }
 
-        let diff = &one[3].1;
+        let diff = &one[4].1;
         for line in [
             "S00\thard\tstrict\tconcordant\tdiscordant\tregression",
             "S01\tclean\tprimary\texact\tdiscordant\tregression",
@@ -1558,7 +1852,7 @@ mod tests {
             ("removed", "| removed | 1 | 1 | 0 | 0 | 0 | 0 |"),
             ("regression", "| regression | 1 | 1 | 0 | 0 | 0 | 0 |"),
         ] {
-            assert_eq!(summary_counts(&one[4].1, change).as_deref(), Some(line));
+            assert_eq!(summary_counts(&one[5].1, change).as_deref(), Some(line));
             for (measure, column) in [("primary", 2), ("strict", 3), ("iupac_compatible", 4)] {
                 let rows = diff
                     .lines()
@@ -1579,7 +1873,7 @@ mod tests {
         let estimates = &one[1].1;
         assert!(estimates.contains("corpus\tstrict\tnot_concordant\tall\t"));
         assert!(estimates.contains("pool\tall\tfailed\tall\t"));
-        let summary = &one[4].1;
+        let summary = &one[5].1;
         for line in [
             "| without a truth record | 1 |",
             "| truth batch differs from the panel batch | 1 |",
@@ -1629,16 +1923,17 @@ mod tests {
                 "scores.tsv",
                 "estimates.tsv",
                 "anchors.tsv",
+                "windows.tsv",
                 "truth_changes.tsv",
                 "summary.md"
             ]
         );
         assert!(
-            files[3]
+            files[4]
                 .1
                 .contains(&format!("S1\tclean\t0\t{}\t{}\n", digest("c"), digest("d")))
         );
-        let summary = &files[4].1;
+        let summary = &files[5].1;
         assert!(summary.starts_with("# Evaluation run\n\n**Truth changed:** the truth of 1 panel"));
         assert!(summary.contains("| truth changed since the panel was built | 1 |"));
         let unchanged = TruthCheck {
@@ -1648,7 +1943,7 @@ mod tests {
         };
         let files = Report::new(&[], None, &unchanged, (&Forms::default(), "")).files(&[]);
         assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
-        assert!(files[3].1.contains("Panel truth: unchanged"));
+        assert!(files[4].1.contains("Panel truth: unchanged"));
         // The header digest differs while no row does: the file is still
         // written, and the notice says why it lists nothing.
         let header_only = TruthCheck {

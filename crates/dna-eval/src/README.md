@@ -43,6 +43,10 @@ equivalence. No crate depends on it, and it is not part of the release.
   technology) from the reads' evidence and the truth's written forms
   ([cause](cause/README.md)).
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
+- `workload.rs` — the review workload: windows over the HV regions, each
+  sample's positions to review and unreviewed difference blocks from `dna
+  review`'s check items (`SampleAnalysis::review_checks`), forced-window
+  lists, and the Wilson bound of `windows.tsv`.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.

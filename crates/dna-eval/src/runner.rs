@@ -55,6 +55,9 @@ pub(crate) struct Called {
     pub(crate) identity: Identity,
     /// The sample's EMPOP query, when the profile declares one.
     pub(crate) empop: Option<Empop>,
+    /// The review list's check items, each `first..=last` (1-based), as
+    /// `dna review` builds them.
+    pub(crate) checks: Vec<(i64, i64)>,
 }
 
 /// A sample's EMPOP query (PROP-0007), and the consensus decisions its
@@ -255,6 +258,17 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
         .empop
         .as_ref()
         .map(|export| Empop::of(export, &analysis.consensus));
+    let checks = analysis
+        .review_checks(&result)
+        .map_err(|error| Failure::Dna(error.to_string()))?
+        .iter()
+        .filter_map(|check| {
+            Some((
+                i64::try_from(check.first).ok()?,
+                i64::try_from(check.last).ok()?,
+            ))
+        })
+        .collect();
     Ok(Called {
         rejected: analysis.rejected.len(),
         empop,
@@ -263,6 +277,7 @@ fn call(analysis: &SampleAnalysis, sample_id: &str) -> std::result::Result<Calle
         intervals,
         signals,
         loci,
+        checks,
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -423,6 +438,7 @@ mod tests {
             traces,
             retired: false,
             truth_digest: None,
+            batch_date: None,
             fields: Vec::new(),
         }
     }
@@ -472,6 +488,7 @@ mod tests {
                     alleles: vec![Allele::new(&sample.id[1..], "A", "G")],
                     not_recorded: BTreeSet::new(),
                     empop: None,
+                    checks: Vec::new(),
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

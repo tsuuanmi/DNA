@@ -32,6 +32,8 @@ operation log, calls the consensus with `SampleAnalysis::call` when a read is
 admitted, and publishes `dna.review/v1` for every sample: called, every read
 rejected, or the call failed. `plugins.rs` composes its workflow by the
 post-calling plugins the profile declares.
+`review.rs` also implements the public `SampleAnalysis::review_checks`
+(SRS-API-015): the check items of the same review list, without writing it.
 `sample_call.rs` implements the public `SampleAnalysis::call`: it names an
 analysis's consensus segments as the consensus FASTA does and runs the
 scientific step of `call.rs` for a consensus document (`call_consensus`, which

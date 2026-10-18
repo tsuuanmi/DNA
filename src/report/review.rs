@@ -180,8 +180,8 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         ),
     });
     let notation = call.as_ref().and_then(|call| call.notation.as_deref());
-    let sample = Sample::new(&analysis, &names, &reference, &regions, &callable, notation)?;
-    let items = sample.items()?;
+    let items =
+        Sample::new(&analysis, &names, &reference, &regions, &callable, notation)?.items()?;
     let calls = call.as_ref().and_then(|call| {
         call.notation.as_ref().map(|calls| {
             calls
@@ -218,6 +218,43 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         summary: summarize(&items, status),
         items,
     })
+}
+
+/// The review list's check items of an analysed sample whose consensus was
+/// called, by the rules of `dna review`: each item's first and last
+/// reference positions (1-based) and its label names.
+pub(crate) fn checks(
+    analysis: &SampleAnalysis,
+    call: &ConsensusCall,
+) -> Result<Vec<(usize, usize, Vec<&'static str>)>> {
+    let reference = &analysis.loaded.reference;
+    let regions = clip(&analysis.loaded.profile.regions, reference.len());
+    let (names, _) = reviewer_read_names(&analysis.evidence)?;
+    let callable =
+        merge(segments(call.callable_segments.iter().map(|segment| {
+            (segment.start_0based, segment.end_0based_exclusive)
+        })));
+    let items = Sample::new(
+        analysis,
+        &names,
+        reference,
+        &regions,
+        &callable,
+        call.notation.as_deref(),
+    )?
+    .items()?;
+    Ok(items
+        .into_iter()
+        .filter(|item| item.kind == ItemKind::Check)
+        .map(|item| {
+            let labels = item.labels.iter().map(name).collect::<BTreeSet<_>>();
+            (
+                item.first.position,
+                item.last.position,
+                labels.into_iter().collect(),
+            )
+        })
+        .collect())
 }
 
 /// One sample's evidence, indexed for the review rules.

@@ -14,7 +14,8 @@ cargo run --release -p dna-eval -- run \
   --manifest <panel.tsv> --truth <statistics.sqlite> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
-  --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv]
+  --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv] \
+  [--review-window <bp>] [--forced-windows <file>]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -487,6 +488,37 @@ export defect. A tie the consensus resolved is exported as DNA's decision;
 `empop_ties` counts its positions. The summary gives the samples with a query
 and the positions and samples of each count.
 
+## Review workload
+
+The review workload says how much of each sample DNA leaves to a reviewer,
+and which errors no reviewer would see. The review items are `dna review`'s
+own, read through `SampleAnalysis::review_checks` (SRS-API-015), so the
+harness applies no review rule of its own.
+
+- The HV regions split into windows of `--review-window` positions (default
+  10), aligned to each region's first position; a region's last window may
+  be shorter. A reviewer looks at every window a check item touches: those
+  windows' positions are the sample's positions to review
+  (`review_positions`). With a window of 1 they are the positions inside
+  check items.
+- A `haplotype_lod` differing block that overlaps no check item is
+  unreviewed (`unreviewed`): an error the report would carry without anyone
+  looking. The safety measure is per sample, the share of samples with an
+  unreviewed block, since one such block makes the report wrong.
+- `--forced-windows` lists windows always sent to review, one `start-end`
+  (1-based, inclusive) per line; the workload is reported again with them
+  reviewed (`unreviewed_forced`). Choosing them is a policy decision:
+  `windows.tsv` only ranks windows. A list must be learned on one run and
+  judged on a hold-out half or later batches; applied to the run it was
+  learned on, it overstates its effect.
+
+Only samples compared under `haplotype_lod` with a concordant or discordant
+status count. The summary's "Review workload" section gives the positions to
+review, the samples with an unreviewed difference overall, by region, and by
+batch month (from the manifest's optional `batch_date` column), the clear samples (no check item), the windows with the most
+unreviewed differences, the effect of the forced windows, and with a baseline
+that reports the workload, its values on the same samples.
+
 ## Estimates
 
 For each weighting (`corpus` = `weight_corpus`, `pool` = `weight`), each
@@ -675,7 +707,8 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); DNA's callable yield per HV region (`callable_yield`, `HV1=330/342 HV2=268/268 HV3=139/139`: the truth's analysed positions there that DNA's callable intervals cover); distinct and rejected traces; failure (`<kind>: <message>`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); DNA's callable yield per HV region (`callable_yield`, `HV1=330/342 HV2=268/268 HV3=139/139`: the truth's analysed positions there that DNA's callable intervals cover); distinct and rejected traces; failure (`<kind>: <message>`); the [review workload](#review-workload): check items, positions to review, whether the sample is clear (`Y` with no check item), unreviewed blocks, and with `--forced-windows` the blocks still unreviewed (`review_checks`, `review_positions`, `review_clear`, `unreviewed`, `unreviewed_forced`) |
+| `windows.tsv` | per review window, by region and start: the counted samples whose analysed intervals reach it, those with a check item in it, those without one that have an unreviewed difference in it, that share, and its Wilson 95 % upper bound |
 | `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
 | `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
 | `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |

@@ -44,6 +44,12 @@ pub(crate) enum Error {
     /// malformed.
     #[error("forms {path}: {message}")]
     Forms { path: PathBuf, message: String },
+    /// The forced-window list is invalid.
+    #[error("invalid forced windows {path}: {message}")]
+    ForcedWindows { path: PathBuf, message: String },
+    /// The review window is not a positive number of positions.
+    #[error("invalid review window {window}: it must be at least 1")]
+    ReviewWindow { window: i64 },
     /// The baseline scores are invalid.
     #[error("invalid baseline scores: {0}")]
     Baseline(#[from] BaselineError),

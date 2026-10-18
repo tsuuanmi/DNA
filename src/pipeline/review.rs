@@ -10,7 +10,7 @@ use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedReview, Reviewed};
-use crate::sample_analysis::{self, SampleOutcome};
+use crate::sample_analysis::{self, ConsensusCall, ReviewCheck, SampleAnalysis, SampleOutcome};
 
 use super::Operation;
 use super::sample::validate_sample_id;
@@ -108,4 +108,25 @@ fn review(
     );
     log.sync()?;
     report::publish(&output, &bytes)
+}
+
+impl SampleAnalysis {
+    /// The items of this analysis's review list that a reviewer must look at
+    /// (`check` items), given the call of its consensus, by the rules
+    /// `dna review` applies, without building or publishing the document.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReportError`](crate::error::ReportError) when the analysis's
+    /// records disagree, as `dna review` would.
+    pub fn review_checks(&self, call: &ConsensusCall) -> Result<Vec<ReviewCheck>> {
+        Ok(report::review_checks(self, call)?
+            .into_iter()
+            .map(|(first, last, labels)| ReviewCheck {
+                first,
+                last,
+                labels,
+            })
+            .collect())
+    }
 }
