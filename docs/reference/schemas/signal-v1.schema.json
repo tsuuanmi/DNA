@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:signal:v1",
+  "title": "DNA run signal v1",
+  "description": "The second-channel signal a run's reads share (PROP-0009): per read-strand 5-mer, call base, and other channel, the counts of selected calls by that channel's share in thousandths.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "provenance",
+    "traces",
+    "reads",
+    "rejected_reads",
+    "calls",
+    "keys"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.signal/v1"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configuration_sha256",
+        "plugins",
+        "selection"
+      ],
+      "properties": {
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "plugins": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "family",
+              "version"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "family": {
+                "enum": [
+                  "modality",
+                  "core",
+                  "post_calling"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "selection": {
+          "description": "Version of the call selection (SRS-CALL-019).",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "traces": {
+      "description": "Content SHA-256 of every trace of the run, sorted and distinct.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/sha256"
+      }
+    },
+    "reads": {
+      "description": "Reads that contributed calls.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "rejected_reads": {
+      "description": "Reads rejected before their evidence.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "calls": {
+      "description": "Selected calls; each counts under its three other channels, so the keys' total is three times this.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "context",
+          "base",
+          "second",
+          "shares"
+        ],
+        "properties": {
+          "context": {
+            "description": "The read's primary calls from two before to two after the call, read strand.",
+            "type": "string",
+            "pattern": "^[ACGT]{5}$"
+          },
+          "base": {
+            "$ref": "#/$defs/base"
+          },
+          "second": {
+            "description": "The other channel whose share is counted.",
+            "$ref": "#/$defs/base"
+          },
+          "shares": {
+            "description": "[share in thousandths, calls] pairs, by share: the channel's peak against the call's primary peak and itself.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              ],
+              "items": false,
+              "minItems": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "base": {
+      "enum": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ]
+    }
+  }
+}

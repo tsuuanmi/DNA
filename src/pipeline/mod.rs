@@ -12,6 +12,7 @@ mod review;
 mod sample;
 mod sample_call;
 mod sample_metrics;
+mod signal;
 
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -61,6 +62,11 @@ pub(crate) fn notation(
     config_path: &Path,
 ) -> Result<()> {
     notation::run(sample_id, document, reference, config_path)
+}
+
+/// Runs one run signal operation (PROP-0009).
+pub(crate) fn signal(run_id: &str, traces: &[PathBuf], config_path: &Path) -> Result<()> {
+    signal::run(run_id, traces, config_path)
 }
 
 /// Runs one sample review operation (PROP-0004).

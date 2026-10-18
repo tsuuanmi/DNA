@@ -43,6 +43,8 @@ pub enum Command {
     Review(SampleArgs),
     /// Call variants from reviewed consensus sequences with the core alone.
     Call(CallArgs),
+    /// Record the second-channel signal a run's AB1 traces share.
+    Signal(SignalArgs),
     /// Derive notation and conformance findings from a variants document.
     Notation(NotationArgs),
 }
@@ -78,6 +80,17 @@ pub struct SampleArgs {
     /// Single-contig reference FASTA shared by every trace.
     #[arg(long)]
     pub reference: PathBuf,
+}
+
+/// Arguments for a run signal over one run's traces.
+#[derive(Debug, Args)]
+pub struct SignalArgs {
+    /// Stable run identifier used for result/log naming and provenance.
+    pub run_id: String,
+
+    /// Every ABIF/AB1 trace of the run.
+    #[arg(required = true, num_args = 1..)]
+    pub traces: Vec<PathBuf>,
 }
 
 /// Arguments for the core-only call over reviewed consensus sequences.

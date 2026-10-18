@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, and review result contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, review, and run signal result contracts."""
 
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ CONSENSUS_SCHEMA = CONTRACTS / "schemas" / "consensus-v1.schema.json"
 CONSENSUS_EXAMPLE = CONTRACTS / "examples" / "consensus-v1.example.json"
 REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
+SIGNAL_SCHEMA = CONTRACTS / "schemas" / "signal-v1.schema.json"
+SIGNAL_EXAMPLE = CONTRACTS / "examples" / "signal-v1.example.json"
 # Review labels that leave an item unassured, so that it is a check.
 REVIEW_UNASSURED = frozenset(
     {
@@ -1200,7 +1202,44 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="review result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--signal",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="run signal result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
+
+
+def validate_signal(document: Any, label: str, errors: list[str]) -> None:
+    """Check a run signal's call total (three channels per call), key order, and share order."""
+    if not isinstance(document, dict):
+        return
+    keys = document.get("keys", [])
+    total = sum(count for key in keys for _, count in key.get("shares", []))
+    calls = document.get("calls")
+    if not isinstance(calls, int) or total != 3 * calls:
+        errors.append(
+            f"{label}: the keys' total {total} is not three times calls {calls}"
+        )
+    order = [(key.get("context"), key.get("base"), key.get("second")) for key in keys]
+    if order != sorted(order) or len(set(order)) != len(order):
+        errors.append(f"{label}: keys are not sorted and distinct")
+    for key in keys:
+        shares = [share for share, _ in key.get("shares", [])]
+        if shares != sorted(set(shares)):
+            errors.append(
+                f"{label}: shares of {key.get('context')} are not sorted and distinct"
+            )
+        if key.get("context", "  ")[2:3] != key.get("base"):
+            errors.append(
+                f"{label}: base of {key.get('context')} is not the context's centre"
+            )
+    traces = document.get("traces", [])
+    if traces != sorted(traces):
+        errors.append(f"{label}: traces are not sorted")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1213,6 +1252,7 @@ def main(argv: list[str] | None = None) -> int:
     notation_validator = validator(NOTATION_SCHEMA, errors)
     consensus_validator = validator(CONSENSUS_SCHEMA, errors)
     review_validator = validator(REVIEW_SCHEMA, errors)
+    signal_validator = validator(SIGNAL_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
@@ -1220,6 +1260,7 @@ def main(argv: list[str] | None = None) -> int:
     notation_paths = args.notation or [NOTATION_EXAMPLE]
     consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
     review_paths = args.review or [REVIEW_EXAMPLE]
+    signal_paths = args.signal or [SIGNAL_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
@@ -1227,6 +1268,9 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(notation_validator, notation_paths, errors)
     validate_documents(consensus_validator, consensus_paths, errors)
     validate_documents(review_validator, review_paths, errors)
+    validate_documents(signal_validator, signal_paths, errors)
+    for path in signal_paths:
+        validate_signal(load_json(path), str(path), errors)
     for path in review_paths:
         validate_review(load_json(path), str(path), errors)
     for path in consensus_paths:
@@ -1455,8 +1499,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
-        f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, and "
-        f"{len(review_paths)} review document(s), "
+        f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, "
+        f"{len(review_paths)} review, and {len(signal_paths)} run signal document(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
         f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review)} "

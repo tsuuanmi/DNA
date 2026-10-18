@@ -5,7 +5,7 @@ Owns the facade's records:
   with its `SangerAttachment`, and a rejected read with its cause
   (`RejectedRead`, `RejectionCause`, public through `sample_analysis`);
 - the serializable result contracts: `result` and `basecall_result` for
-  analysis and basecalls, `sample_result`, `variants_result`,
+  analysis and basecalls, `sample_result`, `run_signal_result` (`dna.signal/v1`), `variants_result`,
   `notation_result`, `consensus_result`, and `review_result`.
 
 Shared, core, and Sanger vocabulary lives in the plugin crates' `model`

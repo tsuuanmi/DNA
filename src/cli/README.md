@@ -1,6 +1,6 @@
 # CLI
 
-Owns command-line syntax and typed arguments for `analyze`, `basecall`,
+Owns command-line syntax and typed arguments for `analyze`, `basecall`, `signal`,
 `sample`, `consensus`, `review`, `call`, and `notation`.
 
 The CLI is an outer adapter. It parses arguments only; `lib.rs` translates the

@@ -47,6 +47,12 @@ pub(crate) struct BasecallInputs {
     pub(crate) trace: Chromatogram,
 }
 
+/// Scientific inputs for one run signal: the run's traces.
+pub(crate) struct RunInputs {
+    pub(crate) config: Config,
+    pub(crate) traces: Vec<Chromatogram>,
+}
+
 /// Scientific inputs for one multi-read Sanger sample analysis.
 pub(crate) struct SampleInputs {
     pub(crate) config: Config,
@@ -137,4 +143,20 @@ pub(crate) fn load_sample(
         traces,
         reference,
     })
+}
+
+/// Validates and decodes a run's Sanger traces, reference-free.
+pub(crate) fn load_run(trace_paths: &[PathBuf], config_path: &Path) -> Result<RunInputs> {
+    if trace_paths.is_empty() {
+        return Err(SampleError::NoTraces.into());
+    }
+    for trace_path in trace_paths {
+        require_regular_file(trace_path, "AB1")?;
+    }
+    let config = load_config(config_path)?;
+    let traces = trace_paths
+        .iter()
+        .map(|path| abif::load(path))
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(RunInputs { config, traces })
 }

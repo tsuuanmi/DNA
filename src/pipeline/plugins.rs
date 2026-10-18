@@ -29,6 +29,8 @@ const REGISTRY: &[&PluginDescriptor] = &[
 
 /// Plugins of the `basecall` workflow, in execution order.
 pub(crate) const BASECALL: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&SANGER]);
+/// Plugins of the `signal` workflow, in execution order.
+pub(crate) const SIGNAL: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&SANGER]);
 /// Plugins of the `analyze` workflow, in execution order.
 pub(crate) const ANALYZE: &[&PluginDescriptor] = composition(REGISTRY, &[], &[&SANGER, &CORE]);
 /// Plugins of the `sample` workflow without notation, in execution order.

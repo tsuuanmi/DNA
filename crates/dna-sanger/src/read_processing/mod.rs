@@ -2,7 +2,7 @@
 
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 mod config;
-mod evidence;
+pub(crate) mod evidence;
 
 pub use config::{RawSangerConfig, RawSangerEvidenceConfig, SangerConfig, SangerEvidenceConfig};
 pub use evidence::read_evidence;

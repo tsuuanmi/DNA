@@ -80,6 +80,13 @@ pub(super) fn review_output(sample_id: &str) -> Result<PathBuf> {
     Ok(output)
 }
 
+/// Returns and validates the deterministic CLI publication path for a run signal.
+pub(super) fn signal_output(run_id: &str) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{run_id}.signal.json"));
+    validate_output(&output)?;
+    Ok(output)
+}
+
 /// Returns the validated UTF-8 trace stem shared by result and log paths.
 pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
     trace
