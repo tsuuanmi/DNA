@@ -386,6 +386,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The Sanger peak floor no longer withholds a call whose relative quality
+  reaches `sanger_evidence.peak_rescue_quality` (50) and whose second base
+  holds less than `sanger_evidence.peak_rescue_second_share` (0.20) of the two
+  strongest peaks (`sanger` plugin 7, configuration schema 13); a low peak
+  beside a strong second base is the split signal of two templates. A low absolute peak at a weak read end or in a
+  weak dye context (the reverse read's C at 317 and 320 after the HVS-II
+  run) is not a doubtful call when the call stands clear of its
+  neighbourhood. On the current development data the floor-withheld calls at
+  that quality matched the truth at every one of 11,756 positions outside
+  heteroplasmies and indels. It decides about 8,300 undecided checks: clear
+  samples rise from about 56 % to about 64 %, review zones per sample fall
+  from 0.84 to 0.62, 133 calls are gained that the truth has; one two-base
+  heteroplasmy (195Y) is no longer inside a check, against eight without the
+  second-share bound.
 - `estimated_length` no longer lists a run whose length a profile report
   convention leaves unrecorded (`review` plugin 9, rules version 9): on the
   human profile, the uninterrupted HVS-I C run of ten or more bases that
