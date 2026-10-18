@@ -50,6 +50,9 @@ equivalence. No crate depends on it, and it is not part of the release.
   sample's positions to review and unreviewed difference blocks from `dna
   review`'s check items (`SampleAnalysis::review_checks`), forced-window
   lists, and the Wilson bound of `windows.tsv`.
+- `zones.rs` — the review zones of the target profile's regions (repeat
+  window, after a window, amplicon start and end, interior) and the zones a
+  check item touches.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.

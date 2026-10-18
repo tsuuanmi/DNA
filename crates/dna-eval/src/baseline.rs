@@ -6,8 +6,8 @@
 //! `iupac_compatible_status` are read when present. Statuses fall into
 //! classes, so a run that scored on the fair scale (`exact`, `error`) stays
 //! comparable with one that reports concordance (`concordant`, `discordant`).
-//! The review workload (`review_positions`, `unreviewed`) is read when
-//! present.
+//! The review workload (`review_positions`, `unreviewed`) and the zones to
+//! check (`review_zone_count`) are read when present.
 
 use std::collections::BTreeMap;
 
@@ -26,6 +26,8 @@ pub(crate) struct Statuses {
     /// Each sample's review workload, when the baseline reports one: its
     /// positions to review and whether it has an unreviewed difference.
     pub(crate) review: BTreeMap<String, (i64, bool)>,
+    /// Each sample's zones to check, when the baseline reports them.
+    pub(crate) zones: BTreeMap<String, usize>,
 }
 
 impl Statuses {
@@ -101,7 +103,9 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
         .iter()
         .position(|name| *name == "review_positions")
         .zip(columns.iter().position(|name| *name == "unreviewed"));
+    let zone_count = columns.iter().position(|name| *name == "review_zone_count");
     let mut review = BTreeMap::new();
+    let mut zones = BTreeMap::new();
     let mut classes = BTreeMap::new();
     let mut samples = BTreeMap::new();
     for (offset, line) in lines.enumerate() {
@@ -129,6 +133,11 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
                 (positions, !fields[unreviewed].is_empty()),
             );
         }
+        if let Some(count) = zone_count
+            && let Ok(count) = fields[count].parse::<usize>()
+        {
+            zones.insert(fields[sample].to_owned(), count);
+        }
         if samples.insert(fields[sample].to_owned(), row).is_some() {
             return Err(BaselineError::DuplicateSample {
                 line: line_number,
@@ -141,6 +150,7 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
         samples,
         classes,
         review,
+        zones,
     })
 }
 

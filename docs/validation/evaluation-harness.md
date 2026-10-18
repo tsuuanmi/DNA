@@ -16,7 +16,8 @@ cargo run --release -p dna-eval -- run \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
   --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv] \
   [--review-window <bp>] [--forced-windows <file>] [--current-since <YYYY-MM>] \
-  [--run-signal batch|month [--run-signal-batch-reads <n>]]
+  [--run-signal batch|month [--run-signal-batch-reads <n>]] \
+  [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -534,6 +535,37 @@ batch month (from the manifest's optional `batch_date` column), the clear sample
 unreviewed differences, the effect of the forced windows, and with a baseline
 that reports the workload, its values on the same samples.
 
+**Zones to check.** A reviewer opens a functional part of a region as a
+whole, so the workload is also counted in zones. Every position of a
+reportable region of the configuration's target profile has one zone kind,
+by precedence:
+
+1. `window`: a repeat window, one of the profile's nomenclature windows
+   (polyC of HV1 and HV2, the AC repeat of HV3);
+2. `after`: within `--zone-after` positions (default 20) of a window on
+   either side, since the harness does not see a read's direction;
+3. `start` and `end`: the first and last `--zone-edge` positions (default
+   40) of the region, its amplicon's start and end;
+4. `interior`: the rest.
+
+A zone is a kind in one region (`kind@region`, such as `after@HV2`),
+contiguous or not. A check item counts for every zone it touches. An item
+that overlaps a window counts its positions within `--zone-overrun`
+positions (default 2) of the window for the window, since the consensus
+often decides a repeat as one stretch a position or two past it. The
+summary gives:
+
+- zones per sample (mean, median, 90th percentile);
+- the samples with none;
+- the check items that touch more than one zone;
+- the samples with a check in each zone;
+- the unreviewed blocks by the zone kind of their first position;
+- with a baseline that reports zones, its zones per sample on the same
+  samples.
+
+The profile is the one the configuration names, and every analysed sample
+must have used it. The widths are in `run.json`.
+
 `--current-since <YYYY-MM>` names the first batch month of the current data:
 the samples whose `batch_date` is in or after it. Recent batches come first,
 since old batches may predate the laboratory's current practice. The
@@ -729,7 +761,7 @@ Phase-0 results are in
 
 | File | Content |
 |---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); DNA's callable yield per HV region (`callable_yield`, `HV1=330/342 HV2=268/268 HV3=139/139`: the truth's analysed positions there that DNA's callable intervals cover); distinct and rejected traces; failure (`<kind>: <message>`); the [review workload](#review-workload): check items, positions to review, whether the sample is clear (`Y` with no check item), unreviewed blocks, and with `--forced-windows` the blocks still unreviewed (`review_checks`, `review_positions`, `review_clear`, `unreviewed`, `unreviewed_forced`) |
+| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); DNA's callable yield per HV region (`callable_yield`, `HV1=330/342 HV2=268/268 HV3=139/139`: the truth's analysed positions there that DNA's callable intervals cover); distinct and rejected traces; failure (`<kind>: <message>`); the [review workload](#review-workload): check items, positions to review, whether the sample is clear (`Y` with no check item), unreviewed blocks, and with `--forced-windows` the blocks still unreviewed, then the zones to check and their number (`review_checks`, `review_positions`, `review_clear`, `unreviewed`, `unreviewed_forced`, `review_zones`, `review_zone_count`) |
 | `checks.tsv` | per sample and check item, in sample then item order: `first` and `last` (1-based) and the item's label names, space-separated |
 | `signals.tsv` | with `--run-signal`, per group (`batch:<batch>`, `month:<YYYY-MM>`): reads and selected calls, keys, and keys with at least 20, 40, and 100 calls |
 | `windows.tsv` | per review window, by region and start: the counted samples whose analysed intervals reach it, those with a check item in it, those without one that have an unreviewed difference in it, that share, and its Wilson 95 % upper bound |
@@ -749,7 +781,7 @@ Phase-0 results are in
 | `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
 | `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
 | `forms.tsv` | how the reviewers write each sequence over the whole truth database, keyed by its SHA-256: per repeat window and window sequence the samples per written form, and the samples per set of calls outside the windows (`-` for an empty one); no sample identifiers |
-| `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
+| `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, the review zone widths (`zones`: `after`, `edge`, `overrun`), counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
 
 Every file except `run.json` depends only on the panel, the truth, DNA's
 calls (and with `--triage` its evidence), and the configuration, reference, profile, and baseline the summary

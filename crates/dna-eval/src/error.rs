@@ -53,6 +53,15 @@ pub(crate) enum Error {
     /// The review window is not a positive number of positions.
     #[error("invalid review window {window}: it must be at least 1")]
     ReviewWindow { window: i64 },
+
+    /// A review zone width is negative.
+    #[error("invalid review zone width {name} {value}: it must not be negative")]
+    ZoneWidth { name: &'static str, value: i64 },
+
+    /// The configuration's target profile cannot be read, or is not the one
+    /// DNA analysed with.
+    #[error("target profile {path}: {message}")]
+    Profile { path: PathBuf, message: String },
     /// The baseline scores are invalid.
     #[error("invalid baseline scores: {0}")]
     Baseline(#[from] BaselineError),
