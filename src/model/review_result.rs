@@ -5,8 +5,8 @@ use serde::Serialize;
 use crate::model::notation_result::EmpopResult;
 use crate::model::result::{IntervalResult, PluginResult, ProfileResult, ReferenceResult};
 use crate::model::sample_result::{ConventionResult, ReadRejectionResult};
-use dna_core::model::alignment::Orientation;
-use dna_core::model::sample_evidence::LocusState;
+use dna_align::model::alignment::Orientation;
+use dna_sample::model::sample_evidence::LocusState;
 
 /// One sample's review document.
 #[derive(Debug, Serialize)]

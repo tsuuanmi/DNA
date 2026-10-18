@@ -11,10 +11,10 @@ use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedCall, SampleNotation};
-use dna_core::consensus::decided;
-use dna_core::model::called_read::CalledRead;
-use dna_core::model::consensus::Consensus;
-use dna_core::read_call::{self, CoreRun, ReadIdentity};
+use dna_call::model::called_read::CalledRead;
+use dna_call::read_call::{self, CoreRun, ReadIdentity};
+use dna_consensus::decided;
+use dna_consensus::model::consensus::Consensus;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 

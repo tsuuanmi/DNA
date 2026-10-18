@@ -16,7 +16,10 @@ fuzzing = ["dna-sanger/fuzzing"]
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
-dna-core.workspace = true
+dna-align.workspace = true
+dna-call.workspace = true
+dna-consensus.workspace = true
+dna-sample.workspace = true
 dna-kernel.workspace = true
 dna-empop.workspace = true
 dna-normalize.workspace = true
@@ -54,7 +57,10 @@ publish = false
 
 [workspace.dependencies]
 dna = { path = ".", version = "0.1.0" }
-dna-core = { path = "crates/dna-core", version = "0.1.0" }
+dna-align = { path = "crates/dna-align", version = "0.1.0" }
+dna-call = { path = "crates/dna-call", version = "0.1.0" }
+dna-consensus = { path = "crates/dna-consensus", version = "0.1.0" }
+dna-sample = { path = "crates/dna-sample", version = "0.1.0" }
 dna-kernel = { path = "crates/dna-kernel", version = "0.1.0" }
 dna-empop = { path = "crates/dna-empop", version = "0.1.0" }
 dna-normalize = { path = "crates/dna-normalize", version = "0.1.0" }

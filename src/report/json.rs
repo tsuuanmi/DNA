@@ -7,7 +7,7 @@ use crate::model::result::{
     ProvenanceResult, ReadResult, ReferenceResult, WarningSummaryResult,
 };
 use crate::report::{callability, signal, variant};
-use dna_core::model::called_read::CalledRead;
+use dna_call::model::called_read::CalledRead;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;

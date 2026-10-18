@@ -3,9 +3,9 @@
 use crate::error::{ReportError, Result};
 use crate::model::result::{PeakHeightsResult, VariantCallResult, VariantResult};
 use crate::report::sanger_call;
-use dna_core::model::alignment::Orientation;
-use dna_core::model::reference_call;
-use dna_core::model::variant::Variant;
+use dna_align::model::alignment::Orientation;
+use dna_call::model::reference_call;
+use dna_call::model::variant::Variant;
 use dna_kernel::read_evidence::ReadEvidence;
 use dna_sanger::model::attachment::SangerAttachment;
 

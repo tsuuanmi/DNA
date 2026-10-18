@@ -265,10 +265,13 @@ dependencies = [
  "assert_cmd",
  "chrono",
  "clap",
- "dna-core",
+ "dna-align",
+ "dna-call",
+ "dna-consensus",
  "dna-empop",
  "dna-kernel",
  "dna-normalize",
+ "dna-sample",
  "dna-sanger",
  "noodles-fasta",
  "predicates",
@@ -283,14 +286,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "dna-core"
+name = "dna-align"
 version = "0.1.0"
 dependencies = [
  "dna-kernel",
  "memchr",
  "serde",
+]
+
+[[package]]
+name = "dna-call"
+version = "0.1.0"
+dependencies = [
+ "dna-align",
+ "dna-kernel",
+ "serde",
  "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "dna-consensus"
+version = "0.1.0"
+dependencies = [
+ "dna-align",
+ "dna-call",
+ "dna-kernel",
 ]
 
 [[package]]
@@ -306,9 +327,11 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "dna",
- "dna-core",
+ "dna-align",
+ "dna-consensus",
  "dna-kernel",
  "dna-normalize",
+ "dna-sample",
  "dna-sanger",
  "rusqlite",
  "serde",
@@ -336,6 +359,16 @@ name = "dna-normalize"
 version = "0.1.0"
 dependencies = [
  "dna-kernel",
+]
+
+[[package]]
+name = "dna-sample"
+version = "0.1.0"
+dependencies = [
+ "dna-align",
+ "dna-call",
+ "dna-kernel",
+ "serde",
 ]
 
 [[package]]

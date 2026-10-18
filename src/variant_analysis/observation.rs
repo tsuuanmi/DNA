@@ -10,7 +10,7 @@ use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::sanger::Chromatogram;
 use dna_sanger::read_processing::{self, ProcessedRead};
 
-use dna_core::read_call::{self, CoreRun, PlacementRejection, ReadIdentity};
+use dna_call::read_call::{self, CoreRun, PlacementRejection, ReadIdentity};
 
 /// Completed one-read observation plus operational warning total.
 pub(crate) struct CompletedObservation {

@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::error::{ConfigError, Result};
-use dna_core::alignment::RawAlignmentConfig;
-use dna_core::read_call::{CallConfig, RawCallConfig};
-use dna_core::sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
-use dna_core::variant_calling::RawVariantCallingConfig;
+use dna_align::RawAlignmentConfig;
+use dna_call::RawVariantCallingConfig;
+use dna_call::read_call::{CallConfig, RawCallConfig};
+use dna_sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use dna_sanger::basecalling::RawBasecallingConfig;
 use dna_sanger::callability::RawCallabilityConfig;
 use dna_sanger::quality_control::RawQualityControlConfig;

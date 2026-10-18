@@ -1,7 +1,7 @@
 //! Complete scientific observation produced from one independently processed Sanger read.
 
-use dna_core::model::called_read::CalledRead;
-use dna_core::read_call::PlacementRejection;
+use dna_call::model::called_read::CalledRead;
+use dna_call::read_call::PlacementRejection;
 use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::callability::ReadRejection;
 use dna_sanger::model::signal::ShortRead;

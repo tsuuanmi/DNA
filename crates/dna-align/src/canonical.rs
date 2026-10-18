@@ -1,0 +1,652 @@
+//! Canonical right alignment: every gap of the optimal alignment moved to
+//! its 3'/right-most sequence-equivalent placement (ADR-0047).
+//!
+//! The optimal score chooses the read's explanation: which bases are
+//! matched, substituted, inserted, or deleted. Among the placements of that
+//! explanation that describe the same sequence, the 3'-most is taken, whatever
+//! the profile score of each placement: a read's signal purity must not decide
+//! where an equivalent gap sits, or two reads of one sequence would describe it
+//! at two places. A move is sequence-equivalent when the one-base move of
+//! [`placement`] allows it and it keeps the alignment's primary-base score: no
+//! moved call changes from a match to a mismatch, and no gap joins another.
+
+use crate::AlignmentConfig;
+use crate::scoring::{scaled, substitution};
+use crate::traceback::{self, RawAlignment, RawColumn};
+use dna_kernel::error::{AlignmentError, Result};
+use dna_kernel::model::nucleotide::Nucleotide;
+use dna_kernel::model::placement;
+use dna_kernel::read_evidence::EvidenceProfile;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GapKind {
+    Insertion,
+    Deletion,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GapRun {
+    kind: GapKind,
+    start: usize,
+    end: usize,
+}
+
+pub(crate) fn right_align(
+    alignment: &mut RawAlignment,
+    profiles: &[Option<EvidenceProfile>],
+    config: &AlignmentConfig,
+    modulo_length: Option<usize>,
+) -> Result<()> {
+    let expected_score = alignment.score;
+    let observed_score = score(&alignment.columns, profiles, config)?;
+    if observed_score != expected_score {
+        return Err(AlignmentError::ScoreMismatch {
+            observed: observed_score,
+            expected: expected_score,
+        }
+        .into());
+    }
+
+    let mut primary = primary_score(&alignment.columns, config)?;
+    loop {
+        let runs = gap_runs(&alignment.columns);
+        let mut shifted = false;
+        for run in runs.into_iter().rev() {
+            let Some(candidate) = shifted_right(&alignment.columns, run, modulo_length) else {
+                continue;
+            };
+            let candidate_primary = primary_score(&candidate, config)?;
+            if candidate_primary != primary {
+                continue;
+            }
+            primary = candidate_primary;
+            alignment.columns = candidate;
+            alignment.metrics = traceback::metrics(&alignment.columns);
+            shifted = true;
+            break;
+        }
+        if !shifted {
+            return Ok(());
+        }
+    }
+}
+
+/// Moves each deletion of a vouched read 3' across the query calls that
+/// `unresolved` names (an `N` without evidence, which scores the same against
+/// any reference base) and the repeat-equivalent bases beyond them, so an
+/// `N` beside a deletion does not decide where it lies: the 3'-most of the
+/// equally scoring placements. The score is unchanged by construction.
+pub(crate) fn cross_unresolved(
+    alignment: &mut RawAlignment,
+    unresolved: impl Fn(usize) -> bool,
+    modulo_length: Option<usize>,
+) {
+    loop {
+        let mut shifted = false;
+        for run in gap_runs(&alignment.columns).into_iter().rev() {
+            if run.kind != GapKind::Deletion {
+                continue;
+            }
+            let Some(following) = alignment.columns.get(run.end) else {
+                continue;
+            };
+            if gap_kind(following).is_some() {
+                continue;
+            }
+            let across = following.query_index.is_some_and(&unresolved);
+            let Some(candidate) =
+                shift_deletion(&alignment.columns, run, following, modulo_length, across)
+            else {
+                continue;
+            };
+            alignment.columns = candidate;
+            shifted = true;
+            break;
+        }
+        if !shifted {
+            alignment.metrics = traceback::metrics(&alignment.columns);
+            return;
+        }
+    }
+}
+
+fn gap_runs(columns: &[RawColumn]) -> Vec<GapRun> {
+    let mut runs = Vec::new();
+    let mut index = 0;
+    while index < columns.len() {
+        let Some(kind) = gap_kind(&columns[index]) else {
+            index += 1;
+            continue;
+        };
+        let start = index;
+        index += 1;
+        while index < columns.len() && gap_kind(&columns[index]) == Some(kind) {
+            index += 1;
+        }
+        runs.push(GapRun {
+            kind,
+            start,
+            end: index,
+        });
+    }
+    runs
+}
+
+fn shifted_right(
+    columns: &[RawColumn],
+    run: GapRun,
+    modulo_length: Option<usize>,
+) -> Option<Vec<RawColumn>> {
+    let following = columns.get(run.end)?;
+    if gap_kind(following).is_some() {
+        return None;
+    }
+
+    match run.kind {
+        GapKind::Deletion => shift_deletion(columns, run, following, modulo_length, false),
+        GapKind::Insertion => shift_insertion(columns, run, following, modulo_length),
+    }
+}
+
+/// The deletion moved one base right, across a reference base equal to its
+/// first deleted base, or with `across_unresolved`, across any reference base.
+fn shift_deletion(
+    columns: &[RawColumn],
+    run: GapRun,
+    following: &RawColumn,
+    modulo_length: Option<usize>,
+    across_unresolved: bool,
+) -> Option<Vec<RawColumn>> {
+    let first = columns.get(run.start)?;
+    let equivalent = byte(first.reference_base)
+        .zip(byte(following.reference_base))
+        .is_some_and(|(first, crossed)| placement::crosses(first, crossed));
+    if !equivalent && !across_unresolved {
+        return None;
+    }
+    if crosses_circular_seam(
+        first.reference_index?,
+        following.reference_index?,
+        modulo_length,
+    ) {
+        return None;
+    }
+
+    let mut shifted = columns.to_vec();
+    shifted[run.start].query_base = following.query_base;
+    shifted[run.start].query_index = following.query_index;
+    shifted[run.end].query_base = '-';
+    shifted[run.end].query_index = None;
+    Some(shifted)
+}
+
+fn shift_insertion(
+    columns: &[RawColumn],
+    run: GapRun,
+    following: &RawColumn,
+    modulo_length: Option<usize>,
+) -> Option<Vec<RawColumn>> {
+    let first = columns.get(run.start)?;
+    if !placement::crosses(byte(first.query_base)?, byte(following.reference_base)?) {
+        return None;
+    }
+    let following_reference = following.reference_index?;
+    if modulo_length.is_some_and(|length| following_reference % length == 0) {
+        return None;
+    }
+
+    let mut shifted = columns.to_vec();
+    shifted[run.start].reference_base = following.reference_base;
+    shifted[run.start].reference_index = following.reference_index;
+    shifted[run.end].reference_base = '-';
+    shifted[run.end].reference_index = None;
+    Some(shifted)
+}
+
+fn crosses_circular_seam(
+    first_reference: usize,
+    following_reference: usize,
+    modulo_length: Option<usize>,
+) -> bool {
+    modulo_length.is_some_and(|length| first_reference / length != following_reference / length)
+}
+
+fn score(
+    columns: &[RawColumn],
+    profiles: &[Option<EvidenceProfile>],
+    config: &AlignmentConfig,
+) -> Result<i64> {
+    let mut total = 0_i64;
+    let mut previous_gap = None;
+
+    for column in columns {
+        let gap = gap_kind(column);
+        if let Some(kind) = gap {
+            if previous_gap != Some(kind) {
+                total = total.checked_add(scaled(config.gap_open_score)).ok_or(
+                    AlignmentError::Overflow("canonical alignment score overflow"),
+                )?;
+            }
+            total = total
+                .checked_add(scaled(config.gap_extension_score))
+                .ok_or(AlignmentError::Overflow(
+                    "canonical alignment score overflow",
+                ))?;
+            previous_gap = Some(kind);
+            continue;
+        }
+
+        previous_gap = None;
+        let query_index = column.query_index.ok_or(AlignmentError::Inconsistent(
+            "aligned canonical column lacks query index",
+        ))?;
+        let profile = profiles
+            .get(query_index)
+            .copied()
+            .ok_or(AlignmentError::ProfileIndexOutOfBounds { index: query_index })?;
+        total = total
+            .checked_add(substitution(profile, column.reference_base, config))
+            .ok_or(AlignmentError::Overflow(
+                "canonical alignment score overflow",
+            ))?;
+    }
+
+    Ok(total)
+}
+
+/// A column base as a byte; `None` for a non-ASCII symbol.
+fn byte(base: char) -> Option<u8> {
+    u8::try_from(base).ok()
+}
+
+/// The alignment's score with each call's profile replaced by its primary
+/// base alone: what changes only when a call changes between a match and a
+/// mismatch, or gaps open or close.
+fn primary_score(columns: &[RawColumn], config: &AlignmentConfig) -> Result<i64> {
+    let primaries = columns
+        .iter()
+        .map(|column| {
+            Nucleotide::from_char(column.query_base).map(|base| {
+                let mut weights = [0.0; 4];
+                weights[base.channel_index()] = 1.0;
+                EvidenceProfile { weights }
+            })
+        })
+        .collect::<Vec<_>>();
+    let indexed = columns
+        .iter()
+        .enumerate()
+        .map(|(index, column)| RawColumn {
+            query_index: column.query_index.map(|_| index),
+            ..column.clone()
+        })
+        .collect::<Vec<_>>();
+    score(&indexed, &primaries, config)
+}
+
+const fn gap_kind(column: &RawColumn) -> Option<GapKind> {
+    if column.query_base == '-' {
+        Some(GapKind::Deletion)
+    } else if column.reference_base == '-' {
+        Some(GapKind::Insertion)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config() -> AlignmentConfig {
+        AlignmentConfig {
+            match_score: 3,
+            mismatch_score: -5,
+            ambiguous_score: 0,
+            gap_open_score: -10,
+            gap_extension_score: -4,
+            minimum_callable_bases: 1,
+            minimum_identity: 0.8,
+        }
+    }
+
+    fn one_hot(sequence: &str) -> Vec<Option<EvidenceProfile>> {
+        sequence
+            .bytes()
+            .map(|base| {
+                let weights = match base {
+                    b'A' => [1.0, 0.0, 0.0, 0.0],
+                    b'C' => [0.0, 1.0, 0.0, 0.0],
+                    b'G' => [0.0, 0.0, 1.0, 0.0],
+                    b'T' => [0.0, 0.0, 0.0, 1.0],
+                    _ => return None,
+                };
+                Some(EvidenceProfile { weights })
+            })
+            .collect()
+    }
+
+    fn raw(columns: Vec<RawColumn>, score: i64) -> RawAlignment {
+        let metrics = traceback::metrics(&columns);
+        RawAlignment {
+            score,
+            start_reference: 0,
+            end_reference: columns
+                .iter()
+                .filter_map(|column| column.reference_index)
+                .max()
+                .map_or(0, |index| index + 1),
+            columns,
+            metrics,
+        }
+    }
+
+    fn column(
+        query_base: char,
+        reference_base: char,
+        query_index: Option<usize>,
+        reference_index: Option<usize>,
+    ) -> RawColumn {
+        RawColumn {
+            query_base,
+            reference_base,
+            query_index,
+            reference_index,
+        }
+    }
+
+    #[test]
+    fn right_shifts_homopolymer_deletion() -> Result<()> {
+        let profiles = one_hot("CAAAG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('-', 'A', None, Some(1)),
+            column('A', 'A', Some(1), Some(2)),
+            column('A', 'A', Some(2), Some(3)),
+            column('A', 'A', Some(3), Some(4)),
+            column('G', 'G', Some(4), Some(5)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        assert_eq!(
+            alignment
+                .columns
+                .iter()
+                .position(|column| column.query_base == '-'),
+            Some(4)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn right_shifts_homopolymer_insertion_when_profile_score_is_equal() -> Result<()> {
+        let profiles = one_hot("CAAAAAG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('A', '-', Some(1), None),
+            column('A', 'A', Some(2), Some(1)),
+            column('A', 'A', Some(3), Some(2)),
+            column('A', 'A', Some(4), Some(3)),
+            column('A', 'A', Some(5), Some(4)),
+            column('G', 'G', Some(6), Some(5)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        assert_eq!(
+            alignment
+                .columns
+                .iter()
+                .position(|column| column.reference_base == '-'),
+            Some(5)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn profile_score_does_not_prevent_an_equivalent_insertion_shift() -> Result<()> {
+        // The inserted A's profile reads C: the shift lowers the profile
+        // score, yet the primary bases describe the same sequence, so the
+        // insertion still takes the run's 3' end (ADR-0047 §1).
+        let mut profiles = one_hot("CAAAG");
+        profiles[1] = Some(EvidenceProfile {
+            weights: [0.0, 1.0, 0.0, 0.0],
+        });
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('A', '-', Some(1), None),
+            column('A', 'A', Some(2), Some(1)),
+            column('A', 'A', Some(3), Some(2)),
+            column('G', 'G', Some(4), Some(3)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        assert_eq!(
+            alignment
+                .columns
+                .iter()
+                .position(|column| column.reference_base == '-'),
+            Some(3)
+        );
+        // The score kept is the optimal explanation's, not the placement's.
+        assert_eq!(alignment.score, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn an_insertion_does_not_cross_a_substituted_call() -> Result<()> {
+        // CA+A inserted before a call that reads T where the reference has A:
+        // moving across it would turn that mismatch into an inserted base.
+        let profiles = one_hot("CAATG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('A', '-', Some(1), None),
+            column('A', 'A', Some(2), Some(1)),
+            column('T', 'A', Some(3), Some(2)),
+            column('G', 'G', Some(4), Some(3)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+        assert_eq!(
+            alignment
+                .columns
+                .iter()
+                .position(|column| column.reference_base == '-'),
+            Some(2)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn an_ac_unit_insertion_takes_the_repeats_3_prime_end_whatever_the_profiles() -> Result<()> {
+        // As HVS-III's AC repeat with one more CA unit, read with call
+        // purities that vary: the profile score would place the insertion
+        // mid-repeat, but every read must describe it at the 3' end.
+        let reference = "TTAGCTAAGCACACACACACACCGCTGCTAACCCC";
+        let read = "TTAGCTAAGCACACACACACACACCGCTGCTAACCCC";
+        let purities = [0.88, 0.93, 0.85, 0.9, 0.97];
+        let profiles = read
+            .bytes()
+            .enumerate()
+            .map(|(index, base)| {
+                let channel = Nucleotide::from_char(char::from(base))?.channel_index();
+                let purity = purities[index % purities.len()];
+                let mut weights = [(1.0 - purity) / 3.0; 4];
+                weights[channel] = purity;
+                Some(EvidenceProfile { weights })
+            })
+            .collect::<Vec<_>>();
+        let placements = crate::gotoh::align(read, &profiles, reference, &config(), None)?;
+        let inserted = placements[0]
+            .columns
+            .iter()
+            .scan(None, |previous, column| {
+                let anchor = *previous;
+                if column.reference_index.is_some() {
+                    *previous = column.reference_index;
+                }
+                Some((column.reference_index.is_none(), anchor))
+            })
+            .filter_map(|(inserted, anchor)| inserted.then_some(anchor))
+            .collect::<Vec<_>>();
+        // After the repeat's last C (index 21), before CCG.
+        assert_eq!(inserted, [Some(21), Some(21)]);
+        Ok(())
+    }
+
+    #[test]
+    fn right_shifts_tandem_repeat_deletion_by_whole_motif() -> Result<()> {
+        let profiles = one_hot("CATG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('-', 'A', None, Some(1)),
+            column('-', 'T', None, Some(2)),
+            column('A', 'A', Some(1), Some(3)),
+            column('T', 'T', Some(2), Some(4)),
+            column('G', 'G', Some(3), Some(5)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        let deleted = alignment
+            .columns
+            .iter()
+            .filter(|column| column.query_base == '-')
+            .filter_map(|column| column.reference_index)
+            .collect::<Vec<_>>();
+        assert_eq!(deleted, vec![3, 4]);
+        Ok(())
+    }
+
+    #[test]
+    fn right_shifts_tandem_repeat_insertion_by_whole_motif() -> Result<()> {
+        let profiles = one_hot("CATATATG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('A', '-', Some(1), None),
+            column('T', '-', Some(2), None),
+            column('A', 'A', Some(3), Some(1)),
+            column('T', 'T', Some(4), Some(2)),
+            column('A', 'A', Some(5), Some(3)),
+            column('T', 'T', Some(6), Some(4)),
+            column('G', 'G', Some(7), Some(5)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        let insertion = alignment
+            .columns
+            .iter()
+            .enumerate()
+            .filter(|(_, column)| column.reference_base == '-')
+            .map(|(index, column)| (index, column.query_base))
+            .collect::<Vec<_>>();
+        assert_eq!(insertion, vec![(5, 'A'), (6, 'T')]);
+        assert_eq!(alignment.columns[4].reference_index, Some(4));
+        assert_eq!(alignment.columns[7].reference_index, Some(5));
+        Ok(())
+    }
+
+    #[test]
+    fn canonicalizes_multiple_gap_runs_from_right_to_left() -> Result<()> {
+        let profiles = one_hot("CAAGTTG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('-', 'A', None, Some(1)),
+            column('A', 'A', Some(1), Some(2)),
+            column('A', 'A', Some(2), Some(3)),
+            column('G', 'G', Some(3), Some(4)),
+            column('-', 'T', None, Some(5)),
+            column('T', 'T', Some(4), Some(6)),
+            column('T', 'T', Some(5), Some(7)),
+            column('G', 'G', Some(6), Some(8)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        let deleted = alignment
+            .columns
+            .iter()
+            .filter(|column| column.query_base == '-')
+            .filter_map(|column| column.reference_index)
+            .collect::<Vec<_>>();
+        assert_eq!(deleted, vec![3, 7]);
+        Ok(())
+    }
+
+    #[test]
+    fn does_not_shift_non_repeat_deletion() -> Result<()> {
+        let profiles = one_hot("CAG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('-', 'A', None, Some(1)),
+            column('A', 'T', Some(1), Some(2)),
+            column('G', 'G', Some(2), Some(3)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        assert_eq!(alignment.columns[1].query_base, '-');
+        Ok(())
+    }
+
+    #[test]
+    fn circular_canonicalization_stops_at_origin_seam() -> Result<()> {
+        let profiles = one_hot("AAA");
+        let columns = vec![
+            column('A', 'A', Some(0), Some(2)),
+            column('-', 'A', None, Some(3)),
+            column('A', 'A', Some(1), Some(4)),
+            column('A', 'A', Some(2), Some(5)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        right_align(&mut alignment, &profiles, &config(), Some(4))?;
+
+        assert_eq!(alignment.columns[1].query_base, '-');
+        assert_eq!(alignment.columns[1].reference_index, Some(3));
+        Ok(())
+    }
+
+    #[test]
+    fn canonicalization_preserves_metrics_for_equivalent_homopolymer_shift() -> Result<()> {
+        let profiles = one_hot("CAAAG");
+        let columns = vec![
+            column('C', 'C', Some(0), Some(0)),
+            column('-', 'A', None, Some(1)),
+            column('A', 'A', Some(1), Some(2)),
+            column('A', 'A', Some(2), Some(3)),
+            column('A', 'A', Some(3), Some(4)),
+            column('G', 'G', Some(4), Some(5)),
+        ];
+        let expected = score(&columns, &profiles, &config())?;
+        let mut alignment = raw(columns, expected);
+        let before = alignment.metrics.clone();
+        right_align(&mut alignment, &profiles, &config(), None)?;
+
+        assert_eq!(alignment.metrics.exact_matches, before.exact_matches);
+        assert_eq!(alignment.metrics.mismatches, before.mismatches);
+        assert_eq!(alignment.metrics.gap_opens, before.gap_opens);
+        assert_eq!(alignment.metrics.callable_columns, before.callable_columns);
+        assert_eq!(
+            alignment.metrics.callable_identity,
+            before.callable_identity
+        );
+        assert_eq!(
+            alignment.metrics.unresolved_query_bases,
+            before.unresolved_query_bases
+        );
+        assert_eq!(alignment.metrics.gap_opens, 1);
+        Ok(())
+    }
+}

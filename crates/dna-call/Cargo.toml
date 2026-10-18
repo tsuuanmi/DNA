@@ -1,0 +1,27 @@
+[package]
+name = "dna-call"
+description = "DNA read assertion: the variants and positions one placed read asserts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# Unchecked constructors for tests of downstream stages.
+test-support = []
+
+[dependencies]
+dna-kernel.workspace = true
+dna-align.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+dna-align = { workspace = true, features = ["test-support"] }
+dna-kernel = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true

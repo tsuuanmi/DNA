@@ -16,9 +16,9 @@ pub(crate) mod minor;
 use std::collections::BTreeMap;
 
 use dna::sample_analysis::{Consensus, RejectedRead, RejectionCause, SampleAnalysis};
-use dna_core::model::alignment::{Orientation, ReferenceSegment};
-use dna_core::model::consensus::{ConsensusSite, RunEvidence, SiteState};
-use dna_core::model::sample_evidence::SampleReadEvidence;
+use dna_align::model::alignment::{Orientation, ReferenceSegment};
+use dna_consensus::model::consensus::{ConsensusSite, RunEvidence, SiteState};
+use dna_sample::model::sample_evidence::SampleReadEvidence;
 use dna_sanger::model::callability::ReadCallability;
 
 /// The strand a read observes the reference on.
@@ -509,10 +509,10 @@ pub(crate) fn primer_strand(primer: &str) -> Option<Strand> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use dna_core::model::consensus::{
+    use dna_consensus::model::consensus::{
         ConsensusRun, ConsensusSegment, ConsensusSite, ConsensusSummary,
     };
-    use dna_core::model::sample_evidence::SampleReadAlignmentEvidence;
+    use dna_sample::model::sample_evidence::SampleReadAlignmentEvidence;
 
     use super::*;
 

@@ -11,7 +11,7 @@ use crate::error::{Result, SampleError};
 use crate::model::read_observation::{ReadObservation, RejectedRead, RejectionCause};
 use crate::variant_analysis;
 use crate::variant_analysis::observation::Observation;
-use dna_core::model::called_read::CalledRead;
+use dna_call::model::called_read::CalledRead;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
 use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};

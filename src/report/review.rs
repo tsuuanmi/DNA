@@ -22,15 +22,15 @@ use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::project_empop;
 use crate::report::sample::{project_rejection, reviewer_names, reviewer_read_names};
 use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
-use dna_core::model::alignment::{Orientation, ReferenceSegment};
-use dna_core::model::consensus::{ConsensusSite, RunEvidence, SiteState};
-use dna_core::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
-use dna_core::model::variant::VariantKind;
+use dna_align::model::alignment::{Orientation, ReferenceSegment};
+use dna_call::model::variant::VariantKind;
+use dna_consensus::model::consensus::{ConsensusSite, RunEvidence, SiteState};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::Profile;
 use dna_kernel::read_evidence::{EvidenceProfile, Placement};
+use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
 use dna_sanger::model::attachment::SangerAttachment;
 
 /// The review list: items and labels over the consensus, the call, and the

@@ -1,0 +1,22 @@
+[package]
+name = "dna-consensus"
+description = "DNA consensus: the sequence a sample's reads agree on, stretch by stretch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dna-kernel.workspace = true
+dna-align.workspace = true
+dna-call.workspace = true
+
+[dev-dependencies]
+dna-align = { workspace = true, features = ["test-support"] }
+dna-call = { workspace = true, features = ["test-support"] }
+dna-kernel = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

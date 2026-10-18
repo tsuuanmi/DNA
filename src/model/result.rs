@@ -2,8 +2,8 @@
 
 use serde::Serialize;
 
-use dna_core::model::alignment::Orientation;
-use dna_core::model::variant::{VariantCallRole, VariantKind};
+use dna_align::model::alignment::Orientation;
+use dna_call::model::variant::{VariantCallRole, VariantKind};
 use dna_kernel::model::reference::ReferenceTopology;
 use dna_sanger::model::callability::PhaseState;
 

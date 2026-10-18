@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use dna_core::model::sample_evidence::{NucleotideContribution, SampleEvidence};
+use dna_sample::model::sample_evidence::{NucleotideContribution, SampleEvidence};
 use dna_sanger::model::attachment::SangerAttachment;
 use dna_sanger::model::locus_evidence::LocusEvidence;
 

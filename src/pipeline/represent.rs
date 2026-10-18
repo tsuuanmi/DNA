@@ -7,7 +7,7 @@
 //! reads converge on one notation.
 
 use crate::report::{ReadRepresentation, SampleNotation};
-use dna_core::model::called_read::CalledRead;
+use dna_call::model::called_read::CalledRead;
 use std::ops::Range;
 
 use crate::error::Result;
@@ -119,7 +119,7 @@ mod tests {
     use std::cmp::Ordering;
     use std::path::Path;
 
-    use dna_core::model::variant::{Variant as CalledVariant, VariantKind};
+    use dna_call::model::variant::{Variant as CalledVariant, VariantKind};
     use dna_kernel::model::reference::ReferenceTopology;
     use dna_kernel::profile::fixtures::human_mtdna;
     use dna_kernel::reference;

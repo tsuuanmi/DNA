@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::error::{ConsensusDocumentError, KernelError, Result};
 use crate::input::sequence::{self, SequenceRead};
 use crate::report;
-use dna_core::model::consensus::{
+use dna_consensus::model::consensus::{
     Consensus, ConsensusRun, ConsensusSegment, ConsensusSite, ConsensusSummary, RunEvidence,
     SiteState,
 };
