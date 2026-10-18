@@ -6,7 +6,7 @@ use crate::model::called_read::CalledRead;
 use crate::model::variant::VariantKind;
 use crate::variant_calling::VariantCallingConfig;
 use crate::variant_calling::eligibility::ReadEligibility;
-use dna_kernel::read_evidence::{MaskedAlignment, VetoSet};
+use dna_kernel::read_evidence::{CallEvidence, Placement};
 
 /// What one read contributes at one reference position or junction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,7 +21,19 @@ pub(super) enum SiteValue {
 }
 
 /// What one observed call can show, from least to most; each level implies
-/// the ones below it.
+/// the ones below it. The level follows from the call's placement and its
+/// verdict on its base (`ReadEvidence`):
+///
+/// | Placement | Verdict on its base | Level |
+/// |---|---|---|
+/// | unresolved, or outside the informative interval, or not canonical | any | `Nothing` |
+/// | anchoring | any | `Anchoring` |
+/// | scored | at an edge no bounded-run exemption (ADR-0076) lifts, or a modality reason | `Unmasked` |
+/// | scored | clear of the edges (or exempt) and no modality reason | `Clean` |
+///
+/// A scored call whose bound the modality withholds is vouched for by its
+/// base only: whatever its level, it neither counts towards a run nor shows
+/// a run's end (`Char::base_only`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Trust {
     /// Nothing: a non-canonical or uninformative call, or one beside an
@@ -33,8 +45,8 @@ pub(super) enum Trust {
     /// Canonical, informative, and unmasked: a call of the read's in-phase
     /// signal, which counts towards a run's length (ADR-0071).
     Unmasked,
-    /// Unmasked, trusted (`read_end`), and no support veto: it shows its
-    /// base.
+    /// Unmasked, trusted (`read_end`), and no modality reason against its
+    /// base: it shows its base.
     Clean,
 }
 
@@ -52,7 +64,7 @@ pub(super) struct Char {
     pub(super) beside_unresolved: bool,
     /// The modality vouches for the call's base only: it neither counts
     /// towards a run nor shows a run's end.
-    pub(super) identity_only: bool,
+    pub(super) base_only: bool,
 }
 
 impl Char {
@@ -63,12 +75,12 @@ impl Char {
 
     /// The call shows where a neighbouring run ends.
     pub(super) fn resolving(self) -> bool {
-        self.trust >= Trust::Anchoring && !self.identity_only
+        self.trust >= Trust::Anchoring && !self.base_only
     }
 
     /// The call counts towards its run.
     pub(super) fn unmasked(self) -> bool {
-        self.trust >= Trust::Unmasked && !self.identity_only
+        self.trust >= Trust::Unmasked && !self.base_only
     }
 }
 
@@ -125,10 +137,10 @@ pub(super) fn observe(
             length_only[call] = inserted || matches[call];
         }
     }
-    // Unmasked and trusted, whatever its support vetoes.
+    // Scored and trusted, whatever the modality's reasons against its base.
     let trusted_call = |index: usize| {
         calls.get(index).is_some_and(|call| {
-            call.mask.is_none()
+            call.placement == Placement::Scored
                 && (eligibility.trusted(index)
                     || (eligibility.run_exempt(index) && length_only[index])
                     || (eligibility.bound_exempt(index) && matches[index]))
@@ -138,39 +150,28 @@ pub(super) fn observe(
         trusted_call(index)
             && calls
                 .get(index)
-                .is_some_and(|call| call.vetoes == VetoSet::default())
+                .is_some_and(|call| call.identity.withheld.is_empty())
     };
     // A clean call that may also place an insertion or deletion: not one the
     // modality vouches for by its base only.
-    let placing_call = |index: usize| {
-        clean_call(index) && calls.get(index).is_some_and(|call| !call.identity_only)
-    };
+    let placing_call =
+        |index: usize| clean_call(index) && calls.get(index).is_some_and(|call| !call.base_only());
     let interval = read.evidence.informative();
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
         trust: match calls.get(call) {
             _ if !canonical(base) || !interval.contains(&call) => Trust::Nothing,
-            Some(evidence) if evidence.mask.is_none() => {
-                if clean_call(call) {
-                    Trust::Clean
-                } else {
-                    Trust::Unmasked
-                }
-            }
-            Some(evidence)
-                if evidence
-                    .mask
-                    .is_some_and(|mask| mask.alignment == MaskedAlignment::Anchoring) =>
-            {
-                Trust::Anchoring
-            }
-            _ => Trust::Nothing,
+            Some(evidence) => match evidence.placement {
+                Placement::Scored if clean_call(call) => Trust::Clean,
+                Placement::Scored => Trust::Unmasked,
+                Placement::Anchoring(_) => Trust::Anchoring,
+                Placement::Unresolved(_) => Trust::Nothing,
+            },
+            None => Trust::Nothing,
         },
         position,
         beside_unresolved: false,
-        identity_only: calls
-            .get(call)
-            .is_some_and(|evidence| evidence.identity_only),
+        base_only: calls.get(call).is_some_and(CallEvidence::base_only),
     };
     let columns = &read.alignment.columns;
     // A call vouched for by its base only that may sit one position off.
@@ -197,10 +198,7 @@ pub(super) fn observe(
         })
         .collect::<BTreeMap<_, _>>();
     let unbounded_run = |call: usize, position: usize| {
-        if !calls
-            .get(call)
-            .is_some_and(|evidence| evidence.identity_only)
-        {
+        if !calls.get(call).is_some_and(CallEvidence::base_only) {
             return false;
         }
         let Some(&base) = bases.get(position) else {
@@ -264,7 +262,7 @@ pub(super) fn observe(
             let repeat = !unbounded && eligibility.repeat_unvetoed(&evidence);
             let inserted_clean = |call: usize| {
                 (clean_call(call) || (repeat && trusted_call(call)))
-                    && calls.get(call).is_some_and(|call| !call.identity_only)
+                    && calls.get(call).is_some_and(|call| !call.base_only())
             };
             let clean = !unbounded
                 && inserted
@@ -427,7 +425,7 @@ impl ReadObservations {
                     trust: Trust::Nothing,
                     position: Some(position),
                     beside_unresolved: false,
-                    identity_only: false,
+                    base_only: false,
                 });
             }
             chars.extend(observation.chars.iter().copied());

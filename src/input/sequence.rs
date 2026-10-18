@@ -18,7 +18,7 @@ use dna_kernel::checksum::hex_sha256;
 use dna_kernel::error::{Error, Result, SequenceError};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
-use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, ReadEvidence, VetoSet};
+use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, ReadEvidence};
 use dna_kernel::reference::MAX_REFERENCE_LENGTH;
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
@@ -237,12 +237,7 @@ pub(crate) fn read_evidence(read: &SequenceRead) -> Result<ReadEvidence> {
                     weights: channels.map(|channel| if channel { share } else { 0.0 }),
                 }
             });
-            CallEvidence::new(
-                if canonical { symbol } else { 'N' },
-                profile,
-                None,
-                VetoSet::default(),
-            )
+            CallEvidence::scored(if canonical { symbol } else { 'N' }, profile)
         })
         .collect::<Vec<_>>();
     let informative = 0..calls.len();
@@ -322,7 +317,11 @@ mod tests {
         );
         assert_eq!(calls[2].base, 'N');
         assert_eq!(calls[2].profile, None);
-        assert!(calls.iter().all(|call| call.mask.is_none()));
+        assert!(
+            calls
+                .iter()
+                .all(|call| call.placement == dna_kernel::read_evidence::Placement::Scored)
+        );
         Ok(())
     }
 }

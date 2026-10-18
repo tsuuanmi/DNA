@@ -29,7 +29,7 @@ use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::Profile;
-use dna_kernel::read_evidence::{EvidenceProfile, MaskedAlignment};
+use dna_kernel::read_evidence::{EvidenceProfile, Placement};
 use dna_sanger::model::attachment::SangerAttachment;
 
 /// The review list: items and labels over the consensus, the call, and the
@@ -601,21 +601,21 @@ impl<'a> Sample<'a> {
                     let trust = read.trust.get(call).ok_or(ReportError::Inconsistent(
                         "review observation lacks the trust of its call",
                     ))?;
-                    let label = match trust.mask {
-                        Some(mask) if mask.alignment == MaskedAlignment::Anchoring => {
-                            Some(LabelResult::PhaseShift {
+                    let label = match trust.placement {
+                        Placement::Anchoring(_) => Some(LabelResult::PhaseShift {
+                            read: read.name.to_owned(),
+                            from: self.shift_start(index, position),
+                        }),
+                        Placement::Unresolved(reason) => Some(LabelResult::NoisySignal {
+                            read: read.name.to_owned(),
+                            reason: reason.label(),
+                        }),
+                        Placement::Scored if !trust.trusted && !trust.exempt => {
+                            Some(LabelResult::ReadEdge {
                                 read: read.name.to_owned(),
-                                from: self.shift_start(index, position),
                             })
                         }
-                        Some(mask) => Some(LabelResult::NoisySignal {
-                            read: read.name.to_owned(),
-                            reason: mask.reason.label(),
-                        }),
-                        None if !trust.trusted && !trust.exempt => Some(LabelResult::ReadEdge {
-                            read: read.name.to_owned(),
-                        }),
-                        None => None,
+                        Placement::Scored => None,
                     };
                     if let Some(label) = label {
                         labels
@@ -668,7 +668,7 @@ impl<'a> Sample<'a> {
                 }
                 let read = self.reads.get(observation.read_index)?;
                 let trust = read.trust.get(observation.call_index_0based?)?;
-                if trust.mask.is_some() || !(trust.trusted || trust.exempt) {
+                if trust.placement != Placement::Scored || !(trust.trusted || trust.exempt) {
                     return None;
                 }
                 let (second, share) = second(observation.base?, observation.profile?)?;

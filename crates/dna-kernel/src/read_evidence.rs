@@ -3,10 +3,11 @@
 //!
 //! A modality (Sanger today) turns its raw data into one [`ReadEvidence`] per
 //! read: the called bases, an optional basecall-independent A/C/G/T profile per
-//! call, which calls are masked and why, the support vetoes its own evidence
-//! raises against each call, and the interval of calls that carries
-//! information. The core aligns and calls variants from this record alone and
-//! never interprets a modality's reason labels; it only reports them.
+//! call, how each call takes part in alignment, the modality's verdicts on
+//! what each call shows (its base, an insertion or deletion, a run's end), and
+//! the interval of calls that carries information. The core aligns and calls
+//! variants from this record alone and never interprets a modality's reason
+//! labels; it only reports them, in the read's reason order.
 
 use std::ops::Range;
 
@@ -64,93 +65,110 @@ impl EvidenceReason {
     }
 }
 
-/// How the core aligns a masked call.
+/// How the core aligns a call, and why a masked call is masked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MaskedAlignment {
-    /// The call carries no alignment information: it aligns as `N` without a
-    /// profile.
-    Unresolved,
-    /// The call still anchors the alignment with its base and profile, but
-    /// supports no variant.
-    Anchoring,
+pub enum Placement {
+    /// The call aligns with its base and profile.
+    Scored,
+    /// Masked, but anchoring: the call still places the read with its base
+    /// and profile, and shows no base. The modality's reason, verbatim.
+    Anchoring(EvidenceReason),
+    /// Masked and unresolved: the call aligns as `N` without a profile. The
+    /// modality's reason, verbatim.
+    Unresolved(EvidenceReason),
 }
 
-/// Where a masked call's segment begins, as the modality places it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MaskOnset {
-    /// The segment starts in the window right after a repeat run of the
-    /// read's own calls: the read loses phase leaving the run (ADR-0076).
-    AfterRun,
-    /// Any other start, or one the modality does not place.
-    Other,
+impl Placement {
+    /// The modality's reason for a masked call; `None` for a scored one.
+    #[must_use]
+    pub const fn reason(self) -> Option<EvidenceReason> {
+        match self {
+            Self::Scored => None,
+            Self::Anchoring(reason) | Self::Unresolved(reason) => Some(reason),
+        }
+    }
 }
 
-/// A masked call: how it aligns and why it is masked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CallMask {
-    /// How the masked call takes part in alignment.
-    pub alignment: MaskedAlignment,
-    /// The modality's reason label, reported verbatim.
-    pub reason: EvidenceReason,
-    /// Where the call's masked segment begins.
-    pub onset: MaskOnset,
-}
+/// Largest number of reasons one verdict holds.
+const REASON_CAPACITY: usize = 4;
 
-/// Which variant kinds a support veto applies to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VetoScope {
-    /// Substitutions only.
-    Substitutions,
-    /// Substitutions and the inserted bases of insertions.
-    SubstitutionsAndInsertions,
-}
-
-/// One entry of a read's support-veto vocabulary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SupportVeto {
-    /// The modality's reason label, reported verbatim.
-    pub reason: EvidenceReason,
-    /// The variant kinds the veto applies to.
-    pub scope: VetoScope,
-}
-
-/// The support vetoes raised against one call, as bits into its read's
-/// vocabulary.
+/// The modality's reasons against one use of a call, each at most once.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct VetoSet(u32);
+pub struct Reasons([Option<EvidenceReason>; REASON_CAPACITY]);
 
-impl VetoSet {
-    /// Largest supported vocabulary.
-    pub(crate) const CAPACITY: usize = 32;
-
-    /// Adds vocabulary entry `index`.
-    pub fn insert(&mut self, index: usize) {
-        if let Some(bit) = u32::try_from(index)
-            .ok()
-            .and_then(|index| 1_u32.checked_shl(index))
-        {
-            self.0 |= bit;
+impl Reasons {
+    /// Adds `reason`; `false` when the verdict already holds as many reasons
+    /// as it can, and the reason is not added.
+    pub fn insert(&mut self, reason: EvidenceReason) -> bool {
+        if self.contains(reason) {
+            return true;
+        }
+        match self.0.iter_mut().find(|slot| slot.is_none()) {
+            Some(slot) => {
+                *slot = Some(reason);
+                true
+            }
+            None => false,
         }
     }
 
-    /// Whether vocabulary entry `index` is set.
+    /// Whether `reason` is held.
     #[must_use]
-    pub fn contains(self, index: usize) -> bool {
-        u32::try_from(index)
-            .ok()
-            .and_then(|index| 1_u32.checked_shl(index))
-            .is_some_and(|bit| self.0 & bit != 0)
+    pub fn contains(&self, reason: EvidenceReason) -> bool {
+        self.0.contains(&Some(reason))
     }
 
-    /// Union with another set.
+    /// Whether no reason is held.
     #[must_use]
-    pub const fn union(self, other: Self) -> Self {
-        Self(self.0 | other.0)
+    pub fn is_empty(&self) -> bool {
+        self.0.iter().all(Option::is_none)
     }
 
-    fn fits(self, entries: usize) -> bool {
-        entries >= Self::CAPACITY || self.0 >> entries == 0
+    /// The held reasons, in insertion order.
+    pub fn iter(&self) -> impl Iterator<Item = EvidenceReason> + '_ {
+        self.0.iter().filter_map(|slot| *slot)
     }
+}
+
+/// The modality's verdict on one use of a call.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Verdict {
+    /// The call lies at an edge of the read's usable signal: the core reports
+    /// what rests on it as `read_end`.
+    pub edge: bool,
+    /// The modality's own reasons against this use, reported verbatim.
+    pub withheld: Reasons,
+}
+
+impl Verdict {
+    /// Neither at an edge nor withheld.
+    #[must_use]
+    pub fn trusted(&self) -> bool {
+        !self.edge && self.withheld.is_empty()
+    }
+}
+
+/// How a call shows where a run of another base ends (ADR-0071, ADR-0074).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bound {
+    /// In phase: the call shows the end, and counts towards its own run.
+    InPhase,
+    /// Anchoring: the call shows at most the dominant end of a mixture.
+    Anchored,
+    /// The call shows no run's end and counts towards no run's length.
+    Withheld,
+}
+
+/// A call's part in a bounded run before a post-repeat phase loss: a run of
+/// one base the read bounds right where it loses phase after a repeat run
+/// (ADR-0076), as the modality finds it on the read's own calls. One call can
+/// be both: a call of one such run that bounds the next.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PostRepeatRun {
+    /// The call belongs to such a run.
+    pub call: bool,
+    /// The call bounds such a run.
+    pub bound: bool,
 }
 
 /// The second base of a call's signal, as the modality sees it.
@@ -169,41 +187,72 @@ pub struct CallEvidence {
     pub base: char,
     /// Basecall-independent A/C/G/T profile, when the modality has one.
     pub profile: Option<EvidenceProfile>,
-    /// Why and how the call is masked; `None` for a callable call.
-    pub mask: Option<CallMask>,
-    /// Support vetoes the modality raises against the call.
-    pub vetoes: VetoSet,
-    /// The modality withholds the call as too close to an edge of its usable
-    /// signal: the core reports such a call's variants as `read_end`.
-    pub edge: bool,
-    /// The modality vouches for the call's base only: it neither counts
-    /// towards a run's length nor shows where a run ends, and it supports no
-    /// insertion and bounds no deletion.
-    pub identity_only: bool,
+    /// How the call takes part in alignment, and why it is masked.
+    pub placement: Placement,
+    /// Whether the call shows its base: a substitution it supports, and its
+    /// observation of a position.
+    pub identity: Verdict,
+    /// Whether the call places an insertion or deletion: an inserted call, or
+    /// a call flanking an insertion or deletion.
+    pub indel: Verdict,
+    /// Whether the call shows where a run ends, and counts towards a run.
+    pub bound: Bound,
+    /// The call's part in a run the read bounds before a post-repeat phase
+    /// loss (ADR-0076).
+    pub post_repeat: PostRepeatRun,
     /// The second base of the call's signal, when the modality sees one;
     /// evidence for review, read by no calling rule.
     pub second: Option<SecondBase>,
 }
 
 impl CallEvidence {
-    /// A call with `base`, `profile`, `mask`, and `vetoes`, outside every
-    /// signal edge, trusted for runs, and without a second base.
+    /// A scored call with `base` and `profile` that the modality trusts for
+    /// everything it shows, without a second base.
     #[must_use]
-    pub const fn new(
-        base: char,
-        profile: Option<EvidenceProfile>,
-        mask: Option<CallMask>,
-        vetoes: VetoSet,
-    ) -> Self {
+    pub const fn scored(base: char, profile: Option<EvidenceProfile>) -> Self {
         Self {
             base,
             profile,
-            mask,
-            vetoes,
-            edge: false,
-            identity_only: false,
+            placement: Placement::Scored,
+            identity: Verdict {
+                edge: false,
+                withheld: Reasons([None; REASON_CAPACITY]),
+            },
+            indel: Verdict {
+                edge: false,
+                withheld: Reasons([None; REASON_CAPACITY]),
+            },
+            bound: Bound::InPhase,
+            post_repeat: PostRepeatRun {
+                call: false,
+                bound: false,
+            },
             second: None,
         }
+    }
+
+    /// The same call masked: anchoring calls still show where a run ends,
+    /// unresolved ones show nothing; neither shows its base or an indel.
+    #[must_use]
+    pub fn masked(mut self, placement: Placement) -> Self {
+        if let Some(reason) = placement.reason() {
+            self.identity.withheld.insert(reason);
+            self.indel.withheld.insert(reason);
+        }
+        self.bound = match placement {
+            Placement::Scored => self.bound,
+            Placement::Anchoring(_) => Bound::Anchored,
+            Placement::Unresolved(_) => Bound::Withheld,
+        };
+        self.placement = placement;
+        self
+    }
+
+    /// Whether the call is vouched for by its base only: scored, but showing
+    /// no run's end and placing no indel.
+    #[must_use]
+    pub fn base_only(&self) -> bool {
+        self.placement == Placement::Scored && self.bound == Bound::Withheld
     }
 }
 
@@ -234,26 +283,28 @@ pub enum ReadEnds {
 pub struct ReadEvidence {
     calls: Vec<CallEvidence>,
     informative: Range<usize>,
-    support_vetoes: Vec<SupportVeto>,
+    reason_order: Vec<EvidenceReason>,
     ends: ReadEnds,
 }
 
 impl ReadEvidence {
     /// Validates and wraps one read's evidence.
     ///
-    /// `informative` is the interval of calls the modality retains; every
-    /// veto bit must name an entry of `support_vetoes`; reason labels must be
-    /// non-empty `snake_case`, distinct across vetoes, and not core labels.
+    /// `informative` is the interval of calls the modality retains.
+    /// `reason_order` lists the modality's verdict reasons in the order the
+    /// core reports them; every reason a verdict holds must be listed there.
+    /// Reason labels, those of masked placements included, must be non-empty
+    /// `snake_case` and not core labels.
     ///
     /// # Errors
     ///
-    /// Returns `EvidenceError` when the interval exceeds the calls, there are
-    /// more than `VetoSet::CAPACITY` vetoes, a veto bit names no vocabulary
-    /// entry, or a reason label is invalid or a core label.
+    /// Returns `EvidenceError` when the interval exceeds the calls, a verdict
+    /// holds a reason the order does not list, or a reason label is invalid,
+    /// repeated in the order, or a core label.
     pub fn new(
         calls: Vec<CallEvidence>,
         informative: Range<usize>,
-        support_vetoes: Vec<SupportVeto>,
+        reason_order: Vec<EvidenceReason>,
     ) -> Result<Self> {
         if informative.start > informative.end || informative.end > calls.len() {
             return Err(EvidenceError::InvalidInformativeInterval {
@@ -263,58 +314,50 @@ impl ReadEvidence {
             }
             .into());
         }
-        if support_vetoes.len() > VetoSet::CAPACITY {
-            return Err(EvidenceError::TooManyVetoes {
-                count: support_vetoes.len(),
-                maximum: VetoSet::CAPACITY,
-            }
-            .into());
-        }
-        let mut seen = Vec::with_capacity(support_vetoes.len());
-        for veto in &support_vetoes {
-            let label = veto.reason.label();
+        let mut seen = Vec::with_capacity(reason_order.len());
+        for reason in &reason_order {
+            let label = reason.label();
             if !valid_label(label) || seen.contains(&label) {
                 return Err(EvidenceError::InvalidReason(label).into());
             }
             seen.push(label);
         }
         for (index, call) in calls.iter().enumerate() {
-            if !call.vetoes.fits(support_vetoes.len()) {
-                return Err(EvidenceError::UndeclaredVeto { index }.into());
-            }
-            if let Some(mask) = call.mask
-                && !valid_label(mask.reason.label())
+            if let Some(reason) = call.placement.reason()
+                && !valid_label(reason.label())
             {
-                return Err(EvidenceError::InvalidReason(mask.reason.label()).into());
+                return Err(EvidenceError::InvalidReason(reason.label()).into());
+            }
+            let masked = call.placement.reason();
+            if call
+                .identity
+                .withheld
+                .iter()
+                .chain(call.indel.withheld.iter())
+                .any(|reason| Some(reason) != masked && !reason_order.contains(&reason))
+            {
+                return Err(EvidenceError::UndeclaredReason { index }.into());
             }
         }
         Ok(Self {
             calls,
             informative,
-            support_vetoes,
+            reason_order,
             ends: ReadEnds::Unvouched,
         })
     }
 
     /// The same evidence with every call within `margin` calls of an
-    /// uninformative call marked as at a signal edge (`edge`). An
-    /// uninformative call lies outside the informative interval or is masked
-    /// without anchoring; the read's ends count as uninformative unless the
-    /// modality vouches for them. A call is clear of the edges when more than
-    /// `margin` informative calls, itself included, separate it from the
+    /// uninformative call placed at a signal edge, for its base and for
+    /// indels. An uninformative call lies outside the informative interval or
+    /// is masked as unresolved; the read's ends count as uninformative unless
+    /// the modality vouches for them. A call is clear of the edges when more
+    /// than `margin` informative calls, itself included, separate it from the
     /// nearest uninformative call on each side.
     #[must_use]
     pub fn with_signal_edges(mut self, margin: usize) -> Self {
-        let informative = self
-            .calls
-            .iter()
-            .enumerate()
-            .map(|(index, call)| {
-                self.informative.contains(&index)
-                    && call
-                        .mask
-                        .is_none_or(|mask| mask.alignment == MaskedAlignment::Anchoring)
-            })
+        let informative = (0..self.calls.len())
+            .map(|index| self.informative_call(index))
             .collect::<Vec<_>>();
         let end = match self.ends {
             ReadEnds::Unvouched => 0,
@@ -329,9 +372,22 @@ impl ReadEvidence {
         run = end;
         for index in (0..informative.len()).rev() {
             run = if informative[index] { run + 1 } else { 0 };
-            self.calls[index].edge = before[index] <= margin || run <= margin;
+            let edge = before[index] <= margin || run <= margin;
+            self.calls[index].identity.edge = edge;
+            self.calls[index].indel.edge = edge;
         }
         self
+    }
+
+    /// Whether the call at `index` carries information: inside the
+    /// informative interval and not masked as unresolved.
+    #[must_use]
+    pub fn informative_call(&self, index: usize) -> bool {
+        self.informative.contains(&index)
+            && self
+                .calls
+                .get(index)
+                .is_some_and(|call| !matches!(call.placement, Placement::Unresolved(_)))
     }
 
     /// The same evidence with the modality vouching for the read's ends.
@@ -359,10 +415,10 @@ impl ReadEvidence {
         self.informative.clone()
     }
 
-    /// The support-veto vocabulary, in reporting order.
+    /// The modality's verdict reasons, in reporting order.
     #[must_use]
-    pub fn support_vetoes(&self) -> &[SupportVeto] {
-        &self.support_vetoes
+    pub fn reason_order(&self) -> &[EvidenceReason] {
+        &self.reason_order
     }
 
     /// Clean evidence for `sequence`: one-hot profiles, no masks, no vetoes,
@@ -378,14 +434,14 @@ impl ReadEvidence {
                     weights[channel] = 1.0;
                     EvidenceProfile { weights }
                 });
-                CallEvidence::new(base, profile, None, VetoSet::default())
+                CallEvidence::scored(base, profile)
             })
             .collect::<Vec<_>>();
         let informative = 0..calls.len();
         Self {
             calls,
             informative,
-            support_vetoes: Vec::new(),
+            reason_order: Vec::new(),
             ends: ReadEnds::Unvouched,
         }
     }
@@ -411,55 +467,45 @@ fn valid_label(label: &str) -> bool {
 mod tests {
     use super::*;
 
-    const PEAK: SupportVeto = SupportVeto {
-        reason: EvidenceReason::new("peak_below_minimum"),
-        scope: VetoScope::SubstitutionsAndInsertions,
-    };
+    const PEAK: EvidenceReason = EvidenceReason::new("peak_below_minimum");
 
     #[test]
     fn rejects_inconsistent_evidence() {
-        let call = CallEvidence::new('A', None, None, VetoSet::default());
+        let call = CallEvidence::scored('A', None);
         assert!(ReadEvidence::new(vec![call; 2], 1..3, Vec::new()).is_err());
         let mut vetoed = call;
-        vetoed.vetoes.insert(1);
-        assert!(ReadEvidence::new(vec![vetoed], 0..1, vec![PEAK]).is_err());
+        vetoed.identity.withheld.insert(PEAK);
+        // A verdict reason the order does not list.
+        assert!(ReadEvidence::new(vec![vetoed], 0..1, Vec::new()).is_err());
         assert!(ReadEvidence::new(vec![call], 0..1, vec![PEAK, PEAK]).is_err());
         // Every label the core owns is refused to a modality.
         for label in CORE_REASONS {
-            let core = SupportVeto {
-                reason: EvidenceReason::new(label),
-                ..PEAK
-            };
             assert!(
-                ReadEvidence::new(vec![call], 0..1, vec![core]).is_err(),
+                ReadEvidence::new(vec![call], 0..1, vec![EvidenceReason::new(label)]).is_err(),
                 "{label}"
             );
         }
-        let masked = CallEvidence {
-            mask: Some(CallMask {
-                alignment: MaskedAlignment::Unresolved,
-                reason: EvidenceReason::new("Weak Signal"),
-                onset: MaskOnset::Other,
-            }),
-            ..call
-        };
+        let masked = call.masked(Placement::Unresolved(EvidenceReason::new("Weak Signal")));
         assert!(ReadEvidence::new(vec![masked], 0..1, Vec::new()).is_err());
-        vetoed = call;
-        vetoed.vetoes.insert(0);
         assert!(ReadEvidence::new(vec![vetoed, call], 0..2, vec![PEAK]).is_ok());
     }
 
     #[test]
+    fn a_masked_call_withholds_its_base_and_indels_and_keeps_an_anchoring_bound() {
+        let reason = EvidenceReason::new("dephased_signal");
+        let anchoring = CallEvidence::scored('A', None).masked(Placement::Anchoring(reason));
+        assert!(anchoring.identity.withheld.contains(reason));
+        assert!(anchoring.indel.withheld.contains(reason));
+        assert_eq!(anchoring.bound, Bound::Anchored);
+        let unresolved = CallEvidence::scored('A', None).masked(Placement::Unresolved(reason));
+        assert_eq!(unresolved.bound, Bound::Withheld);
+        assert!(!unresolved.base_only());
+    }
+
+    #[test]
     fn marks_calls_within_the_margin_of_an_uninformative_call() -> Result<()> {
-        let call = CallEvidence::new('A', None, None, VetoSet::default());
-        let masked = CallEvidence {
-            mask: Some(CallMask {
-                alignment: MaskedAlignment::Unresolved,
-                reason: EvidenceReason::new("weak_signal"),
-                onset: MaskOnset::Other,
-            }),
-            ..call
-        };
+        let call = CallEvidence::scored('A', None);
+        let masked = call.masked(Placement::Unresolved(EvidenceReason::new("weak_signal")));
         let mut calls = vec![call; 12];
         calls[7] = masked;
         let edges = |evidence: ReadEvidence| {
@@ -467,7 +513,11 @@ mod tests {
                 .with_signal_edges(2)
                 .calls()
                 .iter()
-                .map(|call| if call.edge { 'e' } else { '.' })
+                .map(|call| match (call.identity.edge, call.indel.edge) {
+                    (true, true) => 'e',
+                    (false, false) => '.',
+                    _ => '?',
+                })
                 .collect::<String>()
         };
         // Informative calls 1..11; the masked call at 7 and both ends of the

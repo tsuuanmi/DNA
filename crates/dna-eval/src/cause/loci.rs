@@ -9,7 +9,7 @@ use dna_core::model::alignment::Orientation;
 use dna_core::model::consensus::SiteState;
 use dna_core::model::sample_evidence::LocusState;
 use dna_kernel::model::nucleotide::Nucleotide;
-use dna_kernel::read_evidence::{CallMask, MaskOnset};
+use dna_kernel::read_evidence::EvidenceReason;
 
 /// A second channel at or above this share of a read's profile, in
 /// thousandths, is a faint second base; below it, none (3 %).
@@ -184,8 +184,8 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Loci> {
                 }
                 LocusState::Unresolved => *flags |= UNRESOLVED,
                 LocusState::Masked => {
-                    *flags |= match call_trust.and_then(|trust| trust.mask) {
-                        Some(mask) if phase_loss(mask) => PHASE,
+                    *flags |= match call_trust.and_then(|trust| trust.placement.reason()) {
+                        Some(reason) if phase_loss(reason) => PHASE,
                         _ => SIGNAL,
                     };
                 }
@@ -215,9 +215,9 @@ pub(crate) fn extract(analysis: &SampleAnalysis) -> dna::error::Result<Loci> {
 /// mixed signal, or a segment starting after a repeat run).
 const PHASE_LOSS: [&str; 3] = ["dephased_signal", "mixed_signal", "post_homopolymer"];
 
-/// Whether a mask is phase loss: its label, or its onset after a run.
-fn phase_loss(mask: CallMask) -> bool {
-    mask.onset == MaskOnset::AfterRun || PHASE_LOSS.contains(&mask.reason.label())
+/// Whether a mask reason is phase loss.
+fn phase_loss(reason: EvidenceReason) -> bool {
+    PHASE_LOSS.contains(&reason.label())
 }
 
 /// Where a read's clean call stands, from the core's verdict on it
@@ -230,10 +230,9 @@ fn phase_loss(mask: CallMask) -> bool {
 fn standing(trust: &CallTrust, reference: bool) -> u16 {
     let withheld = !trust.trusted && !trust.exempt;
     if withheld
-        && trust
-            .withheld_by
-            .iter()
-            .any(|withholder| matches!(withholder, Withholder::Masked(mask) if phase_loss(*mask)))
+        && trust.withheld_by.iter().any(
+            |withholder| matches!(withholder, Withholder::Masked(reason) if phase_loss(*reason)),
+        )
     {
         return BESIDE_PHASE_LOSS;
     }
@@ -261,7 +260,7 @@ fn faint(weight: f64) -> bool {
 mod tests {
     use super::*;
     use dna::sample_analysis::TrustScope;
-    use dna_kernel::read_evidence::{EvidenceReason, MaskedAlignment};
+    use dna_kernel::read_evidence::{EvidenceReason, Placement};
 
     fn trust(
         trusted: bool,
@@ -270,7 +269,7 @@ mod tests {
         vetoes: &[&'static str],
     ) -> CallTrust {
         CallTrust {
-            mask: None,
+            placement: Placement::Scored,
             unresolved: false,
             vetoes: vetoes
                 .iter()
@@ -284,12 +283,8 @@ mod tests {
         }
     }
 
-    fn masked(label: &'static str, onset: MaskOnset) -> Withholder {
-        Withholder::Masked(CallMask {
-            alignment: MaskedAlignment::Unresolved,
-            reason: EvidenceReason::new(label),
-            onset,
-        })
+    fn masked(label: &'static str) -> Withholder {
+        Withholder::Masked(EvidenceReason::new(label))
     }
 
     #[test]
@@ -299,19 +294,11 @@ mod tests {
         let beside = trust(
             false,
             false,
-            vec![
-                Withholder::ReadEnd,
-                masked("dephased_signal", MaskOnset::Other),
-            ],
+            vec![Withholder::ReadEnd, masked("dephased_signal")],
             &[],
         );
         assert_eq!(standing(&beside, true), BESIDE_PHASE_LOSS);
-        let after_run = trust(
-            false,
-            false,
-            vec![masked("weak_signal", MaskOnset::AfterRun)],
-            &[],
-        );
+        let after_run = trust(false, false, vec![masked("post_homopolymer")], &[]);
         assert_eq!(standing(&after_run, true), BESIDE_PHASE_LOSS);
         // Withheld by the read end or a weak-signal segment: the read's edge.
         assert_eq!(
@@ -319,24 +306,11 @@ mod tests {
             EDGE
         );
         assert_eq!(
-            standing(
-                &trust(
-                    false,
-                    false,
-                    vec![masked("weak_signal", MaskOnset::Other)],
-                    &[]
-                ),
-                true
-            ),
+            standing(&trust(false, false, vec![masked("weak_signal")], &[]), true),
             EDGE
         );
         // An ADR-0076 exemption is trust.
-        let exempt = trust(
-            false,
-            true,
-            vec![masked("dephased_signal", MaskOnset::Other)],
-            &[],
-        );
+        let exempt = trust(false, true, vec![masked("dephased_signal")], &[]);
         assert_eq!(standing(&exempt, true), INSIDE);
         // Vetoes, by label.
         assert_eq!(

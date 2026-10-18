@@ -2,7 +2,7 @@
 //! calling and consensus already reach, exposed as diagnostic evidence for
 //! evaluation and review. It is not a calling contract.
 
-use dna_kernel::read_evidence::{CallMask, EvidenceReason, SecondBase};
+use dna_kernel::read_evidence::{EvidenceReason, Placement, SecondBase};
 
 /// What withholds trust from a call: the nearest uninformative call, or the
 /// read's own end, within the read-end margin on one side.
@@ -12,9 +12,9 @@ pub enum Withholder {
     ReadEnd,
     /// A call outside the read's informative interval.
     Untrimmed,
-    /// A masked call that does not anchor the alignment, with its reason
-    /// and onset as the modality gave them.
-    Masked(CallMask),
+    /// A masked call that does not anchor the alignment, with its reason as
+    /// the modality gave it.
+    Masked(EvidenceReason),
 }
 
 /// What the modality vouches for in a call.
@@ -30,14 +30,17 @@ pub enum TrustScope {
 /// The core's trust in one call of a read.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallTrust {
-    /// The call's mask, when it has one.
-    pub mask: Option<CallMask>,
+    /// How the call takes part in alignment, and why a masked call is
+    /// masked, as the modality gave it.
+    pub placement: Placement,
     /// The call reads no base (`N`).
     pub unresolved: bool,
-    /// The support vetoes raised against the call, by label.
+    /// The modality's reasons against the call's base, by label, in the
+    /// read's reason order.
     pub vetoes: Vec<EvidenceReason>,
-    /// The call is informative and outside the read-end margin of every
-    /// uninformative call (`read_end`).
+    /// The modality places the call clear of its signal edges, and it lies
+    /// outside the read-end margin of a read end it does not vouch for
+    /// (`read_end`).
     pub trusted: bool,
     /// A bounded-run exemption lifts `read_end` from the call (ADR-0076).
     pub exempt: bool,

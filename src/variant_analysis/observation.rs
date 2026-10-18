@@ -5,7 +5,7 @@ use crate::model::read_observation::ReadObservation;
 use dna_kernel::error::{Error, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
-use dna_kernel::read_evidence::VetoSet;
+use dna_kernel::read_evidence::Placement;
 use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::sanger::Chromatogram;
 use dna_sanger::read_processing::{self, ProcessedRead};
@@ -79,11 +79,20 @@ pub(crate) fn observe(
         event = "read_evidence_completed",
         calls = evidence.calls().len(),
         informative = ?evidence.informative(),
-        masked_calls = evidence.calls().iter().filter(|call| call.mask.is_some()).count(),
+        masked_calls = evidence
+            .calls()
+            .iter()
+            .filter(|call| call.placement != Placement::Scored)
+            .count(),
         vetoed_calls = evidence
             .calls()
             .iter()
-            .filter(|call| call.vetoes != VetoSet::default())
+            .filter(|call| {
+                evidence
+                    .reason_order()
+                    .iter()
+                    .any(|reason| call.identity.withheld.contains(*reason))
+            })
             .count(),
         minimum_peak_height = config.sanger.sanger_evidence.minimum_peak_height,
         relative_quality_threshold = config.sanger.sanger_evidence.relative_quality_threshold,

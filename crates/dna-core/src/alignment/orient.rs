@@ -12,9 +12,7 @@ use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, Reference
 use dna_kernel::error::{AlignmentError, Result};
 use dna_kernel::model::nucleotide::{is_canonical, reverse_complement};
 use dna_kernel::model::reference::{Reference, ReferenceTopology};
-use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceProfile, MaskedAlignment, ReadEnds, ReadEvidence,
-};
+use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, Placement, ReadEnds, ReadEvidence};
 
 struct Candidate {
     orientation: Orientation,
@@ -38,7 +36,7 @@ pub(crate) fn align_best(
     let forward_query = retained
         .iter()
         .map(|call| {
-            if unresolved(call.mask) {
+            if unresolved(Some(call.placement)) {
                 'N'
             } else {
                 call.base
@@ -49,7 +47,7 @@ pub(crate) fn align_best(
     let forward_profiles = retained
         .iter()
         .map(|call| {
-            if unresolved(call.mask) {
+            if unresolved(Some(call.placement)) {
                 None
             } else {
                 call.profile
@@ -297,7 +295,7 @@ fn finish_alignment(
             .mapping
             .get(query)
             .and_then(|&call| calls.get(call))
-            .is_some_and(|call| call.mask.is_some())
+            .is_some_and(|call| call.placement != Placement::Scored)
     };
     runs::reexpress(&mut raw, reference, &masked);
     let raw = &raw;
@@ -323,7 +321,8 @@ fn finish_alignment(
         column
             .original_call_index_0based
             .and_then(|index| calls.get(index))
-            .and_then(|call| call.mask)
+            .map(|call| call.placement)
+            .filter(|placement| *placement != Placement::Scored)
     };
     let masked_query_bases = columns
         .iter()
@@ -404,8 +403,8 @@ fn callable_segments(
 }
 
 /// Whether a call aligns as unresolved.
-fn unresolved(mask: Option<CallMask>) -> bool {
-    mask.is_some_and(|mask| mask.alignment == MaskedAlignment::Unresolved)
+fn unresolved(placement: Option<Placement>) -> bool {
+    matches!(placement, Some(Placement::Unresolved(_)))
 }
 
 fn reverse_profiles(profiles: &[Option<EvidenceProfile>]) -> Vec<Option<EvidenceProfile>> {
@@ -465,7 +464,7 @@ fn segments(alignment: &RawAlignment, reference: &Reference) -> (Vec<ReferenceSe
 mod tests {
     use crate::model::alignment::AlignmentMetrics;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::{EvidenceReason, MaskOnset};
+    use dna_kernel::read_evidence::EvidenceReason;
 
     use super::*;
 
@@ -896,11 +895,7 @@ mod tests {
         };
         let clean = ReadEvidence::clean("TTGACCCCCCCCTCCCCCCGTAGG");
         let mut call = clean.calls()[12];
-        call.mask = Some(CallMask {
-            alignment: MaskedAlignment::Anchoring,
-            reason: EvidenceReason::new("dephased_signal"),
-            onset: MaskOnset::Other,
-        });
+        call = call.masked(Placement::Anchoring(EvidenceReason::new("dephased_signal")));
         let masked = clean.clone().with_call(12, call);
         let inserted_after = |alignment: &Alignment| {
             alignment
@@ -923,11 +918,7 @@ mod tests {
         // A reverse read lands on the same reference coordinates.
         let reverse = ReadEvidence::clean(&reverse_complement("TTGACCCCCCCCTCCCCCCGTAGG"));
         let mut call = reverse.calls()[11];
-        call.mask = Some(CallMask {
-            alignment: MaskedAlignment::Anchoring,
-            reason: EvidenceReason::new("dephased_signal"),
-            onset: MaskOnset::Other,
-        });
+        call = call.masked(Placement::Anchoring(EvidenceReason::new("dephased_signal")));
         let reverse = align_best(&reverse.clone().with_call(11, call), &reference, &config())?;
         assert_eq!(reverse.orientation, Orientation::Reverse);
         assert_eq!(inserted_after(&reverse), [10, 16]);

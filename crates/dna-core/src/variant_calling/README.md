@@ -9,7 +9,8 @@ Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
 ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md))
 and imports no Sanger type.
 - `eligibility.rs` decides which calls of a read can support a variant. Calls
-  the modality places at a signal edge (`CallEvidence::edge`), or within the
+  the modality places at a signal edge (the `edge` of its verdict on its base
+  or on an indel), or within the
   margin of a read end it does not vouch for, give `read_end` (ADR-0062). A
   call vouched for by its base only supports a substitution but no indel and
   shows no run's end; one that may sit one position off gives

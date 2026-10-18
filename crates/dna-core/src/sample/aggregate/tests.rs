@@ -9,8 +9,7 @@ use crate::model::variant::{
     VariantExclusionReason, VariantKind,
 };
 use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceProfile, EvidenceReason, MaskOnset, MaskedAlignment,
-    ReadEvidence, VetoSet,
+    CallEvidence, EvidenceProfile, EvidenceReason, Placement, ReadEvidence,
 };
 
 use super::*;
@@ -34,12 +33,7 @@ fn evidence(call_count: usize) -> ReadEvidence {
 const PROFILE: [f64; 4] = [0.1, 0.2, 0.3, 0.4];
 
 fn call(base: char, profile: Option<[f64; 4]>) -> CallEvidence {
-    CallEvidence::new(
-        base,
-        profile.map(|weights| EvidenceProfile { weights }),
-        None,
-        VetoSet::default(),
-    )
+    CallEvidence::scored(base, profile.map(|weights| EvidenceProfile { weights }))
 }
 
 /// Runs aggregation over owned reads with no rejected read.
@@ -550,14 +544,8 @@ fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -
     for index in 0..2 {
         masked.evidence = masked.evidence.with_call(
             index,
-            CallEvidence {
-                mask: Some(CallMask {
-                    alignment: MaskedAlignment::Anchoring,
-                    reason: EvidenceReason::new("dephased_signal"),
-                    onset: MaskOnset::Other,
-                }),
-                ..call('G', Some(PROFILE))
-            },
+            call('G', Some(PROFILE))
+                .masked(Placement::Anchoring(EvidenceReason::new("dephased_signal"))),
         );
     }
 

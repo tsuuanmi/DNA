@@ -2,12 +2,13 @@
 //!
 //! The core never sees chromatogram types. This adapter turns the Sanger
 //! products of one read into the modality-neutral record: the primary calls,
-//! each call's basecall-independent locus profile, the callability mask with
-//! its phase-state reason, the trim interval, and the support vetoes the
-//! Sanger evidence raises against each call (peak floor, relative quality, and
-//! mixed signal for substitutions), each call's distance from the edges of the
-//! read's usable signal, the leading calls the signal vouches for by their
-//! base alone, and each call's second base.
+//! each call's basecall-independent locus profile, its placement (scored, or
+//! masked with its phase-state reason), the trim interval, and its verdicts:
+//! whether it shows its base (peak floor, relative quality, mixed signal),
+//! an indel (peak floor, relative quality), and a run's end, which calls lie
+//! at an edge of the read's usable signal, the leading calls the signal
+//! vouches for by their base alone, the bounded runs before a post-repeat
+//! phase loss (ADR-0076), and each call's second base.
 
 use super::SangerEvidenceConfig;
 use crate::model::basecalls::BaseCalls;
@@ -16,9 +17,9 @@ use crate::model::quality::QualityControlResult;
 use crate::model::signal::SignalAnalysis;
 use dna_kernel::error::{AlignmentError, Result, VariantError};
 use dna_kernel::model::nucleotide::Nucleotide;
+use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
-    CallEvidence, CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence, SecondBase,
-    SupportVeto, VetoScope, VetoSet,
+    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, SecondBase, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -39,32 +40,25 @@ pub(crate) const WEAK_SIGNAL: EvidenceReason = EvidenceReason::new("weak_signal"
 /// A masked call in an irregular-spacing segment.
 pub(crate) const IRREGULAR_SPACING: EvidenceReason = EvidenceReason::new("irregular_spacing");
 
-/// The Sanger support-veto vocabulary, in reporting order.
-const SUPPORT_VETOES: [SupportVeto; 3] = [
-    SupportVeto {
-        reason: PEAK_BELOW_MINIMUM,
-        scope: VetoScope::SubstitutionsAndInsertions,
-    },
-    SupportVeto {
-        reason: RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
-        scope: VetoScope::SubstitutionsAndInsertions,
-    },
-    SupportVeto {
-        reason: MIXED_SUPPORTING_DNA,
-        scope: VetoScope::Substitutions,
-    },
+/// The Sanger verdict reasons, in reporting order.
+const REASON_ORDER: [EvidenceReason; 3] = [
+    PEAK_BELOW_MINIMUM,
+    RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
+    MIXED_SUPPORTING_DNA,
 ];
-const PEAK: usize = 0;
-const QUALITY: usize = 1;
-const MIXED: usize = 2;
+
+/// Informative calls between a run's bound and a post-repeat edge for the
+/// run to count as bounded before that phase loss (ADR-0076).
+const POST_REPEAT_MINIMUM_CALLS: usize = 2;
 
 /// Builds one read's core evidence from its Sanger products. A call within
 /// `edge_margin` calls of the trim interval's ends, of a masked call that
 /// does not anchor the alignment, or of the read's physical ends is at an
-/// edge of the read's usable signal (`edge`). The leading calls the signal
-/// vouches for by their base (SRS-CALL-014) are then unmasked,
-/// trusted for their base only, and freed of the relative-quality veto, and
-/// the informative interval starts at the first of them.
+/// edge of the read's usable signal. The leading calls the signal vouches for
+/// by their base (SRS-CALL-014) are then unmasked, trusted for their base
+/// only, and freed of the relative-quality reason, and the informative
+/// interval starts at the first of them. Last, the bounded runs before a
+/// post-repeat phase loss are marked (ADR-0076).
 ///
 /// # Errors
 ///
@@ -125,49 +119,156 @@ pub fn read_evidence(
                 .map(|peak| peak.height)
                 .max()
                 .ok_or(VariantError::NoChannelPeaks { index })?;
-            let mut vetoes = VetoSet::default();
+            let mut evidence = CallEvidence {
+                second: second_base(call),
+                ..CallEvidence::scored(call.primary, signal.loci[index].profile)
+            };
+            // Peak floor and relative quality withhold the base and an
+            // indel; mixed signal withholds the base only.
             if highest_peak < config.minimum_peak_height {
-                vetoes.insert(PEAK);
+                evidence.identity.withheld.insert(PEAK_BELOW_MINIMUM);
+                evidence.indel.withheld.insert(PEAK_BELOW_MINIMUM);
             }
             if score.relative_quality_score <= config.relative_quality_threshold {
-                vetoes.insert(QUALITY);
+                evidence
+                    .identity
+                    .withheld
+                    .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD);
+                evidence
+                    .indel
+                    .withheld
+                    .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD);
             }
             if call.qualifying_channels.len() > 1 {
-                vetoes.insert(MIXED);
+                evidence.identity.withheld.insert(MIXED_SUPPORTING_DNA);
             }
-            Ok(CallEvidence {
-                second: second_base(call),
-                ..CallEvidence::new(
-                    call.primary,
-                    signal.loci[index].profile,
-                    call_mask(callability, index),
-                    vetoes,
-                )
+            Ok(match placement(callability, index) {
+                Some(placement) => evidence.masked(placement),
+                None => evidence,
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let edged = ReadEvidence::new(evidence, start..end, SUPPORT_VETOES.to_vec())?
+    let edged = ReadEvidence::new(evidence, start..end, REASON_ORDER.to_vec())?
         .with_signal_edges(edge_margin);
     let leading = leading_identity(calls, callability);
-    let Some(&first) = leading.first() else {
-        return Ok(edged);
-    };
     let mut evidence = edged.calls().to_vec();
     for &index in &leading {
         let call = &mut evidence[index];
-        let mut vetoes = VetoSet::default();
-        if call.vetoes.contains(PEAK) {
-            vetoes.insert(PEAK);
+        let mut withheld = Reasons::default();
+        if call.identity.withheld.contains(PEAK_BELOW_MINIMUM) {
+            withheld.insert(PEAK_BELOW_MINIMUM);
         }
         *call = CallEvidence {
-            mask: None,
-            vetoes,
-            edge: false,
-            identity_only: true,
+            placement: Placement::Scored,
+            identity: Verdict {
+                edge: false,
+                withheld,
+            },
+            indel: Verdict {
+                edge: true,
+                withheld,
+            },
+            bound: Bound::Withheld,
             ..*call
         };
     }
-    ReadEvidence::new(evidence, first.min(start)..end, SUPPORT_VETOES.to_vec())
+    let informative = leading.first().map_or(start, |&first| first.min(start))..end;
+    let after_repeat = (0..count)
+        .map(|index| {
+            evidence[index].placement != Placement::Scored
+                && callability
+                    .segment_at(index)
+                    .is_some_and(|segment| segment.after_repeat)
+        })
+        .collect::<Vec<_>>();
+    mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, edge_margin);
+    ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())
+}
+
+/// Marks every run of one base the read bounds right before it loses phase
+/// after a repeat run (ADR-0076): a run of at least two canonical calls,
+/// scored and counting towards runs, bounded on both sides by calls that
+/// show a run's end and read another base, where on each side either more
+/// than `margin` informative calls separate the bound from the nearest
+/// uninformative call, or at least [`POST_REPEAT_MINIMUM_CALLS`] do and that
+/// call is masked after a repeat run (`after_repeat`), while some call of the
+/// run or its bounds is at a signal edge or within `margin` of the read's
+/// ends. The core trusts such a run's length; it takes the run from the read's
+/// own calls, and the alignment-dependent half of the rule stays there.
+fn mark_post_repeat_runs(
+    calls: &mut [CallEvidence],
+    informative: &std::ops::Range<usize>,
+    after_repeat: &[bool],
+    margin: usize,
+) {
+    let count = calls.len();
+    let carries = |index: usize| {
+        informative.contains(&index) && !matches!(calls[index].placement, Placement::Unresolved(_))
+    };
+    let mut before = vec![0_usize; count];
+    let mut run = 0;
+    for (index, slot) in before.iter_mut().enumerate() {
+        run = if carries(index) { run + 1 } else { 0 };
+        *slot = run;
+    }
+    let mut after = vec![0_usize; count];
+    run = 0;
+    for index in (0..count).rev() {
+        run = if carries(index) { run + 1 } else { 0 };
+        after[index] = run;
+    }
+    let trusted =
+        |index: usize| !calls[index].identity.edge && index >= margin && index + margin < count;
+    let resolves = |index: usize, base: char| {
+        informative.contains(&index)
+            && calls[index].base != base
+            && calls[index].base != 'N'
+            && calls[index].bound != Bound::Withheld
+    };
+    let side = |run: usize, edge: Option<usize>| {
+        run > margin
+            || (run >= POST_REPEAT_MINIMUM_CALLS
+                && edge.is_some_and(|edge| after_repeat.get(edge).copied().unwrap_or(false)))
+    };
+    let mut marked = Vec::new();
+    let mut start = 0;
+    while start < count {
+        let base = calls[start].base;
+        let mut end = start;
+        while end + 1 < count && calls[end + 1].base == base {
+            end += 1;
+        }
+        if end > start
+            && is_canonical(base)
+            && let Some(left) = start.checked_sub(1)
+            && end + 1 < count
+        {
+            let right = end + 1;
+            let bounded = resolves(left, base)
+                && resolves(right, base)
+                && calls[left..=right].iter().all(|call| {
+                    call.placement == Placement::Scored && call.bound != Bound::Withheld
+                });
+            let exempt = bounded
+                && side(before[left], left.checked_sub(before[left]))
+                && side(
+                    after[right],
+                    Some(right + after[right]).filter(|index| *index < count),
+                )
+                && (left..=right).any(|index| !trusted(index));
+            if exempt {
+                marked.push((start, end));
+            }
+        }
+        start = end + 1;
+    }
+    for (start, end) in marked {
+        for call in &mut calls[start..=end] {
+            call.post_repeat.call = true;
+        }
+        calls[start - 1].post_repeat.bound = true;
+        calls[end + 1].post_repeat.bound = true;
+    }
 }
 
 /// The primary peak height of a call with a canonical primary base.
@@ -223,11 +324,11 @@ fn second_base(call: &crate::model::basecalls::BaseCall) -> Option<SecondBase> {
     })
 }
 
-/// The mask of a call: `post_homopolymer` when its segment starts right after
-/// a repeat run, otherwise its phase state; dephased calls still anchor the
-/// alignment, every other masked call is unresolved. The onset says whether
-/// the segment starts right after a repeat run (ADR-0076).
-fn call_mask(callability: &ReadCallability, index: usize) -> Option<CallMask> {
+/// The placement of a masked call: `post_homopolymer` when its segment starts
+/// right after a repeat run, otherwise its phase state; dephased calls still
+/// anchor the alignment, every other masked call is unresolved. `None` for an
+/// unmasked call.
+fn placement(callability: &ReadCallability, index: usize) -> Option<Placement> {
     let state = callability.mask.get(index).copied().flatten()?;
     if state == PhaseState::InPhase {
         return None;
@@ -235,11 +336,6 @@ fn call_mask(callability: &ReadCallability, index: usize) -> Option<CallMask> {
     let after_repeat = callability
         .segment_at(index)
         .is_some_and(|segment| segment.after_repeat);
-    let onset = if after_repeat {
-        MaskOnset::AfterRun
-    } else {
-        MaskOnset::Other
-    };
     let reason = if after_repeat {
         POST_HOMOPOLYMER
     } else {
@@ -251,15 +347,10 @@ fn call_mask(callability: &ReadCallability, index: usize) -> Option<CallMask> {
             PhaseState::InPhase => return None,
         }
     };
-    let alignment = if state == PhaseState::Dephased {
-        MaskedAlignment::Anchoring
+    Some(if state == PhaseState::Dephased {
+        Placement::Anchoring(reason)
     } else {
-        MaskedAlignment::Unresolved
-    };
-    Some(CallMask {
-        alignment,
-        reason,
-        onset,
+        Placement::Unresolved(reason)
     })
 }
 
@@ -381,7 +472,19 @@ mod tests {
         let vetoes = evidence
             .calls()
             .iter()
-            .map(|call| (call.vetoes.contains(PEAK), call.vetoes.contains(QUALITY)))
+            .map(|call| {
+                (
+                    call.identity.withheld.contains(PEAK_BELOW_MINIMUM)
+                        && call.indel.withheld.contains(PEAK_BELOW_MINIMUM),
+                    call.identity
+                        .withheld
+                        .contains(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)
+                        && call
+                            .indel
+                            .withheld
+                            .contains(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD),
+                )
+            })
             .collect::<Vec<_>>();
         assert_eq!(vetoes, [(true, false), (false, true), (false, false)]);
         Ok(())
@@ -392,16 +495,14 @@ mod tests {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
         calls.calls[0].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
         let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
-        assert!(evidence.calls()[0].vetoes.contains(MIXED));
-        assert_eq!(
-            evidence.support_vetoes()[MIXED].scope,
-            VetoScope::Substitutions
-        );
+        let call = evidence.calls()[0];
+        assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
+        assert!(!call.indel.withheld.contains(MIXED_SUPPORTING_DNA));
         Ok(())
     }
 
     #[test]
-    fn maps_phase_segments_to_masks() -> Result<()> {
+    fn maps_phase_segments_to_placements() -> Result<()> {
         let (calls, signal, mut callability, quality) = products(&[200; 25], &[31; 25]);
         let segments = [
             (0, 5, PhaseState::Weak, false),
@@ -424,29 +525,21 @@ mod tests {
             callability.mask[start..end].fill((state != PhaseState::InPhase).then_some(state));
         }
         let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
-        let masks = [0, 7, 12, 17, 22].map(|index| evidence.calls()[index].mask);
-        let expected = [
-            Some((MaskedAlignment::Unresolved, WEAK_SIGNAL, MaskOnset::Other)),
-            None,
-            Some((
-                MaskedAlignment::Anchoring,
-                DEPHASED_SIGNAL,
-                MaskOnset::Other,
-            )),
-            Some((
-                MaskedAlignment::Unresolved,
-                POST_HOMOPOLYMER,
-                MaskOnset::AfterRun,
-            )),
-            Some((
-                MaskedAlignment::Unresolved,
-                IRREGULAR_SPACING,
-                MaskOnset::Other,
-            )),
-        ];
+        let placements = [0, 7, 12, 17, 22].map(|index| {
+            (
+                evidence.calls()[index].placement,
+                evidence.calls()[index].bound,
+            )
+        });
         assert_eq!(
-            masks.map(|mask| mask.map(|mask| (mask.alignment, mask.reason, mask.onset))),
-            expected
+            placements,
+            [
+                (Placement::Unresolved(WEAK_SIGNAL), Bound::Withheld),
+                (Placement::Scored, Bound::InPhase),
+                (Placement::Anchoring(DEPHASED_SIGNAL), Bound::Anchored),
+                (Placement::Unresolved(POST_HOMOPOLYMER), Bound::Withheld),
+                (Placement::Unresolved(IRREGULAR_SPACING), Bound::Withheld),
+            ]
         );
         Ok(())
     }
@@ -483,19 +576,25 @@ mod tests {
         let vouched = evidence
             .calls()
             .iter()
-            .map(|call| call.identity_only)
+            .map(CallEvidence::base_only)
             .collect::<Vec<_>>();
         assert_eq!(
             vouched,
             [true, false, false, true, false, false, false, false]
         );
         let first = evidence.calls()[0];
-        assert!(first.mask.is_none() && !first.edge && !first.vetoes.contains(QUALITY));
-        assert!(evidence.calls()[1].mask.is_some());
+        assert!(first.placement == Placement::Scored && !first.identity.edge && first.indel.edge);
+        assert!(
+            !first
+                .identity
+                .withheld
+                .contains(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)
+        );
+        assert_ne!(evidence.calls()[1].placement, Placement::Scored);
         assert_eq!(evidence.informative(), 0..8);
         // Every other call keeps the edge it had before: call 4 sits next to
         // the trim start.
-        assert!(evidence.calls()[4].edge && !evidence.calls()[5].edge);
+        assert!(evidence.calls()[4].identity.edge && !evidence.calls()[5].identity.edge);
         Ok(())
     }
 
@@ -514,6 +613,61 @@ mod tests {
             })
         );
         Ok(())
+    }
+
+    /// Calls of `ACGTACGTAC G CCCCC T AG`, then, unless `tail` is false, six
+    /// masked calls after a repeat run (`after_repeat`) or not, and clean
+    /// calls; `close` masks the two calls right after the run's bound too.
+    fn post_repeat_marks(tail: bool, after_repeat: bool, close: bool) -> Vec<(bool, bool)> {
+        let sequence = if tail {
+            "ACGTACGTACGCCCCCTAGAAAAAACGTACGTACGTACG"
+        } else {
+            "ACGTACGTACGCCCCCTAG"
+        };
+        let masked = |index: usize| {
+            tail && ((19..26).contains(&index) || (close && (17..19).contains(&index)))
+        };
+        let calls = sequence
+            .chars()
+            .enumerate()
+            .map(|(index, base)| {
+                let call = CallEvidence::scored(base, None);
+                if masked(index) {
+                    call.masked(Placement::Unresolved(POST_HOMOPOLYMER))
+                } else {
+                    call
+                }
+            })
+            .collect::<Vec<_>>();
+        let count = calls.len();
+        let Ok(evidence) = ReadEvidence::new(calls, 0..count, REASON_ORDER.to_vec()) else {
+            return Vec::new();
+        };
+        let mut calls = evidence.with_signal_edges(8).calls().to_vec();
+        let flags = (0..count)
+            .map(|index| masked(index) && after_repeat)
+            .collect::<Vec<_>>();
+        mark_post_repeat_runs(&mut calls, &(0..count), &flags, 8);
+        calls
+            .iter()
+            .map(|call| (call.post_repeat.call, call.post_repeat.bound))
+            .collect()
+    }
+
+    #[test]
+    fn marks_a_bounded_run_before_a_post_repeat_phase_loss() {
+        let marks = post_repeat_marks(true, true, false);
+        assert!((11..=15).all(|index| marks[index] == (true, false)));
+        assert_eq!((marks[10], marks[16]), ((false, true), (false, true)));
+        // Too few informative calls between the bound and the edge.
+        assert!(!post_repeat_marks(true, true, true)[13].0);
+    }
+
+    #[test]
+    fn other_edges_mark_no_run() {
+        // A masked segment not after a repeat run, or the read's own end.
+        assert!(!post_repeat_marks(true, false, false)[13].0);
+        assert!(!post_repeat_marks(false, false, false)[13].0);
     }
 
     /// Pins the published labels of every Sanger reason.
