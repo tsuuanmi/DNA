@@ -94,7 +94,14 @@ stretch's start, and a clean end likewise.
 
 **1. Composition** (the ordered run bases), from the first that applies:
 - A vote among reads that read every run cleanly and lose phase at neither
-  edge.
+  edge. Any other read, covering the stretch or only one of its edges, that
+  reads that edge cleanly opposes the composition when the runs of its clean
+  bases there are not the composition's first or last runs, with an
+  observation no other read shares. A forward read losing phase in the
+  HVS-I C-tract can read the tract through 16194 as C, anchored only by its
+  dephased tail, while the reverse read shows the exit `…CA` in phase from
+  the other side; that read now contests the tract instead of being left
+  out.
 - The single composition that joins one read's clean start to another read's
   clean end. The two must reach a common reference position, and the start's
   last runs must match the end's first runs in exactly one way.
