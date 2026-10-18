@@ -10,8 +10,11 @@
 //! are always reviewed; which windows to force is a policy decision, learned
 //! on one run and judged on a hold-out or later batches.
 
+use std::collections::BTreeSet;
+
 use crate::compare::HV_REGIONS;
 use crate::haplotype::Block;
+use crate::zones::{Instance, Kind, Zones};
 
 /// One window of an HV region, 1-based and inclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +72,12 @@ pub(crate) struct Workload {
     pub(crate) escaped: Vec<bool>,
     /// Region of each unreviewed block, by its first anchor.
     pub(crate) regions: Vec<&'static str>,
+    /// The zone instances a check item touches.
+    pub(crate) zones: BTreeSet<Instance>,
+    /// Check items that touch more than one zone instance.
+    pub(crate) spanning: usize,
+    /// Zone kind of each unreviewed block, by its first anchor.
+    pub(crate) zone_kinds: Vec<Kind>,
 }
 
 /// The workload of one sample from its check items (`first..=last`,
@@ -78,6 +87,7 @@ pub(crate) fn of(
     blocks: &[Block],
     windows: &[Window],
     forced: &[(i64, i64)],
+    zones: Option<&Zones>,
 ) -> Workload {
     let touched = |window: &Window| {
         checks
@@ -137,7 +147,22 @@ pub(crate) fn of(
                 .map(|(region, _, _)| *region)
         })
         .collect();
+    let touched_zones = checks
+        .iter()
+        .map(|&(first, last)| {
+            zones
+                .map(|zones| zones.touched(first, last))
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
+    let zone_kinds = unreviewed
+        .iter()
+        .filter_map(|block| zones?.kind(block.start))
+        .collect();
     Workload {
+        zones: touched_zones.iter().flatten().copied().collect(),
+        spanning: touched_zones.iter().filter(|zones| zones.len() > 1).count(),
+        zone_kinds,
         checks: checks.len(),
         positions,
         positions_forced,
@@ -218,13 +243,26 @@ mod tests {
     #[test]
     fn a_block_beside_a_check_item_is_unreviewed_and_marks_its_windows() {
         let windows = windows(10);
+        let zones = Zones::new(
+            &[(16024, 16365)],
+            &[(16180, 16193)],
+            crate::zones::Widths {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+        );
         let workload = of(
             &[(16030, 16031)],
             &[block(16031, 16031), block(16040, 16041)],
             &windows,
             &[],
+            Some(&zones),
         );
         assert_eq!(workload.checks, 1);
+        assert_eq!(workload.zones, BTreeSet::from([(0, Kind::Start)]));
+        assert_eq!(workload.spanning, 0);
+        assert_eq!(workload.zone_kinds, [Kind::Start]);
         assert_eq!(workload.positions, 10);
         assert_eq!(workload.unreviewed, ["16040-16041:A/C"]);
         assert_eq!(workload.regions, ["HV1"]);
@@ -235,7 +273,14 @@ mod tests {
     #[test]
     fn forced_windows_count_as_reviewed() {
         let windows = windows(10);
-        let workload = of(&[], &[block(16185, 16186)], &windows, &[(16184, 16193)]);
+        let workload = of(
+            &[],
+            &[block(16185, 16186)],
+            &windows,
+            &[(16184, 16193)],
+            None,
+        );
+        assert!(workload.zones.is_empty() && workload.zone_kinds.is_empty());
         assert_eq!(workload.positions, 0);
         assert_eq!(workload.positions_forced, 10);
         assert_eq!(workload.unreviewed.len(), 1);

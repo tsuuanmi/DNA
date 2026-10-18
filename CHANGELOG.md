@@ -17,6 +17,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval run` counts the review workload in zones, the functional parts
+  of a region a reviewer opens as a whole: repeat window, after a window,
+  amplicon start and end, and interior, from the configuration's target
+  profile and `--zone-after`, `--zone-edge`, and `--zone-overrun` (recorded
+  in `run.json`). `scores.tsv` gains `review_zones` and
+  `review_zone_count`; the summary reports zones per sample, the samples
+  with none, the samples with a check in each zone, and the unreviewed
+  blocks by zone kind.
+
 - `dna review --signal <run.signal.json>` (PROP-0009, increment ii; SRS-API-014,
   SRS-CALL-020): `possible_heteroplasmy` is judged against the sample's run
   signal, with the sample's own reads taken out. A run signal holding none of

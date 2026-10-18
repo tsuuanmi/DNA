@@ -28,6 +28,7 @@ mod runner;
 mod triage;
 mod truth;
 mod workload;
+mod zones;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -222,6 +223,18 @@ struct RunArgs {
     /// Fewest reads of a batch for `--run-signal batch` to use it.
     #[arg(long, default_value_t = 40)]
     run_signal_batch_reads: usize,
+    /// Review zones: positions on each side of a repeat window that follow
+    /// it.
+    #[arg(long, default_value_t = 20)]
+    zone_after: i64,
+    /// Review zones: positions at each end of a region that are its
+    /// amplicon's start or end.
+    #[arg(long, default_value_t = 40)]
+    zone_edge: i64,
+    /// Review zones: positions past a repeat window that an item overlapping
+    /// the window still counts for the window.
+    #[arg(long, default_value_t = 2)]
+    zone_overrun: i64,
 }
 
 fn main() -> ExitCode {
@@ -349,6 +362,21 @@ fn run(cli: &RunArgs) -> Result<String> {
             })
         })
         .transpose()?;
+    let widths = zones::Widths {
+        after: cli.zone_after,
+        edge: cli.zone_edge,
+        overrun: cli.zone_overrun,
+    };
+    for (name, value) in [
+        ("--zone-after", widths.after),
+        ("--zone-edge", widths.edge),
+        ("--zone-overrun", widths.overrun),
+    ] {
+        if value < 0 {
+            return Err(Error::ZoneWidth { name, value });
+        }
+    }
+    let profile = target_profile(&cli.config)?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let mut signal_groups = Vec::new();
@@ -367,6 +395,37 @@ fn run(cli: &RunArgs) -> Result<String> {
         &mut signal_groups,
     )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
+    let analysed = &profile.identity().sha256;
+    if let Some(other) = outcomes
+        .iter()
+        .filter_map(|outcome| outcome.result.as_ref().ok())
+        .map(|called| &called.identity.profile_sha256)
+        .find(|sha256| *sha256 != analysed)
+    {
+        return Err(Error::Profile {
+            path: cli.config.clone(),
+            message: format!("DNA analysed with profile {other}, not {analysed}"),
+        });
+    }
+    let span = |first: usize, last: usize| {
+        (
+            i64::try_from(first).unwrap_or(i64::MAX),
+            i64::try_from(last).unwrap_or(i64::MAX),
+        )
+    };
+    let zones = zones::Zones::new(
+        &profile
+            .regions
+            .iter()
+            .map(|&[first, last]| span(first, last))
+            .collect::<Vec<_>>(),
+        &profile
+            .windows
+            .iter()
+            .map(|window| span(window.start + 1, window.end()))
+            .collect::<Vec<_>>(),
+        widths,
+    );
 
     let rows = report::rows(
         &manifest.samples,
@@ -381,7 +440,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         &check,
         (&forms, reference.sequence.as_str()),
     )
-    .with_review(cli.review_window, forced)
+    .with_review(cli.review_window, forced, Some(zones))
     .with_current_since(cli.current_since.clone());
     let triage_started = Instant::now();
     let triage = cli
@@ -460,6 +519,28 @@ fn run(cli: &RunArgs) -> Result<String> {
         started.elapsed().as_secs_f64(),
         cli.output.display()
     ))
+}
+
+/// The target profile `config` names, resolved against the configuration
+/// file's directory when relative, as DNA resolves it (SRS-CFG-002).
+fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profile> {
+    let failure = |message: String| Error::Profile {
+        path: config.to_path_buf(),
+        message,
+    };
+    let text = fs::read_to_string(config).map_err(|error| failure(error.to_string()))?;
+    let value = text
+        .parse::<toml::Table>()
+        .map_err(|error| failure(error.to_string()))?;
+    let name = value
+        .get("profile")
+        .and_then(toml::Value::as_str)
+        .ok_or_else(|| failure("the configuration names no profile".to_owned()))?;
+    let path = config.parent().unwrap_or(Path::new(".")).join(name);
+    dna_kernel::profile::Profile::load(&path).map_err(|error| Error::Profile {
+        path,
+        message: error.to_string(),
+    })
 }
 
 /// `dna-eval convention`: writes `convention.tsv` and returns the summary.
@@ -672,6 +753,8 @@ struct Header {
     /// The forced-window list the workload also counts as reviewed.
     #[serde(skip_serializing_if = "Option::is_none")]
     forced_windows: Option<PathBuf>,
+    /// The widths that place the review zones, in positions.
+    zones: ZoneHeader,
     /// Outcome counts per measure.
     samples: BTreeMap<&'static str, Counts>,
     seconds: Seconds,
@@ -687,6 +770,14 @@ struct TriageHeader {
     policy: String,
     policies: usize,
     seconds: f64,
+}
+
+/// The widths that place the review zones, from the run's options.
+#[derive(Debug, Serialize)]
+struct ZoneHeader {
+    after: i64,
+    edge: i64,
+    overrun: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -816,6 +907,11 @@ fn header(
         run_signal: cli.run_signal.clone(),
         current_since: cli.current_since.clone(),
         forced_windows: cli.forced_windows.as_deref().map(absolute),
+        zones: ZoneHeader {
+            after: cli.zone_after,
+            edge: cli.zone_edge,
+            overrun: cli.zone_overrun,
+        },
         samples: Measure::ALL
             .into_iter()
             .map(|measure| (measure.label(), counts(measure)))

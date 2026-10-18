@@ -23,6 +23,7 @@ use crate::manifest::Sample;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::workload::{self, Window, Workload};
+use crate::zones::{Kind, Zones};
 
 /// One compared panel sample.
 pub(crate) struct Row<'a> {
@@ -355,11 +356,17 @@ struct Review {
     window: i64,
     windows: Vec<Window>,
     forced: Option<Vec<(i64, i64)>>,
+    zones: Option<Zones>,
     workloads: Vec<Option<Workload>>,
 }
 
 impl Review {
-    fn of(rows: &[Row<'_>], window: i64, forced: Option<Vec<(i64, i64)>>) -> Self {
+    fn of(
+        rows: &[Row<'_>],
+        window: i64,
+        forced: Option<Vec<(i64, i64)>>,
+        zones: Option<Zones>,
+    ) -> Self {
         let windows = workload::windows(window);
         let workloads = rows
             .iter()
@@ -371,6 +378,7 @@ impl Review {
                     &comparison.blocks,
                     &windows,
                     forced.as_deref().unwrap_or_default(),
+                    zones.as_ref(),
                 ))
             })
             .collect();
@@ -378,6 +386,7 @@ impl Review {
             window,
             windows,
             forced,
+            zones,
             workloads,
         }
     }
@@ -433,7 +442,7 @@ impl<'a> Report<'a> {
             check,
             estimates,
             causes,
-            review: Review::of(rows, REVIEW_WINDOW, None),
+            review: Review::of(rows, REVIEW_WINDOW, None, None),
             current_since: None,
         }
     }
@@ -457,9 +466,15 @@ impl<'a> Report<'a> {
     }
 
     /// The same report with the review workload over windows of `window`
-    /// positions, and `forced` windows counted as reviewed when given.
-    pub(crate) fn with_review(mut self, window: i64, forced: Option<Vec<(i64, i64)>>) -> Self {
-        self.review = Review::of(self.rows, window, forced);
+    /// positions, `forced` windows counted as reviewed when given, and the
+    /// check items placed in `zones` when given.
+    pub(crate) fn with_review(
+        mut self,
+        window: i64,
+        forced: Option<Vec<(i64, i64)>>,
+        zones: Option<Zones>,
+    ) -> Self {
+        self.review = Review::of(self.rows, window, forced, zones);
         self
     }
 
@@ -532,7 +547,8 @@ impl<'a> Report<'a> {
              cause_evidence\tempop_ranges\tempop_mitotype\tempop_undecided\tempop_ties\t\
              callable_yield\t\
              traces\trejected_traces\tfailure\t\
-             review_checks\treview_positions\treview_clear\tunreviewed\tunreviewed_forced\n",
+             review_checks\treview_positions\treview_clear\tunreviewed\tunreviewed_forced\t\
+             review_zones\treview_zone_count\n",
         );
         for ((row, cause), workload) in self
             .rows
@@ -542,10 +558,24 @@ impl<'a> Report<'a> {
         {
             let sample = row.sample;
             let review = workload.as_ref().map_or_else(
-                || "\t\t\t\t".to_owned(),
+                || "\t\t\t\t\t\t".to_owned(),
                 |workload| {
+                    let (zones, count) = self.review.zones.as_ref().map_or_else(
+                        || (String::new(), String::new()),
+                        |zones| {
+                            (
+                                workload
+                                    .zones
+                                    .iter()
+                                    .map(|&instance| zones.label(instance))
+                                    .collect::<Vec<_>>()
+                                    .join(" "),
+                                workload.zones.len().to_string(),
+                            )
+                        },
+                    );
                     format!(
-                        "{}\t{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}\t{zones}\t{count}",
                         workload.checks,
                         workload.positions,
                         if workload.checks == 0 { "Y" } else { "N" },
@@ -840,6 +870,7 @@ impl<'a> Report<'a> {
                     share(unreviewed as f64, current.len() as f64),
                     share(clear as f64, current.len() as f64),
                 );
+                self.zone_section(text, &current.into_iter().copied().collect::<Vec<_>>());
             }
         }
         let samples = counted.len();
@@ -911,6 +942,7 @@ impl<'a> Report<'a> {
                 before.len()
             );
         }
+        self.zone_section(text, &counted);
         text.push_str("\nSamples with an unreviewed difference, by region:\n\n| Region | Samples |\n|---|---:|\n");
         let mut regions = BTreeMap::<&str, usize>::new();
         for (_, workload) in &counted {
@@ -968,6 +1000,107 @@ impl<'a> Report<'a> {
                 window.start,
                 window.end,
                 percent(escaped as f64, open as f64),
+            );
+        }
+    }
+
+    /// The zones to check of `samples`: per sample (mean, median, 90th
+    /// percentile, none), the items that touch more than one zone, the
+    /// samples with a check in each zone, the unreviewed blocks by the zone
+    /// of their first position, and with a baseline that reports zones, its
+    /// zones per sample on the same samples.
+    fn zone_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
+        let Some(zones) = &self.review.zones else {
+            return;
+        };
+        if samples.is_empty() {
+            return;
+        }
+        let mut counts = samples
+            .iter()
+            .map(|(_, workload)| workload.zones.len())
+            .collect::<Vec<_>>();
+        counts.sort_unstable();
+        let rank = |quantile: f64| {
+            // Nearest rank.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let index = ((quantile * counts.len() as f64).ceil() as usize).max(1) - 1;
+            counts[index.min(counts.len() - 1)]
+        };
+        let n = samples.len() as f64;
+        let mean = counts.iter().sum::<usize>() as f64 / n;
+        let none = counts.iter().filter(|&&count| count == 0).count();
+        let items = samples
+            .iter()
+            .map(|(_, workload)| workload.checks)
+            .sum::<usize>();
+        let spanning = samples
+            .iter()
+            .map(|(_, workload)| workload.spanning)
+            .sum::<usize>();
+        let _ = write!(
+            text,
+            "\nZones to check (a check item counts for every zone it touches):\n\n\
+             | Measure | Value |\n|---|---:|\n\
+             | Zones per sample, mean | {mean:.2} |\n\
+             | Zones per sample, median / 90th percentile | {} / {} |\n\
+             | Samples with no zone | {none} ({:.2} %) |\n\
+             | Check items touching more than one zone | {spanning} of {items} ({:.2} %) |\n",
+            rank(0.5),
+            rank(0.9),
+            100.0 * none as f64 / n,
+            if items > 0 {
+                100.0 * spanning as f64 / items as f64
+            } else {
+                0.0
+            },
+        );
+        if let Some(baseline) = self.baseline.filter(|baseline| !baseline.zones.is_empty()) {
+            let before = samples
+                .iter()
+                .filter_map(|(row, _)| baseline.zones.get(&row.sample.id))
+                .collect::<Vec<_>>();
+            if !before.is_empty() {
+                let _ = writeln!(
+                    text,
+                    "| Baseline, same samples: zones per sample, mean | {:.2} (of {}) |",
+                    before.iter().copied().sum::<usize>() as f64 / before.len() as f64,
+                    before.len()
+                );
+            }
+        }
+        text.push_str("\n| Zone | Samples with a check | Share |\n|---|---:|---:|\n");
+        for instance in zones.instances() {
+            let count = samples
+                .iter()
+                .filter(|(_, workload)| workload.zones.contains(&instance))
+                .count();
+            let _ = writeln!(
+                text,
+                "| {} | {count} | {:.2} % |",
+                zones.label(instance),
+                100.0 * count as f64 / n
+            );
+        }
+        text.push_str(
+            "\n| Zone kind | Samples with a check | Share | Unreviewed blocks |\n\
+             |---|---:|---:|---:|\n",
+        );
+        for kind in Kind::ALL {
+            let checked = samples
+                .iter()
+                .filter(|(_, workload)| workload.zones.iter().any(|&(_, found)| found == kind))
+                .count();
+            let blocks = samples
+                .iter()
+                .flat_map(|(_, workload)| &workload.zone_kinds)
+                .filter(|&&found| found == kind)
+                .count();
+            let _ = writeln!(
+                text,
+                "| {} | {checked} | {:.2} % | {blocks} |",
+                kind.label(),
+                100.0 * checked as f64 / n
             );
         }
     }
