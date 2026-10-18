@@ -17,6 +17,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The run signal (PROP-0009, increment i; SRS-CALL-019, SRS-API-016):
+  `dna signal <run-id> <trace>...` writes `results/<run-id>.signal.json`, a
+  new contract `dna.signal/v1`. Per read-strand 5-mer, call base, and other
+  channel, it records how often each share of that channel occurs among the
+  run's selected calls (every call counts under its three other channels), with the run's trace hashes and the selection version. The
+  selection is one function (`dna_sanger::run_signal::contributions`) for
+  building and for taking a read out. No command reads a run signal yet, so
+  no other output changes.
+
 - `dna-eval run --current-since <YYYY-MM>` reports the current data first:
   the review workload of the samples whose batch date is in or after that
   month, and with a baseline their changes of status class per measure.

@@ -12,4 +12,5 @@ pub mod locus;
 pub mod model;
 pub mod quality_control;
 pub mod read_processing;
+pub mod run_signal;
 pub mod signal_processing;

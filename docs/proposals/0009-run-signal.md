@@ -116,8 +116,9 @@ answers.
      The file also holds the run's trace hashes and its counts of reads and calls.
      Histograms rather than quantiles let the estimator change without rebuilding, and make
      leave-one-out exact.
-   - A library entry in the signal processing module, `signal_processing::run::build(traces, config)
-     -> RunSignal`, lets the evaluation harness build run signals per run (or per month) in process. There is also a pipeline
+   - A library entry, `dna_sanger::run_signal` (`run_signal::read`, `RunSignal::build`), which sits
+     beside read processing rather than in signal processing, since the selection needs the
+     callability mask and the signal edges, lets the evaluation harness build run signals per run (or per month) in process. There is also a pipeline
      operation with its own log.
 2. **Sample commands accept `--signal <file>`** (`sample`, `consensus`, `review`). The
    public entry `analyze_sanger` takes an optional `&RunSignal`; this is a public API change to
@@ -232,4 +233,5 @@ Pending.
 
 ## Implementation
 
-None yet.
+- Increment (i): the run signal (`dna_sanger::run_signal`, `dna signal`, `dna.signal/v1`,
+  SRS-CALL-019, SRS-API-016), with no verdict change; no command reads a run signal yet.

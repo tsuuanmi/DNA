@@ -7,5 +7,6 @@ pub(crate) mod notation_result;
 pub(crate) mod read_observation;
 pub(crate) mod result;
 pub(crate) mod review_result;
+pub(crate) mod run_signal_result;
 pub(crate) mod sample_result;
 pub(crate) mod variants_result;
