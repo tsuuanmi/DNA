@@ -386,6 +386,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The core and post-calling method thresholds are configuration too
+  (SRS-CFG-009), with defaults equal to the former constants, so outputs
+  change only in the configuration checksum and the profile identity:
+  - new `[consensus]` section (configuration schema 10): `seeded_run` (4,
+    was a method constant of SRS-CONS-004), `maximum_undecided_gap` and
+    `minimum_resolved_bases` (20 each, set apart from
+    `alignment.minimum_callable_bases`), and the decided site alignment's
+    `site_mismatch_cost`, `site_gap_open_cost`, and
+    `site_gap_extension_cost` (2, 3, 2, with their ordering checked at load);
+  - `alignment.max_stretch` (64, SRS-ALN-016);
+  - target profile schema 2: `normalization.max_trade` (20, SRS-VN-008),
+    carried by `NormalizationPolicy::RightAligned { max_trade }`, and a
+    tandem-repeat window's `read_copies` (2), the motif copies `motif_shift`
+    asks a read to show.
+  `dna-eval run` records its measurement constants in `run.json`
+  (`constants`).
+
 - `possible_heteroplasmy` fires only when both strands read the position
   cleanly and confirm the same second base (`review` plugin 6, rules
   version 6). A site that only one strand reads gives no label. On current

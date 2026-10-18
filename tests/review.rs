@@ -52,7 +52,7 @@ fn inputs(directory: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::Er
     let profile = config.with_extension("profile.toml");
     let mut text = fs::read_to_string(&profile)?;
     text.push_str(
-        "[normalization]\nindel_placement='right'\n[notation]\nstyle='per_base_decimal'\n",
+        "[normalization]\nindel_placement='right'\nmax_trade=20\n[notation]\nstyle='per_base_decimal'\n",
     );
     fs::write(&profile, text)?;
     Ok((reference, config))

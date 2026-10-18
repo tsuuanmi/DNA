@@ -147,6 +147,9 @@ impl ConformanceRule {
 pub struct Notation {
     /// Indel placement applied before the nomenclature windows.
     pub indel_placement: IndelPlacement,
+    /// Farthest a deletion moves 3' past substitutions in one trade
+    /// (SRS-VN-008).
+    pub max_trade: usize,
     /// How represented variants are rendered.
     pub style: NotationStyle,
 }
@@ -293,6 +296,7 @@ mod tests {
             profile.notation,
             Some(Notation {
                 indel_placement: IndelPlacement::Right,
+                max_trade: 20,
                 style: NotationStyle::PerBaseDecimal,
             })
         );

@@ -15,7 +15,7 @@ use crate::model::reference::ReferenceTopology;
 use crate::reference::MAX_REFERENCE_LENGTH;
 
 /// Profile schema version this build accepts.
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 /// Longest accepted profile identifier.
 const MAX_ID_LENGTH: usize = 64;
 
@@ -62,6 +62,7 @@ struct RawVariantCalling {
 #[serde(deny_unknown_fields)]
 struct RawNormalization {
     indel_placement: IndelPlacement,
+    max_trade: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,6 +126,8 @@ enum RawStructure {
     },
     TandemRepeat {
         motif: String,
+        /// Terminal motif copies a read must show for a length change.
+        read_copies: usize,
     },
 }
 
@@ -184,6 +187,7 @@ impl RawProfile {
         let notation = match (self.normalization, self.notation) {
             (Some(normalization), Some(notation)) => Some(Notation {
                 indel_placement: normalization.indel_placement,
+                max_trade: normalization.max_trade,
                 style: match notation.style {
                     RawNotationStyle::PerBaseDecimal => NotationStyle::PerBaseDecimal,
                 },
@@ -445,7 +449,10 @@ fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
                 None,
             )
         }
-        RawStructure::TandemRepeat { motif } => {
+        RawStructure::TandemRepeat { motif, read_copies } => {
+            if read_copies == 0 {
+                return Err(invalid(&name, "read_copies must be positive"));
+            }
             if motif.is_empty()
                 || !motif.chars().all(is_canonical)
                 || motif.len() >= sequence.len()
@@ -456,7 +463,7 @@ fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
                     "motif must be A/C/G/T, shorter than the window, and end it",
                 ));
             }
-            (None, Some(motif))
+            (None, Some((motif, read_copies)))
         }
     };
 
@@ -511,11 +518,12 @@ fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
                 bytes,
                 canonical_haplotype.as_deref(),
             )?),
-            RawRule::MotifShift => WindowRule::MotifShift {
-                motif: motif
+            RawRule::MotifShift => {
+                let (motif, read_copies) = motif
                     .clone()
-                    .ok_or_else(|| invalid(&name, "motif_shift needs a tandem_repeat structure"))?,
-            },
+                    .ok_or_else(|| invalid(&name, "motif_shift needs a tandem_repeat structure"))?;
+                WindowRule::MotifShift { motif, read_copies }
+            }
         });
     }
 
@@ -618,7 +626,7 @@ mod tests {
     use super::*;
 
     const VALID: &str = r#"
-schema_version = 1
+schema_version = 2
 id = "toy"
 [reference]
 topology = "linear"
@@ -626,6 +634,7 @@ topology = "linear"
 regions = [[1, 40]]
 [normalization]
 indel_placement = "right"
+max_trade = 20
 [notation]
 style = "per_base_decimal"
 [[nomenclature.windows]]
@@ -639,7 +648,7 @@ canonical_haplotype = [{ position = 12, base = "T" }]
 name = "TG-repeat"
 start = 21
 sequence = "ATGTGTG"
-structure = { kind = "tandem_repeat", motif = "TG" }
+structure = { kind = "tandem_repeat", motif = "TG", read_copies = 2 }
 rules = ["motif_shift"]
 "#;
 
@@ -682,7 +691,10 @@ rules = ["motif_shift"]
                     name: "TG-repeat".into(),
                     start: 20,
                     sequence: "ATGTGTG".into(),
-                    rules: vec![WindowRule::MotifShift { motif: "TG".into() }],
+                    rules: vec![WindowRule::MotifShift {
+                        motif: "TG".into(),
+                        read_copies: 2,
+                    }],
                 },
             ]
         );
@@ -692,7 +704,7 @@ rules = ["motif_shift"]
     #[test]
     fn representation_sections_are_optional() -> std::result::Result<(), Box<dyn std::error::Error>>
     {
-        let minimal = "schema_version = 1\nid = \"plain\"\n[reference]\ntopology = \"circular\"\n[variant_calling]\nregions = [[1, 10]]\n";
+        let minimal = "schema_version = 2\nid = \"plain\"\n[reference]\ntopology = \"circular\"\n[variant_calling]\nregions = [[1, 10]]\n";
         let profile = validated(minimal)??;
         assert_eq!(profile.notation, None);
         assert!(profile.windows.is_empty());
@@ -765,7 +777,10 @@ rules = ["motif_shift"]
             Some("minimum_run must be at least 2")
         );
         let without_notation = declared
-            .replace("[normalization]\nindel_placement = \"right\"\n", "")
+            .replace(
+                "[normalization]\nindel_placement = \"right\"\nmax_trade = 20\n",
+                "",
+            )
             .replace("[notation]\nstyle = \"per_base_decimal\"\n", "");
         assert!(matches!(
             validated(&without_notation)?,
@@ -781,7 +796,10 @@ rules = ["motif_shift"]
         assert!(validated(&format!("{VALID}[empop]\n"))??.empop);
         assert!(parse(&format!("{VALID}[empop]\nranges = 1\n")).is_err());
         let without_notation = format!("{VALID}[empop]\n")
-            .replace("[normalization]\nindel_placement = \"right\"\n", "")
+            .replace(
+                "[normalization]\nindel_placement = \"right\"\nmax_trade = 20\n",
+                "",
+            )
             .replace("[notation]\nstyle = \"per_base_decimal\"\n", "");
         assert!(matches!(
             validated(&without_notation)?,
@@ -811,7 +829,10 @@ rules = ["motif_shift"]
             declared.replace("\"insertion_at_run_end\"", "\"insertion_matches_run\""),
             declared.replace("minimum_run_length = 4", "minimum_run_length = 1"),
             declared
-                .replace("[normalization]\nindel_placement = \"right\"\n", "")
+                .replace(
+                    "[normalization]\nindel_placement = \"right\"\nmax_trade = 20\n",
+                    "",
+                )
                 .replace("[notation]\nstyle = \"per_base_decimal\"\n", ""),
         ] {
             assert!(
@@ -829,12 +850,14 @@ rules = ["motif_shift"]
     #[test]
     fn rejects_unknown_keys_and_old_schemas() -> std::result::Result<(), toml::de::Error> {
         assert!(parse(&VALID.replace("id = \"toy\"", "id = \"toy\"\nextra = 1")).is_err());
-        assert!(parse(&VALID.replace("motif = \"TG\" }", "motif = \"TG\", anchor = 1 }")).is_err());
+        assert!(
+            parse(&VALID.replace("read_copies = 2 }", "read_copies = 2, anchor = 1 }")).is_err()
+        );
         assert!(matches!(
-            validated(&VALID.replace("schema_version = 1", "schema_version = 2"))?,
+            validated(&VALID.replace("schema_version = 2", "schema_version = 1"))?,
             Err(Error::Profile(ProfileError::UnsupportedSchemaVersion {
-                found: 2,
-                expected: 1
+                found: 1,
+                expected: 2
             }))
         ));
         Ok(())
@@ -852,7 +875,10 @@ rules = ["motif_shift"]
                 "topology = \"linear\"\nsequence_sha256 = \"ABC\"",
             ),
             VALID.replace("regions = [[1, 40]]", "regions = []"),
-            VALID.replace("[normalization]\nindel_placement = \"right\"\n", ""),
+            VALID.replace(
+                "[normalization]\nindel_placement = \"right\"\nmax_trade = 20\n",
+                "",
+            ),
             VALID.replace("[notation]\nstyle = \"per_base_decimal\"\n", ""),
             VALID.replace("name = \"poly-G\"", "name = \" \""),
             format!(
@@ -885,6 +911,11 @@ rules = ["motif_shift"]
     #[test]
     fn rejects_inconsistent_windows() {
         let cases = [
+            (
+                "read_copies = 2",
+                "read_copies = 0",
+                "read_copies must be positive",
+            ),
             (
                 "sequence = \"GGGAGG\"",
                 "sequence = \"GGNAGG\"",

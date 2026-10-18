@@ -28,7 +28,7 @@ use crate::evidence::{Cause, Evidence, Position, Strand, TraceState, primer_stra
 
 /// Clean positions a read must observe in a region for its primer to count
 /// as reading that region.
-const FOOTPRINT_POSITIONS: usize = 50;
+pub(crate) const FOOTPRINT_POSITIONS: usize = 50;
 
 /// An outcome, ordered from best to worst.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

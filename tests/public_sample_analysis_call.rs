@@ -51,7 +51,7 @@ fn write_config_with_notation(path: &Path) -> Result<(), Box<dyn std::error::Err
     fs::write(
         &profile,
         format!(
-            "{text}[normalization]\nindel_placement='right'\n[notation]\nstyle='per_base_decimal'\n"
+            "{text}[normalization]\nindel_placement='right'\nmax_trade=20\n[notation]\nstyle='per_base_decimal'\n"
         ),
     )?;
     Ok(())

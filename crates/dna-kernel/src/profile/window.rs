@@ -78,5 +78,7 @@ pub enum WindowRule {
     MotifShift {
         /// The repeated motif the window ends with.
         motif: String,
+        /// Terminal motif copies a read must show for a length change.
+        read_copies: usize,
     },
 }

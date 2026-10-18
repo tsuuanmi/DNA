@@ -265,6 +265,7 @@ pub(super) fn call_consensus(
                 sequence::read_evidence(read)?,
                 reference,
                 &run,
+                &config.consensus,
             )
             .map(CalledRead::without_excluded_positions)
             .map_err(Error::from)

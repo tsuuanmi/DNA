@@ -1522,8 +1522,11 @@ pub(crate) mod tests {
                 reference: reference.identity(),
                 variants: vec![edit.clone()],
             };
-            let normalized =
-                normalize_with(&reference, &called, NormalizationPolicy::RightAligned)?;
+            let normalized = normalize_with(
+                &reference,
+                &called,
+                NormalizationPolicy::RightAligned { max_trade: 20 },
+            )?;
             let represented = apply_with(&reference, &profile, from_normalization(&normalized))?;
             let source = per_base(&represented.source_variants);
             let target = per_base(&represented.represented_variants);

@@ -9,6 +9,7 @@ use crate::error::{ConfigError, Result};
 use dna_align::RawAlignmentConfig;
 use dna_call::RawVariantCallingConfig;
 use dna_call::read_call::{CallConfig, RawCallConfig};
+use dna_consensus::{ConsensusConfig, RawConsensusConfig};
 use dna_sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use dna_sanger::basecalling::RawBasecallingConfig;
 use dna_sanger::callability::RawCallabilityConfig;
@@ -17,7 +18,7 @@ use dna_sanger::read_processing::{RawSangerConfig, RawSangerEvidenceConfig, Sang
 use dna_sanger::signal_processing::RawSignalProcessingConfig;
 
 /// Configuration schema version this build accepts.
-const SCHEMA_VERSION: u32 = 9;
+const SCHEMA_VERSION: u32 = 10;
 
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
@@ -28,6 +29,8 @@ pub(crate) struct Config {
     pub(crate) sanger: SangerConfig,
     /// The core plugin's sections a called read needs.
     pub(crate) core: CallConfig,
+    /// The consensus plugin's `[consensus]` section.
+    pub(crate) consensus: ConsensusConfig,
     /// The core plugin's `[sample_reconciliation]` section.
     pub(crate) sample: SampleReconciliationConfig,
     pub(crate) source_path: PathBuf,
@@ -48,6 +51,7 @@ pub(super) struct RawConfig {
     sample_reconciliation: RawSampleReconciliationConfig,
     sanger_evidence: RawSangerEvidenceConfig,
     variant_calling: RawVariantCallingConfig,
+    consensus: RawConsensusConfig,
 }
 
 impl RawConfig {
@@ -76,6 +80,7 @@ impl RawConfig {
         }
         .validate()?;
         let sample = self.sample_reconciliation.validate()?;
+        let consensus = self.consensus.validate()?;
         let profile_path = source_path
             .parent()
             .unwrap_or_else(|| Path::new(""))
@@ -84,6 +89,7 @@ impl RawConfig {
             profile_path,
             sanger,
             core,
+            consensus,
             sample,
             source_path,
             source_sha256,
@@ -97,7 +103,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=9\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\nminimum_noise_sigma=1.0\nsecond_floor=0.21\nrun_signal_minimum_reads=40\nrun_signal_minimum_calls=40\nrun_signal_margin=0.05\nrun_signal_mad_factor=4.0\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\ntrim_context_margin=10\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\nrepeat_window_calls=16\ndouble_peak_ratio=0.33\nspacing_defect=0.5\nspacing_half_window=8\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\nsignal_edge_margin=10\nleading_height_fraction=1.0\npost_repeat_margin=10\npost_repeat_minimum_calls=2\nedge_identity_margin=10\nedge_height_fraction=1.0\nedge_second_share=0.10\nedge_width_factor=1.5\nedge_spacing_minimum=0.5\nedge_spacing_maximum=1.5\nstart_identity_margin=10\nstart_norm_calls=30\nstart_height_fraction=0.5\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n";
+    const VALID: &str = "schema_version=10\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\nminimum_noise_sigma=1.0\nsecond_floor=0.21\nrun_signal_minimum_reads=40\nrun_signal_minimum_calls=40\nrun_signal_margin=0.05\nrun_signal_mad_factor=4.0\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\ntrim_context_margin=10\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\nrepeat_window_calls=16\ndouble_peak_ratio=0.33\nspacing_defect=0.5\nspacing_half_window=8\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\nmax_stretch=64\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\nsignal_edge_margin=10\nleading_height_fraction=1.0\npost_repeat_margin=10\npost_repeat_minimum_calls=2\nedge_identity_margin=10\nedge_height_fraction=1.0\nedge_second_share=0.10\nedge_width_factor=1.5\nedge_spacing_minimum=0.5\nedge_spacing_maximum=1.5\nstart_identity_margin=10\nstart_norm_calls=30\nstart_height_fraction=0.5\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n[consensus]\nseeded_run=4\nmaximum_undecided_gap=20\nminimum_resolved_bases=20\nsite_mismatch_cost=2\nsite_gap_open_cost=3\nsite_gap_extension_cost=2\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -173,11 +179,11 @@ mod tests {
     fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
     {
         assert!(matches!(
-            validate_raw(&VALID.replace("schema_version=9", "schema_version=8"))?,
+            validate_raw(&VALID.replace("schema_version=10", "schema_version=9"))?,
             Err(Error::Kernel(KernelError::Config(
                 ConfigError::UnsupportedSchemaVersion {
-                    found: 8,
-                    expected: 9
+                    found: 9,
+                    expected: 10
                 }
             )))
         ));
@@ -259,6 +265,22 @@ mod tests {
             VALID.replace("edge_spacing_minimum=0.5", "edge_spacing_minimum=2.0"),
             VALID.replace("start_norm_calls=30", "start_norm_calls=0"),
             VALID.replace("start_height_fraction=0.5", "start_height_fraction=0.0"),
+        ] {
+            assert!(
+                validate(&invalid).is_err(),
+                "unexpectedly accepted {invalid}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_consensus_and_stretch_settings() {
+        for invalid in [
+            VALID.replace("max_stretch=64", "max_stretch=0"),
+            VALID.replace("seeded_run=4", "seeded_run=1"),
+            VALID.replace("minimum_resolved_bases=20", "minimum_resolved_bases=0"),
+            VALID.replace("site_mismatch_cost=2", "site_mismatch_cost=6"),
+            VALID.replace("site_gap_extension_cost=2", "site_gap_extension_cost=0"),
         ] {
             assert!(
                 validate(&invalid).is_err(),

@@ -343,7 +343,7 @@ pub(crate) fn build_consensus(
         .iter()
         .filter_map(|read| by_identity.get(read.input_sha256.as_str()).copied())
         .collect::<Vec<_>>();
-    dna_consensus::build(&ordered, reference, &config.core)
+    dna_consensus::build(&ordered, reference, &config.core, &config.consensus)
 }
 
 /// Rejected reads keyed by read content identity.

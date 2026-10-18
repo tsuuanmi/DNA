@@ -90,7 +90,7 @@ fn read_at(edit: &SequenceEdit, readable: &[Range<usize>]) -> bool {
 /// it calls: the anchor and the run after it, plus the base before the anchor
 /// when the left run's length changes (`anchored_run_lengths`); the end of the
 /// lead run, the start of the left run, the anchor, and the run after it
-/// (`anchored_tract`); the two terminal motif copies when the length
+/// (`anchored_tract`); the window's `read_copies` terminal motif copies when the length
 /// changes (`motif_shift`); and the whole window for `canonical_haplotype`,
 /// whose choice compares the whole window with its declared haplotype.
 fn decisive(window: &NomenclatureWindow, rule: &WindowRule, source: &[SequenceEdit]) -> Vec<usize> {
@@ -117,11 +117,11 @@ fn decisive(window: &NomenclatureWindow, rule: &WindowRule, source: &[SequenceEd
         WindowRule::AnchorDuplication(anchor)
         | WindowRule::AnchorDeletion(anchor)
         | WindowRule::TerminalRepeatInsertion(anchor) => (anchor.index..length).collect(),
-        WindowRule::MotifShift { motif } => {
+        WindowRule::MotifShift { motif, read_copies } => {
             if alternate.len() == length {
                 Vec::new()
             } else {
-                (length.saturating_sub(2 * motif.len())..length).collect()
+                (length.saturating_sub(read_copies * motif.len())..length).collect()
             }
         }
         WindowRule::CanonicalHaplotype(_) => (0..length).collect(),
@@ -177,7 +177,7 @@ fn candidate(
                 .map(|&(index, base)| substitution(index, base))
                 .collect(),
         ),
-        WindowRule::MotifShift { motif } => motif_shift(reference, motif, alternate),
+        WindowRule::MotifShift { motif, .. } => motif_shift(reference, motif, alternate),
     }?;
     // A rule proposes; only a candidate that reproduces the haplotype counts.
     (apply_edits(reference, &candidate).ok().as_deref() == Some(alternate)).then_some(candidate)

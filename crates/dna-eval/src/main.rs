@@ -755,6 +755,8 @@ struct Header {
     forced_windows: Option<PathBuf>,
     /// The widths that place the review zones, in positions.
     zones: ZoneHeader,
+    /// The harness's own measurement constants.
+    constants: Constants,
     /// Outcome counts per measure.
     samples: BTreeMap<&'static str, Counts>,
     seconds: Seconds,
@@ -770,6 +772,51 @@ struct TriageHeader {
     policy: String,
     policies: usize,
     seconds: f64,
+}
+
+/// The harness's measurement constants, recorded so that a run's measures can
+/// be reproduced from its outputs. Shares are in thousandths.
+#[derive(Debug, Serialize)]
+struct Constants {
+    /// Limit of detection of a second base (`haplotype_lod`).
+    lod_share: u16,
+    /// Smallest share of a faint second base, for discrepancy causes.
+    faint_share: u16,
+    /// Smallest second-channel weight the triage evidence keeps.
+    minor_floor_share: u16,
+    /// Calls on each side of a call whose second channels give its local
+    /// noise.
+    minor_noise_calls: usize,
+    /// Share of a read's nearby calls showing the same shadow that marks it
+    /// local.
+    local_shadow_share: u16,
+    /// Multiple of its local noise a second channel needs to count.
+    noise_ratio: u16,
+    /// One-sided level of the Clopper–Pearson upper bounds.
+    upper_bound_alpha: f64,
+    /// Normal quantile of the two-sided 95 % intervals and Wilson bounds.
+    interval_z: f64,
+    /// Positions around a repeat window that count as inside it, for triage.
+    triage_window_margin: i64,
+    /// Clean positions a read observes in a region for its primer to count.
+    triage_footprint_positions: usize,
+}
+
+impl Constants {
+    const fn current() -> Self {
+        Self {
+            lod_share: lod::LOD,
+            faint_share: cause::loci::FAINT,
+            minor_floor_share: evidence::minor::FLOOR,
+            minor_noise_calls: evidence::minor::NOISE_CALLS,
+            local_shadow_share: triage::minor::LOCAL_SHADOW_SHARE,
+            noise_ratio: triage::minor::NOISE_RATIO,
+            upper_bound_alpha: triage::score::ALPHA,
+            interval_z: estimate::Z_95,
+            triage_window_margin: triage::repeats::WINDOW_MARGIN,
+            triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
+        }
+    }
 }
 
 /// The widths that place the review zones, from the run's options.
@@ -907,6 +954,7 @@ fn header(
         run_signal: cli.run_signal.clone(),
         current_since: cli.current_since.clone(),
         forced_windows: cli.forced_windows.as_deref().map(absolute),
+        constants: Constants::current(),
         zones: ZoneHeader {
             after: cli.zone_after,
             edge: cli.zone_edge,
