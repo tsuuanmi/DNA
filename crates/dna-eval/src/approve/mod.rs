@@ -204,11 +204,13 @@ pub(crate) fn approve(prereg_path: &Path, output: &Path, threads: usize) -> Resu
         None,
         &mut Vec::new(),
     )?;
+    let profile = crate::target_profile(&inputs.config)?;
     let rows = crate::report::rows(
         &manifest.samples,
         &outcomes,
         &truth.database.samples,
         &reference.sequence,
+        &profile.conventions,
     );
     let (approval, leaks) = score(&prereg, &rows, &reference.sequence);
 

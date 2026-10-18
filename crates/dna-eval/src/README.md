@@ -50,6 +50,8 @@ equivalence. No crate depends on it, and it is not part of the release.
   sample's positions to review and unreviewed difference blocks from `dna
   review`'s check items (`SampleAnalysis::review_checks`), forced-window
   lists, and the Wilson bound of `windows.tsv`.
+- `unrecorded.rs` — the run-length alleles a profile convention leaves
+  unrecorded, left out of every comparison on both sides.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior) and the zones a
   check item touches.

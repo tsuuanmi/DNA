@@ -934,6 +934,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- `dna-eval` no longer compares a run length a profile convention leaves
+  unrecorded (`not_recorded`, SRS-NOM-017), on either side: an insertion of
+  the convention's base anchored in its window, or a deletion of it there,
+  is left out where that side's haplotype with its substitutions only has a
+  run of the base of at least `minimum_run`. The reviewers do not write the
+  HVS-I C-run length (`hvs1_c_length`; 1.1 % of the truth's `16189C`
+  samples carry an indel at 16180-16195), so DNA's estimated length and the
+  reference length the truth keeps were counted as differences. Harness
+  only; DNA's outputs are unchanged. Development panel v5 after #139,
+  current data: samples with an unreviewed difference 4.21 to 4.14 %, those
+  without a truth IUPAC code 1.00 to 0.93 %.
+
 - `read_disagrees` (`review` plugin 3, rules version 3) read a read's
   sequence from its insertion variants, which leave out masked inserted
   calls, so a phase-shifted read whose masked calls agree with the decision

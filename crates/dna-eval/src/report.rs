@@ -22,8 +22,10 @@ use crate::lod;
 use crate::manifest::Sample;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
+use crate::unrecorded;
 use crate::workload::{self, Window, Workload};
 use crate::zones::{Kind, Zones};
+use dna_kernel::profile::Convention;
 
 /// One compared panel sample.
 pub(crate) struct Row<'a> {
@@ -49,6 +51,7 @@ pub(crate) fn rows<'a>(
     outcomes: &'a [Outcome],
     truth: &'a BTreeMap<String, TruthSample>,
     reference: &str,
+    conventions: &[Convention],
 ) -> Vec<Row<'a>> {
     let mut rows = samples
         .iter()
@@ -61,12 +64,17 @@ pub(crate) fn rows<'a>(
                 (Err(failure), _) => Err(failure.clone()),
                 (Ok(_), None) => Err(Failure::TruthMissing),
                 (Ok(called), Some(record)) => {
+                    // Run lengths the reviewers do not record are not
+                    // compared, on either side.
+                    let dna_alleles = unrecorded::recorded(&called.alleles, reference, conventions);
+                    let truth_alleles =
+                        unrecorded::recorded(&record.alleles, reference, conventions);
                     let dna = Side {
-                        alleles: &called.alleles,
+                        alleles: &dna_alleles,
                         intervals: &called.intervals,
                     };
                     let truth = Side {
-                        alleles: &record.alleles,
+                        alleles: &truth_alleles,
                         intervals: &record.intervals,
                     };
                     callable_yield = Some(compare::callable_yield(
@@ -1993,6 +2001,7 @@ mod tests {
                 &outcomes,
                 &truth.samples,
                 compare::tests::rcrs(),
+                &[],
             );
             Ok(
                 Report::new(&rows, Some(&baseline), &check, (&Forms::default(), ""))
