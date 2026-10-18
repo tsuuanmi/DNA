@@ -1,10 +1,23 @@
-# Alignment
+# dna-align
+
+Owns placement, the core's first step
+([PROP-0008](../../../docs/proposals/0008-pipeline-responsibilities.md),
+[ADR-0079](../../../docs/decisions/adr/0079-core-crates-by-step.md)): where
+does a read lie on the reference? It depends only on `dna-kernel`.
+
+Public surface: `align_best`, the `[alignment]` section (`AlignmentConfig`,
+`RawAlignmentConfig`), and the [model](model/README.md): an `Alignment` with
+a read-only view of its columns. `Alignment::placed` is the second producer
+of alignments, for a source that places a read itself (the consensus's
+decided reads): it checks the invariants `align_best` guarantees and
+computes the metrics from the columns. The `test-support` feature adds
+`Alignment::fixture` for the guards of downstream crates.
 
 Owns bounded, deterministic affine-gap alignment, strand selection, traceback,
 and canonical repeat-equivalent gap placement.
 
-Entry point: `align_best` from `mod.rs`, over the read's `ReadEvidence`
-([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+Entry point: `align_best` from `orient.rs`, over the read's `ReadEvidence`
+([ADR-0069](../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 The module imports no Sanger type.
 
 Key children: `scoring.rs`, [`exact/`](exact/README.md), `gotoh.rs`,
@@ -37,6 +50,8 @@ validated independently.
 `config.rs` owns the `[alignment]`, with the alignment-cell cap configuration section: its raw record, validated
 record, and rules (ADR-0069).
 
-See [alignment requirements](../../../../docs/requirements/alignment.md),
-[alignment method](../../../../docs/design/alignment.md), and
-[alignment invariants](../../../../docs/architecture/invariants/alignment.md).
+See [alignment requirements](../../../docs/requirements/alignment.md),
+[alignment method](../../../docs/design/alignment.md), and
+[alignment invariants](../../../docs/architecture/invariants/alignment.md).
+
+See [crates](../../README.md).

@@ -11,5 +11,5 @@ from the sibling `sample` modules.
   that need the profiles where every read matches the reference.
 - `tests.rs` — end-to-end aggregation over synthetic `CalledRead` records.
 
-See [sample methods](../../../../../docs/design/sample-evidence/README.md) and
-[sample invariants](../../../../../docs/architecture/invariants/sample-boundaries.md).
+See [sample methods](../../../../docs/design/sample-evidence/README.md) and
+[sample invariants](../../../../docs/architecture/invariants/sample-boundaries.md).

@@ -334,6 +334,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The core is one crate per step (PROP-0008 step 5, ADR-0079): `dna-core`
+  becomes `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus`, a chain
+  on the kernel that `validate_module_layers.py` enforces. Only what the next
+  step reads crosses a boundary: a read-only view of the alignment columns,
+  a validating `Alignment::placed` for the consensus's decided reads,
+  `Eligibility` as the one trust rule, `CallConfig` (alignment and variant
+  calling) instead of `CoreConfig`, and a kernel contract `CalledReads` that
+  the consensus requires. Plugin identities and every output are unchanged.
+  Operation-log records of the core now carry the target
+  `dna_call::read_call` instead of `dna_core::read_call`; a log filter that
+  matches on the old target must change.
+
 - Sanger failures belong to the Sanger plugin (PROP-0008 step 4, part 2c).
   `dna-sanger` owns `SangerError` with the ABIF, re-calling, signal,
   callability, and quality-control failures, and `ProductsError` for one

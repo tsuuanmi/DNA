@@ -12,7 +12,7 @@ assembly of the internal `ReadObservation` (a `CalledRead` plus its
 `SangerAttachment`). Shared
 reference-free read processing is `dna_sanger::read_processing`.
 
-The core's modality-neutral one-read path is `dna_core::read_call`; Sanger observation composes it after the Sanger evidence adapter,
+The core's modality-neutral one-read path is `dna_call::read_call`; Sanger observation composes it after the Sanger evidence adapter,
 passing the Sanger and core configuration sections separately.
 
 CLI analysis and the sample placement pass (`sample_analysis`) consume this

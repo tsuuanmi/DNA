@@ -120,7 +120,7 @@ core rules. Everything else arrives from the modality as data:
 
 An insertion whose inserted calls extend a repeat of their unit in the read,
 where the read bounds the run, is judged for support vetoes on its placements
-along the repeat (SRS-VAR-020, `ReadEligibility::repeat_unvetoed`): any window
+along the repeat (SRS-VAR-020, `Eligibility::repeat_unvetoed`): any window
 of as many repeat calls that is unmasked and free of insertion vetoes clears
 it. The alignment takes the repeat's 3'-most calls as the inserted ones
 (SRS-ALN-012); which identical calls those are is arbitrary, so a weak call
@@ -145,7 +145,7 @@ A variant's reasons are reported in this order:
 Each removed candidate increments `excluded_variant_candidates` once, even when
 it fails more than one eligibility condition. The pure variant stage also returns
 a concise exclusion diagnostic containing kind, contig, caller position when
-available, and all failed rules. The core's one-read path (`dna_core::read_call`)
+available, and all failed rules. The core's one-read path (`dna_call::read_call`)
 writes one WARN record per diagnostic without reference/alternate alleles. Sample aggregation logs aggregate
 counts of differential-locus observations and variant-associated calls that
 retain a basecall-independent profile; those operational counts do not alter the

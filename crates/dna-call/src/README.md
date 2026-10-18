@@ -1,4 +1,18 @@
-# Variant Calling
+# dna-call
+
+Owns the read assertion, the core's second step
+([PROP-0008](../../../docs/proposals/0008-pipeline-responsibilities.md),
+[ADR-0079](../../../docs/decisions/adr/0079-core-crates-by-step.md)): what does
+a placed read assert, its variants and the positions it shows? It depends on
+`dna-kernel` and `dna-align`.
+
+Public surface: `call`, `Eligibility` (the one trust rule, which
+`dna-sample` and `dna-consensus` read), `read_trust`, the `[variant_calling]`
+section, [read_call](read_call.rs) (`call_read`, `CallConfig`, `CoreRun`,
+`ReadIdentity`, `PlacementRejection`, and the descriptor of the `core`
+plugin, one provenance identity across `dna-align`, `dna-call`, and
+`dna-sample`), and the [model](model/README.md). The `test-support` feature
+adds fixtures of its records for downstream tests.
 
 Owns extraction, direct evidence mapping, allele anchoring, and configured
 eligibility of primary-sequence SNVs and supported small indels. Reportable
@@ -6,7 +20,7 @@ regions come from the target profile and are passed in by the caller.
 
 Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
 `filter.rs`. The module reads each read only as `ReadEvidence`
-([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md))
+([ADR-0069](../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md))
 and imports no Sanger type.
 - `eligibility.rs` decides which calls of a read can support a variant. Calls
   the modality places at a signal edge (the `edge` of its verdict on its base
@@ -28,7 +42,7 @@ and imports no Sanger type.
 - A masked call is no SNV candidate in `extract.rs`.
 
 The core never interprets a modality label; the Sanger labels are produced in
-[read_processing](../../../dna-sanger/src/read_processing/README.md).
+[read_processing](../../dna-sanger/src/read_processing/README.md).
 `anchor.rs` constructs and validates anchored REF/ALT alleles while preserving
 the alignment-selected event placement; post-calling haplotype normalization
 and target nomenclature belong to `variant_normalization` and
@@ -40,6 +54,8 @@ clinical significance.
 `config.rs` owns the `[variant_calling]`, with the indel-length cap configuration section: its raw record, validated
 record, and rules (ADR-0069).
 
-See [variant requirements](../../../../docs/requirements/variants.md),
-[variant-calling method](../../../../docs/design/variant-calling.md), and
-[scientific-state invariants](../../../../docs/architecture/invariants/scientific-state.md).
+See [variant requirements](../../../docs/requirements/variants.md),
+[variant-calling method](../../../docs/design/variant-calling.md), and
+[scientific-state invariants](../../../docs/architecture/invariants/scientific-state.md).
+
+See [crates](../../README.md).

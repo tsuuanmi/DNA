@@ -116,3 +116,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0076](0076-bounded-run-read-end-exemption.md) | Bounded runs before a post-repeat phase loss are exempt from `read_end` | Accepted |
 | [0077](0077-normalize-and-empop-crates.md) | Post-calling split into normalize and EMPOP crates | Accepted |
 | [0078](0078-call-the-consensus-decisions.md) | Call the consensus's decided edits without placing it again | Accepted |
+| [0079](0079-core-crates-by-step.md) | One crate per core step | Accepted |

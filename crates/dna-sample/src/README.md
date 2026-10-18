@@ -1,4 +1,13 @@
-# Sample
+# dna-sample
+
+Owns sample evidence, a core step
+([PROP-0008](../../../docs/proposals/0008-pipeline-responsibilities.md),
+[ADR-0079](../../../docs/decisions/adr/0079-core-crates-by-step.md)): what do
+a sample's reads show together, for review? It depends on `dna-kernel`,
+`dna-align`, and `dna-call`.
+
+Public surface: `aggregate`, `observations`, the `[sample_reconciliation]`
+section, and the [model](model/README.md).
 
 Owns deterministic aggregation of independently processed reads into sample-level
 coverage, overlap, locus, nucleotide-profile, and normalized-variant evidence.
@@ -8,7 +17,7 @@ separate coverage, overlap, locus aggregation, call evidence, contribution
 policy, profile geometry, nucleotide support, and variant aggregation.
 
 The module is modality-neutral
-([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+([ADR-0069](../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 It aggregates `CalledRead` records (read identity, `ReadEvidence`, alignment,
 variants) and imports no Sanger type. Locus observations and variant calls keep
 their source call index, so the report can join Sanger quality, peaks, and
@@ -21,6 +30,8 @@ final reports.
 `config.rs` owns the `[sample_reconciliation]` configuration section: its raw record, validated
 record, and rules (ADR-0069).
 
-See [sample requirements](../../../../docs/requirements/sample-evidence/README.md),
-[sample methods](../../../../docs/design/sample-evidence/README.md), and
-[sample invariants](../../../../docs/architecture/invariants/sample-boundaries.md).
+See [sample requirements](../../../docs/requirements/sample-evidence/README.md),
+[sample methods](../../../docs/design/sample-evidence/README.md), and
+[sample invariants](../../../docs/architecture/invariants/sample-boundaries.md).
+
+See [crates](../../README.md).

@@ -19,5 +19,5 @@ Seeds never exclude reference space or an orientation on their own; only a
 completeness proof may. Too few seed loci, too many seed hits, and
 uneconomical probe or certified window sets fall back to Gotoh.
 
-See [alignment method](../../../../../docs/design/alignment.md) and
-[alignment invariants](../../../../../docs/architecture/invariants/alignment.md).
+See [alignment method](../../../../docs/design/alignment.md) and
+[alignment invariants](../../../../docs/architecture/invariants/alignment.md).

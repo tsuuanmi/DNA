@@ -20,7 +20,7 @@ variants/v1 + TOML + FASTA ──► input::variants ──► normalization ─
 AB1s + TOML + FASTA ──► sample placement pass ──► consensus ──► SampleAnalysis::call ──► review list ──► review/v1
 ```
 
-`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_core::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. `review` runs the sample placement pass and the consensus as `consensus` does, calls the consensus in process (below), and lists the positions a reviewer should look at with their evidence labels ([review list](../reference/review.md)). Each
+`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_call::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. `review` runs the sample placement pass and the consensus as `consensus` does, calls the consensus in process (below), and lists the positions a reviewer should look at with their evidence labels ([review list](../reference/review.md)). Each
 stage consumes the validated output of the previous stage and produces a new
 typed result; no stage mutates shared state.
 
@@ -116,7 +116,7 @@ FASTA does (rendering the FASTA from the segments and parsing it with the
 record rules of a sequence file given to `call`), then runs the scientific
 step `call` runs on a consensus document (`pipeline::call::call_consensus`:
 each segment called from the consensus's decided edits by
-`dna_core::consensus::decided`, then the notation; SRS-VAR-021, ADR-0078),
+`dna_consensus::decided`, then the notation; SRS-VAR-021, ADR-0078),
 borrowing the configuration, profile, and reference the analysis loaded. The notation is rendered once (`report::notation_calls`, the
 rendering the variants document projects too). The round trip through the
 FASTA text keeps record names and sequence identities equal to those of the

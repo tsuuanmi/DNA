@@ -1,10 +1,13 @@
-"""Enforce the crate map of the workspace (ADR-0069, ADR-0070, ADR-0075).
+"""Enforce the crate map of the workspace (ADR-0069, ADR-0070, ADR-0075, ADR-0079).
 
 The workspace has one facade crate at the root (``src/``, crate ``dna``), one
-member crate per plugin family under ``crates/``:
+member crate per plugin family or core step under ``crates/``:
 
 - ``dna-kernel``: shared contracts;
-- ``dna-core``: the core caller;
+- ``dna-align``, ``dna-call``, ``dna-sample``, ``dna-consensus``: the core's
+  steps, a chain in which each depends only on the kernel and the steps
+  before it (``dna-align`` <- ``dna-call`` <- ``dna-sample``,
+  ``dna-consensus``);
 - ``dna-sanger``: the Sanger modality;
 - ``dna-normalize``: post-calling representation, normalization, and
   nomenclature;
@@ -12,11 +15,11 @@ member crate per plugin family under ``crates/``:
 
 and the evaluation harness ``dna-eval``.
 
-The plugin crates depend only on the kernel, and only the facade composes
-them. The harness may depend on the facade and the plugin crates, and no crate
-may depend on the harness. Both source paths (``dna::…``, ``dna_<crate>::…``)
-and manifest dependencies must follow that graph. Within each crate the module
-graph must be acyclic.
+The modality and post-calling crates depend only on the kernel, and only the
+facade composes the plugins. The harness may depend on the facade and the
+crates whose records it reads, and no crate may depend on the harness. Both
+source paths (``dna::…``, ``dna_<crate>::…``) and manifest dependencies must
+follow that graph. Within each crate the module graph must be acyclic.
 """
 
 from __future__ import annotations
@@ -33,12 +36,37 @@ ROOT = Path(__file__).resolve().parents[3]
 # Crates each crate may depend on, besides itself.
 ALLOWED: dict[str, frozenset[str]] = {
     "kernel": frozenset(),
-    "core": frozenset({"kernel"}),
+    "align": frozenset({"kernel"}),
+    "call": frozenset({"kernel", "align"}),
+    "sample": frozenset({"kernel", "align", "call"}),
+    "consensus": frozenset({"kernel", "align", "call"}),
     "sanger": frozenset({"kernel"}),
     "normalize": frozenset({"kernel"}),
     "empop": frozenset({"kernel"}),
-    "dna": frozenset({"kernel", "core", "sanger", "normalize", "empop"}),
-    "eval": frozenset({"dna", "kernel", "core", "sanger", "normalize", "empop"}),
+    "dna": frozenset(
+        {
+            "kernel",
+            "align",
+            "call",
+            "sample",
+            "consensus",
+            "sanger",
+            "normalize",
+            "empop",
+        }
+    ),
+    "eval": frozenset(
+        {
+            "dna",
+            "kernel",
+            "align",
+            "sample",
+            "consensus",
+            "sanger",
+            "normalize",
+            "empop",
+        }
+    ),
 }
 # Source path prefix of each crate.
 PATH_PREFIXES = {("dna" if name == "dna" else f"dna_{name}"): name for name in ALLOWED}
@@ -291,9 +319,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(failures)} crate-map violation(s) found", file=sys.stderr)
         return 1
     print(
-        "OK: plugin crates depend only on the kernel, the facade on the plugin "
-        "crates, and nothing on the evaluation harness, in source and manifests, "
-        "and each crate's module graph is acyclic"
+        "OK: the core steps form a chain on the kernel, the other plugin crates "
+        "depend only on the kernel, the facade on the plugin crates, and nothing "
+        "on the evaluation harness, in source and manifests, and each crate's "
+        "module graph is acyclic"
     )
     return 0
 

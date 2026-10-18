@@ -36,7 +36,8 @@ PROP-0002 phase 5a untangled the sources along those families in place:
      - target profiles and reference loading;
      - the plugin descriptor types with their compile-time validation.
    - `dna-core` is the core caller: alignment, variant calling, and sample
-     aggregation.
+     aggregation (split by [ADR-0079](0079-core-crates-by-step.md) into
+     `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus`).
    - `dna-sanger` is the Sanger modality, from ABIF decoding to
      `ReadEvidence`.
    - `dna-post` holds the post-calling plugins (split by

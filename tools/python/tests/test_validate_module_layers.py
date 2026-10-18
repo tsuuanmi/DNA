@@ -28,25 +28,28 @@ class CrateMapTests(unittest.TestCase):
     def test_accepts_the_allowed_crate_graph(self) -> None:
         result = self.run_map(
             {
-                "Cargo.toml": '[dependencies]\ndna-core = "0"\ndna-sanger = "0"\n',
+                "Cargo.toml": '[dependencies]\ndna-call = "0"\ndna-sanger = "0"\n',
                 "src/lib.rs": "pub use dna_kernel::error;\n",
                 "src/pipeline/mod.rs": (
-                    "use dna_core::read_call::call_read;\n"
+                    "use dna_call::read_call::call_read;\n"
                     "use dna_sanger::read_processing::process;\n"
                     "use crate::{report::build, model::result::Result};\n"
                 ),
                 "src/report.rs": "use crate::model::result::Result;\n",
                 "crates/dna-kernel/Cargo.toml": "[dependencies]\n",
                 "crates/dna-kernel/src/error.rs": "pub struct Error;\n",
-                "crates/dna-core/Cargo.toml": (
-                    '[dependencies]\ndna-kernel = "0"\n'
-                    '[dev-dependencies]\ndna-kernel = { version = "0" }\n'
+                "crates/dna-call/Cargo.toml": (
+                    '[dependencies]\ndna-kernel = "0"\ndna-align = "0"\n'
+                    '[dev-dependencies]\ndna-align = { version = "0" }\n'
                 ),
-                "crates/dna-core/src/read_call.rs": (
+                "crates/dna-call/src/read_call.rs": (
                     "use dna_kernel::{error::Error, model::reference::Reference};\n"
-                    "use crate::model::alignment::Alignment;\n"
+                    "use dna_align::model::alignment::Alignment;\n"
+                    "use crate::model::variant::V;\n"
                 ),
-                "crates/dna-core/src/model/alignment.rs": "use crate::model::variant::V;\n",
+                "crates/dna-call/src/model/called_read.rs": "use crate::model::variant::V;\n",
+                "crates/dna-consensus/Cargo.toml": '[dependencies]\ndna-call = "0"\n',
+                "crates/dna-consensus/src/lib.rs": "use dna_call::Eligibility;\n",
             }
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -54,33 +57,52 @@ class CrateMapTests(unittest.TestCase):
     def test_rejects_a_plugin_depending_on_another_plugin(self) -> None:
         result = self.run_map(
             {
-                "crates/dna-core/Cargo.toml": '[dependencies]\ndna-sanger = "0"\n',
-                "crates/dna-core/src/alignment/mod.rs": (
+                "crates/dna-align/Cargo.toml": '[dependencies]\ndna-sanger = "0"\n',
+                "crates/dna-align/src/orient.rs": (
                     "use dna_sanger::model::basecalls::BaseCalls;\n"
                 ),
-                "crates/dna-empop/src/conformance.rs": "use dna_core::read_call::call_read;\n",
+                "crates/dna-empop/src/conformance.rs": "use dna_call::read_call::call_read;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("core must not depend on dna-sanger", result.stderr)
+        self.assertIn("align must not depend on dna-sanger", result.stderr)
         self.assertIn(
-            "core module alignment must not depend on sanger module model::basecalls",
+            "align module orient must not depend on sanger module model::basecalls",
             result.stderr,
         )
         self.assertIn(
-            "empop module conformance must not depend on core module read_call",
+            "empop module conformance must not depend on call module read_call",
+            result.stderr,
+        )
+
+    def test_rejects_a_core_step_depending_on_a_later_one(self) -> None:
+        result = self.run_map(
+            {
+                "crates/dna-align/Cargo.toml": '[dependencies]\ndna-call = "0"\n',
+                "crates/dna-align/src/orient.rs": "use dna_call::Eligibility;\n",
+                "crates/dna-consensus/Cargo.toml": '[dependencies]\ndna-sample = "0"\n',
+                "crates/dna-consensus/src/observe.rs": "use dna_sample::aggregate;\n",
+                "crates/dna-eval/Cargo.toml": '[dependencies]\ndna-call = "0"\n',
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("align must not depend on dna-call", result.stderr)
+        self.assertIn("consensus must not depend on dna-sample", result.stderr)
+        self.assertIn("eval must not depend on dna-call", result.stderr)
+        self.assertIn(
+            "align module orient must not depend on call module Eligibility",
             result.stderr,
         )
 
     def test_rejects_the_kernel_depending_on_any_crate(self) -> None:
         result = self.run_map(
             {
-                "crates/dna-kernel/src/profile/mod.rs": "use dna_core::model::alignment::A;\n",
+                "crates/dna-kernel/src/profile/mod.rs": "use dna_align::model::alignment::A;\n",
             }
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "kernel module profile must not depend on core module model::alignment",
+            "kernel module profile must not depend on align module model::alignment",
             result.stderr,
         )
 
@@ -104,12 +126,12 @@ class CrateMapTests(unittest.TestCase):
     def test_ignores_tests_and_comments(self) -> None:
         result = self.run_map(
             {
-                "crates/dna-core/src/model/variant.rs": (
+                "crates/dna-call/src/model/variant.rs": (
                     "//! See [`process`](dna_sanger::read_processing::process).\n"
                     "pub struct V; // not dna_sanger::x\n"
                     "#[cfg(test)]\nmod tests {\n    use dna_sanger::x;\n}\n"
                 ),
-                "crates/dna-core/src/sample/tests.rs": "use dna_sanger::x;\n",
+                "crates/dna-sample/src/aggregate/tests.rs": "use dna_sanger::x;\n",
             }
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -118,13 +140,13 @@ class CrateMapTests(unittest.TestCase):
         result = self.run_map(
             {
                 "crates/dna-eval/Cargo.toml": (
-                    '[dependencies]\ndna = "0"\ndna-kernel = "0"\ndna-core = "0"\n'
+                    '[dependencies]\ndna = "0"\ndna-kernel = "0"\ndna-consensus = "0"\n'
                 ),
                 "crates/dna-eval/src/main.rs": "mod runner;\n",
                 "crates/dna-eval/src/runner.rs": (
                     "use dna::sample_call;\n"
                     "use dna_kernel::checksum::hex_sha256;\n"
-                    "use dna_core::consensus::build;\n"
+                    "use dna_consensus::build;\n"
                     "use crate::compare::Failure;\n"
                 ),
             }
@@ -136,13 +158,13 @@ class CrateMapTests(unittest.TestCase):
             {
                 "Cargo.toml": '[dev-dependencies]\ndna-eval = "0"\n',
                 "src/pipeline/mod.rs": "use dna_eval::compare::compare;\n",
-                "crates/dna-core/Cargo.toml": '[dependencies]\ndna-eval = "0"\n',
+                "crates/dna-call/Cargo.toml": '[dependencies]\ndna-eval = "0"\n',
                 "crates/dna-eval/Cargo.toml": '[dependencies]\ndna = "0"\n',
             }
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("dna must not depend on dna-eval", result.stderr)
-        self.assertIn("core must not depend on dna-eval", result.stderr)
+        self.assertIn("call must not depend on dna-eval", result.stderr)
         self.assertIn(
             "dna module pipeline must not depend on eval module compare", result.stderr
         )

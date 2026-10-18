@@ -462,3 +462,13 @@ An ADR records the architecture when step 4 or 5 lands.
   kernel's and the modality's. Every failure renders with its former stage
   prefix. Development panel v5: every harness output byte-identical to main,
   failure text included; real traces identical.
+- Step 5: the core is four crates in a chain, `dna-align` ← `dna-call` ←
+  {`dna-sample`, `dna-consensus`} (ADR-0079). Only what the next steps read
+  crosses a boundary: a read-only view of the alignment columns,
+  `Alignment::placed` for the consensus's decided reads (it checks the
+  invariants and computes the metrics), `Eligibility` as the one trust rule,
+  `CallConfig` instead of the whole core configuration, and the
+  `CalledReads` contract the consensus requires. Plugin identities are
+  unchanged; `core` spans `dna-align`, `dna-call`, and `dna-sample`.
+  Development panel v5, real traces, and forced CLI failures: every output
+  byte-identical to main; the operation log names the new crates.
