@@ -155,6 +155,22 @@ The core caller does not read callability directly. The Sanger adapter
   its masked stretch only ends where a whole window is clean, so such calls
   are masked with their noisy neighbours; on development panel v5 they read
   the reviewers' base at 1,650 of 1,650 truth variants;
+- at an end of the informative interval, a scored call at a signal edge whose
+  own signal is unambiguous has its verdict on its base taken off the edge
+  (SRS-CALL-017): one qualifying channel, a primary peak at least the read's
+  median, a second-channel share below 0.10, a peak no broader than 1.5 times
+  the read's median width (a dye blob is broader), regular spacing, no phase
+  loss beyond that end, and not the base of its neighbour towards that end (a
+  signal one position off). Its indel verdict keeps the edge and its bound is
+  unchanged, so it still counts towards runs: as a base-only call it would
+  stop counting, and run lengths the consensus estimated from it (`315.1C`)
+  were lost. On development panel v5 against the rule's absence: `315.1C`
+  called in 126 more samples and none lost, `73G` in 56, `strict` 33 better
+  and 1 worse, samples with an unreviewed difference unchanged (4.83 %), and
+  every new false call (`310C` twice, `309T`, `16183DEL`, one `73G`) inside a
+  check item. The same-base condition gives up 60 correct `16189C` calls that
+  otherwise came with one-position shift errors (`310C`, `460C`, `567C`,
+  `574C`);
 - every call carries its second base and its share (SRS-CALL-015).
 
 - **Quality control** trims to the callable span plus up to

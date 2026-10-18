@@ -23,8 +23,9 @@ modality-neutral core.
     unresolved.
 
   - the signal-edge verdict of every call (SRS-CALL-013), the leading calls
-    vouched for by their base only (SRS-CALL-014), and every call's second
-    base (SRS-CALL-015).
+    vouched for by their base only (SRS-CALL-014), the edge calls whose own
+    signal takes their base off the edge (SRS-CALL-017, using the peak widths
+    signal processing measures), and every call's second base (SRS-CALL-015).
 
   This file is the only place where Sanger peaks, relative quality,
   qualifying channels, and phase states turn into core evidence.

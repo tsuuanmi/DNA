@@ -27,6 +27,11 @@ pub struct LocusEvidence {
     pub snrs: [f64; 4],
     /// Normalized A/C/G/T profile; absent without positive signal.
     pub profile: Option<EvidenceProfile>,
+    /// A/C/G/T peak widths at the event, in samples: the contiguous samples
+    /// around it, within the context, where the channel stays at or above
+    /// half its corrected amplitude over its baseline; zero without positive
+    /// signal.
+    pub(crate) channel_widths: [usize; 4],
 }
 
 #[cfg(test)]

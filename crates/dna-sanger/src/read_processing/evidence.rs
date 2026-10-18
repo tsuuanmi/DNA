@@ -51,13 +51,27 @@ const REASON_ORDER: [EvidenceReason; 3] = [
 /// run to count as bounded before that phase loss (ADR-0076).
 const POST_REPEAT_MINIMUM_CALLS: usize = 2;
 
+/// Largest second-channel share of an edge call its own signal vouches for
+/// (SRS-CALL-017).
+const EDGE_SECOND_SHARE: f64 = 0.10;
+
+/// Largest primary peak width of such a call, as a multiple of the read's
+/// median width: a dye blob is broader than the read's peaks.
+const EDGE_WIDTH_FACTOR: f64 = 1.5;
+
+/// The spacing to each neighbouring call of such a call, as a band of
+/// multiples of the read's median spacing.
+const EDGE_SPACING: (f64, f64) = (0.5, 1.5);
+
 /// Builds one read's core evidence from its Sanger products. A call within
 /// `edge_margin` calls of the trim interval's ends, of a masked call that
 /// does not anchor the alignment, or of the read's physical ends is at an
 /// edge of the read's usable signal. The leading calls the signal vouches for
 /// by their base (SRS-CALL-014) are then unmasked, trusted for their base
 /// only, and freed of the relative-quality reason, and the informative
-/// interval starts at the first of them. Last, the bounded runs before a
+/// interval starts at the first of them. The edge calls at the interval's
+/// ends that their own signal vouches for (SRS-CALL-017) then have their
+/// verdict on their base taken off the edge. Last, the bounded runs before a
 /// post-repeat phase loss are marked (ADR-0076).
 ///
 /// # Errors
@@ -170,6 +184,17 @@ pub fn read_evidence(
         };
     }
     let informative = leading.first().map_or(start, |&first| first.min(start))..end;
+    for index in edge_identity(calls, &signal.loci, &evidence, &informative, edge_margin) {
+        let call = &mut evidence[index];
+        let mut withheld = Reasons::default();
+        if call.identity.withheld.contains(PEAK_BELOW_MINIMUM) {
+            withheld.insert(PEAK_BELOW_MINIMUM)?;
+        }
+        call.identity = Verdict {
+            edge: false,
+            withheld,
+        };
+    }
     let after_repeat = (0..count)
         .map(|index| {
             evidence[index].placement != Placement::Scored
@@ -306,6 +331,132 @@ fn leading_identity(calls: &BaseCalls, callability: &ReadCallability) -> Vec<usi
         .collect()
 }
 
+/// The calls at a signal edge of the read's informative ends that their own
+/// signal vouches for by their base (SRS-CALL-017): scored, with a canonical
+/// primary and no other qualifying channel, a primary peak at least the read's
+/// median, a second-channel share below [`EDGE_SECOND_SHARE`], a primary peak
+/// no wider than [`EDGE_WIDTH_FACTOR`] times the read's median width, and a
+/// spacing to each neighbour within [`EDGE_SPACING`] of the read's median.
+/// Only calls within `margin` of an informative end qualify, with every call
+/// between them and that end and every call within `margin` on their inner
+/// side scored, and no call within `margin` beyond that end masked where the
+/// read loses phase (`dephased_signal`, `post_homopolymer`). The rule judges
+/// each call against its own read only, never a position.
+fn edge_identity(
+    calls: &BaseCalls,
+    loci: &[crate::model::locus_evidence::LocusEvidence],
+    evidence: &[CallEvidence],
+    informative: &std::ops::Range<usize>,
+    margin: usize,
+) -> Vec<usize> {
+    let count = evidence.len();
+    let median = |mut values: Vec<f64>| {
+        values.sort_by(f64::total_cmp);
+        values.get(values.len() / 2).copied()
+    };
+    let width = |index: usize| {
+        let call = calls.calls.get(index)?;
+        let channel = Nucleotide::from_char(call.primary)?.channel_index();
+        let width = *loci.get(index)?.channel_widths.get(channel)?;
+        (width > 0).then_some(width as f64)
+    };
+    let single = |index: usize| {
+        calls
+            .calls
+            .get(index)
+            .is_some_and(|call| is_canonical(call.primary) && call.qualifying_channels.len() == 1)
+    };
+    let (Some(height), Some(median_width), Some(spacing)) = (
+        median(
+            calls
+                .calls
+                .iter()
+                .filter_map(primary_height)
+                .map(f64::from)
+                .collect(),
+        ),
+        median(
+            informative
+                .clone()
+                .filter(|&index| single(index))
+                .filter_map(width)
+                .collect(),
+        ),
+        median(
+            loci.windows(2)
+                .map(|pair| {
+                    pair[1].locus_position_0based as f64 - pair[0].locus_position_0based as f64
+                })
+                .collect(),
+        ),
+    ) else {
+        return Vec::new();
+    };
+    let scored = |range: std::ops::Range<usize>| {
+        range
+            .filter(|index| *index < count)
+            .all(|index| evidence[index].placement == Placement::Scored)
+    };
+    let phase_loss = |range: std::ops::Range<usize>| {
+        range.filter(|index| *index < count).any(|index| {
+            matches!(
+                evidence[index].placement.reason(),
+                Some(reason) if reason == DEPHASED_SIGNAL || reason == POST_HOMOPOLYMER
+            )
+        })
+    };
+    let spaced = |index: usize, other: usize| {
+        let (Some(left), Some(right)) = (loci.get(index.min(other)), loci.get(index.max(other)))
+        else {
+            return true;
+        };
+        let gap = right.locus_position_0based as f64 - left.locus_position_0based as f64;
+        gap >= EDGE_SPACING.0 * spacing && gap <= EDGE_SPACING.1 * spacing
+    };
+    informative
+        .clone()
+        .filter(|&index| {
+            let call = &evidence[index];
+            let leading = index < informative.start + margin;
+            let trailing = index + margin >= informative.end;
+            let ends = (!leading
+                || (scored(informative.start..index)
+                    && scored(index + 1..index + 1 + margin)
+                    && !phase_loss(informative.start.saturating_sub(margin)..informative.start)))
+                && (!trailing
+                    || (scored(index + 1..informative.end)
+                        && scored(index.saturating_sub(margin)..index)
+                        && !phase_loss(informative.end..informative.end + margin)));
+            // A call reading the base of its neighbour towards the read's
+            // end may be that neighbour's signal one position off.
+            let outer_same = |outer: Option<usize>| {
+                outer
+                    .and_then(|outer| calls.calls.get(outer))
+                    .zip(calls.calls.get(index))
+                    .is_some_and(|(outer, call)| outer.primary == call.primary)
+            };
+            call.placement == Placement::Scored
+                && call.identity.edge
+                && (leading || trailing)
+                && !(leading && outer_same(index.checked_sub(1)))
+                && !(trailing && outer_same(Some(index + 1)))
+                && ends
+                && single(index)
+                && calls
+                    .calls
+                    .get(index)
+                    .and_then(primary_height)
+                    .is_some_and(|primary| f64::from(primary) >= height)
+                && call
+                    .second
+                    .is_none_or(|second| second.share < EDGE_SECOND_SHARE)
+                && width(index).is_some_and(|width| width <= EDGE_WIDTH_FACTOR * median_width)
+                && (index == 0 || spaced(index, index - 1))
+                && (index + 1 >= count || spaced(index, index + 1))
+        })
+        .collect()
+}
+
 /// The second base of a call's signal: the highest peak of the other three
 /// channels, with its share of the primary and that peak together.
 fn second_base(call: &crate::model::basecalls::BaseCall) -> Option<SecondBase> {
@@ -423,6 +574,7 @@ mod tests {
                 corrected_amplitudes: [100.0, 0.0, 0.0, 0.0],
                 snrs: [100.0, 0.0, 0.0, 0.0],
                 profile: None,
+                channel_widths: [4, 0, 0, 0],
             })
             .collect();
         let quality = QualityControlResult {
@@ -596,6 +748,51 @@ mod tests {
         // Every other call keeps the edge it had before: call 4 sits next to
         // the trim start.
         assert!(evidence.calls()[4].identity.edge && !evidence.calls()[5].identity.edge);
+        Ok(())
+    }
+
+    #[test]
+    fn vouches_for_unambiguous_edge_calls_by_their_base_only() -> Result<()> {
+        // Ten distinct, single-channel calls of equal height; calls 8-9 lie
+        // outside the trim, so with a margin of 2 calls 0-1 and 6-7 sit at an
+        // edge of the informative interval 0..8.
+        let (mut calls, mut signal, callability, mut quality) = products(&[200; 10], &[40; 10]);
+        let bases = ['A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'T', 'A'];
+        for (call, base) in calls.calls.iter_mut().zip(bases) {
+            let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
+            call.primary = base;
+            call.ambiguity = base;
+            call.qualifying_channels = vec![Nucleotide::ALL[channel]];
+            for (index, peak) in call.peaks.iter_mut().enumerate() {
+                peak.height = if index == channel { 200 } else { 0 };
+            }
+        }
+        for (locus, base) in signal.loci.iter_mut().zip(bases) {
+            let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
+            locus.channel_widths =
+                std::array::from_fn(|index| if index == channel { 4 } else { 0 });
+        }
+        // Call 6 is as broad as a dye blob; call 7 reads the base of call 8,
+        // its neighbour towards the read's end.
+        signal.loci[6].channel_widths = [0, 0, 10, 0];
+        quality.trim_end_0based_exclusive = 8;
+        quality.retained_sequence = "A".repeat(8);
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 2)?;
+        let lifted = evidence
+            .calls()
+            .iter()
+            .map(|call| !call.identity.edge)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            lifted,
+            [
+                true, true, true, true, true, true, false, false, false, false
+            ]
+        );
+        let first = evidence.calls()[0];
+        // Only the verdict on the base is lifted: the call still counts as it
+        // did, and supports no indel at the edge.
+        assert!(first.indel.edge && first.bound != Bound::Withheld && !first.base_only());
         Ok(())
     }
 
