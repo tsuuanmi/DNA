@@ -56,12 +56,7 @@ pub(super) fn apply(
         if reasons.is_empty() {
             reported.push(variant);
         } else {
-            excluded.push(ExcludedVariant {
-                contig: variant.contig,
-                position_1based: Some(variant.position_1based),
-                kind: variant.kind,
-                reasons,
-            });
+            excluded.push(ExcludedVariant::of(&variant, reasons));
         }
     }
     Ok(VariantCallingResult {
@@ -210,9 +205,9 @@ mod tests {
             .map(|raised| {
                 let mut call = CallEvidence::scored('A', None);
                 for &index in *raised {
-                    call.identity.withheld.insert(VOCABULARY[index]);
+                    assert!(call.identity.withheld.insert(VOCABULARY[index]).is_ok());
                     if index != MIXED {
-                        call.indel.withheld.insert(VOCABULARY[index]);
+                        assert!(call.indel.withheld.insert(VOCABULARY[index]).is_ok());
                     }
                 }
                 call
@@ -292,6 +287,7 @@ mod tests {
             position_1based: None,
             kind: VariantKind::Ins,
             reasons: vec![VariantExclusionReason::IndelLengthExceeded],
+            undecided: Vec::new(),
         });
 
         let result = filter(extracted, &read, 0, &[[10, 20]])?;

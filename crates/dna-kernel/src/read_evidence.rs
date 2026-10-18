@@ -97,19 +97,26 @@ const REASON_CAPACITY: usize = 4;
 pub struct Reasons([Option<EvidenceReason>; REASON_CAPACITY]);
 
 impl Reasons {
-    /// Adds `reason`; `false` when the verdict already holds as many reasons
-    /// as it can, and the reason is not added.
-    pub fn insert(&mut self, reason: EvidenceReason) -> bool {
+    /// Adds `reason`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EvidenceError::TooManyReasons` when the verdict already holds
+    /// as many reasons as it can: a reason is never dropped silently, since a
+    /// dropped reason would raise the call's trust.
+    pub fn insert(&mut self, reason: EvidenceReason) -> Result<()> {
         if self.contains(reason) {
-            return true;
+            return Ok(());
         }
-        match self.0.iter_mut().find(|slot| slot.is_none()) {
-            Some(slot) => {
-                *slot = Some(reason);
-                true
-            }
-            None => false,
-        }
+        let slot =
+            self.0
+                .iter_mut()
+                .find(|slot| slot.is_none())
+                .ok_or(EvidenceError::TooManyReasons {
+                    maximum: REASON_CAPACITY,
+                })?;
+        *slot = Some(reason);
+        Ok(())
     }
 
     /// Whether `reason` is held.
@@ -232,13 +239,10 @@ impl CallEvidence {
     }
 
     /// The same call masked: anchoring calls still show where a run ends,
-    /// unresolved ones show nothing; neither shows its base or an indel.
+    /// unresolved ones show nothing; neither shows its base or an indel,
+    /// whatever its verdicts hold, and the placement carries the reason.
     #[must_use]
     pub fn masked(mut self, placement: Placement) -> Self {
-        if let Some(reason) = placement.reason() {
-            self.identity.withheld.insert(reason);
-            self.indel.withheld.insert(reason);
-        }
         self.bound = match placement {
             Placement::Scored => self.bound,
             Placement::Anchoring(_) => Bound::Anchored,
@@ -257,11 +261,12 @@ impl CallEvidence {
 }
 
 /// Labels the core owns; a modality may not reuse them.
-const CORE_REASONS: [&str; 7] = [
+const CORE_REASONS: [&str; 8] = [
     "non_canonical_allele",
     "indel_length_exceeded",
     "outside_target_region",
     "read_end",
+    "base_only",
     "run_boundary",
     "unresolved_flank",
     "placement_conflict",
@@ -328,13 +333,12 @@ impl ReadEvidence {
             {
                 return Err(EvidenceError::InvalidReason(reason.label()).into());
             }
-            let masked = call.placement.reason();
             if call
                 .identity
                 .withheld
                 .iter()
                 .chain(call.indel.withheld.iter())
-                .any(|reason| Some(reason) != masked && !reason_order.contains(&reason))
+                .any(|reason| !reason_order.contains(&reason))
             {
                 return Err(EvidenceError::UndeclaredReason { index }.into());
             }
@@ -474,7 +478,7 @@ mod tests {
         let call = CallEvidence::scored('A', None);
         assert!(ReadEvidence::new(vec![call; 2], 1..3, Vec::new()).is_err());
         let mut vetoed = call;
-        vetoed.identity.withheld.insert(PEAK);
+        assert!(vetoed.identity.withheld.insert(PEAK).is_ok());
         // A verdict reason the order does not list.
         assert!(ReadEvidence::new(vec![vetoed], 0..1, Vec::new()).is_err());
         assert!(ReadEvidence::new(vec![call], 0..1, vec![PEAK, PEAK]).is_err());
@@ -491,15 +495,25 @@ mod tests {
     }
 
     #[test]
-    fn a_masked_call_withholds_its_base_and_indels_and_keeps_an_anchoring_bound() {
+    fn a_masked_call_carries_its_reason_and_keeps_an_anchoring_bound() {
         let reason = EvidenceReason::new("dephased_signal");
         let anchoring = CallEvidence::scored('A', None).masked(Placement::Anchoring(reason));
-        assert!(anchoring.identity.withheld.contains(reason));
-        assert!(anchoring.indel.withheld.contains(reason));
+        assert_eq!(anchoring.placement.reason(), Some(reason));
         assert_eq!(anchoring.bound, Bound::Anchored);
         let unresolved = CallEvidence::scored('A', None).masked(Placement::Unresolved(reason));
         assert_eq!(unresolved.bound, Bound::Withheld);
         assert!(!unresolved.base_only());
+    }
+
+    #[test]
+    fn a_verdict_refuses_a_reason_it_cannot_hold() {
+        let mut reasons = Reasons::default();
+        for label in ["a", "b", "c", "d"] {
+            assert!(reasons.insert(EvidenceReason::new(label)).is_ok());
+        }
+        // A reason it holds already is no new one.
+        assert!(reasons.insert(EvidenceReason::new("a")).is_ok());
+        assert!(reasons.insert(EvidenceReason::new("e")).is_err());
     }
 
     #[test]

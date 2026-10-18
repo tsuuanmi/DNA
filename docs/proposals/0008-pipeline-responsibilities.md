@@ -425,3 +425,33 @@ An ADR records the architecture when step 4 or 5 lands.
   runs of ADR-0076 on the read's own calls (SRS-CALL-016); the core keeps
   the alignment-dependent half. Development panel v5: every harness output
   byte-identical to main, cause evidence included; real traces identical.
+- Step 4, part 2b: the intended changes (`core` 11, `consensus` 7), each
+  measured on development panel v5 against main:
+  - verdict reasons fail closed (a verdict refuses a reason it cannot hold),
+    and a masked placement carries its reason itself: no output change;
+  - the consensus reads reasons by scope, as variant calling does: a base
+    its verdict on the base, an inserted base its verdict on an indel, and a
+    call beside an insertion or deletion none (SRS-CONS-003);
+  - an insertion or deletion on a call vouched for by its base only is
+    excluded as `base_only`, a new core reason, rather than `read_end`: no
+    harness change; on the 52 real samples, 44 such exclusions;
+  - overlap agreement compares only bases the core trusts (SRS-SAMPLE-008):
+    no harness change; on the 52 real samples, conflicts fall from 1,156 to
+    11 and eligible pairs from 137 to 85, the lost pairs being short
+    overlaps at read ends that the signal edges now leave below the
+    comparable minimum;
+  - review found that reading flanks by scope let a deletion be decided
+    between undecided positions and then read as callable reference. Two
+    fixes: every candidate excluded before it is observed (an indel no flank
+    reads, an unresolved allele) leaves its positions undecided
+    (SRS-VAR-019), and a site that changes the length stays undecided while
+    a position beside it is undecided, unless reads show its runs' lengths
+    (SRS-CONS-009). A scan of the panel for decided differences that are
+    neither reported nor uncallable finds none.
+
+  Net against main: `haplotype_lod` 3 better and none worse, primary 2 and
+  1, strict 1 and 4 (three `523DEL 524DEL` that the two strands read
+  differently, now contested; one `310DEL 311DEL` decided from the read
+  that bounds the run); callable yield HV2 0.9910 to 0.9909, HV3 0.9905 to
+  0.9904; causes `dna` 1,212 to 1,178, `technology` 519 to 556, `lab` 370
+  to 377.

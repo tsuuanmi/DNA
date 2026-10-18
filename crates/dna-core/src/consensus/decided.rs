@@ -799,6 +799,31 @@ mod tests {
     }
 
     #[test]
+    fn a_decided_deletion_between_undecided_positions_is_not_callable_reference() -> Result<()> {
+        // 11 and 14 undecided, 12-13 (GG) decided deleted: the deletion's gap
+        // could lie anywhere among the `N`s, so it is excluded, and its
+        // positions must not read as the reference (ADR-0078, SRS-VAR-019).
+        let read = called(
+            1,
+            22,
+            "ACGATTTTTCNNTAGCATCG",
+            vec![
+                site(11, 11, None, SiteState::Unresolved, Vec::new()),
+                site(12, 13, Some(""), SiteState::Called, Vec::new()),
+                site(14, 14, None, SiteState::Unresolved, Vec::new()),
+            ],
+        )?
+        .without_excluded_positions();
+        assert!(read.variants.reported.is_empty());
+        assert!(
+            callable(&read)
+                .iter()
+                .all(|&(start, end)| !(start..end).contains(&11) && !(start..end).contains(&12))
+        );
+        Ok(())
+    }
+
+    #[test]
     fn a_sequence_that_disagrees_with_its_sites_fails() {
         assert!(called(1, 22, "ACGATTTTTCAGGCTAGCATC", Vec::new()).is_err());
     }

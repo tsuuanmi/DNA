@@ -8,6 +8,7 @@ use crate::model::sample_evidence::{
     SampleReadEvidence,
 };
 use crate::sample::SampleReconciliationConfig;
+use crate::variant_calling::VariantCallingConfig;
 use dna_kernel::error::{Result, SampleError};
 
 use super::{coverage, loci as locus, overlap, variants};
@@ -23,6 +24,7 @@ pub fn aggregate(
     reads: &[&CalledRead],
     rejected: &[RejectedSampleRead],
     config: &SampleReconciliationConfig,
+    calling: &VariantCallingConfig,
 ) -> Result<SampleEvidence> {
     if reads.is_empty() && !rejected.is_empty() {
         return Err(SampleError::NoAdmittedReads {
@@ -74,7 +76,7 @@ pub fn aggregate(
         reads: read_evidence,
         rejected_reads,
         coverage,
-        overlaps: overlap::assess(&ordered, config)?,
+        overlaps: overlap::assess(&ordered, config, calling)?,
         locus_differences: locus::aggregate(&ordered)?,
         variants: variants::aggregate(&ordered)?,
     })

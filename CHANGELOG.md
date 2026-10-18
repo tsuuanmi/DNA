@@ -324,6 +324,21 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Verdict scope (PROP-0008 step 4, part 2b). The consensus reads the
+  modality's reasons by scope, as variant calling does (SRS-CONS-003); an
+  insertion or deletion on a call vouched for by its base only is excluded
+  with the new core reason `base_only` instead of `read_end` (SRS-VAR-013);
+  overlap agreement compares only bases the core trusts (SRS-SAMPLE-008); a
+  verdict refuses a reason it cannot hold instead of dropping it. A
+  candidate excluded before it is observed (an indel no flank reads, an
+  unresolved allele) leaves its positions undecided (SRS-VAR-019), and a
+  consensus site that changes the length stays undecided while a position
+  beside it is undecided, unless reads show its runs' lengths
+  (SRS-CONS-009). Plugins `core` 11 and `consensus` 7.
+  `dna.sample_evidence/v10` lists `base_only` among the exclusion reasons
+  (revised in place, unreleased). Development panel v5: `haplotype_lod` 3
+  better and none worse.
+
 - `ReadEvidence` v2 (PROP-0008 step 4, part 2a). Each call carries its
   placement (scored, or masked as anchoring or unresolved with its reason)
   and the modality's verdicts on its base, on an indel, and on a run's end,

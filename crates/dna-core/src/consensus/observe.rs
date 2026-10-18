@@ -146,23 +146,35 @@ pub(super) fn observe(
                     || (eligibility.bound_exempt(index) && matches[index]))
         })
     };
+    // Each use reads the modality's reasons for it, as variant calling does:
+    // a base its verdict on the base, an inserted base its verdict on an
+    // indel, and a call beside an insertion or deletion none.
     let clean_call = |index: usize| {
         trusted_call(index)
             && calls
                 .get(index)
                 .is_some_and(|call| call.identity.withheld.is_empty())
     };
-    // A clean call that may also place an insertion or deletion: not one the
-    // modality vouches for by its base only.
-    let placing_call =
-        |index: usize| clean_call(index) && calls.get(index).is_some_and(|call| !call.base_only());
+    let inserted_call = |index: usize| {
+        trusted_call(index)
+            && calls
+                .get(index)
+                .is_some_and(|call| call.indel.withheld.is_empty() && !call.base_only())
+    };
+    // A call that may bound an insertion or deletion: trusted, and not one
+    // the modality vouches for by its base only.
+    let placing_call = |index: usize| {
+        trusted_call(index) && calls.get(index).is_some_and(|call| !call.base_only())
+    };
     let interval = read.evidence.informative();
+    // A base aligned to `position`, or inserted when it is `None`.
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
         trust: match calls.get(call) {
             _ if !canonical(base) || !interval.contains(&call) => Trust::Nothing,
             Some(evidence) => match evidence.placement {
-                Placement::Scored if clean_call(call) => Trust::Clean,
+                Placement::Scored if position.is_some() && clean_call(call) => Trust::Clean,
+                Placement::Scored if position.is_none() && inserted_call(call) => Trust::Clean,
                 Placement::Scored => Trust::Unmasked,
                 Placement::Anchoring(_) => Trust::Anchoring,
                 Placement::Unresolved(_) => Trust::Nothing,
@@ -261,8 +273,10 @@ pub(super) fn observe(
             // bounds is judged on its placements along the repeat.
             let repeat = !unbounded && eligibility.repeat_unvetoed(&evidence);
             let inserted_clean = |call: usize| {
-                (clean_call(call) || (repeat && trusted_call(call)))
-                    && calls.get(call).is_some_and(|call| !call.base_only())
+                inserted_call(call)
+                    || (repeat
+                        && trusted_call(call)
+                        && calls.get(call).is_some_and(|call| !call.base_only()))
             };
             let clean = !unbounded
                 && inserted

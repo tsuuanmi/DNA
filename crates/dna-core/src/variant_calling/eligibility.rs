@@ -402,18 +402,6 @@ impl<'a> ReadEligibility<'a> {
         self.trusted.get(index).copied().unwrap_or(false)
     }
 
-    /// Whether the call at `index` is trusted for placing an insertion or
-    /// deletion: as for its base, and not at a signal edge for indels, as a
-    /// call vouched for by its base only always is.
-    pub(crate) fn indel_trusted(&self, index: usize) -> bool {
-        self.trusted(index)
-            && self
-                .evidence
-                .calls()
-                .get(index)
-                .is_some_and(|call| !call.indel.edge)
-    }
-
     /// The exclusion reason of a masked call, or `None` for an unmasked one.
     pub(super) fn mask_reason(&self, index: usize) -> Option<VariantExclusionReason> {
         let reason = self.evidence.calls().get(index)?.placement.reason()?;
@@ -475,20 +463,22 @@ impl<'a> ReadEligibility<'a> {
             .iter()
             .map(|mapping| mapping.call_index_0based)
             .collect::<Vec<_>>();
-        // A substitution rests on its calls' base; an insertion or deletion
-        // on their placing it, which a call vouched for by its base only
-        // never does.
-        let untrusted = |index: usize| {
-            if kind == VariantKind::Snv {
-                !self.trusted(index)
-            } else {
-                !self.indel_trusted(index)
-            }
-        };
-        if mapped.iter().any(|&index| untrusted(index))
+        if mapped.iter().any(|&index| !self.trusted(index))
             && !self.exempt(kind, edited, orientation, &evidence, &mapped)
         {
             reasons.push(VariantExclusionReason::ReadEnd);
+        }
+        // An insertion or deletion rests on its calls placing it, which a
+        // call vouched for by its base only never does.
+        if kind != VariantKind::Snv
+            && mapped.iter().any(|&index| {
+                self.evidence
+                    .calls()
+                    .get(index)
+                    .is_some_and(CallEvidence::base_only)
+            })
+        {
+            reasons.push(VariantExclusionReason::BaseOnly);
         }
         if self.unbounded_run(kind, edited, orientation, &evidence) {
             reasons.push(VariantExclusionReason::RunBoundary);
@@ -555,11 +545,11 @@ mod tests {
         let mixed_dna = EvidenceReason::new("mixed_supporting_dna");
         let mut calls = ReadEvidence::clean(sequence).calls().to_vec();
         for &index in vetoed {
-            calls[index].identity.withheld.insert(peak);
-            calls[index].indel.withheld.insert(peak);
+            assert!(calls[index].identity.withheld.insert(peak).is_ok());
+            assert!(calls[index].indel.withheld.insert(peak).is_ok());
         }
         for &index in mixed {
-            calls[index].identity.withheld.insert(mixed_dna);
+            assert!(calls[index].identity.withheld.insert(mixed_dna).is_ok());
         }
         let length = calls.len();
         ReadEvidence::new(calls, 0..length, vec![peak, mixed_dna])
@@ -742,7 +732,6 @@ mod tests {
         let mut read = ReadEvidence::clean("ACGTACGTACGT");
         let mut call = read.calls()[5];
         call.bound = Bound::Withheld;
-        call.indel.edge = true;
         read = read.with_call(5, call);
         if masked {
             let mut call = read.calls()[4];
@@ -763,7 +752,10 @@ mod tests {
             )
         };
         assert!(reasons(VariantKind::Snv).is_empty());
-        assert_eq!(reasons(VariantKind::Ins), [VariantExclusionReason::ReadEnd]);
+        assert_eq!(
+            reasons(VariantKind::Ins),
+            [VariantExclusionReason::BaseOnly]
+        );
         // It shows no run's end either.
         assert!(!eligibility.resolves(5, 'A'));
     }
