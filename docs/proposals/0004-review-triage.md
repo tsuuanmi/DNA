@@ -370,6 +370,8 @@ attached, not three.
 | Label | Means | Evidence it carries |
 |---|---|---|
 | `strands_disagree` | clean reads of both strands disagree on the item's decided sequence: a supporting read on one strand and an opposing read on the other, as the consensus counts them (a conflict) | each read's sequence |
+| `read_disagrees` | a read the consensus counted for the decision, or set aside, still shows the whole item cleanly as another sequence (rules version 2) | the read and its sequence |
+| `not_called` | the consensus decided a difference that DNA does not call (rules version 2) | — |
 | `one_read` | a single read shows the call | the read |
 | `one_strand` | the reads that show DNA's call all lie on one strand | the strand and reads |
 | `possible_heteroplasmy` | a second base is shown by the reads beyond their shadow | the base, its share per read, the strands showing it |

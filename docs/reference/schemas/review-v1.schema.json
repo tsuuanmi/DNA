@@ -202,7 +202,8 @@
         },
         "rules": {
           "description": "Version of the labelling rules, equal to the review plugin version.",
-          "const": 1
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -441,6 +442,32 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "read",
+            "strand",
+            "sequence"
+          ],
+          "properties": {
+            "label": {
+              "const": "read_disagrees"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            },
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "sequence": {
+              "type": "string",
+              "pattern": "^[ACGT]*$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "position",
             "base",
             "reads"
@@ -528,6 +555,18 @@
           "properties": {
             "label": {
               "const": "undecided"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label"
+          ],
+          "properties": {
+            "label": {
+              "const": "not_called"
             }
           }
         },
@@ -820,9 +859,11 @@
           "additionalProperties": false,
           "required": [
             "strands_disagree",
+            "read_disagrees",
             "possible_heteroplasmy",
             "estimated_length",
             "undecided",
+            "not_called",
             "one_read",
             "one_strand",
             "noisy_signal",
@@ -835,6 +876,10 @@
               "type": "integer",
               "minimum": 0
             },
+            "read_disagrees": {
+              "type": "integer",
+              "minimum": 0
+            },
             "possible_heteroplasmy": {
               "type": "integer",
               "minimum": 0
@@ -844,6 +889,10 @@
               "minimum": 0
             },
             "undecided": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_called": {
               "type": "integer",
               "minimum": 0
             },
