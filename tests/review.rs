@@ -144,13 +144,15 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 12] = [
+const RANKS: [(&str, u64); 14] = [
     ("strands_disagree", 0),
     ("read_disagrees", 0),
     ("possible_heteroplasmy", 1),
     ("estimated_length", 2),
     ("undecided", 2),
     ("not_called", 2),
+    ("long_run", 2),
+    ("edge_deletion", 2),
     ("one_read", 3),
     ("one_strand", 3),
     ("noisy_signal", 4),
@@ -163,7 +165,7 @@ const RANKS: [(&str, u64); 12] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 6);
+    assert_eq!(value["provenance"]["rules"], 7);
     let items = items(value)?;
     let mut previous = None;
     let mut counts = std::collections::BTreeMap::<&str, u64>::new();

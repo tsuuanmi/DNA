@@ -611,6 +611,77 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "runs"
+          ],
+          "properties": {
+            "label": {
+              "const": "long_run"
+            },
+            "runs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "base",
+                  "length",
+                  "reference_length",
+                  "length_evidence"
+                ],
+                "properties": {
+                  "base": {
+                    "enum": [
+                      "A",
+                      "C",
+                      "G",
+                      "T"
+                    ]
+                  },
+                  "length": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "reference_length": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "length_evidence": {
+                    "enum": [
+                      "in_phase",
+                      "anchored_end",
+                      "phase_loss",
+                      "reference_frame",
+                      null
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
+              "const": "edge_deletion"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "read"
           ],
           "properties": {
@@ -902,6 +973,8 @@
             "estimated_length",
             "undecided",
             "not_called",
+            "long_run",
+            "edge_deletion",
             "one_read",
             "one_strand",
             "noisy_signal",
@@ -931,6 +1004,14 @@
               "minimum": 0
             },
             "not_called": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "long_run": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "edge_deletion": {
               "type": "integer",
               "minimum": 0
             },

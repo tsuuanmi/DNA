@@ -93,8 +93,8 @@ them). It has:
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy`,
-  `estimated_length`, `undecided`, `not_called`, `not_covered`), whatever its
-  calls; otherwise `variant`: it
+  `estimated_length`, `undecided`, `not_called`, `long_run`, `edge_deletion`,
+  `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference. The read labels `one_read`, `one_strand`, `noisy_signal`,
@@ -154,11 +154,11 @@ and `5` for a variant without a label. Items are ordered by priority, then
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy` |
-| 2 | `estimated_length`, `not_called`, `undecided` |
+| 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 6)
+## Labels (rules version 7)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -207,6 +207,20 @@ exemption lifts the margin (ADR-0076).
   than the reference at the site, and DNA calls nothing within one position
   of it: the call step excluded the difference (its positions are then not
   callable, SRS-VAR-019), so the reviewer sees what the reads showed.
+- `long_run` `{runs: [{base, length, reference_length, length_evidence}]}`:
+  at a decided site whose call holds the same runs as the reference, a run at
+  least `review.run_growth` bases longer than its reference run whose length
+  rests on an anchored end (`length_evidence` `anchored_end`) or on a single
+  supporting read (rules version 7). Both strands showing the length in
+  phase assure it, however long. `length_evidence` is `null` when the site
+  was decided position by position. On current development data such
+  lengths were 89 % wrong (an anchored end or one read counts one base too
+  many in a long run), against 2 % for lengths both strands showed in phase.
+- `edge_deletion` `{read}`: a decided deletion that rests on a single read
+  and lies within `review.edge_zone` positions of a reportable region's first
+  or last position, where a read's own edge loses or doubles a base (rules
+  version 7). On current development data such deletions were 88 % wrong,
+  against 0.2 % inside the regions and 0.8 % with both strands.
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
   lie on one strand. It describes the support of the call, so it can come

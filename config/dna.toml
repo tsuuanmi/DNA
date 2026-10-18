@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 10
+schema_version = 11
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -137,3 +137,13 @@ minimum_resolved_bases = 20
 site_mismatch_cost = 2
 site_gap_open_cost = 3
 site_gap_extension_cost = 2
+
+[review]
+# A decided run longer than its reference run by at least `run_growth` bases
+# is a check when its length rests on an anchored end or a single read: both
+# strands must show it in phase to assure it.
+run_growth = 3
+# A deletion that rests on a single read within `edge_zone` positions of a
+# reportable region's first or last position is a check: the read's own edge
+# is where a lost or doubled base looks like a deletion.
+edge_zone = 20

@@ -8,12 +8,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::config::ReviewConfig;
 use crate::error::{ReportError, Result, RunSignalError};
 use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::review_result::{
-    ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, ItemKind, ItemResult,
-    LabelCounts, LabelResult, PositionCounts, ReviewCallResult, ReviewProvenanceResult,
+    ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
+    ItemResult, LabelCounts, LabelResult, PositionCounts, ReviewCallResult, ReviewProvenanceResult,
     ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult, ScopeResult, SecondResult,
     ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
 };
@@ -39,14 +40,14 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 6,
+    version: 7,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
         Contract::Consensus,
         Contract::CalledVariants,
     ],
-    config_sections: &[],
+    config_sections: &["review"],
 };
 
 /// Priority of an unlabelled variant, after every label's rank.
@@ -306,6 +307,8 @@ fn own(analysis: &SampleAnalysis, signal: &RunSignal) -> Result<RunSignal> {
 
 /// One sample's evidence, indexed for the review rules.
 struct Sample<'a> {
+    /// The review plugin's thresholds (`[review]`).
+    config: ReviewConfig,
     sequence: &'a [u8],
     regions: &'a [[usize; 2]],
     callable: &'a [[usize; 2]],
@@ -410,6 +413,7 @@ impl<'a> Sample<'a> {
             .map(|locus| (locus.position_1based, locus))
             .collect();
         Ok(Self {
+            config: analysis.loaded.config.review,
             sequence: reference.sequence.as_bytes(),
             regions,
             callable,
@@ -587,7 +591,37 @@ impl<'a> Sample<'a> {
         if !runs.is_empty() {
             labels.push(LabelResult::EstimatedLength { runs });
         }
+        if !undecided(site) {
+            let growth = long_runs(site, self.config.run_growth);
+            if !growth.is_empty() {
+                labels.push(LabelResult::LongRun { runs: growth });
+            }
+            if let Some(read) = self.edge_deletion(site) {
+                labels.push(LabelResult::EdgeDeletion { read });
+            }
+        }
         labels
+    }
+
+    /// The single read a deletion within `edge_zone` positions of a
+    /// reportable region's first or last position rests on; `None` for any
+    /// other site.
+    fn edge_deletion(&self, site: &ConsensusSite) -> Option<String> {
+        let call = site.call.as_deref()?;
+        let [input] = site.supporting.as_slice() else {
+            return None;
+        };
+        if call.len() >= site.reference.len() {
+            return None;
+        }
+        let near = near_edge(
+            self.regions,
+            site.first_0based + 1,
+            site.last_0based + 1,
+            self.config.edge_zone,
+        );
+        let index = *self.by_input.get(input.as_str())?;
+        near.then(|| self.reads[index].name.to_owned())
     }
 
     /// Completes an item's calls, labels, and evidence; `None` for a site
@@ -1051,6 +1085,66 @@ fn one_strand(supporting: &[Orientation]) -> Option<Orientation> {
     rest.iter().all(|&strand| strand == first).then_some(first)
 }
 
+/// The runs of a decided site longer than their reference run by `growth`
+/// or more whose length rests on an anchored end or on a single read: the
+/// reference and the call must hold the same runs in the same order. A length
+/// both strands show in phase is assured, however long.
+fn long_runs(site: &ConsensusSite, growth: usize) -> Vec<GrowthResult> {
+    let Some(call) = site.call.as_deref() else {
+        return Vec::new();
+    };
+    let reference = runs_of(&site.reference);
+    let called = runs_of(call);
+    if reference.len() != called.len()
+        || reference
+            .iter()
+            .zip(&called)
+            .any(|(left, right)| left.0 != right.0)
+    {
+        return Vec::new();
+    }
+    // The consensus lists a run's evidence when it decided the site run by
+    // run, in call order.
+    let evidence = (site.runs.len() == called.len()).then_some(&site.runs);
+    let single = site.supporting.len() == 1;
+    reference
+        .iter()
+        .zip(&called)
+        .enumerate()
+        .filter(|(_, (base_run, call_run))| call_run.1 >= base_run.1 + growth)
+        .filter_map(|(index, (base_run, call_run))| {
+            let run = evidence.and_then(|runs| runs.get(index));
+            let anchored = run.is_some_and(|run| run.evidence == RunEvidence::AnchoredEnd);
+            (anchored || single).then(|| GrowthResult {
+                base: call_run.0,
+                length: call_run.1,
+                reference_length: base_run.1,
+                length_evidence: run.map(|run| run.evidence.label()),
+            })
+        })
+        .collect()
+}
+
+/// Whether `first..=last` (1-based) lies in a region and within `zone`
+/// positions of its first or last position.
+fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> bool {
+    regions.iter().any(|&[start, end]| {
+        start <= first && last <= end && (first - start < zone || end - last < zone)
+    })
+}
+
+/// A sequence's runs of one base, in order, with their lengths.
+fn runs_of(sequence: &str) -> Vec<(char, usize)> {
+    let mut runs: Vec<(char, usize)> = Vec::new();
+    for base in sequence.chars() {
+        match runs.last_mut() {
+            Some((last, length)) if *last == base => *length += 1,
+            _ => runs.push((base, 1)),
+        }
+    }
+    runs
+}
+
 /// Whether the consensus left a site undecided: no clean observation, a
 /// tie (even one the consensus settled on the reference, whichever strands
 /// the tied reads are on), or an `N` in its call.
@@ -1144,6 +1238,8 @@ const fn unassured(label: &LabelResult) -> bool {
             | LabelResult::EstimatedLength { .. }
             | LabelResult::Undecided
             | LabelResult::NotCalled
+            | LabelResult::LongRun { .. }
+            | LabelResult::EdgeDeletion { .. }
             | LabelResult::NotCovered
     )
 }
@@ -1153,7 +1249,11 @@ const fn rank(label: &LabelResult) -> u8 {
     match label {
         LabelResult::StrandsDisagree { .. } | LabelResult::ReadDisagrees { .. } => 0,
         LabelResult::PossibleHeteroplasmy { .. } => 1,
-        LabelResult::EstimatedLength { .. } | LabelResult::Undecided | LabelResult::NotCalled => 2,
+        LabelResult::EstimatedLength { .. }
+        | LabelResult::Undecided
+        | LabelResult::NotCalled
+        | LabelResult::LongRun { .. }
+        | LabelResult::EdgeDeletion { .. } => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
         LabelResult::NoisySignal { .. }
         | LabelResult::NotCovered
@@ -1168,6 +1268,8 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::StrandsDisagree { .. } => "strands_disagree",
         LabelResult::ReadDisagrees { .. } => "read_disagrees",
         LabelResult::NotCalled => "not_called",
+        LabelResult::LongRun { .. } => "long_run",
+        LabelResult::EdgeDeletion { .. } => "edge_deletion",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
         LabelResult::EstimatedLength { .. } => "estimated_length",
         LabelResult::Undecided => "undecided",
@@ -1186,6 +1288,7 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
         LabelResult::PossibleHeteroplasmy { position, .. } => (*position, ""),
         LabelResult::OneRead { read }
         | LabelResult::ReadDisagrees { read, .. }
+        | LabelResult::EdgeDeletion { read }
         | LabelResult::NoisySignal { read, .. }
         | LabelResult::PhaseShift { read, .. }
         | LabelResult::ReadEdge { read } => (0, read.as_str()),
@@ -1211,6 +1314,8 @@ fn summarize(items: &[ItemResult], status: ReviewStatus, regions: &[[usize; 2]])
                 "strands_disagree" => &mut labels.strands_disagree,
                 "read_disagrees" => &mut labels.read_disagrees,
                 "not_called" => &mut labels.not_called,
+                "long_run" => &mut labels.long_run,
+                "edge_deletion" => &mut labels.edge_deletion,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "estimated_length" => &mut labels.estimated_length,
                 "undecided" => &mut labels.undecided,
@@ -1312,6 +1417,7 @@ fn round(share: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dna_consensus::model::consensus::ConsensusRun;
     use dna_kernel::read_evidence::EvidenceReason;
 
     const F: Orientation = Orientation::Forward;
@@ -1402,6 +1508,79 @@ mod tests {
         assert_eq!(heteroplasmy(&pair), None);
         pair[0].neighbours = [Some('A'), Some('C')];
         assert!(heteroplasmy(&pair).is_some());
+    }
+
+    fn site(
+        reference: &str,
+        call: &str,
+        supporting: usize,
+        runs: Vec<ConsensusRun>,
+    ) -> ConsensusSite {
+        ConsensusSite {
+            first_0based: 302,
+            last_0based: 302 + reference.len() - 1,
+            reference: reference.to_owned(),
+            call: Some(call.to_owned()),
+            state: SiteState::Called,
+            supporting: (0..supporting).map(|read| format!("r{read}")).collect(),
+            opposing: Vec::new(),
+            uninformative: Vec::new(),
+            runs,
+        }
+    }
+
+    fn run(base: char, length: usize, evidence: RunEvidence) -> ConsensusRun {
+        ConsensusRun {
+            base,
+            length,
+            evidence,
+        }
+    }
+
+    #[test]
+    fn a_long_run_needs_both_strands_in_phase() {
+        // C7 T C5 read as C10 T C5: three more C than the reference run.
+        let reference = "CCCCCCCTCCCCC";
+        let call = "CCCCCCCCCCTCCCCC";
+        let anchored = vec![
+            run('C', 10, RunEvidence::AnchoredEnd),
+            run('T', 1, RunEvidence::InPhase),
+            run('C', 5, RunEvidence::InPhase),
+        ];
+        let flagged = long_runs(&site(reference, call, 2, anchored), 3);
+        assert_eq!(
+            flagged,
+            [GrowthResult {
+                base: 'C',
+                length: 10,
+                reference_length: 7,
+                length_evidence: Some("anchored_end"),
+            }]
+        );
+        // Shown in phase by two reads: assured.
+        let in_phase = vec![
+            run('C', 10, RunEvidence::InPhase),
+            run('T', 1, RunEvidence::InPhase),
+            run('C', 5, RunEvidence::InPhase),
+        ];
+        assert!(long_runs(&site(reference, call, 2, in_phase.clone()), 3).is_empty());
+        // Resting on a single read: a check, however it is known.
+        assert_eq!(long_runs(&site(reference, call, 1, in_phase), 3).len(), 1);
+        // Two more C stays below the growth.
+        assert!(long_runs(&site(reference, "CCCCCCCCCTCCCCC", 1, Vec::new()), 3).is_empty());
+        // A changed run structure is not a length.
+        assert!(long_runs(&site(reference, "CCCCCCCCCCCCCCCC", 1, Vec::new()), 3).is_empty());
+    }
+
+    #[test]
+    fn an_edge_is_the_first_or_last_positions_of_a_region() {
+        let regions = [[16024, 16365], [73, 340]];
+        assert!(near_edge(&regions, 16031, 16031, 20));
+        assert!(near_edge(&regions, 16350, 16351, 20));
+        assert!(!near_edge(&regions, 16044, 16044, 20));
+        assert!(!near_edge(&regions, 200, 201, 20));
+        assert!(!near_edge(&regions, 10, 10, 20));
+        assert!(!near_edge(&regions, 16031, 16031, 0));
     }
 
     #[test]
