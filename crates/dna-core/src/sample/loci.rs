@@ -73,11 +73,11 @@ fn observe(
     let mut loci: BTreeMap<usize, LocusBuilder> = BTreeMap::new();
 
     for read in reads {
-        for column in &read.alignment.columns {
-            let Some(reference_index_0based) = column.reference_index_0based else {
+        for column in read.alignment.columns() {
+            let Some(reference_index_0based) = column.reference_index_0based() else {
                 continue;
             };
-            if column.reference_base == '-' {
+            if column.reference_base() == '-' {
                 return Err(SampleError::Inconsistent(
                     "reference-coordinate locus cannot contain an insertion column",
                 )
@@ -90,10 +90,10 @@ fn observe(
                 continue;
             }
             let entry = loci.entry(position_1based).or_insert_with(|| LocusBuilder {
-                reference_base: column.reference_base,
+                reference_base: column.reference_base(),
                 observations: Vec::new(),
             });
-            if entry.reference_base != column.reference_base {
+            if entry.reference_base != column.reference_base() {
                 return Err(SampleError::ReferenceMismatch {
                     position: position_1based,
                 }
@@ -108,8 +108,8 @@ fn observe(
 
     for (read_index, read) in reads.iter().enumerate() {
         let mut seen = BTreeSet::new();
-        for column in &read.alignment.columns {
-            let Some(reference_index_0based) = column.reference_index_0based else {
+        for column in read.alignment.columns() {
+            let Some(reference_index_0based) = column.reference_index_0based() else {
                 continue;
             };
             let position_1based = reference_index_0based
@@ -125,7 +125,7 @@ fn observe(
                 }
                 .into());
             }
-            if entry.reference_base != column.reference_base {
+            if entry.reference_base != column.reference_base() {
                 return Err(SampleError::ReferenceMismatch {
                     position: position_1based,
                 }
@@ -226,11 +226,12 @@ fn observation(
         });
     }
 
-    let call_index_0based = column
-        .original_call_index_0based
-        .ok_or(SampleError::Inconsistent(
-            "aligned query base lacks original call index",
-        ))?;
+    let call_index_0based =
+        column
+            .original_call_index_0based()
+            .ok_or(SampleError::Inconsistent(
+                "aligned query base lacks original call index",
+            ))?;
     let profile = call_evidence::profile(read, call_index_0based)?;
     let base = if state == LocusState::Masked {
         let call = read
@@ -240,7 +241,7 @@ fn observation(
             .ok_or(SampleError::Inconsistent("masked locus lacks its call"))?;
         read.alignment.orientation.reference_base(call.base)
     } else {
-        column.query_base
+        column.query_base()
     };
     Ok(SampleLocusObservation {
         read_index,
@@ -256,16 +257,16 @@ fn observation(
 /// never retains a locus by itself.
 fn classify(read: &CalledRead, column: &AlignmentColumn) -> LocusState {
     let masked = column
-        .original_call_index_0based
+        .original_call_index_0based()
         .and_then(|index| read.evidence.calls().get(index))
         .is_some_and(|call| call.placement != Placement::Scored);
-    if column.query_base == '-' {
+    if column.query_base() == '-' {
         LocusState::Deletion
     } else if masked {
         LocusState::Masked
-    } else if !is_canonical(column.query_base) || !is_canonical(column.reference_base) {
+    } else if !is_canonical(column.query_base()) || !is_canonical(column.reference_base()) {
         LocusState::Unresolved
-    } else if column.query_base == column.reference_base {
+    } else if column.query_base() == column.reference_base() {
         LocusState::Reference
     } else {
         LocusState::Alternate

@@ -7,8 +7,8 @@ use serde::Deserialize;
 
 use crate::error::{ConfigError, Result};
 use dna_core::alignment::RawAlignmentConfig;
-use dna_core::read_call::{CoreConfig, RawCoreConfig};
-use dna_core::sample::RawSampleReconciliationConfig;
+use dna_core::read_call::{CallConfig, RawCallConfig};
+use dna_core::sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use dna_core::variant_calling::RawVariantCallingConfig;
 use dna_sanger::basecalling::RawBasecallingConfig;
 use dna_sanger::callability::RawCallabilityConfig;
@@ -26,8 +26,10 @@ pub(crate) struct Config {
     pub(crate) profile_path: PathBuf,
     /// Sections owned by the Sanger modality plugin.
     pub(crate) sanger: SangerConfig,
-    /// Sections owned by the core plugin.
-    pub(crate) core: CoreConfig,
+    /// The core plugin's sections a called read needs.
+    pub(crate) core: CallConfig,
+    /// The core plugin's `[sample_reconciliation]` section.
+    pub(crate) sample: SampleReconciliationConfig,
     pub(crate) source_path: PathBuf,
     pub(crate) source_sha256: String,
 }
@@ -68,12 +70,12 @@ impl RawConfig {
             sanger_evidence: self.sanger_evidence,
         }
         .validate()?;
-        let core = RawCoreConfig {
+        let core = RawCallConfig {
             alignment: self.alignment,
             variant_calling: self.variant_calling,
-            sample_reconciliation: self.sample_reconciliation,
         }
         .validate()?;
+        let sample = self.sample_reconciliation.validate()?;
         let profile_path = source_path
             .parent()
             .unwrap_or_else(|| Path::new(""))
@@ -82,6 +84,7 @@ impl RawConfig {
             profile_path,
             sanger,
             core,
+            sample,
             source_path,
             source_sha256,
         })
@@ -135,14 +138,8 @@ mod tests {
         assert_eq!(config.sanger.signal_processing.window_size_bases, 10);
         assert_eq!(config.sanger.signal_processing.minimum_primary_snr, 3.0);
         assert_eq!(config.sanger.signal_processing.minimum_noisy_windows, 2);
-        assert_eq!(
-            config.core.sample_reconciliation.minimum_comparable_bases,
-            25
-        );
-        assert_eq!(
-            config.core.sample_reconciliation.minimum_overlap_agreement,
-            0.5
-        );
+        assert_eq!(config.sample.minimum_comparable_bases, 25);
+        assert_eq!(config.sample.minimum_overlap_agreement, 0.5);
         assert_eq!(config.sanger.sanger_evidence.minimum_peak_height, 150);
         assert_eq!(config.sanger.sanger_evidence.relative_quality_threshold, 30);
         Ok(())

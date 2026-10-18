@@ -30,8 +30,11 @@ use dna_kernel::read_evidence::{
     Bound, CallEvidence, EvidenceReason, Placement, ReadEnds, ReadEvidence,
 };
 
-/// Trusted calls of one read.
-pub(crate) struct ReadEligibility<'a> {
+/// The core's rule for one read: which of its calls are trusted, and whether
+/// a candidate edit rests on calls that show it. Variant calling, overlap
+/// agreement, and the consensus read a read through it, so a call is trusted
+/// the same way everywhere.
+pub struct Eligibility<'a> {
     /// Per call: the modality places it clear of its signal edges, and it lies
     /// more than `read_end_margin` calls from an unvouched read end.
     trusted: Vec<bool>,
@@ -43,9 +46,10 @@ pub(crate) struct ReadEligibility<'a> {
     evidence: &'a ReadEvidence,
 }
 
-impl<'a> ReadEligibility<'a> {
+impl<'a> Eligibility<'a> {
     /// Derives the trusted calls of one read from its evidence.
-    pub(crate) fn new(evidence: &'a ReadEvidence, config: &VariantCallingConfig) -> Self {
+    #[must_use]
+    pub fn new(evidence: &'a ReadEvidence, config: &VariantCallingConfig) -> Self {
         let informative = (0..evidence.calls().len())
             .map(|index| evidence.informative_call(index))
             .collect::<Vec<_>>();
@@ -92,7 +96,8 @@ impl<'a> ReadEligibility<'a> {
     /// `read_end`. The consensus trusts such a call only where it matches
     /// the reference or is inserted: the run's length may change, its
     /// composition may not.
-    pub(crate) fn run_exempt(&self, index: usize) -> bool {
+    #[must_use]
+    pub fn run_exempt(&self, index: usize) -> bool {
         self.evidence
             .calls()
             .get(index)
@@ -102,7 +107,8 @@ impl<'a> ReadEligibility<'a> {
     /// Whether a call bounds a run the exemption lifts. The consensus trusts
     /// such a bound only where it reads the reference base, so it can never
     /// make a variant.
-    pub(crate) fn bound_exempt(&self, index: usize) -> bool {
+    #[must_use]
+    pub fn bound_exempt(&self, index: usize) -> bool {
         self.evidence
             .calls()
             .get(index)
@@ -193,7 +199,8 @@ impl<'a> ReadEligibility<'a> {
     /// of the run unmasked; a substitution needs the ends it lies on. Edits of
     /// more than one distinct base, a lone substituted or inserted base, and a
     /// deletion of a whole run change no run's length.
-    pub(crate) fn unbounded_run(
+    #[must_use]
+    pub fn unbounded_run(
         &self,
         kind: VariantKind,
         edited: &str,
@@ -275,7 +282,8 @@ impl<'a> ReadEligibility<'a> {
     /// calls of the repeat describes the same sequence. So a veto on the calls
     /// that happen to be taken must not decide the insertion's support. `false`
     /// when the inserted calls are not contiguous or extend no repeat.
-    pub(crate) fn repeat_unvetoed(&self, inserted: &[usize]) -> bool {
+    #[must_use]
+    pub fn repeat_unvetoed(&self, inserted: &[usize]) -> bool {
         let calls = self.evidence.calls();
         let (Some(&first), Some(&last)) = (inserted.iter().min(), inserted.iter().max()) else {
             return false;
@@ -369,7 +377,8 @@ impl<'a> ReadEligibility<'a> {
     /// the reference strand, is the reference base at an adjacent position.
     /// A shift of one position then explains the call as the reference, so it
     /// places no substitution (`unresolved_flank`).
-    pub(crate) fn unanchored(&self, index: usize, base: char, adjacent: [Option<char>; 2]) -> bool {
+    #[must_use]
+    pub fn unanchored(&self, index: usize, base: char, adjacent: [Option<char>; 2]) -> bool {
         let calls = self.evidence.calls();
         if !calls.get(index).is_some_and(CallEvidence::base_only) {
             return false;
@@ -398,7 +407,8 @@ impl<'a> ReadEligibility<'a> {
     /// Whether the modality places the call at `index` clear of its signal
     /// edges for its base, and it lies more than `read_end_margin` calls from
     /// a read end the modality does not vouch for.
-    pub(crate) fn trusted(&self, index: usize) -> bool {
+    #[must_use]
+    pub fn trusted(&self, index: usize) -> bool {
         self.trusted.get(index).copied().unwrap_or(false)
     }
 
@@ -504,7 +514,7 @@ impl<'a> ReadEligibility<'a> {
 /// consensus judge it (diagnostic evidence, not a calling contract).
 #[must_use]
 pub fn read_trust(evidence: &ReadEvidence, config: &VariantCallingConfig) -> Vec<CallTrust> {
-    let eligibility = ReadEligibility::new(evidence, config);
+    let eligibility = Eligibility::new(evidence, config);
     evidence
         .calls()
         .iter()
@@ -565,7 +575,7 @@ mod tests {
             2..20,
             &[(10, 12, Placement::Unresolved, "dephased_signal")],
         );
-        let eligibility = ReadEligibility::new(&read, &settings(3));
+        let eligibility = Eligibility::new(&read, &settings(3));
         assert_eq!(eligibility.withholders(4), [Withholder::Untrimmed]);
         let masked = |index: usize| match eligibility.withholders(index).as_slice() {
             [Withholder::Masked(reason)] => Some(reason.label()),
@@ -585,20 +595,20 @@ mod tests {
         let settings = settings(0);
         // GCCCCCCT: one C inserted into a run of five, taken as call 6.
         let read = vetoed_read("GCCCCCCT", &[6], &[]);
-        assert!(ReadEligibility::new(&read, &settings).repeat_unvetoed(&[6]));
+        assert!(Eligibility::new(&read, &settings).repeat_unvetoed(&[6]));
         // Every C vetoed: no placement is clean.
         let read = vetoed_read("GCCCCCCT", &[1, 2, 3, 4, 5, 6], &[]);
-        assert!(!ReadEligibility::new(&read, &settings).repeat_unvetoed(&[6]));
+        assert!(!Eligibility::new(&read, &settings).repeat_unvetoed(&[6]));
         // A mixed veto does not apply to insertions.
         let read = vetoed_read("GCCCCCCT", &[], &[6]);
-        assert!(ReadEligibility::new(&read, &settings).repeat_unvetoed(&[6]));
+        assert!(Eligibility::new(&read, &settings).repeat_unvetoed(&[6]));
         // An AC unit inserted into GACACACT, taken as calls 5-6: a clean
         // window of two calls of the repeat exists.
         let read = vetoed_read("GACACACT", &[5, 6], &[]);
-        assert!(ReadEligibility::new(&read, &settings).repeat_unvetoed(&[5, 6]));
+        assert!(Eligibility::new(&read, &settings).repeat_unvetoed(&[5, 6]));
         // An inserted base that extends no repeat is judged on itself.
         let read = vetoed_read("GACT", &[2], &[]);
-        assert!(!ReadEligibility::new(&read, &settings).repeat_unvetoed(&[2]));
+        assert!(!Eligibility::new(&read, &settings).repeat_unvetoed(&[2]));
     }
 
     fn settings(read_end_margin: usize) -> VariantCallingConfig {
@@ -688,7 +698,7 @@ mod tests {
     #[test]
     fn a_bounded_run_before_a_post_repeat_edge_is_exempt_but_not_its_bounds() {
         let read = run_read(true);
-        let eligibility = ReadEligibility::new(&read, &settings(8));
+        let eligibility = Eligibility::new(&read, &settings(8));
         // The run lies within the margin of the edge, but is exempt.
         assert!((11..=15).all(|index| !eligibility.trusted(index)));
         assert!((11..=15).all(|index| eligibility.run_exempt(index)));
@@ -699,13 +709,13 @@ mod tests {
     #[test]
     fn only_the_modality_marks_a_run_exempt() {
         let read = run_read(false);
-        assert!(!ReadEligibility::new(&read, &settings(8)).run_exempt(13));
+        assert!(!Eligibility::new(&read, &settings(8)).run_exempt(13));
     }
 
     #[test]
     fn the_exemption_lifts_read_end_from_run_indels_only() {
         let read = run_read(true);
-        let eligibility = ReadEligibility::new(&read, &settings(8));
+        let eligibility = Eligibility::new(&read, &settings(8));
         assert!(eligibility.exempt(VariantKind::Ins, "C", Orientation::Forward, &[15], &[15]));
         assert!(!eligibility.exempt(VariantKind::Snv, "C", Orientation::Forward, &[15], &[15]));
         // A mapped call beyond the run and its bounds.
@@ -744,7 +754,7 @@ mod tests {
     #[test]
     fn a_base_only_call_supports_a_substitution_but_no_indel() {
         let read = identity_read(false);
-        let eligibility = ReadEligibility::new(&read, &settings(0));
+        let eligibility = Eligibility::new(&read, &settings(0));
         let reasons = |kind| {
             eligibility.reasons(
                 &variant(&read, kind, &[mapping(VariantCallRole::Supporting, 5)]),
@@ -765,7 +775,7 @@ mod tests {
         let anchored = identity_read(false);
         let loose = identity_read(true);
         let unanchored = |read: &ReadEvidence, adjacent| {
-            ReadEligibility::new(read, &settings(0)).unanchored(5, 'G', adjacent)
+            Eligibility::new(read, &settings(0)).unanchored(5, 'G', adjacent)
         };
         // A neighbour is masked, even anchoring, and the base is the
         // reference next to it: a one-position shift explains it.
@@ -778,7 +788,7 @@ mod tests {
     #[test]
     fn flags_calls_within_the_margin_of_the_informative_interval_ends() {
         let read = evidence(32, 5..25, &[]).with_signal_edges(3);
-        let eligibility = ReadEligibility::new(&read, &settings(3));
+        let eligibility = Eligibility::new(&read, &settings(3));
         for (index, read_end) in [(7, true), (8, false), (21, false), (22, true)] {
             assert_eq!(
                 eligibility.reasons(
@@ -804,7 +814,7 @@ mod tests {
             .with_vouched_ends()
             .with_signal_edges(3);
         let snv = |read: &ReadEvidence, index| {
-            ReadEligibility::new(read, &settings(3))
+            Eligibility::new(read, &settings(3))
                 .reasons(
                     &variant(
                         read,
@@ -831,7 +841,7 @@ mod tests {
             0..20,
             &[(10, 20, Placement::Anchoring, "post_homopolymer")],
         );
-        let eligibility = ReadEligibility::new(&read, &settings(0));
+        let eligibility = Eligibility::new(&read, &settings(0));
         let calls = [
             mapping(VariantCallRole::Supporting, 9),
             mapping(VariantCallRole::Flanking, 10),
@@ -869,7 +879,7 @@ mod tests {
                 (15, 20, Placement::Anchoring, "dephased_signal"),
             ],
         );
-        let eligibility = ReadEligibility::new(&read, &settings(0));
+        let eligibility = Eligibility::new(&read, &settings(0));
         assert_eq!(
             [0, 12, 17].map(|index| eligibility.mask_reason(index)),
             [
@@ -895,7 +905,7 @@ mod tests {
             ],
         )
         .with_signal_edges(3);
-        let eligibility = ReadEligibility::new(&read, &settings(3));
+        let eligibility = Eligibility::new(&read, &settings(3));
         let read_end = |index| {
             eligibility
                 .reasons(
@@ -922,7 +932,7 @@ mod tests {
     #[test]
     fn reports_each_reason_once_per_variant() {
         let read = evidence(12, 0..12, &[(8, 12, Placement::Unresolved, "mixed_signal")]);
-        let eligibility = ReadEligibility::new(&read, &settings(3));
+        let eligibility = Eligibility::new(&read, &settings(3));
         let calls = (8..12)
             .map(|index| mapping(VariantCallRole::Supporting, index))
             .collect::<Vec<_>>();
@@ -950,7 +960,7 @@ mod tests {
     }
 
     fn run_boundary(read: &ReadEvidence, kind: VariantKind, calls: &[VariantCallMapping]) -> bool {
-        ReadEligibility::new(read, &settings(0))
+        Eligibility::new(read, &settings(0))
             .reasons(&variant(read, kind, calls), Orientation::Forward)
             .contains(&VariantExclusionReason::RunBoundary)
     }
@@ -984,7 +994,7 @@ mod tests {
             ..variant(&read, VariantKind::Ins, &inserted)
         };
         let flagged = |orientation| {
-            ReadEligibility::new(&read, &settings(0))
+            Eligibility::new(&read, &settings(0))
                 .reasons(&insertion, orientation)
                 .contains(&VariantExclusionReason::RunBoundary)
         };
@@ -1018,7 +1028,7 @@ mod tests {
             ..variant(read, VariantKind::Del, &flanks)
         };
         let reasons = |read: &ReadEvidence, deleted| {
-            ReadEligibility::new(read, &settings(0))
+            Eligibility::new(read, &settings(0))
                 .reasons(&deletion(read, deleted), Orientation::Forward)
         };
         assert!(reasons(&read, 'C').contains(&VariantExclusionReason::RunBoundary));
@@ -1056,7 +1066,7 @@ mod tests {
         assert!(!run_boundary(&read, VariantKind::Ins, &mixed));
         // `run_boundary` follows `read_end`.
         assert_eq!(
-            ReadEligibility::new(&read, &settings(3)).reasons(
+            Eligibility::new(&read, &settings(3)).reasons(
                 &variant(&read, VariantKind::Ins, &inserted),
                 Orientation::Forward
             ),

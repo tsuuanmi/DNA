@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{OverlapExclusionReason, ReadOverlapEvidence};
 use crate::sample::SampleReconciliationConfig;
+use crate::variant_calling::Eligibility;
 use crate::variant_calling::VariantCallingConfig;
-use crate::variant_calling::eligibility::ReadEligibility;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::Placement;
@@ -54,7 +54,7 @@ fn coordinates(
     read: &CalledRead,
     calling: &VariantCallingConfig,
 ) -> Result<BTreeMap<usize, CoordinateObservation>> {
-    let eligibility = ReadEligibility::new(&read.evidence, calling);
+    let eligibility = Eligibility::new(&read.evidence, calling);
     let shows_base = |call: usize| {
         eligibility.trusted(call)
             && read.evidence.calls().get(call).is_some_and(|evidence| {
@@ -62,24 +62,24 @@ fn coordinates(
             })
     };
     let mut coordinates = BTreeMap::new();
-    for column in &read.alignment.columns {
-        let Some(reference_index_0based) = column.reference_index_0based else {
+    for column in read.alignment.columns() {
+        let Some(reference_index_0based) = column.reference_index_0based() else {
             continue;
         };
-        if column.reference_base == '-' {
+        if column.reference_base() == '-' {
             return Err(SampleError::Inconsistent(
                 "reference-coordinate overlap cannot contain an insertion reference base",
             )
             .into());
         }
-        let query_base = (is_canonical(column.query_base)
-            && column.original_call_index_0based.is_some_and(shows_base))
-        .then_some(column.query_base);
+        let query_base = (is_canonical(column.query_base())
+            && column.original_call_index_0based().is_some_and(shows_base))
+        .then_some(column.query_base());
         if coordinates
             .insert(
                 reference_index_0based,
                 CoordinateObservation {
-                    reference_base: column.reference_base,
+                    reference_base: column.reference_base(),
                     query_base,
                 },
             )

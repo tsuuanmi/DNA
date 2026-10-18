@@ -21,7 +21,7 @@ use crate::model::consensus::{
     Consensus, ConsensusRun, ConsensusSegment, ConsensusSite, ConsensusSummary, RunEvidence,
     SiteState,
 };
-use crate::read_call::CoreConfig;
+use crate::read_call::CallConfig;
 use decide::{Decision, decide};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
@@ -32,7 +32,7 @@ use observe::{Char, ReadObservations, SiteValue, Trust, observe};
 /// Reads are expected in the sample's deterministic read order; the reads
 /// listed at each site follow it.
 #[must_use]
-pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CoreConfig) -> Consensus {
+pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CallConfig) -> Consensus {
     let bases = reference.sequence.as_bytes();
     let observed = reads
         .iter()
@@ -75,7 +75,7 @@ pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CoreConfig) 
         sites: Vec::new(),
         summary: ConsensusSummary::default(),
     };
-    let minimum = config.alignment.minimum_callable_bases;
+    let minimum = config.alignment.minimum_callable_bases();
     for piece in pieces(&decided, minimum) {
         assemble(&piece, &decided, bases, minimum, &mut consensus);
     }
@@ -1221,14 +1221,16 @@ pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     family: PluginFamily::Core,
     version: 7,
     provides: &[Contract::Consensus],
-    requires: &[Contract::CalledVariants],
+    requires: &[Contract::CalledReads],
     config_sections: &[],
 };
 
 #[cfg(test)]
 mod tests {
-    use crate::alignment::{AlignmentConfig, align_best};
+    use crate::alignment::{AlignmentConfig, RawAlignmentConfig, align_best};
     use crate::model::variant::VariantCallingResult;
+    use crate::read_call::RawCallConfig;
+    use crate::variant_calling::RawVariantCallingConfig;
     use dna_kernel::error::Result;
     use dna_kernel::model::reference::ReferenceTopology;
     use dna_kernel::read_evidence::{EvidenceReason, Placement, ReadEvidence};
@@ -1246,8 +1248,8 @@ mod tests {
         }
     }
 
-    fn alignment() -> AlignmentConfig {
-        AlignmentConfig {
+    fn alignment() -> Result<AlignmentConfig> {
+        RawAlignmentConfig {
             match_score: 3,
             mismatch_score: -5,
             ambiguous_score: 0,
@@ -1256,20 +1258,26 @@ mod tests {
             minimum_callable_bases: 1,
             minimum_identity: 0.8,
         }
+        .validate()
     }
 
-    fn config() -> CoreConfig {
-        CoreConfig {
-            alignment: alignment(),
-            variant_calling: crate::variant_calling::VariantCallingConfig {
+    fn config() -> Result<CallConfig> {
+        RawCallConfig {
+            alignment: RawAlignmentConfig {
+                match_score: 3,
+                mismatch_score: -5,
+                ambiguous_score: 0,
+                gap_open_score: -10,
+                gap_extension_score: -4,
+                minimum_callable_bases: 1,
+                minimum_identity: 0.8,
+            },
+            variant_calling: RawVariantCallingConfig {
                 max_indel_length: 50,
                 read_end_margin: 0,
             },
-            sample_reconciliation: crate::sample::SampleReconciliationConfig {
-                minimum_comparable_bases: 1,
-                minimum_overlap_agreement: 0.5,
-            },
         }
+        .validate()
     }
 
     /// A read of `sequence` placed on the reference, with the calls in
@@ -1304,7 +1312,7 @@ mod tests {
             let call = evidence.calls()[index].masked(placement);
             evidence = evidence.with_call(index, call);
         }
-        let alignment = align_best(&evidence, &reference(), &alignment())?;
+        let alignment = align_best(&evidence, &reference(), &alignment()?)?;
         Ok(CalledRead {
             input_name: name.into(),
             input_sha256: name.into(),
@@ -1312,11 +1320,7 @@ mod tests {
             configuration_sha256: String::new(),
             evidence,
             alignment,
-            variants: VariantCallingResult {
-                reported: Vec::new(),
-                observed: Vec::new(),
-                excluded: Vec::new(),
-            },
+            variants: VariantCallingResult::fixture(Vec::new(), Vec::new()),
         })
     }
 
@@ -1351,7 +1355,7 @@ mod tests {
             evidence = evidence.with_call(index, call);
         }
         let evidence = evidence.with_signal_edges(8);
-        let alignment = align_best(&evidence, &reference, &alignment())?;
+        let alignment = align_best(&evidence, &reference, &alignment()?)?;
         let read = CalledRead {
             input_name: "r".into(),
             input_sha256: "r".into(),
@@ -1359,16 +1363,13 @@ mod tests {
             configuration_sha256: String::new(),
             evidence,
             alignment,
-            variants: VariantCallingResult {
-                reported: Vec::new(),
-                observed: Vec::new(),
-                excluded: Vec::new(),
-            },
+            variants: VariantCallingResult::fixture(Vec::new(), Vec::new()),
         };
-        let settings = crate::variant_calling::VariantCallingConfig {
+        let settings = RawVariantCallingConfig {
             max_indel_length: 50,
             read_end_margin: 8,
-        };
+        }
+        .validate()?;
         Ok(observe(&read, &settings, reference.sequence.as_bytes()))
     }
 
@@ -1419,7 +1420,7 @@ mod tests {
         let mut base_only = read.evidence.calls()[14];
         base_only.bound = dna_kernel::read_evidence::Bound::Withheld;
         read.evidence = read.evidence.with_call(11, vetoed).with_call(14, base_only);
-        let observed = observe(&read, &config().variant_calling, REFERENCE.as_bytes());
+        let observed = observe(&read, &config()?.variant_calling, REFERENCE.as_bytes());
         let char_at = |position: usize| {
             observed
                 .positions
@@ -1463,7 +1464,7 @@ mod tests {
         flank.identity.withheld.insert(peak)?;
         flank.indel.withheld.insert(peak)?;
         read.evidence = read.evidence.with_call(20, inserted).with_call(10, flank);
-        let observed = observe(&read, &config().variant_calling, REFERENCE.as_bytes());
+        let observed = observe(&read, &config()?.variant_calling, REFERENCE.as_bytes());
         assert_eq!(
             observed.positions.get(&11).map(|deleted| deleted.clean),
             Some(true)
@@ -1535,7 +1536,7 @@ mod tests {
             &dna_kernel::model::nucleotide::reverse_complement(haplotype),
             &[],
         )?;
-        let consensus = build(&[&forward, &reverse], &reference(), &config());
+        let consensus = build(&[&forward, &reverse], &reference(), &config()?);
         assert_eq!(consensus.segments.len(), 1);
         assert_eq!(consensus.segments[0].sequence, haplotype);
         // The substituted G joins the G before it: the stretch is that run.
@@ -1567,7 +1568,7 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let variant = placed("v", "TTGACGTCAGGACGATCGTACCTGAGTACGAGGACT", &[])?;
         let plain = placed("p", REFERENCE, &[])?;
-        let consensus = build(&[&variant, &plain], &reference(), &config());
+        let consensus = build(&[&variant, &plain], &reference(), &config()?);
         assert_eq!(consensus.segments[0].sequence, REFERENCE);
         let site = site_at(&consensus, 10).ok_or("missing contested site")?;
         assert_eq!(site.state, SiteState::Contested);
@@ -1584,11 +1585,11 @@ mod tests {
         // The variant read's call at 10 is masked: the reference read decides.
         let variant = placed("v", "TTGACGTCAGGACGATCGTACCTGAGTACGAGGACT", &[10])?;
         let plain = placed("p", REFERENCE, &[])?;
-        let consensus = build(&[&variant, &plain], &reference(), &config());
+        let consensus = build(&[&variant, &plain], &reference(), &config()?);
         assert_eq!(consensus.segments[0].sequence, REFERENCE);
         assert!(site_at(&consensus, 10).is_none());
         // Alone, a masked call leaves the position unresolved.
-        let alone = build(&[&variant], &reference(), &config());
+        let alone = build(&[&variant], &reference(), &config()?);
         assert_eq!(&alone.segments[0].sequence[8..12], "AGNA");
         assert_eq!(alone.summary.unresolved_positions, 1);
         Ok(())
@@ -1599,14 +1600,14 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         // A C inserted into the CC run at 20-21; the A before the run is call 19.
         let lengthened = "TTGACGTCAGTACGATCGTACCCTGAGTACGAGGACT";
-        let bounded = build(&[&placed("b", lengthened, &[])?], &reference(), &config());
+        let bounded = build(&[&placed("b", lengthened, &[])?], &reference(), &config()?);
         assert_eq!(bounded.segments[0].sequence, lengthened);
         // Unresolved, the A no longer shows where the run starts, so the read
         // cannot tell the run's length and the reference length stays.
         let unbounded = build(
             &[&placed_with("u", lengthened, &[], &[19])?],
             &reference(),
-            &config(),
+            &config()?,
         );
         let mut expected = REFERENCE.to_owned();
         expected.replace_range(19..20, "N");

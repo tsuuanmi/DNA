@@ -87,7 +87,7 @@ impl CalledRead {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alignment::{AlignmentConfig, align_best};
+    use crate::alignment::{RawAlignmentConfig, align_best};
     use crate::model::variant::{ObservedVariant, Variant, VariantExclusionReason, VariantKind};
     use dna_kernel::model::reference::{Reference, ReferenceTopology};
 
@@ -120,7 +120,7 @@ mod tests {
             topology: ReferenceTopology::Linear,
             sequence_sha256: String::new(),
         };
-        let config = AlignmentConfig {
+        let config = RawAlignmentConfig {
             match_score: 3,
             mismatch_score: -5,
             ambiguous_score: 0,
@@ -128,7 +128,8 @@ mod tests {
             gap_extension_score: -4,
             minimum_callable_bases: 1,
             minimum_identity: 0.8,
-        };
+        }
+        .validate()?;
         let evidence = ReadEvidence::clean(sequence);
         let alignment = align_best(&evidence, &reference, &config)?;
         let read = CalledRead {

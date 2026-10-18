@@ -11,7 +11,7 @@ use dna_kernel::error::{Result, VariantError};
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::reference::Reference;
 
-use super::eligibility::ReadEligibility;
+use super::eligibility::Eligibility;
 
 /// Extracts normalized primary-sequence differences.
 ///
@@ -21,35 +21,37 @@ use super::eligibility::ReadEligibility;
 pub(crate) fn call(
     alignment: &Alignment,
     reference: &Reference,
-    eligibility: &ReadEligibility<'_>,
+    eligibility: &Eligibility<'_>,
     config: &VariantCallingConfig,
 ) -> Result<VariantCallingResult> {
     let mut reported = Vec::new();
     let mut excluded = Vec::new();
     let mut index = 0;
-    while index < alignment.columns.len() {
-        let column = &alignment.columns[index];
-        if column.query_base == '-' {
+    while index < alignment.columns().len() {
+        let column = &alignment.columns()[index];
+        if column.query_base() == '-' {
             let start = index;
-            let previous_reference = previous_reference(&alignment.columns, start);
+            let previous_reference = previous_reference(alignment.columns(), start);
             let first_deleted_reference =
                 column
-                    .reference_index_0based
+                    .reference_index_0based()
                     .ok_or(VariantError::Inconsistent(
                         "deletion column lacks a reference coordinate",
                     ))?;
-            let previous_flank = previous_flank(&alignment.columns, start)?;
+            let previous_flank = previous_flank(alignment.columns(), start)?;
             let mut deleted = String::new();
             let mut deleted_positions = Vec::new();
-            while index < alignment.columns.len() && alignment.columns[index].query_base == '-' {
-                if alignment.columns[index].reference_base != '-' {
-                    deleted.push(alignment.columns[index].reference_base);
-                    deleted_positions.extend(alignment.columns[index].reference_index_0based);
+            while index < alignment.columns().len()
+                && alignment.columns()[index].query_base() == '-'
+            {
+                if alignment.columns()[index].reference_base() != '-' {
+                    deleted.push(alignment.columns()[index].reference_base());
+                    deleted_positions.extend(alignment.columns()[index].reference_index_0based());
                 }
                 index += 1;
             }
-            let next_reference = next_reference(&alignment.columns, index);
-            let next_flank = next_flank(&alignment.columns, index)?;
+            let next_reference = next_reference(alignment.columns(), index);
+            let next_flank = next_flank(alignment.columns(), index)?;
             let mut reasons = allele_exclusion_reasons(&deleted, config.max_indel_length);
             // A deletion neither of whose flanking calls reads a base observes
             // nothing: where its gap lies among unresolved calls is arbitrary.
@@ -81,20 +83,21 @@ pub(crate) fn call(
             }
             continue;
         }
-        if column.reference_base == '-' {
+        if column.reference_base() == '-' {
             let start = index;
-            let previous_reference = previous_reference(&alignment.columns, start);
-            let previous_flank = previous_flank(&alignment.columns, start)?;
+            let previous_reference = previous_reference(alignment.columns(), start);
+            let previous_flank = previous_flank(alignment.columns(), start)?;
             let mut inserted = String::new();
             let mut calls = Vec::new();
-            while index < alignment.columns.len() && alignment.columns[index].reference_base == '-'
+            while index < alignment.columns().len()
+                && alignment.columns()[index].reference_base() == '-'
             {
-                inserted.push(alignment.columns[index].query_base);
-                calls.push(mapping::supporting(&alignment.columns[index])?);
+                inserted.push(alignment.columns()[index].query_base());
+                calls.push(mapping::supporting(&alignment.columns()[index])?);
                 index += 1;
             }
-            let next_reference = next_reference(&alignment.columns, index);
-            let next_flank = next_flank(&alignment.columns, index)?;
+            let next_reference = next_reference(alignment.columns(), index);
+            let next_flank = next_flank(alignment.columns(), index)?;
             let mut reasons = Vec::new();
             for reason in calls
                 .iter()
@@ -131,31 +134,31 @@ pub(crate) fn call(
             continue;
         }
         let masked = column
-            .original_call_index_0based
+            .original_call_index_0based()
             .is_some_and(|call| eligibility.mask_reason(call).is_some());
-        if column.query_base != column.reference_base && !masked {
-            if is_canonical(column.query_base) && is_canonical(column.reference_base) {
+        if column.query_base() != column.reference_base() && !masked {
+            if is_canonical(column.query_base()) && is_canonical(column.reference_base()) {
                 let reference_position =
                     column
-                        .reference_index_0based
+                        .reference_index_0based()
                         .ok_or(VariantError::Inconsistent(
                             "SNV column lacks a reference coordinate",
                         ))?;
                 reported.push(anchor::snv(
                     reference,
                     reference_position,
-                    column.query_base,
+                    column.query_base(),
                     vec![mapping::supporting(column)?],
                 )?);
             } else {
                 excluded.push(ExcludedVariant {
                     contig: reference.name.clone(),
                     position_1based: column
-                        .reference_index_0based
+                        .reference_index_0based()
                         .and_then(|position| position.checked_add(1)),
                     kind: VariantKind::Snv,
                     reasons: vec![VariantExclusionReason::NonCanonicalAllele],
-                    undecided: column.reference_index_0based.into_iter().collect(),
+                    undecided: column.reference_index_0based().into_iter().collect(),
                 });
             }
         }
@@ -211,13 +214,13 @@ fn previous_reference(columns: &[AlignmentColumn], index: usize) -> Option<usize
     columns[..index]
         .iter()
         .rev()
-        .find_map(|column| column.reference_index_0based)
+        .find_map(AlignmentColumn::reference_index_0based)
 }
 
 fn next_reference(columns: &[AlignmentColumn], index: usize) -> Option<usize> {
     columns[index..]
         .iter()
-        .find_map(|column| column.reference_index_0based)
+        .find_map(AlignmentColumn::reference_index_0based)
 }
 
 fn previous_flank(columns: &[AlignmentColumn], index: usize) -> Result<Option<VariantCallMapping>> {
@@ -225,7 +228,8 @@ fn previous_flank(columns: &[AlignmentColumn], index: usize) -> Result<Option<Va
         .iter()
         .rev()
         .find(|column| {
-            column.original_call_index_0based.is_some() && column.reference_index_0based.is_some()
+            column.original_call_index_0based().is_some()
+                && column.reference_index_0based().is_some()
         })
         .map(mapping::flanking)
         .transpose()
@@ -235,7 +239,8 @@ fn next_flank(columns: &[AlignmentColumn], index: usize) -> Result<Option<Varian
     columns[index..]
         .iter()
         .find(|column| {
-            column.original_call_index_0based.is_some() && column.reference_index_0based.is_some()
+            column.original_call_index_0based().is_some()
+                && column.reference_index_0based().is_some()
         })
         .map(mapping::flanking)
         .transpose()
@@ -250,7 +255,7 @@ fn optional_pair(
 
 #[cfg(test)]
 mod tests {
-    use crate::model::alignment::{AlignmentMetrics, Orientation};
+    use crate::model::alignment::Orientation;
     use crate::model::variant::VariantCallRole;
     use dna_kernel::model::reference::ReferenceTopology;
     use dna_kernel::read_evidence::{EvidenceReason, Placement, ReadEvidence};
@@ -258,23 +263,7 @@ mod tests {
     use super::*;
 
     fn alignment(columns: Vec<AlignmentColumn>) -> Alignment {
-        Alignment {
-            orientation: Orientation::Forward,
-            score: 0,
-            reference_segments: Vec::new(),
-            callable_segments: Vec::new(),
-            wraps_origin: false,
-            metrics: AlignmentMetrics {
-                exact_matches: 0,
-                mismatches: 0,
-                gap_opens: 1,
-                callable_columns: 1,
-                callable_identity: 1.0,
-                unresolved_query_bases: 0,
-                masked_query_bases: 0,
-            },
-            columns,
-        }
+        Alignment::fixture(Orientation::Forward, Vec::new(), Vec::new(), columns)
     }
 
     fn reference(topology: ReferenceTopology) -> Reference {
@@ -307,7 +296,7 @@ mod tests {
         reference: &Reference,
         evidence: &ReadEvidence,
     ) -> Result<VariantCallingResult> {
-        let eligibility = ReadEligibility::new(evidence, &config());
+        let eligibility = Eligibility::new(evidence, &config());
         call(alignment, reference, &eligibility, &config())
     }
 
@@ -326,18 +315,8 @@ mod tests {
     fn leading_alignment_deletion_uses_reference_predecessor() -> Result<()> {
         let result = extract(
             &alignment(vec![
-                AlignmentColumn {
-                    query_base: '-',
-                    reference_base: 'C',
-                    original_call_index_0based: None,
-                    reference_index_0based: Some(2),
-                },
-                AlignmentColumn {
-                    query_base: 'G',
-                    reference_base: 'G',
-                    original_call_index_0based: Some(7),
-                    reference_index_0based: Some(3),
-                },
+                AlignmentColumn::new('-', 'C', None, Some(2)),
+                AlignmentColumn::new('G', 'G', Some(7), Some(3)),
             ]),
             &reference(ReferenceTopology::Linear),
         )?;
@@ -355,11 +334,8 @@ mod tests {
     #[test]
     fn a_deletion_no_flank_reads_is_excluded() -> Result<()> {
         // The deleted C lies between two calls read as N.
-        let column = |query, reference, call, position| AlignmentColumn {
-            query_base: query,
-            reference_base: reference,
-            original_call_index_0based: call,
-            reference_index_0based: Some(position),
+        let column = |query, reference, call, position| {
+            AlignmentColumn::new(query, reference, call, Some(position))
         };
         let result = extract_masked(
             &alignment(vec![
@@ -384,12 +360,7 @@ mod tests {
     #[test]
     fn unresolved_primary_difference_is_excluded() -> Result<()> {
         let result = extract(
-            &alignment(vec![AlignmentColumn {
-                query_base: 'N',
-                reference_base: 'C',
-                original_call_index_0based: Some(4),
-                reference_index_0based: Some(2),
-            }]),
+            &alignment(vec![AlignmentColumn::new('N', 'C', Some(4), Some(2))]),
             &reference(ReferenceTopology::Linear),
         )?;
         assert!(result.reported.is_empty());
@@ -407,18 +378,8 @@ mod tests {
     fn leading_alignment_insertion_keeps_inserted_and_flanking_mappings() -> Result<()> {
         let result = extract(
             &alignment(vec![
-                AlignmentColumn {
-                    query_base: 'A',
-                    reference_base: '-',
-                    original_call_index_0based: Some(4),
-                    reference_index_0based: None,
-                },
-                AlignmentColumn {
-                    query_base: 'G',
-                    reference_base: 'G',
-                    original_call_index_0based: Some(5),
-                    reference_index_0based: Some(2),
-                },
+                AlignmentColumn::new('A', '-', Some(4), None),
+                AlignmentColumn::new('G', 'G', Some(5), Some(2)),
             ]),
             &reference(ReferenceTopology::Linear),
         )?;
@@ -439,24 +400,9 @@ mod tests {
     #[test]
     fn masked_calls_are_no_snv_candidates_and_exclude_insertions() -> Result<()> {
         let columns = vec![
-            AlignmentColumn {
-                query_base: 'N',
-                reference_base: 'C',
-                original_call_index_0based: Some(4),
-                reference_index_0based: Some(2),
-            },
-            AlignmentColumn {
-                query_base: 'N',
-                reference_base: '-',
-                original_call_index_0based: Some(5),
-                reference_index_0based: None,
-            },
-            AlignmentColumn {
-                query_base: 'N',
-                reference_base: 'G',
-                original_call_index_0based: Some(6),
-                reference_index_0based: Some(3),
-            },
+            AlignmentColumn::new('N', 'C', Some(4), Some(2)),
+            AlignmentColumn::new('N', '-', Some(5), None),
+            AlignmentColumn::new('N', 'G', Some(6), Some(3)),
         ];
         let result = extract_masked(
             &alignment(columns),

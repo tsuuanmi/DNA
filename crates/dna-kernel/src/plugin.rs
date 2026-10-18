@@ -40,6 +40,9 @@ pub enum Contract {
     ReadEvidence,
     /// Called variants (`variant::CalledVariantSet`).
     CalledVariants,
+    /// Placed reads with their calls, alignment, and verdicts, as the core
+    /// calls them one by one (`CalledRead` in the core).
+    CalledReads,
     /// Haplotype-preserving normalized variants.
     NormalizedVariants,
     /// Target nomenclature representation.

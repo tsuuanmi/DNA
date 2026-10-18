@@ -3,10 +3,10 @@
 mod config;
 
 pub use config::{RawVariantCallingConfig, VariantCallingConfig};
-pub use eligibility::read_trust;
+pub use eligibility::{Eligibility, read_trust};
 
 mod anchor;
-pub(crate) mod eligibility;
+mod eligibility;
 mod extract;
 mod filter;
 mod mapping;
@@ -20,14 +20,19 @@ use dna_kernel::read_evidence::ReadEvidence;
 /// Extracts, anchors, and filters primary-sequence differences from one read's
 /// alignment and modality evidence; `regions` are the target profile's
 /// inclusive 1-based reportable regions.
-pub(crate) fn call(
+///
+/// # Errors
+///
+/// Returns `VariantError` when a difference cannot be anchored or mapped to
+/// its calls.
+pub fn call(
     alignment: &Alignment,
     reference: &Reference,
     evidence: &ReadEvidence,
     config: &VariantCallingConfig,
     regions: &[[usize; 2]],
 ) -> Result<VariantCallingResult> {
-    let eligibility = eligibility::ReadEligibility::new(evidence, config);
+    let eligibility = Eligibility::new(evidence, config);
     let extracted = extract::call(alignment, reference, &eligibility, config)?;
     filter::apply(
         extracted,

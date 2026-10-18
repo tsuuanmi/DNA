@@ -25,7 +25,12 @@ struct Candidate {
 /// The query is the read's informative calls. An unresolved masked call enters
 /// it as `N` without an evidence profile, so it neither scores nor counts as
 /// callable; an anchoring masked call keeps its base and profile.
-pub(crate) fn align_best(
+///
+/// # Errors
+///
+/// Returns `AlignmentError` when no unique placement meets the configured
+/// minimums.
+pub fn align_best(
     evidence: &ReadEvidence,
     reference: &Reference,
     config: &AlignmentConfig,

@@ -1,13 +1,12 @@
 //! Sample aggregation over synthetic read observations.
 
-use crate::model::alignment::{
-    Alignment, AlignmentColumn, AlignmentMetrics, Orientation, ReferenceSegment,
-};
+use crate::model::alignment::{Alignment, AlignmentColumn, Orientation, ReferenceSegment};
 use crate::model::sample_evidence::SampleEvidence;
 use crate::model::variant::{
     ObservedVariant, Variant, VariantCallMapping, VariantCallRole, VariantCallingResult,
     VariantExclusionReason, VariantKind,
 };
+use crate::variant_calling::RawVariantCallingConfig;
 use dna_kernel::read_evidence::{
     CallEvidence, EvidenceProfile, EvidenceReason, Placement, ReadEvidence,
 };
@@ -42,10 +41,11 @@ fn run(reads: &[CalledRead]) -> Result<SampleEvidence> {
         &reads.iter().collect::<Vec<_>>(),
         &[],
         &sample_config(),
-        &VariantCallingConfig {
+        &RawVariantCallingConfig {
             max_indel_length: 50,
             read_end_margin: 0,
-        },
+        }
+        .validate()?,
     )
 }
 
@@ -59,7 +59,7 @@ fn observation(
 ) -> CalledRead {
     let call_count = columns
         .iter()
-        .filter_map(|column| column.original_call_index_0based)
+        .filter_map(AlignmentColumn::original_call_index_0based)
         .max()
         .map_or(0, |index| index + 1);
     let observed = variants
@@ -72,7 +72,7 @@ fn observation(
         .collect();
     let reference_segments = columns
         .iter()
-        .filter_map(|column| column.reference_index_0based)
+        .filter_map(AlignmentColumn::reference_index_0based)
         .fold(None::<(usize, usize)>, |bounds, index| {
             Some(match bounds {
                 Some((start, end)) => (start.min(index), end.max(index + 1)),
@@ -91,28 +91,13 @@ fn observation(
         reference_sha256: reference_sha256.into(),
         configuration_sha256: configuration_sha256.into(),
         evidence: evidence(call_count),
-        alignment: Alignment {
+        alignment: Alignment::fixture(
             orientation,
-            score: 1,
-            callable_segments: reference_segments.clone(),
+            reference_segments.clone(),
             reference_segments,
-            wraps_origin: false,
-            metrics: AlignmentMetrics {
-                exact_matches: 0,
-                mismatches: 0,
-                gap_opens: 0,
-                callable_columns: 0,
-                callable_identity: 0.0,
-                unresolved_query_bases: 0,
-                masked_query_bases: 0,
-            },
             columns,
-        },
-        variants: VariantCallingResult {
-            reported: variants,
-            observed,
-            excluded: Vec::new(),
-        },
+        ),
+        variants: VariantCallingResult::fixture(variants, observed),
     }
 }
 
@@ -122,12 +107,7 @@ fn column(
     call: Option<usize>,
     reference: usize,
 ) -> AlignmentColumn {
-    AlignmentColumn {
-        query_base,
-        reference_base,
-        original_call_index_0based: call,
-        reference_index_0based: Some(reference),
-    }
+    AlignmentColumn::new(query_base, reference_base, call, Some(reference))
 }
 
 fn snv(position_1based: usize, reference: &str, alternate: &str) -> Variant {
@@ -137,11 +117,11 @@ fn snv(position_1based: usize, reference: &str, alternate: &str) -> Variant {
         reference: reference.into(),
         alternate: alternate.into(),
         kind: VariantKind::Snv,
-        calls: vec![VariantCallMapping {
-            role: VariantCallRole::Supporting,
-            call_index_0based: 0,
-            reference_position_0based: Some(position_1based - 1),
-        }],
+        calls: vec![VariantCallMapping::fixture(
+            VariantCallRole::Supporting,
+            0,
+            Some(position_1based - 1),
+        )],
     }
 }
 

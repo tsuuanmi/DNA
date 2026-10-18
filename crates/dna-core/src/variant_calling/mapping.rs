@@ -6,28 +6,30 @@ use dna_kernel::error::{Result, VariantError};
 
 /// Maps a difference-bearing query column to its original trace call.
 pub(crate) fn supporting(column: &AlignmentColumn) -> Result<VariantCallMapping> {
-    let call_index_0based = column
-        .original_call_index_0based
-        .ok_or(VariantError::Inconsistent(
-            "supporting query column lacks an original call index",
-        ))?;
+    let call_index_0based =
+        column
+            .original_call_index_0based()
+            .ok_or(VariantError::Inconsistent(
+                "supporting query column lacks an original call index",
+            ))?;
     Ok(VariantCallMapping {
         role: VariantCallRole::Supporting,
         call_index_0based,
-        reference_position_0based: column.reference_index_0based,
+        reference_position_0based: column.reference_index_0based(),
     })
 }
 
 /// Maps a reference-aligned query column used to bound an indel.
 pub(crate) fn flanking(column: &AlignmentColumn) -> Result<VariantCallMapping> {
-    let call_index_0based = column
-        .original_call_index_0based
-        .ok_or(VariantError::Inconsistent(
-            "flanking column lacks an original call index",
-        ))?;
+    let call_index_0based =
+        column
+            .original_call_index_0based()
+            .ok_or(VariantError::Inconsistent(
+                "flanking column lacks an original call index",
+            ))?;
     let reference_position_0based =
         column
-            .reference_index_0based
+            .reference_index_0based()
             .ok_or(VariantError::Inconsistent(
                 "flanking call lacks a reference position",
             ))?;

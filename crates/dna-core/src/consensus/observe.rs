@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use crate::model::called_read::CalledRead;
 use crate::model::variant::VariantKind;
+use crate::variant_calling::Eligibility;
 use crate::variant_calling::VariantCallingConfig;
-use crate::variant_calling::eligibility::ReadEligibility;
 use dna_kernel::read_evidence::{CallEvidence, Placement};
 
 /// What one read contributes at one reference position or junction.
@@ -121,19 +121,19 @@ pub(super) fn observe(
 ) -> ReadObservations {
     let reference_length = bases.len();
     let calls = read.evidence.calls();
-    let eligibility = ReadEligibility::new(&read.evidence, config);
+    let eligibility = Eligibility::new(&read.evidence, config);
     let orientation = read.alignment.orientation;
     // Calls aligned as a match, and calls aligned as a match or inserted:
     // the only bounds, and the only run calls, a bounded-run exemption may
     // trust (ADR-0076); a substituted call keeps `read_end`.
     let mut matches = vec![false; calls.len()];
     let mut length_only = vec![false; calls.len()];
-    for column in &read.alignment.columns {
-        if let Some(call) = column.original_call_index_0based
+    for column in read.alignment.columns() {
+        if let Some(call) = column.original_call_index_0based()
             && call < calls.len()
         {
-            let inserted = column.reference_index_0based.is_none();
-            matches[call] = !inserted && column.query_base == column.reference_base;
+            let inserted = column.reference_index_0based().is_none();
+            matches[call] = !inserted && column.query_base() == column.reference_base();
             length_only[call] = inserted || matches[call];
         }
     }
@@ -185,7 +185,7 @@ pub(super) fn observe(
         beside_unresolved: false,
         base_only: calls.get(call).is_some_and(CallEvidence::base_only),
     };
-    let columns = &read.alignment.columns;
+    let columns = read.alignment.columns();
     // A call vouched for by its base only that may sit one position off.
     let reference_at = |position: usize| bases.get(position).map(|&base| char::from(base));
     let unanchored = |call: usize, base: char, position: usize| {
@@ -204,8 +204,8 @@ pub(super) fn observe(
         .iter()
         .filter_map(|column| {
             Some((
-                column.reference_index_0based?,
-                (column.original_call_index_0based?, column.query_base),
+                column.reference_index_0based()?,
+                (column.original_call_index_0based()?, column.query_base()),
             ))
         })
         .collect::<BTreeMap<_, _>>();
@@ -236,13 +236,13 @@ pub(super) fn observe(
     let mut before = Vec::with_capacity(columns.len());
     let mut last = None;
     for column in columns {
-        last = column.original_call_index_0based.or(last);
+        last = column.original_call_index_0based().or(last);
         before.push(last);
     }
     let mut after = vec![None; columns.len()];
     let mut next = None;
     for (offset, column) in columns.iter().enumerate().rev() {
-        next = column.original_call_index_0based.or(next);
+        next = column.original_call_index_0based().or(next);
         after[offset] = next;
     }
     let bounded = |left: Option<usize>, right: Option<usize>| {
@@ -256,9 +256,9 @@ pub(super) fn observe(
     // Per deleted position: the nearest calls on both sides, and the base.
     let mut deletions = BTreeMap::new();
     for (offset, column) in columns.iter().enumerate() {
-        let Some(position) = column.reference_index_0based else {
-            if let Some(call) = column.original_call_index_0based {
-                inserted.push((column.query_base, call));
+        let Some(position) = column.reference_index_0based() else {
+            if let Some(call) = column.original_call_index_0based() {
+                inserted.push((column.query_base(), call));
             }
             continue;
         };
@@ -304,12 +304,12 @@ pub(super) fn observe(
                 },
             );
         }
-        let observation = if column.query_base == '-' {
+        let observation = if column.query_base() == '-' {
             let flanks = (
                 offset.checked_sub(1).and_then(|left| before[left]),
                 after.get(offset + 1).copied().flatten(),
             );
-            deletions.insert(position, (flanks, column.reference_base));
+            deletions.insert(position, (flanks, column.reference_base()));
             Observation {
                 value: SiteValue::Deletion,
                 clean: bounded(flanks.0, flanks.1),
@@ -318,18 +318,18 @@ pub(super) fn observe(
         } else {
             // A call that may sit one position off, or that would show a run
             // the read does not bound, shows nothing here.
-            let shifted = column.original_call_index_0based.is_some_and(|call| {
-                unanchored(call, column.query_base, position) || unbounded_run(call, position)
+            let shifted = column.original_call_index_0based().is_some_and(|call| {
+                unanchored(call, column.query_base(), position) || unbounded_run(call, position)
             });
             Observation {
-                value: SiteValue::Base(column.query_base),
-                clean: canonical(column.query_base)
+                value: SiteValue::Base(column.query_base()),
+                clean: canonical(column.query_base())
                     && !shifted
-                    && column.original_call_index_0based.is_some_and(clean_call),
+                    && column.original_call_index_0based().is_some_and(clean_call),
                 chars: column
-                    .original_call_index_0based
+                    .original_call_index_0based()
                     .map(|call| {
-                        let mut char = observed_char(column.query_base, call, Some(position));
+                        let mut char = observed_char(column.query_base(), call, Some(position));
                         if shifted {
                             char.trust = Trust::Nothing;
                         }
@@ -345,7 +345,7 @@ pub(super) fn observe(
     }
     // Indels beyond the caller's length cap are never clean evidence; neither
     // is a deletion that changes an unbounded run's length.
-    let cap = config.max_indel_length;
+    let cap = config.max_indel_length();
     for observation in junctions.values_mut() {
         if observation.chars.len() > cap {
             observation.clean = false;

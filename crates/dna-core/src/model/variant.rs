@@ -49,6 +49,24 @@ pub struct VariantCallMapping {
     pub(crate) reference_position_0based: Option<usize>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
+impl VariantCallMapping {
+    /// A mapping of the call at `call_index_0based`, unchecked, for tests of
+    /// the stages that read called reads.
+    #[must_use]
+    pub const fn fixture(
+        role: VariantCallRole,
+        call_index_0based: usize,
+        reference_position_0based: Option<usize>,
+    ) -> Self {
+        Self {
+            role,
+            call_index_0based,
+            reference_position_0based,
+        }
+    }
+}
+
 /// One normalized reportable primary-sequence difference.
 #[derive(Debug, Clone)]
 pub struct Variant {
@@ -98,7 +116,8 @@ pub enum VariantExclusionReason {
 
 impl VariantExclusionReason {
     /// Stable published label.
-    pub(crate) const fn label(self) -> &'static str {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
         match self {
             Self::NonCanonicalAllele => "non_canonical_allele",
             Self::IndelLengthExceeded => "indel_length_exceeded",
@@ -178,6 +197,18 @@ pub struct VariantCallingResult {
 }
 
 impl VariantCallingResult {
+    /// A result with no candidate excluded before it was observed, for tests
+    /// of the stages that read called reads.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub const fn fixture(reported: Vec<Variant>, observed: Vec<ObservedVariant>) -> Self {
+        Self {
+            reported,
+            observed,
+            excluded: Vec::new(),
+        }
+    }
+
     /// Number of candidates excluded across extraction and configured filtering.
     #[must_use]
     pub fn excluded_count(&self) -> usize {

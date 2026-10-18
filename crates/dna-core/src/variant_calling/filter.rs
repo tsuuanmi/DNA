@@ -1,6 +1,6 @@
 //! Profile-region and modality support-veto eligibility filters.
 
-use super::eligibility::ReadEligibility;
+use super::eligibility::Eligibility;
 use crate::model::alignment::Orientation;
 use crate::model::variant::{
     ExcludedVariant, ObservedVariant, Variant, VariantCallRole, VariantCallingResult,
@@ -18,7 +18,7 @@ use dna_kernel::read_evidence::ReadEvidence;
 pub(super) fn apply(
     extracted: VariantCallingResult,
     evidence: &ReadEvidence,
-    eligibility: &ReadEligibility<'_>,
+    eligibility: &Eligibility<'_>,
     orientation: Orientation,
     regions: &[[usize; 2]],
     reference: &Reference,
@@ -67,8 +67,8 @@ pub(super) fn apply(
 }
 
 /// Whether a substitution rests on a call vouched for by its base only that
-/// may sit one position off (see `ReadEligibility::unanchored`).
-fn unanchored(variant: &Variant, eligibility: &ReadEligibility<'_>, reference: &Reference) -> bool {
+/// may sit one position off (see `Eligibility::unanchored`).
+fn unanchored(variant: &Variant, eligibility: &Eligibility<'_>, reference: &Reference) -> bool {
     let bases = reference.sequence.as_bytes();
     let length = bases.len();
     let Some(position) = variant.position_1based.checked_sub(1) else {
@@ -224,7 +224,7 @@ mod tests {
         regions: &[[usize; 2]],
     ) -> Result<VariantCallingResult> {
         let config = config(read_end_margin);
-        let eligibility = ReadEligibility::new(evidence, &config);
+        let eligibility = Eligibility::new(evidence, &config);
         apply(
             extracted,
             evidence,

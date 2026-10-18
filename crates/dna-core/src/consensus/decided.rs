@@ -23,9 +23,7 @@
 //!   run's other positions, and so its composition, stay callable
 //!   (PROP-0008 step 3).
 
-use crate::model::alignment::{
-    Alignment, AlignmentColumn, AlignmentMetrics, Orientation, ReferenceSegment,
-};
+use crate::model::alignment::{Alignment, AlignmentColumn, ReferenceSegment};
 use crate::model::called_read::CalledRead;
 use std::collections::BTreeSet;
 use std::ops::Range;
@@ -63,7 +61,6 @@ pub fn call_segment(
         .ok_or(VariantError::Inconsistent("no consensus segment at index"))?;
     let (columns, estimated) = columns(consensus, segment, reference.sequence.as_bytes())?;
     let columns = right_aligned(columns);
-    let metrics = metrics(&columns);
     let cut = estimated
         .iter()
         .filter_map(|range| run_end(&columns, range))
@@ -91,18 +88,14 @@ pub fn call_segment(
             pieces
         })
         .collect();
-    let alignment = Alignment {
-        orientation: Orientation::Forward,
-        score: 0,
-        reference_segments: vec![ReferenceSegment {
+    let alignment = Alignment::placed(
+        vec![ReferenceSegment {
             start_0based: segment.start_0based,
             end_0based_exclusive: segment.end_0based + 1,
         }],
         callable_segments,
-        wraps_origin: false,
-        metrics,
         columns,
-    };
+    )?;
     let mut variants = variant_calling::call(
         &alignment,
         reference,
@@ -157,17 +150,17 @@ pub fn call_segment(
 fn run_end(columns: &[AlignmentColumn], range: &Range<usize>) -> Option<usize> {
     let marked = |column: &AlignmentColumn| {
         column
-            .original_call_index_0based
+            .original_call_index_0based()
             .is_some_and(|call| range.contains(&call))
     };
     let mut end = columns.iter().rposition(marked)?;
-    while end + 1 < columns.len() && columns[end + 1].query_base == '-' {
+    while end + 1 < columns.len() && columns[end + 1].query_base() == '-' {
         end += 1;
     }
     columns[..=end]
         .iter()
         .rev()
-        .find_map(|column| column.reference_index_0based)
+        .find_map(AlignmentColumn::reference_index_0based)
 }
 
 /// The reference positions a variant changes: a substitution's position, a
@@ -285,12 +278,12 @@ fn columns(
             Some(position) => char::from(*bases.get(position).ok_or_else(mismatch)?),
             None => '-',
         };
-        columns.push(AlignmentColumn {
-            query_base: query.map_or('-', |(_, base)| base),
+        columns.push(AlignmentColumn::new(
+            query.map_or('-', |(_, base)| base),
             reference_base,
-            original_call_index_0based: query.map(|(index, _)| index),
-            reference_index_0based: reference,
-        });
+            query.map(|(index, _)| index),
+            reference,
+        ));
     }
     if call != sequence.len() {
         return Err(mismatch().into());
@@ -433,7 +426,7 @@ enum Gap {
 }
 
 fn gap_kind(column: &AlignmentColumn) -> Option<Gap> {
-    match (column.query_base, column.reference_base) {
+    match (column.query_base(), column.reference_base()) {
         ('-', _) => Some(Gap::Deleted),
         (_, '-') => Some(Gap::Inserted),
         _ => None,
@@ -448,53 +441,53 @@ fn shift(columns: &mut Vec<AlignmentColumn>, start: usize, end: usize) -> bool {
     let Some(following) = columns.get(end).cloned() else {
         return false;
     };
-    let matched =
-        following.query_base == following.reference_base && is_canonical(following.query_base);
+    let matched = following.query_base() == following.reference_base()
+        && is_canonical(following.query_base());
     let joins = columns
         .get(end + 1)
         .is_some_and(|after| gap_kind(after) == kind);
     let first = columns[start].clone();
     let leading = match kind {
-        Some(Gap::Inserted) => first.query_base,
-        Some(Gap::Deleted) => first.reference_base,
+        Some(Gap::Inserted) => first.query_base(),
+        Some(Gap::Deleted) => first.reference_base(),
         None => return false,
     };
-    if !matched || joins || !placement::crosses(leading as u8, following.reference_base as u8) {
+    if !matched || joins || !placement::crosses(leading as u8, following.reference_base() as u8) {
         return false;
     }
     let gap = columns[start + 1..end].to_vec();
     let moved = match kind {
         // The first inserted call pairs with the crossed reference base, and
         // the crossed call becomes the last inserted one.
-        Some(Gap::Inserted) => std::iter::once(AlignmentColumn {
-            query_base: first.query_base,
-            reference_base: following.reference_base,
-            original_call_index_0based: first.original_call_index_0based,
-            reference_index_0based: following.reference_index_0based,
-        })
+        Some(Gap::Inserted) => std::iter::once(AlignmentColumn::new(
+            first.query_base(),
+            following.reference_base(),
+            first.original_call_index_0based(),
+            following.reference_index_0based(),
+        ))
         .chain(gap)
-        .chain(std::iter::once(AlignmentColumn {
-            query_base: following.query_base,
-            reference_base: '-',
-            original_call_index_0based: following.original_call_index_0based,
-            reference_index_0based: None,
-        }))
+        .chain(std::iter::once(AlignmentColumn::new(
+            following.query_base(),
+            '-',
+            following.original_call_index_0based(),
+            None,
+        )))
         .collect::<Vec<_>>(),
         // The first deleted reference base pairs with the crossed call, and
         // the crossed reference base becomes the last deleted one.
-        _ => std::iter::once(AlignmentColumn {
-            query_base: following.query_base,
-            reference_base: first.reference_base,
-            original_call_index_0based: following.original_call_index_0based,
-            reference_index_0based: first.reference_index_0based,
-        })
+        _ => std::iter::once(AlignmentColumn::new(
+            following.query_base(),
+            first.reference_base(),
+            following.original_call_index_0based(),
+            first.reference_index_0based(),
+        ))
         .chain(gap)
-        .chain(std::iter::once(AlignmentColumn {
-            query_base: '-',
-            reference_base: following.reference_base,
-            original_call_index_0based: None,
-            reference_index_0based: following.reference_index_0based,
-        }))
+        .chain(std::iter::once(AlignmentColumn::new(
+            '-',
+            following.reference_base(),
+            None,
+            following.reference_index_0based(),
+        )))
         .collect::<Vec<_>>(),
     };
     columns.splice(start..=end, moved);
@@ -507,10 +500,10 @@ fn shift(columns: &mut Vec<AlignmentColumn>, start: usize, end: usize) -> bool {
 fn callable(columns: &[AlignmentColumn]) -> Vec<ReferenceSegment> {
     let mut segments: Vec<ReferenceSegment> = Vec::new();
     for column in columns {
-        let Some(position) = column.reference_index_0based else {
+        let Some(position) = column.reference_index_0based() else {
             continue;
         };
-        if column.query_base != '-' && !is_canonical(column.query_base) {
+        if column.query_base() != '-' && !is_canonical(column.query_base()) {
             continue;
         }
         match segments.last_mut() {
@@ -524,43 +517,6 @@ fn callable(columns: &[AlignmentColumn]) -> Vec<ReferenceSegment> {
         }
     }
     segments
-}
-
-fn metrics(columns: &[AlignmentColumn]) -> AlignmentMetrics {
-    let mut metrics = AlignmentMetrics {
-        exact_matches: 0,
-        mismatches: 0,
-        gap_opens: 0,
-        callable_columns: 0,
-        callable_identity: 0.0,
-        unresolved_query_bases: 0,
-        masked_query_bases: 0,
-    };
-    let mut previous = None;
-    for column in columns {
-        let gap = gap_kind(column);
-        if gap.is_some() && gap != previous {
-            metrics.gap_opens += 1;
-        }
-        previous = gap;
-        if column.query_base != '-' && !is_canonical(column.query_base) {
-            metrics.unresolved_query_bases += 1;
-        }
-        if is_canonical(column.query_base) && is_canonical(column.reference_base) {
-            metrics.callable_columns += 1;
-            if column.query_base == column.reference_base {
-                metrics.exact_matches += 1;
-            } else {
-                metrics.mismatches += 1;
-            }
-        }
-    }
-    if metrics.callable_columns > 0 {
-        #[allow(clippy::cast_precision_loss)]
-        let identity = metrics.exact_matches as f64 / metrics.callable_columns as f64;
-        metrics.callable_identity = identity;
-    }
-    metrics
 }
 
 /// The consensus's decided edits as called records.
@@ -578,11 +534,11 @@ mod tests {
     use dna_kernel::model::reference::ReferenceTopology;
 
     use super::*;
-    use crate::alignment::AlignmentConfig;
+    use crate::alignment::RawAlignmentConfig;
     use crate::model::consensus::{
         ConsensusRun, ConsensusSite, ConsensusSummary, RunEvidence, SiteState,
     };
-    use crate::read_call::CoreConfig;
+    use crate::read_call::{CallConfig, RawCallConfig};
 
     /// `ACGA TTTTT CAGGCTAGCATCG` at 1..=22: a T run at 5..=9.
     const REFERENCE: &str = "ACGATTTTTCAGGCTAGCATCG";
@@ -596,9 +552,9 @@ mod tests {
         }
     }
 
-    fn config() -> CoreConfig {
-        CoreConfig {
-            alignment: AlignmentConfig {
+    fn config() -> Result<CallConfig> {
+        RawCallConfig {
+            alignment: RawAlignmentConfig {
                 match_score: 3,
                 mismatch_score: -5,
                 ambiguous_score: 0,
@@ -607,15 +563,12 @@ mod tests {
                 minimum_callable_bases: 1,
                 minimum_identity: 0.8,
             },
-            variant_calling: variant_calling::VariantCallingConfig {
+            variant_calling: variant_calling::RawVariantCallingConfig {
                 max_indel_length: 50,
                 read_end_margin: 0,
             },
-            sample_reconciliation: crate::sample::SampleReconciliationConfig {
-                minimum_comparable_bases: 1,
-                minimum_overlap_agreement: 0.5,
-            },
         }
+        .validate()
     }
 
     /// A site over 1-based `first..=last` decided as `call`.
@@ -655,7 +608,7 @@ mod tests {
             sites,
             summary: ConsensusSummary::default(),
         };
-        let config = config();
+        let config = config()?;
         call_segment(
             &consensus,
             0,

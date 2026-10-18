@@ -12,4 +12,4 @@ mod runs;
 mod scoring;
 mod traceback;
 
-pub(crate) use orient::align_best;
+pub use orient::align_best;

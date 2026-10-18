@@ -18,13 +18,19 @@ pub struct SampleReconciliationConfig {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RawSampleReconciliationConfig {
-    pub(crate) minimum_comparable_bases: usize,
-    pub(crate) minimum_overlap_agreement: f64,
+    /// Fewest comparable bases an overlap needs.
+    pub minimum_comparable_bases: usize,
+    /// Lowest agreement an overlap needs.
+    pub minimum_overlap_agreement: f64,
 }
 
 impl RawSampleReconciliationConfig {
     /// Validates the section.
-    pub(crate) fn validate(self) -> Result<SampleReconciliationConfig> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError` naming the first value that violates its rule.
+    pub fn validate(self) -> Result<SampleReconciliationConfig> {
         if self.minimum_comparable_bases == 0 {
             return Err(ConfigError::Constraint(
                 "sample_reconciliation.minimum_comparable_bases must be positive",

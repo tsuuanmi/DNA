@@ -20,22 +20,41 @@ pub struct AlignmentConfig {
     pub(crate) minimum_identity: f64,
 }
 
+impl AlignmentConfig {
+    /// Fewest callable columns a placement needs.
+    #[must_use]
+    pub const fn minimum_callable_bases(&self) -> usize {
+        self.minimum_callable_bases
+    }
+}
+
 /// The `[alignment]` section as written in the configuration.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RawAlignmentConfig {
-    pub(crate) match_score: i32,
-    pub(crate) mismatch_score: i32,
-    pub(crate) ambiguous_score: i32,
-    pub(crate) gap_open_score: i32,
-    pub(crate) gap_extension_score: i32,
-    pub(crate) minimum_callable_bases: usize,
-    pub(crate) minimum_identity: f64,
+    /// Score of a matching base.
+    pub match_score: i32,
+    /// Score of a mismatching base.
+    pub mismatch_score: i32,
+    /// Score of a base against an ambiguous one.
+    pub ambiguous_score: i32,
+    /// Score of opening a gap.
+    pub gap_open_score: i32,
+    /// Score of extending a gap.
+    pub gap_extension_score: i32,
+    /// Fewest callable columns a placement needs.
+    pub minimum_callable_bases: usize,
+    /// Lowest callable identity a placement needs.
+    pub minimum_identity: f64,
 }
 
 impl RawAlignmentConfig {
     /// Validates the section.
-    pub(crate) fn validate(self) -> Result<AlignmentConfig> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError` naming the first value that violates its rule.
+    pub fn validate(self) -> Result<AlignmentConfig> {
         if self.match_score <= 0 {
             return Err(ConfigError::Constraint("alignment.match_score must be positive").into());
         }
