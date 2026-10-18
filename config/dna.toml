@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 9
+schema_version = 10
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -70,6 +70,8 @@ gap_open_score = -10
 gap_extension_score = -4
 minimum_callable_bases = 20
 minimum_identity = 0.80
+# Longest reference stretch, in bases, a run-structure re-expression spans.
+max_stretch = 64
 
 [sample_reconciliation]
 # Tracy-derived pre-consensus overlap admission, applied after independent placement.
@@ -120,3 +122,18 @@ max_indel_length = 50
 # call (beyond the trim interval or masked as unresolved) cannot support a
 # variant.
 read_end_margin = 12
+
+[consensus]
+# A disputed homopolymer no read bounds is grown as one stretch from this
+# length on (SRS-CONS-004).
+seeded_run = 4
+# A segment keeps up to `maximum_undecided_gap` undecided positions between
+# decided sites as N, and needs at least `minimum_resolved_bases` resolved
+# bases.
+maximum_undecided_gap = 20
+minimum_resolved_bases = 20
+# Costs of aligning a decided site's call to its reference interval: they
+# must satisfy mismatch + extension > open and mismatch < 2 * open.
+site_mismatch_cost = 2
+site_gap_open_cost = 3
+site_gap_extension_cost = 2

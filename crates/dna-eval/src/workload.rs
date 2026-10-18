@@ -201,7 +201,7 @@ pub(crate) fn wilson_upper(events: usize, trials: usize) -> f64 {
     if trials == 0 {
         return 1.0;
     }
-    let z: f64 = 1.96;
+    let z = crate::estimate::Z_95;
     let n = trials as f64;
     let p = events as f64 / n;
     let centre = p + z * z / (2.0 * n);

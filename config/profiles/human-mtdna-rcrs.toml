@@ -1,7 +1,7 @@
 # Human mtDNA control region against the revised Cambridge Reference Sequence
 # (rCRS, NC_012920.1). Target knowledge only: method parameters live in the
 # scientific configuration that references this profile.
-schema_version = 1
+schema_version = 2
 id = "human-mtdna-rcrs"
 
 [reference]
@@ -16,6 +16,9 @@ regions = [[16024, 16365], [73, 340], [438, 576]]
 [normalization]
 # Forensic mtDNA convention: 3'/right-most indel placement, never across the seam.
 indel_placement = "right"
+# Farthest a deletion moves 3' past substitutions in one trade: twice the
+# longest trade over the lab's reviewed corpus (10 bases, 513DEL to 523DEL).
+max_trade = 20
 
 [notation]
 # One call per changed base: 73G, 249DEL, 309.1C.
@@ -35,7 +38,7 @@ rules = ["anchored_run_lengths", "anchor_duplication", "anchor_deletion", "termi
 name = "HVS-III"
 start = 512
 sequence = "AGCACACACACAC"
-structure = { kind = "tandem_repeat", motif = "AC" }
+structure = { kind = "tandem_repeat", motif = "AC", read_copies = 2 }
 rules = ["motif_shift"]
 
 [[nomenclature.windows]]

@@ -11,10 +11,6 @@
 use crate::traceback::{self, RawAlignment, RawColumn};
 use dna_kernel::model::reference::Reference;
 
-/// Longest reference stretch, in bases, a re-expression may span; it bounds
-/// the work per disturbed block and keeps a stretch local to one repeat.
-const MAX_STRETCH: usize = 64;
-
 /// Columns between two anchors: `left` and `right` are the anchor columns and
 /// `first..=last` the working-reference positions strictly between them.
 #[derive(Debug, Clone, Copy)]
@@ -26,13 +22,16 @@ struct Stretch {
 }
 
 /// Re-expresses every qualifying stretch of `alignment` in place; `masked`
-/// tells whether the call at an oriented query index is masked.
+/// tells whether the call at an oriented query index is masked. A stretch
+/// spans at most `max_stretch` reference bases, which bounds the work per
+/// disturbed block and keeps a stretch local to one repeat.
 pub(super) fn reexpress(
     alignment: &mut RawAlignment,
     reference: &Reference,
     masked: &dyn Fn(usize) -> bool,
+    max_stretch: usize,
 ) {
-    let stretches = stretches(&alignment.columns, reference);
+    let stretches = stretches(&alignment.columns, reference, max_stretch);
     let mut columns = Vec::with_capacity(alignment.columns.len());
     let mut cursor = 0;
     let mut changed = false;
@@ -91,7 +90,7 @@ const fn exact(column: &RawColumn) -> bool {
 
 /// Disturbed blocks grown to whole reference runs and bounded by anchors:
 /// exact matches whose base the read's adjacent call inside does not repeat.
-fn stretches(columns: &[RawColumn], reference: &Reference) -> Vec<Stretch> {
+fn stretches(columns: &[RawColumn], reference: &Reference, max_stretch: usize) -> Vec<Stretch> {
     let Some(origin) = columns.iter().find_map(|column| column.reference_index) else {
         return Vec::new();
     };
@@ -133,7 +132,7 @@ fn stretches(columns: &[RawColumn], reference: &Reference) -> Vec<Stretch> {
         let (Some(&low), Some(&high)) = (footprint.iter().min(), footprint.iter().max()) else {
             continue;
         };
-        let Some(stretch) = anchored(columns, reference, &column_of, low, high) else {
+        let Some(stretch) = anchored(columns, reference, &column_of, low, high, max_stretch) else {
             continue;
         };
         match found.last_mut() {
@@ -155,9 +154,10 @@ fn anchored(
     column_of: &dyn Fn(usize) -> Option<usize>,
     low: usize,
     high: usize,
+    max_stretch: usize,
 ) -> Option<Stretch> {
     let (mut first, mut last) = (run_start(reference, low), run_end(reference, high));
-    while last - first < MAX_STRETCH && same_copy(reference, first, last) {
+    while last - first < max_stretch && same_copy(reference, first, last) {
         let left = column_of(first.checked_sub(1)?)?;
         let right = column_of(last + 1)?;
         let mut inside = columns[left + 1..right]
@@ -325,9 +325,12 @@ mod tests {
     fn reexpressed(reference_row: &str, query_row: &str, masked: &[usize]) -> RawAlignment {
         let mut raw = alignment(reference_row, query_row);
         let sequence = reference_row.replace('-', "");
-        reexpress(&mut raw, &reference(&sequence), &|query| {
-            masked.contains(&query)
-        });
+        reexpress(
+            &mut raw,
+            &reference(&sequence),
+            &|query| masked.contains(&query),
+            64,
+        );
         raw
     }
 

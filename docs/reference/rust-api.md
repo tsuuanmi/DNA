@@ -431,7 +431,11 @@ The initial policy is:
 ```rust
 #[non_exhaustive]
 pub enum NormalizationPolicy {
-    RightAligned,
+    RightAligned { max_trade: usize },
+}
+
+impl NormalizationPolicy {
+    pub fn for_notation(notation: &Notation) -> Self;
 }
 ```
 
@@ -452,7 +456,9 @@ deletion representations without rotating across the FASTA coordinate seam
 (a profile's `indel_placement = "right"`). A deletion that cannot shift
 further may also move 3' across substitutions it can replace (the deletion
 trade, SRS-VN-008: `16293DEL 16298C` becomes `16293C 16298DEL`), which
-rewrites those substitutions. `normalize` bounds the trade by nothing; the
+rewrites those substitutions, by at most `max_trade` bases
+(`for_notation` takes the profile's `normalization.max_trade`). `normalize`
+bounds the trade by no window or read; the
 DNA workflows bound it by the read's callable bases and the profile's
 nomenclature windows. Every accepted movement must reconstruct exactly the
 same complete alternate sequence as the source calls.

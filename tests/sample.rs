@@ -622,7 +622,7 @@ fn publishes_notation_for_a_non_mtdna_profile() -> Result<(), Box<dyn std::error
     let profile = config.with_extension("profile.toml");
     let mut text = fs::read_to_string(&profile)?;
     text.push_str(
-        "[normalization]\nindel_placement='right'\n[notation]\nstyle='per_base_decimal'\n",
+        "[normalization]\nindel_placement='right'\nmax_trade=20\n[notation]\nstyle='per_base_decimal'\n",
     );
     fs::write(&profile, text)?;
 

@@ -43,6 +43,10 @@ pub(crate) fn check<'a>(
     profile: &Profile,
 ) -> Convention {
     let mut convention = Convention::default();
+    let Some(notation) = &profile.notation else {
+        return convention;
+    };
+    let policy = NormalizationPolicy::for_notation(notation);
     // As the sample workflow bounds a deletion trade, with every base read.
     let windows = profile
         .windows
@@ -62,13 +66,8 @@ pub(crate) fn check<'a>(
             reference: reference.identity(),
             variants,
         };
-        let represented = normalize_read(
-            reference,
-            &called,
-            NormalizationPolicy::RightAligned,
-            bounds,
-        )
-        .and_then(|normalized| apply_with(reference, profile, from_normalization(&normalized)));
+        let represented = normalize_read(reference, &called, policy, bounds)
+            .and_then(|normalized| apply_with(reference, profile, from_normalization(&normalized)));
         let Ok(represented) = represented else {
             convention.skipped += 1;
             continue;

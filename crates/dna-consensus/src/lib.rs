@@ -10,6 +10,7 @@
 //! each position is decided on its own. Only clean observations (unmasked,
 //! trusted, no support veto) decide, under decision rule version 1.
 
+pub mod config;
 pub mod model;
 
 mod decide;
@@ -29,16 +30,30 @@ use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use observe::{Char, ReadObservations, SiteValue, Trust, observe};
 
+pub use config::{ConsensusConfig, RawConsensusConfig};
+
 /// Builds the consensus of the sample's admitted reads.
 ///
 /// Reads are expected in the sample's deterministic read order; the reads
 /// listed at each site follow it.
 #[must_use]
-pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CallConfig) -> Consensus {
+pub fn build(
+    reads: &[&CalledRead],
+    reference: &Reference,
+    config: &CallConfig,
+    consensus_config: &ConsensusConfig,
+) -> Consensus {
     let bases = reference.sequence.as_bytes();
     let observed = reads
         .iter()
-        .map(|read| observe(read, &config.variant_calling, bases))
+        .map(|read| {
+            observe(
+                read,
+                &config.variant_calling,
+                bases,
+                consensus_config.seeded_run,
+            )
+        })
         .collect::<Vec<_>>();
     let covered = observed
         .iter()
@@ -46,7 +61,7 @@ pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CallConfig) 
         .collect::<BTreeSet<_>>();
 
     let mut decided: BTreeMap<usize, (usize, Decision)> = BTreeMap::new();
-    for (first, last) in stretches(&observed, bases) {
+    for (first, last) in stretches(&observed, bases, consensus_config.seeded_run) {
         decided.insert(first, (last, decide_stretch(&observed, first, last, bases)));
     }
     let inside = decided
@@ -77,9 +92,14 @@ pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CallConfig) 
         sites: Vec::new(),
         summary: ConsensusSummary::default(),
     };
-    let minimum = config.alignment.minimum_callable_bases();
-    for piece in pieces(&decided, minimum) {
-        assemble(&piece, &decided, bases, minimum, &mut consensus);
+    for piece in pieces(&decided, consensus_config.maximum_undecided_gap) {
+        assemble(
+            &piece,
+            &decided,
+            bases,
+            consensus_config.minimum_resolved_bases,
+            &mut consensus,
+        );
     }
     consensus
 }
@@ -978,21 +998,22 @@ fn groups_of(chars: &[Char]) -> Vec<Vec<Char>> {
     groups
 }
 
-/// The shortest reference homopolymer a disputed, unbounded run seeds a
-/// stretch for. Shorter runs hold few length variants, and their disputes are
-/// mostly mixed signal at a heteroplasmic base. A method constant: it matches
-/// the human-mtDNA profile's conformance minimum run length, which the
-/// consensus does not read.
-const SEEDED_RUN: usize = 4;
-
 /// Reference intervals where any read cleanly differs from the reference (an
 /// unclean difference alone decides nothing and does not widen a stretch),
 /// together with the neighbouring reference runs a substituted base or a
-/// deletion joins, and every homopolymer of at least [`SEEDED_RUN`] bases that
+/// deletion joins, and every homopolymer of at least `seeded_run` bases that
 /// no read shows cleanly with both ends while some read differs on it: each
 /// grown to whole reference runs on both sides, overlapping or touching
-/// intervals merged. A stretch never crosses the reference origin.
-fn stretches(observed: &[ReadObservations], bases: &[u8]) -> Vec<(usize, usize)> {
+/// intervals merged. A stretch never crosses the reference origin. Shorter
+/// runs hold few length variants, and their disputes are mostly mixed signal
+/// at a heteroplasmic base; `consensus.seeded_run` matches the human-mtDNA
+/// profile's conformance minimum run length, which the consensus does not
+/// read.
+fn stretches(
+    observed: &[ReadObservations],
+    bases: &[u8],
+    seeded_run: usize,
+) -> Vec<(usize, usize)> {
     let length = bases.len();
     let mut seeds = BTreeSet::new();
     for read in observed {
@@ -1039,7 +1060,7 @@ fn stretches(observed: &[ReadObservations], bases: &[u8]) -> Vec<(usize, usize)>
             }
         }
     }
-    // A homopolymer of at least `SEEDED_RUN` bases that no read shows whole
+    // A homopolymer of at least `seeded_run` bases that no read shows whole
     // and cleanly, with both of its ends, while some read differs on it,
     // cleanly or not, is decided by its run structure: decided position by
     // position, it would assert a length no read shows (ADR-0071).
@@ -1049,7 +1070,7 @@ fn stretches(observed: &[ReadObservations], bases: &[u8]) -> Vec<(usize, usize)>
         while last + 1 < length && bases[last + 1] == bases[first] {
             last += 1;
         }
-        if last + 1 - first >= SEEDED_RUN && last + 1 < length && !seeds.contains(&first) {
+        if last + 1 - first >= seeded_run && last + 1 < length && !seeds.contains(&first) {
             let bounded = observed.iter().any(|read| {
                 (first - 1..=last + 1).all(|position| {
                     read.positions
@@ -1098,10 +1119,10 @@ fn stretches(observed: &[ReadObservations], bases: &[u8]) -> Vec<(usize, usize)>
 }
 
 /// Splits the decided sites into pieces of contiguous positions, from one
-/// cleanly decided site to the next: a gap of at most `minimum` undecided
+/// cleanly decided site to the next: a gap of at most `maximum_gap` undecided
 /// positions stays inside a piece as `N`, while a longer gap or an uncovered
 /// position splits it. Each piece lists its sites by first position.
-fn pieces(decided: &BTreeMap<usize, (usize, Decision)>, minimum: usize) -> Vec<Vec<usize>> {
+fn pieces(decided: &BTreeMap<usize, (usize, Decision)>, maximum_gap: usize) -> Vec<Vec<usize>> {
     let undecided = |first: &usize| decided[first].1.state == SiteState::Unresolved;
     let close = |current: &mut Vec<usize>, pieces: &mut Vec<Vec<usize>>| {
         while current.last().is_some_and(undecided) {
@@ -1118,7 +1139,7 @@ fn pieces(decided: &BTreeMap<usize, (usize, Decision)>, minimum: usize) -> Vec<V
     for (&first, (last, decision)) in decided {
         let observed = decision.state != SiteState::Unresolved;
         let contiguous = previous_last.is_some_and(|end| end + 1 == first);
-        let distant = observed && observed_last.is_some_and(|end| first - end - 1 > minimum);
+        let distant = observed && observed_last.is_some_and(|end| first - end - 1 > maximum_gap);
         if !contiguous || distant {
             close(&mut current, &mut pieces);
             current.clear();
@@ -1224,7 +1245,7 @@ pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     version: 7,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
-    config_sections: &[],
+    config_sections: &["consensus"],
 };
 
 #[cfg(test)]
@@ -1259,6 +1280,7 @@ mod tests {
             gap_extension_score: -4,
             minimum_callable_bases: 1,
             minimum_identity: 0.8,
+            max_stretch: 64,
         }
         .validate()
     }
@@ -1273,6 +1295,7 @@ mod tests {
                 gap_extension_score: -4,
                 minimum_callable_bases: 1,
                 minimum_identity: 0.8,
+                max_stretch: 64,
             },
             variant_calling: RawVariantCallingConfig {
                 max_indel_length: 50,
@@ -1372,7 +1395,7 @@ mod tests {
             read_end_margin: 8,
         }
         .validate()?;
-        Ok(observe(&read, &settings, reference.sequence.as_bytes()))
+        Ok(observe(&read, &settings, reference.sequence.as_bytes(), 4))
     }
 
     #[test]
@@ -1422,7 +1445,7 @@ mod tests {
         let mut base_only = read.evidence.calls()[14];
         base_only.bound = dna_kernel::read_evidence::Bound::Withheld;
         read.evidence = read.evidence.with_call(11, vetoed).with_call(14, base_only);
-        let observed = observe(&read, &config()?.variant_calling, REFERENCE.as_bytes());
+        let observed = observe(&read, &config()?.variant_calling, REFERENCE.as_bytes(), 4);
         let char_at = |position: usize| {
             observed
                 .positions
@@ -1466,7 +1489,7 @@ mod tests {
         flank.identity.withheld.insert(peak)?;
         flank.indel.withheld.insert(peak)?;
         read.evidence = read.evidence.with_call(20, inserted).with_call(10, flank);
-        let observed = observe(&read, &config()?.variant_calling, REFERENCE.as_bytes());
+        let observed = observe(&read, &config()?.variant_calling, REFERENCE.as_bytes(), 4);
         assert_eq!(
             observed.positions.get(&11).map(|deleted| deleted.clean),
             Some(true)
@@ -1538,7 +1561,12 @@ mod tests {
             &dna_kernel::model::nucleotide::reverse_complement(haplotype),
             &[],
         )?;
-        let consensus = build(&[&forward, &reverse], &reference(), &config()?);
+        let consensus = build(
+            &[&forward, &reverse],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
         assert_eq!(consensus.segments.len(), 1);
         assert_eq!(consensus.segments[0].sequence, haplotype);
         // The substituted G joins the G before it: the stretch is that run.
@@ -1570,7 +1598,12 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let variant = placed("v", "TTGACGTCAGGACGATCGTACCTGAGTACGAGGACT", &[])?;
         let plain = placed("p", REFERENCE, &[])?;
-        let consensus = build(&[&variant, &plain], &reference(), &config()?);
+        let consensus = build(
+            &[&variant, &plain],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
         assert_eq!(consensus.segments[0].sequence, REFERENCE);
         let site = site_at(&consensus, 10).ok_or("missing contested site")?;
         assert_eq!(site.state, SiteState::Contested);
@@ -1587,11 +1620,21 @@ mod tests {
         // The variant read's call at 10 is masked: the reference read decides.
         let variant = placed("v", "TTGACGTCAGGACGATCGTACCTGAGTACGAGGACT", &[10])?;
         let plain = placed("p", REFERENCE, &[])?;
-        let consensus = build(&[&variant, &plain], &reference(), &config()?);
+        let consensus = build(
+            &[&variant, &plain],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
         assert_eq!(consensus.segments[0].sequence, REFERENCE);
         assert!(site_at(&consensus, 10).is_none());
         // Alone, a masked call leaves the position unresolved.
-        let alone = build(&[&variant], &reference(), &config()?);
+        let alone = build(
+            &[&variant],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
         assert_eq!(&alone.segments[0].sequence[8..12], "AGNA");
         assert_eq!(alone.summary.unresolved_positions, 1);
         Ok(())
@@ -1602,7 +1645,12 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         // A C inserted into the CC run at 20-21; the A before the run is call 19.
         let lengthened = "TTGACGTCAGTACGATCGTACCCTGAGTACGAGGACT";
-        let bounded = build(&[&placed("b", lengthened, &[])?], &reference(), &config()?);
+        let bounded = build(
+            &[&placed("b", lengthened, &[])?],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
         assert_eq!(bounded.segments[0].sequence, lengthened);
         // Unresolved, the A no longer shows where the run starts, so the read
         // cannot tell the run's length and the reference length stays.
@@ -1610,6 +1658,7 @@ mod tests {
             &[&placed_with("u", lengthened, &[], &[19])?],
             &reference(),
             &config()?,
+            &config::tests::config(),
         );
         let mut expected = REFERENCE.to_owned();
         expected.replace_range(19..20, "N");
@@ -1811,10 +1860,10 @@ mod tests {
                 "ccccccmmmmmmmmmccccccccc",
             )
         };
-        assert_eq!(stretches(&[inserting()], WINDOW.as_bytes()), [(6, 12)]);
+        assert_eq!(stretches(&[inserting()], WINDOW.as_bytes(), 4), [(6, 12)]);
         // A read that shows both ends of the run cleanly bounds it.
         let bounding = rows("b", 0, WINDOW, WINDOW, &"c".repeat(WINDOW.len()));
-        assert!(stretches(&[inserting(), bounding], WINDOW.as_bytes()).is_empty());
+        assert!(stretches(&[inserting(), bounding], WINDOW.as_bytes(), 4).is_empty());
     }
 
     #[test]

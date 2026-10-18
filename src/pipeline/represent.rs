@@ -12,7 +12,7 @@ use std::ops::Range;
 
 use crate::error::Result;
 use dna_kernel::model::reference::Reference;
-use dna_kernel::profile::{Notation, Profile};
+use dna_kernel::profile::Profile;
 use dna_kernel::variant::{CalledVariantSet, Variant};
 use dna_normalize::variant_nomenclature::{self, from_normalization};
 use dna_normalize::variant_normalization::{NormalizationPolicy, TradeBounds, normalize_read};
@@ -49,14 +49,11 @@ pub(crate) fn represent_variants(
     reference: &Reference,
     profile: &Profile,
 ) -> Result<Option<SampleNotation>> {
-    let Some(Notation {
-        indel_placement,
-        style,
-    }) = profile.notation
-    else {
+    let Some(notation) = profile.notation else {
         return Ok(None);
     };
-    let policy = NormalizationPolicy::for_placement(indel_placement);
+    let policy = NormalizationPolicy::for_notation(&notation);
+    let style = notation.style;
     let reads = reads
         .into_iter()
         .map(|(input_sha256, variants, callable)| {
@@ -176,7 +173,7 @@ mod tests {
         let represented = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             vec![Variant::from(&called(303, "C", "CC", VariantKind::Ins))],
             &[WHOLE],
         )?;
@@ -193,7 +190,7 @@ mod tests {
         let represented = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             vec![
                 Variant::from(&called(301, "AAC", "A", VariantKind::Del)),
                 Variant::from(&called(514, "CAC", "C", VariantKind::Del)),
@@ -214,7 +211,7 @@ mod tests {
         let partial = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             vec![Variant::from(&call)],
             &[16_043..16_183, 16_191..16_379],
         )?;
@@ -222,7 +219,7 @@ mod tests {
         let whole = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             vec![Variant::from(&call)],
             &[READ],
         )?;
@@ -243,7 +240,7 @@ mod tests {
         let partial = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             calls.clone(),
             &[16_077..16_188, 16_192..16_379],
         )?;
@@ -251,7 +248,7 @@ mod tests {
         let whole = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             calls,
             &[READ],
         )?;
@@ -274,7 +271,7 @@ mod tests {
         let represented = represent_read(
             &reference,
             &human_mtdna()?,
-            NormalizationPolicy::RightAligned,
+            NormalizationPolicy::RightAligned { max_trade: 20 },
             calls,
             &[READ],
         )?;

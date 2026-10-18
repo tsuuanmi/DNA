@@ -40,7 +40,11 @@ fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
 ) -> Result<variant_normalization::VariantNormalizationResult, KernelError> {
-    variant_normalization::normalize(reference_path, called, NormalizationPolicy::RightAligned)
+    variant_normalization::normalize(
+        reference_path,
+        called,
+        NormalizationPolicy::RightAligned { max_trade: 20 },
+    )
 }
 
 #[test]

@@ -302,7 +302,7 @@ fn finish_alignment(
             .and_then(|&call| calls.get(call))
             .is_some_and(|call| call.placement != Placement::Scored)
     };
-    runs::reexpress(&mut raw, reference, &masked);
+    runs::reexpress(&mut raw, reference, &masked, config.max_stretch);
     let raw = &raw;
     let (segments, wraps_origin) = segments(raw, reference);
     let columns = raw
@@ -523,6 +523,7 @@ mod tests {
             gap_extension_score: -4,
             minimum_callable_bases: 1,
             minimum_identity: 0.8,
+            max_stretch: 64,
         }
     }
 

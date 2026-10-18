@@ -14,12 +14,13 @@ SHA-256 of the file bytes in `provenance.profile`.
 
 | Section | Key | Required | Validation |
 |---|---|---|---|
-| root | `schema_version` | yes | exactly `1` |
+| root | `schema_version` | yes | exactly `2` |
 | | `id` | yes | 1-64 of `a-z 0-9 . _ -`, starting with a letter or digit |
 | `reference` | `topology` | yes | `linear` or `circular` |
 | | `sequence_sha256` | no | 64 lowercase hex digits; another reference fails closed |
 | `variant_calling` | `regions` | yes | non-empty inclusive 1-based ranges within `1..=50000`, used as a union |
 | `normalization` | `indel_placement` | with `notation` | `right` (3'/right-most, never across the FASTA seam) |
+| | `max_trade` | with `notation` | non-negative integer: farthest a deletion moves 3' past substitutions in one trade (SRS-VN-008); `0` disables trades |
 | `notation` | `style` | with `normalization` | `per_base_decimal` (`73G`, `249DEL`, `309.1C`) |
 | `nomenclature` | `windows` | no | non-empty array of tables, in reference order without overlap |
 | | `conventions` | no, with `notation` | array of tables, in reference order without overlap |
@@ -40,7 +41,7 @@ Each `[[nomenclature.windows]]` table:
 | `name` | non-empty, unique |
 | `start` | 1-based position of the first window base |
 | `sequence` | uppercase A/C/G/T; a reference that does not carry it at `start` fails when it is loaded |
-| `structure` | `{ kind = "anchored_homopolymer", repeat_base, anchor, anchor_base }` (anchor is a 1-based position inside the window holding `anchor_base`, which differs from `repeat_base`) or `{ kind = "tandem_repeat", motif }` (shorter than the window and ending it) |
+| `structure` | `{ kind = "anchored_homopolymer", repeat_base, anchor, anchor_base }` (anchor is a 1-based position inside the window holding `anchor_base`, which differs from `repeat_base`) or `{ kind = "tandem_repeat", motif, read_copies }` (`motif` shorter than the window and ending it; `read_copies`, positive, the terminal motif copies a read must show for a length change) |
 | `rules` | non-empty, without repetition, tried in order |
 | `canonical_haplotype` | exactly when `canonical_haplotype` is a rule: `[{ position, base }, ...]`, unique in-window substitutions that change the reference base |
 

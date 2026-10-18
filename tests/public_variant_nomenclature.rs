@@ -42,7 +42,11 @@ fn normalize(
     reference_path: &Path,
     called: &CalledVariantSet,
 ) -> Result<VariantNormalizationResult, KernelError> {
-    variant_normalization::normalize(reference_path, called, NormalizationPolicy::RightAligned)
+    variant_normalization::normalize(
+        reference_path,
+        called,
+        NormalizationPolicy::RightAligned { max_trade: 20 },
+    )
 }
 
 fn hv2_reference() -> String {
@@ -54,7 +58,7 @@ fn hv2_profile(directory: &Path) -> Result<Profile, Box<dyn std::error::Error>> 
     let path = directory.join("hv2.toml");
     std::fs::write(
         &path,
-        r#"schema_version = 1
+        r#"schema_version = 2
 id = "synthetic-hv2"
 [reference]
 topology = "linear"

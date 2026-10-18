@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 
 /// Normal quantile of a two-sided 95 % interval.
-const Z_95: f64 = 1.96;
+pub(crate) const Z_95: f64 = 1.96;
 
 /// One sample's contribution to an estimate.
 #[derive(Debug, Clone, Copy, PartialEq)]

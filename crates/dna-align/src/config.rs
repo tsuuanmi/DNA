@@ -18,6 +18,9 @@ pub struct AlignmentConfig {
     pub(crate) gap_extension_score: i32,
     pub(crate) minimum_callable_bases: usize,
     pub(crate) minimum_identity: f64,
+    /// Longest reference stretch, in bases, a run-structure re-expression may
+    /// span (SRS-ALN-016).
+    pub(crate) max_stretch: usize,
 }
 
 impl AlignmentConfig {
@@ -46,6 +49,8 @@ pub struct RawAlignmentConfig {
     pub minimum_callable_bases: usize,
     /// Lowest callable identity a placement needs.
     pub minimum_identity: f64,
+    /// Longest reference stretch a run-structure re-expression may span.
+    pub max_stretch: usize,
 }
 
 impl RawAlignmentConfig {
@@ -71,6 +76,9 @@ impl RawAlignmentConfig {
             .into());
         }
         bounds::fraction("alignment.minimum_identity", self.minimum_identity)?;
+        if self.max_stretch == 0 {
+            return Err(ConfigError::Constraint("alignment.max_stretch must be positive").into());
+        }
         Ok(AlignmentConfig {
             match_score: self.match_score,
             mismatch_score: self.mismatch_score,
@@ -79,6 +87,7 @@ impl RawAlignmentConfig {
             gap_extension_score: self.gap_extension_score,
             minimum_callable_bases: self.minimum_callable_bases,
             minimum_identity: self.minimum_identity,
+            max_stretch: self.max_stretch,
         })
     }
 }

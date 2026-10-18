@@ -81,7 +81,9 @@ canonical:         A
 
 ### Deletion trade
 
-When a deletion cannot shift further, it may still move up to 20 bases 3' if
+When a deletion cannot shift further, it may still move up to the profile's
+`normalization.max_trade` bases (20: twice the longest trade over the lab's
+reviewed corpus) 3' if
 only substitutions lie in the stretch it crosses and the same haplotype needs
 no more edits: the bases in between are written as substitutions, which may
 replace substitutions the deletion passes. The 3'-most such placement wins.

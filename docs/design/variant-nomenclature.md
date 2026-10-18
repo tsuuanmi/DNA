@@ -104,7 +104,8 @@ rests on are unread:
 - `anchored_tract`: the last lead base, the first left-run base, the anchor,
   and the run after it;
 - the other anchor rules: the anchor and the run after it;
-- `motif_shift`: the two terminal motif copies when the length changes;
+- `motif_shift`: the window's `read_copies` terminal motif copies (2 in the
+  shipped profile) when the length changes;
 - `canonical_haplotype`: the whole window, which its choice compares with the
   declared haplotype.
 

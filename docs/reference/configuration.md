@@ -8,7 +8,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `9` | exactly 9 |
+| root | `schema_version` | `10` | exactly 10 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
@@ -43,6 +43,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `gap_extension_score` | `-4` | negative |
 | | `minimum_callable_bases` | `20` | positive |
 | | `minimum_identity` | `0.80` | finite `(0,1]` |
+| | `max_stretch` | `64` | positive: longest reference stretch a run-structure re-expression spans (SRS-ALN-016) |
 | `sample_reconciliation` | `minimum_comparable_bases` | `25` | positive |
 | | `minimum_overlap_agreement` | `0.50` | finite `(0,1]` |
 | `sanger_evidence` | `minimum_peak_height` | `150` | `1..=32767` |
@@ -62,13 +63,21 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `edge_spacing_maximum` | `1.5` | finite and positive |
 | `variant_calling` | `max_indel_length` | `50` | `1..=50` |
 | | `read_end_margin` | `12` | non-negative integer; `0` disables |
+| `consensus` | `seeded_run` | `4` | integer at least `2`: shortest disputed, unbounded homopolymer grown as one stretch (SRS-CONS-004) |
+| | `maximum_undecided_gap` | `20` | non-negative integer: undecided positions kept inside a segment as `N` (SRS-CONS-006) |
+| | `minimum_resolved_bases` | `20` | positive: fewest resolved bases of a segment (SRS-CONS-006) |
+| | `site_mismatch_cost` | `2` | positive; `site_mismatch_cost + site_gap_extension_cost > site_gap_open_cost` and `site_mismatch_cost < 2 × site_gap_open_cost` |
+| | `site_gap_open_cost` | `3` | positive: opening an insertion or deletion when a decided site's call is aligned to its interval |
+| | `site_gap_extension_cost` | `2` | positive: extending one |
 
 Each section is owned by one plugin of the static registry
 ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
 - the Sanger modality plugin owns `basecalling`, `signal_processing`,
   `callability`, `quality_control`, and `sanger_evidence`;
 - the core plugin owns `alignment`, `sample_reconciliation`, and
-  `variant_calling`.
+  `variant_calling`;
+- the consensus plugin owns `consensus`, which its decided-edits call reads
+  too.
 
 The post-calling plugins take their policy from the target profile. Core
 sections hold no Sanger key. `sanger_evidence` holds the thresholds that the
@@ -80,7 +89,7 @@ core alone (SRS-CFG-009).
 
 For a uniquely strongest basecalling peak, `secondary_peak_ratio` applies both to each channel's selected peak relative to that primary peak and to the channel signal sampled at the primary peak position. Both comparisons are inclusive; this prevents a remote maximum elsewhere in the same PLOC window from qualifying as ambiguity evidence.
 
-`basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 9 remain in the strict TOML selected for the run; the local path is omitted.
+`basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 10 remain in the strict TOML selected for the run; the local path is omitted.
 
 `read_end_margin` (ADR-0062) makes a variant ineligible when any of its mapped calls lies within that many calls of an uninformative call (`read_end`): beyond the trim interval, which is the callable span plus at most `trim_context_margin` dephased context calls per side, or inside a masked segment that aligns as unresolved. Masked evidence calls add the reason of their phase segment (ADR-0067). These rules use only the read's own calls and signal; no primer or file-name knowledge is involved.
 

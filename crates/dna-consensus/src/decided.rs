@@ -28,6 +28,7 @@ use dna_call::model::called_read::CalledRead;
 use std::collections::BTreeSet;
 use std::ops::Range;
 
+use crate::config::ConsensusConfig;
 use crate::model::consensus::{Consensus, ConsensusSegment, RunEvidence};
 use dna_call::model::variant::{Variant, VariantExclusionReason, VariantKind};
 use dna_call::read_call::{CoreRun, ReadIdentity};
@@ -53,12 +54,13 @@ pub fn call_segment(
     evidence: ReadEvidence,
     reference: &Reference,
     run: &CoreRun<'_>,
+    config: &ConsensusConfig,
 ) -> Result<CalledRead> {
     let segment = consensus
         .segments
         .get(index)
         .ok_or(VariantError::Inconsistent("no consensus segment at index"))?;
-    let (columns, estimated) = columns(consensus, segment, reference.sequence.as_bytes())?;
+    let (columns, estimated) = columns(consensus, segment, reference.sequence.as_bytes(), config)?;
     let columns = right_aligned(columns);
     let cut = estimated
         .iter()
@@ -215,6 +217,7 @@ fn columns(
     consensus: &Consensus,
     segment: &ConsensusSegment,
     bases: &[u8],
+    config: &ConsensusConfig,
 ) -> Result<(Vec<AlignmentColumn>, Vec<Range<usize>>)> {
     let sequence = segment.sequence.as_bytes();
     let mismatch =
@@ -253,13 +256,15 @@ fn columns(
             }
             start += run.length;
         }
-        steps.extend(align(decided.as_bytes(), interval).into_iter().map(
-            |operation| match operation {
-                Operation::Pair(offset) => (true, Some(site.first_0based + offset)),
-                Operation::Inserted => (true, None),
-                Operation::Deleted(offset) => (false, Some(site.first_0based + offset)),
-            },
-        ));
+        steps.extend(
+            align(decided.as_bytes(), interval, config).into_iter().map(
+                |operation| match operation {
+                    Operation::Pair(offset) => (true, Some(site.first_0based + offset)),
+                    Operation::Inserted => (true, None),
+                    Operation::Deleted(offset) => (false, Some(site.first_0based + offset)),
+                },
+            ),
+        );
         position = site.last_0based + 1;
     }
     steps.extend((position..=segment.end_0based).map(|reference| (true, Some(reference))));
@@ -299,21 +304,17 @@ enum Operation {
     Deleted(usize),
 }
 
-/// Cost of a substitution; an `N` pairs with any base at no cost.
-const MISMATCH: u32 = 2;
-/// Cost of opening and of extending an insertion or a deletion. A gap of two
-/// bases plus a substitution costs more than two one-base gaps, so a length
-/// change in each of two runs stays two insertions or deletions rather than
-/// one gap across the runs' boundary and a substitution; substitutions stay
-/// cheaper than an insertion plus a deletion of as many bases.
-const GAP_OPEN: u32 = 3;
-const GAP_EXTEND: u32 = 2;
-
 /// The least-cost global alignment of a site's `call` against its reference
-/// `interval`, affine in gaps. Traced back from the 3' end, a pair comes
+/// `interval`, affine in gaps, at the configured site costs: a substitution
+/// (an `N` pairs with any base at no cost), and opening and extending an
+/// insertion or a deletion. A gap of two bases plus a substitution costs more
+/// than two one-base gaps, so a length change in each of two runs stays two
+/// insertions or deletions rather than one gap across the runs' boundary and
+/// a substitution; substitutions stay cheaper than an insertion plus a
+/// deletion of as many bases (both checked when the configuration loads). Traced back from the 3' end, a pair comes
 /// before a deletion, then an insertion, of equal cost; the placement among
 /// sequence-equivalent gaps is settled afterwards by the 3'-most move.
-fn align(call: &[u8], interval: &[u8]) -> Vec<Operation> {
+fn align(call: &[u8], interval: &[u8], config: &ConsensusConfig) -> Vec<Operation> {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum State {
         Pair,
@@ -321,6 +322,11 @@ fn align(call: &[u8], interval: &[u8]) -> Vec<Operation> {
         Inserted,
     }
     const UNREACHABLE: u32 = u32::MAX / 4;
+    let (mismatch, open, extend) = (
+        config.site_mismatch_cost,
+        config.site_gap_open_cost,
+        config.site_gap_extension_cost,
+    );
     let (rows, columns) = (call.len() + 1, interval.len() + 1);
     // Per state, the best cost of a path ending in it and its predecessor.
     let mut cost = vec![[UNREACHABLE; 3]; rows * columns];
@@ -341,21 +347,19 @@ fn align(call: &[u8], interval: &[u8]) -> Vec<Operation> {
                 let step = if call[row - 1] == b'N' || call[row - 1] == interval[column - 1] {
                     0
                 } else {
-                    MISMATCH
+                    mismatch
                 };
                 let (value, state) = best(cost[at(row - 1, column - 1)], [step; 3]);
                 cost[at(row, column)][State::Pair as usize] = value;
                 from[at(row, column)][State::Pair as usize] = state;
             }
             if column > 0 {
-                let (value, state) =
-                    best(cost[at(row, column - 1)], [GAP_OPEN, GAP_EXTEND, GAP_OPEN]);
+                let (value, state) = best(cost[at(row, column - 1)], [open, extend, open]);
                 cost[at(row, column)][State::Deleted as usize] = value;
                 from[at(row, column)][State::Deleted as usize] = state;
             }
             if row > 0 {
-                let (value, state) =
-                    best(cost[at(row - 1, column)], [GAP_OPEN, GAP_OPEN, GAP_EXTEND]);
+                let (value, state) = best(cost[at(row - 1, column)], [open, open, extend]);
                 cost[at(row, column)][State::Inserted as usize] = value;
                 from[at(row, column)][State::Inserted as usize] = state;
             }
@@ -561,6 +565,7 @@ mod tests {
                 gap_extension_score: -4,
                 minimum_callable_bases: 1,
                 minimum_identity: 0.8,
+                max_stretch: 64,
             },
             variant_calling: dna_call::RawVariantCallingConfig {
                 max_indel_length: 50,
@@ -623,6 +628,7 @@ mod tests {
                 configuration_sha256: "0",
                 regions: &[[1, 22]],
             },
+            &crate::config::tests::config(),
         )
     }
 

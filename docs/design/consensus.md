@@ -153,12 +153,13 @@ Positions outside stretches are decided with the same rule, one by one.
 ## Step 5 — Segments
 
 1. Decided positions are walked in order.
-2. A run of up to `alignment.minimum_callable_bases` positions with no clean
+2. A run of up to `consensus.maximum_undecided_gap` positions with no clean
    observation stays inside a segment as `N`. A longer run of such positions,
    or an uncovered position, ends the segment, and undecided positions at a
    segment's end are dropped.
-3. A segment with fewer resolved (non-`N`) bases than that minimum is
-   dropped, because the core could not place it.
+3. A segment with fewer than `consensus.minimum_resolved_bases` resolved
+   (non-`N`) bases is dropped, because the core could not place it (both 20,
+   the core's `alignment.minimum_callable_bases`).
 
 Each segment becomes one FASTA record, named
 `<sample-id>_<first>-<last>` in 1-based reference positions.

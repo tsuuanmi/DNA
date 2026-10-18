@@ -20,6 +20,7 @@ fn config() -> AlignmentConfig {
         gap_extension_score: -4,
         minimum_callable_bases: 1,
         minimum_identity: 0.8,
+        max_stretch: 64,
     }
 }
 

@@ -9,6 +9,7 @@ pub(super) fn right_align(
     alternate_sequence: &str,
     source_edits: &[SequenceEdit],
     bounds: TradeBounds<'_>,
+    max_trade: usize,
 ) -> RepresentationResult<Vec<SequenceEdit>> {
     let mut normalized = source_edits.to_vec();
 
@@ -33,7 +34,7 @@ pub(super) fn right_align(
                 .filter(|candidate| describes(candidate));
             let candidate = match shifted {
                 Some(candidate) => Some(candidate),
-                None => trade_deletion(reference, &normalized, index, bounds)?
+                None => trade_deletion(reference, &normalized, index, bounds, max_trade)?
                     .filter(|candidate| describes(candidate)),
             };
             if let Some(candidate) = candidate {
@@ -109,12 +110,8 @@ fn shift_right_once(reference: &str, edits: &[SequenceEdit], index: usize) -> Op
     None
 }
 
-/// The farthest a deletion is moved past substitutions in one step: twice the
-/// longest trade DNA makes over the lab's reviewed corpus (10 bases, `513DEL`
-/// to `523DEL` inside HVS-III).
-const MAX_TRADE: usize = 20;
-
-/// The deletion at `index` placed as far 3' as the same haplotype allows
+/// The deletion at `index` placed as far 3' as the same haplotype allows,
+/// within `max_trade` bases,
 /// without more edits: deleting reference bases further right and writing
 /// the bases in between as substitutions, which may replace substitutions
 /// the deletion passes (`16293DEL 16298C` becomes `16293C 16298DEL`, as the
@@ -127,6 +124,7 @@ fn trade_deletion(
     edits: &[SequenceEdit],
     index: usize,
     bounds: TradeBounds<'_>,
+    max_trade: usize,
 ) -> RepresentationResult<Option<Vec<SequenceEdit>>> {
     let deletion = &edits[index];
     if !deletion.alternate.is_empty() || deletion.end <= deletion.start {
@@ -134,7 +132,7 @@ fn trade_deletion(
     }
     let (start, length) = (deletion.start, deletion.end - deletion.start);
     let mut best = None;
-    for target in start + 1..=(start + MAX_TRADE).min(reference.len().saturating_sub(length)) {
+    for target in start + 1..=(start + max_trade).min(reference.len().saturating_sub(length)) {
         let end = target + length;
         // A longer stretch keeps any boundary or unread base of a shorter one.
         let split = bounds.windows.iter().any(|window| {
@@ -221,7 +219,7 @@ mod tests {
     fn trade(bounds: TradeBounds<'_>) -> RepresentationResult<Vec<SequenceEdit>> {
         let source = [edit(3, 4, ""), edit(7, 8, "C"), edit(8, 9, "C")];
         let alternate = apply_edits(REFERENCE, &source)?;
-        right_align(REFERENCE, &alternate, &source, bounds)
+        right_align(REFERENCE, &alternate, &source, bounds, 20)
     }
 
     #[test]
@@ -232,7 +230,7 @@ mod tests {
         let source = [edit(3, 4, ""), edit(4, 5, "C")];
         let alternate = apply_edits(reference, &source)?;
         assert_eq!(
-            right_align(reference, &alternate, &source, TradeBounds::default())?,
+            right_align(reference, &alternate, &source, TradeBounds::default(), 20)?,
             [edit(3, 4, "C"), edit(4, 5, "")]
         );
         Ok(())

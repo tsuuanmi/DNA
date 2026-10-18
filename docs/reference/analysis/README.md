@@ -4,7 +4,7 @@ This document covers reference-guided analysis. Reference-free output is the sep
 
 `dna analyze <trace.ab1> --reference <reference.fasta>` writes one deterministic file named `results/<trace-stem>.json`. The `results/` directory is created when publication begins. The core CLI never overwrites an existing result. After validating a non-empty UTF-8 trace stem, Rust separately appends nondeterministic operational records to `$DNA_LOG_DIR/<trace-stem>.log` (default `logs/`); that sidecar is outside the JSON contract.
 
-The authoritative contract is [`schemas/analysis-v9.schema.json`](../schemas/analysis-v9.schema.json); a synthetic example is [`examples/analysis-v9.example.json`](../examples/analysis-v9.example.json). DNA emits `dna.analysis/v9` only; v9 adds the read callability view to `read`. Earlier result versions, compatibility documents, and duplicate legacy fields are not emitted. The strict scientific configuration remains schema version 9.
+The authoritative contract is [`schemas/analysis-v9.schema.json`](../schemas/analysis-v9.schema.json); a synthetic example is [`examples/analysis-v9.example.json`](../examples/analysis-v9.example.json). DNA emits `dna.analysis/v9` only; v9 adds the read callability view to `read`. Earlier result versions, compatibility documents, and duplicate legacy fields are not emitted. The strict scientific configuration remains schema version 10.
 
 ## Top-level fields
 

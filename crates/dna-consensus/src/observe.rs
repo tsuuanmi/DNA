@@ -118,6 +118,7 @@ pub(super) fn observe(
     read: &CalledRead,
     config: &VariantCallingConfig,
     bases: &[u8],
+    seeded_run: usize,
 ) -> ReadObservations {
     let reference_length = bases.len();
     let calls = read.evidence.calls();
@@ -197,7 +198,7 @@ pub(super) fn observe(
         Some(base) != reference_at(position) && eligibility.unanchored(call, base, adjacent)
     };
     // A call vouched for by its base only shows a position of a reference
-    // homopolymer of at least `SEEDED_RUN` bases only where the read bounds
+    // homopolymer of at least `seeded_run` bases only where the read bounds
     // that run with calls trusted for more than their base: otherwise the
     // position would carry a run length no read shows.
     let placed_at = columns
@@ -229,8 +230,7 @@ pub(super) fn observe(
                 .and_then(|bound| placed_at.get(&bound))
                 .is_some_and(|&(call, read)| placing_call(call) && read != char::from(base))
         };
-        last + 1 - first >= super::SEEDED_RUN
-            && !(shows(first.checked_sub(1)) && shows(Some(last + 1)))
+        last + 1 - first >= seeded_run && !(shows(first.checked_sub(1)) && shows(Some(last + 1)))
     };
     // Nearest call at or before, and at or after, every column.
     let mut before = Vec::with_capacity(columns.len());

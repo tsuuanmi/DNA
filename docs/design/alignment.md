@@ -140,7 +140,8 @@ the selected alignment's masked repeat stretches are therefore re-expressed
    to whole reference runs (a run may be one base). It keeps growing run by
    run until each side ends at an anchor: an exact canonical match whose base
    the read's adjacent call inside the stretch does not repeat. A stretch
-   never crosses the circular origin or exceeds 64 reference bases; growth
+   never crosses the circular origin or exceeds `alignment.max_stretch` (64)
+   reference bases; growth
    that reaches the alignment end leaves the block unchanged.
 2. The stretch is rewritten only when all of these hold:
    - every read call in it is canonical;

@@ -13,7 +13,7 @@ use std::path::Path;
 use crate::variant_representation::{apply_edits, render_edits, variants_to_edits};
 use dna_kernel::error::{NormalizationError, Result};
 use dna_kernel::model::reference::{Reference, ReferenceTopology};
-use dna_kernel::profile::IndelPlacement;
+use dna_kernel::profile::{IndelPlacement, Notation};
 use dna_kernel::reference;
 use dna_kernel::variant::{CalledVariantSet, ReferenceIdentity, Variant};
 
@@ -25,15 +25,22 @@ pub enum NormalizationPolicy {
     ///
     /// The FASTA boundaries define a fixed coordinate seam; equivalent events
     /// are never rotated across the end/start boundary of a circular reference.
-    RightAligned,
+    RightAligned {
+        /// Farthest a deletion moves 3' past substitutions in one trade
+        /// (SRS-VN-008).
+        max_trade: usize,
+    },
 }
 
 impl NormalizationPolicy {
-    /// The policy implementing a target profile's indel placement.
+    /// The policy implementing a target profile's notation: its indel
+    /// placement and the farthest deletion trade.
     #[must_use]
-    pub fn for_placement(placement: IndelPlacement) -> Self {
-        match placement {
-            IndelPlacement::Right => Self::RightAligned,
+    pub fn for_notation(notation: &Notation) -> Self {
+        match notation.indel_placement {
+            IndelPlacement::Right => Self::RightAligned {
+                max_trade: notation.max_trade,
+            },
         }
     }
 }
@@ -126,11 +133,12 @@ pub fn normalize_read(
         apply_edits(&reference.sequence, &source_edits).map_err(NormalizationError::from)?;
 
     let normalized_edits = match policy {
-        NormalizationPolicy::RightAligned => right::right_align(
+        NormalizationPolicy::RightAligned { max_trade } => right::right_align(
             &reference.sequence,
             &alternate_sequence,
             &source_edits,
             bounds,
+            max_trade,
         )
         .map_err(NormalizationError::from)?,
     };
