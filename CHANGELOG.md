@@ -386,6 +386,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `estimated_length` no longer lists a run whose length a profile report
+  convention leaves unrecorded (`review` plugin 9, rules version 9): on the
+  human profile, the uninterrupted HVS-I C run of ten or more bases that
+  16189C creates, whose length the lab's reviewers do not record. The run
+  must reach the bound without the bases the site's call adds, so an
+  estimate that lengthens a shorter run past it stays listed. Such a site's
+  other labels still apply. On the current development data it turns
+  1,810 checks into variants and clears about 750 more samples (7 points);
+  the checks it removes held no non-heteroplasmy difference of their own,
+  but about 40 two-base heteroplasmies next to the run (16192Y, 16183M) are
+  no longer inside a check.
 - `read_disagrees` also fires on one end of an item that a read does not
   show whole (`review` plugin 8, rules version 8; configuration schema 12
   with `review.phase_run`). At a decided item without a length change, the

@@ -24,11 +24,11 @@ use crate::report::notation::project_empop;
 use crate::report::sample::{project_rejection, reviewer_names, reviewer_read_names};
 use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
-use dna_consensus::model::consensus::{ConsensusSite, RunEvidence, SiteState};
+use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
-use dna_kernel::profile::Profile;
+use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, Profile};
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
 use dna_sanger::model::attachment::SangerAttachment;
@@ -40,7 +40,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 8,
+    version: 9,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -309,6 +309,9 @@ fn own(analysis: &SampleAnalysis, signal: &RunSignal) -> Result<RunSignal> {
 struct Sample<'a> {
     /// The review plugin's thresholds (`[review]`).
     config: ReviewConfig,
+    /// The profile's report conventions: a run length one covers is not
+    /// recorded, so its estimate leaves nothing to assure.
+    conventions: &'a [Convention],
     sequence: &'a [u8],
     regions: &'a [[usize; 2]],
     callable: &'a [[usize; 2]],
@@ -414,6 +417,7 @@ impl<'a> Sample<'a> {
             .collect();
         Ok(Self {
             config: analysis.loaded.config.review,
+            conventions: &analysis.loaded.profile.conventions,
             sequence: reference.sequence.as_bytes(),
             regions,
             callable,
@@ -580,7 +584,7 @@ impl<'a> Sample<'a> {
                 matches!(
                     run.evidence,
                     RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
-                )
+                ) && !not_recorded(self.conventions, site, run)
             })
             .map(|run| RunResult {
                 base: run.base,
@@ -1255,6 +1259,29 @@ fn called_near(calls: &[NotationCall], first: usize, last: usize) -> bool {
         .any(|call| first <= call.position + 1 && call.position <= last + 1)
 }
 
+/// Whether a report convention leaves `run`'s length unrecorded at `site`: a
+/// run-length convention whose window the site overlaps, of the run's base,
+/// whose `minimum_run` the run reaches without the bases the site adds to the
+/// reference. An estimate can only lengthen a run past the convention's
+/// bound by adding bases, so a run that reaches it only by them may be one
+/// whose length the reviewers do record. Otherwise the estimate leaves the
+/// reviewer nothing to record, and `estimated_length` does not list it.
+fn not_recorded(conventions: &[Convention], site: &ConsensusSite, run: &ConsensusRun) -> bool {
+    let added = site
+        .call
+        .as_ref()
+        .map_or(0, |call| call.len().saturating_sub(site.reference.len()));
+    conventions.iter().any(|convention| {
+        let [first, last] = convention.window;
+        let ConventionKind::RunLength { base, minimum_run } = convention.kind;
+        convention.label == ConventionLabel::NotRecorded
+            && site.first_0based < last
+            && first <= site.last_0based + 1
+            && u8::try_from(run.base).ok() == Some(base)
+            && run.length.saturating_sub(added) >= minimum_run
+    })
+}
+
 /// The bases a read shows from the end of an item it reaches first, in its
 /// reading order: up to its first unclean position (`None`), and short of the
 /// `phase_run`-th equal base in a row, where the run's far end begins.
@@ -1532,7 +1559,6 @@ fn round(share: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dna_consensus::model::consensus::ConsensusRun;
     use dna_kernel::read_evidence::EvidenceReason;
 
     const F: Orientation = Orientation::Forward;
@@ -1685,6 +1711,44 @@ mod tests {
         assert!(long_runs(&site(reference, "CCCCCCCCCTCCCCC", 1, Vec::new()), 3).is_empty());
         // A changed run structure is not a length.
         assert!(long_runs(&site(reference, "CCCCCCCCCCCCCCCC", 1, Vec::new()), 3).is_empty());
+    }
+
+    #[test]
+    fn a_convention_leaves_a_long_run_length_unrecorded() {
+        let convention = |window: [usize; 2], base: u8| Convention {
+            name: "c_length".to_owned(),
+            label: ConventionLabel::NotRecorded,
+            kind: ConventionKind::RunLength {
+                base,
+                minimum_run: 10,
+            },
+            window,
+        };
+        // The site lies at 303-315; the call adds three bases.
+        let at = site("CCCCCCCTCCCCC", "CCCCCCCCCCCCCCCC", 2, Vec::new());
+        let long = run('C', 16, RunEvidence::ReferenceFrame);
+        let short = run('C', 9, RunEvidence::ReferenceFrame);
+        // Ten bases only with the three the site adds: the length may be one
+        // the reviewers record.
+        assert!(!not_recorded(
+            &[convention([303, 315], b'C')],
+            &at,
+            &run('C', 12, RunEvidence::ReferenceFrame)
+        ));
+        assert!(not_recorded(
+            &[convention([303, 315], b'C')],
+            &at,
+            &run('C', 13, RunEvidence::ReferenceFrame)
+        ));
+        assert!(not_recorded(&[convention([303, 315], b'C')], &at, &long));
+        assert!(!not_recorded(&[convention([303, 315], b'C')], &at, &short));
+        assert!(!not_recorded(&[convention([303, 315], b'A')], &at, &long));
+        assert!(!not_recorded(
+            &[convention([16180, 16193], b'C')],
+            &at,
+            &long
+        ));
+        assert!(!not_recorded(&[], &at, &long));
     }
 
     #[test]
