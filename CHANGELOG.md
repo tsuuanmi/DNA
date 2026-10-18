@@ -344,6 +344,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Start-of-read calls vouched for by their own signal (SRS-CALL-018). At a
+  read's start, up to the edge margin past the callable span's start, a
+  scored edge call whose signal is unambiguous against the start's own norms
+  (the first 30 in-phase calls of the callable span; a primary peak at least
+  half their median) has its verdict on its base taken off the edge, even
+  behind masked start noise. Plugin `sanger` 6. Development panel v5: clear
+  samples 40.56 to 43.79 % (45.11 to 48.22 % on batches from 2026),
+  positions to review 3.20 to 3.07 %, samples with an unreviewed difference
+  unchanged, `haplotype_lod` unchanged.
+
 - Edge calls vouched for by their own signal (SRS-CALL-017). At an end of a
   read's informative interval, a scored call at a signal edge whose signal is
   unambiguous (one qualifying channel, a primary peak at least the read's

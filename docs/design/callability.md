@@ -171,6 +171,19 @@ The core caller does not read callability directly. The Sanger adapter
   check item. The same-base condition gives up 60 correct `16189C` calls that
   otherwise came with one-position shift errors (`310C`, `460C`, `567C`,
   `574C`);
+- at the read's start, an edge call whose own signal is unambiguous against
+  the start's own norms has its verdict on its base taken off the edge as well
+  (SRS-CALL-018). The start's calls sit behind the start noise the leading
+  rescue leaves masked, so they lie at no end of the informative interval,
+  and a read's signal rises over its first calls, so they stand below the
+  read's median: the rule takes the median primary peak, width, and spacing
+  of the first 30 in-phase calls of the callable span and asks for half that
+  peak. Masked calls before the callable span may lie between the call and
+  the start, but no masked call of the span may. On development panel v5:
+  positions to review 3.20 to 3.07 %, clear samples 40.56 to 43.79 % (45.11
+  to 48.22 % on batches from 2026), samples with an unreviewed difference
+  unchanged, `73G` in 29 more samples, HVS-I start window `16024-16033`
+  checked in 17 % fewer samples, `haplotype_lod` none better or worse;
 - every call carries its second base and its share (SRS-CALL-015).
 
 - **Quality control** trims to the callable span plus up to
