@@ -122,9 +122,13 @@ pub fn read_evidence(
             // peak floor whose relative quality reaches the rescue level still
             // shows its base: a low absolute peak (a weak read end, a weak
             // dye context) is not a doubtful call when it stands clear of its
-            // neighbourhood.
+            // neighbourhood and of a second base: a low peak with a strong
+            // second base is the split signal of two templates.
             if highest_peak < config.minimum_peak_height
-                && score.relative_quality_score < config.peak_rescue_quality
+                && (score.relative_quality_score < config.peak_rescue_quality
+                    || evidence
+                        .second
+                        .is_some_and(|second| second.share >= config.peak_rescue_second_share))
             {
                 evidence.identity.withheld.insert(PEAK_BELOW_MINIMUM)?;
                 evidence.indel.withheld.insert(PEAK_BELOW_MINIMUM)?;
@@ -642,6 +646,7 @@ mod tests {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
             peak_rescue_quality: 50,
+            peak_rescue_second_share: 0.20,
             signal_edge_margin: margin,
             leading_height_fraction: 1.0,
             post_repeat_margin: margin,
@@ -779,8 +784,17 @@ mod tests {
 
     #[test]
     fn a_clear_call_below_the_peak_floor_keeps_its_base_and_indel() -> Result<()> {
-        // Below the floor at quality 49 and 50; the rescue level is 50.
-        let (calls, signal, callability, quality) = products(&[149, 149], &[49, 50]);
+        // Below the floor at quality 49, 50, and 50 beside a strong second
+        // base; the rescue level is 50 and the second-share bound 0.20.
+        let (mut calls, signal, callability, quality) = products(&[149, 149, 149], &[49, 50, 50]);
+        for call in &mut calls.calls[..2] {
+            for peak in &mut call.peaks[1..] {
+                peak.height = 10;
+            }
+        }
+        for peak in &mut calls.calls[2].peaks[1..] {
+            peak.height = 60;
+        }
         let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
         let withheld = evidence
             .calls()
@@ -792,7 +806,7 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        assert_eq!(withheld, [(true, true), (false, false)]);
+        assert_eq!(withheld, [(true, true), (false, false), (true, true)]);
         Ok(())
     }
 

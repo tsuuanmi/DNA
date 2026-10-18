@@ -47,7 +47,8 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | `sample_reconciliation` | `minimum_comparable_bases` | `25` | positive |
 | | `minimum_overlap_agreement` | `0.50` | finite `(0,1]` |
 | `sanger_evidence` | `minimum_peak_height` | `150` | `1..=32767` |
-| `sanger_evidence` | `peak_rescue_quality` | `50` | above `relative_quality_threshold`: a call below the peak floor whose relative quality is at least this still shows its base and indel |
+| `sanger_evidence` | `peak_rescue_quality` | `50` | above `relative_quality_threshold`: a call below the peak floor whose relative quality is at least this still shows its base and indel, when its second base holds less than `peak_rescue_second_share` |
+| `sanger_evidence` | `peak_rescue_second_share` | `0.20` | `[0, 1]`: the peak share a rescued call's second base must stay below |
 | | `relative_quality_threshold` | `30` | less than `max_relative_quality_score`; comparison is strict `>` |
 | | `signal_edge_margin` | `12` | non-negative integer: calls from an end of the usable signal at a signal edge (SRS-CALL-013) |
 | | `leading_height_fraction` | `1.0` | finite and positive: smallest primary peak of a leading call, against the read's median (SRS-CALL-014) |

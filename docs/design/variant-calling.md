@@ -59,7 +59,9 @@ A called candidate is retained only when its 1-based anchor `position` lies
 inside at least one configured inclusive region. SNV supporting calls and every
 inserted-base supporting call must each have a highest A/C/G/T peak greater than
 or equal to `sanger_evidence.minimum_peak_height`, unless its uncalibrated
-relative score reaches `sanger_evidence.peak_rescue_quality`, and an
+relative score reaches `sanger_evidence.peak_rescue_quality` and its second
+base holds less than `sanger_evidence.peak_rescue_second_share` of the two
+strongest peaks, and an
 uncalibrated relative score strictly greater than
 `sanger_evidence.relative_quality_threshold`. Insertion flanks are not evaluated.
 Deletions have no supporting trace base, so their flanks are not subjected to

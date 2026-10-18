@@ -87,10 +87,14 @@ minimum_overlap_agreement = 0.50
 minimum_peak_height = 150
 relative_quality_threshold = 30
 # A call below the peak floor whose relative quality is at least
-# `peak_rescue_quality` still shows its base (its indel stays withheld): a low
+# `peak_rescue_quality` still shows its base and indel: a low
 # absolute peak at a weak read end or in a weak dye context is not a doubtful
 # base when the call stands clear of its neighbourhood.
 peak_rescue_quality = 50
+# ... and whose second base holds less than `peak_rescue_second_share` of the
+# two strongest peaks: a low peak beside a strong second base is the split
+# signal of two templates, so it stays withheld.
+peak_rescue_second_share = 0.20
 # Read-edge rules (SRS-CALL-013 to SRS-CALL-018). Calls within
 # `signal_edge_margin` of an end of the usable signal lie at a signal edge.
 signal_edge_margin = 12
