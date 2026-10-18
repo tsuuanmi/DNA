@@ -66,9 +66,9 @@ fn review(
     let outcome = match outcome {
         SampleOutcome::Rejected(rejected) => Reviewed::Rejected(rejected),
         SampleOutcome::Analyzed(analysis) => {
-            let call = analysis.call(sample_id).map_err(|error| error.to_string());
+            let call = analysis.call(sample_id);
             if let Err(error) = &call {
-                tracing::warn!(event = "review_call_failed", error = ?error);
+                tracing::warn!(event = "review_call_failed", error = ?error.to_string());
             }
             Reviewed::Analyzed { analysis, call }
         }

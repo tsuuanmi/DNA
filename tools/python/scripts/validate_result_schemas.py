@@ -1030,6 +1030,7 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
     if not isinstance(items, list) or not isinstance(summary, dict):
         return
     previous: tuple[int, int, int] | None = None
+    known_calls = {entry.get("call") for entry in document.get("calls", [])}
     counts = dict.fromkeys(REVIEW_LABELS, 0)
     checks = 0
     for index, item in enumerate(items):
@@ -1044,10 +1045,16 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
             errors.append(f"{label}: item {index} is out of priority order")
         previous = order
         unassured = bool(names & REVIEW_UNASSURED)
-        kind = "variant" if item.get("calls") and not unassured else "check"
+        # Without notation calls, a difference is the consensus's decision.
+        differs = bool(item.get("calls")) or "calls" not in document
+        kind = "variant" if differs and not unassured else "check"
         if item.get("kind") != kind:
             errors.append(
                 f"{label}: item {index} kind disagrees with its calls and labels"
+            )
+        if not set(item.get("calls", [])) <= known_calls:
+            errors.append(
+                f"{label}: item {index} holds a call the document does not list"
             )
         if kind == "check":
             checks += 1
@@ -1082,6 +1089,11 @@ def rejected_review_shapes(
     rejected_with_items["status"] = "rejected"
     for key in ("calls", "callable", "empop"):
         rejected_with_items.pop(key)
+    unlisted_call = copy.deepcopy(example)
+    for item in unlisted_call["items"]:
+        if item["calls"]:
+            item["calls"].append("999X")
+            break
     missing_count = copy.deepcopy(example)
     missing_count["summary"]["labels"].pop("read_edge")
     inserted_evidence = copy.deepcopy(example)
@@ -1103,6 +1115,7 @@ def rejected_review_shapes(
         ("failed review call without its error", failed_without_error),
         ("called review with an error", called_with_error),
         ("rejected review with items", rejected_with_items),
+        ("review item call the document does not list", unlisted_call),
         ("review summary without a label count", missing_count),
         ("review evidence at an inserted column", inserted_evidence),
         ("possible heteroplasmy below its share", low_share),

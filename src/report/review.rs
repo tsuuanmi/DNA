@@ -72,7 +72,7 @@ pub(crate) enum Reviewed {
     /// At least one read was admitted; the call, or why it failed.
     Analyzed {
         analysis: Box<SampleAnalysis>,
-        call: std::result::Result<ConsensusCall, String>,
+        call: Result<ConsensusCall>,
     },
 }
 
@@ -162,7 +162,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
 
     let (status, error, call) = match call {
         Ok(call) => (ReviewStatus::Called, None, Some(call)),
-        Err(error) => (ReviewStatus::CallFailed, Some(error), None),
+        Err(error) => (ReviewStatus::CallFailed, Some(error.to_string()), None),
     };
     let callable = merge(match &call {
         Some(call) => segments(
@@ -179,10 +179,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 .map(span),
         ),
     });
-    let notation = call
-        .as_ref()
-        .and_then(|call| call.notation.as_deref())
-        .unwrap_or_default();
+    let notation = call.as_ref().and_then(|call| call.notation.as_deref());
     let sample = Sample::new(&analysis, &names, &reference, &regions, &callable, notation)?;
     let items = sample.items()?;
     let calls = call.as_ref().and_then(|call| {
@@ -231,6 +228,9 @@ struct Sample<'a> {
     /// Reference segments of the admitted reads, merged, 1-based inclusive.
     covered: Vec<[usize; 2]>,
     calls: &'a [NotationCall],
+    /// Whether DNA's calls are in the profile notation; without them, a
+    /// difference is the consensus's decision.
+    notation: bool,
     sites: &'a [ConsensusSite],
     /// Per read, in evidence order: name, content SHA-256, strand, the core's
     /// trust in each call, and the Sanger evidence.
@@ -269,7 +269,7 @@ impl<'a> Sample<'a> {
         reference: &'a Reference,
         regions: &'a [[usize; 2]],
         callable: &'a [[usize; 2]],
-        calls: &'a [NotationCall],
+        notation: Option<&'a [NotationCall]>,
     ) -> Result<Self> {
         let reads = analysis
             .evidence
@@ -312,7 +312,8 @@ impl<'a> Sample<'a> {
             regions,
             callable,
             covered,
-            calls,
+            calls: notation.unwrap_or_default(),
+            notation: notation.is_some(),
             sites: &analysis.consensus.sites,
             reads,
             by_input,
@@ -399,7 +400,7 @@ impl<'a> Sample<'a> {
                 first: position,
                 last: position,
                 site: None,
-                sequence: Some(self.base(position).to_string()),
+                sequence: None,
                 decided: true,
                 labels: Vec::new(),
             });
@@ -461,10 +462,7 @@ impl<'a> Sample<'a> {
                 reads: supporting.into_iter().chain(opposing).collect(),
             });
         }
-        if site.state == SiteState::Unresolved
-            || (site.state == SiteState::Contested && site.call.is_none())
-            || site.call.as_ref().is_some_and(|call| call.contains('N'))
-        {
+        if undecided(site) {
             labels.push(LabelResult::Undecided);
         }
         let runs = site
@@ -505,7 +503,16 @@ impl<'a> Sample<'a> {
             .filter(|call| first <= call.position && call.position <= last)
             .map(|call| call.text.clone())
             .collect::<Vec<_>>();
-        if let (false, Some(site)) = (calls.is_empty(), site) {
+        // A difference: DNA's calls when it has them in the profile notation,
+        // otherwise the consensus's own decision.
+        let differs = if self.notation {
+            !calls.is_empty()
+        } else {
+            site.is_some_and(|site| {
+                decided && site.call.as_deref() != Some(site.reference.as_str())
+            })
+        };
+        if let (true, Some(site)) = (differs, site) {
             let supporting = site
                 .supporting
                 .iter()
@@ -536,7 +543,7 @@ impl<'a> Sample<'a> {
         // are context for the reviewer. An item with neither a call nor such a
         // label is DNA's own decision and is not listed.
         let assured = !labels.iter().any(unassured);
-        if calls.is_empty() && assured {
+        if !differs && assured {
             return Ok(None);
         }
         let kind = if assured {
@@ -884,6 +891,14 @@ fn one_strand(supporting: &[Orientation]) -> Option<Orientation> {
     rest.iter().all(|&strand| strand == first).then_some(first)
 }
 
+/// Whether the consensus left a site undecided: no clean observation, a
+/// tie (even one the consensus settled on the reference, whichever strands
+/// the tied reads are on), or an `N` in its call.
+fn undecided(site: &ConsensusSite) -> bool {
+    matches!(site.state, SiteState::Unresolved | SiteState::Contested)
+        || site.call.as_ref().is_some_and(|call| call.contains('N'))
+}
+
 /// Whether a label leaves its item unassured, so that the item is a check:
 /// strands that disagree, a possible heteroplasmy, an estimated length, an
 /// undecided position, or no read. The read labels (one read, one strand,
@@ -1184,6 +1199,27 @@ mod tests {
             labels,
             evidence: Vec::new(),
         }
+    }
+
+    #[test]
+    fn a_tie_is_undecided_even_when_settled_on_the_reference() {
+        let site = |state, call: Option<&str>| ConsensusSite {
+            first_0based: 10,
+            last_0based: 10,
+            reference: "C".to_owned(),
+            call: call.map(str::to_owned),
+            state,
+            supporting: Vec::new(),
+            opposing: Vec::new(),
+            uninformative: Vec::new(),
+            runs: Vec::new(),
+        };
+        // Two reads of one strand tie one against one: the reference is kept.
+        assert!(undecided(&site(SiteState::Contested, Some("C"))));
+        assert!(undecided(&site(SiteState::Contested, None)));
+        assert!(undecided(&site(SiteState::Unresolved, None)));
+        assert!(undecided(&site(SiteState::Called, Some("CN"))));
+        assert!(!undecided(&site(SiteState::Called, Some("T"))));
     }
 
     #[test]

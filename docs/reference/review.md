@@ -30,8 +30,9 @@ Every sample gets a document. `status` says how far it got:
   the failure text, and the items are those of the consensus and the reads,
   without calls.
 
-An unreadable input, an invalid configuration, or an existing target still
-fails the command without output.
+An unreadable input, an invalid configuration, two traces with the same
+reviewer-facing name (the same file stem in two directories), or an existing
+target still fails the command without output.
 
 ## Fields
 
@@ -79,14 +80,17 @@ them). It has:
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `possible_heteroplasmy`, `estimated_length`,
-  `undecided`, `not_covered`), whatever its calls; otherwise `variant` (it
-  has calls). The read labels `one_read`, `one_strand`, `noisy_signal`,
+  `undecided`, `not_covered`), whatever its calls; otherwise `variant`: it
+  has calls, or, when there are no notation calls (a profile without
+  notation, or `call_failed`), the consensus decided a sequence other than the
+  reference. The read labels `one_read`, `one_strand`, `noisy_signal`,
   `read_edge`, and `phase_shift` are context and do not make a check.
 - `decision`: `called` (decided, and every position callable),
   `partly_callable`, or `not_callable` (no position callable).
 - `sequence`: the decided sequence: a site's call (`N` where undecided, empty
   when every position is deleted), or the reference base of a position the
-  consensus decided outside every site; `null` when nothing was decided.
+  consensus decided outside every site; `null` when nothing was decided, and
+  for an item that only holds a call the notation moved out of its site.
 - `calls`: the texts of the `calls` whose position lies in
   `first.position`..`last.position`.
 - `labels`: the evidence labels, ordered by rank, then name, then position or
@@ -165,11 +169,13 @@ exemption lifts the margin (ADR-0076).
 - `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
   runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
   not callable.
-- `undecided`: the site is `unresolved`, `contested` without a call, or its
-  call holds an `N`; or a gap is covered but not callable.
+- `undecided`: the site is `unresolved` or `contested` (a tie, even one the
+  consensus settled on the reference and whichever strands the tied reads are
+  on), or its call holds an `N`; or a gap is covered but not callable.
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
-  lie on one strand.
+  lie on one strand. It describes the support of the call, so it can come
+  with `strands_disagree` when the opposing reads lie on the other strand.
 - For every admitted read covering a position of the item whose call there is
   not clean, one label per label and read:
   - `phase_shift` `{read, from}`: the call is masked but still anchors the
@@ -193,6 +199,11 @@ reasons ([PROP-0008](../proposals/0008-pipeline-responsibilities.md)).
 - Watched positions, which a profile declares for every sample
   ([PROP-0004](../proposals/0004-review-triage.md#review-list-canonical-output)),
   come in a later revision with the raw signal they need.
+
+- The circular origin: the neighbour test of `possible_heteroplasmy` and
+  the walk of `phase_shift.from` do not wrap from position 16569 to 1, and a
+  site is clipped to the reportable regions from its first to its last
+  position. The shipped profile's regions do not touch the origin.
 
 ## Determinism
 

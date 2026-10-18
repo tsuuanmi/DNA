@@ -371,7 +371,7 @@ attached, not three.
 |---|---|---|
 | `strands_disagree` | clean reads of both strands disagree on the item's decided sequence: a supporting read on one strand and an opposing read on the other, as the consensus counts them (a conflict) | each read's sequence |
 | `one_read` | a single read shows the call | the read |
-| `one_strand` | only one strand reads the position cleanly | the strand and reads |
+| `one_strand` | the reads that show DNA's call all lie on one strand | the strand and reads |
 | `possible_heteroplasmy` | a second base is shown by the reads beyond their shadow | the base, its share per read, the strands showing it |
 | `phase_shift` | a covering read loses phase at or before the position | the read and where its shift starts |
 | `noisy_signal` | a covering read is masked here | the read and the modality's reason, verbatim |
