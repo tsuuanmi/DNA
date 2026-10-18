@@ -18,7 +18,7 @@ minimum_noisy_windows = 2
 # share stands out above max(second_floor, its key's run level), the run level
 # being median + max(margin, mad_factor * MAD) when the run signal holds at
 # least the minimum reads and the key at least the minimum calls.
-second_floor = 0.16
+second_floor = 0.20
 run_signal_minimum_reads = 40
 run_signal_minimum_calls = 40
 run_signal_margin = 0.05

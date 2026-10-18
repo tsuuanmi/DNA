@@ -377,6 +377,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `signal_processing.second_floor` defaults to 0.20 (was 0.16), the floor
+  that meets the heteroplasmy policy (2026-10-18, user): a
+  `possible_heteroplasmy` flag is worth raising only without more false
+  flags for reviewers. Chosen on the development half as the lowest floor
+  whose false flags (no two-base IUPAC code in the truth at the item) are
+  at most today's and whose precision is at least today's, with and
+  without a run signal. Development panel v5, current data, test half,
+  without a run signal: 1,172 flags, 99 true, 1,073 false (precision
+  8.4 %), against 1,610, 123, and 1,487 (7.6 %) before PROP-0009 (ii); with
+  batch run signals 1,022 flags, 99 true, 923 false (9.7 %). Truth
+  heteroplasmy flagged falls from 25.5 % to 20.5 %; samples with an
+  unreviewed difference rise from 4.03 % to 4.48 % (4.50 % with batch run
+  signals), and clear samples from 47.8 % to 48.8 %.
+
 - One second-channel scale and threshold (PROP-0009, increment ii;
   SRS-CALL-020). `dna_sanger::run_signal::threshold` is the configured
   `signal_processing.second_floor`, raised to the call's key run level when a
@@ -386,11 +400,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   the neighbour-shadow and strand rules unchanged, and the review evidence
   `second` moves to the peak scale. Configuration schema 8 adds
   `second_floor` (0.16) and the `run_signal_*` keys; plugin `review` 5.
-  Development panel v5, current data (batch date 2026-01 on), test half:
-  without a run signal 3.96 % of samples with an unreviewed difference
-  (4.03 % before), 18.9 positions to review per sample (18.3), 47.7 % clear
-  (47.8 %); with batch run signals 4.01 %, 18.4, and 48.1 %. The floor was
-  chosen on the development half.
+  Development panel v5, current data (batch date 2026-01 on), test half, at
+  that first floor of 0.16: without a run signal 3.96 % of samples with an
+  unreviewed difference (4.03 % before), 18.9 positions to review per
+  sample (18.3), 47.7 % clear (47.8 %); with batch run signals 4.01 %,
+  18.4, and 48.1 %. The default floor is now 0.20 (above).
 
 - Start-of-read calls vouched for by their own signal (SRS-CALL-018). At a
   read's start, up to the edge margin past the callable span's start, a

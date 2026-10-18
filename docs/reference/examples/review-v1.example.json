@@ -292,7 +292,7 @@
               "read": "A12_HV2F_03",
               "strand": "forward",
               "share": 0.214,
-              "threshold": 0.16
+              "threshold": 0.2
             }
           ]
         }

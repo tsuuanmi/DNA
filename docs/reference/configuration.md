@@ -14,7 +14,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
 | | `minimum_primary_snr` | `3.0` | finite and positive |
 | | `minimum_noisy_windows` | `2` | integer at least `2` |
-| | `second_floor` | `0.16` | finite fraction: lowest second-channel threshold on the peak scale, the threshold without a usable run level (SRS-CALL-020) |
+| | `second_floor` | `0.20` | finite fraction: lowest second-channel threshold on the peak scale, the threshold without a usable run level (SRS-CALL-020) |
 | | `run_signal_minimum_reads` | `40` | integer at least `1`: fewest reads a run signal needs to give a run level (PROP-0009) |
 | | `run_signal_minimum_calls` | `40` | integer at least `1`: fewest calls of a key, the sample's own taken out, to give a run level |
 | | `run_signal_margin` | `0.05` | finite fraction: smallest margin above a key's median |
