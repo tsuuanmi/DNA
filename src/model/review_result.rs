@@ -52,6 +52,17 @@ pub(crate) struct ReviewProvenanceResult {
     pub(crate) plugins: Vec<PluginResult>,
     /// Version of the labelling rules, the `review` plugin version.
     pub(crate) rules: u32,
+    /// The run signal the calls were judged against, when one was given.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) signal: Option<SignalProvenanceResult>,
+}
+
+/// The identity of a run signal a review read.
+#[derive(Debug, Serialize)]
+pub(crate) struct SignalProvenanceResult {
+    pub(crate) run_id: String,
+    pub(crate) sha256: String,
+    pub(crate) selection: u32,
 }
 
 /// One read: admitted with its strand, or rejected with its cause.
@@ -181,12 +192,17 @@ pub(crate) enum Role {
     Opposing,
 }
 
-/// A read showing the second base, with its share.
+/// A read showing the second base, with its peak share (SRS-CALL-015).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct ShareResult {
     pub(crate) read: String,
     pub(crate) strand: Orientation,
     pub(crate) share: f64,
+    /// The threshold the share exceeded (SRS-CALL-020).
+    pub(crate) threshold: f64,
+    /// The key's calls in the run signal, the sample's own taken out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) calls: Option<u64>,
 }
 
 /// A run whose length is an estimate, as `dna.consensus/v1` lists it.
@@ -232,7 +248,8 @@ pub(crate) enum ScopeResult {
     Base,
 }
 
-/// The strongest profile channel other than the call.
+/// The call's second base on the reference strand and its peak share
+/// (SRS-CALL-015).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub(crate) struct SecondResult {
     pub(crate) base: char,

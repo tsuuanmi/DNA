@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 7
+schema_version = 8
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -14,6 +14,15 @@ window_size_bases = 10
 minimum_primary_snr = 3.0
 # At least two candidate windows are required for a noisy interval.
 minimum_noisy_windows = 2
+# The canonical second-channel threshold (PROP-0009): a call's second peak
+# share stands out above max(second_floor, its key's run level), the run level
+# being median + max(margin, mad_factor * MAD) when the run signal holds at
+# least the minimum reads and the key at least the minimum calls.
+second_floor = 0.16
+run_signal_minimum_reads = 40
+run_signal_minimum_calls = 40
+run_signal_margin = 0.05
+run_signal_mad_factor = 4.0
 
 [callability]
 # Signal-derived read callability (ADR-0067): rolling window of calls, the

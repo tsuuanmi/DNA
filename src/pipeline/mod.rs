@@ -74,9 +74,10 @@ pub(crate) fn review(
     sample_id: &str,
     traces: &[PathBuf],
     reference: &Path,
+    signal: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
-    review::run(sample_id, traces, reference, config_path)
+    review::run(sample_id, traces, reference, signal, config_path)
 }
 
 /// Runs one multi-read sample evidence operation.

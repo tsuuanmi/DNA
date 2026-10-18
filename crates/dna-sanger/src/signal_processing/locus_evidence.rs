@@ -289,6 +289,13 @@ mod tests {
             window_size_bases,
             minimum_primary_snr: 3.0,
             minimum_noisy_windows: 2,
+            second_floor: 0.21,
+            run_signal: crate::signal_processing::RunSignalParameters {
+                minimum_reads: 40,
+                minimum_calls: 40,
+                margin: 0.05,
+                mad_factor: 4.0,
+            },
         }
     }
 

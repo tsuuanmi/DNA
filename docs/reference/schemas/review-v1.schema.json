@@ -204,6 +204,29 @@
           "description": "Version of the labelling rules, equal to the review plugin version.",
           "type": "integer",
           "minimum": 1
+        },
+        "signal": {
+          "description": "The run signal (dna.signal/v1) the second-channel thresholds were judged against, when one was given.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_id",
+            "sha256",
+            "selection"
+          ],
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "selection": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         }
       }
     },
@@ -492,7 +515,8 @@
                 "required": [
                   "read",
                   "strand",
-                  "share"
+                  "share",
+                  "threshold"
                 ],
                 "properties": {
                   "read": {
@@ -503,9 +527,21 @@
                     "$ref": "#/$defs/strand"
                   },
                   "share": {
+                    "description": "The read's second peak share (SRS-CALL-015), above its threshold.",
                     "type": "number",
-                    "minimum": 0.15,
+                    "minimum": 0,
+                    "maximum": 0.5
+                  },
+                  "threshold": {
+                    "description": "The share the second base had to exceed (SRS-CALL-020).",
+                    "type": "number",
+                    "minimum": 0,
                     "maximum": 1
+                  },
+                  "calls": {
+                    "description": "The key's calls in the run signal, the sample's own taken out, when its run level was usable.",
+                    "type": "integer",
+                    "minimum": 1
                   }
                 }
               }
@@ -818,9 +854,10 @@
                   "$ref": "#/$defs/base"
                 },
                 "share": {
+                  "description": "The call's second peak share (SRS-CALL-015).",
                   "type": "number",
                   "minimum": 0,
-                  "maximum": 1
+                  "maximum": 0.5
                 }
               }
             },

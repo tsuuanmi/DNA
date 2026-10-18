@@ -8,14 +8,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::error::{ReportError, Result};
+use crate::error::{ReportError, Result, RunSignalError};
 use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::review_result::{
     ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, ItemKind, ItemResult,
     LabelCounts, LabelResult, PositionCounts, ReviewCallResult, ReviewProvenanceResult,
     ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult, ScopeResult, SecondResult,
-    ShareResult, SideResult, SummaryResult,
+    ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::report::json::{project_plugins, project_profile};
@@ -28,16 +28,18 @@ use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::Profile;
-use dna_kernel::read_evidence::{EvidenceProfile, Placement};
+use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
 use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::run_signal::{self, Key, RunSignal, Threshold};
+use dna_sanger::signal_processing::SignalProcessingConfig;
 
 /// The review list: items and labels over the consensus, the call, and the
 /// reads (PROP-0004). Its version is the labelling rules' version.
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 4,
+    version: 5,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -46,10 +48,6 @@ pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     ],
     config_sections: &[],
 };
-
-/// Smallest share of a read's second channel for `possible_heteroplasmy`
-/// (`>=`).
-const MINIMUM_SHARE: f64 = 0.15;
 
 /// Priority of an unlabelled variant, after every label's rank.
 const UNLABELLED: u8 = 5;
@@ -63,6 +61,8 @@ pub(crate) struct CompletedReview {
     pub(crate) outcome: Reviewed,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
+    /// The run signal the calls are judged against, with its file's SHA-256.
+    pub(crate) signal: Option<(RunSignal, String)>,
 }
 
 /// What the sample analysis and its call gave.
@@ -85,6 +85,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         configuration_sha256,
         outcome,
         plugins,
+        signal,
     } = completed;
     let regions = clip(&profile.regions, reference.len());
     let provenance = ReviewProvenanceResult {
@@ -97,6 +98,13 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         profile: project_profile(profile.identity().clone()),
         plugins: project_plugins(plugins),
         rules: PLUGIN.version,
+        signal: signal
+            .as_ref()
+            .map(|(signal, sha256)| SignalProvenanceResult {
+                run_id: signal.run_id.clone(),
+                sha256: sha256.clone(),
+                selection: signal.selection,
+            }),
     };
     let (analysis, call) = match outcome {
         Reviewed::Rejected(rejected) => {
@@ -180,8 +188,16 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         ),
     });
     let notation = call.as_ref().and_then(|call| call.notation.as_deref());
-    let items =
-        Sample::new(&analysis, &names, &reference, &regions, &callable, notation)?.items()?;
+    let items = Sample::new(
+        &analysis,
+        &names,
+        &reference,
+        &regions,
+        &callable,
+        notation,
+        signal.as_ref().map(|(signal, _)| signal),
+    )?
+    .items()?;
     let calls = call.as_ref().and_then(|call| {
         call.notation.as_ref().map(|calls| {
             calls
@@ -226,6 +242,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
 pub(crate) fn checks(
     analysis: &SampleAnalysis,
     call: &ConsensusCall,
+    signal: Option<&RunSignal>,
 ) -> Result<Vec<(usize, usize, Vec<&'static str>)>> {
     let reference = &analysis.loaded.reference;
     let regions = clip(&analysis.loaded.profile.regions, reference.len());
@@ -241,6 +258,7 @@ pub(crate) fn checks(
         &regions,
         &callable,
         call.notation.as_deref(),
+        signal,
     )?
     .items()?;
     Ok(items
@@ -255,6 +273,35 @@ pub(crate) fn checks(
             )
         })
         .collect())
+}
+
+/// The run signal without the sample's own admitted reads, so the sample is
+/// never judged against itself. A run signal that holds none of the sample's
+/// traces is another run's.
+fn own(analysis: &SampleAnalysis, signal: &RunSignal) -> Result<RunSignal> {
+    if !analysis
+        .called
+        .iter()
+        .any(|read| signal.traces.contains(&read.input_sha256))
+    {
+        return Err(RunSignalError::OtherRun {
+            run_id: signal.run_id.clone(),
+        }
+        .into());
+    }
+    let mut own = signal.clone();
+    for read in &analysis.called {
+        if !signal.traces.contains(&read.input_sha256) {
+            continue;
+        }
+        let calls = &analysis
+            .reads
+            .get(&read.input_sha256)
+            .ok_or(ReportError::Inconsistent("review read lacks its evidence"))?
+            .calls;
+        own = own.without(&run_signal::contributions(calls, &read.evidence));
+    }
+    Ok(own)
 }
 
 /// One sample's evidence, indexed for the review rules.
@@ -276,6 +323,11 @@ struct Sample<'a> {
     by_input: BTreeMap<&'a str, usize>,
     /// Every covered position's observations.
     loci: BTreeMap<usize, LocusObservations>,
+    /// The run signal the calls are judged against, the sample's own reads
+    /// taken out, when one is given.
+    signal: Option<RunSignal>,
+    /// The second-channel threshold's floor and run-level parameters.
+    second: &'a SignalProcessingConfig,
 }
 
 struct Read<'a> {
@@ -286,6 +338,8 @@ struct Read<'a> {
     strand: Orientation,
     trust: Vec<CallTrust>,
     sanger: &'a SangerAttachment,
+    /// The read's calls as its evidence gives them, in read order.
+    evidence: &'a ReadEvidence,
 }
 
 /// An item before its labels are complete.
@@ -309,7 +363,9 @@ impl<'a> Sample<'a> {
         regions: &'a [[usize; 2]],
         callable: &'a [[usize; 2]],
         notation: Option<&'a [NotationCall]>,
+        signal: Option<&RunSignal>,
     ) -> Result<Self> {
+        let signal = signal.map(|signal| own(analysis, signal)).transpose()?;
         let reads = analysis
             .evidence
             .reads
@@ -317,15 +373,15 @@ impl<'a> Sample<'a> {
             .zip(names)
             .map(|(read, name)| {
                 let missing = || ReportError::Inconsistent("review read lacks its evidence");
+                let called = analysis
+                    .called
+                    .iter()
+                    .find(|called| called.input_sha256 == read.input_sha256)
+                    .ok_or_else(missing)?;
                 Ok(Read {
                     name,
-                    columns: analysis
-                        .called
-                        .iter()
-                        .find(|called| called.input_sha256 == read.input_sha256)
-                        .ok_or_else(missing)?
-                        .alignment
-                        .columns(),
+                    columns: called.alignment.columns(),
+                    evidence: &called.evidence,
                     sha256: &read.input_sha256,
                     strand: read.alignment.orientation,
                     trust: analysis.trust(&read.input_sha256).ok_or_else(missing)?,
@@ -364,6 +420,8 @@ impl<'a> Sample<'a> {
             reads,
             by_input,
             loci,
+            signal,
+            second: &analysis.loaded.config.sanger.signal_processing,
         })
     }
 
@@ -676,18 +734,26 @@ impl<'a> Sample<'a> {
                             .or_insert(label);
                     }
                 }
-                let scope = observation
+                let trust = observation
                     .call_index_0based
-                    .and_then(|call| read.trust.get(call))
-                    .map(|trust| match trust.scope {
-                        TrustScope::Full => ScopeResult::Full,
-                        TrustScope::Base => ScopeResult::Base,
+                    .and_then(|call| read.trust.get(call));
+                let scope = trust.map(|trust| match trust.scope {
+                    TrustScope::Full => ScopeResult::Full,
+                    TrustScope::Base => ScopeResult::Base,
+                });
+                let second = trust
+                    .and_then(|trust| trust.second)
+                    .filter(|_| observation.state != LocusState::Unresolved)
+                    .map(|second| SecondResult {
+                        base: read.strand.reference_base(second.base),
+                        share: round(second.share),
                     });
                 positions.entry(index).or_default().push(evidence(
                     position,
                     observation,
                     read.sanger,
                     scope,
+                    second,
                 )?);
             }
         }
@@ -743,6 +809,38 @@ impl<'a> Sample<'a> {
         bounded(read.columns, &read.trust, first, last)
     }
 
+    /// The second base of a call at `position`, on the reference strand, its
+    /// peak share (SRS-CALL-015), its threshold (SRS-CALL-020), and the bases
+    /// the same read shows at the neighbouring positions.
+    fn judged(
+        &self,
+        position: usize,
+        read: usize,
+        call: usize,
+        trust: &CallTrust,
+    ) -> Option<Clean> {
+        let read_index = read;
+        let read = self.reads.get(read)?;
+        let second = trust.second?;
+        let key = Key::of(read.evidence, call, second.base);
+        let neighbour = |other: Option<usize>| {
+            other
+                .and_then(|other| self.observation(read_index, other))
+                .and_then(|other| other.base)
+        };
+        Some(Clean {
+            read: read_index,
+            strand: read.strand,
+            second: read.strand.reference_base(second.base),
+            share: second.share,
+            threshold: run_signal::threshold(key.as_ref(), self.signal.as_ref(), self.second),
+            neighbours: [
+                neighbour(position.checked_sub(1)),
+                neighbour(position.checked_add(1)),
+            ],
+        })
+    }
+
     /// `possible_heteroplasmy` at one position, when it fires.
     fn heteroplasmy(&self, position: usize) -> Option<LabelResult> {
         let locus = self.loci.get(&position)?;
@@ -761,22 +859,12 @@ impl<'a> Sample<'a> {
                 if trust.placement != Placement::Scored || !(trust.trusted || trust.exempt) {
                     return None;
                 }
-                let (second, share) = second(observation.base?, observation.profile?)?;
-                let neighbour = |other: Option<usize>| {
-                    other
-                        .and_then(|other| self.observation(observation.read_index, other))
-                        .and_then(|other| other.base)
-                };
-                Some(Clean {
-                    read: observation.read_index,
-                    strand: read.strand,
-                    second,
-                    share,
-                    neighbours: [
-                        neighbour(position.checked_sub(1)),
-                        neighbour(position.checked_add(1)),
-                    ],
-                })
+                self.judged(
+                    position,
+                    observation.read_index,
+                    observation.call_index_0based?,
+                    trust,
+                )
             })
             .collect::<Vec<_>>();
         let (base, reads) = heteroplasmy(&clean)?;
@@ -789,6 +877,8 @@ impl<'a> Sample<'a> {
                     read: self.reads[clean.read].name.to_owned(),
                     strand: clean.strand,
                     share: round(clean.share),
+                    threshold: round(clean.threshold.share),
+                    calls: clean.threshold.calls,
                 })
                 .collect(),
         })
@@ -842,6 +932,7 @@ fn evidence(
     observation: &SampleLocusObservation,
     sanger: &SangerAttachment,
     scope: Option<ScopeResult>,
+    second: Option<SecondResult>,
 ) -> Result<EvidencePositionResult> {
     let base = match observation.state {
         LocusState::Deletion => '-',
@@ -882,36 +973,31 @@ fn evidence(
         scope,
         scan,
         quality,
-        second: observation
-            .profile
-            .zip(observation.base)
-            .filter(|_| observation.state != LocusState::Unresolved)
-            .and_then(|(profile, base)| second(base, profile))
-            .map(|(base, share)| SecondResult {
-                base,
-                share: round(share),
-            }),
+        second,
     })
 }
 
 /// One read that reads a position cleanly: trusted or exempt, unmasked, with
-/// a profile.
+/// a second base.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Clean {
     /// Read index.
     read: usize,
     strand: Orientation,
-    /// The strongest profile channel other than the call, and its weight.
+    /// The call's second base on the reference strand, and its peak share.
     second: char,
     share: f64,
+    /// The share the second base must exceed.
+    threshold: Threshold,
     /// The bases the same read shows at the previous and the next reference
     /// position, when it shows one.
     neighbours: [Option<char>; 2],
 }
 
 /// `possible_heteroplasmy` over the clean reads of one position: a read
-/// qualifies when its second share is at least [`MINIMUM_SHARE`] and its
-/// second base is not a base it shows next to the position. When both strands
+/// qualifies when its second peak share exceeds its threshold (SRS-CALL-020)
+/// and its second base is not a base it shows next to the position (a
+/// neighbour shadow). When both strands
 /// read the position cleanly, a qualifying read on each strand must show the
 /// same second base; when one strand does, one qualifying read suffices. The
 /// base most qualifying reads show wins, then the first in A/C/G/T order. It
@@ -919,7 +1005,9 @@ struct Clean {
 fn heteroplasmy(clean: &[Clean]) -> Option<(char, Vec<Clean>)> {
     let qualifying = clean
         .iter()
-        .filter(|read| read.share >= MINIMUM_SHARE && !read.neighbours.contains(&Some(read.second)))
+        .filter(|read| {
+            read.share > read.threshold.share && !read.neighbours.contains(&Some(read.second))
+        })
         .collect::<Vec<_>>();
     let strands = clean.iter().map(|read| read.strand).collect::<Vec<_>>();
     let both = strands.contains(&Orientation::Forward) && strands.contains(&Orientation::Reverse);
@@ -949,22 +1037,6 @@ fn heteroplasmy(clean: &[Clean]) -> Option<(char, Vec<Clean>)> {
             .copied()
             .collect(),
     ))
-}
-
-/// The strongest profile channel other than `base`, the first in A/C/G/T
-/// order on a tie; `None` for a base that is not A, C, G, or T.
-fn second(base: char, profile: EvidenceProfile) -> Option<(char, f64)> {
-    let own = Nucleotide::ALL
-        .iter()
-        .position(|nucleotide| nucleotide.as_char() == base)?;
-    let mut best: Option<(char, f64)> = None;
-    for (index, nucleotide) in Nucleotide::ALL.iter().enumerate() {
-        let weight = profile.weights[index];
-        if index != own && best.is_none_or(|(_, most)| weight > most) {
-            best = Some((nucleotide.as_char(), weight));
-        }
-    }
-    best
 }
 
 /// Whether a supporting read and an opposing read lie on different strands.
@@ -1253,6 +1325,10 @@ mod tests {
             strand,
             second,
             share,
+            threshold: Threshold {
+                share: 0.12,
+                calls: None,
+            },
             neighbours: [None, None],
         }
     }
@@ -1288,7 +1364,21 @@ mod tests {
     }
 
     #[test]
-    fn heteroplasmy_excludes_a_neighbour_shadow_and_a_share_below_the_threshold() {
+    fn heteroplasmy_needs_a_share_above_the_threshold() {
+        assert_eq!(heteroplasmy(&[clean(0, F, 'G', 0.12)]), None);
+        assert!(heteroplasmy(&[clean(0, F, 'G', 0.121)]).is_some());
+        // A run level above the share holds it back.
+        let mut raised = clean(0, F, 'G', 0.3);
+        raised.threshold = Threshold {
+            share: 0.35,
+            calls: Some(40),
+        };
+        assert_eq!(heteroplasmy(&[raised]), None);
+        assert_eq!(heteroplasmy(&[]), None);
+    }
+
+    #[test]
+    fn heteroplasmy_excludes_a_neighbour_shadow() {
         let mut shadow = clean(0, F, 'G', 0.4);
         shadow.neighbours = [Some('A'), Some('G')];
         assert_eq!(heteroplasmy(&[shadow]), None);
@@ -1296,23 +1386,6 @@ mod tests {
         assert_eq!(heteroplasmy(&[shadow]), None);
         shadow.neighbours = [Some('A'), Some('C')];
         assert!(heteroplasmy(&[shadow]).is_some());
-        assert_eq!(heteroplasmy(&[clean(0, F, 'G', 0.149)]), None);
-        assert!(heteroplasmy(&[clean(0, F, 'G', 0.15)]).is_some());
-        assert_eq!(heteroplasmy(&[]), None);
-    }
-
-    #[test]
-    fn second_is_the_strongest_other_channel() {
-        let profile = EvidenceProfile {
-            weights: [0.6, 0.1, 0.25, 0.05],
-        };
-        assert_eq!(second('A', profile), Some(('G', 0.25)));
-        assert_eq!(second('G', profile), Some(('A', 0.6)));
-        assert_eq!(second('N', profile), None);
-        let tie = EvidenceProfile {
-            weights: [0.5, 0.25, 0.25, 0.0],
-        };
-        assert_eq!(second('A', tie), Some(('C', 0.25)));
     }
 
     #[test]

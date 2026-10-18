@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 4
+        "version": 5
       }
     ],
-    "rules": 4
+    "rules": 5
   },
   "reads": [
     {
@@ -291,7 +291,8 @@
             {
               "read": "A12_HV2F_03",
               "strand": "forward",
-              "share": 0.214
+              "share": 0.214,
+              "threshold": 0.16
             }
           ]
         }

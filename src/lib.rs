@@ -69,9 +69,13 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Consensus(args) => {
             pipeline::consensus(&args.sample_id, &args.traces, &args.reference, &config_path)
         }
-        Command::Review(args) => {
-            pipeline::review(&args.sample_id, &args.traces, &args.reference, &config_path)
-        }
+        Command::Review(args) => pipeline::review(
+            &args.sample_id,
+            &args.traces,
+            &args.reference,
+            args.signal.as_deref(),
+            &config_path,
+        ),
         Command::Signal(args) => pipeline::signal(&args.run_id, &args.traces, &config_path),
         Command::Call(args) => pipeline::call(
             &args.sample_id,

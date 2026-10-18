@@ -1,6 +1,6 @@
 # DNA Review JSON
 
-`dna review <sample-id> <trace>... --reference <reference.fasta>` writes one
+`dna review <sample-id> <trace>... --reference <reference.fasta> [--signal <run.signal.json>]` writes one
 deterministic document, `results/<sample-id>.review.json`, identified as
 `dna.review/v1` (SRS-API-014, [PROP-0004](../proposals/0004-review-triage.md)).
 It lists the positions of one sample a reviewer should look at, each with the
@@ -20,6 +20,13 @@ consensus's decided edits, then the notation and the EMPOP query the profile
 declares). Traces, reference, and configuration (`DNA_CONFIG`) are read as by
 [`dna consensus`](consensus.md), and reads are rejected the same way. The
 operation log is `logs/<sample-id>.log`.
+
+`--signal` names the sample's run signal ([`dna.signal/v1`](signal.md)).
+The sample's own admitted reads are taken out of it, so the sample is never
+judged against itself, and `possible_heteroplasmy` judges each call against
+its key's run level (SRS-CALL-020). A run signal that holds none of the
+sample's admitted traces is another run's and fails the command without
+output. Without it, the configured floor alone sets the threshold.
 
 Every sample gets a document. `status` says how far it got:
 
@@ -45,7 +52,9 @@ target still fails the command without output.
     `normalization` and `nomenclature` when the profile declares notation,
     `empop` when it also declares `[empop]`, and `review`;
   - `rules`: the version of the labelling rules below, equal to the `review`
-    plugin version. `clear` depends on it.
+    plugin version. `clear` depends on it;
+  - `signal` (with `--signal`): the run signal's `run_id`, file `sha256`, and
+    `selection` version.
 - `reads`: the admitted reads in the sample's read order (content SHA-256),
   each with `name` (the trace stem), `sha256`, `strand` (`forward` or
   `reverse`, its placement), and `admitted: true`; then the rejected reads
@@ -68,7 +77,7 @@ target still fails the command without output.
     included, in the label order below;
   - `positions`: `reportable`, the positions of the profile's reportable
     regions; `check`, those a `check` item holds, which a reviewer looks at
-    (rules version 4). Every other reportable position is DNA's own decision
+    (rules version 5). Every other reportable position is DNA's own decision
     or outside every read, as its items say;
   - `clear`: `status` is `called` and no item is a `check`.
 
@@ -115,9 +124,9 @@ them). It has:
   - `scan`: the trace scan position of that call, so a viewer can jump to the
     peak (`null` for a deletion);
   - `quality`: the call's relative quality score (`null` for a deletion);
-  - `second`: the strongest profile channel other than the read's base, with
-    its `share` rounded to three decimals; `null` without a profile or for an
-    unresolved base.
+  - `second`: the call's second base on the reference strand and its peak
+    `share` (SRS-CALL-015), rounded to three decimals; `null` without a second
+    peak or for an unresolved base.
 
 Items come from three sources:
 
@@ -149,7 +158,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 4)
+## Labels (rules version 5)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -170,17 +179,22 @@ exemption lifts the margin (ADR-0076).
   each call inside the item, must be A/C/G/T without a modality reason
   against its base, and either anchoring or scored and trusted or exempt.
   One label per such read. Opposing reads are `strands_disagree`'s.
-- `possible_heteroplasmy` `{position, base, reads: [{read, strand, share}]}`:
-  at one position, a read reads it cleanly when its observation is
-  `reference` or `alternate`, its call is unmasked and trusted or exempt, and
-  it has a profile. Its second base is the strongest profile channel other
-  than its call, and the share that channel's weight. It qualifies when the
-  share is at least `0.15` and the second base is not the base the same read
-  shows at the previous or next reference position (a neighbour shadow). The
-  label fires when both strands read the position cleanly and a qualifying
+- `possible_heteroplasmy` `{position, base, reads: [{read, strand, share,
+  threshold, calls?}]}`: at one position, a read reads it cleanly when its
+  observation is `reference` or `alternate`, its call is unmasked and trusted
+  or exempt, and the call has a second base (SRS-CALL-015): the highest other
+  peak, its share that peak's against the primary peak and itself. It
+  qualifies when the share exceeds the call's second-channel threshold
+  (SRS-CALL-020): `signal_processing.second_floor`, raised to the run level
+  of the call's key when `--signal` gives a run signal that holds the key
+  with enough calls (`calls`, the sample's own taken out), and the second
+  base is not the base the same read shows at the previous or next reference
+  position (a neighbour shadow). The neighbour test stays until DNA handles
+  noisy regions itself. The label fires when both strands read the position cleanly and a qualifying
   read on each strand shows the same second base, or when only one strand
   reads it cleanly and one read qualifies. The base most qualifying reads show
-  is reported (then A/C/G/T order), with each of them and its share.
+  is reported (then A/C/G/T order), with each of them, its share, and its
+  threshold.
 - `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
   runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
   not callable.
@@ -226,11 +240,11 @@ reasons ([PROP-0008](../proposals/0008-pipeline-responsibilities.md)).
 
 ## Determinism
 
-The same traces, reference, configuration, and DNA version give a
+The same traces, reference, configuration, run signal, and DNA version give a
 byte-identical document, whatever the number of workers. Reads follow content
 order, items the priority order above, labels their own order, and evidence
-reference order. Shares are rounded to three decimals. Thresholds are fixed:
-`0.15` (`>=`) for the second-base share.
+reference order. Shares and thresholds are rounded to three decimals; a
+share qualifies when it exceeds its unrounded threshold.
 
 ## Schema
 

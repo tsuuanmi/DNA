@@ -8,12 +8,17 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `7` | exactly 7 |
+| root | `schema_version` | `8` | exactly 8 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
 | | `minimum_primary_snr` | `3.0` | finite and positive |
 | | `minimum_noisy_windows` | `2` | integer at least `2` |
+| | `second_floor` | `0.16` | finite fraction: lowest second-channel threshold on the peak scale, the threshold without a usable run level (SRS-CALL-020) |
+| | `run_signal_minimum_reads` | `40` | integer at least `1`: fewest reads a run signal needs to give a run level (PROP-0009) |
+| | `run_signal_minimum_calls` | `40` | integer at least `1`: fewest calls of a key, the sample's own taken out, to give a run level |
+| | `run_signal_margin` | `0.05` | finite fraction: smallest margin above a key's median |
+| | `run_signal_mad_factor` | `4.0` | finite and positive: median absolute deviations above a key's median |
 | `callability` | `window_calls` | `16` | integer `8..=64` |
 | | `onset_defect_fraction` | `0.375` | finite `(0,1]` |
 | | `exit_defect_fraction` | `0.125` | finite `[0,1]`, below `onset_defect_fraction` |

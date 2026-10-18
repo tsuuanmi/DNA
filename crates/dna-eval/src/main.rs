@@ -30,6 +30,7 @@ mod truth;
 mod workload;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -212,6 +213,15 @@ struct RunArgs {
     /// the samples whose manifest `batch_date` is in or after it first.
     #[arg(long)]
     current_since: Option<String>,
+    /// Judge each review against a run signal (PROP-0009) built in process
+    /// from the panel: `batch` takes a sample's batch when it has at least
+    /// `--run-signal-batch-reads` reads, else its batch month; `month` takes
+    /// the month alone. The run takes two passes.
+    #[arg(long, value_parser = ["batch", "month"])]
+    run_signal: Option<String>,
+    /// Fewest reads of a batch for `--run-signal batch` to use it.
+    #[arg(long, default_value_t = 40)]
+    run_signal_batch_reads: usize,
 }
 
 fn main() -> ExitCode {
@@ -341,12 +351,20 @@ fn run(cli: &RunArgs) -> Result<String> {
         .transpose()?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
+    let mut signal_groups = Vec::new();
     let outcomes = runner::run(
         &manifest.samples,
         (&cli.reference, &reference.sequence_sha256),
         &cli.config,
         threads,
         cli.triage,
+        cli.run_signal.as_deref().map(|grouping| match grouping {
+            "month" => runner::Grouping::Month,
+            _ => runner::Grouping::Batch {
+                batch_reads: cli.run_signal_batch_reads,
+            },
+        }),
+        &mut signal_groups,
     )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
 
@@ -399,6 +417,25 @@ fn run(cli: &RunArgs) -> Result<String> {
     {
         write(&cli.output, name, &contents)?;
     }
+    if cli.run_signal.is_some() {
+        let mut text = String::from(
+            "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n",
+        );
+        for line in &signal_groups {
+            text.push_str(line);
+            text.push('\n');
+        }
+        write(&cli.output, "signals.tsv", &text)?;
+    }
+    let mut checks = String::from("sample_id\tfirst\tlast\tlabels\n");
+    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
+        if let Ok(called) = &outcome.result {
+            for (first, last, labels) in &called.check_labels {
+                let _ = writeln!(checks, "{}\t{first}\t{last}\t{labels}", sample.id);
+            }
+        }
+    }
+    write(&cli.output, "checks.tsv", &checks)?;
     write(&cli.output, "forms.tsv", &forms.table(&truth.sha256))?;
     let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
     json.push('\n');
@@ -629,6 +666,9 @@ struct Header {
     /// First batch month of the current data, when given.
     #[serde(skip_serializing_if = "Option::is_none")]
     current_since: Option<String>,
+    /// The run signal grouping, when the reviews were judged against one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_signal: Option<String>,
     /// The forced-window list the workload also counts as reviewed.
     #[serde(skip_serializing_if = "Option::is_none")]
     forced_windows: Option<PathBuf>,
@@ -773,6 +813,7 @@ fn header(
         identities: identities.into_iter().collect(),
         baseline: cli.baseline.as_deref().map(absolute),
         review_window: cli.review_window,
+        run_signal: cli.run_signal.clone(),
         current_since: cli.current_since.clone(),
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         samples: Measure::ALL
