@@ -146,6 +146,12 @@ pub(crate) enum LabelResult {
         sequence: String,
     },
     NotCalled,
+    LongRun {
+        runs: Vec<GrowthResult>,
+    },
+    EdgeDeletion {
+        read: String,
+    },
     PossibleHeteroplasmy {
         position: usize,
         base: char,
@@ -203,6 +209,18 @@ pub(crate) struct ShareResult {
     /// The key's calls in the run signal, the sample's own taken out.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) calls: Option<u64>,
+}
+
+/// A decided run longer than its reference run by `run_growth` or more,
+/// whose length rests on an anchored end or a single read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct GrowthResult {
+    pub(crate) base: char,
+    pub(crate) length: usize,
+    pub(crate) reference_length: usize,
+    /// How the consensus knows the length (`dna.consensus/v1`); `None` when
+    /// the site was decided position by position.
+    pub(crate) length_evidence: Option<&'static str>,
 }
 
 /// A run whose length is an estimate, as `dna.consensus/v1` lists it.
@@ -286,6 +304,8 @@ pub(crate) struct LabelCounts {
     pub(crate) estimated_length: usize,
     pub(crate) undecided: usize,
     pub(crate) not_called: usize,
+    pub(crate) long_run: usize,
+    pub(crate) edge_deletion: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,
     pub(crate) noisy_signal: usize,

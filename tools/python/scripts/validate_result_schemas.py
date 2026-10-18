@@ -39,6 +39,8 @@ REVIEW_UNASSURED = frozenset(
         "estimated_length",
         "undecided",
         "not_called",
+        "long_run",
+        "edge_deletion",
         "not_covered",
     }
 )
@@ -50,6 +52,8 @@ REVIEW_LABELS = {
     "estimated_length": 2,
     "undecided": 2,
     "not_called": 2,
+    "long_run": 2,
+    "edge_deletion": 2,
     "one_read": 3,
     "one_strand": 3,
     "noisy_signal": 4,

@@ -386,6 +386,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review list marks two kinds of decided indels that one strand cannot
+  assure (`review` plugin 7, rules version 7; configuration schema 11 with a
+  new `[review]` section). Where both strands cover a site, both must agree
+  before DNA decides it alone:
+  - `long_run`: a run at least `review.run_growth` (3) bases longer than its
+    reference run whose length rests on an anchored end or on a single read;
+  - `edge_deletion`: a deletion resting on a single read within
+    `review.edge_zone` (20) positions of a reportable region's edge.
+  On the current development data such decisions were 89 % and 88 % wrong.
+  As checks they take the samples with an unreviewed non-heteroplasmy
+  difference from 1.49 % to about 0.77 %, adding about one check per 100
+  samples.
 - The core and post-calling method thresholds are configuration too
   (SRS-CFG-009), with defaults equal to the former constants, so outputs
   change only in the configuration checksum and the profile identity:
