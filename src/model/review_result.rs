@@ -246,8 +246,18 @@ pub(crate) struct SummaryResult {
     pub(crate) checks: usize,
     pub(crate) variants: usize,
     pub(crate) labels: LabelCounts,
+    /// Reportable positions, and those a `check` item holds.
+    pub(crate) positions: PositionCounts,
     /// The call succeeded and no item is a `check`.
     pub(crate) clear: bool,
+}
+
+/// The profile's reportable positions, and those inside `check` items: what a
+/// reviewer looks at, against what DNA decided alone.
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct PositionCounts {
+    pub(crate) reportable: usize,
+    pub(crate) check: usize,
 }
 
 /// Items carrying each label, in label priority order.

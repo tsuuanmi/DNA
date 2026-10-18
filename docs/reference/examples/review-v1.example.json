@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 3
+        "version": 4
       }
     ],
-    "rules": 3
+    "rules": 4
   },
   "reads": [
     {
@@ -1258,6 +1258,10 @@
       "not_covered": 1,
       "phase_shift": 2,
       "read_edge": 0
+    },
+    "positions": {
+      "reportable": 749,
+      "check": 24
     },
     "clear": false
   }

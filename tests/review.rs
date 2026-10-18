@@ -121,7 +121,7 @@ const RANKS: [(&str, u64); 12] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 3);
+    assert_eq!(value["provenance"]["rules"], 4);
     let items = items(value)?;
     let mut previous = None;
     let mut counts = std::collections::BTreeMap::<&str, u64>::new();
@@ -172,6 +172,17 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
             Some(counts.get(name.as_str()).copied().unwrap_or(0))
         );
     }
+    let held = items
+        .iter()
+        .filter(|item| item["kind"] == "check")
+        .flat_map(|item| {
+            let first = item["first"]["position"].as_u64().unwrap_or(1);
+            let last = item["last"]["position"].as_u64().unwrap_or(0);
+            first..=last
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(summary["positions"]["check"], held.len());
+    assert!(summary["positions"]["reportable"].as_u64() >= Some(held.len() as u64));
     assert_eq!(summary["clear"], value["status"] == "called" && checks == 0);
     Ok(())
 }

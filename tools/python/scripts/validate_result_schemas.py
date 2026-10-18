@@ -1073,6 +1073,20 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: summary variant count disagrees with the items")
     if summary.get("labels") != counts:
         errors.append(f"{label}: summary label counts disagree with the items")
+    positions = summary.get("positions", {})
+    held = {
+        position
+        for item in items
+        if item.get("kind") == "check"
+        for position in range(
+            item.get("first", {}).get("position", 0),
+            item.get("last", {}).get("position", -1) + 1,
+        )
+    }
+    if positions.get("check") != len(held) or len(held) > positions.get(
+        "reportable", 0
+    ):
+        errors.append(f"{label}: summary positions disagree with the check items")
     clear = document.get("status") == "called" and checks == 0
     if summary.get("clear") != clear:
         errors.append(f"{label}: summary clear disagrees with the status and checks")

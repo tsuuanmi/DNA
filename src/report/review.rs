@@ -13,9 +13,9 @@ use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::review_result::{
     ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, ItemKind, ItemResult,
-    LabelCounts, LabelResult, ReviewCallResult, ReviewProvenanceResult, ReviewReadResult,
-    ReviewResult, ReviewStatus, Role, RunResult, ScopeResult, SecondResult, ShareResult,
-    SideResult, SummaryResult,
+    LabelCounts, LabelResult, PositionCounts, ReviewCallResult, ReviewProvenanceResult,
+    ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult, ScopeResult, SecondResult,
+    ShareResult, SideResult, SummaryResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::report::json::{project_plugins, project_profile};
@@ -37,7 +37,7 @@ use dna_sanger::model::attachment::SangerAttachment;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 3,
+    version: 4,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -122,7 +122,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 calls: None,
                 callable: None,
                 empop: None,
-                summary: summarize(&[], ReviewStatus::Rejected),
+                summary: summarize(&[], ReviewStatus::Rejected, &regions),
                 items: Vec::new(),
             });
         }
@@ -215,7 +215,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 .collect()
         }),
         empop: call.and_then(|call| call.empop).map(project_empop),
-        summary: summarize(&items, status),
+        summary: summarize(&items, status, &regions),
         items,
     })
 }
@@ -1129,9 +1129,10 @@ fn priority(labels: &[LabelResult]) -> u8 {
     labels.iter().map(rank).min().unwrap_or(UNLABELLED)
 }
 
-/// Counts over the items; `clear` when the call succeeded and no item is a
+/// Counts over the items, and the reportable positions inside `regions`
+/// that `check` items hold; `clear` when the call succeeded and no item is a
 /// check.
-fn summarize(items: &[ItemResult], status: ReviewStatus) -> SummaryResult {
+fn summarize(items: &[ItemResult], status: ReviewStatus, regions: &[[usize; 2]]) -> SummaryResult {
     let mut labels = LabelCounts::default();
     for item in items {
         let names = item.labels.iter().map(name).collect::<BTreeSet<_>>();
@@ -1157,11 +1158,22 @@ fn summarize(items: &[ItemResult], status: ReviewStatus) -> SummaryResult {
         .iter()
         .filter(|item| item.kind == ItemKind::Check)
         .count();
+    let check = items
+        .iter()
+        .filter(|item| item.kind == ItemKind::Check)
+        .flat_map(|item| item.first.position..=item.last.position)
+        .filter(|&position| inside(regions, position))
+        .collect::<BTreeSet<_>>()
+        .len();
     SummaryResult {
         items: items.len(),
         checks,
         variants: items.len() - checks,
         labels,
+        positions: PositionCounts {
+            reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
+            check,
+        },
         clear: status == ReviewStatus::Called && checks == 0,
     }
 }
@@ -1539,19 +1551,34 @@ mod tests {
                 LabelResult::ReadEdge { read: read("b") },
             ],
         );
-        let summary = summarize(&[variant, one_strand], ReviewStatus::Called);
+        let summary = summarize(&[variant, one_strand], ReviewStatus::Called, &[[1, 10]]);
         assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
         assert_eq!(summary.labels.one_strand, 1);
         assert_eq!(summary.labels.read_edge, 1);
+        assert_eq!(
+            summary.positions,
+            PositionCounts {
+                reportable: 10,
+                check: 0
+            }
+        );
         assert!(summary.clear);
 
         let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
-        let summary = summarize(&[check], ReviewStatus::Called);
+        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]]);
         assert_eq!((summary.checks, summary.labels.not_covered), (1, 1));
+        // The check item holds position 1 of the ten reportable positions.
+        assert_eq!(
+            summary.positions,
+            PositionCounts {
+                reportable: 10,
+                check: 1
+            }
+        );
         assert!(!summary.clear);
-        assert!(!summarize(&[], ReviewStatus::CallFailed).clear);
-        assert!(!summarize(&[], ReviewStatus::Rejected).clear);
-        assert!(summarize(&[], ReviewStatus::Called).clear);
+        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]]).clear);
+        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]]).clear);
+        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]]).clear);
     }
 
     #[test]

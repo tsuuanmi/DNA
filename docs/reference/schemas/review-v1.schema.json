@@ -839,6 +839,7 @@
         "checks",
         "variants",
         "labels",
+        "positions",
         "clear"
       ],
       "properties": {
@@ -917,6 +918,24 @@
               "minimum": 0
             },
             "read_edge": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "positions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reportable",
+            "check"
+          ],
+          "properties": {
+            "reportable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "check": {
               "type": "integer",
               "minimum": 0
             }
