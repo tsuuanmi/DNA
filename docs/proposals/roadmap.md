@@ -22,6 +22,8 @@ The proposal is not current production architecture. Its implementation is inten
 
 - revisit the `core` plugin identity, which spans three crates, the next time plugin versions change for another reason; splitting it changes provenance.
 
+The evaluation harness keeps its own copy of the HV regions (`HV_REGIONS`), which its windows and measures now depend on. It should read the profile's regions (`SampleAnalysis::regions()`), so a profile change cannot desynchronise the harness from DNA.
+
 ## Validation priorities
 
 ### Approved real-trace baseline
