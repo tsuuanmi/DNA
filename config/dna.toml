@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 8
+schema_version = 9
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -14,6 +14,8 @@ window_size_bases = 10
 minimum_primary_snr = 3.0
 # At least two candidate windows are required for a noisy interval.
 minimum_noisy_windows = 2
+# Floor of a channel's noise scale, in signal units.
+minimum_noise_sigma = 1.0
 # The canonical second-channel threshold (PROP-0009): a call's second peak
 # share stands out above max(second_floor, its key's run level), the run level
 # being median + max(margin, mad_factor * MAD) when the run signal holds at
@@ -41,12 +43,23 @@ minimum_shadow_share = 0.1
 weak_amplitude_fraction = 0.2
 repeat_min_length = 8
 minimum_callable_calls = 20
+# Calls after a repeat run that form its prior window.
+repeat_window_calls = 16
+# A position carries a double peak when its secondary ratio reaches this.
+double_peak_ratio = 0.33
+# A position is a spacing defect when its spacings deviate this much from the
+# median of the `spacing_half_window` spacings on each side.
+spacing_defect = 0.5
+spacing_half_window = 8
 
 [quality_control]
 # Relative, uncalibrated per-call quality. The trim interval is the read's
 # callable span (ADR-0067).
 penalty_window_size = 10
 max_relative_quality_score = 60
+# The trim keeps up to this many calls of an adjacent dephased segment past
+# the callable span, so they can anchor the alignment.
+trim_context_margin = 12
 
 [alignment]
 # Semi-global affine-gap scoring. A length-k gap costs open + k * extension.
@@ -71,11 +84,39 @@ minimum_overlap_agreement = 0.50
 # (SRS-VAR-020).
 minimum_peak_height = 150
 relative_quality_threshold = 30
+# Read-edge rules (SRS-CALL-013 to SRS-CALL-018). Calls within
+# `signal_edge_margin` of an end of the usable signal lie at a signal edge.
+signal_edge_margin = 12
+# Leading calls vouched for by their base need a primary peak of at least this
+# fraction of the read's median.
+leading_height_fraction = 1.0
+# A run bounded before a post-repeat phase loss: more than
+# `post_repeat_margin`, or at least `post_repeat_minimum_calls` beside that
+# loss, informative calls on each side.
+post_repeat_margin = 12
+post_repeat_minimum_calls = 2
+# An edge call within `edge_identity_margin` of an informative end, or a start
+# call within `start_identity_margin` of the callable span's start, is vouched
+# for by its own signal when it is clean: a primary peak of at least the
+# height fraction of the median (the start's own median of its first
+# `start_norm_calls` calls), a second-channel share below
+# `edge_second_share`, a peak no wider than `edge_width_factor` times the
+# median width, and a spacing to each neighbour between the spacing minimum
+# and maximum times the median spacing.
+edge_identity_margin = 12
+edge_height_fraction = 1.0
+start_identity_margin = 12
+start_norm_calls = 30
+start_height_fraction = 0.5
+edge_second_share = 0.10
+edge_width_factor = 1.5
+edge_spacing_minimum = 0.5
+edge_spacing_maximum = 1.5
 
 [variant_calling]
 # Anchor bases do not count toward this changed-length limit.
 max_indel_length = 50
 # Read callability (ADR-0062, ADR-0067): calls this close to an uninformative
 # call (beyond the trim interval or masked as unresolved) cannot support a
-# variant; the trim keeps this many dephased context calls past the span.
+# variant.
 read_end_margin = 12

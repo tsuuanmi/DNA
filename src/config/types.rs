@@ -17,7 +17,7 @@ use dna_sanger::read_processing::{RawSangerConfig, RawSangerEvidenceConfig, Sang
 use dna_sanger::signal_processing::RawSignalProcessingConfig;
 
 /// Configuration schema version this build accepts.
-const SCHEMA_VERSION: u32 = 8;
+const SCHEMA_VERSION: u32 = 9;
 
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
@@ -97,7 +97,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=8\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\nsecond_floor=0.21\nrun_signal_minimum_reads=40\nrun_signal_minimum_calls=40\nrun_signal_margin=0.05\nrun_signal_mad_factor=4.0\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n";
+    const VALID: &str = "schema_version=9\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\nminimum_noise_sigma=1.0\nsecond_floor=0.21\nrun_signal_minimum_reads=40\nrun_signal_minimum_calls=40\nrun_signal_margin=0.05\nrun_signal_mad_factor=4.0\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\ntrim_context_margin=10\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\nrepeat_window_calls=16\ndouble_peak_ratio=0.33\nspacing_defect=0.5\nspacing_half_window=8\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\nsignal_edge_margin=10\nleading_height_fraction=1.0\npost_repeat_margin=10\npost_repeat_minimum_calls=2\nedge_identity_margin=10\nedge_height_fraction=1.0\nedge_second_share=0.10\nedge_width_factor=1.5\nedge_spacing_minimum=0.5\nedge_spacing_maximum=1.5\nstart_identity_margin=10\nstart_norm_calls=30\nstart_height_fraction=0.5\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -173,11 +173,11 @@ mod tests {
     fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
     {
         assert!(matches!(
-            validate_raw(&VALID.replace("schema_version=8", "schema_version=7"))?,
+            validate_raw(&VALID.replace("schema_version=9", "schema_version=8"))?,
             Err(Error::Kernel(KernelError::Config(
                 ConfigError::UnsupportedSchemaVersion {
-                    found: 7,
-                    expected: 8
+                    found: 8,
+                    expected: 9
                 }
             )))
         ));
@@ -209,6 +209,7 @@ mod tests {
             VALID.replace("minimum_noisy_windows=2", "minimum_noisy_windows=1"),
             VALID.replace("minimum_primary_snr=3.0", "minimum_primary_snr=0.0"),
             VALID.replace("minimum_primary_snr=3.0", "minimum_primary_snr=nan"),
+            VALID.replace("minimum_noise_sigma=1.0", "minimum_noise_sigma=0.0"),
         ] {
             assert!(
                 validate(&invalid).is_err(),
@@ -228,6 +229,10 @@ mod tests {
             VALID.replace("maximum_far_share=0.12", "maximum_far_share=nan"),
             VALID.replace("minimum_shadow_share=0.1", "minimum_shadow_share=0.0"),
             VALID.replace("weak_amplitude_fraction=0.1", "weak_amplitude_fraction=0.6"),
+            VALID.replace("repeat_window_calls=16", "repeat_window_calls=0"),
+            VALID.replace("double_peak_ratio=0.33", "double_peak_ratio=1.5"),
+            VALID.replace("spacing_defect=0.5", "spacing_defect=0.0"),
+            VALID.replace("spacing_half_window=8", "spacing_half_window=0"),
         ] {
             assert!(
                 validate(&invalid).is_err(),
@@ -241,6 +246,25 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn rejects_invalid_read_edge_settings() {
+        for invalid in [
+            VALID.replace("leading_height_fraction=1.0", "leading_height_fraction=0.0"),
+            VALID.replace("post_repeat_minimum_calls=2", "post_repeat_minimum_calls=0"),
+            VALID.replace("edge_height_fraction=1.0", "edge_height_fraction=nan"),
+            VALID.replace("edge_second_share=0.10", "edge_second_share=1.5"),
+            VALID.replace("edge_width_factor=1.5", "edge_width_factor=-1.0"),
+            VALID.replace("edge_spacing_minimum=0.5", "edge_spacing_minimum=2.0"),
+            VALID.replace("start_norm_calls=30", "start_norm_calls=0"),
+            VALID.replace("start_height_fraction=0.5", "start_height_fraction=0.0"),
+        ] {
+            assert!(
+                validate(&invalid).is_err(),
+                "unexpectedly accepted {invalid}"
+            );
+        }
     }
 
     #[test]

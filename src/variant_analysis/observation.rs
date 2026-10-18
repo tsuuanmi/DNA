@@ -38,11 +38,7 @@ pub(crate) fn build(
     config: &Config,
     profile: &Profile,
 ) -> Result<CompletedObservation> {
-    let processed = read_processing::process(
-        trace,
-        &config.sanger,
-        config.core.variant_calling.read_end_margin,
-    )?;
+    let processed = read_processing::process(trace, &config.sanger)?;
     match observe(trace, processed, reference, config, profile)? {
         Observation::Placed(completed) => Ok(*completed),
         Observation::Unplaced { error, .. } => Err(error),
@@ -73,7 +69,6 @@ pub(crate) fn observe(
         &callability,
         &quality,
         &config.sanger.sanger_evidence,
-        config.core.variant_calling.read_end_margin,
     )?;
     tracing::info!(
         event = "read_evidence_completed",

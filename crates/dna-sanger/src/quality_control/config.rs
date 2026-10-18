@@ -9,6 +9,9 @@ use dna_kernel::error::{ConfigError, Result};
 pub struct QualityControlConfig {
     pub(crate) penalty_window_size: usize,
     pub(crate) max_relative_quality_score: u8,
+    /// Most calls of an adjacent dephased segment the trim keeps beyond the
+    /// callable span (SRS-QC-004).
+    pub(crate) trim_context_margin: usize,
 }
 
 /// The `[quality_control]` section as written in the configuration.
@@ -17,6 +20,7 @@ pub struct QualityControlConfig {
 pub struct RawQualityControlConfig {
     pub(crate) penalty_window_size: usize,
     pub(crate) max_relative_quality_score: u8,
+    pub(crate) trim_context_margin: usize,
 }
 
 impl RawQualityControlConfig {
@@ -37,6 +41,7 @@ impl RawQualityControlConfig {
         Ok(QualityControlConfig {
             penalty_window_size: self.penalty_window_size,
             max_relative_quality_score: self.max_relative_quality_score,
+            trim_context_margin: self.trim_context_margin,
         })
     }
 }

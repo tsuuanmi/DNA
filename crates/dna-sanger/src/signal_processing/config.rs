@@ -14,6 +14,8 @@ pub struct SignalProcessingConfig {
     pub minimum_primary_snr: f64,
     /// Fewest adjacent noisy windows that form a noisy region.
     pub minimum_noisy_windows: usize,
+    /// Floor of a channel's noise scale, in signal units.
+    pub minimum_noise_sigma: f64,
     /// Lowest second-channel threshold, on the peak scale (PROP-0009).
     pub second_floor: f64,
     /// How a key's run level is taken from its run's signal (PROP-0009).
@@ -43,6 +45,7 @@ pub struct RawSignalProcessingConfig {
     pub(crate) window_size_bases: usize,
     pub(crate) minimum_primary_snr: f64,
     pub(crate) minimum_noisy_windows: usize,
+    pub(crate) minimum_noise_sigma: f64,
     pub(crate) second_floor: f64,
     pub(crate) run_signal_minimum_reads: usize,
     pub(crate) run_signal_minimum_calls: u64,
@@ -75,6 +78,10 @@ impl RawSignalProcessingConfig {
             )
             .into());
         }
+        bounds::positive_finite(
+            "signal_processing.minimum_noise_sigma",
+            self.minimum_noise_sigma,
+        )?;
         bounds::fraction("signal_processing.second_floor", self.second_floor)?;
         bounds::fraction(
             "signal_processing.run_signal_margin",
@@ -88,6 +95,7 @@ impl RawSignalProcessingConfig {
             window_size_bases: self.window_size_bases,
             minimum_primary_snr: self.minimum_primary_snr,
             minimum_noisy_windows: self.minimum_noisy_windows,
+            minimum_noise_sigma: self.minimum_noise_sigma,
             second_floor: self.second_floor,
             run_signal: RunSignalParameters {
                 minimum_reads: self.run_signal_minimum_reads,

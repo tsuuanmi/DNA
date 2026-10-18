@@ -8,10 +8,10 @@ For each channel in a rolling sample span:
 
 ```text
 baseline = median(samples)
-noise_sigma = max(1, MAD(first_difference(samples)) / (0.67448975 × sqrt(2)))
+noise_sigma = max(minimum_noise_sigma, MAD(first_difference(samples)) / (0.67448975 × sqrt(2)))
 peak_snr = max(0, selected_peak_height - baseline) / noise_sigma
 ```
 
-The one-unit floor reflects signed-short quantization and prevents NaN or infinity. Within each call, baseline-corrected selected peaks are ranked deterministically by value and then A/C/G/T order. A window records its minimum primary SNR and maximum secondary SNR internally. Values are rounded to six decimal places before threshold comparison; only each merged region's minimum primary SNR is serialized.
+The floor, `signal_processing.minimum_noise_sigma` (one unit by default), reflects signed-short quantization and prevents NaN or infinity. Within each call, baseline-corrected selected peaks are ranked deterministically by value and then A/C/G/T order. A window records its minimum primary SNR and maximum secondary SNR internally. Values are rounded to six decimal places before threshold comparison; only each merged region's minimum primary SNR is serialized.
 
 A window is `candidate_noisy` only when its minimum primary SNR is strictly below the configured threshold. Overlapping or adjacent candidate windows are unioned; clean gaps are never filled. Secondary SNR participates only in internal observation and does not make a window noisy because a strong secondary peak may be real mixed dna. Compact analysis v9 and basecalls v3 omit individual windows and secondary-SNR values.

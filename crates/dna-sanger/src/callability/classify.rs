@@ -16,6 +16,7 @@ pub(super) struct Context<'a> {
     pub(super) features: &'a [PositionFeatures],
     pub(super) defects: &'a [Defect],
     pub(super) repeats: &'a [RepeatRun],
+    /// Calls after a repeat run that form its prior window.
     pub(super) window: usize,
     pub(super) rules: Rules,
 }

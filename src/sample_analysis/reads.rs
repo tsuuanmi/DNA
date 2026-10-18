@@ -235,12 +235,7 @@ fn place_one(
         };
         return reject(RejectionCause::Callability { sanger, rejection });
     }
-    let processed = read_processing::finish(
-        trace,
-        prepared,
-        &config.sanger,
-        config.core.variant_calling.read_end_margin,
-    )?;
+    let processed = read_processing::finish(trace, prepared, &config.sanger)?;
     let completed =
         match variant_analysis::observation::observe(trace, processed, reference, config, profile)?
         {

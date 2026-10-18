@@ -190,11 +190,7 @@ pub fn contributions(calls: &BaseCalls, evidence: &ReadEvidence) -> Contribution
 /// # Errors
 ///
 /// Returns the failure of a Sanger stage other than those rejections.
-pub fn read(
-    trace: &Chromatogram,
-    config: &SangerConfig,
-    edge_margin: usize,
-) -> Result<Option<Contributions>> {
+pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contributions>> {
     let prepared = match read_processing::prepare(trace, config) {
         Ok(prepared) => prepared,
         Err(error) if ShortRead::of(&error).is_some() => return Ok(None),
@@ -203,14 +199,13 @@ pub fn read(
     if prepared.rejection(config).is_some() {
         return Ok(None);
     }
-    let processed = read_processing::finish(trace, prepared, config, edge_margin)?;
+    let processed = read_processing::finish(trace, prepared, config)?;
     let evidence = read_processing::read_evidence(
         &processed.calls,
         &processed.signal,
         &processed.callability,
         &processed.quality,
         &config.sanger_evidence,
-        edge_margin,
     )?;
     Ok(Some(contributions(&processed.calls, &evidence)))
 }
@@ -535,6 +530,7 @@ mod tests {
             window_size_bases: 10,
             minimum_primary_snr: 3.0,
             minimum_noisy_windows: 2,
+            minimum_noise_sigma: 1.0,
             second_floor: 0.21,
             run_signal: RunSignalParameters {
                 minimum_reads: 40,

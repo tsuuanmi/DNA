@@ -47,24 +47,8 @@ const REASON_ORDER: [EvidenceReason; 3] = [
     MIXED_SUPPORTING_DNA,
 ];
 
-/// Informative calls between a run's bound and a post-repeat edge for the
-/// run to count as bounded before that phase loss (ADR-0076).
-const POST_REPEAT_MINIMUM_CALLS: usize = 2;
-
-/// Largest second-channel share of an edge call its own signal vouches for
-/// (SRS-CALL-017).
-const EDGE_SECOND_SHARE: f64 = 0.10;
-
-/// Largest primary peak width of such a call, as a multiple of the read's
-/// median width: a dye blob is broader than the read's peaks.
-const EDGE_WIDTH_FACTOR: f64 = 1.5;
-
-/// The spacing to each neighbouring call of such a call, as a band of
-/// multiples of the read's median spacing.
-const EDGE_SPACING: (f64, f64) = (0.5, 1.5);
-
 /// Builds one read's core evidence from its Sanger products. A call within
-/// `edge_margin` calls of the trim interval's ends, of a masked call that
+/// `signal_edge_margin` calls of the trim interval's ends, of a masked call that
 /// does not anchor the alignment, or of the read's physical ends is at an
 /// edge of the read's usable signal. The leading calls the signal vouches for
 /// by their base (SRS-CALL-014) are then unmasked, trusted for their base
@@ -85,7 +69,6 @@ pub fn read_evidence(
     callability: &ReadCallability,
     quality: &QualityControlResult,
     config: &SangerEvidenceConfig,
-    edge_margin: usize,
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
     if callability.mask.len() != count {
@@ -160,8 +143,8 @@ pub fn read_evidence(
         })
         .collect::<Result<Vec<_>>>()?;
     let edged = ReadEvidence::new(evidence, start..end, REASON_ORDER.to_vec())?
-        .with_signal_edges(edge_margin);
-    let leading = leading_identity(calls, callability);
+        .with_signal_edges(config.signal_edge_margin);
+    let leading = leading_identity(calls, callability, config);
     let mut evidence = edged.calls().to_vec();
     for &index in &leading {
         let call = &mut evidence[index];
@@ -184,14 +167,14 @@ pub fn read_evidence(
         };
     }
     let informative = leading.first().map_or(start, |&first| first.min(start))..end;
-    let mut lifted = edge_identity(calls, &signal.loci, &evidence, &informative, edge_margin);
+    let mut lifted = edge_identity(calls, &signal.loci, &evidence, &informative, config);
     lifted.extend(start_identity(
         calls,
         &signal.loci,
         &evidence,
         &informative,
         callability.callable_start_0based,
-        edge_margin,
+        config,
     ));
     lifted.sort_unstable();
     lifted.dedup();
@@ -214,7 +197,7 @@ pub fn read_evidence(
                     .is_some_and(|segment| segment.after_repeat)
         })
         .collect::<Vec<_>>();
-    mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, edge_margin);
+    mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, config);
     Ok(ReadEvidence::new(
         evidence,
         informative,
@@ -227,7 +210,7 @@ pub fn read_evidence(
 /// scored and counting towards runs, bounded on both sides by calls that
 /// show a run's end and read another base, where on each side either more
 /// than `margin` informative calls separate the bound from the nearest
-/// uninformative call, or at least [`POST_REPEAT_MINIMUM_CALLS`] do and that
+/// uninformative call, or at least `post_repeat_minimum_calls` do and that
 /// call is masked after a repeat run (`after_repeat`), while some call of the
 /// run or its bounds is at a signal edge or within `margin` of the read's
 /// ends. The core trusts such a run's length; it takes the run from the read's
@@ -236,8 +219,9 @@ fn mark_post_repeat_runs(
     calls: &mut [CallEvidence],
     informative: &std::ops::Range<usize>,
     after_repeat: &[bool],
-    margin: usize,
+    config: &SangerEvidenceConfig,
 ) {
+    let margin = config.post_repeat_margin;
     let count = calls.len();
     let carries = |index: usize| {
         informative.contains(&index) && !matches!(calls[index].placement, Placement::Unresolved(_))
@@ -264,7 +248,7 @@ fn mark_post_repeat_runs(
     };
     let side = |run: usize, edge: Option<usize>| {
         run > margin
-            || (run >= POST_REPEAT_MINIMUM_CALLS
+            || (run >= config.post_repeat_minimum_calls
                 && edge.is_some_and(|edge| after_repeat.get(edge).copied().unwrap_or(false)))
     };
     let mut marked = Vec::new();
@@ -316,12 +300,17 @@ fn primary_height(call: &crate::model::basecalls::BaseCall) -> Option<i32> {
 
 /// The calls before the read's callable span that its signal vouches for by
 /// their base: a canonical primary with no other qualifying channel and a
-/// primary peak at least the read's median primary peak. A read starts with
+/// primary peak at least `leading_height_fraction` of the read's median
+/// primary peak. A read starts with
 /// noise its masked stretch only leaves where a whole window is clean, so
 /// strong, unambiguous calls inside that stretch are masked with it; the
 /// rule judges each call against the read itself, never a position. Such a
 /// call shows its base only, not a run's length or end.
-fn leading_identity(calls: &BaseCalls, callability: &ReadCallability) -> Vec<usize> {
+fn leading_identity(
+    calls: &BaseCalls,
+    callability: &ReadCallability,
+    config: &SangerEvidenceConfig,
+) -> Vec<usize> {
     let mut heights = calls
         .calls
         .iter()
@@ -337,7 +326,9 @@ fn leading_identity(calls: &BaseCalls, callability: &ReadCallability) -> Vec<usi
             let call = &calls.calls[index];
             callability.mask.get(index).copied().flatten().is_some()
                 && call.qualifying_channels.len() == 1
-                && primary_height(call).is_some_and(|height| height >= median)
+                && primary_height(call).is_some_and(|height| {
+                    f64::from(height) >= config.leading_height_fraction * f64::from(median)
+                })
         })
         .collect()
 }
@@ -345,12 +336,14 @@ fn leading_identity(calls: &BaseCalls, callability: &ReadCallability) -> Vec<usi
 /// The calls at a signal edge of the read's informative ends that their own
 /// signal vouches for by their base (SRS-CALL-017): scored, with a canonical
 /// primary and no other qualifying channel, a primary peak at least the read's
-/// median, a second-channel share below [`EDGE_SECOND_SHARE`], a primary peak
-/// no wider than [`EDGE_WIDTH_FACTOR`] times the read's median width, and a
-/// spacing to each neighbour within [`EDGE_SPACING`] of the read's median.
-/// Only calls within `margin` of an informative end qualify, with every call
-/// between them and that end and every call within `margin` on their inner
-/// side scored, and no call within `margin` beyond that end masked where the
+/// median times `edge_height_fraction`, a second-channel share below
+/// `edge_second_share`, a primary peak no wider than `edge_width_factor`
+/// times the read's median width, and a spacing to each neighbour within
+/// `edge_spacing_minimum` to `edge_spacing_maximum` times the read's median.
+/// Only calls within `edge_identity_margin` of an informative end qualify,
+/// with every call between them and that end and every call within that
+/// margin on their inner side scored, and no call within it beyond that end
+/// masked where the
 /// read loses phase (`dephased_signal`, `post_homopolymer`). The rule judges
 /// each call against its own read only, never a position.
 fn edge_identity(
@@ -358,8 +351,9 @@ fn edge_identity(
     loci: &[crate::model::locus_evidence::LocusEvidence],
     evidence: &[CallEvidence],
     informative: &std::ops::Range<usize>,
-    margin: usize,
+    config: &SangerEvidenceConfig,
 ) -> Vec<usize> {
+    let margin = config.edge_identity_margin;
     let count = evidence.len();
     let median = |mut values: Vec<f64>| {
         values.sort_by(f64::total_cmp);
@@ -422,7 +416,7 @@ fn edge_identity(
             return true;
         };
         let gap = right.locus_position_0based as f64 - left.locus_position_0based as f64;
-        gap >= EDGE_SPACING.0 * spacing && gap <= EDGE_SPACING.1 * spacing
+        gap >= config.edge_spacing_minimum * spacing && gap <= config.edge_spacing_maximum * spacing
     };
     informative
         .clone()
@@ -457,42 +451,40 @@ fn edge_identity(
                     .calls
                     .get(index)
                     .and_then(primary_height)
-                    .is_some_and(|primary| f64::from(primary) >= height)
+                    .is_some_and(|primary| {
+                        f64::from(primary) >= config.edge_height_fraction * height
+                    })
                 && call
                     .second
-                    .is_none_or(|second| second.share < EDGE_SECOND_SHARE)
-                && width(index).is_some_and(|width| width <= EDGE_WIDTH_FACTOR * median_width)
+                    .is_none_or(|second| second.share < config.edge_second_share)
+                && width(index)
+                    .is_some_and(|width| width <= config.edge_width_factor * median_width)
                 && (index == 0 || spaced(index, index - 1))
                 && (index + 1 >= count || spaced(index, index + 1))
         })
         .collect()
 }
 
-/// Calls of the read's start whose norms are the start's own: the first
-/// in-phase calls of the callable span (SRS-CALL-018).
-const START_NORM_CALLS: usize = 30;
-
-/// Smallest primary peak of a start call, as a share of the start's median:
-/// a read's signal rises over its first calls.
-const START_HEIGHT_SHARE: f64 = 0.5;
-
 /// The calls at a signal edge of the read's start that their own signal
-/// vouches for by their base (SRS-CALL-018). The start reaches `margin` calls
-/// past the callable span's start; its masked calls before the callable span
+/// vouches for by their base (SRS-CALL-018). The start reaches
+/// `start_identity_margin` calls past the callable span's start; its masked calls before the callable span
 /// are start noise, so a call may sit behind them, but not behind a masked
 /// call of the callable span. A call qualifies under the rule of
 /// [`edge_identity`] judged against the start's own norms (the median primary
-/// peak, width, and spacing of its first [`START_NORM_CALLS`] in-phase,
-/// single-channel calls), with every call within `margin` on its inner side
-/// scored and not reading the base of the call before it.
+/// peak, width, and spacing of its first `start_norm_calls` in-phase,
+/// single-channel calls; a primary peak of at least `start_height_fraction` of
+/// that median, since a read's signal rises over its first calls), with every
+/// call within the margin on its inner side scored and not reading the base
+/// of the call before it.
 fn start_identity(
     calls: &BaseCalls,
     loci: &[crate::model::locus_evidence::LocusEvidence],
     evidence: &[CallEvidence],
     informative: &std::ops::Range<usize>,
     callable_start: usize,
-    margin: usize,
+    config: &SangerEvidenceConfig,
 ) -> Vec<usize> {
+    let margin = config.start_identity_margin;
     let count = evidence.len();
     let median = |mut values: Vec<f64>| {
         values.sort_by(f64::total_cmp);
@@ -512,7 +504,7 @@ fn start_identity(
     };
     let norm = (callable_start..count)
         .filter(|&index| evidence[index].placement == Placement::Scored && single(index))
-        .take(START_NORM_CALLS)
+        .take(config.start_norm_calls)
         .collect::<Vec<_>>();
     let (Some(height), Some(median_width), Some(spacing)) = (
         median(
@@ -542,7 +534,7 @@ fn start_identity(
             return true;
         };
         let gap = right.locus_position_0based as f64 - left.locus_position_0based as f64;
-        gap >= EDGE_SPACING.0 * spacing && gap <= EDGE_SPACING.1 * spacing
+        gap >= config.edge_spacing_minimum * spacing && gap <= config.edge_spacing_maximum * spacing
     };
     let end = (callable_start + margin).min(count);
     (informative.start..end)
@@ -564,11 +556,14 @@ fn start_identity(
                     .calls
                     .get(index)
                     .and_then(primary_height)
-                    .is_some_and(|primary| f64::from(primary) >= START_HEIGHT_SHARE * height)
+                    .is_some_and(|primary| {
+                        f64::from(primary) >= config.start_height_fraction * height
+                    })
                 && call
                     .second
-                    .is_none_or(|second| second.share < EDGE_SECOND_SHARE)
-                && width(index).is_some_and(|width| width <= EDGE_WIDTH_FACTOR * median_width)
+                    .is_none_or(|second| second.share < config.edge_second_share)
+                && width(index)
+                    .is_some_and(|width| width <= config.edge_width_factor * median_width)
                 && (index == 0 || spaced(index, index - 1))
                 && (index + 1 >= count || spaced(index, index + 1))
         })
@@ -635,10 +630,24 @@ mod tests {
 
     use super::*;
 
-    fn config() -> SangerEvidenceConfig {
+    /// The evidence settings with every read-edge margin `margin`.
+    fn config(margin: usize) -> SangerEvidenceConfig {
         SangerEvidenceConfig {
             minimum_peak_height: 150,
             relative_quality_threshold: 30,
+            signal_edge_margin: margin,
+            leading_height_fraction: 1.0,
+            post_repeat_margin: margin,
+            post_repeat_minimum_calls: 2,
+            edge_identity_margin: margin,
+            edge_height_fraction: 1.0,
+            edge_second_share: 0.10,
+            edge_width_factor: 1.5,
+            edge_spacing_minimum: 0.5,
+            edge_spacing_maximum: 1.5,
+            start_identity_margin: margin,
+            start_norm_calls: 30,
+            start_height_fraction: 0.5,
         }
     }
 
@@ -739,7 +748,7 @@ mod tests {
     #[test]
     fn raises_peak_and_quality_vetoes_at_their_boundaries() -> Result<()> {
         let (calls, signal, callability, quality) = products(&[149, 150, 150], &[31, 30, 31]);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
         let vetoes = evidence
             .calls()
             .iter()
@@ -765,7 +774,7 @@ mod tests {
     fn raises_the_mixed_veto_for_substitutions_only() -> Result<()> {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
         calls.calls[0].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
         let call = evidence.calls()[0];
         assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
         assert!(!call.indel.withheld.contains(MIXED_SUPPORTING_DNA));
@@ -795,7 +804,7 @@ mod tests {
         for &(start, end, state, _) in &segments {
             callability.mask[start..end].fill((state != PhaseState::InPhase).then_some(state));
         }
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
         let placements = [0, 7, 12, 17, 22].map(|index| {
             (
                 evidence.calls()[index].placement,
@@ -843,7 +852,7 @@ mod tests {
         callability.callable_start_0based = 4;
         quality.trim_start_0based = 4;
         quality.retained_sequence = "A".repeat(4);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 1)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(1))?;
         let vouched = evidence
             .calls()
             .iter()
@@ -895,7 +904,7 @@ mod tests {
         signal.loci[6].channel_widths = [0, 0, 10, 0];
         quality.trim_end_0based_exclusive = 8;
         quality.retained_sequence = "A".repeat(8);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 2)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(2))?;
         let lifted = evidence
             .calls()
             .iter()
@@ -960,7 +969,7 @@ mod tests {
         callability.callable_start_0based = 4;
         // Call 5 is broader than the start's peaks.
         signal.loci[5].channel_widths = [0, 10, 0, 0];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 2)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(2))?;
         let lifted = (4..8)
             .map(|index| !evidence.calls()[index].identity.edge)
             .collect::<Vec<_>>();
@@ -978,7 +987,7 @@ mod tests {
         calls.calls[0].peaks[2].height = 50;
         calls.calls[0].peaks[1].height = 10;
         calls.calls[0].peaks[3].height = 0;
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(), 0)?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
         assert_eq!(
             evidence.calls()[0].second,
             Some(SecondBase {
@@ -1021,7 +1030,7 @@ mod tests {
         let flags = (0..count)
             .map(|index| masked(index) && after_repeat)
             .collect::<Vec<_>>();
-        mark_post_repeat_runs(&mut calls, &(0..count), &flags, 8);
+        mark_post_repeat_runs(&mut calls, &(0..count), &flags, &config(8));
         calls
             .iter()
             .map(|call| (call.post_repeat.call, call.post_repeat.bound))

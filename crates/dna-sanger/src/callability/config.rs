@@ -29,6 +29,16 @@ pub struct CallabilityConfig {
     pub(crate) repeat_min_length: usize,
     /// Fewest callable calls a read needs to be analyzed.
     pub(crate) minimum_callable_calls: usize,
+    /// Calls after a repeat run that form its prior window.
+    pub(crate) repeat_window_calls: usize,
+    /// Secondary ratio at or above which a position carries a double peak.
+    pub(crate) double_peak_ratio: f64,
+    /// Relative spacing deviation at or above which a position is a spacing
+    /// defect.
+    pub(crate) spacing_defect: f64,
+    /// Spacings on each side of a position whose median anchors its spacing
+    /// deviation.
+    pub(crate) spacing_half_window: usize,
 }
 
 /// The `[callability]` section as written in the configuration.
@@ -44,6 +54,10 @@ pub struct RawCallabilityConfig {
     pub(crate) weak_amplitude_fraction: f64,
     pub(crate) repeat_min_length: usize,
     pub(crate) minimum_callable_calls: usize,
+    pub(crate) repeat_window_calls: usize,
+    pub(crate) double_peak_ratio: f64,
+    pub(crate) spacing_defect: f64,
+    pub(crate) spacing_half_window: usize,
 }
 
 impl RawCallabilityConfig {
@@ -99,6 +113,14 @@ impl RawCallabilityConfig {
             )
             .into());
         }
+        if self.repeat_window_calls == 0 || self.spacing_half_window == 0 {
+            return Err(ConfigError::Constraint(
+                "callability.repeat_window_calls and spacing_half_window must be positive",
+            )
+            .into());
+        }
+        bounds::fraction("callability.double_peak_ratio", self.double_peak_ratio)?;
+        bounds::positive_finite("callability.spacing_defect", self.spacing_defect)?;
         Ok(CallabilityConfig {
             window_calls: self.window_calls,
             onset_defect_fraction: self.onset_defect_fraction,
@@ -109,6 +131,10 @@ impl RawCallabilityConfig {
             weak_amplitude_fraction: self.weak_amplitude_fraction,
             repeat_min_length: self.repeat_min_length,
             minimum_callable_calls: self.minimum_callable_calls,
+            repeat_window_calls: self.repeat_window_calls,
+            double_peak_ratio: self.double_peak_ratio,
+            spacing_defect: self.spacing_defect,
+            spacing_half_window: self.spacing_half_window,
         })
     }
 }

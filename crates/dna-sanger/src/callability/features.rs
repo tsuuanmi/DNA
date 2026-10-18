@@ -9,7 +9,6 @@ use crate::signal_processing::round_metric;
 
 /// Half-width, in calls, of the window whose median spacing anchors the
 /// spacing deviation of one position.
-const SPACING_HALF_WINDOW: usize = 8;
 /// Smallest position count the spacing feature handles.
 pub(super) const MINIMUM_POSITIONS: usize = 2;
 
@@ -22,6 +21,7 @@ pub(super) const MINIMUM_POSITIONS: usize = 2;
 pub(super) fn calculate(
     evidence: &[PositionEvidence],
     weak_amplitude_fraction: f64,
+    spacing_half_window: usize,
 ) -> Result<Vec<PositionFeatures>> {
     if evidence.len() < MINIMUM_POSITIONS {
         return Err(CallabilityError::TooFewPositions {
@@ -60,7 +60,7 @@ pub(super) fn calculate(
                 secondary_channel,
                 dominance,
                 secondary_ratio,
-                spacing_deviation: spacing_deviation(index, &spacings),
+                spacing_deviation: spacing_deviation(index, &spacings, spacing_half_window),
                 weak,
             }
         })
@@ -109,11 +109,9 @@ fn rank(amplitudes: [f64; 4]) -> (Option<usize>, Option<usize>) {
 /// Relative deviation of the position's neighbouring spacings from the median
 /// spacing of the surrounding window; zero when the median carries no
 /// information.
-fn spacing_deviation(index: usize, spacings: &[f64]) -> f64 {
-    let window_start = index.saturating_sub(SPACING_HALF_WINDOW);
-    let window_end = index
-        .saturating_add(SPACING_HALF_WINDOW)
-        .min(spacings.len());
+fn spacing_deviation(index: usize, spacings: &[f64], half_window: usize) -> f64 {
+    let window_start = index.saturating_sub(half_window);
+    let window_end = index.saturating_add(half_window).min(spacings.len());
     let mut window = spacings[window_start..window_end].to_vec();
     window.sort_by(f64::total_cmp);
     let middle = window.len() / 2;
@@ -165,6 +163,7 @@ mod tests {
                 position([40.0, 0.0, 0.0, 0.0], 46),
             ],
             0.1,
+            8,
         )?;
         assert_eq!(features[0].dominance, 0.915_094);
         assert_eq!(features[0].secondary_ratio, 0.03);
@@ -186,7 +185,7 @@ mod tests {
             .iter()
             .map(|&coordinate| position([1_000.0, 0.0, 0.0, 0.0], coordinate))
             .collect::<Vec<_>>();
-        let features = calculate(&evidence, 0.1)?;
+        let features = calculate(&evidence, 0.1, 8)?;
         assert_eq!(features[0].spacing_deviation, 0.0);
         assert_eq!(features[5].spacing_deviation, 1.5);
         assert_eq!(features[6].spacing_deviation, 1.5);
@@ -197,7 +196,7 @@ mod tests {
     #[test]
     fn rejects_fewer_than_two_positions() {
         assert!(matches!(
-            calculate(&[position([1.0, 0.0, 0.0, 0.0], 0)], 0.1),
+            calculate(&[position([1.0, 0.0, 0.0, 0.0], 0)], 0.1, 8),
             Err(Error::Callability(CallabilityError::TooFewPositions {
                 positions: 1,
                 minimum: 2

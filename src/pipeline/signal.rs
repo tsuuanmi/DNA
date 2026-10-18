@@ -49,11 +49,10 @@ fn signal(
 
     let stage = tracing::info_span!("run_signal").entered();
     let stage_started = Instant::now();
-    let edge_margin = inputs.config.core.variant_calling.read_end_margin;
     let mut contributions = Vec::with_capacity(inputs.traces.len());
     let mut rejected = 0;
     for trace in &inputs.traces {
-        if let Some(read) = run_signal::read(trace, &inputs.config.sanger, edge_margin)? {
+        if let Some(read) = run_signal::read(trace, &inputs.config.sanger)? {
             contributions.push(read);
         } else {
             rejected += 1;
