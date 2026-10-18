@@ -17,6 +17,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The review summary counts positions (`review` plugin 4, rules version 4;
+  `dna.review/v1` revised in place with one summary object):
+  `summary.positions.reportable`, the profile's reportable positions, and
+  `summary.positions.check`, those a `check` item holds. A review tool can
+  show a sample as the few positions to look at and leave the rest as
+  decided. On development panel v5 a sample's median is 2 positions to check,
+  of 749.
 - The evaluation harness measures the review workload: per sample its
   check items, positions to review in windows of `--review-window`
   positions (default 10), whether it is clear, and the `haplotype_lod`

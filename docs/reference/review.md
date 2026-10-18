@@ -66,6 +66,10 @@ target still fails the command without output.
   - `items`, `checks`, `variants`: item counts;
   - `labels`: for every label, the number of items carrying it, zeros
     included, in the label order below;
+  - `positions`: `reportable`, the positions of the profile's reportable
+    regions; `check`, those a `check` item holds, which a reviewer looks at
+    (rules version 4). Every other reportable position is DNA's own decision
+    or outside every read, as its items say;
   - `clear`: `status` is `called` and no item is a `check`.
 
 ## Items
@@ -145,7 +149,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 3)
+## Labels (rules version 4)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
