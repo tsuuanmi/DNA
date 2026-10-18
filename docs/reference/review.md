@@ -158,7 +158,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 8)
+## Labels (rules version 9)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -210,7 +210,12 @@ exemption lifts the margin (ADR-0076).
   each of them, its share, and its threshold.
 - `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
   runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
-  not callable.
+  not callable. A run whose length a profile report convention leaves
+  unrecorded is not listed (rules version 9): a `run_length` convention
+  labelled `not_recorded` whose window the site overlaps, of the run's base,
+  with the run at least its `minimum_run` long. The reviewers do not record
+  that length, so its estimate leaves nothing to assure (on the human
+  profile, the HVS-I C run of ten or more that 16189C creates).
 - `undecided`: the site is `unresolved` or `contested` (a tie, even one the
   consensus settled on the reference and whichever strands the tied reads are
   on), or its call holds an `N`; or a gap is covered but not callable.
