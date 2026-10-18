@@ -22,6 +22,7 @@ Accepted/Implemented -> Superseded
 - [PROP-0004 — Review triage](0004-review-triage.md) — **Accepted**; DNA's canonical per-sample review list (`dna.review/v1`): the positions a reviewer should look at, with evidence-based labels and no conclusion, for the laboratory's review tool. The review list is implemented (`dna review`, version 1); watched positions are pending.
 - [PROP-0005 — Evaluation method and fast feedback loop](0005-evaluation-feedback-loop.md) — **Draft**; labels, metrics, fixed test panels drawn from about 100,000 reviewed samples, and a cached evidence → rules → compare loop for validating triage rules. Harness v0 (`dna-eval`, ADR-0075) is implemented.
 - [PROP-0008 — One responsibility per pipeline step](0008-pipeline-responsibilities.md) — **Accepted**; the modality decides trust as per-call verdicts, the core asserts only what a placed read shows whole, the consensus votes stretch sequences on bounded reads, and the core splits into align, call, sample, and consensus crates.
+- [PROP-0009 — Run background for second-channel signal](0009-run-background.md) — **Draft**; the Sanger mixed verdict and `possible_heteroplasmy` judge a second channel against its own run's background, keyed by the read's own 5-mer context, given as a recorded `dna.background/v1` input; fixed thresholds stay the fallback.
 
 ## Implemented proposals
 
