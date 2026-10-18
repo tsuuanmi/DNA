@@ -17,6 +17,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval run --current-since <YYYY-MM>` reports the current data first:
+  the review workload of the samples whose batch date is in or after that
+  month, and with a baseline their changes of status class per measure.
+
 - The review summary counts positions (`review` plugin 4, rules version 4;
   `dna.review/v1` revised in place with one summary object):
   `summary.positions.reportable`, the profile's reportable positions, and

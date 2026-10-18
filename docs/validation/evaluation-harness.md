@@ -15,7 +15,7 @@ cargo run --release -p dna-eval -- run \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
   --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv] \
-  [--review-window <bp>] [--forced-windows <file>]
+  [--review-window <bp>] [--forced-windows <file>] [--current-since <YYYY-MM>]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -518,6 +518,13 @@ review, the samples with an unreviewed difference overall, by region, and by
 batch month (from the manifest's optional `batch_date` column), the clear samples (no check item), the windows with the most
 unreviewed differences, the effect of the forced windows, and with a baseline
 that reports the workload, its values on the same samples.
+
+`--current-since <YYYY-MM>` names the first batch month of the current data:
+the samples whose `batch_date` is in or after it. Recent batches come first,
+since old batches may predate the laboratory's current practice. The
+summary then reports the review workload on the current data before the
+whole panel, and with a baseline, the changes of status class per measure on
+the current data after those of the whole panel. Without it, nothing changes.
 
 ## Estimates
 
