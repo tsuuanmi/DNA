@@ -451,6 +451,56 @@ impl ReadObservations {
         }
         Some((left, chars, right))
     }
+
+    /// The bases the read shows cleanly from one edge of `first..=last`
+    /// inwards, in reference order: from `first` when `from_end` is false,
+    /// from `last` otherwise, one clean canonical call per position, until a
+    /// position it does not read cleanly or an insertion.
+    pub(super) fn clean_edge(
+        &self,
+        first: usize,
+        last: usize,
+        length: usize,
+        from_end: bool,
+    ) -> String {
+        let (start, stop) = if from_end {
+            (last, first)
+        } else {
+            (first, last)
+        };
+        let mut bases = Vec::new();
+        let mut position = start;
+        while let Some(observation) = self.positions.get(&position) {
+            let [char] = observation.chars.as_slice() else {
+                break;
+            };
+            if !observation.clean || !char.clean() || !canonical(char.base) {
+                break;
+            }
+            bases.push(char.base);
+            if position == stop {
+                break;
+            }
+            let (next, junction) = if from_end {
+                let next = (position + length - 1) % length;
+                (next, next)
+            } else {
+                ((position + 1) % length, position)
+            };
+            if self
+                .junctions
+                .get(&junction)
+                .is_some_and(|junction| !junction.chars.is_empty())
+            {
+                break;
+            }
+            position = next;
+        }
+        if from_end {
+            bases.reverse();
+        }
+        bases.into_iter().collect()
+    }
 }
 
 const fn canonical(base: char) -> bool {

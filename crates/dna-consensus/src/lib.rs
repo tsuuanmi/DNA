@@ -567,7 +567,48 @@ fn decide_stretch(
         .map(|read| (read.name, read.whole().then(|| ReadRuns::bases(&read.runs))))
         .collect::<Vec<_>>();
     let composition = if whole.iter().any(|(_, bases)| bases.is_some()) {
-        decide(&whole, &reference_composition)
+        let composition = decide(&whole, &reference_composition);
+        // A read that reads only an edge of the stretch cleanly, covering the
+        // stretch or not, still shows the bases there: when their runs
+        // contradict the composition's first or last runs, the read opposes
+        // it, with an observation no other read shares.
+        let contradicting = composition.value.as_deref().map_or_else(Vec::new, |value| {
+            observed
+                .iter()
+                .filter(|read| {
+                    !whole
+                        .iter()
+                        .any(|(name, bases)| *name == read.name && bases.is_some())
+                })
+                .filter(|read| {
+                    let edge = |from_end| {
+                        runs_of(read.clean_edge(first, last, length, from_end).chars())
+                            .into_iter()
+                            .map(|(base, _)| base)
+                            .collect::<String>()
+                    };
+                    let (prefix, suffix) = (edge(false), edge(true));
+                    (!prefix.is_empty() && !value.starts_with(&prefix))
+                        || (!suffix.is_empty() && !value.ends_with(&suffix))
+                })
+                .map(|read| read.name.as_str())
+                .collect::<Vec<_>>()
+        });
+        if contradicting.is_empty() {
+            composition
+        } else {
+            let mut observations = whole
+                .iter()
+                .filter(|(name, _)| !contradicting.contains(name))
+                .cloned()
+                .collect::<Vec<_>>();
+            observations.extend(
+                contradicting
+                    .iter()
+                    .map(|name| (*name, Some(format!("~{name}")))),
+            );
+            decide(&observations, &reference_composition)
+        }
     } else {
         let mut joined: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
         for start in &reads {
@@ -1242,7 +1283,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 7,
+    version: 8,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -1773,6 +1814,28 @@ mod tests {
         assert_eq!(decision.value.as_deref(), Some("CCCCCCCCCC"));
         assert_eq!(decision.runs, [run('C', 10, RunEvidence::ReferenceFrame)]);
         assert_eq!(decision.supporting, ["f", "r"]);
+    }
+
+    #[test]
+    fn a_read_reading_only_the_exit_cleanly_opposes_a_run_that_swallows_it() {
+        // The forward read reads the whole stretch 3-17 as `AAAA` and eleven
+        // C, its exit beyond 17 anchored: the tract swallows the A at 17. The
+        // reverse read reads only the exit cleanly, `TCCCCA` at 12-17, in
+        // phase: it contradicts the composition's last runs.
+        let forward = rows(
+            "f",
+            0,
+            TRACT,
+            "GTCAAAACCCCCCCCCCCTG",
+            "ccccccccccccccccccmm",
+        );
+        let reverse = rows("r", 0, TRACT, TRACT, "mmmmmmmmmmmmcccccccc");
+        let decision = decide_stretch(&[forward.clone(), reverse], 3, 17, TRACT.as_bytes());
+        assert_ne!(decision.value.as_deref(), Some("AAAACCCCCCCCCCC"));
+        assert_ne!(decision.state, SiteState::Called);
+        // Alone, the forward read decides the stretch.
+        let alone = decide_stretch(&[forward], 3, 17, TRACT.as_bytes());
+        assert_eq!(alone.value.as_deref(), Some("AAAACCCCCCCCCCC"));
     }
 
     #[test]
