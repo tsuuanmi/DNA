@@ -158,7 +158,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 7)
+## Labels (rules version 8)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -179,6 +179,17 @@ exemption lifts the margin (ADR-0076).
   each call inside the item, must be A/C/G/T without a modality reason
   against its base, and either anchoring or scored and trusted or exempt.
   One label per such read. Opposing reads are `strands_disagree`'s.
+  A read also disagrees through one end of an item it does not show whole
+  (rules version 8): at a decided item without a length change, from the
+  end its strand reaches first (a forward read's first position, a reverse
+  read's last), every observation `reference` or `alternate` with a call of
+  full trust, up to where the read has read `review.phase_run` equal bases
+  in a row, one of those bases differs from the decision at its position.
+  The `sequence` is then that end, in reference order. The far end of such a
+  run is a length question that dephasing leaves open, so it is not
+  compared. This catches a run whose exit base one read's dephased tail
+  decided while the other strand reads the exit cleanly in phase (on
+  current development data, `16194C` beside a clean reverse `A`).
 - `possible_heteroplasmy` `{position, base, reads: [{read, strand, share,
   threshold, calls?}]}`: at one position, a read reads it cleanly when its
   observation is `reference` or `alternate`, its call is unmasked and trusted
