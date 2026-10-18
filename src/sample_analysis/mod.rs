@@ -286,6 +286,7 @@ pub(crate) fn aggregate(placed: &PlacedReads, config: &Config) -> Result<SampleE
         &placed.called.iter().collect::<Vec<_>>(),
         &rejected,
         &config.core.sample_reconciliation,
+        &config.core.variant_calling,
     )
 }
 

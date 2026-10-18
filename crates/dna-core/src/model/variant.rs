@@ -68,7 +68,7 @@ pub struct Variant {
 
 /// Stable reason a primary-difference candidate was not reportable.
 ///
-/// The core owns the first seven reasons. Every other reason comes from the
+/// The core owns the first eight reasons. Every other reason comes from the
 /// read's modality evidence and is reported verbatim; the core never
 /// interprets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +81,9 @@ pub enum VariantExclusionReason {
     OutsideTargetRegion,
     /// A mapped call lies within the read-end margin of an uninformative call.
     ReadEnd,
+    /// An insertion or deletion maps a call its modality vouches for by its
+    /// base only: such a call places no indel.
+    BaseOnly,
     /// A run-length edit at an end of the run the read does not resolve.
     RunBoundary,
     /// A mapped call is unresolved (`N`): a deletion it flanks, or an edit
@@ -101,6 +104,7 @@ impl VariantExclusionReason {
             Self::IndelLengthExceeded => "indel_length_exceeded",
             Self::OutsideTargetRegion => "outside_target_region",
             Self::ReadEnd => "read_end",
+            Self::BaseOnly => "base_only",
             Self::RunBoundary => "run_boundary",
             Self::UnresolvedFlank => "unresolved_flank",
             Self::PlacementConflict => "placement_conflict",
@@ -122,6 +126,28 @@ pub(crate) struct ExcludedVariant {
     pub(crate) position_1based: Option<usize>,
     pub(crate) kind: VariantKind,
     pub(crate) reasons: Vec<VariantExclusionReason>,
+    /// The 0-based reference positions the excluded call leaves undecided:
+    /// a substitution's position, a deletion's deleted positions, both
+    /// positions beside an insertion's junction (SRS-VAR-019).
+    pub(crate) undecided: Vec<usize>,
+}
+
+impl ExcludedVariant {
+    /// The exclusion of an observed `variant` for `reasons`.
+    pub(crate) fn of(variant: &Variant, reasons: Vec<VariantExclusionReason>) -> Self {
+        let anchor = variant.position_1based.saturating_sub(1);
+        Self {
+            contig: variant.contig.clone(),
+            position_1based: Some(variant.position_1based),
+            kind: variant.kind,
+            reasons,
+            undecided: match variant.kind {
+                VariantKind::Snv => vec![anchor],
+                VariantKind::Del => (anchor + 1..anchor + variant.reference.len()).collect(),
+                VariantKind::Ins => vec![anchor, anchor + 1],
+            },
+        }
+    }
 }
 
 /// One normalized canonical variant observed before configured eligibility filtering.
@@ -170,12 +196,11 @@ impl VariantCallingResult {
             })
             .collect::<Vec<_>>();
         let mut excluded = self.excluded;
-        excluded.extend(self.reported.into_iter().map(|variant| ExcludedVariant {
-            contig: variant.contig,
-            position_1based: Some(variant.position_1based),
-            kind: variant.kind,
-            reasons: vec![reason],
-        }));
+        excluded.extend(
+            self.reported
+                .iter()
+                .map(|variant| ExcludedVariant::of(variant, vec![reason])),
+        );
         Self {
             reported: Vec::new(),
             observed,
@@ -222,6 +247,7 @@ mod tests {
                 "outside_target_region",
             ),
             (VariantExclusionReason::ReadEnd, "read_end"),
+            (VariantExclusionReason::BaseOnly, "base_only"),
             (VariantExclusionReason::RunBoundary, "run_boundary"),
             (VariantExclusionReason::UnresolvedFlank, "unresolved_flank"),
             (

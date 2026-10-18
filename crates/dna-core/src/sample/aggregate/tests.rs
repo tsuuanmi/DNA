@@ -38,7 +38,15 @@ fn call(base: char, profile: Option<[f64; 4]>) -> CallEvidence {
 
 /// Runs aggregation over owned reads with no rejected read.
 fn run(reads: &[CalledRead]) -> Result<SampleEvidence> {
-    aggregate(&reads.iter().collect::<Vec<_>>(), &[], &sample_config())
+    aggregate(
+        &reads.iter().collect::<Vec<_>>(),
+        &[],
+        &sample_config(),
+        &VariantCallingConfig {
+            max_indel_length: 50,
+            read_end_margin: 0,
+        },
+    )
 }
 
 fn observation(
@@ -135,6 +143,33 @@ fn snv(position_1based: usize, reference: &str, alternate: &str) -> Variant {
             reference_position_0based: Some(position_1based - 1),
         }],
     }
+}
+
+#[test]
+fn overlap_agreement_compares_only_bases_the_core_trusts() -> TestResult {
+    let read = |name: &str| {
+        observation(
+            name,
+            "reference",
+            "config",
+            Orientation::Forward,
+            vec![column('G', 'A', Some(0), 72)],
+            vec![snv(73, "A", "G")],
+        )
+    };
+    let trusted = read("a");
+    let mut weak = read("b");
+    let mut vetoed = weak.evidence.calls()[0];
+    vetoed
+        .identity
+        .withheld
+        .insert(EvidenceReason::new("peak_below_minimum"))?;
+    weak.evidence = weak.evidence.with_call(0, vetoed);
+    let evidence = run(&[trusted, weak])?;
+    assert_eq!(evidence.overlaps.len(), 1);
+    assert_eq!(evidence.overlaps[0].shared_positions, 1);
+    assert_eq!(evidence.overlaps[0].comparable_bases, 0);
+    Ok(())
 }
 
 #[test]

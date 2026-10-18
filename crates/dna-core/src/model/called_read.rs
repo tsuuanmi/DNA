@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::model::alignment::{Alignment, ReferenceSegment};
-use crate::model::variant::{VariantCallingResult, VariantKind};
+use crate::model::variant::{ExcludedVariant, VariantCallingResult};
 use dna_kernel::read_evidence::ReadEvidence;
 
 /// Modality-neutral products of one independently placed read.
@@ -38,19 +38,18 @@ impl CalledRead {
     /// there (SRS-VAR-019); the call workflow applies this to its records.
     #[must_use]
     pub fn without_excluded_positions(mut self) -> Self {
-        let mut excluded = BTreeSet::new();
+        // Every observed variant excluded from reporting, and every candidate
+        // excluded before it could be observed (an unresolved allele, an indel
+        // no flank reads).
+        let mut excluded = self
+            .variants
+            .excluded
+            .iter()
+            .flat_map(|candidate| candidate.undecided.iter().copied())
+            .collect::<BTreeSet<_>>();
         for observed in &self.variants.observed {
-            if observed.exclusion_reasons.is_empty() {
-                continue;
-            }
-            let variant = &observed.variant;
-            let anchor = variant.position_1based.saturating_sub(1);
-            match variant.kind {
-                VariantKind::Snv => {
-                    excluded.insert(anchor);
-                }
-                VariantKind::Del => excluded.extend(anchor + 1..anchor + variant.reference.len()),
-                VariantKind::Ins => excluded.extend([anchor, anchor + 1]),
+            if !observed.exclusion_reasons.is_empty() {
+                excluded.extend(ExcludedVariant::of(&observed.variant, Vec::new()).undecided);
             }
         }
         self.alignment.callable_segments = self
@@ -89,7 +88,7 @@ impl CalledRead {
 mod tests {
     use super::*;
     use crate::alignment::{AlignmentConfig, align_best};
-    use crate::model::variant::{ObservedVariant, Variant, VariantExclusionReason};
+    use crate::model::variant::{ObservedVariant, Variant, VariantExclusionReason, VariantKind};
     use dna_kernel::model::reference::{Reference, ReferenceTopology};
 
     fn excluded(

@@ -14,6 +14,12 @@ pub enum EvidenceError {
         /// Call count.
         calls: usize,
     },
+    /// A verdict was given more reasons than it can hold.
+    #[error("a verdict holds at most {maximum} reasons")]
+    TooManyReasons {
+        /// Largest number of reasons one verdict holds.
+        maximum: usize,
+    },
     /// A call's verdict holds a reason the read's reason order does not
     /// list.
     #[error("call {index} holds an undeclared reason")]

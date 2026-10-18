@@ -126,21 +126,21 @@ pub fn read_evidence(
             // Peak floor and relative quality withhold the base and an
             // indel; mixed signal withholds the base only.
             if highest_peak < config.minimum_peak_height {
-                evidence.identity.withheld.insert(PEAK_BELOW_MINIMUM);
-                evidence.indel.withheld.insert(PEAK_BELOW_MINIMUM);
+                evidence.identity.withheld.insert(PEAK_BELOW_MINIMUM)?;
+                evidence.indel.withheld.insert(PEAK_BELOW_MINIMUM)?;
             }
             if score.relative_quality_score <= config.relative_quality_threshold {
                 evidence
                     .identity
                     .withheld
-                    .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD);
+                    .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
                 evidence
                     .indel
                     .withheld
-                    .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD);
+                    .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
             }
             if call.qualifying_channels.len() > 1 {
-                evidence.identity.withheld.insert(MIXED_SUPPORTING_DNA);
+                evidence.identity.withheld.insert(MIXED_SUPPORTING_DNA)?;
             }
             Ok(match placement(callability, index) {
                 Some(placement) => evidence.masked(placement),
@@ -156,7 +156,7 @@ pub fn read_evidence(
         let call = &mut evidence[index];
         let mut withheld = Reasons::default();
         if call.identity.withheld.contains(PEAK_BELOW_MINIMUM) {
-            withheld.insert(PEAK_BELOW_MINIMUM);
+            withheld.insert(PEAK_BELOW_MINIMUM)?;
         }
         *call = CallEvidence {
             placement: Placement::Scored,
@@ -165,7 +165,7 @@ pub fn read_evidence(
                 withheld,
             },
             indel: Verdict {
-                edge: true,
+                edge: false,
                 withheld,
             },
             bound: Bound::Withheld,
@@ -583,7 +583,7 @@ mod tests {
             [true, false, false, true, false, false, false, false]
         );
         let first = evidence.calls()[0];
-        assert!(first.placement == Placement::Scored && !first.identity.edge && first.indel.edge);
+        assert!(first.placement == Placement::Scored && !first.identity.edge && !first.indel.edge);
         assert!(
             !first
                 .identity

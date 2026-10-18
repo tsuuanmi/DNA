@@ -68,6 +68,8 @@ pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CoreConfig) 
         decided.insert(position, (position, decide(&observations, &expected)));
     }
 
+    unplace_unbounded_indels(&mut decided, bases.len());
+
     let mut consensus = Consensus {
         segments: Vec::new(),
         sites: Vec::new(),
@@ -78,6 +80,72 @@ pub fn build(reads: &[&CalledRead], reference: &Reference, config: &CoreConfig) 
         assemble(&piece, &decided, bases, minimum, &mut consensus);
     }
     consensus
+}
+
+/// Leaves undecided every decided site that changes the reference length
+/// while a position beside it is undecided or uncovered, unless the site was
+/// decided by its run structure with every run's length shown by a read
+/// (`in_phase` or `anchored_end`): those reads show the run's bounds
+/// themselves. Otherwise the bases beside an insertion or deletion place
+/// it: inside a repeat they decide which unit changes, so without them the
+/// length change is not placed. Undoing one site can leave another one's
+/// neighbour undecided, so this repeats until nothing changes. `length` is
+/// the reference length; positions wrap.
+fn unplace_unbounded_indels(decided: &mut BTreeMap<usize, (usize, Decision)>, length: usize) {
+    if length == 0 {
+        return;
+    }
+    // The decided base at `position`, `None` when it is undecided.
+    let base_at = |decided: &BTreeMap<usize, (usize, Decision)>, position: usize| {
+        let (&first, (last, decision)) = decided.range(..=position).next_back()?;
+        if *last < position {
+            return None;
+        }
+        let value = decision.value.as_deref()?;
+        // A site of the reference length writes one base per position;
+        // otherwise only its two ends are its own.
+        let base = if value.len() == last - first + 1 {
+            value.chars().nth(position - first)
+        } else if position == first {
+            value.chars().next()
+        } else {
+            value.chars().last()
+        }?;
+        (base != 'N').then_some(base)
+    };
+    loop {
+        let unplaced = decided
+            .iter()
+            .filter(|(first, (last, decision))| {
+                let (first, last) = (**first, *last);
+                let shown = !decision.runs.is_empty()
+                    && decision.runs.iter().all(|run| {
+                        matches!(
+                            run.evidence,
+                            RunEvidence::InPhase | RunEvidence::AnchoredEnd
+                        )
+                    });
+                !shown
+                    && decision
+                        .value
+                        .as_ref()
+                        .is_some_and(|value| value.len() != last - first + 1)
+                    && (base_at(decided, (first + length - 1) % length).is_none()
+                        || base_at(decided, (last + 1) % length).is_none())
+            })
+            .map(|(&first, _)| first)
+            .collect::<Vec<_>>();
+        if unplaced.is_empty() {
+            return;
+        }
+        for first in unplaced {
+            if let Some((_, decision)) = decided.get_mut(&first) {
+                decision.value = None;
+                decision.state = SiteState::Unresolved;
+                decision.runs.clear();
+            }
+        }
+    }
 }
 
 /// How a read shows one end of a run (ADR-0071, ADR-0074).
@@ -1151,7 +1219,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 6,
+    version: 7,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledVariants],
     config_sections: &[],
@@ -1347,10 +1415,9 @@ mod tests {
         let mut read = placed_with("r", REFERENCE, &[5], &[8])?;
         let peak = EvidenceReason::new("peak_below_minimum");
         let mut vetoed = read.evidence.calls()[11];
-        vetoed.identity.withheld.insert(peak);
+        vetoed.identity.withheld.insert(peak)?;
         let mut base_only = read.evidence.calls()[14];
         base_only.bound = dna_kernel::read_evidence::Bound::Withheld;
-        base_only.indel.edge = true;
         read.evidence = read.evidence.with_call(11, vetoed).with_call(14, base_only);
         let observed = observe(&read, &config().variant_calling, REFERENCE.as_bytes());
         let char_at = |position: usize| {
@@ -1373,6 +1440,81 @@ mod tests {
         let only = char_at(14).ok_or("no call at 14")?;
         assert!(only.clean() && !only.unmasked() && !only.resolving());
         Ok(())
+    }
+
+    #[test]
+    fn each_use_of_a_call_reads_its_own_reasons()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use super::observe::observe;
+        // `REFERENCE` with an A deleted after call 10 and a G inserted after
+        // call 20 (0-based reference positions 11 and after 20).
+        let mut sequence = REFERENCE.to_owned();
+        sequence.insert(21, 'G');
+        sequence.remove(11);
+        let mut read = placed("r", &sequence, &[])?;
+        let mixed = EvidenceReason::new("mixed_supporting_dna");
+        let peak = EvidenceReason::new("peak_below_minimum");
+        // Mixed signal on the inserted G withholds its base, not the
+        // insertion; a weak peak beside the deletion withholds that call's
+        // base, not the deletion.
+        let mut inserted = read.evidence.calls()[20];
+        inserted.identity.withheld.insert(mixed)?;
+        let mut flank = read.evidence.calls()[10];
+        flank.identity.withheld.insert(peak)?;
+        flank.indel.withheld.insert(peak)?;
+        read.evidence = read.evidence.with_call(20, inserted).with_call(10, flank);
+        let observed = observe(&read, &config().variant_calling, REFERENCE.as_bytes());
+        assert_eq!(
+            observed.positions.get(&11).map(|deleted| deleted.clean),
+            Some(true)
+        );
+        assert_eq!(
+            observed.positions.get(&10).map(|base| base.clean),
+            Some(false)
+        );
+        let junction = observed
+            .junctions
+            .values()
+            .find(|junction| !junction.chars.is_empty());
+        assert_eq!(junction.map(|junction| junction.clean), Some(true));
+        Ok(())
+    }
+
+    #[test]
+    fn an_indel_with_an_undecided_neighbour_stays_undecided() {
+        let decision = |value: Option<&str>| Decision {
+            value: value.map(Into::into),
+            state: if value.is_some() {
+                SiteState::Called
+            } else {
+                SiteState::Unresolved
+            },
+            supporting: Vec::new(),
+            opposing: Vec::new(),
+            uninformative: Vec::new(),
+            runs: Vec::new(),
+        };
+        // 10 undecided, 11-12 deleted, 13 an A; then 20 a C, 21-22 deleted,
+        // 23 a G.
+        let mut decided = BTreeMap::from([
+            (10, (10, decision(None))),
+            (11, (12, decision(Some("")))),
+            (13, (13, decision(Some("A")))),
+            (20, (20, decision(Some("C")))),
+            (21, (22, decision(Some("")))),
+            (23, (23, decision(Some("G")))),
+        ]);
+        // 29 undecided, 30-31 a CC run lengthened to CCC that a read shows
+        // in phase: its reads show the run's bounds themselves.
+        let mut shown = decision(Some("CCC"));
+        shown.runs = vec![run('C', 3, RunEvidence::InPhase)];
+        decided.insert(29, (29, decision(None)));
+        decided.insert(30, (31, shown));
+        unplace_unbounded_indels(&mut decided, 100);
+        assert_eq!(decided[&11].1.state, SiteState::Unresolved);
+        assert!(decided[&11].1.value.is_none());
+        assert_eq!(decided[&21].1.value.as_deref(), Some(""));
+        assert_eq!(decided[&30].1.value.as_deref(), Some("CCC"));
     }
 
     fn site_at(consensus: &Consensus, position: usize) -> Option<&ConsensusSite> {

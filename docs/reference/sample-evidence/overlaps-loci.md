@@ -34,7 +34,12 @@ minimum_overlap_agreement = 0.50
 
 DNA intentionally does **not** copy a base-vs-gap scalar match rule.
 Deletions and unresolved symbols remain part of shared coverage but do not enter
-the nucleotide agreement denominator. Insertions and deletions remain explicit in
+the nucleotide agreement denominator, and neither does a base the core does not
+trust: a masked call, a call at an edge of its read's usable signal, or one
+with a modality reason against its base (SRS-SAMPLE-008). A short overlap
+between two read ends, such as HVS-II forward against HVS-I reverse, therefore
+often has too few comparable bases and records
+`comparable_bases_below_minimum`: an expected outcome, not a disagreement. Insertions and deletions remain explicit in
 the existing locus/normalized-variant evidence so future consensus can treat gap
 support as a separate evidence problem.
 

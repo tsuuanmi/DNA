@@ -5,8 +5,11 @@ use std::collections::BTreeMap;
 use crate::model::called_read::CalledRead;
 use crate::model::sample_evidence::{OverlapExclusionReason, ReadOverlapEvidence};
 use crate::sample::SampleReconciliationConfig;
+use crate::variant_calling::VariantCallingConfig;
+use crate::variant_calling::eligibility::ReadEligibility;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::nucleotide::is_canonical;
+use dna_kernel::read_evidence::Placement;
 
 #[derive(Debug, Clone, Copy)]
 struct CoordinateObservation {
@@ -14,14 +17,19 @@ struct CoordinateObservation {
     query_base: Option<char>,
 }
 
-/// Builds the sparse pairwise overlap graph used by later sample reconciliation.
+/// Builds the sparse pairwise overlap graph used by later sample
+/// reconciliation. A read's base at a position is compared only where the
+/// core trusts the call for its base, as variant calling and the consensus
+/// do: scored, clear of the signal edges, and with no modality reason against
+/// its base.
 pub(super) fn assess(
     reads: &[&CalledRead],
     config: &SampleReconciliationConfig,
+    calling: &VariantCallingConfig,
 ) -> Result<Vec<ReadOverlapEvidence>> {
     let coordinates = reads
         .iter()
-        .map(|read| coordinates(read))
+        .map(|read| coordinates(read, calling))
         .collect::<Result<Vec<_>>>()?;
     let mut overlaps = Vec::new();
 
@@ -42,7 +50,17 @@ pub(super) fn assess(
     Ok(overlaps)
 }
 
-fn coordinates(read: &CalledRead) -> Result<BTreeMap<usize, CoordinateObservation>> {
+fn coordinates(
+    read: &CalledRead,
+    calling: &VariantCallingConfig,
+) -> Result<BTreeMap<usize, CoordinateObservation>> {
+    let eligibility = ReadEligibility::new(&read.evidence, calling);
+    let shows_base = |call: usize| {
+        eligibility.trusted(call)
+            && read.evidence.calls().get(call).is_some_and(|evidence| {
+                evidence.placement == Placement::Scored && evidence.identity.withheld.is_empty()
+            })
+    };
     let mut coordinates = BTreeMap::new();
     for column in &read.alignment.columns {
         let Some(reference_index_0based) = column.reference_index_0based else {
@@ -54,7 +72,9 @@ fn coordinates(read: &CalledRead) -> Result<BTreeMap<usize, CoordinateObservatio
             )
             .into());
         }
-        let query_base = is_canonical(column.query_base).then_some(column.query_base);
+        let query_base = (is_canonical(column.query_base)
+            && column.original_call_index_0based.is_some_and(shows_base))
+        .then_some(column.query_base);
         if coordinates
             .insert(
                 reference_index_0based,

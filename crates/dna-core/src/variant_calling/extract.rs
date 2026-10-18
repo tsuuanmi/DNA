@@ -40,9 +40,11 @@ pub(crate) fn call(
                     ))?;
             let previous_flank = previous_flank(&alignment.columns, start)?;
             let mut deleted = String::new();
+            let mut deleted_positions = Vec::new();
             while index < alignment.columns.len() && alignment.columns[index].query_base == '-' {
                 if alignment.columns[index].reference_base != '-' {
                     deleted.push(alignment.columns[index].reference_base);
+                    deleted_positions.extend(alignment.columns[index].reference_index_0based);
                 }
                 index += 1;
             }
@@ -74,6 +76,7 @@ pub(crate) fn call(
                     position_1based: None,
                     kind: VariantKind::Del,
                     reasons,
+                    undecided: deleted_positions,
                 });
             }
             continue;
@@ -119,6 +122,10 @@ pub(crate) fn call(
                     position_1based: None,
                     kind: VariantKind::Ins,
                     reasons,
+                    undecided: [previous_reference, next_reference]
+                        .into_iter()
+                        .flatten()
+                        .collect(),
                 });
             }
             continue;
@@ -148,6 +155,7 @@ pub(crate) fn call(
                         .and_then(|position| position.checked_add(1)),
                     kind: VariantKind::Snv,
                     reasons: vec![VariantExclusionReason::NonCanonicalAllele],
+                    undecided: column.reference_index_0based.into_iter().collect(),
                 });
             }
         }
