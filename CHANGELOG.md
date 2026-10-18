@@ -386,6 +386,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A start call may read the base of the call before it when that call is
+  vouched for its base (SRS-CALL-018), judged in read order, so the runs of a
+  read's start (`TT` at 16024-16025, `TTT` at 16027-16029, `GGG` at
+  16034-16036 in HVS-I) chain from their first call; the start's own
+  second-channel share is `sanger_evidence.start_second_share` (0.15), set
+  apart from the read end's `edge_second_share` (0.10); configuration schema
+  14. Plugin `sanger` 8. Development panel v5 after #141, current data
+  (batch date 2026-01 on): samples with a check in the HVS-I amplicon start
+  16.9 to 13.2 %, clear samples 63.88 to 65.69 %, zones to check per sample
+  0.62 to 0.58, samples with an unreviewed difference unchanged in every
+  period (4.14 % current); two more correct `73G` calls. The share was chosen
+  on the development half (0.20 adds a false `77C`). The one new false call,
+  a single-read `16038DEL` in a 2025-10 batch, is an `edge_deletion` check.
+
 - The Sanger peak floor no longer withholds a call whose relative quality
   reaches `sanger_evidence.peak_rescue_quality` (50) and whose second base
   holds less than `sanger_evidence.peak_rescue_second_share` (0.20) of the two

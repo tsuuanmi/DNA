@@ -122,6 +122,9 @@ pub struct SangerEvidenceConfig {
     /// Smallest primary peak of a start call, as a fraction of the start's
     /// median (SRS-CALL-018).
     pub start_height_fraction: f64,
+    /// Second-channel share below which a start call's signal is clean
+    /// (SRS-CALL-018).
+    pub start_second_share: f64,
 }
 
 /// The `[sanger_evidence]` section as written in the configuration.
@@ -145,6 +148,7 @@ pub struct RawSangerEvidenceConfig {
     pub(crate) start_identity_margin: usize,
     pub(crate) start_norm_calls: usize,
     pub(crate) start_height_fraction: f64,
+    pub(crate) start_second_share: f64,
 }
 
 impl RawSangerEvidenceConfig {
@@ -186,6 +190,10 @@ impl RawSangerEvidenceConfig {
             "sanger_evidence.peak_rescue_second_share",
             self.peak_rescue_second_share,
         )?;
+        bounds::fraction(
+            "sanger_evidence.start_second_share",
+            self.start_second_share,
+        )?;
         if self.edge_spacing_minimum > self.edge_spacing_maximum {
             return Err(ConfigError::Constraint(
                 "sanger_evidence.edge_spacing_minimum must not exceed edge_spacing_maximum",
@@ -222,6 +230,7 @@ impl RawSangerEvidenceConfig {
             start_identity_margin: self.start_identity_margin,
             start_norm_calls: self.start_norm_calls,
             start_height_fraction: self.start_height_fraction,
+            start_second_share: self.start_second_share,
         })
     }
 }
