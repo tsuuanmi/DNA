@@ -8,7 +8,7 @@ use crate::model::variant::{
 };
 use dna_kernel::error::{Result, VariantError};
 use dna_kernel::model::reference::{Reference, ReferenceTopology};
-use dna_kernel::read_evidence::{ReadEvidence, VetoScope, VetoSet};
+use dna_kernel::read_evidence::ReadEvidence;
 
 /// Removes normalized candidates outside the profile regions, vetoed by their
 /// supporting calls' modality evidence, or ineligible for their read.
@@ -142,25 +142,27 @@ fn support_vetoes(
         }
         .into());
     }
-    let mut raised = VetoSet::default();
+    // A substitution rests on its supporting calls' base, an insertion on
+    // their being inserted.
+    let mut raised = Vec::new();
     for mapping in supporting {
         let index = mapping.call_index_0based;
         let call = evidence
             .calls()
             .get(index)
             .ok_or(VariantError::MissingCall { index })?;
-        raised = raised.union(call.vetoes);
+        let verdict = if variant.kind == VariantKind::Snv {
+            call.identity
+        } else {
+            call.indel
+        };
+        raised.extend(verdict.withheld.iter());
     }
     Ok(evidence
-        .support_vetoes()
+        .reason_order()
         .iter()
-        .enumerate()
-        .filter(|(index, veto)| {
-            raised.contains(*index)
-                && (veto.scope == VetoScope::SubstitutionsAndInsertions
-                    || variant.kind == VariantKind::Snv)
-        })
-        .map(|(_, veto)| VariantExclusionReason::Evidence(veto.reason))
+        .filter(|reason| raised.contains(reason))
+        .map(|&reason| VariantExclusionReason::Evidence(reason))
         .collect())
 }
 
@@ -169,30 +171,23 @@ mod tests {
     use crate::model::variant::VariantCallMapping;
     use crate::variant_calling::VariantCallingConfig;
     use dna_kernel::error::{Error, VariantError};
-    use dna_kernel::read_evidence::{CallEvidence, EvidenceReason, SupportVeto};
+    use dna_kernel::read_evidence::{CallEvidence, EvidenceReason};
 
     use super::*;
 
     const PEAK: usize = 0;
     const QUALITY: usize = 1;
     const MIXED: usize = 2;
-    const VOCABULARY: [SupportVeto; 3] = [
-        SupportVeto {
-            reason: EvidenceReason::new("peak_below_minimum"),
-            scope: VetoScope::SubstitutionsAndInsertions,
-        },
-        SupportVeto {
-            reason: EvidenceReason::new("relative_quality_not_above_threshold"),
-            scope: VetoScope::SubstitutionsAndInsertions,
-        },
-        SupportVeto {
-            reason: EvidenceReason::new("mixed_supporting_dna"),
-            scope: VetoScope::Substitutions,
-        },
+    /// The reasons in reporting order; the first two also withhold an
+    /// insertion, the mixed one only a substitution.
+    const VOCABULARY: [EvidenceReason; 3] = [
+        EvidenceReason::new("peak_below_minimum"),
+        EvidenceReason::new("relative_quality_not_above_threshold"),
+        EvidenceReason::new("mixed_supporting_dna"),
     ];
 
     fn reason(index: usize) -> VariantExclusionReason {
-        VariantExclusionReason::Evidence(VOCABULARY[index].reason)
+        VariantExclusionReason::Evidence(VOCABULARY[index])
     }
 
     fn config(read_end_margin: usize) -> VariantCallingConfig {
@@ -213,11 +208,14 @@ mod tests {
         let calls = vetoes
             .iter()
             .map(|raised| {
-                let mut set = VetoSet::default();
+                let mut call = CallEvidence::scored('A', None);
                 for &index in *raised {
-                    set.insert(index);
+                    call.identity.withheld.insert(VOCABULARY[index]);
+                    if index != MIXED {
+                        call.indel.withheld.insert(VOCABULARY[index]);
+                    }
                 }
-                CallEvidence::new('A', None, None, set)
+                call
             })
             .collect::<Vec<_>>();
         let informative = 0..calls.len();

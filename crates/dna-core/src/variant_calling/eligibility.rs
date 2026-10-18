@@ -6,7 +6,7 @@
 //! usable signal (`CallEvidence::edge`) cannot support a variant
 //! (`read_end`); neither can one within `read_end_margin` calls of a read end
 //! the modality does not vouch for, where no technology places an indel. A
-//! call the modality vouches for by its base only (`identity_only`) supports
+//! call the modality vouches for by its base only (scored, its bound withheld) supports
 //! a substitution but no insertion or deletion, and shows no run's end.
 //! An edit that changes the length of a run of one base can be judged only
 //! where the read resolves that run's end (`run_boundary`): the call beyond it
@@ -26,11 +26,9 @@ use crate::model::alignment::Orientation;
 use crate::model::trust::{CallTrust, TrustScope, Withholder};
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
 use crate::variant_calling::VariantCallingConfig;
-use dna_kernel::read_evidence::{MaskOnset, MaskedAlignment, ReadEnds, ReadEvidence, VetoScope};
-
-/// Informative calls between a run's bound and a post-repeat edge for the
-/// run to be exempt from `read_end` (ADR-0076).
-const EXEMPTION_MINIMUM_CALLS: usize = 2;
+use dna_kernel::read_evidence::{
+    Bound, CallEvidence, EvidenceReason, Placement, ReadEnds, ReadEvidence,
+};
 
 /// Trusted calls of one read.
 pub(crate) struct ReadEligibility<'a> {
@@ -38,32 +36,18 @@ pub(crate) struct ReadEligibility<'a> {
     /// more than `read_end_margin` calls from an unvouched read end.
     trusted: Vec<bool>,
     /// Per call: informative calls ending at it, and starting at it (a
-    /// vouched read end counts as a full margin).
+    /// vouched read end counts as a full margin), for what withholds trust.
     before: Vec<usize>,
     after: Vec<usize>,
     margin: usize,
-    /// Per call: it lies on a bounded run of one base that the exemption lifts
-    /// from `read_end` (the run's bounds are not included).
-    run_exempt: Vec<bool>,
-    /// Per call: it bounds such a run.
-    bound_exempt: Vec<bool>,
     evidence: &'a ReadEvidence,
 }
 
 impl<'a> ReadEligibility<'a> {
     /// Derives the trusted calls of one read from its evidence.
     pub(crate) fn new(evidence: &'a ReadEvidence, config: &VariantCallingConfig) -> Self {
-        let interval = evidence.informative();
-        let informative = evidence
-            .calls()
-            .iter()
-            .enumerate()
-            .map(|(index, call)| {
-                interval.contains(&index)
-                    && call
-                        .mask
-                        .is_none_or(|mask| mask.alignment == MaskedAlignment::Anchoring)
-            })
+        let informative = (0..evidence.calls().len())
+            .map(|index| evidence.informative_call(index))
             .collect::<Vec<_>>();
         let calls = informative.len();
         let margin = config.read_end_margin;
@@ -93,41 +77,15 @@ impl<'a> ReadEligibility<'a> {
             .calls()
             .iter()
             .enumerate()
-            .map(|(index, call)| !call.edge && index >= ends && index + ends < calls)
+            .map(|(index, call)| !call.identity.edge && index >= ends && index + ends < calls)
             .collect();
-        let mut eligibility = Self {
+        Self {
             trusted,
             before,
             after,
             margin,
-            run_exempt: vec![false; calls],
-            bound_exempt: vec![false; calls],
             evidence,
-        };
-        {
-            let calls = evidence.calls();
-            let mut start = 0;
-            while start < calls.len() {
-                let base = calls[start].base;
-                let mut end = start;
-                while end + 1 < calls.len() && calls[end + 1].base == base {
-                    end += 1;
-                }
-                if end > start
-                    && dna_kernel::model::nucleotide::is_canonical(base)
-                    && eligibility.bounded_run_exempt(start, end, base)
-                {
-                    // The run's own calls; its bounds are recorded apart, since
-                    // the consensus trusts them only where they read the
-                    // reference base.
-                    eligibility.run_exempt[start..=end].fill(true);
-                    eligibility.bound_exempt[start - 1] = true;
-                    eligibility.bound_exempt[end + 1] = true;
-                }
-                start = end + 1;
-            }
         }
-        eligibility
     }
 
     /// Whether a call lies on a bounded run the exemption lifts from
@@ -135,53 +93,31 @@ impl<'a> ReadEligibility<'a> {
     /// the reference or is inserted: the run's length may change, its
     /// composition may not.
     pub(crate) fn run_exempt(&self, index: usize) -> bool {
-        self.run_exempt.get(index).copied().unwrap_or(false)
+        self.evidence
+            .calls()
+            .get(index)
+            .is_some_and(|call| call.post_repeat.call)
     }
 
     /// Whether a call bounds a run the exemption lifts. The consensus trusts
     /// such a bound only where it reads the reference base, so it can never
     /// make a variant.
     pub(crate) fn bound_exempt(&self, index: usize) -> bool {
-        self.bound_exempt.get(index).copied().unwrap_or(false)
+        self.evidence
+            .calls()
+            .get(index)
+            .is_some_and(|call| call.post_repeat.bound)
     }
 
-    /// Whether the run `start..=end` of `base` is bounded by resolving,
-    /// unmasked calls with every run call unmasked, and each side's nearest
-    /// uninformative call within the margin starts a masked segment right
-    /// after a repeat run, at least [`EXEMPTION_MINIMUM_CALLS`] informative
-    /// calls from the bound.
-    fn bounded_run_exempt(&self, start: usize, end: usize, base: char) -> bool {
-        let calls = self.evidence.calls();
-        let (Some(left), right) = (start.checked_sub(1), end + 1) else {
+    /// Whether the run `start..=end` is one the modality marks as bounded
+    /// before a post-repeat phase loss, with both of its bounds.
+    fn bounded_run_exempt(&self, start: usize, end: usize) -> bool {
+        let Some(left) = start.checked_sub(1) else {
             return false;
         };
-        if right >= calls.len()
-            || !self.resolves(left, base)
-            || !self.resolves(right, base)
-            || calls[left..=right]
-                .iter()
-                .any(|call| call.mask.is_some() || call.identity_only)
-        {
-            return false;
-        }
-        let allowed = |index: Option<usize>| {
-            index
-                .and_then(|index| calls.get(index))
-                .and_then(|call| call.mask)
-                .is_some_and(|mask| mask.onset == MaskOnset::AfterRun)
-        };
-        // The nearest uninformative call on each side; `None` is the read's
-        // physical end, which never exempts.
-        let side = |run: usize, edge: Option<usize>| {
-            run > self.margin || (run >= EXEMPTION_MINIMUM_CALLS && allowed(edge))
-        };
-        let exempt = side(self.before[left], left.checked_sub(self.before[left]))
-            && side(
-                self.after[right],
-                Some(right + self.after[right]).filter(|index| *index < calls.len()),
-            );
-        // Only a run the margin actually distrusts needs the exemption.
-        exempt && (left..=right).any(|index| !self.trusted(index))
+        (start..=end).all(|index| self.run_exempt(index))
+            && self.bound_exempt(left)
+            && self.bound_exempt(end + 1)
     }
 
     /// The read's maximal run of the edited base around an edit, as
@@ -235,14 +171,14 @@ impl<'a> ReadEligibility<'a> {
         if kind == VariantKind::Snv {
             return false;
         }
-        let Some((start, end, base)) = self.run(kind, edited, orientation, evidence) else {
+        let Some((start, end, _)) = self.run(kind, edited, orientation, evidence) else {
             return false;
         };
         let Some(left) = start.checked_sub(1) else {
             return false;
         };
         mapped.iter().all(|index| (left..=end + 1).contains(index))
-            && self.bounded_run_exempt(start, end, base)
+            && self.bounded_run_exempt(start, end)
     }
 
     /// Whether an edit of `kind` changes the length of a run of one base at an
@@ -310,7 +246,7 @@ impl<'a> ReadEligibility<'a> {
             && after
             && calls[start..=end]
                 .iter()
-                .all(|call| call.mask.is_none() && !call.identity_only))
+                .all(|call| call.placement == Placement::Scored && call.bound == Bound::InPhase))
     }
 
     /// Whether the read's physical ends bound its evidence (ADR-0069).
@@ -319,18 +255,16 @@ impl<'a> ReadEligibility<'a> {
     }
 
     /// Whether the call at `index` resolves the end of a run of `base`: it is
-    /// informative and reads another resolved base, unmasked or anchoring.
-    fn resolves(&self, index: usize, base: char) -> bool {
+    /// informative, shows a run's end (in phase or anchoring), and reads
+    /// another resolved base.
+    pub(crate) fn resolves(&self, index: usize, base: char) -> bool {
         let Some(call) = self.evidence.calls().get(index) else {
             return false;
         };
         self.evidence.informative().contains(&index)
-            && !call.identity_only
+            && call.bound != Bound::Withheld
             && call.base != base
             && call.base != 'N'
-            && call
-                .mask
-                .is_none_or(|mask| mask.alignment == MaskedAlignment::Anchoring)
     }
 
     /// Whether an insertion whose inserted calls are `inserted` has a
@@ -376,20 +310,10 @@ impl<'a> ReadEligibility<'a> {
         if end - start <= length {
             return false;
         }
-        let vetoes = self
-            .evidence
-            .support_vetoes()
-            .iter()
-            .enumerate()
-            .filter(|(_, veto)| veto.scope == VetoScope::SubstitutionsAndInsertions)
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
         (start..=end - length).any(|offset| {
             (offset..offset + length).all(|index| {
-                calls[index].mask.is_none()
-                    && !vetoes
-                        .iter()
-                        .any(|&veto| calls[index].vetoes.contains(veto))
+                calls[index].placement == Placement::Scored
+                    && self.vetoes(index, false).next().is_none()
             })
         })
     }
@@ -404,7 +328,8 @@ impl<'a> ReadEligibility<'a> {
         let withholder = |call: usize| {
             if interval.contains(&call) {
                 calls[call]
-                    .mask
+                    .placement
+                    .reason()
                     .map_or(Withholder::Untrimmed, Withholder::Masked)
             } else {
                 Withholder::Untrimmed
@@ -446,7 +371,7 @@ impl<'a> ReadEligibility<'a> {
     /// places no substitution (`unresolved_flank`).
     pub(crate) fn unanchored(&self, index: usize, base: char, adjacent: [Option<char>; 2]) -> bool {
         let calls = self.evidence.calls();
-        if !calls.get(index).is_some_and(|call| call.identity_only) {
+        if !calls.get(index).is_some_and(CallEvidence::base_only) {
             return false;
         }
         let placed = |neighbour: Option<usize>| {
@@ -454,9 +379,9 @@ impl<'a> ReadEligibility<'a> {
                 .and_then(|neighbour| calls.get(neighbour).map(|call| (neighbour, call)))
                 .is_some_and(|(neighbour, call)| {
                     self.evidence.informative().contains(&neighbour)
-                        && !call.identity_only
+                        && call.placement == Placement::Scored
+                        && call.bound == Bound::InPhase
                         && dna_kernel::model::nucleotide::is_canonical(call.base)
-                        && call.mask.is_none()
                 })
         };
         !(placed(index.checked_sub(1)) && placed(Some(index + 1))) && adjacent.contains(&Some(base))
@@ -470,16 +395,50 @@ impl<'a> ReadEligibility<'a> {
             .is_some_and(|call| dna_kernel::model::nucleotide::is_canonical(call.base))
     }
 
-    /// Whether the call at `index` has at least `read_end_margin` informative
-    /// calls between it and the nearest uninformative call on both sides.
+    /// Whether the modality places the call at `index` clear of its signal
+    /// edges for its base, and it lies more than `read_end_margin` calls from
+    /// a read end the modality does not vouch for.
     pub(crate) fn trusted(&self, index: usize) -> bool {
         self.trusted.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether the call at `index` is trusted for placing an insertion or
+    /// deletion: as for its base, and not at a signal edge for indels, as a
+    /// call vouched for by its base only always is.
+    pub(crate) fn indel_trusted(&self, index: usize) -> bool {
+        self.trusted(index)
+            && self
+                .evidence
+                .calls()
+                .get(index)
+                .is_some_and(|call| !call.indel.edge)
+    }
+
     /// The exclusion reason of a masked call, or `None` for an unmasked one.
     pub(super) fn mask_reason(&self, index: usize) -> Option<VariantExclusionReason> {
-        let mask = self.evidence.calls().get(index)?.mask?;
-        Some(VariantExclusionReason::Evidence(mask.reason))
+        let reason = self.evidence.calls().get(index)?.placement.reason()?;
+        Some(VariantExclusionReason::Evidence(reason))
+    }
+
+    /// The modality's reasons against the call at `index`, in the read's
+    /// reason order: against its base (`identity`), or against an indel. A
+    /// masked placement's own reason is not among them.
+    pub(crate) fn vetoes(
+        &self,
+        index: usize,
+        identity: bool,
+    ) -> impl Iterator<Item = EvidenceReason> + '_ {
+        let call = self.evidence.calls().get(index);
+        self.evidence
+            .reason_order()
+            .iter()
+            .copied()
+            .filter(move |reason| {
+                call.is_some_and(|call| {
+                    let verdict = if identity { call.identity } else { call.indel };
+                    verdict.withheld.contains(*reason)
+                })
+            })
     }
 
     /// Eligibility reasons against a variant's calls, each reported once:
@@ -516,18 +475,18 @@ impl<'a> ReadEligibility<'a> {
             .iter()
             .map(|mapping| mapping.call_index_0based)
             .collect::<Vec<_>>();
-        // A call vouched for by its base only places no insertion or
-        // deletion.
-        let identity_only = kind != VariantKind::Snv
-            && mapped.iter().any(|&index| {
-                self.evidence
-                    .calls()
-                    .get(index)
-                    .is_some_and(|call| call.identity_only)
-            });
-        if identity_only
-            || (mapped.iter().any(|index| !self.trusted(*index))
-                && !self.exempt(kind, edited, orientation, &evidence, &mapped))
+        // A substitution rests on its calls' base; an insertion or deletion
+        // on their placing it, which a call vouched for by its base only
+        // never does.
+        let untrusted = |index: usize| {
+            if kind == VariantKind::Snv {
+                !self.trusted(index)
+            } else {
+                !self.indel_trusted(index)
+            }
+        };
+        if mapped.iter().any(|&index| untrusted(index))
+            && !self.exempt(kind, edited, orientation, &evidence, &mapped)
         {
             reasons.push(VariantExclusionReason::ReadEnd);
         }
@@ -556,20 +515,14 @@ impl<'a> ReadEligibility<'a> {
 #[must_use]
 pub fn read_trust(evidence: &ReadEvidence, config: &VariantCallingConfig) -> Vec<CallTrust> {
     let eligibility = ReadEligibility::new(evidence, config);
-    let vocabulary = evidence.support_vetoes();
     evidence
         .calls()
         .iter()
         .enumerate()
         .map(|(index, call)| CallTrust {
-            mask: call.mask,
+            placement: call.placement,
             unresolved: call.base == 'N',
-            vetoes: vocabulary
-                .iter()
-                .enumerate()
-                .filter(|(veto, _)| call.vetoes.contains(*veto))
-                .map(|(_, veto)| veto.reason)
-                .collect(),
+            vetoes: eligibility.vetoes(index, true).collect(),
             trusted: eligibility.trusted(index),
             exempt: eligibility.run_exempt(index) || eligibility.bound_exempt(index),
             withheld_by: if eligibility.trusted(index) {
@@ -577,7 +530,7 @@ pub fn read_trust(evidence: &ReadEvidence, config: &VariantCallingConfig) -> Vec
             } else {
                 eligibility.withholders(index)
             },
-            scope: if call.identity_only {
+            scope: if call.base_only() {
                 TrustScope::Base
             } else {
                 TrustScope::Full
@@ -590,7 +543,7 @@ pub fn read_trust(evidence: &ReadEvidence, config: &VariantCallingConfig) -> Vec
 #[cfg(test)]
 mod tests {
     use crate::model::variant::VariantCallMapping;
-    use dna_kernel::read_evidence::{CallMask, EvidenceReason, MaskOnset};
+    use dna_kernel::read_evidence::{EvidenceReason, Placement};
 
     use super::*;
 
@@ -598,26 +551,18 @@ mod tests {
     /// which applies to insertions, or in `mixed` the mixed veto, which does
     /// not.
     fn vetoed_read(sequence: &str, vetoed: &[usize], mixed: &[usize]) -> ReadEvidence {
-        use dna_kernel::read_evidence::{EvidenceReason, SupportVeto, VetoScope};
-        let vocabulary = vec![
-            SupportVeto {
-                reason: EvidenceReason::new("peak_below_minimum"),
-                scope: VetoScope::SubstitutionsAndInsertions,
-            },
-            SupportVeto {
-                reason: EvidenceReason::new("mixed_supporting_dna"),
-                scope: VetoScope::Substitutions,
-            },
-        ];
+        let peak = EvidenceReason::new("peak_below_minimum");
+        let mixed_dna = EvidenceReason::new("mixed_supporting_dna");
         let mut calls = ReadEvidence::clean(sequence).calls().to_vec();
         for &index in vetoed {
-            calls[index].vetoes.insert(0);
+            calls[index].identity.withheld.insert(peak);
+            calls[index].indel.withheld.insert(peak);
         }
         for &index in mixed {
-            calls[index].vetoes.insert(1);
+            calls[index].identity.withheld.insert(mixed_dna);
         }
         let length = calls.len();
-        ReadEvidence::new(calls, 0..length, vocabulary)
+        ReadEvidence::new(calls, 0..length, vec![peak, mixed_dna])
             .unwrap_or_else(|_| ReadEvidence::clean(sequence))
     }
 
@@ -628,12 +573,12 @@ mod tests {
         let read = evidence(
             20,
             2..20,
-            &[(10, 12, MaskedAlignment::Unresolved, "dephased_signal")],
+            &[(10, 12, Placement::Unresolved, "dephased_signal")],
         );
         let eligibility = ReadEligibility::new(&read, &settings(3));
         assert_eq!(eligibility.withholders(4), [Withholder::Untrimmed]);
         let masked = |index: usize| match eligibility.withholders(index).as_slice() {
-            [Withholder::Masked(mask)] => Some(mask.reason.label()),
+            [Withholder::Masked(reason)] => Some(reason.label()),
             _ => None,
         };
         assert_eq!(masked(8), Some("dephased_signal"));
@@ -673,22 +618,20 @@ mod tests {
         }
     }
 
-    /// Evidence over `calls` positions with masks per `(start, end, alignment, reason)`
+    /// A masked placement with its reason.
+    type Masking = fn(EvidenceReason) -> Placement;
+
+    /// Evidence over `calls` positions with masks per `(start, end, placement, reason)`
     /// and the given informative interval.
     fn evidence(
         calls: usize,
         informative: std::ops::Range<usize>,
-        masks: &[(usize, usize, MaskedAlignment, &'static str)],
+        masks: &[(usize, usize, Masking, &'static str)],
     ) -> ReadEvidence {
         let mut read = ReadEvidence::clean(&"ACGT".repeat(calls / 4 + 1)[..calls]);
-        for &(start, end, alignment, reason) in masks {
+        for &(start, end, placement, reason) in masks {
             for index in start..end {
-                let mut call = read.calls()[index];
-                call.mask = Some(CallMask {
-                    alignment,
-                    reason: EvidenceReason::new(reason),
-                    onset: MaskOnset::Other,
-                });
+                let call = read.calls()[index].masked(placement(EvidenceReason::new(reason)));
                 read = read.with_call(index, call);
             }
         }
@@ -729,24 +672,23 @@ mod tests {
         }
     }
 
-    /// A read `ACGTACGTAC G CCCCC T AG`, then a masked segment of `onset` from
-    /// call 19 (or the read's end there when `onset` is `None`), then 13
-    /// clean calls.
-    fn run_read(onset: Option<MaskOnset>) -> ReadEvidence {
-        let tail = if onset.is_some() {
-            "AAAAAACGTACGTACGTACG"
-        } else {
-            ""
-        };
-        let mut read = ReadEvidence::clean(&format!("ACGTACGTACGCCCCCTAG{tail}"));
-        if let Some(onset) = onset {
-            for index in 19..26 {
+    /// A read `ACGTACGTAC G CCCCC T AG`, a segment masked after a repeat run
+    /// from call 19, then 13 clean calls; when `marked`, the modality marks
+    /// the C run (11-15) and its bounds as a bounded run before that phase
+    /// loss (ADR-0076).
+    fn run_read(marked: bool) -> ReadEvidence {
+        let mut read = ReadEvidence::clean("ACGTACGTACGCCCCCTAGAAAAAACGTACGTACGTACG");
+        for index in 19..26 {
+            let call = read.calls()[index].masked(Placement::Unresolved(EvidenceReason::new(
+                "post_homopolymer",
+            )));
+            read = read.with_call(index, call);
+        }
+        if marked {
+            for index in 10..=16 {
                 let mut call = read.calls()[index];
-                call.mask = Some(CallMask {
-                    alignment: MaskedAlignment::Unresolved,
-                    reason: EvidenceReason::new("post_homopolymer"),
-                    onset,
-                });
+                call.post_repeat.call = (11..=15).contains(&index);
+                call.post_repeat.bound = index == 10 || index == 16;
                 read = read.with_call(index, call);
             }
         }
@@ -755,40 +697,24 @@ mod tests {
 
     #[test]
     fn a_bounded_run_before_a_post_repeat_edge_is_exempt_but_not_its_bounds() {
-        let read = run_read(Some(MaskOnset::AfterRun));
+        let read = run_read(true);
         let eligibility = ReadEligibility::new(&read, &settings(8));
         // The run lies within the margin of the edge, but is exempt.
         assert!((11..=15).all(|index| !eligibility.trusted(index)));
         assert!((11..=15).all(|index| eligibility.run_exempt(index)));
         // The bound right of the run keeps its own trust: never a clean base.
         assert!(!eligibility.run_exempt(16) && !eligibility.trusted(16));
-        // Too few informative calls between the bound and the edge: the
-        // masked segment reaches the call right after the bound.
-        let mut close = read.clone();
-        for index in [17, 18] {
-            let mut call = close.calls()[index];
-            call.mask = read.calls()[19].mask;
-            close = close.with_call(index, call);
-        }
-        let close = close.with_signal_edges(8);
-        assert!(!ReadEligibility::new(&close, &settings(8)).run_exempt(13));
     }
 
     #[test]
-    fn other_edges_never_exempt_a_run() {
-        // Another onset, or the read's physical end.
-        for onset in [Some(MaskOnset::Other), None] {
-            let read = run_read(onset);
-            assert!(
-                !ReadEligibility::new(&read, &settings(8)).run_exempt(13),
-                "{onset:?}"
-            );
-        }
+    fn only_the_modality_marks_a_run_exempt() {
+        let read = run_read(false);
+        assert!(!ReadEligibility::new(&read, &settings(8)).run_exempt(13));
     }
 
     #[test]
     fn the_exemption_lifts_read_end_from_run_indels_only() {
-        let read = run_read(Some(MaskOnset::AfterRun));
+        let read = run_read(true);
         let eligibility = ReadEligibility::new(&read, &settings(8));
         assert!(eligibility.exempt(VariantKind::Ins, "C", Orientation::Forward, &[15], &[15]));
         assert!(!eligibility.exempt(VariantKind::Snv, "C", Orientation::Forward, &[15], &[15]));
@@ -815,22 +741,19 @@ mod tests {
     fn identity_read(masked: bool) -> ReadEvidence {
         let mut read = ReadEvidence::clean("ACGTACGTACGT");
         let mut call = read.calls()[5];
-        call.identity_only = true;
+        call.bound = Bound::Withheld;
+        call.indel.edge = true;
         read = read.with_call(5, call);
         if masked {
             let mut call = read.calls()[4];
-            call.mask = Some(CallMask {
-                alignment: MaskedAlignment::Anchoring,
-                reason: EvidenceReason::new("dephased_signal"),
-                onset: MaskOnset::Other,
-            });
+            call = call.masked(Placement::Anchoring(EvidenceReason::new("dephased_signal")));
             read = read.with_call(4, call);
         }
         read
     }
 
     #[test]
-    fn an_identity_only_call_supports_a_substitution_but_no_indel() {
+    fn a_base_only_call_supports_a_substitution_but_no_indel() {
         let read = identity_read(false);
         let eligibility = ReadEligibility::new(&read, &settings(0));
         let reasons = |kind| {
@@ -846,7 +769,7 @@ mod tests {
     }
 
     #[test]
-    fn an_identity_only_call_beside_a_masked_call_may_sit_one_position_off() {
+    fn a_base_only_call_beside_a_masked_call_may_sit_one_position_off() {
         let anchored = identity_read(false);
         let loose = identity_read(true);
         let unanchored = |read: &ReadEvidence, adjacent| {
@@ -885,13 +808,9 @@ mod tests {
         let unvouched = evidence(16, 0..16, &[]);
         let vouched = unvouched.clone().with_vouched_ends().with_signal_edges(3);
         let unvouched = unvouched.with_signal_edges(3);
-        let masked = evidence(
-            16,
-            0..16,
-            &[(4, 5, MaskedAlignment::Unresolved, "weak_signal")],
-        )
-        .with_vouched_ends()
-        .with_signal_edges(3);
+        let masked = evidence(16, 0..16, &[(4, 5, Placement::Unresolved, "weak_signal")])
+            .with_vouched_ends()
+            .with_signal_edges(3);
         let snv = |read: &ReadEvidence, index| {
             ReadEligibility::new(read, &settings(3))
                 .reasons(
@@ -918,7 +837,7 @@ mod tests {
         let read = evidence(
             20,
             0..20,
-            &[(10, 20, MaskedAlignment::Anchoring, "post_homopolymer")],
+            &[(10, 20, Placement::Anchoring, "post_homopolymer")],
         );
         let eligibility = ReadEligibility::new(&read, &settings(0));
         let calls = [
@@ -954,8 +873,8 @@ mod tests {
             20,
             0..20,
             &[
-                (0, 10, MaskedAlignment::Unresolved, "weak_signal"),
-                (15, 20, MaskedAlignment::Anchoring, "dephased_signal"),
+                (0, 10, Placement::Unresolved, "weak_signal"),
+                (15, 20, Placement::Anchoring, "dephased_signal"),
             ],
         );
         let eligibility = ReadEligibility::new(&read, &settings(0));
@@ -979,8 +898,8 @@ mod tests {
             40,
             0..40,
             &[
-                (15, 20, MaskedAlignment::Unresolved, "mixed_signal"),
-                (30, 35, MaskedAlignment::Anchoring, "dephased_signal"),
+                (15, 20, Placement::Unresolved, "mixed_signal"),
+                (30, 35, Placement::Anchoring, "dephased_signal"),
             ],
         )
         .with_signal_edges(3);
@@ -1010,11 +929,7 @@ mod tests {
 
     #[test]
     fn reports_each_reason_once_per_variant() {
-        let read = evidence(
-            12,
-            0..12,
-            &[(8, 12, MaskedAlignment::Unresolved, "mixed_signal")],
-        );
+        let read = evidence(12, 0..12, &[(8, 12, Placement::Unresolved, "mixed_signal")]);
         let eligibility = ReadEligibility::new(&read, &settings(3));
         let calls = (8..12)
             .map(|index| mapping(VariantCallRole::Supporting, index))
@@ -1032,15 +947,11 @@ mod tests {
     }
 
     /// A read of `sequence` with every call informative and the given masks.
-    fn sequence(sequence: &str, masks: &[(usize, MaskedAlignment)]) -> ReadEvidence {
+    fn sequence(sequence: &str, masks: &[(usize, Masking)]) -> ReadEvidence {
         let mut read = ReadEvidence::clean(sequence);
-        for &(index, alignment) in masks {
-            let mut call = read.calls()[index];
-            call.mask = Some(CallMask {
-                alignment,
-                reason: EvidenceReason::new("dephased_signal"),
-                onset: MaskOnset::Other,
-            });
+        for &(index, placement) in masks {
+            let call =
+                read.calls()[index].masked(placement(EvidenceReason::new("dephased_signal")));
             read = read.with_call(index, call);
         }
         read
@@ -1056,16 +967,16 @@ mod tests {
     fn needs_both_ends_of_a_run_an_insertion_lengthens() {
         let inserted = [mapping(VariantCallRole::Supporting, 4)];
         // The run CCCCC ends at an anchoring call that still reads T.
-        let resolved = sequence("AGTACCCCCTGA", &[(9, MaskedAlignment::Anchoring)]);
+        let resolved = sequence("AGTACCCCCTGA", &[(9, Placement::Anchoring)]);
         assert!(!run_boundary(&resolved, VariantKind::Ins, &inserted));
         // A masked call that reads the run's base hides where the run ends.
-        let hidden = sequence("AGTACCCCCCGA", &[(9, MaskedAlignment::Anchoring)]);
+        let hidden = sequence("AGTACCCCCCGA", &[(9, Placement::Anchoring)]);
         assert!(run_boundary(&hidden, VariantKind::Ins, &inserted));
         // An unresolved end bounds nothing.
-        let unresolved = sequence("AGTACCCCCTGA", &[(9, MaskedAlignment::Unresolved)]);
+        let unresolved = sequence("AGTACCCCCTGA", &[(9, Placement::Unresolved)]);
         assert!(run_boundary(&unresolved, VariantKind::Ins, &inserted));
         // A masked call inside the run leaves its length unread.
-        let masked = sequence("AGTACCCCCTGA", &[(6, MaskedAlignment::Anchoring)]);
+        let masked = sequence("AGTACCCCCTGA", &[(6, Placement::Anchoring)]);
         assert!(run_boundary(&masked, VariantKind::Ins, &inserted));
     }
 
@@ -1073,7 +984,7 @@ mod tests {
     fn reads_reference_alleles_on_the_trace_strand_of_a_reverse_read() {
         // The trace run GGGGG is a reference run of C on a reverse read; its end
         // hides behind a masked G.
-        let read = sequence("AGTAGGGGGGCT", &[(9, MaskedAlignment::Anchoring)]);
+        let read = sequence("AGTAGGGGGGCT", &[(9, Placement::Anchoring)]);
         let inserted = [mapping(VariantCallRole::Supporting, 4)];
         let insertion = Variant {
             reference: "N".to_owned(),
@@ -1092,11 +1003,11 @@ mod tests {
     #[test]
     fn needs_only_the_run_end_a_substitution_lies_on() {
         // Calls 4..=9 read CCCCCC; the masked call 10 resolves no base.
-        let read = sequence("AGTACCCCCCNGA", &[(10, MaskedAlignment::Anchoring)]);
+        let read = sequence("AGTACCCCCCNGA", &[(10, Placement::Anchoring)]);
         let snv = |index| [mapping(VariantCallRole::Supporting, index)];
         assert!(!run_boundary(&read, VariantKind::Snv, &snv(4)));
         assert!(!run_boundary(&read, VariantKind::Snv, &snv(7)));
-        let extended = sequence("AGTACCCCCCAGA", &[(10, MaskedAlignment::Anchoring)]);
+        let extended = sequence("AGTACCCCCCAGA", &[(10, Placement::Anchoring)]);
         assert!(!run_boundary(&extended, VariantKind::Snv, &snv(9)));
         assert!(run_boundary(&read, VariantKind::Snv, &snv(9)));
     }
@@ -1108,7 +1019,7 @@ mod tests {
             mapping(VariantCallRole::Flanking, 6),
         ];
         // A deleted C whose remaining run CC ends at a masked C.
-        let mut read = sequence("AGTACCCGA", &[(6, MaskedAlignment::Anchoring)]);
+        let mut read = sequence("AGTACCCGA", &[(6, Placement::Anchoring)]);
         let deletion = |read: &ReadEvidence, deleted: char| Variant {
             reference: format!("N{deleted}"),
             alternate: "N".to_owned(),
@@ -1119,17 +1030,17 @@ mod tests {
                 .reasons(&deletion(read, deleted), Orientation::Forward)
         };
         assert!(reasons(&read, 'C').contains(&VariantExclusionReason::RunBoundary));
-        read = sequence("AGTACCTGA", &[(6, MaskedAlignment::Anchoring)]);
+        read = sequence("AGTACCTGA", &[(6, Placement::Anchoring)]);
         assert!(!reasons(&read, 'C').contains(&VariantExclusionReason::RunBoundary));
         // A whole run deleted leaves no run to measure.
-        read = sequence("AGTACTGA", &[(5, MaskedAlignment::Unresolved)]);
+        read = sequence("AGTACTGA", &[(5, Placement::Unresolved)]);
         assert!(!reasons(&read, 'A').contains(&VariantExclusionReason::RunBoundary));
     }
 
     #[test]
     fn leaves_a_lone_edited_base_to_the_other_rules() {
         // A substituted T between C and an unresolved call lengthens no run.
-        let read = sequence("AGTACTNGA", &[(6, MaskedAlignment::Unresolved)]);
+        let read = sequence("AGTACTNGA", &[(6, Placement::Unresolved)]);
         let snv = [mapping(VariantCallRole::Supporting, 5)];
         assert!(!run_boundary(&read, VariantKind::Snv, &snv));
         let inserted = [mapping(VariantCallRole::Supporting, 5)];

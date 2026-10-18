@@ -1163,9 +1163,7 @@ mod tests {
     use crate::model::variant::VariantCallingResult;
     use dna_kernel::error::Result;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::{
-        CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence,
-    };
+    use dna_kernel::read_evidence::{EvidenceReason, Placement, ReadEvidence};
 
     use super::*;
 
@@ -1222,19 +1220,20 @@ mod tests {
         let mut evidence = ReadEvidence::clean(sequence);
         let masks = masked
             .iter()
-            .map(|&index| (index, MaskedAlignment::Anchoring, "dephased_signal"))
-            .chain(
-                unresolved
-                    .iter()
-                    .map(|&index| (index, MaskedAlignment::Unresolved, "unresolved_signal")),
-            );
-        for (index, alignment, reason) in masks {
-            let mut call = evidence.calls()[index];
-            call.mask = Some(CallMask {
-                alignment,
-                reason: EvidenceReason::new(reason),
-                onset: MaskOnset::Other,
-            });
+            .map(|&index| {
+                (
+                    Placement::Anchoring(EvidenceReason::new("dephased_signal")),
+                    index,
+                )
+            })
+            .chain(unresolved.iter().map(|&index| {
+                (
+                    Placement::Unresolved(EvidenceReason::new("unresolved_signal")),
+                    index,
+                )
+            }));
+        for (placement, index) in masks {
+            let call = evidence.calls()[index].masked(placement);
             evidence = evidence.with_call(index, call);
         }
         let alignment = align_best(&evidence, &reference(), &alignment())?;
@@ -1270,11 +1269,17 @@ mod tests {
         let mut evidence = ReadEvidence::clean(read_sequence);
         for index in 19..26 {
             let mut call = evidence.calls()[index];
-            call.mask = Some(CallMask {
-                alignment: MaskedAlignment::Unresolved,
-                reason: EvidenceReason::new("post_homopolymer"),
-                onset: MaskOnset::AfterRun,
-            });
+            call = call.masked(Placement::Unresolved(EvidenceReason::new(
+                "post_homopolymer",
+            )));
+            evidence = evidence.with_call(index, call);
+        }
+        // The modality marks the C run (11-15) and its bounds as a run bounded
+        // before the post-repeat phase loss at 19 (ADR-0076).
+        for index in 10..=16 {
+            let mut call = evidence.calls()[index];
+            call.post_repeat.call = (11..=15).contains(&index);
+            call.post_repeat.bound = index == 10 || index == 16;
             evidence = evidence.with_call(index, call);
         }
         let evidence = evidence.with_signal_edges(8);
@@ -1331,6 +1336,42 @@ mod tests {
         let clean = |position: usize| observed.positions.get(&position).map(|site| site.clean);
         assert!((11..=15).all(|position| clean(position) == Some(true)));
         assert_eq!(clean(16), Some(false));
+        Ok(())
+    }
+
+    #[test]
+    fn each_placement_and_verdict_maps_to_one_trust_level()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use super::observe::{Trust, observe};
+        // A read equal to the reference: call `i` observes position `i`.
+        let mut read = placed_with("r", REFERENCE, &[5], &[8])?;
+        let peak = EvidenceReason::new("peak_below_minimum");
+        let mut vetoed = read.evidence.calls()[11];
+        vetoed.identity.withheld.insert(peak);
+        let mut base_only = read.evidence.calls()[14];
+        base_only.bound = dna_kernel::read_evidence::Bound::Withheld;
+        base_only.indel.edge = true;
+        read.evidence = read.evidence.with_call(11, vetoed).with_call(14, base_only);
+        let observed = observe(&read, &config().variant_calling, REFERENCE.as_bytes());
+        let char_at = |position: usize| {
+            observed
+                .positions
+                .get(&position)
+                .and_then(|observation| observation.chars.first().copied())
+        };
+        let level = |position: usize| char_at(position).map(|char| char.trust);
+        // Scored, trusted, nothing withheld: it shows its base.
+        assert_eq!(level(2), Some(Trust::Clean));
+        // Scored with a reason against its base: it counts towards its run.
+        assert_eq!(level(11), Some(Trust::Unmasked));
+        // Masked but anchoring: it shows a run's end.
+        assert_eq!(level(5), Some(Trust::Anchoring));
+        // Masked as unresolved: nothing.
+        assert_eq!(level(8), Some(Trust::Nothing));
+        // Vouched for by its base only: it shows its base, but neither counts
+        // towards a run nor shows a run's end.
+        let only = char_at(14).ok_or("no call at 14")?;
+        assert!(only.clean() && !only.unmasked() && !only.resolving());
         Ok(())
     }
 
@@ -1455,7 +1496,7 @@ mod tests {
                 },
                 position,
                 beside_unresolved: false,
-                identity_only: false,
+                base_only: false,
             }
         };
         let mut positions = BTreeMap::new();

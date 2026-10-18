@@ -415,3 +415,13 @@ An ADR records the architecture when step 4 or 5 lands.
     the HVS-I read start (`16025G`, `16026G`), probably dye blobs, a false
     variant class the rescue introduces; and a deletion placed differently
     at `16038`, a side effect of the earlier informative interval.
+- Step 4, part 2a: `ReadEvidence` v2, with outputs identical. Each call
+  carries its placement (scored, or masked as anchoring or unresolved with
+  its reason), its verdicts on its base, on an indel, and on a run's end,
+  each with the modality's reasons in the read's reason order and its
+  signal edge, its mark in a bounded run before a post-repeat phase loss,
+  and its second base. The kernel loses `CallMask`, `MaskOnset`, `VetoSet`,
+  `SupportVeto`, and `VetoScope`. The Sanger plugin now finds the bounded
+  runs of ADR-0076 on the read's own calls (SRS-CALL-016); the core keeps
+  the alignment-dependent half. Development panel v5: every harness output
+  byte-identical to main, cause evidence included; real traces identical.

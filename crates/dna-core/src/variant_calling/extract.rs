@@ -245,9 +245,7 @@ mod tests {
     use crate::model::alignment::{AlignmentMetrics, Orientation};
     use crate::model::variant::VariantCallRole;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::{
-        CallMask, EvidenceReason, MaskOnset, MaskedAlignment, ReadEvidence,
-    };
+    use dna_kernel::read_evidence::{EvidenceReason, Placement, ReadEvidence};
 
     use super::*;
 
@@ -310,11 +308,7 @@ mod tests {
         let mut read = ReadEvidence::clean(&"ACGT".repeat(4));
         for index in from..16 {
             let mut call = read.calls()[index];
-            call.mask = Some(CallMask {
-                alignment: MaskedAlignment::Anchoring,
-                reason: EvidenceReason::new("dephased_signal"),
-                onset: MaskOnset::Other,
-            });
+            call = call.masked(Placement::Anchoring(EvidenceReason::new("dephased_signal")));
             read = read.with_call(index, call);
         }
         read

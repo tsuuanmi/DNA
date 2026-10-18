@@ -58,18 +58,21 @@ end. All of these must hold:
    unmasked.
 3. **Post-repeat edge.** On each side, either the nearest uninformative call
    is beyond the margin, or it is a masked call whose segment the modality
-   places right after a repeat run (`MaskOnset::AfterRun` in `ReadEvidence`).
+   places right after a repeat run.
    A read's physical end, the trim interval, or any other masked segment
    never exempts.
 4. **Guard.** At least two informative calls separate each bound from such an
    edge. This is a structural minimum, not a tuned value: guards of 0, 2, and
    3 gave identical results on the development panel.
 
-The modality reports the onset as part of the kernel `ReadEvidence` contract
-between modality and core (ADR-0069): each mask carries a `MaskOnset`,
-`AfterRun` or `Other`. The Sanger plugin sets `AfterRun` exactly where
-callability marks a segment `after_repeat` (the `post_homopolymer` reason).
-The core does not interpret reason labels. The exemption claims nothing
+Since `ReadEvidence` v2 (PROP-0008 step 4), the modality applies rules 2 to 4
+on the read's own calls and marks each such run and its bounds in
+`ReadEvidence` (`post_repeat`, SRS-CALL-016); the Sanger plugin finds the
+post-repeat edge where callability marks a segment `after_repeat`. The core
+keeps the alignment-dependent half: which of the marked calls it trusts (the
+run's matching or inserted calls, a bound that reads the reference), and that
+the edit lies on the run and its bounds. It does not interpret reason
+labels. The exemption claims nothing
 biological (ADR-0009); it only stops distrusting run calls the read shows in
 phase.
 

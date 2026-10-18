@@ -14,17 +14,10 @@ pub enum EvidenceError {
         /// Call count.
         calls: usize,
     },
-    /// More support vetoes were declared than a veto set can hold.
-    #[error("{count} support vetoes exceed the maximum {maximum}")]
-    TooManyVetoes {
-        /// Declared veto count.
-        count: usize,
-        /// Largest supported vocabulary.
-        maximum: usize,
-    },
-    /// A call sets a veto the read did not declare.
-    #[error("call {index} sets an undeclared support veto")]
-    UndeclaredVeto {
+    /// A call's verdict holds a reason the read's reason order does not
+    /// list.
+    #[error("call {index} holds an undeclared reason")]
+    UndeclaredReason {
         /// Offending call index (0-based).
         index: usize,
     },

@@ -324,6 +324,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `ReadEvidence` v2 (PROP-0008 step 4, part 2a). Each call carries its
+  placement (scored, or masked as anchoring or unresolved with its reason)
+  and the modality's verdicts on its base, on an indel, and on a run's end,
+  each with its reasons and signal edge; the read lists the modality's
+  reasons in reporting order. The Sanger plugin marks the bounded runs of
+  ADR-0076 itself (SRS-CALL-016). Outputs are unchanged. **Breaking (Rust
+  API):** the kernel drops `CallMask`, `MaskOnset`, `MaskedAlignment`,
+  `VetoSet`, `SupportVeto`, and `VetoScope`; `CallEvidence::new` becomes
+  `CallEvidence::scored` and `masked`; `ReadEvidence::new` takes the reason
+  order; `CallTrust.mask` becomes `placement`, and `Withholder::Masked`
+  carries the reason.
+
 - Signal-edge verdicts and the read start (PROP-0008 step 4, part 1). The
   core's `read_end` margin around trim ends and masked calls is now the
   modality's verdict per call (`CallEvidence::edge`); the core keeps only the

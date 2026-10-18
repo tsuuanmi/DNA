@@ -11,6 +11,7 @@ use crate::model::sample_evidence::{
 };
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::nucleotide::is_canonical;
+use dna_kernel::read_evidence::Placement;
 
 use super::{call_evidence, contribution, nucleotide_support};
 
@@ -257,7 +258,7 @@ fn classify(read: &CalledRead, column: &AlignmentColumn) -> LocusState {
     let masked = column
         .original_call_index_0based
         .and_then(|index| read.evidence.calls().get(index))
-        .is_some_and(|call| call.mask.is_some());
+        .is_some_and(|call| call.placement != Placement::Scored);
     if column.query_base == '-' {
         LocusState::Deletion
     } else if masked {
