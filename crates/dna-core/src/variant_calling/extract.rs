@@ -48,7 +48,17 @@ pub(crate) fn call(
             }
             let next_reference = next_reference(&alignment.columns, index);
             let next_flank = next_flank(&alignment.columns, index)?;
-            let reasons = allele_exclusion_reasons(&deleted, config.max_indel_length);
+            let mut reasons = allele_exclusion_reasons(&deleted, config.max_indel_length);
+            // A deletion neither of whose flanking calls reads a base observes
+            // nothing: where its gap lies among unresolved calls is arbitrary.
+            if reasons.is_empty()
+                && ![previous_flank, next_flank]
+                    .iter()
+                    .flatten()
+                    .any(|flank| eligibility.reads_base(flank.call_index_0based))
+            {
+                reasons.push(VariantExclusionReason::UnresolvedFlank);
+            }
             if reasons.is_empty() {
                 reported.push(anchor::deletion(
                     reference,
@@ -337,6 +347,35 @@ mod tests {
         assert_eq!(variant.calls[0].role, VariantCallRole::Flanking);
         assert_eq!(variant.calls[0].call_index_0based, 7);
         assert_eq!(variant.calls[0].reference_position_0based, Some(3));
+        Ok(())
+    }
+
+    #[test]
+    fn a_deletion_no_flank_reads_is_excluded() -> Result<()> {
+        // The deleted C lies between two calls read as N.
+        let column = |query, reference, call, position| AlignmentColumn {
+            query_base: query,
+            reference_base: reference,
+            original_call_index_0based: call,
+            reference_index_0based: Some(position),
+        };
+        let result = extract_masked(
+            &alignment(vec![
+                column('N', 'T', Some(0), 1),
+                column('-', 'C', None, 2),
+                column('N', 'G', Some(1), 3),
+            ]),
+            &reference(ReferenceTopology::Linear),
+            &ReadEvidence::clean("NN"),
+        )?;
+        assert!(result.reported.is_empty());
+        let deletions = result
+            .excluded
+            .iter()
+            .filter(|excluded| excluded.kind == VariantKind::Del)
+            .map(|excluded| excluded.reasons.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(deletions, [[VariantExclusionReason::UnresolvedFlank]]);
         Ok(())
     }
 

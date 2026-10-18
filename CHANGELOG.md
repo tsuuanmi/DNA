@@ -656,6 +656,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- A deletion neither of whose flanking calls reads a base (both `N`) made
+  `sample`, `consensus`, and `SampleAnalysis` fail for the whole sample
+  ("variant has no resolved call"). Such a deletion observes nothing, since
+  its gap could lie anywhere among the unresolved calls; it is now recorded
+  only as excluded, with `unresolved_flank` (SRS-VAR-018). Plugin `core` 10.
+
 - Variant normalization: a deletion whose one-base 3' shift would overlap a
   substitution of the next base now tries the deletion trade instead of
   stopping, so `16297DEL 16298C` over `TT` is written `16297C 16298DEL`, as

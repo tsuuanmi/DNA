@@ -136,7 +136,9 @@ A variant's reasons are reported in this order:
    order (the order listed above);
 4. `read_end`;
 5. `run_boundary`;
-6. `unresolved_flank`, when a mapped call is `N` (SRS-VAR-018);
+6. `unresolved_flank`, when a mapped call is `N` (SRS-VAR-018); a deletion
+   neither of whose flanks reads a base is not observed at all, only
+   recorded as excluded with this reason;
 7. the mask reasons of its evidence calls, in mapping order and without
    duplicates.
 

@@ -462,6 +462,14 @@ impl<'a> ReadEligibility<'a> {
         !(placed(index.checked_sub(1)) && placed(Some(index + 1))) && adjacent.contains(&Some(base))
     }
 
+    /// Whether the call at `index` reads a canonical base.
+    pub(crate) fn reads_base(&self, index: usize) -> bool {
+        self.evidence
+            .calls()
+            .get(index)
+            .is_some_and(|call| dna_kernel::model::nucleotide::is_canonical(call.base))
+    }
+
     /// Whether the call at `index` has at least `read_end_margin` informative
     /// calls between it and the nearest uninformative call on both sides.
     pub(crate) fn trusted(&self, index: usize) -> bool {
