@@ -1,0 +1,882 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:review:v1",
+  "title": "DNA review v1",
+  "description": "One sample's review list (PROP-0004). Shapes shared with dna.notation/v1 and dna.consensus/v1 are referenced from those schemas by $id, so a validator needs all three registered.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sample_id",
+    "status",
+    "provenance",
+    "reads",
+    "items",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.review/v1"
+    },
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "status": {
+      "enum": [
+        "called",
+        "rejected",
+        "call_failed"
+      ]
+    },
+    "error": {
+      "description": "Why the call failed; present exactly for call_failed.",
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "reads": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/read"
+      }
+    },
+    "calls": {
+      "description": "The sample's calls in the profile notation; for called under a profile that declares notation.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/call"
+      }
+    },
+    "callable": {
+      "description": "The call's callable reference segments, merged, 1-based inclusive; for called.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/range"
+      }
+    },
+    "empop": {
+      "$ref": "urn:signal:schema:notation:v1#/$defs/empop"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "called"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "callable"
+        ],
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "call_failed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "calls": false,
+          "callable": false,
+          "empop": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "rejected"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "error": false,
+          "calls": false,
+          "callable": false,
+          "empop": false,
+          "items": {
+            "maxItems": 0
+          },
+          "reads": {
+            "items": {
+              "properties": {
+                "admitted": {
+                  "const": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "strand": {
+      "enum": [
+        "forward",
+        "reverse"
+      ]
+    },
+    "base": {
+      "enum": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ]
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "configuration_sha256",
+        "profile",
+        "plugins",
+        "rules"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/reference"
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/profile"
+        },
+        "plugins": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/plugins"
+        },
+        "rules": {
+          "description": "Version of the labelling rules, equal to the review plugin version.",
+          "const": 1
+        }
+      }
+    },
+    "read": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256",
+            "strand",
+            "admitted"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "admitted": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256",
+            "admitted",
+            "rejection"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "admitted": {
+              "const": false
+            },
+            "rejection": {
+              "$ref": "urn:signal:schema:consensus:v1#/$defs/readRejection"
+            }
+          }
+        }
+      ]
+    },
+    "call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call",
+        "position",
+        "ordinal",
+        "reference",
+        "alternate"
+      ],
+      "properties": {
+        "call": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/notationCall/properties/call"
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference": {
+          "description": "The reference base; null for an inserted base.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/base"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alternate": {
+          "description": "The called base; null for a deleted base.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/base"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "convention": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/notationCall/properties/convention"
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "ordinal"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first",
+        "last",
+        "kind",
+        "decision",
+        "sequence",
+        "calls",
+        "labels",
+        "evidence"
+      ],
+      "properties": {
+        "first": {
+          "$ref": "#/$defs/column"
+        },
+        "last": {
+          "$ref": "#/$defs/column"
+        },
+        "kind": {
+          "enum": [
+            "variant",
+            "check"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "called",
+            "partly_callable",
+            "not_callable"
+          ]
+        },
+        "sequence": {
+          "description": "The decided sequence over the item: a site's call (N where undecided, empty when every position is deleted) or the reference base of a position outside every site; null when nothing was decided.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[ACGTN]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "urn:signal:schema:notation:v1#/$defs/notationCall/properties/call"
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/label"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "label": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "reads"
+          ],
+          "properties": {
+            "label": {
+              "const": "strands_disagree"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "read",
+                  "strand",
+                  "role"
+                ],
+                "properties": {
+                  "read": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "strand": {
+                    "$ref": "#/$defs/strand"
+                  },
+                  "role": {
+                    "enum": [
+                      "supporting",
+                      "opposing"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "position",
+            "base",
+            "reads"
+          ],
+          "properties": {
+            "label": {
+              "const": "possible_heteroplasmy"
+            },
+            "position": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "base": {
+              "$ref": "#/$defs/base"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "read",
+                  "strand",
+                  "share"
+                ],
+                "properties": {
+                  "read": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "strand": {
+                    "$ref": "#/$defs/strand"
+                  },
+                  "share": {
+                    "type": "number",
+                    "minimum": 0.15,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "runs"
+          ],
+          "properties": {
+            "label": {
+              "const": "estimated_length"
+            },
+            "runs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "urn:signal:schema:consensus:v1#/$defs/run"
+                  },
+                  {
+                    "properties": {
+                      "length_evidence": {
+                        "enum": [
+                          "phase_loss",
+                          "reference_frame"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label"
+          ],
+          "properties": {
+            "label": {
+              "const": "undecided"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
+              "const": "one_read"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "strand",
+            "reads"
+          ],
+          "properties": {
+            "label": {
+              "const": "one_strand"
+            },
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read",
+            "reason"
+          ],
+          "properties": {
+            "label": {
+              "const": "noisy_signal"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reason": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label"
+          ],
+          "properties": {
+            "label": {
+              "const": "not_covered"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read",
+            "from"
+          ],
+          "properties": {
+            "label": {
+              "const": "phase_shift"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
+              "const": "read_edge"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "sha256",
+        "strand",
+        "positions"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "strand": {
+          "$ref": "#/$defs/strand"
+        },
+        "positions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "ordinal",
+        "base",
+        "state",
+        "call",
+        "scope",
+        "scan",
+        "quality",
+        "second"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ordinal": {
+          "const": 0
+        },
+        "base": {
+          "enum": [
+            "A",
+            "C",
+            "G",
+            "T",
+            "N",
+            "-"
+          ]
+        },
+        "state": {
+          "enum": [
+            "reference",
+            "alternate",
+            "unresolved",
+            "deletion",
+            "masked"
+          ]
+        },
+        "call": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "enum": [
+                "full",
+                "base"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scan": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quality": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "second": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "base",
+                "share"
+              ],
+              "properties": {
+                "base": {
+                  "$ref": "#/$defs/base"
+                },
+                "share": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "checks",
+        "variants",
+        "labels",
+        "clear"
+      ],
+      "properties": {
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "variants": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strands_disagree",
+            "possible_heteroplasmy",
+            "estimated_length",
+            "undecided",
+            "one_read",
+            "one_strand",
+            "noisy_signal",
+            "not_covered",
+            "phase_shift",
+            "read_edge"
+          ],
+          "properties": {
+            "strands_disagree": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "possible_heteroplasmy": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimated_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "undecided": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "one_read": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "one_strand": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "noisy_signal": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_covered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "phase_shift": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_edge": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "clear": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

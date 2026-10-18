@@ -12,6 +12,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Variants result](variants.md): `dna.variants/v1`.
 - [Notation result](notation.md): `dna.notation/v1`.
 - [Consensus result](consensus.md): `dna.consensus/v1` and its FASTA.
+- [Review list](review.md): `dna.review/v1`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
 
@@ -24,6 +25,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Variants JSON Schema](schemas/variants-v1.schema.json)
 - [Notation JSON Schema](schemas/notation-v1.schema.json)
 - [Consensus JSON Schema](schemas/consensus-v1.schema.json)
+- [Review JSON Schema](schemas/review-v1.schema.json)
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.

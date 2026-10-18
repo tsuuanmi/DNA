@@ -9,6 +9,7 @@ dependencies = []
 dev = [
   "basedpyright",
   "jsonschema",
+  "referencing",
   "ruff",
 ]
 

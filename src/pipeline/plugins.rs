@@ -2,6 +2,7 @@
 //! validated at compile time (ADR-0069).
 
 use crate::input::sequence::PLUGIN as SEQUENCE;
+use crate::report::REVIEW;
 use dna_core::consensus::PLUGIN as CONSENSUS_PLUGIN;
 use dna_core::consensus::decided::PLUGIN as DECIDED;
 use dna_core::read_call::PLUGIN as CORE;
@@ -23,6 +24,7 @@ const REGISTRY: &[&PluginDescriptor] = &[
     &NOMENCLATURE,
     &CONFORMANCE,
     &EMPOP,
+    &REVIEW,
 ];
 
 /// Plugins of the `basecall` workflow, in execution order.
@@ -97,6 +99,55 @@ pub(crate) const SAMPLE_WITH_NOTATION: &[&PluginDescriptor] = composition(
     &[],
     &[&SANGER, &CORE, &NORMALIZATION, &NOMENCLATURE],
 );
+
+/// Plugins of the `review` workflow without notation, in execution order: the
+/// consensus workflow, the call of its decided edits, then the review list.
+const REVIEW_LIST: &[&PluginDescriptor] = composition(
+    REGISTRY,
+    &[],
+    &[&SANGER, &CORE, &CONSENSUS_PLUGIN, &DECIDED, &REVIEW],
+);
+/// Plugins of the `review` workflow with notation, in execution order.
+const REVIEW_WITH_NOTATION: &[&PluginDescriptor] = composition(
+    REGISTRY,
+    &[],
+    &[
+        &SANGER,
+        &CORE,
+        &CONSENSUS_PLUGIN,
+        &DECIDED,
+        &NORMALIZATION,
+        &NOMENCLATURE,
+        &REVIEW,
+    ],
+);
+/// Plugins of the `review` workflow with notation and the EMPOP query, in
+/// execution order.
+const REVIEW_WITH_EMPOP: &[&PluginDescriptor] = composition(
+    REGISTRY,
+    &[],
+    &[
+        &SANGER,
+        &CORE,
+        &CONSENSUS_PLUGIN,
+        &DECIDED,
+        &NORMALIZATION,
+        &NOMENCLATURE,
+        &EMPOP,
+        &REVIEW,
+    ],
+);
+
+/// Plugins of the `review` workflow, by the post-calling plugins the profile
+/// declares, as `SampleAnalysis::call` runs them: the EMPOP query needs the
+/// notation.
+pub(crate) const fn review(notation: bool, empop: bool) -> &'static [&'static PluginDescriptor] {
+    match (notation, empop) {
+        (false, _) => REVIEW_LIST,
+        (true, false) => REVIEW_WITH_NOTATION,
+        (true, true) => REVIEW_WITH_EMPOP,
+    }
+}
 
 const _: () = validate_registry(REGISTRY);
 

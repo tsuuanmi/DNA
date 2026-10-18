@@ -17,6 +17,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The review list (PROP-0004, SRS-API-014): `dna review <sample-id>
+  <trace>... --reference <fasta>` runs the sample analysis, the consensus,
+  and its call once and writes `results/<sample-id>.review.json`, a new
+  contract `dna.review/v1`. It lists the positions a reviewer should look at,
+  in priority order, each with what DNA decided, its calls, evidence labels
+  (`strands_disagree`, `possible_heteroplasmy`, `estimated_length`,
+  `undecided`, `one_read`, `one_strand`, `noisy_signal`, `not_covered`,
+  `phase_shift`, `read_edge`), and every covering read's bases, call indices,
+  trace scan positions, relative qualities, and second-base shares; a summary
+  counts the labels and says whether the sample is `clear`. Every sample gets
+  a document: one whose reads are all rejected, or whose call fails, carries
+  that status. New post-calling plugin `review` 1 (labelling rules version 1)
+  and kernel contract `ReviewList`. Watched positions come later.
+
 - The evaluation harness reports DNA's callable yield: per sample and HV
   region, the truth's analysed positions that DNA's callable intervals cover
   (`callable_yield` in `scores.tsv`), and per region in the summary the

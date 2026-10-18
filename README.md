@@ -135,6 +135,14 @@ cargo run --release -- call AB0442 consensus.fasta \
   --reference references/rCRS.fasta
 ```
 
+The positions of a sample a reviewer should look at, with their evidence
+([review list](docs/reference/review.md)):
+
+```bash
+cargo run --release -- review AB0442 read1.ab1 read2.ab1 \
+  --reference references/rCRS.fasta
+```
+
 Notation and conformance findings from a variants document:
 
 ```bash
@@ -151,11 +159,12 @@ basecall  -> results/<trace-stem>.basecalls.json
 analyze   -> results/<trace-stem>.json
 sample    -> results/<sample-id>.sample.json
 consensus -> results/<sample-id>.consensus.json, results/<sample-id>.consensus.fasta
+review    -> results/<sample-id>.review.json
 call      -> results/<sample-id>.variants.json
 notation  -> results/<sample-id>.notation.json
 ```
 
-Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
+Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `review`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
 
 Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066). The library offers the same workflow in process: `dna::sample_analysis::analyze_sanger`, then `SampleAnalysis::call` ([Rust API](docs/reference/rust-api.md#sample-analysis)). For validation, the workspace's evaluation harness `dna-eval` runs DNA over a fixed test panel in process and compares its calls with reviewer truth; it is not part of the `dna` binary or the release ([evaluation harness](docs/validation/evaluation-harness.md), ADR-0075).
 
@@ -167,7 +176,9 @@ Current public result contracts are:
 - `dna.analysis/v9` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence and the read callability view;
 - `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons;
 - `dna.variants/v1` — the core's per-read placements and observed variants from reviewed consensus sequences, with eligibility and optional notation, and no modality evidence;
-- `dna.notation/v1` — the post-calling notation of a variants document and the target profile's conformance findings.
+- `dna.notation/v1` — the post-calling notation of a variants document and the target profile's conformance findings;
+- `dna.consensus/v1` — a sample's adjudicated consensus sequence and the evidence behind each decision;
+- `dna.review/v1` — a sample's review list: the positions a reviewer should look at, with evidence labels and no conclusion.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 

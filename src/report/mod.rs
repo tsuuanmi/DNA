@@ -7,6 +7,7 @@ mod callability;
 mod consensus;
 mod json;
 mod notation;
+mod review;
 mod sample;
 mod sanger_call;
 mod signal;
@@ -24,4 +25,5 @@ pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,
     calls as notation_calls,
 };
+pub(crate) use review::{CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

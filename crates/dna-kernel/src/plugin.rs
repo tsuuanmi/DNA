@@ -50,6 +50,9 @@ pub enum Contract {
     EmpopQuery,
     /// An adjudicated sample consensus sequence.
     Consensus,
+    /// A sample's review list: the positions a reviewer should look at, with
+    /// their evidence labels.
+    ReviewList,
 }
 
 /// Identity, interface, and configuration ownership of one plugin.

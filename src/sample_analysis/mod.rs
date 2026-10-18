@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use tracing::{Dispatch, Span};
 
 use crate::config::Config;
-use crate::input::sanger;
+use crate::input::sanger::{self, SampleInputs};
 use dna_core::consensus;
 use dna_core::model::called_read::CalledRead;
 use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
@@ -226,13 +226,27 @@ pub fn analyze_sanger_outcome(
     config: &Path,
     workers: NonZeroUsize,
 ) -> Result<SampleOutcome> {
-    let inputs = sanger::load_sample(traces, reference, config)?;
+    analyze(
+        sanger::load_sample(traces, reference, config)?,
+        &CallerScope::current(),
+        workers,
+    )
+}
+
+/// Runs the placement pass, the aggregation, and the consensus over loaded
+/// inputs, with each read's instrumentation going to `scope`; the shared body
+/// of [`analyze_sanger_outcome`] and the `review` operation.
+pub(crate) fn analyze(
+    inputs: SampleInputs,
+    scope: &impl ReadScope,
+    workers: NonZeroUsize,
+) -> Result<SampleOutcome> {
     let placed = reads::place(
         &inputs.traces,
         &inputs.reference,
         &inputs.config,
         &inputs.profile,
-        &CallerScope::current(),
+        scope,
         workers,
     )?;
     if placed.called.is_empty() && !placed.rejected.is_empty() {
