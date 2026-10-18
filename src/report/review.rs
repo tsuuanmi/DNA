@@ -39,7 +39,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 5,
+    version: 6,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -1019,11 +1019,9 @@ fn heteroplasmy(clean: &[Clean]) -> Option<(char, Vec<Clean>)> {
     let mut best: Option<(usize, char)> = None;
     for base in Nucleotide::ALL.map(Nucleotide::as_char) {
         let count = qualifying.iter().filter(|read| read.second == base).count();
-        let fires = if both {
-            shows(base, Orientation::Forward) && shows(base, Orientation::Reverse)
-        } else {
-            count > 0
-        };
+        // Both strands must confirm the base: a site only one strand reads
+        // cleanly gives no label (the one-strand flags were 3 % precise).
+        let fires = both && shows(base, Orientation::Forward) && shows(base, Orientation::Reverse);
         if fires && best.is_none_or(|(most, _)| count > most) {
             best = Some((count, base));
         }
@@ -1347,45 +1345,63 @@ mod tests {
     }
 
     #[test]
-    fn heteroplasmy_on_one_strand_needs_one_read() {
-        let reads = [clean(0, R, 'A', 0.3), clean(1, R, 'C', 0.01)];
-        let (base, qualifying) = heteroplasmy(&reads).unwrap_or(('-', Vec::new()));
-        assert_eq!(base, 'A');
-        assert_eq!(qualifying, [reads[0]]);
+    fn heteroplasmy_needs_both_strands_to_confirm() {
+        // One strand alone never fires, however strong its share.
+        assert_eq!(heteroplasmy(&[clean(0, R, 'A', 0.4)]), None);
+        let one_strand = [clean(0, F, 'T', 0.3), clean(1, F, 'T', 0.3)];
+        assert_eq!(heteroplasmy(&one_strand), None);
+        // Both strands with the same second base fire, and the reads that
+        // show it are reported.
+        let both = [
+            clean(0, F, 'T', 0.3),
+            clean(1, R, 'T', 0.25),
+            clean(2, R, 'C', 0.01),
+        ];
+        let (base, qualifying) = heteroplasmy(&both).unwrap_or(('-', Vec::new()));
+        assert_eq!(base, 'T');
+        assert_eq!(qualifying, [both[0], both[1]]);
         // The base most reads show wins, then A/C/G/T order.
         let tied = [
             clean(0, F, 'T', 0.2),
-            clean(1, F, 'C', 0.2),
-            clean(2, F, 'T', 0.2),
+            clean(1, R, 'T', 0.2),
+            clean(2, F, 'C', 0.2),
+            clean(3, R, 'C', 0.2),
+            clean(4, R, 'T', 0.2),
         ];
         assert_eq!(heteroplasmy(&tied).map(|(base, _)| base), Some('T'));
-        let even = [clean(0, F, 'T', 0.2), clean(1, F, 'C', 0.2)];
+        let even = [
+            clean(0, F, 'T', 0.2),
+            clean(1, R, 'T', 0.2),
+            clean(2, F, 'C', 0.2),
+            clean(3, R, 'C', 0.2),
+        ];
         assert_eq!(heteroplasmy(&even).map(|(base, _)| base), Some('C'));
     }
 
     #[test]
     fn heteroplasmy_needs_a_share_above_the_threshold() {
-        assert_eq!(heteroplasmy(&[clean(0, F, 'G', 0.12)]), None);
-        assert!(heteroplasmy(&[clean(0, F, 'G', 0.121)]).is_some());
-        // A run level above the share holds it back.
-        let mut raised = clean(0, F, 'G', 0.3);
-        raised.threshold = Threshold {
+        let pair = |share| [clean(0, F, 'G', share), clean(1, R, 'G', share)];
+        assert_eq!(heteroplasmy(&pair(0.12)), None);
+        assert!(heteroplasmy(&pair(0.121)).is_some());
+        // A run level above the share on one strand holds the site back.
+        let mut raised = pair(0.3);
+        raised[0].threshold = Threshold {
             share: 0.35,
             calls: Some(40),
         };
-        assert_eq!(heteroplasmy(&[raised]), None);
+        assert_eq!(heteroplasmy(&raised), None);
         assert_eq!(heteroplasmy(&[]), None);
     }
 
     #[test]
     fn heteroplasmy_excludes_a_neighbour_shadow() {
-        let mut shadow = clean(0, F, 'G', 0.4);
-        shadow.neighbours = [Some('A'), Some('G')];
-        assert_eq!(heteroplasmy(&[shadow]), None);
-        shadow.neighbours = [Some('G'), None];
-        assert_eq!(heteroplasmy(&[shadow]), None);
-        shadow.neighbours = [Some('A'), Some('C')];
-        assert!(heteroplasmy(&[shadow]).is_some());
+        let mut pair = [clean(0, F, 'G', 0.4), clean(1, R, 'G', 0.4)];
+        pair[0].neighbours = [Some('A'), Some('G')];
+        assert_eq!(heteroplasmy(&pair), None);
+        pair[0].neighbours = [Some('G'), None];
+        assert_eq!(heteroplasmy(&pair), None);
+        pair[0].neighbours = [Some('A'), Some('C')];
+        assert!(heteroplasmy(&pair).is_some());
     }
 
     #[test]

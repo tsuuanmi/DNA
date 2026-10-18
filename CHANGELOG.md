@@ -386,6 +386,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `possible_heteroplasmy` fires only when both strands read the position
+  cleanly and confirm the same second base (`review` plugin 6, rules
+  version 6). A site that only one strand reads gives no label. On current
+  development data (floor 0.20), two-strand flags were 90 % precise (128 of
+  142) and one-strand flags 3 % (76 of 2,272), so one-strand flags cost
+  reviewers far more than they found. This follows the user's rule that a
+  heteroplasmy flag must not add false positives, and the forensic practice
+  of confirming point heteroplasmy on both strands.
 - Every Sanger method threshold is configuration (SRS-CFG-009; schema 9),
   with defaults equal to the former constants, so outputs change only in
   the configuration checksum:
