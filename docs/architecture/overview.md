@@ -31,7 +31,7 @@
 | `operation_log` | dna | append-only operational records rendered from `tracing` events | scientific decisions |
 | `checksum` | kernel | stable SHA-256 byte identity | file I/O and policy |
 | `locus` | sanger | Sanger locus window geometry | signal interpretation |
-| `model` | kernel, core, sanger, dna | validated domain vocabulary; each child belongs to the crate of its family (Sanger evidence and attachments to `sanger`) | filesystem and algorithms |
+| `model` | kernel, align, call, sample, consensus, sanger, dna | validated domain vocabulary; each child belongs to the crate of its family (Sanger evidence and attachments to `sanger`) | filesystem and algorithms |
 | `variant` | kernel | public canonical called-variant contracts | evidence and call mappings |
 | `plugin` | kernel | plugin descriptor types and their compile-time validation; each plugin declares its own descriptor, and `pipeline::plugins` lists the registry and workflow compositions | running stages, configuration values |
 | `read_evidence` | kernel | modality → core per-read evidence contract: bases, profiles, labelled masks with their onset, support vetoes, informative interval | modality algorithms, interpreting reason labels |
@@ -44,13 +44,13 @@
 | `signal_processing` | sanger | observation-only Sanger signal evidence | reference interpretation |
 | `callability` | sanger | signal-derived per-read phase state, typed mask, callable span; modality-generic core plus one Sanger adapter | channel/call mutation, basecall rescue, reference or profile knowledge, variant decisions |
 | `quality_control` | sanger | relative quality; trim interval from the callable span | deciding callability, variant filtering |
-| `alignment` | core | current profile-aware pairwise placement/orientation of `ReadEvidence` | variant extraction, input-format parsing, modality types |
-| `variant_calling` | core | evidence-backed differences, mapping, allele anchoring, core eligibility gates, reporting modality vetoes and mask reasons | target nomenclature, genotype/clinical interpretation, modality types |
+| `alignment` | align | current profile-aware pairwise placement/orientation of `ReadEvidence` | variant extraction, input-format parsing, modality types |
+| `variant_calling` | call | evidence-backed differences, mapping, allele anchoring, the one trust rule (`Eligibility`), reporting modality vetoes and mask reasons | target nomenclature, genotype/clinical interpretation, modality types |
 | `variant_analysis` | dna | Sanger one-read composition (modality plus core) and the public Variant Analysis capability | CLI logging/JSON publication |
 | `sample_analysis` | dna | the sample placement pass (each trace placed once, reads run concurrently), its aggregation and consensus, and the public Sample Analysis capability, whose consensus call (`SampleAnalysis::call`, implemented in `pipeline`) completes the `consensus` then `call` workflow in process | CLI logging/JSON publication, comparison with truth |
-| `read_call` | core | the core's one-read path from `ReadEvidence` to a `CalledRead`, and the core-owned configuration | modality types |
-| `sample` | core | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
-| `consensus` | core | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |
+| `read_call` | call | the core's one-read path from `ReadEvidence` to a `CalledRead`, the sections a called read needs (`CallConfig`), and the `core` plugin descriptor | modality types |
+| `sample` | sample | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
+| `consensus` | consensus | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |
 | `variant_representation` | post | haplotype-preserving edit conversion, application, rendering | policy choices |
 | `variant_normalization` | post | optional sequence-equivalent normalization policies | nomenclature windows |
 | `variant_nomenclature` | post | profile-driven window representation engine | target knowledge, notation rendering |
@@ -58,12 +58,15 @@
 | `report` | dna | contract projection, serialization, atomic publish | scientific decisions |
 | `pipeline` | dna | CLI orchestration of every command (analyze, basecall, sample, consensus, call, notation), path/log/publication lifecycle | scientific implementation ownership |
 
-DNA is a Cargo workspace of plugin-family crates
+DNA is a Cargo workspace of plugin-family crates, with the core split by step
 ([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),
+[ADR-0079](../decisions/adr/0079-core-crates-by-step.md),
 [crates](../../crates/README.md)):
 
 - `dna-kernel` holds the shared contracts;
-- `dna-core` is the core caller;
+- the core caller is four crates, one per step, in a chain: `dna-align`
+  (placement), `dna-call` (the read assertion), and on both `dna-sample`
+  (sample evidence) and `dna-consensus` (the consensus);
 - `dna-sanger` is the Sanger modality;
 - `dna-normalize` holds post-calling representation, normalization, and
   nomenclature, and `dna-empop` holds conformance
@@ -76,7 +79,8 @@ DNA is a Cargo workspace of plugin-family crates
   ([ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md)). It is
   not part of the `dna` binary or the release.
 
-The Crate column above uses the short names. The plugin crates depend only on
+The Crate column above uses the short names. Each core crate depends only on
+`dna-kernel` and the steps before it; the other plugin crates depend only on
 `dna-kernel`, and only `dna` composes them. The harness may depend on `dna` and
 the plugin crates; no crate depends on the harness, and truth formats and
 comparison live nowhere else (SRS-COMPAT-003). Each plugin owns its

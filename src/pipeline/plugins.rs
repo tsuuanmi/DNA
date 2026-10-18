@@ -3,9 +3,9 @@
 
 use crate::input::sequence::PLUGIN as SEQUENCE;
 use crate::report::REVIEW;
-use dna_core::consensus::PLUGIN as CONSENSUS_PLUGIN;
-use dna_core::consensus::decided::PLUGIN as DECIDED;
-use dna_core::read_call::PLUGIN as CORE;
+use dna_call::read_call::PLUGIN as CORE;
+use dna_consensus::PLUGIN as CONSENSUS_PLUGIN;
+use dna_consensus::decided::PLUGIN as DECIDED;
 use dna_empop::conformance::PLUGIN as CONFORMANCE;
 use dna_empop::export::PLUGIN as EMPOP;
 use dna_kernel::plugin::{Contract, PluginDescriptor, composition, validate_registry};

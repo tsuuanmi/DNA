@@ -22,7 +22,7 @@ use std::num::NonZeroUsize;
 use dna::sample_analysis::{
     self, Consensus, ConventionLabel, EmpopExport, NotationCall, SampleAnalysis, SampleOutcome,
 };
-use dna_core::model::consensus::SiteState;
+use dna_consensus::model::consensus::SiteState;
 use sha2::{Digest, Sha256};
 
 use crate::cause::loci::{self, Loci};
@@ -366,7 +366,7 @@ mod tests {
 
     use super::*;
     use crate::manifest::Weight;
-    use dna_core::model::consensus::{ConsensusSite, ConsensusSummary};
+    use dna_consensus::model::consensus::{ConsensusSite, ConsensusSummary};
 
     #[test]
     fn counts_the_consensus_decisions_an_empop_range_rests_on() {

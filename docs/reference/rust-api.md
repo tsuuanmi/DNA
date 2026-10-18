@@ -11,10 +11,12 @@ the CLI dispatcher `dna::run(cli::Cli) -> dna::error::Result<()>`. All other
 modules, including configuration, internal models, scientific stages, and
 reporting, are private implementation detail.
 
-The workspace plugin crates (`dna-kernel`, `dna-core`, `dna-sanger`,
-`dna-normalize`, `dna-empop`;
+The workspace plugin crates (`dna-kernel`; the core's `dna-align`,
+`dna-call`, `dna-sample`, `dna-consensus`; `dna-sanger`, `dna-normalize`,
+`dna-empop`;
 [ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),
-[ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md))
+[ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md),
+[ADR-0079](../decisions/adr/0079-core-crates-by-step.md))
 are unpublished implementation crates, not part of this boundary. The `dna`
 facade re-exports exactly these public items from them:
 - `error` re-exports the failure vocabularies of `dna_kernel::error` (its
@@ -22,7 +24,7 @@ facade re-exports exactly these public items from them:
   own [`Error`](#errors);
 - `variant` is `dna_kernel::variant`;
 - `profile` exposes `Profile` and `ProfileIdentity`;
-- `sample_analysis` exposes `SampleEvidence` and `Consensus` (`dna-core`) and
+- `sample_analysis` exposes `SampleEvidence` (`dna-sample`) and `Consensus` (`dna-consensus`) and
   `SangerAttachment` and `SangerRejection` (`dna-sanger`), the records of a
   [sample analysis](#sample-analysis);
 - `variant_normalization` exposes `normalize`, `NormalizationPolicy`, and
@@ -257,11 +259,11 @@ impl RejectionCause {
 }
 ```
 
-- `evidence` is the core's sample evidence (`dna_core`): the read registry in
+- `evidence` is the core's sample evidence (`dna_sample`): the read registry in
   content-SHA-256 order, the rejected reads, coverage, overlaps, locus
   differences, and normalized variants with support and opposition. It carries
   the reference and configuration SHA-256.
-- `consensus` is the core's consensus (`dna_core`): segments, sites, and
+- `consensus` is the core's consensus (`dna_consensus`): segments, sites, and
   summary; each site names its reads in registry order.
 - `reads` holds each admitted read's Sanger evidence (`dna_sanger`): calls,
   signal analysis, callability, and quality control.
@@ -269,7 +271,7 @@ impl RejectionCause {
   analysis ran with (inclusive, 1-based), so a caller reads them from the
   profile rather than repeating them.
 - `trust(input_sha256)` returns, for the admitted read with that content
-  SHA-256, the core's trust in each of its calls (`CallTrust`, `dna_core`):
+  SHA-256, the core's trust in each of its calls (`CallTrust`, `dna_call`):
   its mask (reason and onset, as the modality gave them), whether it is
   unresolved, the support vetoes raised on it by label, whether it is trusted
   under `read_end` and whether an ADR-0076 exemption applies, and what
@@ -282,7 +284,7 @@ impl RejectionCause {
   evidence for evaluation and review, not a calling contract.
 - `observations(first_1based, last_1based)` returns, for each position of
   the inclusive interval that an admitted read covers, a `LocusObservations`
-  (`dna_core`): the position, its reference base, and every covering read's
+  (`dna_sample`): the position, its reference base, and every covering read's
   observation exactly as `evidence.locus_differences` records it (state,
   reference-strand base, source call index, and reference-oriented A/C/G/T
   profile, with read indices into `evidence.reads`), whether or not a read
@@ -584,7 +586,7 @@ dependency types never appear in the public API. Stage failures render inline,
 ## Instrumentation
 
 Library capabilities emit `tracing` instrumentation under the targets of the
-crates that run each stage (`dna`, `dna_core`, `dna_sanger`) and
+crates that run each stage (`dna`, `dna_call`, `dna_sanger`) and
 never install a subscriber, write files, or print. `analyze_sanger` opens one
 `info` span per scientific stage, in order and not nested in one another
 (`basecalling`, `signal_processing`, `callability`, `quality_control`,

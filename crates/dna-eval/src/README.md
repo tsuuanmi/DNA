@@ -5,8 +5,8 @@ The evaluation harness
 the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
 with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
-`sample_analysis` capability it runs, on `dna-core` and `dna-sanger` only
-to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` for the
+`sample_analysis` capability it runs, on `dna-align`, `dna-sample`,
+`dna-consensus`, and `dna-sanger` only to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` for the
 reference the haplotype measures apply alleles to and the profile, variant,
 and nucleotide types it reads, and on `dna-normalize`
 to run the truth's calls through DNA's notation (`convention`); its tests use
@@ -49,7 +49,7 @@ equivalence. No crate depends on it, and it is not part of the release.
 - `evidence.rs` — with `run --triage`, the compact triage evidence the
   runner takes from each sample's analysis: per region position, the clean
   strands, masked reads, and consensus marks; per trace, its primer, state,
-  and callable span. It names `dna_core` and `dna_sanger` evidence types
+  and callable span. It names `dna_align`, `dna_sample`, `dna_consensus`, and `dna_sanger` evidence types
   (`Orientation`, `SiteState`, `RunEvidence`, `ReadCallability`) that the
   facade exposes only as fields. `evidence/minor.rs` adds each clean read's
   minor channel per region position, read through `SampleAnalysis::observations`

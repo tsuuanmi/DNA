@@ -9,9 +9,9 @@
 //! (`SampleAnalysis::reads`) for its neighbours and noise.
 
 use dna::sample_analysis::{SampleAnalysis, SangerAttachment};
-use dna_core::model::alignment::Orientation;
-use dna_core::model::sample_evidence::{LocusState, SampleLocusObservation};
+use dna_align::model::alignment::Orientation;
 use dna_kernel::model::nucleotide::Nucleotide;
+use dna_sample::model::sample_evidence::{LocusState, SampleLocusObservation};
 
 use super::Strand;
 
@@ -348,7 +348,7 @@ mod tests {
             call_index_0based: Some(call),
             profile: Some(EvidenceProfile { weights }),
             nucleotide_contribution:
-                dna_core::model::sample_evidence::NucleotideContribution::Eligible,
+                dna_sample::model::sample_evidence::NucleotideContribution::Eligible,
         }
     }
 

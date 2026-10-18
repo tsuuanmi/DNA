@@ -45,10 +45,13 @@ use crate::error::{Error, KernelError, Result};
 const DEFAULT_LOG_DIRECTORY: &str = "logs";
 /// Crates whose events form the operation log: the facade and the plugin crates
 /// it composes (ADR-0069).
-const CRATE_TARGETS: [&str; 6] = [
+const CRATE_TARGETS: [&str; 9] = [
     env!("CARGO_CRATE_NAME"),
     "dna_kernel",
-    "dna_core",
+    "dna_align",
+    "dna_call",
+    "dna_sample",
+    "dna_consensus",
     "dna_sanger",
     "dna_normalize",
     "dna_empop",

@@ -29,7 +29,7 @@ deferred item.
 
 It depends on `classes`, `compare`, and `lod` for the sample's class,
 comparisons, and limit-of-detection signals, on `truth` for the written
-forms, and on DNA's sample analysis and the `dna-core` and `dna-sanger`
+forms, and on DNA's sample analysis and the core's and `dna-sanger`
 evidence types for the reads; `report`, `runner`, and `main` (the forms) use
 it. It reads no configuration: the core's verdict carries the margins and
 thresholds DNA applied. It never rewrites the truth.

@@ -4,8 +4,10 @@ Owns strict loading of the configuration envelope: the schema version, the
 target profile path, the source identity, and the composition of every
 plugin-owned section ([ADR-0069](../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 Each section's raw record, validated record, and rules live with the stage that
-owns it (`alignment::config`, `basecalling::config`, …). The Sanger and core
-plugins validate their sections together as `SangerConfig` and `CoreConfig`.
+owns it (`config.rs` in `dna-align`, `basecalling::config`, …). The Sanger plugin
+validates its sections together as `SangerConfig`; the core's alignment and
+variant-calling sections validate together as `CallConfig`, then its
+sample-reconciliation section, in that order (ADR-0079).
 Resource caps live with the code they bound.
 
 Key children: `defaults.rs` (default path and size cap), `load.rs`, and

@@ -47,7 +47,7 @@ A sample's consensus document is called from its decided edits, without
 placing a segment again (ADR-0078):
 
 ```text
-dna.consensus/v1 --> input::consensus --> dna_core::consensus::decided --> CalledRead --> called variants
+dna.consensus/v1 --> input::consensus --> dna_consensus::decided --> CalledRead --> called variants
 ```
 
 Reviewed consensus sequences take a shorter path into the same core:
@@ -55,7 +55,7 @@ Reviewed consensus sequences take a shorter path into the same core:
 ```text
 consensus FASTA --> input::sequence --> ReadEvidence (vouched ends)
                                              |
-FASTA ---------------------------------> dna_core::read_call
+FASTA ---------------------------------> dna_call::read_call
                                              |
                                          CalledRead --> called variants
 ```

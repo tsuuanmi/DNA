@@ -7,7 +7,7 @@ Part of the canonical [DNA pipeline](pipeline.md). Requirements:
 
 `dna consensus` runs the `sample` read path (read processing, placement,
 rejected reads), aggregates the admitted reads to fix their order, and then
-calls `dna_core::consensus::build`. The module reads only `CalledRead`
+calls `dna_consensus::build`. The module reads only `CalledRead`
 records, so any modality that produces `ReadEvidence` can feed it.
 
 ## Step 1 — Observations
@@ -36,7 +36,7 @@ Indels longer than `variant_calling.max_indel_length` are never clean.
 An insertion or deletion that changes the length of a run is not clean either
 when the read does not resolve both ends of that run. This is the
 `run_boundary` test of variant calling (ADR-0071), shared through
-`ReadEligibility::unbounded_run`. Such a read shows the run's base but not its
+`Eligibility::unbounded_run`. Such a read shows the run's base but not its
 length. It seeds no stretch through that indel, and position by position it
 still contributes the bases its alignment places on the run.
 

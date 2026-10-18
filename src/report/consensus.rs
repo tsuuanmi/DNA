@@ -12,11 +12,11 @@ use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::sample_result::SampleProvenanceResult;
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::sample::{project_rejection, reviewer_read_names};
-use dna_core::model::consensus::{Consensus, ConsensusSegment};
-use dna_core::model::sample_evidence::SampleEvidence;
+use dna_consensus::model::consensus::{Consensus, ConsensusSegment};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
+use dna_sample::model::sample_evidence::SampleEvidence;
 
 /// FASTA sequence line width.
 const FASTA_WIDTH: usize = 70;

@@ -23,7 +23,7 @@ the loaded configuration, profile, and reference in the result, exposes the
 profile's reportable regions (`SampleAnalysis::regions`), keeps the placed
 reads so that `SampleAnalysis::observations` gives every read's observation of
 each covered position of an interval as the core records it at a differential
-locus (`dna_core::sample::observations`),
+locus (`dna_sample::observations`),
 returns the rejected
 reads instead of an error when none is admitted (`analyze_sanger_outcome`, which
 `analyze_sanger` wraps; its body over loaded inputs, `analyze`, also serves the

@@ -16,21 +16,19 @@ use tracing::{Dispatch, Span};
 use crate::config::Config;
 use crate::error::{Result, SampleError};
 use crate::input::sanger::{self, SampleInputs};
-use dna_core::consensus;
-use dna_core::model::called_read::CalledRead;
-use dna_core::model::sample_evidence::{LocusObservations, RejectedSampleRead};
-use dna_core::sample;
-use dna_core::variant_calling::read_trust;
+use dna_call::model::called_read::CalledRead;
+use dna_call::read_trust;
 use dna_kernel::model::reference::Reference;
 pub use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel};
 use dna_kernel::profile::{Profile, ProfileIdentity};
 use dna_kernel::variant::ReferenceIdentity;
+use dna_sample::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 
 pub use crate::model::read_observation::{RejectedRead, RejectionCause};
-pub use dna_core::model::consensus::Consensus;
-pub use dna_core::model::sample_evidence::SampleEvidence;
-pub use dna_core::model::trust::{CallTrust, TrustScope, Withholder};
+pub use dna_call::model::trust::{CallTrust, TrustScope, Withholder};
+pub use dna_consensus::model::consensus::Consensus;
 pub use dna_empop::export::{Cut, CutReason, Export as EmpopExport};
+pub use dna_sample::model::sample_evidence::SampleEvidence;
 pub use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 
 pub use crate::variant_analysis::ReferenceSegment;
@@ -107,7 +105,7 @@ impl SampleAnalysis {
         first_1based: usize,
         last_1based: usize,
     ) -> Result<Vec<LocusObservations>> {
-        Ok(sample::observations(
+        Ok(dna_sample::observations(
             &self.called.iter().collect::<Vec<_>>(),
             first_1based,
             last_1based,
@@ -282,10 +280,10 @@ pub(crate) fn aggregate(placed: &PlacedReads, config: &Config) -> Result<SampleE
             input_sha256: read.input_sha256.clone(),
         })
         .collect::<Vec<_>>();
-    Ok(sample::aggregate(
+    Ok(dna_sample::aggregate(
         &placed.called.iter().collect::<Vec<_>>(),
         &rejected,
-        &config.core.sample_reconciliation,
+        &config.sample,
         &config.core.variant_calling,
     )?)
 }
@@ -307,7 +305,7 @@ pub(crate) fn build_consensus(
         .iter()
         .filter_map(|read| by_identity.get(read.input_sha256.as_str()).copied())
         .collect::<Vec<_>>();
-    consensus::build(&ordered, reference, &config.core)
+    dna_consensus::build(&ordered, reference, &config.core)
 }
 
 /// Rejected reads keyed by read content identity.

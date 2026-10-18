@@ -5,11 +5,11 @@ use std::collections::BTreeSet;
 
 use dna::sample_analysis::SampleAnalysis;
 use dna::sample_analysis::{CallTrust, Withholder};
-use dna_core::model::alignment::Orientation;
-use dna_core::model::consensus::SiteState;
-use dna_core::model::sample_evidence::LocusState;
+use dna_align::model::alignment::Orientation;
+use dna_consensus::model::consensus::SiteState;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::read_evidence::EvidenceReason;
+use dna_sample::model::sample_evidence::LocusState;
 
 /// A second channel at or above this share of a read's profile, in
 /// thousandths, is a faint second base; below it, none (3 %).

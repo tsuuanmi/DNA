@@ -6,7 +6,7 @@ use crate::model::sample_result::SampleProvenanceResult;
 use crate::model::variants_result::{ObservedVariantResult, ReadVariantsResult, VariantsResult};
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, SampleNotation};
-use dna_core::model::called_read::CalledRead;
+use dna_call::model::called_read::CalledRead;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
@@ -80,7 +80,7 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
 }
 
 fn project_read(read: CalledRead) -> ReadVariantsResult {
-    let intervals = |segments: Vec<dna_core::model::alignment::ReferenceSegment>| {
+    let intervals = |segments: Vec<dna_align::model::alignment::ReferenceSegment>| {
         segments
             .into_iter()
             .map(|segment| IntervalResult {

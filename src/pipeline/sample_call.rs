@@ -51,7 +51,7 @@ impl SampleAnalysis {
                     .iter()
                     .map(|read| {
                         let segments =
-                            |segments: &[dna_core::model::alignment::ReferenceSegment]| {
+                            |segments: &[dna_align::model::alignment::ReferenceSegment]| {
                                 segments
                                     .iter()
                                     .map(|segment| {

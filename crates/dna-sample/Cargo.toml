@@ -1,0 +1,23 @@
+[package]
+name = "dna-sample"
+description = "DNA sample evidence: what a sample's reads show together, for review"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dna-kernel.workspace = true
+dna-align.workspace = true
+dna-call.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+dna-align = { workspace = true, features = ["test-support"] }
+dna-call = { workspace = true, features = ["test-support"] }
+dna-kernel = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

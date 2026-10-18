@@ -17,12 +17,12 @@ use crate::model::sample_result::{
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, SampleNotation};
 use crate::report::sanger_call;
-use dna_core::model::alignment::Orientation;
-use dna_core::model::sample_evidence::SampleEvidence;
-use dna_core::read_call::PlacementRejection;
+use dna_align::model::alignment::Orientation;
+use dna_call::read_call::PlacementRejection;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
+use dna_sample::model::sample_evidence::SampleEvidence;
 use dna_sanger::model::attachment::SangerAttachment;
 
 /// Inputs consumed to build one immutable sample-evidence document.
