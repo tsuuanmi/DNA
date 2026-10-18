@@ -185,8 +185,12 @@ The core caller does not read callability directly. The Sanger adapter
   read's median: within `start_identity_margin` calls of the callable span's
   start, the rule takes the median primary peak, width, and spacing of the
   first `start_norm_calls` (30) in-phase calls of the callable span and asks
-  for `start_height_fraction` (0.5) of that peak. Masked calls before the callable span may lie between the call and
-  the start, but no masked call of the span may. On development panel v5:
+  for `start_height_fraction` (0.5) of that peak and a second-channel share
+  below `start_second_share` (0.15). A call reading the base of the call
+  before it qualifies only behind a vouched call, judged in read order, so
+  the runs of a read's start (`TT` at 16024-16025, `TTT` at 16027-16029)
+  chain from their first call. Masked calls before the callable span may lie
+  between the call and the start, but no masked call of the span may. On development panel v5:
   positions to review 3.20 to 3.07 %, clear samples 40.56 to 43.79 % (45.11
   to 48.22 % on batches from 2026), samples with an unreviewed difference
   unchanged, `73G` in 29 more samples, HVS-I start window `16024-16033`

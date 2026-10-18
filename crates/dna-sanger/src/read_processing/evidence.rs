@@ -547,37 +547,51 @@ fn start_identity(
         gap >= config.edge_spacing_minimum * spacing && gap <= config.edge_spacing_maximum * spacing
     };
     let end = (callable_start + margin).min(count);
-    (informative.start..end)
-        .filter(|&index| {
-            let call = &evidence[index];
-            call.placement == Placement::Scored
-                && call.identity.edge
-                && (callable_start..index)
-                    .all(|before| evidence[before].placement == Placement::Scored)
-                && (index + 1..(index + 1 + margin).min(count))
-                    .all(|inner| evidence[inner].placement == Placement::Scored)
-                && index
-                    .checked_sub(1)
-                    .and_then(|before| calls.calls.get(before))
-                    .zip(calls.calls.get(index))
-                    .is_none_or(|(before, call)| before.primary != call.primary)
-                && single(index)
-                && calls
-                    .calls
-                    .get(index)
-                    .and_then(primary_height)
-                    .is_some_and(|primary| {
-                        f64::from(primary) >= config.start_height_fraction * height
-                    })
-                && call
-                    .second
-                    .is_none_or(|second| second.share < config.edge_second_share)
-                && width(index)
-                    .is_some_and(|width| width <= config.edge_width_factor * median_width)
-                && (index == 0 || spaced(index, index - 1))
-                && (index + 1 >= count || spaced(index, index + 1))
-        })
-        .collect()
+    // A call vouched for its base: scored and off the edge, or accepted by
+    // this rule, in read order.
+    let mut vouched = evidence
+        .iter()
+        .map(|call| call.placement == Placement::Scored && !call.identity.edge)
+        .collect::<Vec<_>>();
+    let mut accepted = Vec::new();
+    for index in informative.start..end {
+        let call = &evidence[index];
+        // A call reading the base of the call before it may be that call's
+        // signal one position off, unless the call before is itself vouched
+        // for: then the two peaks read two calls of a run.
+        let same_base_vouched = index.checked_sub(1).is_none_or(|before| {
+            calls
+                .calls
+                .get(before)
+                .zip(calls.calls.get(index))
+                .is_none_or(|(before, call)| before.primary != call.primary)
+                || vouched[before]
+        });
+        let qualifies = call.placement == Placement::Scored
+            && call.identity.edge
+            && (callable_start..index)
+                .all(|before| evidence[before].placement == Placement::Scored)
+            && (index + 1..(index + 1 + margin).min(count))
+                .all(|inner| evidence[inner].placement == Placement::Scored)
+            && same_base_vouched
+            && single(index)
+            && calls
+                .calls
+                .get(index)
+                .and_then(primary_height)
+                .is_some_and(|primary| f64::from(primary) >= config.start_height_fraction * height)
+            && call
+                .second
+                .is_none_or(|second| second.share < config.start_second_share)
+            && width(index).is_some_and(|width| width <= config.edge_width_factor * median_width)
+            && (index == 0 || spaced(index, index - 1))
+            && (index + 1 >= count || spaced(index, index + 1));
+        if qualifies {
+            vouched[index] = true;
+            accepted.push(index);
+        }
+    }
+    accepted
 }
 
 /// The second base of a call's signal: the highest peak of the other three
@@ -660,6 +674,7 @@ mod tests {
             start_identity_margin: margin,
             start_norm_calls: 30,
             start_height_fraction: 0.5,
+            start_second_share: 0.10,
         }
     }
 
@@ -963,17 +978,18 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn vouches_for_unambiguous_start_calls_against_the_start_norms() -> Result<()> {
-        // Calls 0-3 are start noise before the callable span, which starts at
-        // 4; with a margin of 2 the start reaches call 6. The read's signal
-        // rises: the start calls stand at half the later calls' height.
-        let bases = [
-            'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T',
-        ];
-        let heights = [
-            200, 200, 200, 200, 200, 200, 200, 400, 400, 400, 400, 400, 400, 400, 400, 400,
-        ];
+    /// Sanger products of single-channel calls of `bases` at `heights`, all
+    /// four channels narrow, whose calls 0-3 are weak start noise before the
+    /// callable span, which starts at 4.
+    fn start_products(
+        bases: [char; 16],
+        heights: [i32; 16],
+    ) -> (
+        BaseCalls,
+        SignalAnalysis,
+        ReadCallability,
+        QualityControlResult,
+    ) {
         let (mut calls, mut signal, mut callability, quality) = products(&heights, &[40; 16]);
         for ((call, base), height) in calls.calls.iter_mut().zip(bases).zip(heights) {
             let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
@@ -1007,6 +1023,21 @@ mod tests {
         ];
         callability.mask[..4].fill(Some(PhaseState::Weak));
         callability.callable_start_0based = 4;
+        (calls, signal, callability, quality)
+    }
+
+    #[test]
+    fn vouches_for_unambiguous_start_calls_against_the_start_norms() -> Result<()> {
+        // With a margin of 2 the start reaches call 6. The read's signal
+        // rises: the start calls stand at half the later calls' height.
+        let (calls, mut signal, callability, quality) = start_products(
+            [
+                'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T',
+            ],
+            [
+                200, 200, 200, 200, 200, 200, 200, 400, 400, 400, 400, 400, 400, 400, 400, 400,
+            ],
+        );
         // Call 5 is broader than the start's peaks.
         signal.loci[5].channel_widths = [0, 10, 0, 0];
         let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(2))?;
@@ -1018,6 +1049,43 @@ mod tests {
         // margin of the noise and were never at an edge.
         assert_eq!(lifted, [true, false, true, true]);
         assert!(evidence.calls()[4].indel.edge);
+        Ok(())
+    }
+
+    #[test]
+    fn a_start_call_reads_its_predecessors_base_only_behind_a_vouched_call() -> Result<()> {
+        // Calls 4-6 read `TTT` at the start of the callable span; with a
+        // margin of 3 the start reaches call 6.
+        let bases = [
+            'A', 'C', 'G', 'T', 'T', 'T', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A',
+        ];
+        // The start noise stands too low for the leading rule to vouch for it.
+        let heights = [
+            100, 100, 100, 100, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400,
+        ];
+        let (calls, signal, callability, quality) = start_products(bases, heights);
+        let lifted = |evidence: &ReadEvidence| {
+            (4..7)
+                .map(|index| !evidence.calls()[index].identity.edge)
+                .collect::<Vec<_>>()
+        };
+        // Call 4 follows start noise reading `T` but not vouched for, so it
+        // may be that call's signal one position off; calls 5 and 6 each
+        // follow a call reading `T` that is.
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(3))?;
+        assert_eq!(lifted(&evidence), [false, false, false]);
+        // With call 3 reading `G`, call 4 qualifies, and the run chains on.
+        let mut bases = bases;
+        bases[3] = 'G';
+        let (calls, signal, callability, quality) = start_products(bases, heights);
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(3))?;
+        assert_eq!(lifted(&evidence), [true, true, true]);
+        // A broad call 5 breaks the chain: call 6 no longer follows a vouched
+        // call of its base.
+        let (calls, mut signal, callability, quality) = start_products(bases, heights);
+        signal.loci[5].channel_widths = [0, 0, 0, 10];
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(3))?;
+        assert_eq!(lifted(&evidence), [true, false, false]);
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 13
+schema_version = 14
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -111,14 +111,16 @@ post_repeat_minimum_calls = 2
 # for by its own signal when it is clean: a primary peak of at least the
 # height fraction of the median (the start's own median of its first
 # `start_norm_calls` calls), a second-channel share below
-# `edge_second_share`, a peak no wider than `edge_width_factor` times the
-# median width, and a spacing to each neighbour between the spacing minimum
-# and maximum times the median spacing.
+# `edge_second_share` (`start_second_share` at the start), a peak no wider than
+# `edge_width_factor` times the median width, and a spacing to each neighbour
+# between the spacing minimum and maximum times the median spacing. A start
+# call reads its predecessor's base only behind a vouched call.
 edge_identity_margin = 12
 edge_height_fraction = 1.0
 start_identity_margin = 12
 start_norm_calls = 30
 start_height_fraction = 0.5
+start_second_share = 0.15
 edge_second_share = 0.10
 edge_width_factor = 1.5
 edge_spacing_minimum = 0.5
