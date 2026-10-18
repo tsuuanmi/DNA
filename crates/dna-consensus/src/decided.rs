@@ -647,7 +647,7 @@ mod tests {
 
     fn callable(read: &CalledRead) -> Vec<(usize, usize)> {
         read.alignment
-            .callable_segments
+            .callable_segments()
             .iter()
             .map(|segment| (segment.start_0based, segment.end_0based_exclusive))
             .collect()

@@ -80,9 +80,9 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
 }
 
 fn project_read(read: CalledRead) -> ReadVariantsResult {
-    let intervals = |segments: Vec<dna_align::model::alignment::ReferenceSegment>| {
+    let intervals = |segments: &[dna_align::model::alignment::ReferenceSegment]| {
         segments
-            .into_iter()
+            .iter()
             .map(|segment| IntervalResult {
                 start: segment.start_0based,
                 end: segment.end_0based_exclusive,
@@ -114,15 +114,15 @@ fn project_read(read: CalledRead) -> ReadVariantsResult {
         name: read.input_name,
         sha256: read.input_sha256,
         alignment: AlignmentResult {
-            orientation: alignment.orientation,
-            callable_bases: alignment.metrics.callable_columns,
-            identity: alignment.metrics.callable_identity,
-            gap_opens: alignment.metrics.gap_opens,
-            unresolved_bases: alignment.metrics.unresolved_query_bases,
-            masked_bases: alignment.metrics.masked_query_bases,
-            reference_segments: intervals(alignment.reference_segments),
-            callable_reference_segments: intervals(alignment.callable_segments),
-            wraps_origin: alignment.wraps_origin,
+            orientation: alignment.orientation(),
+            callable_bases: alignment.metrics().callable_columns,
+            identity: alignment.metrics().callable_identity,
+            gap_opens: alignment.metrics().gap_opens,
+            unresolved_bases: alignment.metrics().unresolved_query_bases,
+            masked_bases: alignment.metrics().masked_query_bases,
+            reference_segments: intervals(alignment.reference_segments()),
+            callable_reference_segments: intervals(alignment.callable_segments()),
+            wraps_origin: alignment.wraps_origin(),
         },
         variants,
     }

@@ -267,8 +267,8 @@ fn place_one(
         event = "sample_read_completed",
         read_index = index,
         trace_sha256 = %completed.read.called.input_sha256,
-        orientation = ?completed.read.called.alignment.orientation,
-        segments = completed.read.called.alignment.reference_segments.len(),
+        orientation = ?completed.read.called.alignment.orientation(),
+        segments = completed.read.called.alignment.reference_segments().len(),
         variants = completed.read.called.variants.reported.len(),
     );
     Ok(Placement::Admitted {

@@ -686,7 +686,7 @@ fn records_callable_reads_that_do_not_support_a_variant_as_opposition() -> Resul
         vec![column('A', 'A', Some(0), 72)],
         Vec::new(),
     );
-    masked.alignment.callable_segments.clear();
+    masked.alignment = masked.alignment.uncallable();
 
     let evidence = run(&[supporting, opposing, masked])?;
 
@@ -722,16 +722,7 @@ fn an_unresolved_call_neither_supports_nor_opposes() -> Result<()> {
         ],
         Vec::new(),
     );
-    unresolved.alignment.callable_segments = vec![
-        ReferenceSegment {
-            start_0based: 71,
-            end_0based_exclusive: 72,
-        },
-        ReferenceSegment {
-            start_0based: 73,
-            end_0based_exclusive: 74,
-        },
-    ];
+    unresolved.alignment = unresolved.alignment.without_callable(&BTreeSet::from([72]));
 
     let evidence = run(&[supporting, unresolved])?;
 

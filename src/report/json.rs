@@ -51,8 +51,12 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         .into());
     }
     let warnings = warning_summary(&sanger.calls, &sanger.signal, variants.excluded_count());
-    let variant_results =
-        variant::project(variants.reported, &evidence, &sanger, alignment.orientation)?;
+    let variant_results = variant::project(
+        variants.reported,
+        &evidence,
+        &sanger,
+        alignment.orientation(),
+    )?;
     let SangerAttachment {
         calls,
         signal,
@@ -61,16 +65,16 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
     } = sanger;
     let signal_quality = signal::project(signal);
     let reference_segments = alignment
-        .reference_segments
-        .into_iter()
+        .reference_segments()
+        .iter()
         .map(|segment| IntervalResult {
             start: segment.start_0based,
             end: segment.end_0based_exclusive,
         })
         .collect();
     let callable_reference_segments = alignment
-        .callable_segments
-        .into_iter()
+        .callable_segments()
+        .iter()
         .map(|segment| IntervalResult {
             start: segment.start_0based,
             end: segment.end_0based_exclusive,
@@ -102,15 +106,15 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         },
         signal_quality,
         alignment: AlignmentResult {
-            orientation: alignment.orientation,
-            callable_bases: alignment.metrics.callable_columns,
-            identity: alignment.metrics.callable_identity,
-            unresolved_bases: alignment.metrics.unresolved_query_bases,
-            masked_bases: alignment.metrics.masked_query_bases,
-            gap_opens: alignment.metrics.gap_opens,
+            orientation: alignment.orientation(),
+            callable_bases: alignment.metrics().callable_columns,
+            identity: alignment.metrics().callable_identity,
+            unresolved_bases: alignment.metrics().unresolved_query_bases,
+            masked_bases: alignment.metrics().masked_query_bases,
+            gap_opens: alignment.metrics().gap_opens,
             reference_segments,
             callable_reference_segments,
-            wraps_origin: alignment.wraps_origin,
+            wraps_origin: alignment.wraps_origin(),
         },
         variants: variant_results,
         warnings,

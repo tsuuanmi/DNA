@@ -96,7 +96,7 @@ fn opposition(
             continue;
         }
         let callable = span.clone().all(|position| {
-            read.alignment.callable_segments.iter().any(|segment| {
+            read.alignment.callable_segments().iter().any(|segment| {
                 (segment.start_0based..segment.end_0based_exclusive).contains(&position)
             })
         });
@@ -104,7 +104,7 @@ fn opposition(
             continue;
         }
         opposition.read_indices.push(index);
-        match read.alignment.orientation {
+        match read.alignment.orientation() {
             Orientation::Forward => opposition.forward_reads += 1,
             Orientation::Reverse => opposition.reverse_reads += 1,
         }
@@ -129,7 +129,7 @@ fn support_topology(
             context: "variant support",
             index: item.read_index,
         })?;
-        match read.alignment.orientation {
+        match read.alignment.orientation() {
             Orientation::Forward => {
                 topology.forward_reads += 1;
                 if item.eligible {
@@ -163,15 +163,19 @@ fn variant_calls(
     mappings: &[VariantCallMapping],
 ) -> Result<Vec<VariantCallEvidence>> {
     Ok(
-        reference_call::resolve_public_calls(&read.evidence, read.alignment.orientation, mappings)
-            .map_err(SampleError::CallEvidence)?
-            .into_iter()
-            .map(|call| VariantCallEvidence {
-                role: call.mapping.role,
-                base: call.base,
-                call_index_0based: call.mapping.call_index_0based,
-            })
-            .collect(),
+        reference_call::resolve_public_calls(
+            &read.evidence,
+            read.alignment.orientation(),
+            mappings,
+        )
+        .map_err(SampleError::CallEvidence)?
+        .into_iter()
+        .map(|call| VariantCallEvidence {
+            role: call.mapping.role,
+            base: call.base,
+            call_index_0based: call.mapping.call_index_0based,
+        })
+        .collect(),
     )
 }
 

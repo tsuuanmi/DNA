@@ -60,8 +60,8 @@ impl SampleAnalysis {
                                     .collect()
                             };
                         Record {
-                            reference: segments(&read.alignment.reference_segments),
-                            callable: segments(&read.alignment.callable_segments),
+                            reference: segments(read.alignment.reference_segments()),
+                            callable: segments(read.alignment.callable_segments()),
                             excluded: read
                                 .variants
                                 .observed
@@ -85,7 +85,7 @@ impl SampleAnalysis {
         Ok(ConsensusCall {
             callable_segments: reads
                 .iter()
-                .flat_map(|read| &read.alignment.callable_segments)
+                .flat_map(|read| read.alignment.callable_segments())
                 .map(|segment| ReferenceSegment {
                     start_0based: segment.start_0based,
                     end_0based_exclusive: segment.end_0based_exclusive,

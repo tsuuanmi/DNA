@@ -334,6 +334,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `Alignment` is read-only outside `dna-align` (ADR-0079 follow-up): its
+  orientation, segments, origin flag, and metrics are getters, and the cuts
+  of its callable segments (an excluded variant's positions, SRS-VAR-019; a
+  placement conflict, SRS-VAR-017) are its own methods, so `dna-align` is the
+  only writer of an alignment. Outputs are unchanged.
+
 - The core is one crate per step (PROP-0008 step 5, ADR-0079): `dna-core`
   becomes `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus`, a chain
   on the kernel that `validate_module_layers.py` enforces. Only what the next

@@ -20,7 +20,7 @@ pub(super) fn profile(
             })?;
     Ok(call
         .profile
-        .map(|profile| match read.alignment.orientation {
+        .map(|profile| match read.alignment.orientation() {
             Orientation::Forward => profile,
             Orientation::Reverse => profile.complemented(),
         }))

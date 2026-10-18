@@ -1,5 +1,7 @@
 //! Pairwise alignment records with explicit strand and coordinates.
 
+use std::collections::BTreeSet;
+
 use serde::Serialize;
 
 use dna_kernel::error::{AlignmentError, Result};
@@ -132,19 +134,17 @@ impl AlignmentColumn {
 
 /// Selected alignment and both orientation summaries.
 #[derive(Debug, Clone)]
+///
+/// Only [`align_best`](crate::align_best) and [`Alignment::placed`] build one,
+/// and only its own methods narrow its callable segments, so its invariants
+/// hold wherever it is read.
 pub struct Alignment {
-    /// Read orientation selected against the reference.
-    pub orientation: Orientation,
+    pub(crate) orientation: Orientation,
     pub(crate) score: i64,
-    /// Reference segments covered by the alignment, in alignment order.
-    pub reference_segments: Vec<ReferenceSegment>,
-    /// Reference segments observed by unmasked calls, and by deletions between
-    /// them, in alignment order; a subset of `reference_segments`.
-    pub callable_segments: Vec<ReferenceSegment>,
-    /// Whether the alignment crosses the origin of a circular reference.
-    pub wraps_origin: bool,
-    /// Summary metrics of the selected alignment.
-    pub metrics: AlignmentMetrics,
+    pub(crate) reference_segments: Vec<ReferenceSegment>,
+    pub(crate) callable_segments: Vec<ReferenceSegment>,
+    pub(crate) wraps_origin: bool,
+    pub(crate) metrics: AlignmentMetrics,
     pub(crate) columns: Vec<AlignmentColumn>,
 }
 
@@ -232,10 +232,83 @@ impl Alignment {
         })
     }
 
+    /// Read orientation selected against the reference.
+    #[must_use]
+    pub const fn orientation(&self) -> Orientation {
+        self.orientation
+    }
+
+    /// Reference segments covered by the alignment, in alignment order.
+    #[must_use]
+    pub fn reference_segments(&self) -> &[ReferenceSegment] {
+        &self.reference_segments
+    }
+
+    /// Reference segments observed by unmasked calls, and by deletions between
+    /// them, in alignment order; a subset of the reference segments.
+    #[must_use]
+    pub fn callable_segments(&self) -> &[ReferenceSegment] {
+        &self.callable_segments
+    }
+
+    /// Whether the alignment crosses the origin of a circular reference.
+    #[must_use]
+    pub const fn wraps_origin(&self) -> bool {
+        self.wraps_origin
+    }
+
+    /// Summary metrics of the alignment.
+    #[must_use]
+    pub const fn metrics(&self) -> &AlignmentMetrics {
+        &self.metrics
+    }
+
     /// The alignment's columns, in reference order.
     #[must_use]
     pub fn columns(&self) -> &[AlignmentColumn] {
         &self.columns
+    }
+
+    /// The same alignment with the reference positions `excluded` (0-based)
+    /// left out of its callable segments, each segment split around them.
+    #[must_use]
+    pub fn without_callable(mut self, excluded: &BTreeSet<usize>) -> Self {
+        self.callable_segments = self
+            .callable_segments
+            .iter()
+            .flat_map(|segment| {
+                let mut pieces = Vec::new();
+                let mut start = segment.start_0based;
+                for position in excluded
+                    .range(segment.start_0based..segment.end_0based_exclusive)
+                    .copied()
+                {
+                    if position > start {
+                        pieces.push(ReferenceSegment {
+                            start_0based: start,
+                            end_0based_exclusive: position,
+                        });
+                    }
+                    start = position + 1;
+                }
+                if segment.end_0based_exclusive > start {
+                    pieces.push(ReferenceSegment {
+                        start_0based: start,
+                        end_0based_exclusive: segment.end_0based_exclusive,
+                    });
+                }
+                pieces
+            })
+            .collect();
+        self
+    }
+
+    /// The same alignment with no callable segment: the placement itself is
+    /// in doubt, so nothing it reads is callable.
+    #[must_use]
+    pub fn uncallable(mut self) -> Self {
+        self.callable_segments.clear();
+        self
     }
 
     /// The alignment's profile score; zero for a placed alignment.
@@ -321,4 +394,46 @@ fn placed_metrics(columns: &[AlignmentColumn]) -> AlignmentMetrics {
         metrics.callable_identity = identity;
     }
     metrics
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn segment(start_0based: usize, end_0based_exclusive: usize) -> ReferenceSegment {
+        ReferenceSegment {
+            start_0based,
+            end_0based_exclusive,
+        }
+    }
+
+    fn placed() -> Result<Alignment> {
+        let columns = (10..20)
+            .enumerate()
+            .map(|(call, position)| AlignmentColumn::new('A', 'A', Some(call), Some(position)))
+            .collect();
+        Alignment::placed(
+            vec![segment(10, 20)],
+            vec![segment(10, 15), segment(16, 20)],
+            columns,
+        )
+    }
+
+    #[test]
+    fn cutting_positions_splits_the_callable_segments_only() -> Result<()> {
+        let cut = placed()?.without_callable(&BTreeSet::from([10, 12, 15, 19, 30]));
+        assert_eq!(
+            cut.callable_segments(),
+            [segment(11, 12), segment(13, 15), segment(16, 19)]
+        );
+        assert_eq!(cut.reference_segments(), [segment(10, 20)]);
+        assert!(placed()?.uncallable().callable_segments().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_placed_alignment_rejects_a_callable_segment_outside_its_reach() {
+        let columns = vec![AlignmentColumn::new('A', 'A', Some(0), Some(10))];
+        assert!(Alignment::placed(vec![segment(10, 11)], vec![segment(10, 12)], columns).is_err());
+    }
 }

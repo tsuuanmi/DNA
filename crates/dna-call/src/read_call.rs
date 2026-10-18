@@ -148,23 +148,23 @@ pub fn call_read(
     tracing::info!(
         event = "alignment_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
-        orientation = ?alignment.orientation,
+        orientation = ?alignment.orientation(),
         profile_score_units = alignment.score(),
-        exact_matches = alignment.metrics.exact_matches(),
-        mismatches = alignment.metrics.mismatches(),
-        gap_opens = alignment.metrics.gap_opens,
-        callable_columns = alignment.metrics.callable_columns,
-        callable_identity = %format_args!("{:.4}", alignment.metrics.callable_identity),
-        unresolved_query_bases = alignment.metrics.unresolved_query_bases,
-        masked_query_bases = alignment.metrics.masked_query_bases,
-        segments = alignment.reference_segments.len(),
+        exact_matches = alignment.metrics().exact_matches(),
+        mismatches = alignment.metrics().mismatches(),
+        gap_opens = alignment.metrics().gap_opens,
+        callable_columns = alignment.metrics().callable_columns,
+        callable_identity = %format_args!("{:.4}", alignment.metrics().callable_identity),
+        unresolved_query_bases = alignment.metrics().unresolved_query_bases,
+        masked_query_bases = alignment.metrics().masked_query_bases,
+        segments = alignment.reference_segments().len(),
         segment_bounds = ?alignment
-            .reference_segments
+            .reference_segments()
             .iter()
             .map(|segment| format!("{}..{}", segment.start_0based, segment.end_0based_exclusive))
             .collect::<Vec<_>>()
             .join(","),
-        wraps_origin = alignment.wraps_origin,
+        wraps_origin = alignment.wraps_origin(),
     );
 
     drop(stage);
@@ -179,7 +179,7 @@ pub fn call_read(
     )?;
     let mut alignment = alignment;
     if let Some(declared) = identity.declared
-        && !overlaps(&alignment.reference_segments, declared)
+        && !overlaps(alignment.reference_segments(), declared)
     {
         tracing::warn!(
             event = "read_placement_conflict",
@@ -188,7 +188,7 @@ pub fn call_read(
         variants = variants.excluded_for(VariantExclusionReason::PlacementConflict);
         // The placement is what is wrong: nothing the record reads there is
         // callable (SRS-VAR-017).
-        alignment.callable_segments.clear();
+        alignment = alignment.uncallable();
     }
     let snvs = variants
         .reported
