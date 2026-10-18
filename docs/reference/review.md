@@ -145,7 +145,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 2)
+## Labels (rules version 3)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -158,14 +158,14 @@ exemption lifts the margin (ADR-0076).
   than an opposing one. Lists the supporting, then the opposing reads.
 - `read_disagrees` `{read, strand, sequence}`: at a decided site that is not
   clipped, a supporting or uninformative read shows the whole item as another
-  sequence than the decision: the consensus explained the difference away by
-  the read's bounds, for example a run length from a read whose run end only
-  anchors. The read shows the item when it observes every position as a base
-  or a deletion, each call without a modality reason against its base and
-  either anchoring or scored and trusted or exempt; its insertions after each
-  position of the item (its sample-evidence insertion variants) are part of
-  `sequence`. One label per such read. Opposing reads are
-  `strands_disagree`'s.
+  sequence than the decision. The read's sequence comes from its own
+  alignment columns over the item, with every inserted call after a position
+  of the item, masked ones included. The read shows the item only when it
+  aligns every position of it and reads the reference positions on both
+  sides of it, so that it bounds what it shows; each of those calls, and
+  each call inside the item, must be A/C/G/T without a modality reason
+  against its base, and either anchoring or scored and trusted or exempt.
+  One label per such read. Opposing reads are `strands_disagree`'s.
 - `possible_heteroplasmy` `{position, base, reads: [{read, strand, share}]}`:
   at one position, a read reads it cleanly when its observation is
   `reference` or `alternate`, its call is unmasked and trusted or exempt, and

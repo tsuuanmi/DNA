@@ -22,8 +22,7 @@ use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::project_empop;
 use crate::report::sample::{project_rejection, reviewer_names, reviewer_read_names};
 use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
-use dna_align::model::alignment::{Orientation, ReferenceSegment};
-use dna_call::model::variant::VariantKind;
+use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_consensus::model::consensus::{ConsensusSite, RunEvidence, SiteState};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
@@ -38,7 +37,7 @@ use dna_sanger::model::attachment::SangerAttachment;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 2,
+    version: 3,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -240,13 +239,12 @@ struct Sample<'a> {
     by_input: BTreeMap<&'a str, usize>,
     /// Every covered position's observations.
     loci: BTreeMap<usize, LocusObservations>,
-    /// The bases each read inserts after a position: by read index and the
-    /// 1-based position the insertion follows.
-    insertions: BTreeMap<(usize, usize), &'a str>,
 }
 
 struct Read<'a> {
     name: &'a str,
+    /// The read's alignment columns, in reference order.
+    columns: &'a [AlignmentColumn],
     sha256: &'a str,
     strand: Orientation,
     trust: Vec<CallTrust>,
@@ -284,6 +282,13 @@ impl<'a> Sample<'a> {
                 let missing = || ReportError::Inconsistent("review read lacks its evidence");
                 Ok(Read {
                     name,
+                    columns: analysis
+                        .called
+                        .iter()
+                        .find(|called| called.input_sha256 == read.input_sha256)
+                        .ok_or_else(missing)?
+                        .alignment
+                        .columns(),
                     sha256: &read.input_sha256,
                     strand: read.alignment.orientation,
                     trust: analysis.trust(&read.input_sha256).ok_or_else(missing)?,
@@ -311,20 +316,6 @@ impl<'a> Sample<'a> {
             .into_iter()
             .map(|locus| (locus.position_1based, locus))
             .collect();
-        let insertions = analysis
-            .evidence
-            .variants
-            .iter()
-            .filter(|variant| variant.kind == VariantKind::Ins)
-            .flat_map(|variant| {
-                variant.support.iter().map(|support| {
-                    (
-                        (support.read_index, variant.position_1based),
-                        variant.alternate.get(1..).unwrap_or_default(),
-                    )
-                })
-            })
-            .collect();
         Ok(Self {
             sequence: reference.sequence.as_bytes(),
             regions,
@@ -336,7 +327,6 @@ impl<'a> Sample<'a> {
             reads,
             by_input,
             loci,
-            insertions,
         })
     }
 
@@ -710,37 +700,10 @@ impl<'a> Sample<'a> {
             .collect()
     }
 
-    /// The sequence one read shows over `first..=last` with the insertions
-    /// after each of its positions; `None` unless the read observes every
-    /// position as a base or a deletion, each call free of the modality's
-    /// reasons against its base, and anchoring or scored clear of the read's
-    /// edges (`read_end`, or exempt).
+    /// The sequence one read shows over `first..=last`; see [`bounded`].
     fn shown(&self, index: usize, first: usize, last: usize) -> Option<String> {
         let read = self.reads.get(index)?;
-        let mut shown = String::new();
-        for position in first..=last {
-            let observation = self
-                .loci
-                .get(&position)?
-                .observations
-                .iter()
-                .find(|observation| observation.read_index == index)?;
-            match observation.state {
-                LocusState::Deletion => {}
-                LocusState::Unresolved => return None,
-                _ => {
-                    let base = observation.base.filter(|base| "ACGT".contains(*base))?;
-                    if !shows(read.trust.get(observation.call_index_0based?)?) {
-                        return None;
-                    }
-                    shown.push(base);
-                }
-            }
-            if let Some(inserted) = self.insertions.get(&(index, position)) {
-                shown.push_str(inserted);
-            }
-        }
-        Some(shown)
+        bounded(read.columns, &read.trust, first, last)
     }
 
     /// `possible_heteroplasmy` at one position, when it fires.
@@ -1006,6 +969,59 @@ fn shows(trust: &CallTrust) -> bool {
             Placement::Anchoring(_) => true,
             Placement::Unresolved(_) => false,
         }
+}
+
+/// The sequence a read's alignment `columns` show over the 1-based
+/// `first..=last` within one linear span of the reference, with every
+/// inserted call after a position of the item, masked ones included; `None`
+/// unless the read aligns every position of the item and reads the positions
+/// on both sides of it, each call a base that [`shows`] it by its `trust`,
+/// so that the read bounds what it shows.
+fn bounded(
+    columns: &[AlignmentColumn],
+    trust: &[CallTrust],
+    first: usize,
+    last: usize,
+) -> Option<String> {
+    let shows_call = |column: &AlignmentColumn| {
+        "ACGT".contains(column.query_base())
+            && column
+                .original_call_index_0based()
+                .and_then(|call| trust.get(call))
+                .is_some_and(shows)
+    };
+    // 0-based reference indices of the flanks.
+    let (before, after) = (first.checked_sub(2)?, last);
+    let mut shown = String::new();
+    let mut covered = 0;
+    let mut bounds = [false, false];
+    let mut within = false;
+    for column in columns {
+        match column.reference_index_0based() {
+            Some(reference) if reference == before || reference == after => {
+                within = false;
+                bounds[usize::from(reference == after)] = shows_call(column);
+                continue;
+            }
+            Some(reference) => {
+                within = first <= reference + 1 && reference < last;
+                if !within {
+                    continue;
+                }
+                covered += 1;
+            }
+            None if !within => continue,
+            None => {}
+        }
+        if column.query_base() == '-' {
+            continue;
+        }
+        if !shows_call(column) {
+            return None;
+        }
+        shown.push(column.query_base());
+    }
+    (covered == last - first + 1 && bounds == [true, true]).then_some(shown)
 }
 
 /// Whether a label leaves its item unassured, so that the item is a check:
@@ -1315,6 +1331,64 @@ mod tests {
             true,
             false
         )));
+    }
+
+    fn column(base: char, call: Option<usize>, reference: Option<usize>) -> AlignmentColumn {
+        AlignmentColumn::new(base, 'C', call, reference)
+    }
+
+    fn clean_call(placement: Placement) -> CallTrust {
+        CallTrust {
+            placement,
+            unresolved: false,
+            vetoes: Vec::new(),
+            trusted: true,
+            exempt: false,
+            withheld_by: Vec::new(),
+            scope: TrustScope::Full,
+            second: None,
+        }
+    }
+
+    #[test]
+    fn a_read_shows_an_item_only_between_two_clean_flanks() {
+        const DEPHASED: EvidenceReason = EvidenceReason::new("dephased");
+        // Reference positions 10-14 (0-based 9-13) read A C C C G; the item
+        // is the C run 11-13. The read inserts a masked C after 13, and one
+        // after 10, before the item.
+        let columns = |last: char| {
+            vec![
+                column('A', Some(0), Some(9)),
+                column('T', Some(1), None),
+                column('C', Some(2), Some(10)),
+                column('C', Some(3), Some(11)),
+                column('C', Some(4), Some(12)),
+                column('C', Some(5), None),
+                column(last, (last != '-').then_some(6), Some(13)),
+            ]
+        };
+        let mut trust = vec![clean_call(Placement::Scored); 7];
+        trust[5] = clean_call(Placement::Anchoring(DEPHASED));
+        // The masked inserted call extends the run; the earlier insertion
+        // belongs to the position before the item.
+        assert_eq!(
+            bounded(&columns('G'), &trust, 11, 13).as_deref(),
+            Some("CCCC")
+        );
+        // A flank the read deletes, or does not resolve, bounds nothing.
+        assert_eq!(bounded(&columns('-'), &trust, 11, 13), None);
+        assert_eq!(bounded(&columns('N'), &trust, 11, 13), None);
+        // A flank or a call inside with a modality reason shows nothing.
+        let mut vetoed = trust.clone();
+        vetoed[6].vetoes = vec![DEPHASED];
+        assert_eq!(bounded(&columns('G'), &vetoed, 11, 13), None);
+        let mut inside = trust.clone();
+        inside[3].trusted = false;
+        assert_eq!(bounded(&columns('G'), &inside, 11, 13), None);
+        // A read that does not reach a flank, or the reference's first
+        // position, shows nothing.
+        assert_eq!(bounded(&columns('G')[2..], &trust, 11, 13), None);
+        assert_eq!(bounded(&columns('G'), &trust, 1, 3), None);
     }
 
     fn read(read: &str) -> String {
