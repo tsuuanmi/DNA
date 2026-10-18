@@ -1261,9 +1261,16 @@ fn called_near(calls: &[NotationCall], first: usize, last: usize) -> bool {
 
 /// Whether a report convention leaves `run`'s length unrecorded at `site`: a
 /// run-length convention whose window the site overlaps, of the run's base,
-/// and no longer than the run. Its estimate then leaves the reviewer nothing
-/// to record, so `estimated_length` does not list it.
+/// whose `minimum_run` the run reaches without the bases the site adds to the
+/// reference. An estimate can only lengthen a run past the convention's
+/// bound by adding bases, so a run that reaches it only by them may be one
+/// whose length the reviewers do record. Otherwise the estimate leaves the
+/// reviewer nothing to record, and `estimated_length` does not list it.
 fn not_recorded(conventions: &[Convention], site: &ConsensusSite, run: &ConsensusRun) -> bool {
+    let added = site
+        .call
+        .as_ref()
+        .map_or(0, |call| call.len().saturating_sub(site.reference.len()));
     conventions.iter().any(|convention| {
         let [first, last] = convention.window;
         let ConventionKind::RunLength { base, minimum_run } = convention.kind;
@@ -1271,7 +1278,7 @@ fn not_recorded(conventions: &[Convention], site: &ConsensusSite, run: &Consensu
             && site.first_0based < last
             && first <= site.last_0based + 1
             && u8::try_from(run.base).ok() == Some(base)
-            && run.length >= minimum_run
+            && run.length.saturating_sub(added) >= minimum_run
     })
 }
 
@@ -1717,10 +1724,22 @@ mod tests {
             },
             window,
         };
-        // The site lies at 303-315.
+        // The site lies at 303-315; the call adds three bases.
         let at = site("CCCCCCCTCCCCC", "CCCCCCCCCCCCCCCC", 2, Vec::new());
         let long = run('C', 16, RunEvidence::ReferenceFrame);
         let short = run('C', 9, RunEvidence::ReferenceFrame);
+        // Ten bases only with the three the site adds: the length may be one
+        // the reviewers record.
+        assert!(!not_recorded(
+            &[convention([303, 315], b'C')],
+            &at,
+            &run('C', 12, RunEvidence::ReferenceFrame)
+        ));
+        assert!(not_recorded(
+            &[convention([303, 315], b'C')],
+            &at,
+            &run('C', 13, RunEvidence::ReferenceFrame)
+        ));
         assert!(not_recorded(&[convention([303, 315], b'C')], &at, &long));
         assert!(!not_recorded(&[convention([303, 315], b'C')], &at, &short));
         assert!(!not_recorded(&[convention([303, 315], b'A')], &at, &long));

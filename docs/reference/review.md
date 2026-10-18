@@ -213,7 +213,10 @@ exemption lifts the margin (ADR-0076).
   not callable. A run whose length a profile report convention leaves
   unrecorded is not listed (rules version 9): a `run_length` convention
   labelled `not_recorded` whose window the site overlaps, of the run's base,
-  with the run at least its `minimum_run` long. The reviewers do not record
+  with the run at least its `minimum_run` long without the bases the site's
+  call adds to the reference. An estimate lengthens a run only by adding
+  bases, so a run that reaches the bound only by them may be one whose
+  length the reviewers record, and stays listed. The reviewers do not record
   that length, so its estimate leaves nothing to assure (on the human
   profile, the HVS-I C run of ten or more that 16189C creates).
 - `undecided`: the site is `unresolved` or `contested` (a tie, even one the
