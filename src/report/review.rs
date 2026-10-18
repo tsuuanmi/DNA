@@ -40,7 +40,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 7,
+    version: 8,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -656,6 +656,8 @@ impl<'a> Sample<'a> {
         }
         if let (Some(site), Some(sequence), true) = (site, sequence.as_deref(), decided) {
             labels.extend(self.disagreeing(site, first, last, sequence));
+            let ends = self.end_disagreeing(first, last, site, sequence, &labels)?;
+            labels.extend(ends);
         }
         if let (true, Some(site)) = (differs, site) {
             let supporting = site
@@ -835,6 +837,98 @@ impl<'a> Sample<'a> {
                 })
             })
             .collect()
+    }
+
+    /// `read_disagrees` for a read that reads one end of a decided item in
+    /// phase as another base than the decision: from the end its strand
+    /// reaches first (a forward read's first position, a reverse read's
+    /// last), every call a clean base of the read's full trust, up to where
+    /// the read has read `review.phase_run` equal bases in a row. The far end
+    /// of such a run is a length question that dephasing leaves open; the
+    /// bases before it are not. Only an item without a length change is
+    /// compared, position by position; an opposing read is
+    /// `strands_disagree`'s, and a read that [`Self::disagreeing`] already
+    /// labels is left to it.
+    fn end_disagreeing(
+        &self,
+        first: usize,
+        last: usize,
+        site: &ConsensusSite,
+        sequence: &str,
+        labelled: &[LabelResult],
+    ) -> Result<Vec<LabelResult>> {
+        let decided = sequence.as_bytes();
+        if decided.len() != last - first + 1 {
+            return Ok(Vec::new());
+        }
+        let mut labels = Vec::new();
+        let opposing = site
+            .opposing
+            .iter()
+            .filter_map(|input| self.by_input.get(input.as_str()).copied())
+            .collect::<BTreeSet<_>>();
+        for (index, read) in self.reads.iter().enumerate() {
+            if opposing.contains(&index)
+                || labelled.iter().any(|label| {
+                    matches!(label, LabelResult::ReadDisagrees { read: name, .. } if name == read.name)
+                })
+            {
+                continue;
+            }
+            let order: Vec<usize> = match read.strand {
+                Orientation::Forward => (first..=last).collect(),
+                Orientation::Reverse => (first..=last).rev().collect(),
+            };
+            let bases = order
+                .iter()
+                .map(|&position| self.clean_base(index, position))
+                .collect::<Result<Vec<_>>>()?;
+            let mut shown = in_phase_end(bases, self.config.phase_run);
+            let differs = order.iter().zip(&shown).any(|(&position, &base)| {
+                u8::try_from(base).ok() != decided.get(position - first).copied()
+            });
+            if differs && shown.len() < decided.len() {
+                if read.strand == Orientation::Reverse {
+                    shown.reverse();
+                }
+                labels.push(LabelResult::ReadDisagrees {
+                    read: read.name.to_owned(),
+                    strand: read.strand,
+                    sequence: shown.into_iter().collect(),
+                });
+            }
+        }
+        Ok(labels)
+    }
+
+    /// The reference-strand base read `index` shows at `position` when its
+    /// call there is a clean observation of full trust: neither masked,
+    /// unresolved, nor a deletion.
+    fn clean_base(&self, index: usize, position: usize) -> Result<Option<char>> {
+        let Some(observation) = self
+            .loci
+            .get(&position)
+            .and_then(|locus| locus.observations.iter().find(|o| o.read_index == index))
+        else {
+            return Ok(None);
+        };
+        if !matches!(
+            observation.state,
+            LocusState::Reference | LocusState::Alternate
+        ) {
+            return Ok(None);
+        }
+        let (Some(base), Some(call)) = (observation.base, observation.call_index_0based) else {
+            return Ok(None);
+        };
+        let trust = self
+            .read(index)?
+            .trust
+            .get(call)
+            .ok_or(ReportError::Inconsistent(
+                "review observation lacks the trust of its call",
+            ))?;
+        Ok((trust.scope == TrustScope::Full).then_some(base))
     }
 
     /// The sequence one read shows over `first..=last`; see [`bounded`].
@@ -1159,6 +1253,27 @@ fn called_near(calls: &[NotationCall], first: usize, last: usize) -> bool {
     calls
         .iter()
         .any(|call| first <= call.position + 1 && call.position <= last + 1)
+}
+
+/// The bases a read shows from the end of an item it reaches first, in its
+/// reading order: up to its first unclean position (`None`), and short of the
+/// `phase_run`-th equal base in a row, where the run's far end begins.
+fn in_phase_end(bases: impl IntoIterator<Item = Option<char>>, phase_run: usize) -> Vec<char> {
+    let mut shown = Vec::new();
+    let mut run = 0;
+    for base in bases {
+        let Some(base) = base else { break };
+        run = if shown.last() == Some(&base) {
+            run + 1
+        } else {
+            1
+        };
+        if run >= phase_run {
+            break;
+        }
+        shown.push(base);
+    }
+    shown
 }
 
 /// Whether a call shows its base for `read_disagrees`: no modality reason
@@ -1570,6 +1685,21 @@ mod tests {
         assert!(long_runs(&site(reference, "CCCCCCCCCTCCCCC", 1, Vec::new()), 3).is_empty());
         // A changed run structure is not a length.
         assert!(long_runs(&site(reference, "CCCCCCCCCCCCCCCC", 1, Vec::new()), 3).is_empty());
+    }
+
+    #[test]
+    fn an_in_phase_end_stops_at_an_unclean_call_or_inside_a_run() {
+        let read = |text: &str| {
+            text.chars()
+                .map(|c| (c != '.').then_some(c))
+                .collect::<Vec<_>>()
+        };
+        // A reverse read in reading order: the exit base, then into the run.
+        assert_eq!(in_phase_end(read("ACCCCCCCC"), 4), vec!['A', 'C', 'C', 'C']);
+        assert_eq!(in_phase_end(read("AC.CCCC"), 4), vec!['A', 'C']);
+        assert_eq!(in_phase_end(read("AAAC"), 3), vec!['A', 'A']);
+        assert_eq!(in_phase_end(read("ACGT"), 4), vec!['A', 'C', 'G', 'T']);
+        assert!(in_phase_end(read(".ACGT"), 4).is_empty());
     }
 
     #[test]

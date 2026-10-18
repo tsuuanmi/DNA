@@ -18,7 +18,7 @@ use dna_sanger::read_processing::{RawSangerConfig, RawSangerEvidenceConfig, Sang
 use dna_sanger::signal_processing::RawSignalProcessingConfig;
 
 /// Configuration schema version this build accepts.
-const SCHEMA_VERSION: u32 = 11;
+const SCHEMA_VERSION: u32 = 12;
 
 /// Complete effective configuration and source identity.
 #[derive(Debug, Clone)]
@@ -67,6 +67,9 @@ pub(crate) struct ReviewConfig {
     /// Positions from a reportable region's first or last position within
     /// which a deletion that rests on a single read is a check.
     pub(crate) edge_zone: usize,
+    /// Equal bases in a row after which a read's in-phase end of an item no
+    /// longer shows bases the review compares with the decision.
+    pub(crate) phase_run: usize,
 }
 
 /// The `[review]` section as written.
@@ -75,6 +78,7 @@ pub(crate) struct ReviewConfig {
 pub(super) struct RawReviewConfig {
     run_growth: usize,
     edge_zone: usize,
+    phase_run: usize,
 }
 
 impl RawReviewConfig {
@@ -82,9 +86,13 @@ impl RawReviewConfig {
         if self.run_growth == 0 {
             return Err(ConfigError::Constraint("review.run_growth must be positive").into());
         }
+        if self.phase_run < 2 {
+            return Err(ConfigError::Constraint("review.phase_run must be at least 2").into());
+        }
         Ok(ReviewConfig {
             run_growth: self.run_growth,
             edge_zone: self.edge_zone,
+            phase_run: self.phase_run,
         })
     }
 }
@@ -140,7 +148,7 @@ mod tests {
 
     use super::*;
 
-    const VALID: &str = "schema_version=11\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\nminimum_noise_sigma=1.0\nsecond_floor=0.21\nrun_signal_minimum_reads=40\nrun_signal_minimum_calls=40\nrun_signal_margin=0.05\nrun_signal_mad_factor=4.0\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\ntrim_context_margin=10\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\nrepeat_window_calls=16\ndouble_peak_ratio=0.33\nspacing_defect=0.5\nspacing_half_window=8\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\nmax_stretch=64\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\nsignal_edge_margin=10\nleading_height_fraction=1.0\npost_repeat_margin=10\npost_repeat_minimum_calls=2\nedge_identity_margin=10\nedge_height_fraction=1.0\nedge_second_share=0.10\nedge_width_factor=1.5\nedge_spacing_minimum=0.5\nedge_spacing_maximum=1.5\nstart_identity_margin=10\nstart_norm_calls=30\nstart_height_fraction=0.5\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n[consensus]\nseeded_run=4\nmaximum_undecided_gap=20\nminimum_resolved_bases=20\nsite_mismatch_cost=2\nsite_gap_open_cost=3\nsite_gap_extension_cost=2\n[review]\nrun_growth=3\nedge_zone=20\n";
+    const VALID: &str = "schema_version=12\nprofile='profiles/target.toml'\n[basecalling]\nsecondary_peak_ratio=0.33\n[signal_processing]\nwindow_size_bases=10\nminimum_primary_snr=3.0\nminimum_noisy_windows=2\nminimum_noise_sigma=1.0\nsecond_floor=0.21\nrun_signal_minimum_reads=40\nrun_signal_minimum_calls=40\nrun_signal_margin=0.05\nrun_signal_mad_factor=4.0\n[quality_control]\npenalty_window_size=10\nmax_relative_quality_score=60\ntrim_context_margin=10\n[callability]\nwindow_calls=16\nonset_defect_fraction=0.375\nexit_defect_fraction=0.125\nminimum_main_share=0.35\nmaximum_far_share=0.12\nminimum_shadow_share=0.1\nweak_amplitude_fraction=0.1\nrepeat_min_length=8\nminimum_callable_calls=20\nrepeat_window_calls=16\ndouble_peak_ratio=0.33\nspacing_defect=0.5\nspacing_half_window=8\n[alignment]\nmatch_score=3\nmismatch_score=-5\nambiguous_score=0\ngap_open_score=-10\ngap_extension_score=-4\nminimum_callable_bases=20\nminimum_identity=0.8\nmax_stretch=64\n[sample_reconciliation]\nminimum_comparable_bases=25\nminimum_overlap_agreement=0.5\n[sanger_evidence]\nminimum_peak_height=150\nrelative_quality_threshold=30\nsignal_edge_margin=10\nleading_height_fraction=1.0\npost_repeat_margin=10\npost_repeat_minimum_calls=2\nedge_identity_margin=10\nedge_height_fraction=1.0\nedge_second_share=0.10\nedge_width_factor=1.5\nedge_spacing_minimum=0.5\nedge_spacing_maximum=1.5\nstart_identity_margin=10\nstart_norm_calls=30\nstart_height_fraction=0.5\n[variant_calling]\nmax_indel_length=50\nread_end_margin=10\n[consensus]\nseeded_run=4\nmaximum_undecided_gap=20\nminimum_resolved_bases=20\nsite_mismatch_cost=2\nsite_gap_open_cost=3\nsite_gap_extension_cost=2\n[review]\nrun_growth=3\nedge_zone=20\nphase_run=4\n";
 
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
@@ -216,11 +224,11 @@ mod tests {
     fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
     {
         assert!(matches!(
-            validate_raw(&VALID.replace("schema_version=11", "schema_version=10"))?,
+            validate_raw(&VALID.replace("schema_version=12", "schema_version=10"))?,
             Err(Error::Kernel(KernelError::Config(
                 ConfigError::UnsupportedSchemaVersion {
                     found: 10,
-                    expected: 11
+                    expected: 12
                 }
             )))
         ));

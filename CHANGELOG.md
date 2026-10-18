@@ -386,6 +386,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `read_disagrees` also fires on one end of an item that a read does not
+  show whole (`review` plugin 8, rules version 8; configuration schema 12
+  with `review.phase_run`). At a decided item without a length change, the
+  end a read's strand reaches first is compared with the decision, base by
+  base, up to where the read has read `review.phase_run` (4) equal bases in a
+  row; past that the run's far end is a length question dephasing leaves
+  open. A clean, full-trust base there that differs makes the item a check.
+  It catches a run exit that one strand's dephased tail decided while the
+  other strand reads it cleanly in phase (`16194C` beside a clean reverse
+  `A`). On the current development data it adds 17 checks over 10,697
+  samples, 7 of them on an unreviewed non-heteroplasmy difference.
 - The review list marks two kinds of decided indels that one strand cannot
   assure (`review` plugin 7, rules version 7; configuration schema 11 with a
   new `[review]` section). Where both strands cover a site, both must agree
