@@ -18,6 +18,11 @@ The proposal is not current production architecture. Its implementation is inten
 
 [PROP-0002](0002-plugin-first-architecture.md), accepted by [ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md), sequences that direction as three plugin families (modality, core caller, post-calling) with phased exit criteria. All phases are implemented: the modality → core evidence contract, the plugin registry with per-plugin configuration, a modality-neutral sample aggregation, a core-only `call` over reviewed consensus sequences, a post-calling `notation` with conformance findings, and the workspace split into plugin-family crates (ADR-0070).
 
+[PROP-0008](0008-pipeline-responsibilities.md) gives each pipeline step one responsibility. It is implemented: the core states what aligned reads assert, the modality states per-call verdicts and owns its stage failures, and the core is split into `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus` ([ADR-0079](../decisions/adr/0079-core-crates-by-step.md)). Two follow-ups remain:
+
+- make `Alignment`'s segments, origin flag, and metrics read-only, and move the cut of an excluded variant's positions (SRS-VAR-019) into `dna-align`, so that `dna-align` is the only writer of an alignment;
+- revisit the `core` plugin identity, which spans three crates, the next time plugin versions change for another reason; splitting it changes provenance.
+
 ## Validation priorities
 
 ### Approved real-trace baseline
