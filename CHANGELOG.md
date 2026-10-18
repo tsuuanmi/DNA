@@ -731,6 +731,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- `read_disagrees` (`review` plugin 3, rules version 3) read a read's
+  sequence from its insertion variants, which leave out masked inserted
+  calls, so a phase-shifted read whose masked calls agree with the decision
+  looked one base short (`2510457`: the forward read's masked `315.1C`). It
+  now reads the read's own alignment columns, and counts a read only when it
+  also reads both sides of the item cleanly, so it bounds what it shows. On
+  development panel v5 the label falls from 441 samples to 6, `clear` returns
+  to 6,460, and leaks among clear to 238: the four leaks rules 2 caught were
+  caught by the defect.
 - A deletion neither of whose flanking calls reads a base (both `N`) made
   `sample`, `consensus`, and `SampleAnalysis` fail for the whole sample
   ("variant has no resolved call"). Such a deletion observes nothing, since

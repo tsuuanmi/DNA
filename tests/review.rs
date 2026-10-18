@@ -121,7 +121,7 @@ const RANKS: [(&str, u64); 12] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 2);
+    assert_eq!(value["provenance"]["rules"], 3);
     let items = items(value)?;
     let mut previous = None;
     let mut counts = std::collections::BTreeMap::<&str, u64>::new();
