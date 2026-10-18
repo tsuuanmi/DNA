@@ -40,8 +40,9 @@ For position `i` with amplitudes `a` and total `T = Σ a`:
 - `dominance = (a[c1] − a[c2]) / T`;
 - `secondary_ratio = a[c2] / a[c1]`;
 - `spacing_deviation = max(|Δ_{i−1} − M|, |Δ_i − M|) / M`, with `Δ` the sample
-  spacing between adjacent calls and `M` the median spacing over the 16 spacings
-  around `i` (available terms only; zero when `M` carries no information);
+  spacing between adjacent calls and `M` the median spacing over the
+  `spacing_half_window` spacings on each side of `i` (8 by default; available
+  terms only; zero when `M` carries no information);
 - `weak`: `T ≤ 0`, or `a[c1]` below `weak_amplitude_fraction` of the read's
   median primary amplitude. The read-wide median is used because the local
   noise estimate of the SNR method is inflated inside homopolymers, which must
@@ -60,9 +61,10 @@ run. Runs are priors: they never mask by themselves.
 ### Substep 4.3 — Defects and segmentation
 
 Each position is one defect class, by precedence: `weak`; `double` when
-`secondary_ratio ≥ basecalling.secondary_peak_ratio`; `spacing` when
-`spacing_deviation ≥ 0.5`; otherwise none. The `window_calls` positions after
-a repeat run form its prior window; the run's own calls are never inside one.
+`secondary_ratio ≥ double_peak_ratio`; `spacing` when
+`spacing_deviation ≥ spacing_defect`; otherwise none. The `repeat_window_calls`
+positions after a repeat run form its prior window; the run's own calls are
+never inside one.
 
 The forward statistic at `i` is the defect fraction over `[i, i + window_calls)`.
 A hysteresis state machine walks the read:
@@ -71,7 +73,7 @@ A hysteresis state machine walks the read:
 - an in-phase stretch ends where the fraction reaches `onset_defect_fraction`,
   or `exit_defect_fraction + 1/window_calls` inside a prior window, localized at
   the first defective position of that window; when that position lies in the
-  `window_calls` positions after a repeat run, the masked stretch starts right
+  `repeat_window_calls` positions after a repeat run, the masked stretch starts right
   after the run instead, also masking the calls already walked past, because a
   slipped population can lead there before its second peak becomes visible;
 - a masked stretch ends where the fraction drops to `exit_defect_fraction`;
@@ -147,19 +149,23 @@ The core caller does not read callability directly. The Sanger adapter
 - the mask is *anchoring* for a `dephased` call and *unresolved* otherwise;
 - its reason is `post_homopolymer` when the segment starts in the window after
   a repeat run, and otherwise the state label;
-- every call within `variant_calling.read_end_margin` calls of an
+- every call within `sanger_evidence.signal_edge_margin` calls of an
   uninformative call or a read end is at a signal edge (SRS-CALL-013);
 - before the callable span, a masked call with one qualifying channel and a
-  primary peak at least the read's median primary peak is unmasked and
+  primary peak at least `leading_height_fraction` (1.0) of the read's median
+  primary peak is unmasked and
   vouched for by its base only (SRS-CALL-014). A read's start is noisy, and
   its masked stretch only ends where a whole window is clean, so such calls
   are masked with their noisy neighbours; on development panel v5 they read
   the reviewers' base at 1,650 of 1,650 truth variants;
 - at an end of the informative interval, a scored call at a signal edge whose
   own signal is unambiguous has its verdict on its base taken off the edge
-  (SRS-CALL-017): one qualifying channel, a primary peak at least the read's
-  median, a second-channel share below 0.10, a peak no broader than 1.5 times
-  the read's median width (a dye blob is broader), regular spacing, no phase
+  (SRS-CALL-017), within `edge_identity_margin` calls of that end: one
+  qualifying channel, a primary peak at least `edge_height_fraction` (1.0) of
+  the read's median, a second-channel share below `edge_second_share` (0.10),
+  a peak no broader than `edge_width_factor` (1.5) times the read's median
+  width (a dye blob is broader), a spacing within `edge_spacing_minimum` to
+  `edge_spacing_maximum` (0.5 to 1.5) times the median, no phase
   loss beyond that end, and not the base of its neighbour towards that end (a
   signal one position off). Its indel verdict keeps the edge and its bound is
   unchanged, so it still counts towards runs: as a base-only call it would
@@ -176,9 +182,10 @@ The core caller does not read callability directly. The Sanger adapter
   (SRS-CALL-018). The start's calls sit behind the start noise the leading
   rescue leaves masked, so they lie at no end of the informative interval,
   and a read's signal rises over its first calls, so they stand below the
-  read's median: the rule takes the median primary peak, width, and spacing
-  of the first 30 in-phase calls of the callable span and asks for half that
-  peak. Masked calls before the callable span may lie between the call and
+  read's median: within `start_identity_margin` calls of the callable span's
+  start, the rule takes the median primary peak, width, and spacing of the
+  first `start_norm_calls` (30) in-phase calls of the callable span and asks
+  for `start_height_fraction` (0.5) of that peak. Masked calls before the callable span may lie between the call and
   the start, but no masked call of the span may. On development panel v5:
   positions to review 3.20 to 3.07 %, clear samples 40.56 to 43.79 % (45.11
   to 48.22 % on batches from 2026), samples with an unreviewed difference
@@ -187,7 +194,7 @@ The core caller does not read callability directly. The Sanger adapter
 - every call carries its second base and its share (SRS-CALL-015).
 
 - **Quality control** trims to the callable span plus up to
-  `variant_calling.read_end_margin` calls of an adjacent dephased segment
+  `quality_control.trim_context_margin` calls of an adjacent dephased segment
   ([quality control](quality-control.md), substep 5.3). A read with fewer than
   `minimum_callable_calls` unmasked calls fails `analyze` and `basecall`
   typed after the `callability_completed` event; `sample` and `consensus`
@@ -206,13 +213,14 @@ The core caller does not read callability directly. The Sanger adapter
 
 `[callability]` holds `window_calls`, `onset_defect_fraction`,
 `exit_defect_fraction`, `minimum_main_share`, `maximum_far_share`,
-`minimum_shadow_share`, `weak_amplitude_fraction`, `repeat_min_length`, and
-`minimum_callable_calls`
-([configuration](../reference/configuration.md)); the double threshold reuses
-`basecalling.secondary_peak_ratio`. `repeat_min_length` sets the shortest
-repeat run, and `minimum_callable_calls` the fewest unmasked calls a read needs. The shadow offsets (±1..±3), the
-minimum fit size (eight positions), the solver tolerances, and the spacing
-defect threshold (0.5) are method constants of `dna.read_callability/v1`.
+`minimum_shadow_share`, `weak_amplitude_fraction`, `repeat_min_length`,
+`minimum_callable_calls`, `repeat_window_calls`, `double_peak_ratio`,
+`spacing_defect`, and `spacing_half_window`
+([configuration](../reference/configuration.md)). `repeat_min_length` sets the
+shortest repeat run, and `minimum_callable_calls` the fewest unmasked calls a
+read needs. The shadow model's offsets (±1..±3), its minimum fit size (one more
+than its seven parameters), and the solver tolerances are the model's
+definition and method constants of `dna.read_callability/v1`.
 
 ## Interpretation limits
 

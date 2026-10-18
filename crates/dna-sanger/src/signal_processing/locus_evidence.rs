@@ -289,6 +289,7 @@ mod tests {
             window_size_bases,
             minimum_primary_snr: 3.0,
             minimum_noisy_windows: 2,
+            minimum_noise_sigma: 1.0,
             second_floor: 0.21,
             run_signal: crate::signal_processing::RunSignalParameters {
                 minimum_reads: 40,
@@ -303,7 +304,10 @@ mod tests {
         trace: &Chromatogram,
         config: &SignalProcessingConfig,
     ) -> Result<Vec<LocusEvidence>> {
-        calculate(config, &mut SpanEstimates::new(trace))
+        calculate(
+            config,
+            &mut SpanEstimates::new(trace, config.minimum_noise_sigma),
+        )
     }
 
     fn trace() -> Chromatogram {

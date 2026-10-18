@@ -66,7 +66,8 @@ Read eligibility (ADR-0062, ADR-0067, SRS-VAR-013) then marks a variant
 ineligible when any of its mapped calls is one the modality places at an edge
 of the read's usable signal (`read_end`), or lies within `read_end_margin`
 calls of a physical read end the modality does not vouch for. The Sanger
-modality places at an edge every call within `read_end_margin` calls of an
+modality places at an edge every call within its own `signal_edge_margin`
+calls of an
 uninformative call: a call beyond the trim interval, a masked call aligned as
 unresolved, or a read end (SRS-CALL-013). A difference therefore needs that
 many informative calls between it and the nearest place where the alignment

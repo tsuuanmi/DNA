@@ -386,6 +386,27 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Every Sanger method threshold is configuration (SRS-CFG-009; schema 9),
+  with defaults equal to the former constants, so outputs change only in
+  the configuration checksum:
+  - `[sanger_evidence]`: the read-edge rules' `edge_second_share` (0.10),
+    `edge_width_factor` (1.5), `edge_spacing_minimum`/`maximum` (0.5, 1.5),
+    `edge_height_fraction` and `leading_height_fraction` (1.0),
+    `start_norm_calls` (30), `start_height_fraction` (0.5), and
+    `post_repeat_minimum_calls` (2);
+  - `[callability]`: `spacing_defect` (0.5) and `spacing_half_window` (8);
+  - `[signal_processing]`: `minimum_noise_sigma` (1.0).
+  Keys that drove several rules are split, so one tuning moves one rule:
+  - `variant_calling.read_end_margin` is now the core's alone; the Sanger
+    plugin has `signal_edge_margin`, `post_repeat_margin`,
+    `edge_identity_margin`, `start_identity_margin`, and
+    `quality_control.trim_context_margin` (all 12);
+  - `callability.double_peak_ratio` (0.33) is set apart from
+    `basecalling.secondary_peak_ratio`;
+  - `callability.repeat_window_calls` (16) is set apart from `window_calls`.
+  The shadow model's offset range, minimum fit size, and solver tolerances
+  stay method constants of its definition.
+
 - `signal_processing.second_floor` defaults to 0.20 (was 0.16), the floor
   that meets the heteroplasmy policy (2026-10-18, user): a
   `possible_heteroplasmy` flag is worth raising only without more false

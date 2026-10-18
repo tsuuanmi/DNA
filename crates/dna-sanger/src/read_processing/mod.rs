@@ -76,21 +76,13 @@ impl PreparedRead {
 /// `tracing` stage span and completion event per stage; a read shorter than
 /// one signal window, or with too few callable calls, fails typed.
 ///
-/// `context_margin` is the most calls of an adjacent dephased segment the trim
-/// keeps beyond the callable span; the composer passes the core's read-end
-/// margin so that kept context can anchor the alignment.
-///
 /// # Errors
 ///
 /// Returns the failure of the first stage that fails, including
 /// `SignalError::TooFewCalls` and `CallabilityError::TooFewCallableCalls`.
-pub fn process(
-    trace: &Chromatogram,
-    config: &SangerConfig,
-    context_margin: usize,
-) -> Result<ProcessedRead> {
+pub fn process(trace: &Chromatogram, config: &SangerConfig) -> Result<ProcessedRead> {
     let prepared = prepare(trace, config)?;
-    finish(trace, prepared, config, context_margin)
+    finish(trace, prepared, config)
 }
 
 /// Runs basecalling, signal processing, and callability; a read shorter than
@@ -198,13 +190,7 @@ pub fn prepare(trace: &Chromatogram, config: &SangerConfig) -> Result<PreparedRe
     drop(stage);
     let stage = tracing::info_span!("callability").entered();
     let stage_started = Instant::now();
-    let callability = callability::analyze(
-        trace,
-        &calls,
-        &signal,
-        &config.callability,
-        config.basecalling.secondary_peak_ratio,
-    )?;
+    let callability = callability::analyze(trace, &calls, &signal, &config.callability)?;
     let segment_map = callability
         .segments
         .iter()
@@ -280,7 +266,7 @@ pub fn prepare(trace: &Chromatogram, config: &SangerConfig) -> Result<PreparedRe
 }
 
 /// Runs quality control on a prepared read; a read with too few callable
-/// calls fails typed. `context_margin` is as for [`process`].
+/// calls fails typed.
 ///
 /// # Errors
 ///
@@ -290,7 +276,6 @@ pub fn finish(
     trace: &Chromatogram,
     prepared: PreparedRead,
     config: &SangerConfig,
-    context_margin: usize,
 ) -> Result<ProcessedRead> {
     if let Some(rejection) = prepared.rejection(config) {
         return Err(CallabilityError::TooFewCallableCalls {
@@ -312,7 +297,7 @@ pub fn finish(
         &calls,
         &callability,
         &config.quality_control,
-        context_margin,
+        config.quality_control.trim_context_margin,
     )?;
     let score_min = quality
         .per_call

@@ -144,6 +144,7 @@ mod tests {
                 window_size_bases: 5,
                 minimum_primary_snr: 1_000.0,
                 minimum_noisy_windows: 2,
+                minimum_noise_sigma: 1.0,
                 second_floor: 0.21,
                 run_signal: crate::signal_processing::RunSignalParameters {
                     minimum_reads: 40,
@@ -152,7 +153,7 @@ mod tests {
                     mad_factor: 4.0,
                 },
             },
-            &mut SpanEstimates::new(&trace),
+            &mut SpanEstimates::new(&trace, 1.0),
         )?;
         assert_eq!(windows.len(), 3);
         assert_eq!(windows[0].call_start_0based, 0);

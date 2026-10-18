@@ -42,7 +42,7 @@ calibrated; `phred_calibrated` is always `false`.
 
 The trim interval starts from the callable span `[s, e)`, the hull of the
 read's unmasked calls. A masked segment that touches the span on either side
-extends the interval by up to `variant_calling.read_end_margin` of its calls
+extends the interval by up to `quality_control.trim_context_margin` of its calls
 when it is `dephased`, because a dephased call still reads the main ladder and
 anchors the alignment next to the span; a `mixed`, `weak`, or `irregular`
 neighbour carries no alignment information and is not kept. The read-end

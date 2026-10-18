@@ -129,6 +129,7 @@ mod tests {
         let config = QualityControlConfig {
             penalty_window_size: 2,
             max_relative_quality_score: 60,
+            trim_context_margin: 1,
         };
         let mut callability = ReadCallability::in_phase(4);
         let result = analyze(&trace, &calls, &callability, &config, 1)?;

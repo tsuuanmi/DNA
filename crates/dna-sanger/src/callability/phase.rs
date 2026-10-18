@@ -3,9 +3,6 @@
 
 use crate::model::callability::{PositionFeatures, RepeatRun};
 
-/// Relative spacing deviation at or above which a position is a spacing defect.
-pub(super) const SPACING_DEFECT: f64 = 0.5;
-
 /// Thresholds the segmentation applies.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Thresholds {
@@ -17,6 +14,11 @@ pub(super) struct Thresholds {
     pub(super) exit: f64,
     /// Secondary ratio at or above which a position carries a double peak.
     pub(super) double_ratio: f64,
+    /// Relative spacing deviation at or above which a position is a spacing
+    /// defect.
+    pub(super) spacing_defect: f64,
+    /// Calls after a repeat run that form its prior window.
+    pub(super) repeat_window: usize,
 }
 
 /// The one defect class a position belongs to, by precedence.
@@ -55,7 +57,7 @@ pub(super) fn defects(features: &[PositionFeatures], thresholds: &Thresholds) ->
                 Defect::Weak
             } else if feature.secondary_ratio >= thresholds.double_ratio {
                 Defect::Double
-            } else if feature.spacing_deviation >= SPACING_DEFECT {
+            } else if feature.spacing_deviation >= thresholds.spacing_defect {
                 Defect::Spacing
             } else {
                 Defect::None
@@ -119,7 +121,9 @@ pub(super) fn segment(
                     .iter()
                     .rev()
                     .map(|run| run.call_end_0based_exclusive.min(positions))
-                    .find(|&run_end| first >= run_end && first < run_end.saturating_add(window))
+                    .find(|&run_end| {
+                        first >= run_end && first < run_end.saturating_add(thresholds.repeat_window)
+                    })
                     .unwrap_or(first);
                 if onset >= index {
                     callable[index..onset].fill(true);
@@ -168,6 +172,8 @@ mod tests {
         onset: 0.5,
         exit: 0.0,
         double_ratio: 0.33,
+        spacing_defect: 0.5,
+        repeat_window: 4,
     };
 
     fn pattern(text: &str) -> Vec<Defect> {

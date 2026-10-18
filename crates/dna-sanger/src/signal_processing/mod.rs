@@ -48,7 +48,7 @@ pub(crate) fn analyze(
     calls: &BaseCalls,
     config: &SignalProcessingConfig,
 ) -> Result<SignalAnalysis> {
-    let mut estimates = statistics::SpanEstimates::new(trace);
+    let mut estimates = statistics::SpanEstimates::new(trace, config.minimum_noise_sigma);
     let windows = features::calculate(calls, config, &mut estimates)?;
     let loci = locus_evidence::calculate(config, &mut estimates)?;
     let noisy_regions = regions::merge(&windows, config.minimum_noisy_windows);
@@ -73,6 +73,7 @@ mod tests {
             window_size_bases,
             minimum_primary_snr: 3.0,
             minimum_noisy_windows: 2,
+            minimum_noise_sigma: 1.0,
             second_floor: 0.21,
             run_signal: RunSignalParameters {
                 minimum_reads: 40,

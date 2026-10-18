@@ -3,6 +3,7 @@
 
 use serde::Deserialize;
 
+use dna_kernel::bounds;
 use dna_kernel::error::{ConfigError, Result};
 
 use crate::basecalling::{BasecallingConfig, RawBasecallingConfig};
@@ -70,13 +71,52 @@ impl RawSangerConfig {
 }
 
 /// Sanger support thresholds that the Sanger evidence adapter turns into
-/// support vetoes (ADR-0069).
+/// support vetoes (ADR-0069), and the parameters of its read-edge rules
+/// (SRS-CALL-013, SRS-CALL-014, SRS-CALL-016 to SRS-CALL-018).
 #[derive(Debug, Clone)]
 pub struct SangerEvidenceConfig {
     /// Smallest highest A/C/G/T peak of a supporting call.
     pub minimum_peak_height: i32,
     /// Relative quality a supporting call must exceed.
     pub relative_quality_threshold: u8,
+    /// Calls from an end of the usable signal that lie at a signal edge
+    /// (SRS-CALL-013).
+    pub signal_edge_margin: usize,
+    /// Smallest primary peak of a leading call vouched for by its base, as a
+    /// fraction of the read's median primary peak (SRS-CALL-014).
+    pub leading_height_fraction: f64,
+    /// Calls from an informative end within which the run before a
+    /// post-repeat phase loss counts as bounded (SRS-CALL-016).
+    pub post_repeat_margin: usize,
+    /// Fewest informative calls between a run's bound and a post-repeat edge
+    /// (SRS-CALL-016).
+    pub post_repeat_minimum_calls: usize,
+    /// Calls from an informative end within which an edge call may be
+    /// vouched for by its own signal (SRS-CALL-017).
+    pub edge_identity_margin: usize,
+    /// Smallest primary peak of such a call, as a fraction of the read's
+    /// median (SRS-CALL-017).
+    pub edge_height_fraction: f64,
+    /// Second-channel share below which such a call's signal is clean
+    /// (SRS-CALL-017, SRS-CALL-018).
+    pub edge_second_share: f64,
+    /// Widest primary peak of such a call, as a multiple of the median width
+    /// (SRS-CALL-017, SRS-CALL-018).
+    pub edge_width_factor: f64,
+    /// Narrowest spacing to a neighbouring call, as a multiple of the median
+    /// spacing (SRS-CALL-017, SRS-CALL-018).
+    pub edge_spacing_minimum: f64,
+    /// Widest such spacing (SRS-CALL-017, SRS-CALL-018).
+    pub edge_spacing_maximum: f64,
+    /// Calls past the callable span's start within which a start call may be
+    /// vouched for by its own signal (SRS-CALL-018).
+    pub start_identity_margin: usize,
+    /// First in-phase single-channel calls of the callable span whose medians
+    /// are the start's norms (SRS-CALL-018).
+    pub start_norm_calls: usize,
+    /// Smallest primary peak of a start call, as a fraction of the start's
+    /// median (SRS-CALL-018).
+    pub start_height_fraction: f64,
 }
 
 /// The `[sanger_evidence]` section as written in the configuration.
@@ -85,6 +125,19 @@ pub struct SangerEvidenceConfig {
 pub struct RawSangerEvidenceConfig {
     pub(crate) minimum_peak_height: i32,
     pub(crate) relative_quality_threshold: u8,
+    pub(crate) signal_edge_margin: usize,
+    pub(crate) leading_height_fraction: f64,
+    pub(crate) post_repeat_margin: usize,
+    pub(crate) post_repeat_minimum_calls: usize,
+    pub(crate) edge_identity_margin: usize,
+    pub(crate) edge_height_fraction: f64,
+    pub(crate) edge_second_share: f64,
+    pub(crate) edge_width_factor: f64,
+    pub(crate) edge_spacing_minimum: f64,
+    pub(crate) edge_spacing_maximum: f64,
+    pub(crate) start_identity_margin: usize,
+    pub(crate) start_norm_calls: usize,
+    pub(crate) start_height_fraction: f64,
 }
 
 impl RawSangerEvidenceConfig {
@@ -96,9 +149,60 @@ impl RawSangerEvidenceConfig {
             }
             .into());
         }
+        for (key, value) in [
+            (
+                "sanger_evidence.leading_height_fraction",
+                self.leading_height_fraction,
+            ),
+            (
+                "sanger_evidence.edge_height_fraction",
+                self.edge_height_fraction,
+            ),
+            ("sanger_evidence.edge_width_factor", self.edge_width_factor),
+            (
+                "sanger_evidence.edge_spacing_minimum",
+                self.edge_spacing_minimum,
+            ),
+            (
+                "sanger_evidence.edge_spacing_maximum",
+                self.edge_spacing_maximum,
+            ),
+            (
+                "sanger_evidence.start_height_fraction",
+                self.start_height_fraction,
+            ),
+        ] {
+            bounds::positive_finite(key, value)?;
+        }
+        bounds::fraction("sanger_evidence.edge_second_share", self.edge_second_share)?;
+        if self.edge_spacing_minimum > self.edge_spacing_maximum {
+            return Err(ConfigError::Constraint(
+                "sanger_evidence.edge_spacing_minimum must not exceed edge_spacing_maximum",
+            )
+            .into());
+        }
+        if self.post_repeat_minimum_calls == 0 || self.start_norm_calls == 0 {
+            return Err(ConfigError::Constraint(
+                "sanger_evidence.post_repeat_minimum_calls and start_norm_calls must be positive",
+            )
+            .into());
+        }
         Ok(SangerEvidenceConfig {
             minimum_peak_height: self.minimum_peak_height,
             relative_quality_threshold: self.relative_quality_threshold,
+            signal_edge_margin: self.signal_edge_margin,
+            leading_height_fraction: self.leading_height_fraction,
+            post_repeat_margin: self.post_repeat_margin,
+            post_repeat_minimum_calls: self.post_repeat_minimum_calls,
+            edge_identity_margin: self.edge_identity_margin,
+            edge_height_fraction: self.edge_height_fraction,
+            edge_second_share: self.edge_second_share,
+            edge_width_factor: self.edge_width_factor,
+            edge_spacing_minimum: self.edge_spacing_minimum,
+            edge_spacing_maximum: self.edge_spacing_maximum,
+            start_identity_margin: self.start_identity_margin,
+            start_norm_calls: self.start_norm_calls,
+            start_height_fraction: self.start_height_fraction,
         })
     }
 }

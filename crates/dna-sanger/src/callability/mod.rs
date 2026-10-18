@@ -35,10 +35,11 @@ struct Settings {
     repeat_min_length: usize,
     shadow: shadow::Rules,
     thresholds: phase::Thresholds,
+    spacing_half_window: usize,
 }
 
 impl Settings {
-    fn from_config(config: &CallabilityConfig, secondary_peak_ratio: f64) -> Self {
+    fn from_config(config: &CallabilityConfig) -> Self {
         Self {
             weak_amplitude_fraction: config.weak_amplitude_fraction,
             repeat_min_length: config.repeat_min_length,
@@ -51,8 +52,11 @@ impl Settings {
                 window: config.window_calls,
                 onset: config.onset_defect_fraction,
                 exit: config.exit_defect_fraction,
-                double_ratio: secondary_peak_ratio,
+                double_ratio: config.double_peak_ratio,
+                spacing_defect: config.spacing_defect,
+                repeat_window: config.repeat_window_calls,
             },
+            spacing_half_window: config.spacing_half_window,
         }
     }
 }
@@ -63,24 +67,24 @@ pub(crate) fn analyze(
     calls: &BaseCalls,
     signal: &SignalAnalysis,
     config: &CallabilityConfig,
-    secondary_peak_ratio: f64,
 ) -> Result<ReadCallability> {
     let evidence = sanger::evidence(trace, calls, signal)?;
-    derive(
-        &evidence,
-        &Settings::from_config(config, secondary_peak_ratio),
-    )
+    derive(&evidence, &Settings::from_config(config))
 }
 
 /// The modality-generic core: evidence records in call order to callability.
 fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCallability> {
-    let features = features::calculate(evidence, settings.weak_amplitude_fraction)?;
+    let features = features::calculate(
+        evidence,
+        settings.weak_amplitude_fraction,
+        settings.spacing_half_window,
+    )?;
     let primary = evidence
         .iter()
         .map(|position| position.primary)
         .collect::<Vec<_>>();
     let repeats = runs::find(&primary, settings.repeat_min_length);
-    let prior = phase::prior_windows(features.len(), &repeats, settings.thresholds.window);
+    let prior = phase::prior_windows(features.len(), &repeats, settings.thresholds.repeat_window);
     let defects = phase::defects(&features, &settings.thresholds);
     let callable = phase::segment(&defects, &prior, &repeats, &settings.thresholds);
     let segments = classify::segments(
@@ -90,7 +94,7 @@ fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCall
             features: &features,
             defects: &defects,
             repeats: &repeats,
-            window: settings.thresholds.window,
+            window: settings.thresholds.repeat_window,
             rules: settings.shadow,
         },
     );
@@ -116,7 +120,10 @@ mod tests {
             onset: 0.375,
             exit: 0.125,
             double_ratio: 0.33,
+            spacing_defect: 0.5,
+            repeat_window: 8,
         },
+        spacing_half_window: 8,
     };
 
     fn channel(base: char) -> usize {

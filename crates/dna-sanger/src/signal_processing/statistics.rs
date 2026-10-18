@@ -7,7 +7,6 @@ use crate::model::sanger::Chromatogram;
 
 const NORMAL_MAD_SCALE: f64 = 0.674_489_75;
 const FIRST_DIFFERENCE_SCALE: f64 = std::f64::consts::SQRT_2;
-const MINIMUM_NOISE_SIGMA: f64 = 1.0;
 const OUTPUT_PRECISION: f64 = 1_000_000.0;
 
 /// Baseline and noise of each A/C/G/T channel over one sample span.
@@ -27,13 +26,16 @@ pub(super) struct SpanStatistics {
 /// always belong to the trace they read.
 pub(super) struct SpanEstimates<'a> {
     trace: &'a Chromatogram,
+    /// Floor of every channel's noise scale.
+    minimum_noise_sigma: f64,
     estimated: BTreeMap<(usize, usize), SpanStatistics>,
 }
 
 impl<'a> SpanEstimates<'a> {
-    pub(super) fn new(trace: &'a Chromatogram) -> Self {
+    pub(super) fn new(trace: &'a Chromatogram, minimum_noise_sigma: f64) -> Self {
         Self {
             trace,
+            minimum_noise_sigma,
             estimated: BTreeMap::new(),
         }
     }
@@ -56,7 +58,7 @@ impl<'a> SpanEstimates<'a> {
             let samples = samples
                 .get(start..end)
                 .ok_or(SignalError::InvalidContextInterval { start, end })?;
-            let local = estimate(samples)?;
+            let local = estimate(samples, self.minimum_noise_sigma)?;
             statistics.baselines[channel] = local.baseline;
             statistics.noise_sigmas[channel] = local.noise_sigma;
         }
@@ -72,11 +74,12 @@ struct ChannelStatistics {
     noise_sigma: f64,
 }
 
-/// Estimates the median baseline and first-difference-MAD noise scale.
-fn estimate(samples: &[i32]) -> Result<ChannelStatistics> {
+/// Estimates the median baseline and first-difference-MAD noise scale,
+/// floored at `minimum_noise_sigma`.
+fn estimate(samples: &[i32], minimum_noise_sigma: f64) -> Result<ChannelStatistics> {
     Ok(ChannelStatistics {
         baseline: median_i32(samples)?,
-        noise_sigma: noise_sigma(samples)?,
+        noise_sigma: noise_sigma(samples, minimum_noise_sigma)?,
     })
 }
 
@@ -134,7 +137,7 @@ fn median_i32(values: &[i32]) -> Result<f64> {
     Ok(median_selected_f64(&mut values))
 }
 
-fn noise_sigma(samples: &[i32]) -> Result<f64> {
+fn noise_sigma(samples: &[i32], minimum_noise_sigma: f64) -> Result<f64> {
     if samples.len() < 2 {
         return Err(SignalError::InsufficientData(
             "noise estimation requires at least two channel samples",
@@ -150,7 +153,7 @@ fn noise_sigma(samples: &[i32]) -> Result<f64> {
         *difference = (*difference - center).abs();
     }
     let mad = median_selected_f64(&mut differences);
-    Ok((mad / (NORMAL_MAD_SCALE * FIRST_DIFFERENCE_SCALE)).max(MINIMUM_NOISE_SIGMA))
+    Ok((mad / (NORMAL_MAD_SCALE * FIRST_DIFFERENCE_SCALE)).max(minimum_noise_sigma))
 }
 
 /// The median of non-empty `values` under `f64::total_cmp`, found by
@@ -195,13 +198,13 @@ mod tests {
 
     #[test]
     fn flat_samples_use_the_quantization_floor() -> Result<()> {
-        assert_eq!(estimate(&[4, 4, 4, 4])?.noise_sigma, 1.0);
+        assert_eq!(estimate(&[4, 4, 4, 4], 1.0)?.noise_sigma, 1.0);
         Ok(())
     }
 
     #[test]
     fn first_difference_mad_uses_the_existing_scale() -> Result<()> {
-        let statistics = estimate(&[0, 2, 0, 2, 0])?;
+        let statistics = estimate(&[0, 2, 0, 2, 0], 1.0)?;
         assert_eq!(statistics.baseline, 0.0);
         assert_eq!(
             statistics.noise_sigma,
@@ -226,7 +229,7 @@ mod tests {
             duplicate_loci: 0,
             vendor: VendorEvidence::default(),
         };
-        let mut estimates = SpanEstimates::new(&trace);
+        let mut estimates = SpanEstimates::new(&trace, 1.0);
         let first = estimates.span(0, 5)?;
         let other = estimates.span(1, 6)?;
         let again = estimates.span(0, 5)?;
@@ -240,7 +243,7 @@ mod tests {
         ));
         for (channel, samples) in channels.iter().enumerate() {
             for (span, start, end) in [(first, 0, 5), (again, 0, 5), (other, 1, 6)] {
-                let fresh = estimate(&samples[start..end])?;
+                let fresh = estimate(&samples[start..end], 1.0)?;
                 assert_eq!(span.baselines[channel], fresh.baseline);
                 assert_eq!(span.noise_sigmas[channel], fresh.noise_sigma);
             }

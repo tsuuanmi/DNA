@@ -34,8 +34,8 @@ modality-neutral core.
 `config.rs` owns the `[sanger_evidence]` section and `SangerConfig`, which
 validates every Sanger-owned section together, including the cross-section
 check of the relative-quality threshold. `mod.rs` also declares the Sanger
-plugin descriptor. The trim's context margin and the signal-edge margin come
-from the composer, which passes the core's `read_end_margin`.
+plugin descriptor. Every read-edge parameter, the trim's context margin
+included, is the plugin's own configuration; no core key is read.
 
 This module does not use reference context and does not decide variant
 eligibility: it supplies labels, and the core reports them.
