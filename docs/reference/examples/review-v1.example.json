@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 15
+        "version": 16
       }
     ],
-    "rules": 15
+    "rules": 16
   },
   "reads": [
     {

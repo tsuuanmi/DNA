@@ -122,7 +122,8 @@ target still fails the command without output.
 
 An item is one consensus site, or one position or run of positions outside
 every site, inside the profile's reportable regions (a site is clipped to
-them). It has:
+them; since rules version 16, a clipped site's `sequence` is its decision over
+the clipped columns, what most of its supporting reads show there). It has:
 
 - `first`, `last`: its first and last reference columns, each a `position`
   and an insertion `ordinal` (`309.1` is `309`/`1`). In version 1 both
@@ -216,6 +217,11 @@ exemption lifts the margin (ADR-0076).
 - `strands_disagree` `{reads: [{read, strand, role}]}`: the site has
   supporting and opposing reads, and a supporting read lies on another strand
   than an opposing one. Lists the supporting, then the opposing reads.
+  On a clipped site (rules version 16) an opposing read that shows the
+  clipped decision over the reportable columns no longer opposes the item:
+  its difference lies outside the regions. The label stays while an opposing
+  read that may differ there, or that does not bound those columns, remains
+  on another strand than a supporting one.
 - `read_disagrees` `{read, strand, sequence}`: at a decided site that is not
   clipped, a supporting or uninformative read shows the whole item as another
   sequence than the decision. The read's sequence comes from its own

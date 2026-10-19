@@ -424,6 +424,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review judges a site the reportable regions clip over its reportable
+  columns only (`review` plugin 16, rules version 16): the item's `sequence`
+  is the decision there, and an opposing read that shows it there, its
+  difference outside the regions, no longer makes `strands_disagree`. On the
+  current development data 32 such checks go (66 at position 73, where a
+  wrapped HV1F read differs at 66-72), clearing 30 samples, and 1,789 clipped
+  items now show their clipped sequence.
 - Read-start calls may confirm the reference too (ADR-0080, SRS-CALL-022,
   SRS-CONS-010). The Sanger plugin marks as reference-only a single-channel
   call without a second base standing out or unexplained, withheld only for
