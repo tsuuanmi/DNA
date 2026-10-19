@@ -10,5 +10,6 @@ This directory contains the authoritative machine-readable schemas for current p
 - [notation-v1.schema.json](notation-v1.schema.json) — `dna.notation/v1`
 - [consensus-v1.schema.json](consensus-v1.schema.json) — `dna.consensus/v1`
 - [review-v1.schema.json](review-v1.schema.json) — `dna.review/v1`; it references definitions of the notation and consensus schemas by `$id`
+- [signal-v1.schema.json](signal-v1.schema.json) — `dna.signal/v1`
 
 Schemas define exact serialized shape. Human-readable semantics remain in the parent [contracts index](../README.md) and the corresponding contract folders.

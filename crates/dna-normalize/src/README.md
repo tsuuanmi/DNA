@@ -6,6 +6,11 @@ Owns the post-calling `normalization` and `nomenclature` plugins
 which consume called variants and write them in the lab's reviewer
 convention. It depends only on `dna-kernel`.
 
+Output contract: the `notation` of
+[`dna.notation/v1`](../../../docs/reference/schemas/notation-v1.schema.json) (`dna notation`), also
+carried by `dna.sample_evidence/v10` and `dna.variants/v1` when the profile
+declares notation.
+
 - `variant_representation.rs` — haplotype-preserving edit conversion, application, and rendering support.
 - [variant_normalization](variant_normalization/README.md) — optional sequence-equivalent normalization.
 - [variant_nomenclature](variant_nomenclature/README.md) — profile-driven window representation.
