@@ -167,7 +167,7 @@ const RANKS: [(&str, u64); 16] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 13);
+    assert_eq!(value["provenance"]["rules"], 14);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
@@ -183,6 +183,47 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let items = items(value)?;
+    // Zones tile the reportable positions of a called sample in order, and
+    // each counts the check items touching it.
+    if value["status"] == "called" {
+        let zones = value["zones"].as_array().ok_or("zones must be an array")?;
+        let (mut end, mut covered, mut flagged) = (0, 0, 0);
+        for zone in zones {
+            let first = zone["first"].as_u64().ok_or("zone first")?;
+            let last = zone["last"].as_u64().ok_or("zone last")?;
+            assert!(end < first && first <= last, "{zone}");
+            assert_eq!(
+                zone["kind"] == "repeat",
+                zone.get("name").is_some(),
+                "{zone}"
+            );
+            let touching = items
+                .iter()
+                .filter(|item| {
+                    item["kind"] == "check"
+                        && item["first"]["position"].as_u64() <= Some(last)
+                        && Some(first) <= item["last"]["position"].as_u64()
+                })
+                .count();
+            assert_eq!(
+                zone["checks"].as_u64(),
+                u64::try_from(touching).ok(),
+                "{zone}"
+            );
+            flagged += u64::from(touching > 0);
+            covered += last - first + 1;
+            end = last;
+        }
+        let summary = &value["summary"];
+        assert_eq!(summary["positions"]["reportable"].as_u64(), Some(covered));
+        assert_eq!(
+            summary["zones"]["total"].as_u64(),
+            u64::try_from(zones.len()).ok()
+        );
+        assert_eq!(summary["zones"]["check"].as_u64(), Some(flagged));
+    } else {
+        assert!(value.get("zones").is_none());
+    }
     // A second peak's cause is one of the modality's labels.
     for item in items {
         for read in item["evidence"].as_array().ok_or("evidence")? {

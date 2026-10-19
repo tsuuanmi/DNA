@@ -1099,6 +1099,51 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
     clear = document.get("status") == "called" and checks == 0
     if summary.get("clear") != clear:
         errors.append(f"{label}: summary clear disagrees with the status and checks")
+    validate_zones(document, items, positions, summary, label, errors)
+
+
+def validate_zones(
+    document: dict[str, Any],
+    items: list[Any],
+    positions: dict[str, Any],
+    summary: dict[str, Any],
+    label: str,
+    errors: list[str],
+) -> None:
+    """Check that zones tile the reportable positions and count the checks."""
+    zones = document.get("zones", [])
+    if not isinstance(zones, list):
+        return
+    covered = 0
+    previous: dict[str, Any] | None = None
+    for index, zone in enumerate(zones):
+        first, last = zone.get("first", 0), zone.get("last", -1)
+        covered += last - first + 1
+        if previous is not None:
+            if first <= previous.get("last", 0):
+                errors.append(f"{label}: zone {index} is out of order or overlaps")
+            elif (
+                first == previous.get("last", 0) + 1
+                and zone.get("kind") == previous.get("kind")
+                and zone.get("name") == previous.get("name")
+            ):
+                errors.append(f"{label}: zone {index} continues the zone before it")
+        previous = zone
+        touching = sum(
+            1
+            for item in items
+            if item.get("kind") == "check"
+            and item.get("first", {}).get("position", 0) <= last
+            and first <= item.get("last", {}).get("position", -1)
+        )
+        if zone.get("checks") != touching:
+            errors.append(f"{label}: zone {index} check count disagrees with the items")
+    if zones and covered != positions.get("reportable"):
+        errors.append(f"{label}: zones do not tile the reportable positions")
+    counts = summary.get("zones", {})
+    flagged = sum(1 for zone in zones if zone.get("checks", 0) > 0)
+    if counts.get("total") != len(zones) or counts.get("check") != flagged:
+        errors.append(f"{label}: summary zone counts disagree with the zones")
 
 
 def rejected_review_shapes(
@@ -1108,13 +1153,13 @@ def rejected_review_shapes(
     unknown_label["items"][0]["labels"].append({"label": "watched"})
     failed_without_error = copy.deepcopy(example)
     failed_without_error["status"] = "call_failed"
-    for key in ("calls", "callable", "empop"):
+    for key in ("calls", "callable", "empop", "zones"):
         failed_without_error.pop(key)
     called_with_error = copy.deepcopy(example)
     called_with_error["error"] = "the consensus has no segment"
     rejected_with_items = copy.deepcopy(example)
     rejected_with_items["status"] = "rejected"
-    for key in ("calls", "callable", "empop"):
+    for key in ("calls", "callable", "empop", "zones"):
         rejected_with_items.pop(key)
     unlisted_call = copy.deepcopy(example)
     for item in unlisted_call["items"]:
@@ -1123,6 +1168,16 @@ def rejected_review_shapes(
             break
     missing_count = copy.deepcopy(example)
     missing_count["summary"]["labels"].pop("read_edge")
+    unnamed_repeat = copy.deepcopy(example)
+    for zone in unnamed_repeat["zones"]:
+        if zone["kind"] == "repeat":
+            zone.pop("name")
+            break
+    named_clean = copy.deepcopy(example)
+    for zone in named_clean["zones"]:
+        if zone["kind"] == "clean":
+            zone["name"] = "HVS-I"
+            break
     inserted_evidence = copy.deepcopy(example)
     inserted_evidence["items"][0]["evidence"][0]["positions"][0]["ordinal"] = 1
     no_threshold = copy.deepcopy(example)
@@ -1144,6 +1199,8 @@ def rejected_review_shapes(
         ("rejected review with items", rejected_with_items),
         ("review item call the document does not list", unlisted_call),
         ("review summary without a label count", missing_count),
+        ("review repeat zone without its window name", unnamed_repeat),
+        ("review clean zone with a window name", named_clean),
         ("review evidence at an inserted column", inserted_evidence),
         ("possible heteroplasmy without its threshold", no_threshold),
         ("estimated length that a read shows", observed_length),
@@ -1497,6 +1554,12 @@ def main(argv: list[str] | None = None) -> int:
     validate_review(unordered_review, "synthetic unordered review", review_errors)
     if not review_errors:
         errors.append("expected review items out of priority order to be rejected")
+    gapped_zones = copy.deepcopy(review_example)
+    gapped_zones["zones"].pop()
+    zone_errors: list[str] = []
+    validate_review(gapped_zones, "synthetic gapped zones", zone_errors)
+    if not zone_errors:
+        errors.append("expected zones that leave positions out to be rejected")
 
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)

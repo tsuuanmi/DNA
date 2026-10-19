@@ -61,6 +61,13 @@
     "empop": {
       "$ref": "urn:signal:schema:notation:v1#/$defs/empop"
     },
+    "zones": {
+      "description": "The reportable positions as zones a reviewer opens whole, in reference order: each a maximal stretch, within one region, of one kind (and, for repeat, one profile window); for called.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/zone"
+      }
+    },
     "items": {
       "type": "array",
       "items": {
@@ -82,7 +89,8 @@
       },
       "then": {
         "required": [
-          "callable"
+          "callable",
+          "zones"
         ],
         "not": {
           "required": [
@@ -106,7 +114,8 @@
         "properties": {
           "calls": false,
           "callable": false,
-          "empop": false
+          "empop": false,
+          "zones": false
         }
       }
     },
@@ -124,6 +133,7 @@
           "calls": false,
           "callable": false,
           "empop": false,
+          "zones": false,
           "items": {
             "maxItems": 0
           },
@@ -1046,6 +1056,7 @@
         "variants",
         "labels",
         "positions",
+        "zones",
         "clear"
       ],
       "properties": {
@@ -1167,8 +1178,86 @@
             }
           }
         },
+        "zones": {
+          "description": "The zones, and those a check item touches.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "check"
+          ],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "check": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
         "clear": {
           "type": "boolean"
+        }
+      }
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "first",
+        "last",
+        "checks"
+      ],
+      "properties": {
+        "kind": {
+          "description": "What the reads show there, in precedence order: a profile repeat window, no callable call, a read past a repeat out of phase, a read otherwise masked, every read in phase or vouched for.",
+          "enum": [
+            "repeat",
+            "not_callable",
+            "dephased",
+            "masked",
+            "clean"
+          ]
+        },
+        "first": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "last": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "description": "The profile's repeat window name; exactly for repeat.",
+          "type": "string",
+          "minLength": 1
+        },
+        "checks": {
+          "description": "The check items touching the zone.",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "repeat"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "name"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "name"
+          ]
         }
       }
     }
