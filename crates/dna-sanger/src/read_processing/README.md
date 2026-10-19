@@ -21,8 +21,10 @@ modality-neutral core.
     (SNVs only);
   - the second-peak assertions (SRS-CALL-022, ADR-0080): whether each
     call's second base stands out, whether its second peak is unexplained,
-    and whether an isolated mixed call whose peak is a neighbour's tail or a
-    dye blob is `reference_only`;
+    and whether a call is `reference_only`: an isolated mixed call whose
+    peak is a neighbour's tail or a dye blob, or a single-channel call
+    withheld only for its quality or at a benign signal edge (the untrimmed
+    start, a weak mask clear of repeat runs);
   - the Sanger mask labels: `post_homopolymer`, or else the phase-state label.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.

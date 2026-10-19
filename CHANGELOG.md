@@ -397,6 +397,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Read-start calls may confirm the reference too (ADR-0080, SRS-CALL-022,
+  SRS-CONS-010). The Sanger plugin marks as reference-only a single-channel
+  call without a second base standing out or unexplained, withheld only for
+  its peak floor or relative quality, or lying at a signal edge whose every
+  cause is the untrimmed read start or a weak mask clear of repeat runs. The
+  core lets such a call confirm beyond the read's unvouched ends (new
+  `Eligibility::clear_of_ends`).
+  - Every confirmation is now also withdrawn:
+    - at or beside any read's observed difference, clean or not;
+    - in a stretch;
+    - in a reference run of at least `consensus.seeded_run` across a
+      junction no read observes cleanly.
+  - Plugins `sanger` 12 and `consensus` 12.
+  - Development panel v5 against `main` b49ff87:
+    - samples with an unreviewed difference are unchanged in every period;
+    - clear samples go from 68.7 to 70.2 % on current data;
+    - no strict or `haplotype_lod` changes.
 - The review lists where DNA decided by reference confirmations alone:
   `reference_only` holds the reportable positions the consensus published as
   `reference_only` (ADR-0080), and `summary.positions.reference_only` counts

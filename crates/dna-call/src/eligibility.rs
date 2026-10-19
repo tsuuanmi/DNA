@@ -43,6 +43,8 @@ pub struct Eligibility<'a> {
     before: Vec<usize>,
     after: Vec<usize>,
     margin: usize,
+    /// Calls at each unvouched read end within which no call is trusted.
+    ends: usize,
     evidence: &'a ReadEvidence,
 }
 
@@ -88,8 +90,18 @@ impl<'a> Eligibility<'a> {
             before,
             after,
             margin,
+            ends,
             evidence,
         }
+    }
+
+    /// Whether the call at `index` lies more than `read_end_margin` calls from
+    /// every read end the modality does not vouch for: the part of trust that
+    /// is the core's own, beside the modality's edge verdict.
+    #[must_use]
+    pub fn clear_of_ends(&self, index: usize) -> bool {
+        let calls = self.evidence.calls().len();
+        index >= self.ends && index + self.ends < calls
     }
 
     /// Whether a call lies on a bounded run the exemption lifts from

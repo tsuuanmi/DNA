@@ -26,6 +26,7 @@ use crate::model::consensus::{
 use decide::{Decision, decide};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
+use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use observe::{Char, Observation, ReadObservations, SiteValue, Trust, observe};
@@ -59,6 +60,8 @@ pub fn build(
     // hide, none within or beside a site that differs from the reference, and
     // the positions they alone decide bound no neighbour's run when called.
     hide_confirmations(&mut observed);
+    withdraw_beside_observed_differences(&mut observed, bases);
+    withdraw_unobserved_run_junctions(&mut observed, bases, consensus_config.seeded_run);
     let mut decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     // Deciding again can move a differing site beside another confirmation:
     // each pass withdraws at least one, so this ends.
@@ -97,9 +100,19 @@ fn decide_positions(
         .iter()
         .flat_map(|read| read.positions.keys().copied())
         .collect::<BTreeSet<_>>();
+    // A stretch is decided without reference confirmations, by position as
+    // well: a confirmation shows a base, not a length or a composition.
+    let mut strict = observed.to_vec();
+    for read in &mut strict {
+        for observation in read.positions.values_mut() {
+            if observation.confirms {
+                withdraw(observation);
+            }
+        }
+    }
     let mut decided: BTreeMap<usize, (usize, Decision)> = BTreeMap::new();
-    for (first, last) in stretches(observed, bases, seeded_run) {
-        decided.insert(first, (last, decide_stretch(observed, first, last, bases)));
+    for (first, last) in stretches(&strict, bases, seeded_run) {
+        decided.insert(first, (last, decide_stretch(&strict, first, last, bases)));
     }
     let inside = decided
         .iter()
@@ -152,6 +165,121 @@ fn hide_confirmations(observed: &mut [ReadObservations]) {
     for (index, position) in hidden {
         if let Some(observation) = observed[index].positions.get_mut(&position) {
             withdraw(observation);
+        }
+    }
+}
+
+/// Withdraws every reference confirmation at or beside a position where any
+/// read observes something other than the reference, cleanly or not: another
+/// base, a deletion, or an insertion at a junction beside it. A read can be
+/// shifted there, so a reference base beside its difference shows nothing
+/// about the length the reference keeps.
+fn withdraw_beside_observed_differences(observed: &mut [ReadObservations], bases: &[u8]) {
+    let mut differing = BTreeSet::new();
+    for read in observed.iter() {
+        for (&position, observation) in &read.positions {
+            let differs = match &observation.value {
+                SiteValue::Base(base) => {
+                    is_canonical(*base)
+                        && bases
+                            .get(position)
+                            .is_some_and(|&reference| char::from(reference) != *base)
+                }
+                SiteValue::Deletion => true,
+                SiteValue::Insertion(_) => false,
+            };
+            if differs {
+                differing.insert(position);
+            }
+        }
+        for (&position, observation) in &read.junctions {
+            if matches!(&observation.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
+            {
+                differing.insert(position);
+                differing.insert(position + 1);
+            }
+        }
+    }
+    let near = |position: usize| {
+        (position.saturating_sub(1)..=position + 1).any(|at| differing.contains(&at))
+    };
+    for read in observed.iter_mut() {
+        for (position, observation) in &mut read.positions {
+            if observation.confirms && near(*position) {
+                withdraw(observation);
+            }
+        }
+    }
+}
+
+/// Withdraws the confirmations of a position no read observes cleanly
+/// otherwise, when it forms a run of one base with a neighbour across a
+/// junction no read observes cleanly: a confirmation shows a base, never a
+/// length, and an unobserved junction in a run is where a length may change.
+fn withdraw_unobserved_run_junctions(
+    observed: &mut [ReadObservations],
+    bases: &[u8],
+    seeded_run: usize,
+) {
+    // The reference run of one base holding `position`.
+    let run_length = |position: usize| {
+        let Some(&base) = bases.get(position) else {
+            return 0;
+        };
+        let mut first = position;
+        while first > 0 && bases[first - 1] == base {
+            first -= 1;
+        }
+        let mut last = position;
+        while last + 1 < bases.len() && bases[last + 1] == base {
+            last += 1;
+        }
+        last + 1 - first
+    };
+    let observed_cleanly = |position: usize| {
+        observed.iter().any(|read| {
+            read.positions
+                .get(&position)
+                .is_some_and(|observation| observation.clean && !observation.confirms)
+        })
+    };
+    let junction_clean = |before: usize| {
+        observed.iter().any(|read| {
+            read.junctions
+                .get(&before)
+                .is_some_and(|observation| observation.clean)
+        })
+    };
+    let same_base = |left: usize, right: usize| {
+        bases.get(left).is_some()
+            && bases.get(left) == bases.get(right)
+            && run_length(left) >= seeded_run
+    };
+    let confirmed = observed
+        .iter()
+        .flat_map(|read| {
+            read.positions
+                .iter()
+                .filter(|(_, observation)| observation.confirms)
+                .map(|(position, _)| *position)
+        })
+        .collect::<BTreeSet<_>>();
+    let open = confirmed
+        .into_iter()
+        .filter(|&position| !observed_cleanly(position))
+        .filter(|&position| {
+            let left = position
+                .checked_sub(1)
+                .is_some_and(|left| same_base(left, position) && !junction_clean(left));
+            let right = same_base(position, position + 1) && !junction_clean(position);
+            left || right
+        })
+        .collect::<BTreeSet<_>>();
+    for read in observed.iter_mut() {
+        for (position, observation) in &mut read.positions {
+            if observation.confirms && open.contains(position) {
+                withdraw(observation);
+            }
         }
     }
 }
@@ -1449,7 +1577,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 11,
+    version: 12,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -1887,6 +2015,107 @@ mod tests {
         assert_eq!(&consensus.segments[0].sequence[12..16], "CTNT");
         assert!(consensus.reference_only.is_empty());
         Ok(())
+    }
+
+    /// `sequence` placed with the calls at `edges` at a signal edge and
+    /// reference-only: confirmations the modality's edge does not stop.
+    fn at_edges(
+        name: &str,
+        sequence: &str,
+        edges: &[usize],
+    ) -> std::result::Result<CalledRead, Box<dyn std::error::Error>> {
+        let mut read = placed(name, sequence, &[])?;
+        for &index in edges {
+            let mut call = read.evidence.calls()[index];
+            call.identity.edge = true;
+            call.indel.edge = true;
+            call.reference_only = true;
+            read.evidence = read.evidence.with_call(index, call);
+        }
+        Ok(read)
+    }
+
+    #[test]
+    fn a_reference_only_call_at_an_edge_confirms_clear_of_the_read_ends()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // At an edge, the call at 14 would leave its position undecided; as
+        // a reference-only call it confirms the reference there.
+        let read = at_edges("r", REFERENCE, &[14])?;
+        let consensus = build(&[&read], &reference(), &config()?, &config::tests::config());
+        assert!(consensus.reference_only.contains(&14));
+        assert_eq!(consensus.segments[0].sequence, REFERENCE);
+        Ok(())
+    }
+
+    #[test]
+    fn a_confirmation_beside_any_observed_difference_is_withdrawn()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // A second read reads T at 16 (C>T), uncleanly: a shifted read can
+        // show that, so the confirmation at 15 beside it is withdrawn, while
+        // the one at 14 stands.
+        let confirming_read = at_edges("r", REFERENCE, &[14, 15])?;
+        let mut shifted = placed("s", "TTGACGTCAGTACGATTGTACCTGAGTACGAGGACT", &[])?;
+        for index in [14, 15, 16] {
+            let mut call = shifted.evidence.calls()[index];
+            call.identity.edge = true;
+            shifted.evidence = shifted.evidence.with_call(index, call);
+        }
+        let consensus = build(
+            &[&confirming_read, &shifted],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
+        assert!(consensus.reference_only.contains(&14));
+        assert!(!consensus.reference_only.contains(&15));
+        Ok(())
+    }
+
+    #[test]
+    fn a_stretch_is_decided_without_confirmations() {
+        // T12C merges the tract into one stretch (7-16). A second read reads
+        // the tract uncleanly but confirms the reference at 9: the stretch's
+        // decision is the same with and without that confirmation. This
+        // guards the outcome only: the stretch here does not fall back to its
+        // position-by-position decision, where the exclusion acts.
+        let merged = "GTCAAAACCCCCCCCCCATG";
+        let observed = |confirm: bool| {
+            let clean = rows("f", 0, TRACT, merged, &"c".repeat(TRACT.len()));
+            let mut other = rows("g", 0, TRACT, TRACT, &"v".repeat(TRACT.len()));
+            if confirm && let Some(observation) = other.positions.get_mut(&9) {
+                observation.confirms = true;
+                observation.clean = true;
+            }
+            vec![clean, other]
+        };
+        let decided = |confirm: bool| {
+            decide_positions(&observed(confirm), TRACT.as_bytes(), 4)
+                .get(&7)
+                .map(|(last, decision)| (*last, decision.value.clone(), decision.state))
+        };
+        assert!(decided(false).is_some());
+        assert_eq!(decided(true), decided(false));
+    }
+
+    #[test]
+    fn a_confirmation_never_closes_an_unobserved_junction_in_a_long_run() {
+        // The C run at 7-11 of the tract, five long. A confirmation at 9 with
+        // no read observing the junction after 8 cleanly is withdrawn where
+        // such a run is long enough to be a stretch, and stands otherwise.
+        let confirmations = |seeded_run: usize| {
+            let mut read = rows("r", 0, TRACT, TRACT, &"c".repeat(TRACT.len()));
+            if let Some(observation) = read.positions.get_mut(&9) {
+                observation.confirms = true;
+            }
+            if let Some(junction) = read.junctions.get_mut(&8) {
+                junction.clean = false;
+            }
+            let mut observed = vec![read];
+            withdraw_unobserved_run_junctions(&mut observed, TRACT.as_bytes(), seeded_run);
+            observed[0].positions[&9].confirms
+        };
+        assert!(!confirmations(4));
+        assert!(confirmations(6));
     }
 
     #[test]
