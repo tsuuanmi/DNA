@@ -486,7 +486,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   unchanged. Plugin `sanger` 14.
 
 - More Sanger calls may confirm the reference (ADR-0080, SRS-CALL-022;
-  plugin `sanger` 14). A single-channel call withheld only for its quality,
+  plugin `sanger` 15, after the previous entry's 14). A single-channel call withheld only for its quality,
   or at a benign signal edge, may show a second base standing out when its
   cause is a neighbour's tail or a dye blob. An isolated mixed tail or blob
   call keeps its confirmation at a benign signal edge (the same test), may
