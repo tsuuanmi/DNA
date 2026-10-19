@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 13
+        "version": 14
       }
     ],
-    "rules": 13
+    "rules": 14
   },
   "reads": [
     {
@@ -211,6 +211,95 @@
       }
     ]
   },
+  "zones": [
+    {
+      "kind": "clean",
+      "first": 73,
+      "last": 277,
+      "checks": 1
+    },
+    {
+      "kind": "dephased",
+      "first": 278,
+      "last": 302,
+      "checks": 0
+    },
+    {
+      "kind": "repeat",
+      "first": 303,
+      "last": 315,
+      "name": "HVS-II",
+      "checks": 0
+    },
+    {
+      "kind": "clean",
+      "first": 316,
+      "last": 340,
+      "checks": 0
+    },
+    {
+      "kind": "clean",
+      "first": 438,
+      "last": 511,
+      "checks": 0
+    },
+    {
+      "kind": "repeat",
+      "first": 512,
+      "last": 524,
+      "name": "HVS-III",
+      "checks": 0
+    },
+    {
+      "kind": "clean",
+      "first": 525,
+      "last": 576,
+      "checks": 0
+    },
+    {
+      "kind": "not_callable",
+      "first": 16024,
+      "last": 16030,
+      "checks": 1
+    },
+    {
+      "kind": "clean",
+      "first": 16031,
+      "last": 16125,
+      "checks": 0
+    },
+    {
+      "kind": "not_callable",
+      "first": 16126,
+      "last": 16126,
+      "checks": 1
+    },
+    {
+      "kind": "clean",
+      "first": 16127,
+      "last": 16179,
+      "checks": 0
+    },
+    {
+      "kind": "repeat",
+      "first": 16180,
+      "last": 16193,
+      "name": "HVS-I",
+      "checks": 1
+    },
+    {
+      "kind": "dephased",
+      "first": 16194,
+      "last": 16205,
+      "checks": 1
+    },
+    {
+      "kind": "clean",
+      "first": 16206,
+      "last": 16365,
+      "checks": 0
+    }
+  ],
   "items": [
     {
       "first": {
@@ -1285,6 +1374,10 @@
     "positions": {
       "reportable": 749,
       "check": 24
+    },
+    "zones": {
+      "total": 14,
+      "check": 5
     },
     "clear": false
   }

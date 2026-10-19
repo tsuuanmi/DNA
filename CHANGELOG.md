@@ -397,6 +397,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review lists the sample's zones: `zones` tiles the reportable regions
+  into maximal stretches of one kind, from the profile's repeat windows and
+  the sample's own reads (`repeat`, `not_callable`, `dephased`, `masked`,
+  `clean`), each with the `check` items touching it, and `summary.zones`
+  counts them (`review` plugin 14, rules version 14). No width or threshold
+  places a zone. On the current development data a called sample has 0.93
+  zones to check on average (p90 3), and the `dephased` zones hold almost no
+  checks.
 - The review marks a long deletion one read decides inside a run: a new
   check label `run_deletion` for a site resting on a single read whose call
   is at least `review.run_growth` bases shorter than its reference, where the

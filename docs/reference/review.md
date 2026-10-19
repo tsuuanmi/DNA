@@ -85,6 +85,18 @@ target still fails the command without output.
   they overlap or touch, as 1-based inclusive `start`/`end` ranges.
 - `empop` (`called`, when the profile declares `[empop]`): the EMPOP query,
   as in [`dna.notation/v1`](notation.md#empop-query).
+- `zones` (`called`, rules version 14): the reportable positions as the
+  zones a reviewer opens whole, in reference order, tiling every reportable
+  region. Each position takes the first kind that holds: `repeat`, inside a
+  nomenclature window of the profile (with the window's `name`);
+  `not_callable`, outside `callable`; `dephased`, inside a read's `masked`
+  stretch with `after_repeat`; `masked`, inside any other `masked` stretch;
+  else `clean`, where every read covering it is in phase or vouched for. A
+  zone `{kind, first, last, name, checks}` is a maximal stretch of one kind
+  (and window) within one region; `checks` counts the `check` items touching
+  it. Every boundary comes from the profile and the sample's own reads, none
+  from a width, so a sample whose reads stay in phase has no `dephased`
+  zone. A zone without checks is DNA's own decision.
 - `items`: the review items, in priority order (below).
 - `summary`:
   - `items`, `checks`, `variants`: item counts;
@@ -94,6 +106,9 @@ target still fails the command without output.
     regions; `check`, those a `check` item holds, which a reviewer looks at
     (rules version 5). Every other reportable position is DNA's own decision
     or outside every read, as its items say;
+  - `zones`: `total`, the number of `zones`; `check`, those with a `check`
+    item, which a reviewer opens (rules version 14; both `0` without
+    `zones`);
   - `clear`: `status` is `called` and no item is a `check`.
 
 ## Items

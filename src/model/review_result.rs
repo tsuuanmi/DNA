@@ -28,6 +28,10 @@ pub(crate) struct ReviewResult {
     pub(crate) callable: Option<Vec<IntervalResult>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) empop: Option<EmpopResult>,
+    /// The reportable positions as zones a reviewer opens whole, in
+    /// reference order; only for `called`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) zones: Option<Vec<ZoneResult>>,
     pub(crate) items: Vec<ItemResult>,
     pub(crate) summary: SummaryResult,
 }
@@ -90,6 +94,36 @@ pub(crate) struct MaskedSpanResult {
     pub(crate) last: usize,
     pub(crate) state: PhaseState,
     pub(crate) after_repeat: bool,
+}
+
+/// A maximal stretch of reportable positions within one region of one zone
+/// kind (and, for a repeat, one window), with the `check` items touching it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct ZoneResult {
+    pub(crate) kind: ZoneKind,
+    pub(crate) first: usize,
+    pub(crate) last: usize,
+    /// The profile's name of the repeat window; only for `repeat`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) name: Option<String>,
+    /// The `check` items touching the zone.
+    pub(crate) checks: usize,
+}
+
+/// What the sample's reads show over a position, in precedence order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ZoneKind {
+    /// A repeat window of the profile's nomenclature.
+    Repeat,
+    /// No read gives a callable call there.
+    NotCallable,
+    /// A read reads past a repeat out of phase there.
+    Dephased,
+    /// A read's signal is masked there otherwise.
+    Masked,
+    /// Every read covering it is in phase or vouched for.
+    Clean,
 }
 
 /// One call of the sample in the profile notation.
@@ -308,6 +342,8 @@ pub(crate) struct SummaryResult {
     pub(crate) labels: LabelCounts,
     /// Reportable positions, and those a `check` item holds.
     pub(crate) positions: PositionCounts,
+    /// Zones, and those a `check` item touches.
+    pub(crate) zones: ZoneCounts,
     /// The call succeeded and no item is a `check`.
     pub(crate) clear: bool,
 }
@@ -317,6 +353,14 @@ pub(crate) struct SummaryResult {
 #[derive(Debug, Default, PartialEq, Eq, Serialize)]
 pub(crate) struct PositionCounts {
     pub(crate) reportable: usize,
+    pub(crate) check: usize,
+}
+
+/// The sample's zones, and those a `check` item touches: what a reviewer
+/// opens.
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct ZoneCounts {
+    pub(crate) total: usize,
     pub(crate) check: usize,
 }
 

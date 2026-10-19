@@ -3,8 +3,8 @@
 //! Items and labels are computed from the sample analysis and its call alone,
 //! never from a truth: the consensus sites, the reads' observations and the
 //! core's trust in each call, and the Sanger scan position and relative
-//! quality of each call, joined by read identity and call index. The rules are
-//! version 1, the version of the `review` plugin.
+//! quality of each call, joined by read identity and call index. The rules'
+//! version is the `review` plugin's version.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,6 +17,7 @@ use crate::model::review_result::{
     ItemResult, LabelCounts, LabelResult, MaskedSpanResult, PositionCounts, ReviewCallResult,
     ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
     ScopeResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
+    ZoneCounts, ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::report::json::{project_plugins, project_profile};
@@ -41,7 +42,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 13,
+    version: 14,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -133,7 +134,8 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 calls: None,
                 callable: None,
                 empop: None,
-                summary: summarize(&[], ReviewStatus::Rejected, &regions),
+                zones: None,
+                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[]),
                 items: Vec::new(),
             });
         }
@@ -235,6 +237,14 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 .collect()
         })
     });
+    let windows = profile
+        .windows
+        .iter()
+        .map(|window| (window.start + 1, window.end(), window.name.as_str()))
+        .collect::<Vec<_>>();
+    let zones = call
+        .as_ref()
+        .map(|_| zones(&regions, &windows, &callable, &reads, &items));
     Ok(ReviewResult {
         schema_version: "dna.review/v1",
         sample_id,
@@ -250,7 +260,13 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 .collect()
         }),
         empop: call.and_then(|call| call.empop).map(project_empop),
-        summary: summarize(&items, status, &regions),
+        summary: summarize(
+            &items,
+            status,
+            &regions,
+            zones.as_deref().unwrap_or_default(),
+        ),
+        zones,
         items,
     })
 }
@@ -1594,10 +1610,81 @@ fn priority(labels: &[LabelResult]) -> u8 {
     labels.iter().map(rank).min().unwrap_or(UNLABELLED)
 }
 
-/// Counts over the items, and the reportable positions inside `regions`
-/// that `check` items hold; `clear` when the call succeeded and no item is a
-/// check.
-fn summarize(items: &[ItemResult], status: ReviewStatus, regions: &[[usize; 2]]) -> SummaryResult {
+/// The reportable positions within `regions` as zones a reviewer opens
+/// whole. Each position takes the first kind that holds, in [`ZoneKind`]
+/// order: inside a repeat window of the profile (1-based inclusive, with its
+/// name), outside the `callable` ranges, inside a read's masked stretch past a
+/// repeat, inside another masked stretch, else clean. A zone is a maximal
+/// stretch of one kind (and window) within one region; it counts the `check`
+/// items touching it. Every boundary comes from the profile and the sample's
+/// reads, none from a width.
+fn zones(
+    regions: &[[usize; 2]],
+    windows: &[(usize, usize, &str)],
+    callable: &[[usize; 2]],
+    reads: &[ReviewReadResult],
+    items: &[ItemResult],
+) -> Vec<ZoneResult> {
+    let masked = reads
+        .iter()
+        .flat_map(|read| read.masked.iter().flatten())
+        .collect::<Vec<_>>();
+    let masks = |position: usize, after_repeat: bool| {
+        masked.iter().any(|span| {
+            (!after_repeat || span.after_repeat) && span.first <= position && position <= span.last
+        })
+    };
+    let mut zones: Vec<ZoneResult> = Vec::new();
+    for &[start, end] in regions {
+        for position in start..=end {
+            let window = windows
+                .iter()
+                .find(|(first, last, _)| *first <= position && position <= *last);
+            let (kind, name) = match window {
+                Some(&(_, _, name)) => (ZoneKind::Repeat, Some(name)),
+                None if !inside(callable, position) => (ZoneKind::NotCallable, None),
+                None if masks(position, true) => (ZoneKind::Dephased, None),
+                None if masks(position, false) => (ZoneKind::Masked, None),
+                None => (ZoneKind::Clean, None),
+            };
+            match zones.last_mut() {
+                Some(zone)
+                    if position != start && zone.kind == kind && zone.name.as_deref() == name =>
+                {
+                    zone.last = position;
+                }
+                _ => zones.push(ZoneResult {
+                    kind,
+                    first: position,
+                    last: position,
+                    name: name.map(str::to_owned),
+                    checks: 0,
+                }),
+            }
+        }
+    }
+    for zone in &mut zones {
+        zone.checks = items
+            .iter()
+            .filter(|item| {
+                item.kind == ItemKind::Check
+                    && item.first.position <= zone.last
+                    && zone.first <= item.last.position
+            })
+            .count();
+    }
+    zones
+}
+
+/// Counts over the items, the reportable positions inside `regions` that
+/// `check` items hold, and the `zones` they touch; `clear` when the call
+/// succeeded and no item is a check.
+fn summarize(
+    items: &[ItemResult],
+    status: ReviewStatus,
+    regions: &[[usize; 2]],
+    zones: &[ZoneResult],
+) -> SummaryResult {
     let mut labels = LabelCounts::default();
     for item in items {
         let names = item.labels.iter().map(name).collect::<BTreeSet<_>>();
@@ -1642,6 +1729,10 @@ fn summarize(items: &[ItemResult], status: ReviewStatus, regions: &[[usize; 2]])
         positions: PositionCounts {
             reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
             check,
+        },
+        zones: ZoneCounts {
+            total: zones.len(),
+            check: zones.iter().filter(|zone| zone.checks > 0).count(),
         },
         clear: status == ReviewStatus::Called && checks == 0,
     }
@@ -2175,7 +2266,12 @@ mod tests {
                 LabelResult::ReadEdge { read: read("b") },
             ],
         );
-        let summary = summarize(&[variant, one_strand], ReviewStatus::Called, &[[1, 10]]);
+        let summary = summarize(
+            &[variant, one_strand],
+            ReviewStatus::Called,
+            &[[1, 10]],
+            &[],
+        );
         assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
         assert_eq!(summary.labels.one_strand, 1);
         assert_eq!(summary.labels.read_edge, 1);
@@ -2189,7 +2285,7 @@ mod tests {
         assert!(summary.clear);
 
         let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
-        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]]);
+        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[]);
         assert_eq!((summary.checks, summary.labels.not_covered), (1, 1));
         // The check item holds position 1 of the ten reportable positions.
         assert_eq!(
@@ -2200,9 +2296,62 @@ mod tests {
             }
         );
         assert!(!summary.clear);
-        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]]).clear);
-        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]]).clear);
-        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]]).clear);
+        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[]).clear);
+        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[]).clear);
+        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[]).clear);
+    }
+
+    #[test]
+    fn zones_follow_the_profile_windows_and_what_the_reads_show() {
+        let span = |first, last, state, after_repeat| MaskedSpanResult {
+            first,
+            last,
+            state,
+            after_repeat,
+        };
+        let reads = [ReviewReadResult {
+            name: "a".to_owned(),
+            sha256: String::new(),
+            strand: Some(F),
+            admitted: true,
+            rejection: None,
+            masked: Some(vec![
+                span(6, 6, PhaseState::Dephased, true),
+                span(7, 7, PhaseState::Mixed, false),
+            ]),
+        }];
+        let check = item(ItemKind::Check, vec![LabelResult::Undecided]);
+        let variant = item(ItemKind::Variant, Vec::new());
+        let zones = zones(
+            &[[1, 10], [11, 13]],
+            &[(4, 5, "W")],
+            &[[1, 8], [11, 13]],
+            &reads,
+            &[check, variant],
+        );
+        let zone = |kind, first, last, name: Option<&str>, checks| ZoneResult {
+            kind,
+            first,
+            last,
+            name: name.map(str::to_owned),
+            checks,
+        };
+        assert_eq!(
+            zones,
+            [
+                // Only the check item at position 1 counts.
+                zone(ZoneKind::Clean, 1, 3, None, 1),
+                zone(ZoneKind::Repeat, 4, 5, Some("W"), 0),
+                zone(ZoneKind::Dephased, 6, 6, None, 0),
+                zone(ZoneKind::Masked, 7, 7, None, 0),
+                zone(ZoneKind::Clean, 8, 8, None, 0),
+                zone(ZoneKind::NotCallable, 9, 10, None, 0),
+                // A zone never crosses into the next region.
+                zone(ZoneKind::Clean, 11, 13, None, 0),
+            ]
+        );
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones);
+        assert_eq!(summary.zones, ZoneCounts { total: 7, check: 1 });
     }
 
     #[test]
