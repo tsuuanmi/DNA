@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn finds_the_side_that_writes_the_majority_form() {
+    fn finds_the_side_that_writes_the_majority_form() -> crate::contract::Checked {
         // A reference with an AC repeat at 513-526, as in rCRS.
         let reference = format!("{}GCACACACACACCG{}", "T".repeat(512), "T".repeat(40));
         let majority = sample(&[("523", "A", "-"), ("524", "C", "-")]);
@@ -345,5 +345,6 @@ mod tests {
             forms.outside(&other.alleles, &majority.alleles),
             Some(Majority::Dna)
         );
+        crate::contract::check_table("forms.tsv", &forms.table(&"e".repeat(64)))
     }
 }

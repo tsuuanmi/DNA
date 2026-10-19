@@ -384,6 +384,46 @@ mod tests {
         assert_eq!(entered(window, true, lost_of), Some(('C', 13)));
     }
 
+    /// A placed component once per cluster it covers, and a mixture whose
+    /// components were not placed once with its measures unset, under the
+    /// contract's columns.
+    #[test]
+    fn writes_one_row_per_cluster_under_the_contract() -> crate::contract::Checked {
+        let reference = b"ACCCCCCCTCCCCCGA";
+        let truth = [Allele::new("8.1", "-", "C")];
+        let placed = Row {
+            span: Some([1, 16]),
+            ..row(&[])
+        };
+        let unplaced = Row {
+            forward: false,
+            explained: false,
+            components: 2,
+            offset: -1,
+            fraction: 0.375,
+            residual: 0.25,
+            unexplained: 3,
+            span: None,
+            ..row(&[])
+        };
+        let mut table = String::from(HEADER);
+        append(
+            &mut table,
+            ("S1", "2026-01-12"),
+            &[placed, unplaced],
+            Some(&truth),
+            reference,
+        );
+        assert_eq!(
+            table.lines().skip(1).collect::<Vec<_>>(),
+            [
+                "S1\t2026-01-12\tr\tforward\t0-10\tyes\t1\t0\t1.000\t0.0000\t0\t1-16\t2-14\tC7\tC8\tno",
+                "S1\t2026-01-12\tr\treverse\t0-10\tno\t2\t-1\t0.375\t0.2500\t3\t.\t.\t.\t.\t.",
+            ]
+        );
+        crate::contract::check_table("components.tsv", &table)
+    }
+
     #[test]
     fn leaves_edge_crossing_edits_and_iupac_unmeasured() {
         let reference = b"ACCCCCCCTCCCCCGA";

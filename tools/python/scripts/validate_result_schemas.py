@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, review, and run signal result contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, review, run signal, read evidence, and evaluation run contracts."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import copy
 import itertools
 import json
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,8 @@ EVIDENCE_EXAMPLE = CONTRACTS / "examples" / "read-evidence-v1.example.json"
 REJECTED_EVIDENCE_EXAMPLE = (
     CONTRACTS / "examples" / "read-evidence-v1.rejected.example.json"
 )
+EVAL_RUN_SCHEMA = CONTRACTS / "schemas" / "eval-run-v1.schema.json"
+EVAL_RUN_EXAMPLE = CONTRACTS / "examples" / "eval-run-v1.example.json"
 # Review labels that leave an item unassured, so that it is a check.
 REVIEW_UNASSURED = frozenset(
     {
@@ -1382,6 +1385,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="read evidence result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--eval-run",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="DIRECTORY",
+        help="dna-eval run output directory to validate; may be repeated",
+    )
     return parser.parse_args(argv)
 
 
@@ -1558,6 +1569,222 @@ def validate_signal(document: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: traces are not sorted")
 
 
+def read_table(text: str) -> dict[str, Any]:
+    """Read one `dna-eval` TSV table as `dna.eval_run/v1` describes it.
+
+    Raises `ValueError` when the text is not a table: no header, a line without
+    its newline, a carriage return, or a row whose cells do not match the header.
+    """
+    if "\r" in text:
+        raise ValueError("holds a carriage return")
+    if not text.endswith("\n"):
+        raise ValueError("does not end in a newline")
+    lines = text[:-1].split("\n")
+    comments: list[list[str]] = []
+    while lines and lines[0].startswith("#"):
+        line = lines.pop(0)
+        if not line.startswith("# "):
+            raise ValueError("a comment line does not start with '# '")
+        comments.append(line[2:].split("\t"))
+    if not lines or not lines[0]:
+        raise ValueError("has no header")
+    columns = lines[0].split("\t")
+    if len(set(columns)) != len(columns):
+        raise ValueError("repeats a column")
+    rows = []
+    for number, line in enumerate(lines[1:], start=len(comments) + 2):
+        cells = line.split("\t")
+        if len(cells) != len(columns):
+            raise ValueError(
+                f"line {number} has {len(cells)} cells, the header {len(columns)}"
+            )
+        rows.append(dict(zip(columns, cells, strict=True)))
+    return {"comments": comments, "columns": columns, "rows": rows}
+
+
+def read_run(directory: Path) -> dict[str, Any]:
+    """Read a `dna-eval run` output directory as one `dna.eval_run/v1` instance."""
+    document: dict[str, Any] = {}
+    for path in sorted(directory.iterdir()):
+        if not path.is_file():
+            raise ValueError(f"{path.name} is not a file")
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".json":
+            document[path.name] = json.loads(text)
+        elif path.suffix == ".tsv":
+            try:
+                document[path.name] = read_table(text)
+            except ValueError as exc:
+                raise ValueError(f"{path.name} {exc}") from exc
+        else:
+            document[path.name] = text
+    return document
+
+
+def check_eval_tables(schema: dict[str, Any], errors: list[str]) -> None:
+    """Check that every table of the evaluation run schema lists its columns in row order."""
+    for name, definition in schema["$defs"].items():
+        properties = definition.get("properties", {})
+        if "columns" not in properties:
+            continue
+        columns = properties["columns"]
+        fixed = columns.get("const") or [
+            item["const"] for item in columns.get("prefixItems", [])
+        ]
+        row = properties["rows"]["items"]
+        if list(row["properties"]) != fixed or row["required"] != fixed:
+            errors.append(f"eval run table {name}: columns disagree with its rows")
+        if ("items" in columns) != isinstance(row["additionalProperties"], dict):
+            errors.append(
+                f"eval run table {name}: open columns disagree with its open rows"
+            )
+
+
+# The measures of `run.json` `samples`, by their status column in `scores.tsv`.
+EVAL_MEASURES = {
+    "primary": "status",
+    "strict": "strict_status",
+    "iupac_compatible": "iupac_compatible_status",
+    "haplotype": "haplotype_status",
+    "haplotype_iupac_compatible": "haplotype_iupac_compatible_status",
+    "haplotype_lod": "haplotype_lod_status",
+}
+
+
+def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
+    """Check an evaluation run's sample order and that `run.json` counts what the tables hold."""
+    if not isinstance(document, dict):
+        return
+    header = document.get("run.json", {})
+    scores = document.get("scores.tsv", {}).get("rows", [])
+    samples = [row.get("sample_id") for row in scores]
+    if samples != sorted(set(samples)):
+        errors.append(f"{label}: scores.tsv samples are not sorted and distinct")
+    for measure, column in EVAL_MEASURES.items():
+        counts = header.get("samples", {}).get(measure, {})
+        statuses = [row.get(column) for row in scores]
+        found = {status: statuses.count(status) for status in set(statuses)}
+        expected = {key: value for key, value in counts.items() if key != "total"}
+        if counts.get("total") != len(scores) or any(
+            found.get(status, 0) != value for status, value in expected.items()
+        ):
+            errors.append(
+                f"{label}: run.json samples.{measure} disagrees with scores.tsv"
+            )
+    changes = document.get("truth_changes.tsv")
+    if changes is not None and len(changes["rows"]) != header.get("truth", {}).get(
+        "changed_samples"
+    ):
+        errors.append(f"{label}: truth_changes.tsv disagrees with changed_samples")
+    triage = header.get("triage")
+    if isinstance(triage, dict):
+        policies = triage.get("policies")
+        columns = document.get("triage_policies.tsv", {}).get("columns", [])
+        sweep = document.get("triage_sweep.tsv", {}).get("rows", [])
+        if len(columns) - 3 != policies or len(sweep) != policies:
+            errors.append(
+                f"{label}: triage policies disagree with the sweep and policy tables"
+            )
+        names = [row.get("policy") for row in sweep]
+        if names != columns[3:] or not triage.get("policy", "").startswith(
+            f"{names[0] if names else ''}: "
+        ):
+            errors.append(
+                f"{label}: the sweep's policies are not the policy table's, reported first"
+            )
+
+
+def rejected_eval_run_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    without_scores = copy.deepcopy(example)
+    without_scores.pop("scores.tsv")
+    unknown_file = copy.deepcopy(example)
+    unknown_file["notes.tsv"] = copy.deepcopy(example["checks.tsv"])
+    renamed_column = copy.deepcopy(example)
+    renamed_column["scores.tsv"]["columns"][14] = "rules"
+    unknown_status = copy.deepcopy(example)
+    unknown_status["scores.tsv"]["rows"][0]["status"] = "exact"
+    row_without_cell = copy.deepcopy(example)
+    row_without_cell["windows.tsv"]["rows"][0].pop("unreviewed_upper95")
+    unformatted_rate = copy.deepcopy(example)
+    unformatted_rate["estimates.tsv"]["rows"][0]["rate"] = "0.5"
+    diff_without_baseline = copy.deepcopy(example)
+    diff_without_baseline["run.json"]["baseline"] = None
+    baseline_without_diff = copy.deepcopy(example)
+    baseline_without_diff.pop("diff.tsv")
+    unchanged_with_changes = copy.deepcopy(example)
+    unchanged_with_changes["run.json"]["truth"]["state"] = "unchanged"
+    triage_without_file = copy.deepcopy(example)
+    triage_without_file.pop("triage_leaks.tsv")
+    triage_files_without_triage = copy.deepcopy(example)
+    triage_files_without_triage["run.json"].pop("triage")
+    signals_without_run_signal = copy.deepcopy(example)
+    signals_without_run_signal["run.json"].pop("run_signal")
+    run_without_constants = copy.deepcopy(example)
+    run_without_constants["run.json"].pop("constants")
+    forms_without_database = copy.deepcopy(example)
+    forms_without_database["forms.tsv"]["comments"] = []
+    commented_scores = copy.deepcopy(example)
+    commented_scores["scores.tsv"]["comments"] = [["note"]]
+    unknown_policy_class = copy.deepcopy(example)
+    unknown_policy_class["triage_policies.tsv"]["rows"][0]["draft"] = "approved"
+    return [
+        ("eval run without scores.tsv", without_scores),
+        ("eval run with a file the contract does not name", unknown_file),
+        ("eval scores with a renamed column", renamed_column),
+        ("eval scores with a status the harness does not write", unknown_status),
+        ("eval windows row without a cell", row_without_cell),
+        ("eval estimate rate without four decimals", unformatted_rate),
+        ("eval diff.tsv without a baseline", diff_without_baseline),
+        ("eval baseline without diff.tsv", baseline_without_diff),
+        ("eval truth_changes.tsv with an unchanged truth", unchanged_with_changes),
+        ("eval triage without one of its files", triage_without_file),
+        ("eval triage files without the triage header", triage_files_without_triage),
+        ("eval signals.tsv without the run signal", signals_without_run_signal),
+        ("eval run.json without its constants", run_without_constants),
+        ("eval forms.tsv without its database line", forms_without_database),
+        ("eval scores.tsv with a comment line", commented_scores),
+        ("eval policy table with an unknown class", unknown_policy_class),
+    ]
+
+
+def validate_eval_run_reader(example: dict[str, Any], errors: list[str]) -> None:
+    """Write the example run as files, read it back, and reject malformed tables."""
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        for name, value in example.items():
+            path = directory / name
+            if name.endswith(".json"):
+                path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+            elif name.endswith(".tsv"):
+                lines = ["# " + "\t".join(comment) for comment in value["comments"]] + [
+                    "\t".join(value["columns"])
+                ]
+                lines += [
+                    "\t".join(row[column] for column in value["columns"])
+                    for row in value["rows"]
+                ]
+                path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            else:
+                path.write_text(value, encoding="utf-8")
+        if read_run(directory) != example:
+            errors.append("the example eval run does not read back from its files")
+    for text, description in [
+        ("a\tb\n1\n", "a row without a cell"),
+        ("a\tb\r\n1\t2\r\n", "carriage returns"),
+        ("a\tb\n1\t2", "a last line without its newline"),
+        ("a\ta\n1\t2\n", "a repeated column"),
+        ("#note\na\n1\n", "a comment without '# '"),
+        ("", "no header"),
+    ]:
+        try:
+            read_table(text)
+        except ValueError:
+            continue
+        errors.append(f"expected an eval table with {description} to be rejected")
+
+
 # SRS-OUT-002
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
@@ -1571,6 +1798,7 @@ def main(argv: list[str] | None = None) -> int:
     review_validator = validator(REVIEW_SCHEMA, errors)
     signal_validator = validator(SIGNAL_SCHEMA, errors)
     evidence_validator = validator(EVIDENCE_SCHEMA, errors)
+    eval_run_validator = validator(EVAL_RUN_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
@@ -1591,6 +1819,20 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(evidence_validator, evidence_paths, errors)
     for path in evidence_paths:
         validate_evidence(load_json(path), str(path), errors)
+    eval_runs: list[tuple[str, Any]] = []
+    if not args.eval_run:
+        eval_runs.append((str(EVAL_RUN_EXAMPLE), load_json(EVAL_RUN_EXAMPLE)))
+    for directory in args.eval_run:
+        try:
+            eval_runs.append((str(directory), read_run(directory)))
+        except (OSError, ValueError) as exc:
+            errors.append(f"{directory}: not an evaluation run: {exc}")
+    for label, document in eval_runs:
+        try:
+            eval_run_validator.validate(document)
+        except ValidationError as exc:
+            errors.append(f"{label}: invalid: {exc.message} at {exc.json_path}")
+        validate_eval_run(document, label, errors)
     for path in signal_paths:
         validate_signal(load_json(path), str(path), errors)
     for path in review_paths:
@@ -1823,6 +2065,25 @@ def main(argv: list[str] | None = None) -> int:
     evidence_example = load_json(EVIDENCE_EXAMPLE)
     rejected_evidence = rejected_evidence_shapes(evidence_example)
     assert_rejected(evidence_validator, rejected_evidence, errors)
+    check_eval_tables(load_json(EVAL_RUN_SCHEMA), errors)
+    eval_run_example = load_json(EVAL_RUN_EXAMPLE)
+    rejected_eval_runs = rejected_eval_run_shapes(eval_run_example)
+    assert_rejected(eval_run_validator, rejected_eval_runs, errors)
+    validate_eval_run_reader(eval_run_example, errors)
+    miscounted_run = copy.deepcopy(eval_run_example)
+    miscounted_run["run.json"]["samples"]["primary"]["failed"] += 1
+    run_errors: list[str] = []
+    validate_eval_run(miscounted_run, "synthetic miscounted run", run_errors)
+    if not run_errors:
+        errors.append(
+            "expected run.json counts that disagree with scores.tsv to be rejected"
+        )
+    unsorted_run = copy.deepcopy(eval_run_example)
+    unsorted_run["scores.tsv"]["rows"].reverse()
+    run_errors = []
+    validate_eval_run(unsorted_run, "synthetic unsorted scores", run_errors)
+    if not run_errors:
+        errors.append("expected scores.tsv out of sample order to be rejected")
     unlisted_reason = copy.deepcopy(evidence_example)
     unlisted_reason["calls"][3]["identity"]["withheld"].append("unlisted_reason")
     evidence_errors: list[str] = []
@@ -1883,11 +2144,12 @@ def main(argv: list[str] | None = None) -> int:
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
         f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, "
-        f"{len(review_paths)} review, {len(signal_paths)} run signal, and "
+        f"{len(review_paths)} review, {len(signal_paths)} run signal, "
         f"{len(evidence_paths)} read evidence document(s), "
+        f"{len(eval_runs)} evaluation run(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review) + len(rejected_evidence)} "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review) + len(rejected_evidence) + len(rejected_eval_runs)} "
         "invalid shape(s)"
     )
     return 0

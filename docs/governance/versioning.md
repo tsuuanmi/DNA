@@ -12,6 +12,16 @@ Closed schemas such as `dna.analysis/v10`, `dna.basecalls/v3`, and `dna.sample_e
 
 A contract version introduced in the current unreleased cycle may be revised in place until the first tagged release that emits it; every such revision is recorded as **Breaking** under `[Unreleased]` in `CHANGELOG.md`.
 
+## Evaluation contracts
+
+The evaluation harness's output contract, `dna.eval_run/v1`, is versioned
+like a result contract, but no file of a run carries the identifier: a run's
+`run.json` records the harness revision, whose schema describes the run. The
+harness is never released, and runs from any revision are read back as
+baselines and by `dna-eval power`, so the unreleased-cycle exception does not
+apply: a change to a file's columns, formats, or meaning, or to which files a
+run writes, is a new version.
+
 ## Configuration
 
 Configuration is strict and versioned by its documented schema/version field. Unknown or unsupported values fail rather than silently falling back. The same unreleased-cycle rule applies: a configuration schema version introduced in the current unreleased cycle may be revised in place before the first tagged release that accepts it, each revision recorded as Breaking.

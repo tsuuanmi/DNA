@@ -41,6 +41,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   counts now count positive profile weights (`*_positive_profile_channels`)
   in place of positive corrected amplitudes and SNRs, which the documents do
   not carry. No plugin version changes: no plugin's output changes.
+- The evaluation harness's output contract `dna.eval_run/v1`
+  (`docs/reference/schemas/eval-run-v1.schema.json`, PROP-0011 increment 3):
+  which files `dna-eval run` writes, `run.json`, and every table's columns,
+  formats, and meaning, with a synthetic example.
+  `validate_result_schemas.py --eval-run <directory>` checks a run, and
+  dna-eval's tests check the headers it writes. Contracts only: every output
+  is byte-identical.
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis

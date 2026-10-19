@@ -1844,6 +1844,7 @@ mod tests {
         );
         let triage = Triage::new(&rows, sweep(), compare::tests::rcrs());
         let files = triage.files().into_iter().collect::<BTreeMap<_, _>>();
+        crate::contract::check_files(files.iter().map(|(name, text)| (*name, text.as_str())))?;
 
         let decided = files["triage.tsv"]
             .lines()
