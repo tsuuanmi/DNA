@@ -1244,6 +1244,13 @@ fn decide_stretch(
             decision.state = SiteState::Called;
             decision.supporting = dominant.iter().map(|(name, _)| (*name).to_owned()).collect();
             *evidence = RunEvidence::DominantComponent;
+            if std::env::var_os("DNA_PROBE_DOM").is_some() {
+                let reference = if at_reference { reference_runs[index].1 } else { 0 };
+                eprintln!(
+                    "DOM\t{first}\t{last}\t{index}\t{base}\t{length}\t{reference}\t{}",
+                    dominant.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(",")
+                );
+            }
             continue;
         }
         let (length, source) = match (reference_frame(&mapped, index), bound) {
