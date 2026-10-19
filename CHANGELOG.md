@@ -447,6 +447,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- More Sanger calls may confirm the reference (ADR-0080, SRS-CALL-022;
+  plugin `sanger` 14). A single-channel call withheld only for its quality,
+  or at a benign signal edge, may show a second base standing out when its
+  cause is a neighbour's tail or a dye blob. An isolated mixed tail or blob
+  call keeps its confirmation at a benign signal edge (the same test), may
+  also be withheld for the peak floor or its relative quality, and may have a
+  neighbour masked as weak before the trim interval. An off-centre,
+  second-template, or phase-shift second never qualifies, a read's physical
+  end is never benign, and every core guard is unchanged. On panel v5
+  against `main` 20fc7ca, samples with an unreviewed or non-het unreviewed
+  difference are unchanged in every period and no status changes; clear
+  samples rise 71.00 → 72.05 % on current data (+113), 48.59 → 49.29 % in
+  2025-08..11 (+19), and 69.41 → 70.84 % older (+43); the current
+  `start@HV1` zone falls from 7.09 to 4.76 % of samples.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's

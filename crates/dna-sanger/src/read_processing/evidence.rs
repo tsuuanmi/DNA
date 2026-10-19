@@ -185,21 +185,24 @@ pub fn read_evidence(
                     .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
             }
             if call.qualifying_channels.len() > 1 {
-                // A mixed call withheld for nothing else, in phase between
-                // in-phase single-channel calls, whose second peak is a
-                // neighbour's tail or a dye blob, may still confirm the
-                // reference (SRS-CALL-022): its base is withheld all the same.
+                // A mixed call withheld for nothing else than the peak floor
+                // or its relative quality, in phase between single-channel
+                // calls, whose second peak is a neighbour's tail or a dye
+                // blob, may still confirm the reference (SRS-CALL-022): its
+                // base is withheld all the same. A neighbour before the trim
+                // interval may be masked as weak: the read's untrimmed start.
                 let single = |at: Option<usize>| {
                     at.is_some_and(|at| {
-                        callability.mask.get(at).is_some_and(Option::is_none)
-                            && calls
-                                .calls
-                                .get(at)
-                                .is_some_and(|call| call.qualifying_channels.len() == 1)
+                        callability.mask.get(at).is_some_and(|state| {
+                            state.is_none() || (at < start && *state == Some(PhaseState::Weak))
+                        }) && calls
+                            .calls
+                            .get(at)
+                            .is_some_and(|call| call.qualifying_channels.len() == 1)
                     })
                 };
                 evidence.reference_only = artefact
-                    && evidence.identity.withheld.is_empty()
+                    && quality_vetoes_only(&evidence.identity.withheld)
                     && callability.mask.get(index).is_some_and(Option::is_none)
                     && single(index.checked_sub(1))
                     && single(Some(index + 1));
@@ -280,16 +283,26 @@ pub fn read_evidence(
     )
 }
 
+/// Whether a call is withheld for nothing but the peak floor or its relative
+/// quality, if at all.
+fn quality_vetoes_only(withheld: &Reasons) -> bool {
+    withheld.iter().all(|reason| {
+        reason == PEAK_BELOW_MINIMUM || reason == RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD
+    })
+}
+
 /// Marks the read's other reference-only calls (SRS-CALL-022, ADR-0080), once
 /// its signal edges are known, anywhere in the read. A scored single-channel
-/// call without a second base standing out or unexplained is reference-only
-/// when it is withheld only by the peak floor or relative quality, or lies at
-/// a signal edge every cause of which is benign: the untrimmed start of the
-/// read, or a weak-signal mask clear of every repeat run by more than the
-/// margin (beside a repeat run a weak segment is the dephased tail). The
-/// untrimmed 3' end is not benign: there the read's signal decays. A mixed
-/// reference-only call at a signal edge loses the mark: the edge stands
-/// against it.
+/// call without an unexplained second peak is reference-only when it is
+/// withheld only by the peak floor or relative quality, or lies at a signal
+/// edge every cause of which is benign: the untrimmed start of the read, or a
+/// weak-signal mask clear of every repeat run by more than the margin (beside
+/// a repeat run a weak segment is the dephased tail). Its second base may
+/// stand out when its cause is a neighbour's tail or a dye blob: the call's
+/// own signal explains it. The untrimmed 3' end is not benign: there the
+/// read's signal decays; nor is the read's physical end. A mixed
+/// reference-only call keeps the mark at a signal edge only when the edge is
+/// benign by the same test.
 fn reference_only_calls(
     evidence: &mut [CallEvidence],
     calls: &BaseCalls,
@@ -316,48 +329,47 @@ fn reference_only_calls(
             || (evidence[at].placement == Placement::Unresolved(WEAK_SIGNAL)
                 && clear_of_repeats(at))
     };
+    // Whether every cause of the call's edge is benign: the nearest
+    // uninformative call within the margin on each side, or else the read's
+    // physical end, which never is.
+    let benign_edge = |evidence: &[CallEvidence], index: usize| {
+        let left = (index.saturating_sub(margin)..index)
+            .rev()
+            .find(|&at| !informative(evidence, at));
+        let right =
+            (index + 1..(index + margin + 1).min(count)).find(|&at| !informative(evidence, at));
+        let left_ok = match left {
+            Some(at) => benign(evidence, at),
+            None => index >= margin,
+        };
+        let right_ok = match right {
+            Some(at) => benign(evidence, at),
+            None => index + margin < count,
+        };
+        left_ok && right_ok
+    };
     for index in 0..count {
         let call = evidence[index];
         if call.identity.withheld.contains(MIXED_SUPPORTING_DNA) {
-            if call.identity.edge {
+            if call.reference_only && call.identity.edge && !benign_edge(evidence, index) {
                 evidence[index].reference_only = false;
             }
             continue;
         }
-        let quality = call.identity.withheld.iter().all(|reason| {
-            reason == PEAK_BELOW_MINIMUM || reason == RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD
-        });
         let single = calls
             .calls
             .get(index)
             .is_some_and(|base| base.qualifying_channels.len() == 1);
+        // A second base may stand out: unless its peak is unexplained, it is
+        // a neighbour's tail or a dye blob.
         if call.placement != Placement::Scored
             || !single
-            || !quality
+            || !quality_vetoes_only(&call.identity.withheld)
             || call.second_unexplained
-            || call.second.is_some_and(|second| second.stands_out)
             || (call.identity.withheld.is_empty() && !call.identity.edge)
+            || (call.identity.edge && !benign_edge(evidence, index))
         {
             continue;
-        }
-        if call.identity.edge {
-            // The nearest uninformative call within the margin on each side.
-            let left = (index.saturating_sub(margin)..index)
-                .rev()
-                .find(|&at| !informative(evidence, at));
-            let right =
-                (index + 1..(index + margin + 1).min(count)).find(|&at| !informative(evidence, at));
-            let left_ok = match left {
-                Some(at) => benign(evidence, at),
-                None => index >= margin,
-            };
-            let right_ok = match right {
-                Some(at) => benign(evidence, at),
-                None => index + margin < count,
-            };
-            if !(left_ok && right_ok) {
-                continue;
-            }
         }
         evidence[index].reference_only = true;
     }
@@ -933,19 +945,24 @@ mod tests {
             .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
         mark(&mut evidence, &callability);
         assert!(evidence[10].reference_only);
-        // A second base standing out keeps it off.
-        let mut evidence = fresh();
-        evidence[10]
-            .identity
-            .withheld
-            .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
-        evidence[10].second = Some(SecondBase {
-            base: 'C',
-            share: 0.3,
-            stands_out: true,
-        });
-        mark(&mut evidence, &callability);
-        assert!(!evidence[10].reference_only);
+        // A second base standing out that the call's own signal explains
+        // (a neighbour's tail or a dye blob) leaves it reference-only; an
+        // unexplained one keeps it off.
+        for unexplained in [false, true] {
+            let mut evidence = fresh();
+            evidence[10]
+                .identity
+                .withheld
+                .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
+            evidence[10].second = Some(SecondBase {
+                base: 'C',
+                share: 0.3,
+                stands_out: true,
+            });
+            evidence[10].second_unexplained = unexplained;
+            mark(&mut evidence, &callability);
+            assert_eq!(evidence[10].reference_only, !unexplained);
+        }
         // At the edge the untrimmed start makes: reference-only.
         let mut evidence = fresh();
         evidence[5].identity.edge = true;
@@ -1032,6 +1049,184 @@ mod tests {
         calls.calls[3].qualifying_channels = vec![Nucleotide::A, Nucleotide::G];
         let crowded = evidence(&calls, &peak(SecondCause::DyeBlob))?;
         assert!(!crowded.calls()[2].reference_only);
+        Ok(())
+    }
+
+    /// The causes whose stand-out second peak the call's own signal explains,
+    /// and those it does not.
+    const EXPLAINED: [SecondCause; 2] = [SecondCause::NeighbourTail, SecondCause::DyeBlob];
+    const UNEXPLAINED: [SecondCause; 3] = [
+        SecondCause::OffCentre,
+        SecondCause::SecondTemplate,
+        SecondCause::PhaseShift,
+    ];
+
+    /// A stand-out second peak of `cause` at call `index` of `count`.
+    fn stand_out(count: usize, index: usize, cause: SecondCause) -> Vec<Option<SecondPeak>> {
+        let mut second = vec![None; count];
+        second[index] = Some(SecondPeak {
+            base: 'C',
+            share: 0.3,
+            stands_out: true,
+            cause,
+        });
+        second
+    }
+
+    // SRS-CALL-022
+    #[test]
+    fn a_quality_withheld_call_with_a_tail_or_blob_second_is_reference_only() -> Result<()> {
+        // Call 3 of 7, single-channel, withheld by its relative quality only.
+        let (calls, signal, callability, quality) =
+            products(&[300; 7], &[40, 40, 40, 30, 40, 40, 40]);
+        let evidence = |cause| {
+            read_evidence(
+                &calls,
+                &signal,
+                &callability,
+                &quality,
+                &stand_out(7, 3, cause),
+                &[],
+                &config(0),
+            )
+        };
+        for cause in EXPLAINED {
+            let call = evidence(cause)?.calls()[3];
+            assert!(call.second.is_some_and(|second| second.stands_out));
+            assert!(call.reference_only && !call.second_unexplained, "{cause:?}");
+            assert!(
+                call.identity
+                    .withheld
+                    .contains(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)
+            );
+        }
+        // An off-centre, second-template, or phase-shift second never
+        // qualifies: it may be a second sequence.
+        for cause in UNEXPLAINED {
+            let call = evidence(cause)?.calls()[3];
+            assert!(!call.reference_only && call.second_unexplained, "{cause:?}");
+        }
+        Ok(())
+    }
+
+    // SRS-CALL-022
+    #[test]
+    fn a_mixed_reference_only_call_keeps_the_mark_only_at_a_benign_edge() -> Result<()> {
+        // Twenty calls; call 5 or 1 is a mixed tail call already marked
+        // reference-only by its own signal, at a signal edge.
+        let (calls, _, mut callability, _) = products(&[300; 20], &[40; 20]);
+        let mixed = |at: usize| -> Result<Vec<CallEvidence>> {
+            let mut evidence = vec![CallEvidence::scored('A', None); 20];
+            evidence[at]
+                .identity
+                .withheld
+                .insert(MIXED_SUPPORTING_DNA)?;
+            evidence[at].identity.edge = true;
+            evidence[at].reference_only = true;
+            Ok(evidence)
+        };
+        // Beside the untrimmed start: the mark stays.
+        let mut evidence = mixed(5)?;
+        reference_only_calls(&mut evidence, &calls, &callability, (4, 20), 3);
+        assert!(evidence[5].reference_only);
+        // At the read's physical end, never benign: the mark goes.
+        let mut evidence = mixed(1)?;
+        reference_only_calls(&mut evidence, &calls, &callability, (0, 20), 3);
+        assert!(!evidence[1].reference_only);
+        // Beside the untrimmed 3' end: the mark goes.
+        let mut evidence = mixed(14)?;
+        reference_only_calls(&mut evidence, &calls, &callability, (0, 16), 3);
+        assert!(!evidence[14].reference_only);
+        // Beside a weak mask clear of repeat runs the mark stays; beside one
+        // next to a repeat run, the dephased tail, it goes.
+        let weak = Placement::Unresolved(WEAK_SIGNAL);
+        callability.segments = vec![PhaseSegment {
+            call_start_0based: 14,
+            call_end_0based_exclusive: 15,
+            state: PhaseState::Weak,
+            after_repeat: false,
+            shadow: None,
+        }];
+        let mut evidence = mixed(12)?;
+        evidence[14] = evidence[14].masked(weak);
+        reference_only_calls(&mut evidence, &calls, &callability, (0, 20), 3);
+        assert!(evidence[12].reference_only);
+        callability.repeats = vec![RepeatRun {
+            call_start_0based: 15,
+            call_end_0based_exclusive: 19,
+            unit: RepeatUnit::Homopolymer(0),
+        }];
+        let mut evidence = mixed(12)?;
+        evidence[14] = evidence[14].masked(weak);
+        reference_only_calls(&mut evidence, &calls, &callability, (0, 20), 3);
+        assert!(!evidence[12].reference_only);
+        // An edge never marks a mixed call its own signal did not mark.
+        let mut evidence = mixed(5)?;
+        evidence[5].reference_only = false;
+        reference_only_calls(&mut evidence, &calls, &callability, (4, 20), 3);
+        assert!(!evidence[5].reference_only);
+        Ok(())
+    }
+
+    // SRS-CALL-022
+    #[test]
+    fn a_quality_withheld_mixed_tail_call_is_reference_only() -> Result<()> {
+        let (mut calls, signal, mut callability, mut quality) =
+            products(&[300, 300, 300, 300, 300], &[40, 40, 30, 40, 40]);
+        calls.calls[2].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
+        let evidence = |calls: &BaseCalls,
+                        callability: &ReadCallability,
+                        quality: &QualityControlResult,
+                        cause| {
+            read_evidence(
+                calls,
+                &signal,
+                callability,
+                quality,
+                &stand_out(5, 2, cause),
+                &[],
+                &config(0),
+            )
+        };
+        // Withheld by its relative quality as well as mixed: reference-only
+        // for a tail or blob, never for an unexplained second.
+        for cause in EXPLAINED {
+            let call = evidence(&calls, &callability, &quality, cause)?.calls()[2];
+            assert!(call.reference_only, "{cause:?}");
+            assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
+            assert!(
+                call.identity
+                    .withheld
+                    .contains(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)
+            );
+        }
+        for cause in UNEXPLAINED {
+            let call = evidence(&calls, &callability, &quality, cause)?.calls()[2];
+            assert!(!call.reference_only && call.second_unexplained, "{cause:?}");
+        }
+        // Below the peak floor as well: reference-only all the same.
+        let (mut low, _, _, clear) = products(&[300, 300, 100, 300, 300], &[40; 5]);
+        low.calls[2].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
+        let call = evidence(&low, &callability, &clear, SecondCause::NeighbourTail)?.calls()[2];
+        assert!(call.reference_only && call.identity.withheld.contains(PEAK_BELOW_MINIMUM));
+        // A neighbour masked as weak before the trim interval, the read's
+        // untrimmed start, still lets it confirm the reference.
+        callability.mask[1] = Some(PhaseState::Weak);
+        quality.trim_start_0based = 2;
+        quality.retained_sequence = "A".repeat(3);
+        let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
+        assert!(call.reference_only);
+        // Masked as weak inside the trim interval, or masked for another
+        // reason before it, the neighbour does not.
+        quality.trim_start_0based = 0;
+        quality.retained_sequence = "A".repeat(5);
+        let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
+        assert!(!call.reference_only);
+        callability.mask[1] = Some(PhaseState::Mixed);
+        quality.trim_start_0based = 2;
+        quality.retained_sequence = "A".repeat(3);
+        let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
+        assert!(!call.reference_only);
         Ok(())
     }
 
