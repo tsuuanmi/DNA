@@ -200,7 +200,7 @@ pub(super) fn observe(
         .filter(|mixture| mixture.explained)
         .map(|mixture| dna_call::components::mixture_calls(&read.evidence, mixture))
         .collect::<Vec<_>>();
-    let shown = |call: usize| dominant.iter().any(|calls| calls.contains(&call));
+    let in_mixture = |call: usize| dominant.iter().any(|calls| calls.contains(&call));
     // A base aligned to `position`, or inserted when it is `None`.
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
@@ -218,7 +218,7 @@ pub(super) fn observe(
         position,
         beside_unresolved: false,
         base_only: calls.get(call).is_some_and(CallEvidence::base_only),
-        dominant: canonical(base) && shown(call),
+        dominant: canonical(base) && in_mixture(call),
     };
     let columns = read.alignment.columns();
     // A call vouched for by its base only that may sit one position off.

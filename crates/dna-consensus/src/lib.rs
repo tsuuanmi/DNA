@@ -627,10 +627,9 @@ struct RunView {
     /// Bases of the calls just before and after the run, masked or not.
     left_base: Option<char>,
     right_base: Option<char>,
-    /// The calls just before and after the run lie in an explained phase
-    /// mixture of the read, whose dominant component shows their bases.
-    left_dominant: bool,
-    right_dominant: bool,
+    /// Whether the calls just before and after the run lie in an explained
+    /// phase mixture of the read, whose dominant component shows their bases.
+    dominant: [bool; 2],
     /// Reference positions of the run's clean calls.
     clean_at: Vec<usize>,
 }
@@ -777,8 +776,10 @@ fn read_runs<'a>(
                 right_at: after.and_then(|char| char.position),
                 left_base: before.map(|char| char.base),
                 right_base: after.map(|char| char.base),
-                left_dominant: before.is_some_and(|char| char.dominant),
-                right_dominant: after.is_some_and(|char| char.dominant),
+                dominant: [
+                    before.is_some_and(|char| char.dominant),
+                    after.is_some_and(|char| char.dominant),
+                ],
                 clean_at: group
                     .iter()
                     .filter(|char| char.clean())
@@ -1224,11 +1225,11 @@ fn decide_stretch(
                 let other = |beyond: Option<char>| beyond.is_some_and(|beyond| beyond != view.base);
                 let from_left = view.left == End::InPhase
                     && view.right == End::PhaseLoss
-                    && view.right_dominant
+                    && view.dominant[1]
                     && other(view.right_base);
                 let from_right = view.right == End::InPhase
                     && view.left == End::PhaseLoss
-                    && view.left_dominant
+                    && view.dominant[0]
                     && other(view.left_base);
                 (view.counted && (from_left || from_right)).then_some((*name, view.length))
             })
@@ -1242,13 +1243,24 @@ fn decide_stretch(
         {
             decision.value = Some(base.to_string().repeat(length));
             decision.state = SiteState::Called;
-            decision.supporting = dominant.iter().map(|(name, _)| (*name).to_owned()).collect();
+            decision.supporting = dominant
+                .iter()
+                .map(|(name, _)| (*name).to_owned())
+                .collect();
             *evidence = RunEvidence::DominantComponent;
             if std::env::var_os("DNA_PROBE_DOM").is_some() {
-                let reference = if at_reference { reference_runs[index].1 } else { 0 };
+                let reference = if at_reference {
+                    reference_runs[index].1
+                } else {
+                    0
+                };
                 eprintln!(
                     "DOM\t{first}\t{last}\t{index}\t{base}\t{length}\t{reference}\t{}",
-                    dominant.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(",")
+                    dominant
+                        .iter()
+                        .map(|(name, _)| *name)
+                        .collect::<Vec<_>>()
+                        .join(",")
                 );
             }
             continue;
@@ -2835,6 +2847,47 @@ mod tests {
                 run('C', 6, RunEvidence::InPhase)
             ]
         );
+    }
+
+    // SRS-CONS-008
+    #[test]
+    fn a_dominant_component_shows_the_end_a_read_loses_phase_at() {
+        // A C9 T C6 haplotype: the read is in phase through the C6, the T,
+        // and the C9, and loses phase on the call before the C9, which reads
+        // A, unresolved.
+        let lost = |dominant: bool| {
+            let mut read = rows(
+                "r",
+                0,
+                WINDOW_ROW,
+                "GTCAAACCCCCCCCCTCCCCCCGCTT",
+                "cccccccccccccccccccccccccc",
+            );
+            for position in 0..=5 {
+                if let Some(observation) = read.positions.get_mut(&position) {
+                    observation.clean = false;
+                    for char in &mut observation.chars {
+                        char.trust = Trust::Nothing;
+                        char.dominant = dominant;
+                    }
+                }
+            }
+            read
+        };
+        let runs = |evidence| {
+            [
+                run('C', 9, evidence),
+                run('T', 1, RunEvidence::InPhase),
+                run('C', 6, RunEvidence::InPhase),
+            ]
+        };
+        let estimated = decide_stretch(&[lost(false)], 6, 18, WINDOW.as_bytes());
+        assert_eq!(estimated.runs, runs(RunEvidence::PhaseLoss));
+        // The read's explained phase mixture shows that call's base: the run
+        // ends there.
+        let decided = decide_stretch(&[lost(true)], 6, 18, WINDOW.as_bytes());
+        assert_eq!(decided.value.as_deref(), Some("CCCCCCCCCTCCCCCC"));
+        assert_eq!(decided.runs, runs(RunEvidence::DominantComponent));
     }
 
     // SRS-CONS-004, SRS-CONS-008
