@@ -30,10 +30,14 @@ pub(crate) struct RunSignalProvenanceResult {
     pub(crate) plugins: Vec<PluginResult>,
     /// Version of the call selection.
     pub(crate) selection: u32,
+    /// Calls of context on each side of a key's call.
+    pub(crate) flank: usize,
+    /// Steps of a share from 0 to 1.
+    pub(crate) resolution: u16,
 }
 
-/// One key: the read-strand 5-mer, the call's base, its second base, and the
-/// counts of calls by second-channel share in thousandths.
+/// One key: the read-strand context, the call's base, its second base, and
+/// the counts of calls by second-channel share in `resolution` steps.
 #[derive(Debug, Serialize)]
 pub(crate) struct RunSignalKeyResult {
     pub(crate) context: String,

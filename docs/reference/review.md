@@ -26,7 +26,8 @@ The sample's own admitted reads are taken out of it, so the sample is never
 judged against itself, and `possible_heteroplasmy` judges each call against
 its key's run level (SRS-CALL-020). A run signal that holds none of the
 sample's admitted traces is another run's and fails the command without
-output. Without it, the configured floor alone sets the threshold.
+output, as does one made with another `flank` or `resolution` than the
+configuration's. Without it, the configured floor alone sets the threshold.
 
 Every sample gets a document. `status` says how far it got:
 

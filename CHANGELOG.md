@@ -386,6 +386,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The run signal's context width and share resolution are configuration:
+  `signal_processing.run_signal_flank` (2, a 5-mer key) and
+  `signal_processing.run_signal_resolution` (1000, thousandths), configuration
+  schema 15. `dna.signal/v1` records both in `provenance` (`flank`,
+  `resolution`), revised in place before its first release, and `dna review
+  --signal` refuses a run signal whose values differ from the
+  configuration's. Plugin `sanger` 9. At the default values run signals,
+  reviews, and calls are unchanged.
 - The review records where each read does not show its bases, and which
   run lengths lean on a dephased tail (`review` plugin 10, rules version 10;
   `dna.review/v1` revised in place):

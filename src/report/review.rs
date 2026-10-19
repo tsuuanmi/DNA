@@ -307,6 +307,8 @@ fn own(analysis: &SampleAnalysis, signal: &RunSignal) -> Result<RunSignal> {
         }
         .into());
     }
+    let parameters = &analysis.loaded.config.sanger.signal_processing.run_signal;
+    signal.check(parameters)?;
     let mut own = signal.clone();
     for read in &analysis.called {
         if !signal.traces.contains(&read.input_sha256) {
@@ -317,7 +319,11 @@ fn own(analysis: &SampleAnalysis, signal: &RunSignal) -> Result<RunSignal> {
             .get(&read.input_sha256)
             .ok_or(ReportError::Inconsistent("review read lacks its evidence"))?
             .calls;
-        own = own.without(&run_signal::contributions(calls, &read.evidence));
+        own = own.without(&run_signal::contributions(
+            calls,
+            &read.evidence,
+            parameters,
+        ));
     }
     Ok(own)
 }
@@ -984,7 +990,12 @@ impl<'a> Sample<'a> {
         let read_index = read;
         let read = self.reads.get(read)?;
         let second = trust.second?;
-        let key = Key::of(read.evidence, call, second.base);
+        let key = Key::of(
+            read.evidence,
+            call,
+            second.base,
+            self.second.run_signal.flank,
+        );
         let neighbour = |other: Option<usize>| {
             other
                 .and_then(|other| self.observation(read_index, other))

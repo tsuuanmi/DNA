@@ -76,6 +76,8 @@ mod tests {
             minimum_noise_sigma: 1.0,
             second_floor: 0.21,
             run_signal: RunSignalParameters {
+                flank: 2,
+                resolution: 1000,
                 minimum_reads: 40,
                 minimum_calls: 40,
                 margin: 0.05,

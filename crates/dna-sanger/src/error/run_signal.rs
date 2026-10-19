@@ -31,6 +31,21 @@ pub enum RunSignalError {
         /// This build's selection.
         expected: u32,
     },
+    /// The run signal was made with another context flank or share resolution
+    /// than the configuration's.
+    #[error(
+        "run signal flank {flank} and resolution {resolution} differ from the configuration's {expected_flank} and {expected_resolution}"
+    )]
+    Parameters {
+        /// The document's flank.
+        flank: usize,
+        /// The document's resolution.
+        resolution: u16,
+        /// The configuration's flank.
+        expected_flank: usize,
+        /// The configuration's resolution.
+        expected_resolution: u16,
+    },
     /// A key or share is outside the run signal's vocabulary.
     #[error("invalid run signal key {context:?}")]
     Key {

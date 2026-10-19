@@ -6,12 +6,13 @@
 //! among a run's clean calls, so a call can later be judged against its own
 //! run rather than a fixed share.
 //!
-//! The key is the read-strand 5-mer of the read's own primary calls around a
-//! call, the call's base, and one other channel: no reference position, so
+//! The key is the read-strand context of the read's own primary calls around
+//! a call, `run_signal_flank` calls on each side (a 5-mer by default), the
+//! call's base, and one other channel: no reference position, so
 //! the modality stays reference-free (ADR-0069). Every selected call counts
 //! under each of its three other channels, so a key holds every call of its
 //! context, not only those whose strongest other channel it is. The shares are kept as sparse
-//! histograms in thousandths rather than quantiles, so the estimator can
+//! histograms in `run_signal_resolution` steps rather than quantiles, so the estimator can
 //! change without rebuilding a run signal and a read's own contributions can
 //! be taken out exactly.
 //!
@@ -27,7 +28,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 
-use crate::error::Result;
+use crate::error::{Result, RunSignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::ShortRead;
@@ -39,16 +40,14 @@ use dna_kernel::model::nucleotide::Nucleotide;
 /// Version of the call selection [`contributions`] applies.
 pub const SELECTION: u32 = 2;
 
-/// Calls on each side of a call that form its context.
-const FLANK: usize = 2;
-
-/// What a call's share is counted under: the read-strand 5-mer of the read's
-/// primary calls centred on the call, the call's base, and one of its other
-/// channels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// What a call's share is counted under: the read-strand context of the
+/// read's primary calls centred on the call, the call's base, and one of its
+/// other channels.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Key {
-    /// The read's primary calls from two before to two after the call.
-    pub context: [char; 5],
+    /// The read's primary calls from `flank` before to `flank` after the
+    /// call.
+    pub context: String,
     /// The call's base.
     pub base: char,
     /// The other channel whose share is counted.
@@ -56,19 +55,19 @@ pub struct Key {
 }
 
 impl Key {
-    /// The key of call `index` of a read and its channel `second`: `None`
-    /// within two calls of either end or without a canonical context.
+    /// The key of call `index` of a read and its channel `second`, with
+    /// `flank` calls of context on each side: `None` within `flank` calls of
+    /// either end or without a canonical context.
     #[must_use]
-    pub fn of(evidence: &ReadEvidence, index: usize, second: char) -> Option<Self> {
+    pub fn of(evidence: &ReadEvidence, index: usize, second: char, flank: usize) -> Option<Self> {
         let calls = evidence.calls();
-        let context = calls.get(index.checked_sub(FLANK)?..=index + FLANK)?;
-        let context: [char; 5] = std::array::from_fn(|offset| context[offset].base);
+        let context = calls.get(index.checked_sub(flank)?..=index + flank)?;
         context
             .iter()
-            .all(|&base| is_canonical(base))
+            .all(|call| is_canonical(call.base))
             .then(|| Self {
-                context,
-                base: context[FLANK],
+                context: context.iter().map(|call| call.base).collect(),
+                base: context[flank].base,
                 second,
             })
     }
@@ -108,7 +107,8 @@ pub fn threshold(
         })
 }
 
-/// Counts of calls by a channel's share in thousandths (0 to 1000): its peak
+/// Counts of calls by a channel's share in `resolution` steps (0 to
+/// `resolution`): its peak
 /// against the call's primary peak and itself, the measure of a call's
 /// second base (SRS-CALL-015).
 pub type Histogram = BTreeMap<u16, u64>;
@@ -126,16 +126,25 @@ pub struct Contributions {
 /// of a signal edge for their base, without the peak-floor or
 /// relative-quality reason (the mixed reason is kept: its shadow is what a
 /// run signal measures), with a canonical base and canonical calls on both
-/// sides, two deep. A read's first and last two calls have no context. Each
-/// counts under each of its three other channels, with that channel's share
-/// of its peak and the primary peak, from the read's `calls`.
+/// sides, `parameters.flank` deep. A read's first and last `flank` calls have
+/// no context. Each counts under each of its three other channels, with that
+/// channel's share of its peak and the primary peak, in
+/// `parameters.resolution` steps, from the read's `calls`.
 #[must_use]
-pub fn contributions(calls: &BaseCalls, evidence: &ReadEvidence) -> Contributions {
+pub fn contributions(
+    calls: &BaseCalls,
+    evidence: &ReadEvidence,
+    parameters: &RunSignalParameters,
+) -> Contributions {
+    let (flank, resolution) = (parameters.flank, f64::from(parameters.resolution));
     let verdicts = evidence.calls();
     let mut selected = Contributions::default();
-    for index in FLANK..verdicts.len().saturating_sub(FLANK) {
+    for index in flank..verdicts.len().saturating_sub(flank) {
         let call = &verdicts[index];
-        let context = std::array::from_fn(|offset| verdicts[index - FLANK + offset].base);
+        let context = verdicts[index - flank..=index + flank]
+            .iter()
+            .map(|call| call.base)
+            .collect::<String>();
         let Some(peaks) = calls.calls.get(index).map(|call| call.peaks) else {
             continue;
         };
@@ -151,7 +160,7 @@ pub fn contributions(calls: &BaseCalls, evidence: &ReadEvidence) -> Contribution
                 .identity
                 .withheld
                 .contains(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)
-            || !context.iter().all(|&base| is_canonical(base))
+            || !context.chars().all(is_canonical)
             || height <= 0
         {
             continue;
@@ -162,15 +171,15 @@ pub fn contributions(calls: &BaseCalls, evidence: &ReadEvidence) -> Contribution
             }
             let peak = peaks[other.channel_index()].height.max(0);
             let total = f64::from(height) + f64::from(peak);
-            // A share in [0, 1], so the rounded thousandths fit.
+            // A share in [0, 1], so the rounded steps fit the resolution.
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let share = (1000.0 * f64::from(peak) / total)
+            let share = (resolution * f64::from(peak) / total)
                 .round()
-                .clamp(0.0, 1000.0) as u16;
+                .clamp(0.0, resolution) as u16;
             *selected
                 .keys
                 .entry(Key {
-                    context,
+                    context: context.clone(),
                     base: call.base,
                     second: other.as_char(),
                 })
@@ -207,7 +216,11 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
         &processed.quality,
         &config.sanger_evidence,
     )?;
-    Ok(Some(contributions(&processed.calls, &evidence)))
+    Ok(Some(contributions(
+        &processed.calls,
+        &evidence,
+        &config.signal_processing.run_signal,
+    )))
 }
 
 /// A run's second-channel signal: per key, the shares of the selected calls
@@ -218,6 +231,10 @@ pub struct RunSignal {
     pub run_id: String,
     /// The selection the contributions were made with ([`SELECTION`]).
     pub selection: u32,
+    /// Calls of context on each side of a key's call.
+    pub flank: usize,
+    /// Steps of a share from 0 to 1.
+    pub resolution: u16,
     /// Content SHA-256 of every trace of the run, rejected ones included.
     pub traces: BTreeSet<String>,
     /// Reads that contributed.
@@ -230,16 +247,20 @@ pub struct RunSignal {
 
 impl RunSignal {
     /// The run signal of `run_id` over its `traces` (content SHA-256) and the
-    /// contributions of those reads that could be processed.
+    /// contributions of those reads that could be processed, made with
+    /// `parameters`' flank and resolution.
     #[must_use]
     pub fn build(
         run_id: String,
         traces: BTreeSet<String>,
         reads: impl IntoIterator<Item = Contributions>,
+        parameters: &RunSignalParameters,
     ) -> Self {
         let mut signal = Self {
             run_id,
             selection: SELECTION,
+            flank: parameters.flank,
+            resolution: parameters.resolution,
             traces,
             reads: 0,
             calls: 0,
@@ -269,11 +290,32 @@ impl RunSignal {
         self.reads += reads;
         self.calls += contributions.calls;
         for (key, histogram) in &contributions.keys {
-            let into = self.keys.entry(*key).or_default();
+            let into = self.keys.entry(key.clone()).or_default();
             for (share, count) in histogram {
                 *into.entry(*share).or_default() += count;
             }
         }
+    }
+
+    /// Refuses a run signal made with another flank or resolution than
+    /// `parameters`': its keys or shares would not be this configuration's.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RunSignalError::Parameters`] on a mismatch.
+    pub fn check(
+        &self,
+        parameters: &RunSignalParameters,
+    ) -> std::result::Result<(), RunSignalError> {
+        if self.flank == parameters.flank && self.resolution == parameters.resolution {
+            return Ok(());
+        }
+        Err(RunSignalError::Parameters {
+            flank: self.flank,
+            resolution: self.resolution,
+            expected_flank: parameters.flank,
+            expected_resolution: parameters.resolution,
+        })
     }
 
     /// The level above which a call of `key` stands out from its run:
@@ -303,8 +345,9 @@ impl RunSignal {
                 .or_default() += count;
         }
         let mad = median_of(&deviations, calls);
-        let median = median as f64 / 1000.0;
-        let spread = (parameters.mad_factor * mad as f64 / 1000.0).max(parameters.margin);
+        let resolution = f64::from(self.resolution);
+        let median = median as f64 / resolution;
+        let spread = (parameters.mad_factor * mad as f64 / resolution).max(parameters.margin);
         Some(median + spread)
     }
 
@@ -381,6 +424,16 @@ mod tests {
 
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
+    /// The configured parameters: a 5-mer, shares in thousandths.
+    const PARAMETERS: RunSignalParameters = RunSignalParameters {
+        flank: 2,
+        resolution: 1000,
+        minimum_reads: 40,
+        minimum_calls: 40,
+        margin: 0.05,
+        mad_factor: 4.0,
+    };
+
     /// A read of `bases`, each call's primary peak 1000 and its other
     /// channels at `others` (A/C/G/T order, the primary's entry ignored).
     fn read(
@@ -434,12 +487,12 @@ mod tests {
     #[test]
     fn counts_every_selected_call_under_each_other_channel() -> TestResult {
         let (calls, evidence) = read("CGTNCGTAC", [0, 250, 0, 100])?;
-        let selected = contributions(&calls, &evidence);
+        let selected = contributions(&calls, &evidence, &PARAMETERS);
         // Calls 2-5 have the N in their context, and the first and last two
         // have no context: call 6 remains, a T.
         assert_eq!(selected.calls, 1);
         let key = |second| Key {
-            context: ['C', 'G', 'T', 'A', 'C'],
+            context: "CGTAC".into(),
             base: 'T',
             second,
         };
@@ -448,22 +501,38 @@ mod tests {
         assert_eq!(selected.keys[&key('C')][&200], 1);
         assert_eq!(selected.keys[&key('G')][&0], 1);
         assert!(!selected.keys.contains_key(&key('T')));
+        // With one call of context on each side and shares in hundredths,
+        // calls 1, 5, and 7 too have a context, and the share is 20.
+        let coarse = RunSignalParameters {
+            flank: 1,
+            resolution: 100,
+            ..PARAMETERS
+        };
+        let selected = contributions(&calls, &evidence, &coarse);
+        assert_eq!(selected.calls, 4);
+        let key = Key {
+            context: "GTA".into(),
+            base: 'T',
+            second: 'C',
+        };
+        assert_eq!(selected.keys[&key][&20], 1);
         Ok(())
     }
 
     #[test]
     fn taking_a_read_out_equals_building_without_it() -> TestResult {
         let (calls, evidence) = read("ACGTACGTAC", [100, 0, 50, 0])?;
-        let first = contributions(&calls, &evidence);
+        let first = contributions(&calls, &evidence, &PARAMETERS);
         let (calls, evidence) = read("ACGTACGTAC", [300, 0, 0, 20])?;
-        let second = contributions(&calls, &evidence);
+        let second = contributions(&calls, &evidence, &PARAMETERS);
         let traces = BTreeSet::from(["a".to_owned(), "b".to_owned()]);
         let both = RunSignal::build(
             "run".into(),
             traces.clone(),
             [first.clone(), second.clone()],
+            &PARAMETERS,
         );
-        let alone = RunSignal::build("run".into(), traces, [first]);
+        let alone = RunSignal::build("run".into(), traces, [first], &PARAMETERS);
         assert_eq!(both.without(&second), alone);
         Ok(())
     }
@@ -471,7 +540,7 @@ mod tests {
     #[test]
     fn a_level_needs_enough_reads_and_calls_and_stands_above_the_spread() {
         let key = Key {
-            context: ['A', 'C', 'G', 'T', 'A'],
+            context: "ACGTA".into(),
             base: 'G',
             second: 'C',
         };
@@ -480,17 +549,14 @@ mod tests {
         let signal = RunSignal {
             run_id: "run".into(),
             selection: SELECTION,
+            flank: 2,
+            resolution: 1000,
             traces: BTreeSet::new(),
             reads: 50,
             calls: 40,
-            keys: BTreeMap::from([(key, histogram)]),
+            keys: BTreeMap::from([(key.clone(), histogram)]),
         };
-        let parameters = RunSignalParameters {
-            minimum_reads: 40,
-            minimum_calls: 40,
-            margin: 0.05,
-            mad_factor: 4.0,
-        };
+        let parameters = PARAMETERS;
         // Median 0.020, MAD 0: the margin sets the spread.
         assert!((signal.level(&key, &parameters).unwrap_or(0.0) - 0.07).abs() < 1e-9);
         let narrow = RunSignalParameters {
@@ -513,7 +579,7 @@ mod tests {
     #[test]
     fn the_threshold_is_the_floor_raised_to_a_usable_run_level() {
         let key = Key {
-            context: ['A', 'C', 'G', 'T', 'A'],
+            context: "ACGTA".into(),
             base: 'G',
             second: 'C',
         };
@@ -521,10 +587,12 @@ mod tests {
         let signal = RunSignal {
             run_id: "run".into(),
             selection: SELECTION,
+            flank: 2,
+            resolution: 1000,
             traces: BTreeSet::new(),
             reads: 50,
             calls: 40,
-            keys: BTreeMap::from([(key, Histogram::from([(300, 40)]))]),
+            keys: BTreeMap::from([(key.clone(), Histogram::from([(300, 40)]))]),
         };
         let config = SignalProcessingConfig {
             window_size_bases: 10,
@@ -532,12 +600,7 @@ mod tests {
             minimum_noisy_windows: 2,
             minimum_noise_sigma: 1.0,
             second_floor: 0.21,
-            run_signal: RunSignalParameters {
-                minimum_reads: 40,
-                minimum_calls: 40,
-                margin: 0.05,
-                mad_factor: 4.0,
-            },
+            run_signal: PARAMETERS,
         };
         let floor = Threshold {
             share: 0.21,
@@ -549,7 +612,7 @@ mod tests {
         assert!((raised.share - 0.35).abs() < 1e-9);
         assert_eq!(raised.calls, Some(40));
         let low = RunSignal {
-            keys: BTreeMap::from([(key, Histogram::from([(20, 40)]))]),
+            keys: BTreeMap::from([(key.clone(), Histogram::from([(20, 40)]))]),
             ..signal.clone()
         };
         assert_eq!(
@@ -568,5 +631,26 @@ mod tests {
             ..config
         };
         assert_eq!(threshold(Some(&key), Some(&signal), &config), floor);
+    }
+
+    #[test]
+    fn a_run_signal_of_another_flank_or_resolution_is_refused() {
+        let signal = RunSignal::build("run".into(), BTreeSet::new(), [], &PARAMETERS);
+        assert!(signal.check(&PARAMETERS).is_ok());
+        for other in [
+            RunSignalParameters {
+                flank: 3,
+                ..PARAMETERS
+            },
+            RunSignalParameters {
+                resolution: 100,
+                ..PARAMETERS
+            },
+        ] {
+            assert!(matches!(
+                signal.check(&other),
+                Err(RunSignalError::Parameters { .. })
+            ));
+        }
     }
 }

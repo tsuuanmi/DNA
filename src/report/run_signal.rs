@@ -31,6 +31,8 @@ pub(crate) fn build(completed: CompletedRunSignal) -> RunSignalResult {
             configuration_sha256,
             plugins: project_plugins(plugins),
             selection: signal.selection,
+            flank: signal.flank,
+            resolution: signal.resolution,
         },
         traces: signal.traces.into_iter().collect(),
         reads: signal.reads,
@@ -40,7 +42,7 @@ pub(crate) fn build(completed: CompletedRunSignal) -> RunSignalResult {
             .keys
             .into_iter()
             .map(|(key, shares)| RunSignalKeyResult {
-                context: key.context.iter().collect(),
+                context: key.context,
                 base: key.base,
                 second: key.second,
                 shares: shares

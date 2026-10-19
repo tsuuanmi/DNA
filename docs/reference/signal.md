@@ -23,19 +23,24 @@ not depend on the order of the traces. The operation log is
 ## Fields
 
 - `schema_version`, `run_id`.
-- `provenance`: the configuration's SHA-256, the plugins, and `selection`, the
-  version of the call selection.
+- `provenance`: the configuration's SHA-256, the plugins, `selection`, the
+  version of the call selection, and the method parameters the keys and
+  shares were made with: `flank` (`signal_processing.run_signal_flank`) and
+  `resolution` (`signal_processing.run_signal_resolution`). A command that
+  reads a run signal refuses one whose `flank` or `resolution` differs from
+  its configuration's.
 - `traces`: the content SHA-256 of every trace of the run, sorted.
 - `reads`, `rejected_reads`, `calls`: reads that contributed, reads rejected,
   and selected calls. Each selected call counts under its three other
   channels, so the keys' counts add up to three times `calls`.
 - `keys`: one entry per key, sorted by `context`, `base`, `second`:
-  - `context`: the read's primary calls from two before to two after the
-    call, on the read strand;
+  - `context`: the read's primary calls from `flank` before to `flank` after
+    the call, on the read strand (a 5-mer at `flank` 2);
   - `base`: the call's base (the context's centre); `second`: one of its
     other channels;
   - `shares`: `[share, calls]` pairs, by share: that channel's peak against
-    the call's primary peak and itself, in thousandths (0 to 1000; for the
+    the call's primary peak and itself, in `resolution` steps (0 to
+    `resolution`; thousandths at `1000`; for the
     strongest other channel it is the call's second-base share,
     SRS-CALL-015), and the selected calls at it.
 
@@ -44,10 +49,10 @@ not depend on the order of the traces. The operation log is
 A call is selected when it is informative and scored, its verdict on its base
 is clear of a signal edge (including edge calls whose own signal took them
 off it, SRS-CALL-017 and SRS-CALL-018) and free of the peak-floor and
-relative-quality reasons, and its base and the two calls on each side are
+relative-quality reasons, and its base and the `flank` calls on each side are
 canonical. Calls judged mixed today are kept: their shadow is what a run
-signal measures. A read's first and last two calls have no context. The same
+signal measures. A read's first and last `flank` calls have no context. The same
 selection takes a read's own contributions out of a run signal, so a sample
 can be judged without itself.
 
-Using a run signal is not part of this version: no command reads one yet.
+`dna review --signal` reads a run signal ([review](review.md)).

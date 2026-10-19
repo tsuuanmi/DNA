@@ -35,6 +35,8 @@ struct RawSignal {
 #[derive(Deserialize)]
 struct RawProvenance {
     selection: u32,
+    flank: usize,
+    resolution: u16,
 }
 
 #[derive(Deserialize)]
@@ -89,18 +91,17 @@ fn parse(bytes: &[u8], path: &Path) -> std::result::Result<RunSignal, RunSignalE
             expected: SELECTION,
         });
     }
+    let RawProvenance {
+        flank, resolution, ..
+    } = raw.provenance;
     let canonical = |base: char| matches!(base, 'A' | 'C' | 'G' | 'T');
     let mut keys = BTreeMap::new();
     let mut total = 0_u64;
     for key in raw.keys {
         let context = key.context.chars().collect::<Vec<_>>();
-        let Ok(context) = <[char; 5]>::try_from(context) else {
-            return Err(RunSignalError::Key {
-                context: key.context,
-            });
-        };
-        if !context.iter().all(|&base| canonical(base))
-            || context[2] != key.base
+        if context.len() != 2 * flank + 1
+            || !context.iter().all(|&base| canonical(base))
+            || context[flank] != key.base
             || !canonical(key.second)
             || key.second == key.base
         {
@@ -115,7 +116,7 @@ fn parse(bytes: &[u8], path: &Path) -> std::result::Result<RunSignal, RunSignalE
                     context: key.context,
                 });
             };
-            if share > 1000 || count == 0 {
+            if share > resolution || count == 0 {
                 return Err(RunSignalError::Key {
                     context: key.context,
                 });
@@ -125,7 +126,7 @@ fn parse(bytes: &[u8], path: &Path) -> std::result::Result<RunSignal, RunSignalE
         }
         keys.insert(
             Key {
-                context,
+                context: key.context,
                 base: key.base,
                 second: key.second,
             },
@@ -141,6 +142,8 @@ fn parse(bytes: &[u8], path: &Path) -> std::result::Result<RunSignal, RunSignalE
     Ok(RunSignal {
         run_id: raw.run_id,
         selection: raw.provenance.selection,
+        flank,
+        resolution,
         traces: raw.traces.into_iter().collect::<BTreeSet<_>>(),
         reads: raw.reads,
         calls: raw.calls,
@@ -152,11 +155,11 @@ fn parse(bytes: &[u8], path: &Path) -> std::result::Result<RunSignal, RunSignalE
 mod tests {
     use super::*;
 
-    const DOCUMENT: &str = r#"{"schema_version":"dna.signal/v1","run_id":"R","provenance":{"configuration_sha256":"0","plugins":[],"selection":2},"traces":["a"],"reads":1,"rejected_reads":0,"calls":1,"keys":[{"context":"ACGTA","base":"G","second":"A","shares":[[0,1]]},{"context":"ACGTA","base":"G","second":"C","shares":[[12,1]]},{"context":"ACGTA","base":"G","second":"T","shares":[[3,1]]}]}"#;
+    const DOCUMENT: &str = r#"{"schema_version":"dna.signal/v1","run_id":"R","provenance":{"configuration_sha256":"0","plugins":[],"selection":2,"flank":2,"resolution":1000},"traces":["a"],"reads":1,"rejected_reads":0,"calls":1,"keys":[{"context":"ACGTA","base":"G","second":"A","shares":[[0,1]]},{"context":"ACGTA","base":"G","second":"C","shares":[[12,1]]},{"context":"ACGTA","base":"G","second":"T","shares":[[3,1]]}]}"#;
 
     #[test]
-    fn reads_a_run_signal_and_refuses_another_selection() -> std::result::Result<(), RunSignalError>
-    {
+    fn reads_a_run_signal_and_refuses_another_selection_or_shape()
+    -> std::result::Result<(), RunSignalError> {
         let signal = parse(DOCUMENT.as_bytes(), Path::new("r.json"))?;
         assert_eq!(signal.calls, 1);
         assert_eq!(signal.keys.len(), 3);
@@ -169,6 +172,18 @@ mod tests {
         assert!(matches!(
             parse(short.as_bytes(), Path::new("r.json")),
             Err(RunSignalError::Total { .. })
+        ));
+        // A context of another width than the flank's, or a share above the
+        // resolution, is not of this run signal.
+        let narrow = DOCUMENT.replace("\"flank\":2", "\"flank\":1");
+        assert!(matches!(
+            parse(narrow.as_bytes(), Path::new("r.json")),
+            Err(RunSignalError::Key { .. })
+        ));
+        let coarse = DOCUMENT.replace("\"resolution\":1000", "\"resolution\":10");
+        assert!(matches!(
+            parse(coarse.as_bytes(), Path::new("r.json")),
+            Err(RunSignalError::Key { .. })
         ));
         Ok(())
     }
