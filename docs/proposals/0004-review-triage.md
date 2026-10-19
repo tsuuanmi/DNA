@@ -1,19 +1,17 @@
 ---
 id: PROP-0004
-type: proposal
 status: accepted
-owners: []
 created: 2026-10-14
-related-requirements: [SRS-CALL-005, SRS-CALL-009, SRS-SAMPLE-029, SRS-CONS-001, SRS-API-014]
-related-decisions: [ADR-0018, ADR-0019, ADR-0065, ADR-0067, ADR-0068, ADR-0073, ADR-0074]
-implementation: []
+summary: "DNA's canonical per-sample review list (`dna.review/v1`): the positions a reviewer should look at, with evidence-based labels and no conclusion, for the laboratory's review tool. The review list is implemented (`dna review`, version 1); watched positions are pending."
+implements: [SRS-CALL-005, SRS-CALL-009, SRS-SAMPLE-029, SRS-CONS-001, SRS-API-014]
+decided-by: [ADR-0018, ADR-0019, ADR-0065, ADR-0067, ADR-0068, ADR-0073, ADR-0074]
 ---
 
 # Proposal: Review triage
 
 ## Problem
 
-DNA's [purpose](../requirements/SRS.md#purpose) is to sort sequencing work
+DNA's [[requirements/SRS#purpose|purpose]] is to sort sequencing work
 into pass, review, and rerun. Today DNA reports the evidence for each
 decision but never the decision:
 
@@ -57,7 +55,7 @@ Across all three:
 - use these numbers to rank further work.
 
 The evaluation method and the fast feedback loop are in
-[PROP-0005](0005-evaluation-feedback-loop.md).
+[[PROP-0005]].
 
 ## Non-goals
 
@@ -66,7 +64,7 @@ The evaluation method and the fast feedback loop are in
 - Setting the lab's rerun rate. The chemistry sets it; DNA only detects it.
 - Comparing results with reviewers or other tools inside the triage rules.
   Comparison belongs to the evaluation harness
-  ([PROP-0005](0005-evaluation-feedback-loop.md)).
+  ([[PROP-0005]]).
 - Batch decisions. Batch is the top level and comes last, and downstream
   pipelines aggregate it.
 - Sample swaps. The data cannot show a swap.
@@ -125,7 +123,7 @@ Stage 1 alone already reaches the purpose:
 
 Stage 2 lowers B over time.
 
-The evaluation scores the stages separately ([PROP-0005](0005-evaluation-feedback-loop.md)):
+The evaluation scores the stages separately ([[PROP-0005]]):
 
 - **Detection quality.** Every error must lie inside an unreliable region.
   An error outside is a *leak*. Unreliable regions without an error are review
@@ -174,7 +172,7 @@ Contract for every rule:
 - **Bounded.** Work grows linearly with the evidence it reads.
 - **Cheap.** Rules run on evidence that is already computed, never on raw
   signal again. Rule iteration then needs no re-alignment
-  ([PROP-0005](0005-evaluation-feedback-loop.md)).
+  ([[PROP-0005]]).
 - **Bumped on change.** A changed rule gets a new version, and a changed
   parameter value gets a new policy version. Each outcome records both.
 
@@ -300,7 +298,7 @@ Approval targets differ by outcome:
 | review (raises a finding) | none needed, because review is the safe default | share of items where DNA's leading candidate matched the reviewer |
 
 Datasets, splits, and the metrics behind these targets are defined in
-[PROP-0005](0005-evaluation-feedback-loop.md). After go-live, a share of
+[[PROP-0005]]. After go-live, a share of
 passed results is sampled for audit review, so drift shows up as defects.
 
 Each approval is a record of:
@@ -516,7 +514,7 @@ batches):
 
 - **Phase 0, before any production code.** Stage 1 detectors from today's
   evidence, measured with the method of
-  [PROP-0005](0005-evaluation-feedback-loop.md). The leak and A/B/C numbers
+  [[PROP-0005]]. The leak and A/B/C numbers
   decide whether the system is worth building. Results below.
 - **Per rule.** The approval targets above, on held-out ground truth.
 - **System.** Property tests for determinism and order independence, and a
@@ -528,7 +526,7 @@ batches):
 
 Measured on 2026-10-15 with the draft triage of the evaluation harness
 (`dna-eval run --triage`,
-[draft triage](../validation/evaluation-harness.md#draft-triage)) on the
+[[validation/evaluation-harness#draft-triage|draft triage]]) on the
 development panel v3: 2,618 active samples, revision 6a84daa plus the draft.
 The detectors are drafts in the harness, not DNA rules. The lab's database
 refresh of 2026-10-15 09:53 removed the truth of one zero-weight panel sample,
@@ -569,7 +567,7 @@ Clopper–Pearson upper bound):
 
 The haplotype measures (added after this measurement, same samples and
 policy) do not count a haplotype written or placed differently
-([measures](../validation/evaluation-harness.md#measures)).
+([[validation/evaluation-harness#measures|measures]]).
 
 What leaks is invisible to stage-1 evidence:
 
@@ -664,7 +662,7 @@ its own as the pass rule:
 
 Measured on 2026-10-15 with the same panel, truth, and harness at revision
 a244644 plus the minor-signal draft (`region.minor_signal`,
-[minor rules](../validation/evaluation-harness.md#draft-triage)), on the
+[[validation/evaluation-harness#draft-triage|minor rules]]), on the
 development panel only.
 
 **Evidence.** The sample evidence keeps A/C/G/T profiles only at
@@ -741,7 +739,7 @@ a third of them for a quarter of the cost.
   `upstream` cannot mark the first two classes by construction (7 of 21);
   the others fall below the threshold, show no minor channel, or are read
   cleanly by one strand only. Corpus-wide the blind classes are about 21.7 %
-  of heteroplasmy sites ([harness](../validation/evaluation-harness.md)), so
+  of heteroplasmy sites ([[validation/evaluation-harness|harness]]), so
   the upper bound above holds only for the classes the rule can see. A
   symmetric shadow test is the next iteration.
 - **Burden.** `region.minor_signal` flags 403 samples (178 primary catches,
@@ -805,7 +803,7 @@ audit sampling belong to downstream pipelines.
 ## Security and privacy
 
 No new trust boundary. ABIF run and well identity are lab metadata and follow
-the [data policy](../governance/data.md).
+the [[governance/data|data policy]].
 
 ## Compatibility and migration
 
@@ -832,7 +830,7 @@ Not yet reviewed.
 ## Implementation
 
 - **Review list, version 1.** `dna review` and `dna.review/v1` (SRS-API-014,
-  [review reference](../reference/review.md)), the post-calling plugin
+  [[reference/review|review reference]]), the post-calling plugin
   `review` 1 (rules version 1). Every label of the table above except
   `watched` is implemented; `phase_shift` and `noisy_signal` read the core's
   view of the masks until PROP-0008 step 4, and `possible_heteroplasmy` reads

@@ -1,17 +1,28 @@
+---
+implements: [SRS-SAMPLE]
+decided-by: [ADR-0013, ADR-0028, ADR-0031, ADR-0046]
+---
+
 # Observational Signal Processing Requirements
 
 **Requirement namespace:** `SRS-SIG-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-SIG-001:** DNA processing MUST read the immutable analyzed A/C/G/T channels and basecalling evidence; it MUST NOT replace decoded channels or selected peaks.
 - **SRS-SIG-002:** Configuration MUST require a rolling window in `5..=10` bases, a finite positive minimum primary SNR, and a minimum noisy-window run length of at least 2.
 - **SRS-SIG-003:** Every internally calculated window MUST have the complete configured width and stride one with explicit 0-based half-open call and sample intervals. Compact JSON MUST emit merged noisy regions only, not individual windows.
 - **SRS-SIG-004:** Baseline, first-difference MAD noise, primary SNR, secondary SNR, noise flooring at `signal_processing.minimum_noise_sigma`, rounding, and threshold comparison MUST follow the documented `dna.windowed_snr/v1` formula.
 - **SRS-SIG-005:** Overlapping or adjacent candidate-noisy windows MUST be unioned without bridging clean gaps, and a noisy interval MUST require at least the configured minimum run length.
-- **SRS-SIG-006:** Candidate-noisy window/region annotations (`dna.windowed_snr/v1`) MUST NOT alter quality scores, trim bounds, alignment, warning totals, or variant eligibility. `LocusEvidence` / `EvidenceProfile` MAY be consumed by reference alignment only under the explicit [alignment requirements](alignment.md) and by read callability only under [`SRS-CALL-*`](callability.md); no other consumer may turn a signal feature into a trim, placement, or eligibility decision. No signal feature may be described as Phred, error probability, genotype, or heteroplasmy evidence.
+- **SRS-SIG-006:** Candidate-noisy window/region annotations (`dna.windowed_snr/v1`) MUST NOT alter quality scores, trim bounds, alignment, warning totals, or variant eligibility. `LocusEvidence` / `EvidenceProfile` MAY be consumed by reference alignment only under the explicit [[requirements/alignment|alignment requirements]] and by read callability only under [[requirements/callability|`SRS-CALL-*`]]; no other consumer may turn a signal feature into a trim, placement, or eligibility decision. No signal feature may be described as Phred, error probability, genotype, or heteroplasmy evidence.
 - **SRS-SIG-007:** A read with fewer calls than the configured signal window MUST fail `analyze` and `basecall` with a typed signal-processing error before basecalling, rather than emit partial windows; in `sample` and `consensus` it MUST be recorded as rejected instead (SRS-SAMPLE-030).
 - **SRS-SIG-008:** DNA processing MUST derive one internal `LocusEvidence` record per validated canonical Sanger locus directly from analyzed A/C/G/T channels and shared locus-window geometry. Event refinement MUST consider positive local maxima of total non-negative baseline-corrected A/C/G/T amplitude inside the locus window and select the candidate nearest the canonical locus position; equally distant candidates MUST prefer greater total corrected signal and then the lower sample coordinate. If no positive total-signal local maximum exists, the validated canonical locus sample MUST be used. Event selection MUST remain independent of primary/ambiguity calls, selected channel identity, qualifying-channel membership, alignment, and reference sequence.
 - **SRS-SIG-009:** `EvidenceProfile` MUST normalize positive corrected A/C/G/T amplitudes at the refined event sample and MUST NOT depend on primary/ambiguity calls, selected basecall peaks, qualifying-channel membership, or `secondary_peak_ratio`. A locus with zero total corrected signal MUST have no profile; no uniform or reference-guided fallback is permitted.
 - **SRS-SIG-010:** DNA processing MUST derive one immutable Sanger-integrity record containing canonical locus count; optional PBAS/PCON counts; minimum/median/maximum adjacent locus spacing when at least two loci exist; the count of analyzed channel samples exactly equal to signed-16-bit extrema; and, when positive locus event signal exists, the six-decimal ratio of maximum to median total corrected event dna.
 - **SRS-SIG-011:** Sanger-integrity observations MUST NOT rewrite decoded channels, add/remove canonical loci, change base calls, alter quality/trim, steer reference placement, or change variant eligibility. Vendor-length mismatch and exact clipping MAY contribute warning counts; the event-signal ratio MUST remain unthresholded observation evidence until a separately specified artifact classifier exists.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/signal-processing](../design/signal-processing/README.md), [reference/configuration](../reference/configuration.md), [requirements/sample-evidence/callability](sample-evidence/callability.md)
+<!-- docs:end backlinks -->

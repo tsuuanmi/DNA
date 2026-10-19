@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0067, ADR-0076]
+---
+
 # Pipeline Invariants
 
 These invariants are part of the canonical [system invariant set](README.md).

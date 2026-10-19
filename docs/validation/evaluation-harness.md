@@ -1,8 +1,13 @@
+---
+implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
+decided-by: [ADR-0065, ADR-0075, ADR-0076, ADR-0077]
+---
+
 # Evaluation harness
 
 `dna-eval` runs DNA over a fixed test panel and compares the calls with
-reviewer truth ([PROP-0005](../proposals/0005-evaluation-feedback-loop.md),
-[ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md)). It is
+reviewer truth ([[PROP-0005]],
+[[ADR-0075]]). It is
 the only place in the repository for truth formats and comparison
 (SRS-COMPAT-003). Its outputs are validation evidence about a DNA revision,
 not DNA contracts. Source: [crates/dna-eval](../../crates/dna-eval/src/README.md).
@@ -146,7 +151,7 @@ lab's reviewers write their own calls, without traces. Every truth sample
 whose calls are plain A/C/G/T substitutions, deletions, and insertions is
 rebuilt as anchored variants (runs of deleted positions as one deletion,
 insertion ordinals `1, 2, …` without a gap as one insertion) and goes through
-DNA's right-aligned [normalization](../design/variant-normalization.md) and
+DNA's right-aligned [[design/variant-normalization|normalization]] and
 the profile's nomenclature windows, as DNA's own calls do, with a deletion
 trade bounded by the windows and every base taken as read. A sample whose
 written calls come back unchanged is a fixed point of DNA's notation; a
@@ -260,7 +265,7 @@ and runs the [draft triage](#draft-triage); without it the run and its
 outputs are unchanged.
 
 `--run-signal` judges each sample's review against a run signal
-([PROP-0009](../proposals/0009-run-signal.md), SRS-CALL-020) built in
+([[PROP-0009]], SRS-CALL-020) built in
 process, the way `dna review --signal` would with a per-run file. A first
 pass analyses every sample and adds its admitted reads' contributions
 (`SampleAnalysis::signal_contributions`) to its groups' run signals: its
@@ -290,7 +295,7 @@ length the truth keeps are no difference. Counting the run without either
 side's insertions and deletions keeps an over-estimated length from carrying
 a run across the minimum.
 
-**Primary.** The lab's concordance (`mtdna_raw`, `src/core/comparison.py`,
+**Primary.** The lab's concordance (`mtdna_raw`, `mtdna_raw:src/core/comparison.py`,
 `SampleComparator.is_concordant`), with DNA as tool A (the automated caller)
 and the truth as tool B:
 
@@ -386,7 +391,7 @@ nothing but reads the position, matches when it is one of the code's bases,
 in the alleles and in the sequences. At or above the limit the code must
 match exactly. A minor reference base where DNA calls the alternate shows the
 heteroplasmy as well. The limit is 10 % (user, 2026-10-16; see the
-[approval protocol](../proposals/0005-evaluation-feedback-loop.md)); each
+[[PROP-0005|approval protocol]]); each
 sample's count of truth IUPAC positions below it is reported (`below_lod`).
 
 **DNA's callable intervals.** The comparable span is DNA's callable
@@ -613,7 +618,7 @@ Statuses fall into classes so that runs of other conventions stay comparable:
 ## Draft triage
 
 `run --triage` measures whether the triage of
-[PROP-0004](../proposals/0004-review-triage.md) is worth building (phase 0).
+[[PROP-0004]] is worth building (phase 0).
 Its detectors are research drafts over the evidence DNA already produces:
 nothing in DNA reads them, they decide no call, and none is approved.
 
@@ -697,7 +702,7 @@ alternate = previous reference base only 15.5 %, next only 11.3 %, both
 10.4 %, neither 62.8 %. `upstream` is therefore blind to about 21.7 % of
 corpus heteroplasmy sites (common examples: 146Y, 16189Y, 16183M) and
 `unshadowed` to about 37.2 %. The leak bound of a policy with these rules
-holds only for the classes they can see; [PROP-0004](../proposals/0004-review-triage.md)
+holds only for the classes they can see; [[PROP-0004]]
 gives the dev-panel split.
 
 A trace with any trace finding is *poor*; it stays a diagnostic unless a
@@ -766,7 +771,7 @@ count in A/B/C but not in leaks or catches.
   rule and among those inside any region.
 
 Phase-0 results are in
-[PROP-0004](../proposals/0004-review-triage.md#phase-0-results).
+[[PROP-0004#phase-0-results|PROP-0004]].
 
 ## Outputs
 
@@ -799,4 +804,4 @@ calls (and with `--triage` its evidence), and the configuration, reference, prof
 names, so it is byte-identical whatever the thread count and whatever revision
 or database file it ran on. Run outputs and
 panel manifests hold sample identifiers and stay outside the repository under
-the [data policy](../governance/data.md); DNA documents quote aggregates only.
+the [[governance/data|data policy]]; DNA documents quote aggregates only.

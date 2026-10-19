@@ -1,7 +1,19 @@
+---
+id: ADR-0001
+status: accepted
+date: 2026-08-22
+---
+
 # ADR-0001: Deliver an End-to-End MVP First
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-08-22
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- _Not yet referenced by a current document._
+<!-- docs:end backlinks -->
 
 ## Context
 

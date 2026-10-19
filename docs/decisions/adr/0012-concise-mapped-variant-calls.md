@@ -1,7 +1,21 @@
+---
+id: ADR-0012
+status: superseded-in-part
+date: 2026-08-24
+supersedes: [ADR-0011]
+---
+
 # ADR-0012: Use Concise Coordinates and Direct Mapped Variant Calls
 
-- **Status:** Superseded in part by ADR-0013
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0013](0013-observational-signal-quality.md)
 - **Date:** 2026-08-24
+- **Supersedes:** [ADR-0011](0011-compact-variant-focused-json.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- _Not yet referenced by a current document._
+<!-- docs:end backlinks -->
 
 ## Context
 

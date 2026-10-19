@@ -1,3 +1,12 @@
+---
+implements: [SRS-SIG]
+decided-by: [ADR-0013, ADR-0028, ADR-0029, ADR-0031, ADR-0046, ADR-0067]
+covers:
+  - crates/dna-sanger/src/locus.rs
+  - crates/dna-sanger/src/model/locus_evidence.rs
+  - crates/dna-sanger/src/signal_processing/
+---
+
 # Observational Signal Processing
 
 This is the canonical entry point for production signal-processing methods.

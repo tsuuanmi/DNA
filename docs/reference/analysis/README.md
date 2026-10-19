@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0026, ADR-0053]
+---
+
 # DNA Compact JSON Output
 
 This document covers reference-guided analysis. Reference-free output is the separate [`dna.basecalls/v3` contract](../basecalls.md).

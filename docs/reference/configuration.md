@@ -1,6 +1,16 @@
+---
+implements: [SRS-ALN, SRS-CALL, SRS-CFG, SRS-CONS, SRS-QC, SRS-SIG]
+decided-by: [ADR-0062, ADR-0067, ADR-0069]
+covers:
+  - config/dna.toml
+  - crates/dna-kernel/src/bounds.rs
+  - crates/dna-sanger/src/read_processing/config.rs
+  - src/config/
+---
+
 # Configuration and Environment
 
-All core commands (`analyze`, `basecall`, `sample`, `call`, and `notation`) load exactly one strict TOML file selected by `DNA_CONFIG` or `config/dna.toml`. Every command except `basecall` also loads the [target profile](profiles.md) it names; `basecall` does not read the profile. The binary does not parse `.env`, and environment variables do not override individual scientific values.
+All core commands (`analyze`, `basecall`, `sample`, `call`, and `notation`) load exactly one strict TOML file selected by `DNA_CONFIG` or `config/dna.toml`. Every command except `basecall` also loads the [[reference/profiles|target profile]] it names; `basecall` does not read the profile. The binary does not parse `.env`, and environment variables do not override individual scientific values.
 
 Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions, non-finite numbers, invalid ranges, and config sources above 1 MiB are errors. No scientific value falls back silently.
 
@@ -83,7 +93,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `site_gap_extension_cost` | `2` | positive: extending one |
 
 Each section is owned by one plugin of the static registry
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+([[ADR-0069]]):
 - the Sanger modality plugin owns `basecalling`, `signal_processing`,
   `callability`, `quality_control`, and `sanger_evidence`;
 - the core plugin owns `alignment`, `sample_reconciliation`, and

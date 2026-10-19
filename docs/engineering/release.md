@@ -1,3 +1,8 @@
+---
+decided-by: [ADR-0018, ADR-0021]
+covers: [.github/workflows/release.yml, config/dna.toml, config/profiles]
+---
+
 # Release Operations
 
 This is the operational companion to ADR-0018.
@@ -18,7 +23,7 @@ A release record must identify the exact:
 - approved real-AB1 validation status;
 - documented runtime and peak-memory measurement.
 
-Use [the release evidence template](../operations/release-evidence-template.md) for any release candidate intended to carry the production-ready label.
+Use [[operations/release-evidence-template|the release evidence template]] for any release candidate intended to carry the production-ready label.
 
 ## Release states
 

@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0023, ADR-0030, ADR-0053, ADR-0068]
+---
+
 # Sample Signal Evidence Requirements
 
 **Requirement namespace:** `SRS-SAMPLE-013..SRS-SAMPLE-018`
@@ -10,3 +14,9 @@ These requirements are part of the canonical [sample evidence SRS](README.md) an
 - **SRS-SAMPLE-016:** Every call-backed sample observation MUST keep its source call index and its call's optional `EvidenceProfile`, projected to the reference orientation; reverse reads MUST complement the profile. Deletions MUST have no call index or fabricated profile. Sanger signal evidence (baseline-corrected A/C/G/T amplitudes, per-channel SNR, merged noisy-region membership, quality, peaks) MUST stay in the read's Sanger attachment, resolved by the authoritative `LocusEvidence` of the same call index when reported. These quantitative observations MUST NOT by themselves define contributor eligibility, consensus weight, calibrated confidence, or artifact classification.
 - **SRS-SAMPLE-017:** Every retained differential locus MUST expose the number of observations with an available basecall-independent nucleotide profile and factor that count by selected forward/reverse orientation. Profile-available count MUST equal the sum of profile-forward/profile-reverse counts and MUST NOT exceed non-deletion read count. Unresolved calls MAY count when a valid profile exists; zero-signal missing profiles and deletions MUST NOT. Profile availability MUST NOT be interpreted as contributor eligibility, agreement, weight, confidence, or a consensus vote.
 - **SRS-SAMPLE-018:** Every retained differential-locus observation MUST have an explicit structural nucleotide-contribution state. A call-backed observation with a present basecall-independent profile MUST be `Eligible`, including unresolved calls and calls inside candidate-noisy regions. A call-backed observation without a profile MUST be `MissingProfile`; a deletion MUST be `DeletionEvent` and remain on the separate gap/event path; a masked observation MUST be `MaskedCall` and contribute no nucleotide mass. This first contributor policy MUST NOT use relative quality, SNR, noisy-region membership, variant eligibility, or any new threshold as a rejection or weighting rule.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/pipeline](../../design/pipeline.md), [design/sample-evidence](../../design/sample-evidence/README.md), [reference/rust-api](../../reference/rust-api.md), [reference/sample-evidence/overlaps-loci](../../reference/sample-evidence/overlaps-loci.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [requirements/callability](../callability.md), [requirements/consensus](../consensus.md), [requirements/output](../output.md), [requirements/sample-evidence/callability](callability.md), [requirements/sample-evidence/core](core.md), [requirements/signal-processing](../signal-processing.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+<!-- docs:end backlinks -->

@@ -1,12 +1,7 @@
 ---
 id: PROP-0000
-type: proposal
 status: draft
-owners: []
 created: YYYY-MM-DD
-related-requirements: []
-related-decisions: []
-implementation: []
 ---
 
 # Proposal: Title

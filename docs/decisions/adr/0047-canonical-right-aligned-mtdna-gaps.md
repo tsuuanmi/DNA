@@ -1,7 +1,20 @@
+---
+id: ADR-0047
+status: superseded-in-part
+date: 2026-09-19
+family: [placement, variant-nomenclature]
+---
+
 # ADR-0047: Canonical right-aligned mtDNA gap placement
 
+<!-- docs:begin lifecycle -->
 - **Status:** Superseded in part by [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md)
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/alignment](../../architecture/invariants/alignment.md), [architecture/variant-lifecycle](../../architecture/variant-lifecycle.md), [design/alignment](../../design/alignment.md), [design/variant-calling](../../design/variant-calling.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [design/variant-normalization](../../design/variant-normalization.md), [requirements/alignment](../../requirements/alignment.md), [requirements/variant-nomenclature](../../requirements/variant-nomenclature.md), [requirements/variants](../../requirements/variants.md), [validation/discrepancy-catalogue](../../validation/discrepancy-catalogue.md)
+<!-- docs:end backlinks -->
 
 ## Superseded scope
 

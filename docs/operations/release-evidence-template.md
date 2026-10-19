@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0018]
+---
+
 # Production Release Evidence
 
 Copy this template for every release candidate that is intended to carry the

@@ -1,11 +1,10 @@
 ---
 id: PROP-0007
-type: proposal
 status: implemented
-owners: []
 created: 2026-10-17
-related-requirements: [SRS-NOM-016, SRS-NOM-017]
-related-decisions: [ADR-0069, ADR-0077]
+summary: "an offline EMPOP query (ranges and mitotype) in `notation/v1` whose ranges cover only positions DNA decided, and profile conventions that label calls the reviewers do not record instead of deleting them."
+implements: [SRS-NOM-016, SRS-NOM-017]
+decided-by: [ADR-0069, ADR-0077]
 implementation: [PR-96, PR-99]
 ---
 
@@ -128,7 +127,7 @@ It decides nothing about the sequence. The rules:
     `excluded_variant`, `overlap`), so a reviewer sees why a range is split.
 
   The contract change follows the
-  [versioning policy](../governance/versioning.md#public-json-contracts):
+  [[governance/versioning#public-json-contracts|versioning policy]]:
   `notation/v1` has not been released, so it is revised in place and
   recorded as **Breaking**.
 

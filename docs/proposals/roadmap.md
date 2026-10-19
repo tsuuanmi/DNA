@@ -1,24 +1,24 @@
 # DNA Roadmap
 
-The roadmap is non-normative. It records current validation priorities and intentionally deferred product directions. Current behavior is defined by the [SRS](../requirements/SRS.md), [methods](../design/README.md), [contracts](../reference/README.md), and accepted [ADRs](../decisions/adr/README.md).
+The roadmap is non-normative. It records current validation priorities and intentionally deferred product directions. Current behavior is defined by the [[requirements/SRS|SRS]], [methods](../design/README.md), [contracts](../reference/README.md), and accepted [ADRs](../decisions/adr/README.md).
 
 ## Current objective
 
 Strengthen evidence-backed confidence in the implemented Sanger analysis path before expanding biological interpretation.
 
-That confidence serves DNA's [purpose](../requirements/SRS.md#purpose): sort regions, traces, and samples into pass, review, and rerun, with more passes, fewer reviews, and no wrong passes. [PROP-0004](0004-review-triage.md) drafts the triage.
+That confidence serves DNA's [[requirements/SRS#purpose|purpose]]: sort regions, traces, and samples into pass, review, and rerun, with more passes, fewer reviews, and no wrong passes. [[PROP-0004]] drafts the triage.
 
-The core confidence floor remains the read-level path defined by [ADR-0021](../decisions/adr/0021-scientific-core-confidence-floor.md), but the current supported baseline already includes intentional capabilities beyond that floor. The roadmap does not redefine those capabilities.
+The core confidence floor remains the read-level path defined by [[ADR-0021]], but the current supported baseline already includes intentional capabilities beyond that floor. The roadmap does not redefine those capabilities.
 
 ## Architectural evolution
 
-[PROP-0001](0001-modular-dna-analysis-platform.md), accepted by [ADR-0058](../decisions/adr/0058-canonical-contracts-and-modular-analysis-composition.md), defines the long-term direction for DNA as a modular analysis platform with a public Rust API, canonical typed contracts between capabilities, multiple input modalities such as Sanger and NGS, independently replaceable alignment and variant-calling implementations, replaceable scientific data providers, and downstream modules such as haplogroup and nomenclature.
+[[PROP-0001]], accepted by [[ADR-0058]], defines the long-term direction for DNA as a modular analysis platform with a public Rust API, canonical typed contracts between capabilities, multiple input modalities such as Sanger and NGS, independently replaceable alignment and variant-calling implementations, replaceable scientific data providers, and downstream modules such as haplogroup and nomenclature.
 
 The proposal is not current production architecture. Its implementation is intentionally incremental: preserve the validated Sanger path, introduce stable public and canonical boundaries first, add alternative implementations only where independent variation is real, and extract crates only when dependency or lifecycle boundaries justify them.
 
-[PROP-0002](0002-plugin-first-architecture.md), accepted by [ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md), sequences that direction as three plugin families (modality, core caller, post-calling) with phased exit criteria. All phases are implemented: the modality → core evidence contract, the plugin registry with per-plugin configuration, a modality-neutral sample aggregation, a core-only `call` over reviewed consensus sequences, a post-calling `notation` with conformance findings, and the workspace split into plugin-family crates (ADR-0070).
+[[PROP-0002]], accepted by [[ADR-0069]], sequences that direction as three plugin families (modality, core caller, post-calling) with phased exit criteria. All phases are implemented: the modality → core evidence contract, the plugin registry with per-plugin configuration, a modality-neutral sample aggregation, a core-only `call` over reviewed consensus sequences, a post-calling `notation` with conformance findings, and the workspace split into plugin-family crates (ADR-0070).
 
-[PROP-0008](0008-pipeline-responsibilities.md) gives each pipeline step one responsibility. It is implemented: the core states what aligned reads assert, the modality states per-call verdicts and owns its stage failures, and the core is split into `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus` ([ADR-0079](../decisions/adr/0079-core-crates-by-step.md)); `dna-align` is the only writer of an alignment. One follow-up remains:
+[[PROP-0008]] gives each pipeline step one responsibility. It is implemented: the core states what aligned reads assert, the modality states per-call verdicts and owns its stage failures, and the core is split into `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus` ([[ADR-0079]]); `dna-align` is the only writer of an alignment. One follow-up remains:
 
 - revisit the `core` plugin identity, which spans three crates, the next time plugin versions change for another reason; splitting it changes provenance.
 
@@ -28,7 +28,7 @@ The evaluation harness keeps its own copy of the HV regions (`HV_REGIONS`), whic
 
 ### Approved real-trace baseline
 
-Establish and maintain approved real-AB1 evidence for the core path. For each approved trace, retain the provenance required by [data governance](../governance/data.md), including source context, AB1/reference/configuration identity, expected sequence or independently established truth, expected straightforward variants, and explained disagreements.
+Establish and maintain approved real-AB1 evidence for the core path. For each approved trace, retain the provenance required by [[governance/data|data governance]], including source context, AB1/reference/configuration identity, expected sequence or independently established truth, expected straightforward variants, and explained disagreements.
 
 ### Stage confidence
 
@@ -45,7 +45,7 @@ Detailed acceptance rules belong to the SRS and method/contract documents rather
 
 ## Current production behavior
 
-The roadmap does not maintain a second list of current capabilities. Current behavior is persistent production documentation owned by the [SRS](../requirements/SRS.md), [methods](../design/README.md), [contracts](../reference/README.md), and [../architecture/invariants](../architecture/README.md).
+The roadmap does not maintain a second list of current capabilities. Current behavior is persistent production documentation owned by the [[requirements/SRS|SRS]], [methods](../design/README.md), [contracts](../reference/README.md), and [../architecture/invariants](../architecture/README.md).
 
 ## Production-readiness track
 
@@ -70,14 +70,14 @@ The following remain outside the current production interpretation boundary unti
 - new or substantially more complex indel models;
 - phase recovery or shadow-ladder deconvolution behind a detected shift, and calibrated weighting from callability features (detection and state are production behaviour under ADR-0067; research under `docs/research/phase-recovery/`);
 - signal denoising and baseline correction (research spike under `docs/research/denoising/`);
-- consensus refinements beyond [PROP-0003](0003-sample-consensus.md) and [ADR-0074](../decisions/adr/0074-run-structure-consensus.md):
+- consensus refinements beyond [[PROP-0003]] and [[ADR-0074]]:
   - run lengths that no read reads;
   - contested sites decided by richer evidence than the one-read reference tie-break;
-  - run ends that the aligner writes as mismatches inside a run exempt from `read_end` ([ADR-0076](../decisions/adr/0076-bounded-run-read-end-exemption.md)), for example `309.1C 315.1C` aligned as a C over T310 and a T over C311 (about 9 development-panel samples): re-expressing such stretches needs the exemption inside alignment, because re-expressing every unmasked stretch measured 14 regressions and new false alleles. Its HVS-I `16193.1C` gains come from the enriched length stratum, and become moot if a profile policy for the unrecorded HVS-I C-tract length lands;
+  - run ends that the aligner writes as mismatches inside a run exempt from `read_end` ([[ADR-0076]]), for example `309.1C 315.1C` aligned as a C over T310 and a T over C311 (about 9 development-panel samples): re-expressing such stretches needs the exemption inside alignment, because re-expressing every unmasked stretch measured 14 regressions and new false alleles. Its HVS-I `16193.1C` gains come from the enriched length stratum, and become moot if a profile policy for the unrecorded HVS-I C-tract length lands;
   - a post-calling profile policy that classifies, never drops, length calls the target's convention does not record (the HVS-I C-tract is noted as length heteroplasmy in the `C5TC4` frame);
-- the Sanger mixed verdict judged against the run signal ([PROP-0009](0009-run-signal.md) increment (iii)): a run signal can only lift a mixed verdict, and lifting every one on development panel v5 raised current samples with an unreviewed difference from 4.13 to 6.02 % and made 584 `haplotype_lod` statuses worse, for at most 41 samples it could help; deferred (2026-10-19, user);
+- the Sanger mixed verdict judged against the run signal ([[PROP-0009]] increment (iii)): a run signal can only lift a mixed verdict, and lifting every one on development panel v5 raised current samples with an unreviewed difference from 4.13 to 6.02 % and made 584 `haplotype_lod` statuses worse, for at most 41 samples it could help; deferred (2026-10-19, user);
 - quantitative heteroplasmy, and point-heteroplasmy evidence as labelled IUPAC sites; this first needs accurate primary calls, a shadow-corrected minor channel, and cross-strand confirmation ([research](../research/point-heteroplasmy/README.md));
-- mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [known limitations](../validation/known-limitations.md)). A run-exit annotation on `ReadEvidence` from the trace's exit survival curve ([research](../research/phase-recovery/README.md)) would turn `phase_loss` estimates into measured dominant lengths;
+- mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [[validation/known-limitations|known limitations]]). A run-exit annotation on `ReadEvidence` from the trace's exit survival curve ([research](../research/phase-recovery/README.md)) would turn `phase_loss` estimates into measured dominant lengths;
 - haplogroup-based QC or inference;
 - calibrated quality/error probabilities;
 - ML-based calling, correction, or training export;

@@ -1,12 +1,10 @@
 ---
 id: PROP-0009
-type: proposal
 status: draft
-owners: []
 created: 2026-10-18
-related-requirements: [SRS-VAR-012, SRS-API-014]
-related-decisions: [ADR-0027, ADR-0065, ADR-0066, ADR-0067, ADR-0069]
-implementation: []
+summary: "the Sanger mixed verdict and `possible_heteroplasmy` judge a second channel against the level its own run shows, keyed by the read's own 5-mer context, given as a recorded `dna.signal/v1` input from the Sanger signal processing; fixed thresholds stay the fallback."
+implements: [SRS-VAR-012, SRS-API-014]
+decided-by: [ADR-0027, ADR-0065, ADR-0066, ADR-0067, ADR-0069]
 ---
 
 # Proposal: Run signal for second-channel judgement
@@ -151,7 +149,7 @@ answers.
    - **The Sanger mixed verdict (ADR-0027)**, in increment (iii), uses the same `threshold()`
      in place of its fixed `0.33` peak ratio, and ADR-0027 is amended then. A run signal can
      only raise the threshold above the floor, so it lifts a mixed verdict only where the run
-     itself shows the shadow as common. Deferred to the [roadmap](roadmap.md) on 2026-10-19:
+     itself shows the shadow as common. Deferred to the [[proposals/roadmap|roadmap]] on 2026-10-19:
      lifting every mixed verdict, its ceiling, did more harm than good.
    - **Such a minor keeps its identity**: the consensus decides the primary base, and the
      review makes the position a check. Reporting it as IUPAC remains a separate, deferred

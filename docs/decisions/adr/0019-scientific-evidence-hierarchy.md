@@ -1,8 +1,18 @@
+---
+id: ADR-0019
+status: accepted
+family: [claim-boundary]
+---
+
 # ADR-0019: Separate signal evidence, read interpretation, and biological claims
 
-## Status
+<!-- docs:begin lifecycle -->
+- **Status:** Accepted
+<!-- docs:end lifecycle -->
 
-Accepted
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/scientific-state](../../architecture/invariants/scientific-state.md), [requirements/SRS](../../requirements/SRS.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

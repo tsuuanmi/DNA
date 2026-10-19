@@ -1,10 +1,15 @@
+---
+implements: [SRS-NOM, SRS-VAR]
+decided-by: [ADR-0063]
+---
+
 # Target Profile Requirements
 
 **Requirement namespace:** `SRS-PRF-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md). The rationale is
-[ADR-0063](../decisions/adr/0063-target-profiles.md); the file format is the
-[profile reference](../reference/profiles.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]]. The rationale is
+[[ADR-0063]]; the file format is the
+[[reference/profiles|profile reference]].
 
 - **SRS-PRF-001:** Knowledge about a sequencing target (reference identity and topology, reportable regions, and the representation chain) MUST come from one target profile named by the configuration. Production code MUST NOT recognise a target by its reference sequence or hard-code target windows, bases, or regions.
 - **SRS-PRF-002:** A profile MUST be strict TOML of at most 1 MiB with `schema_version = 2`. Unknown keys, missing required keys, unsupported enums or versions, and every violated constraint MUST fail at load, before any trace is decoded.
@@ -14,3 +19,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md). The rationale is
 - **SRS-PRF-006:** `normalization` and `notation` MUST be declared together. Nomenclature windows MUST be in reference order without overlap, have unique non-empty names and A/C/G/T sequences, and declare at least one rule without repetition. Every rule MUST be compatible with the window structure and its preconditions (SRS-NOM-004) MUST hold for the declared sequence; `canonical_haplotype` data MUST be given exactly when that rule is used and list unique in-window substitutions that change the reference base.
 - **SRS-PRF-007:** Analysis, sample-evidence, variants, and notation results MUST record the profile `id` and the SHA-256 of the profile file bytes. Basecalling MUST NOT read the profile.
 - **SRS-PRF-008:** An optional `conformance` section MUST require `notation`, name at least one known rule without repetition, and set `minimum_run_length` to at least 2.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [reference/profiles](../reference/profiles.md), [requirements/configuration](configuration.md), [requirements/output](output.md), [requirements/variant-nomenclature](variant-nomenclature.md), [requirements/variants](variants.md)
+<!-- docs:end backlinks -->

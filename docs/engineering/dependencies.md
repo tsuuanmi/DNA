@@ -1,3 +1,8 @@
+---
+implements: [SRS-OUT]
+decided-by: [ADR-0059, ADR-0061, ADR-0075]
+---
+
 # Dependency Policy
 
 Dependencies and lockfiles are part of the production codebase.
@@ -21,7 +26,7 @@ component:
    machinery.
 
 This is governed by
-[ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md)
+[[ADR-0059]]
 and requirements `SRS-NFR-006` / `SRS-NFR-007`.
 
 ## Bioinformatics candidates
@@ -79,7 +84,7 @@ Before adding or materially changing a dependency:
    boundary.
 
 Production dependencies must not be added speculatively. Release dependency
-review is tracked by [supply-chain security](../security/supply-chain.md).
+review is tracked by [[security/supply-chain|supply-chain security]].
 
 ## Custom implementation threshold
 

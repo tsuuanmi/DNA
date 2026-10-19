@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0072]
+---
+
 # Alignment canonicality Invariants
 
 These invariants are part of the canonical [system invariant set](README.md).

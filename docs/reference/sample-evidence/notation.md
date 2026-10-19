@@ -1,6 +1,10 @@
+---
+implements: [SRS-NOM]
+---
+
 # Notation
 
-When the [target profile](../profiles.md) recorded in `provenance.profile`
+When the [[reference/profiles|target profile]] recorded in `provenance.profile`
 declares a notation style, the document carries a `notation` object; otherwise
 the key is omitted. The examples below use the shipped human-mtDNA profile
 (`human-mtdna-rcrs`), which pins the rCRS and declares `per_base_decimal`.
@@ -36,7 +40,7 @@ the key is omitted. The examples below use the shipped human-mtDNA profile
    - insertion: `<anchor>.<ordinal><base>` after the preceding reference base,
      for example `309.1C 309.2C`; an insertion before position 1 uses anchor `0`.
 
-5. A [report convention](../profiles.md#schema-version-1) of the profile labels
+5. A [[reference/profiles#schema-version-1|report convention]] of the profile labels
    each call it covers: `convention` gives its `name` and `label`
    (`not_recorded`: the reviewers do not record the call). The call is kept,
    and the haplotype is unchanged (SRS-NOM-017). A call that one read

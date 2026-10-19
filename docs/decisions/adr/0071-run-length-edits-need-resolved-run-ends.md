@@ -1,11 +1,22 @@
+---
+id: ADR-0071
+status: accepted
+date: 2026-10-10
+family: [sanger-eligibility]
+related: [ADR-0062, ADR-0065, ADR-0067, ADR-0069]
+---
+
 # ADR-0071: Run-length edits need resolved run ends
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-10
-- **Related decisions:** [ADR-0062](0062-read-callability.md),
-  [ADR-0065](0065-result-comparison-downstream.md),
-  [ADR-0067](0067-signal-derived-read-callability.md),
-  [ADR-0069](0069-plugin-first-modality-core-post-calling.md)
+- **Related:** [ADR-0062](0062-read-callability.md), [ADR-0065](0065-result-comparison-downstream.md), [ADR-0067](0067-signal-derived-read-callability.md), [ADR-0069](0069-plugin-first-modality-core-post-calling.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/consensus](../../design/consensus.md), [design/variant-calling](../../design/variant-calling.md), [reference/review](../../reference/review.md), [reference/sample-evidence/variants-signal](../../reference/sample-evidence/variants-signal.md), [requirements/consensus](../../requirements/consensus.md), [requirements/variants](../../requirements/variants.md), [validation/known-limitations](../../validation/known-limitations.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -79,11 +90,11 @@ that the edit touches.
   phase boundary, the run's length is still unread. Edits split between
   eligible and masked calls in that window can still be named as another
   haplotype. Repeat-length evidence remains open work
-  ([known limitations](../../validation/known-limitations.md)).
+  ([[validation/known-limitations|known limitations]]).
 - **Contracts:** the sample-evidence and variants contracts gain the core
   reason label `run_boundary`.
 - **Sample consensus:** the same test keeps an unbounded insertion or deletion
   from deciding a run's length in `dna consensus` (ADR-0073). The consensus
-  applies it to runs rather than edits ([ADR-0074](0074-run-structure-consensus.md)).
+  applies it to runs rather than edits ([[ADR-0074]]).
   It counts a run end as resolved only when the call beyond the run reads
   another base, and it labels how each length is known.

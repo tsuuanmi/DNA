@@ -1,8 +1,12 @@
+---
+decided-by: [ADR-0060]
+---
+
 # Variant Normalization Requirements
 
 **Requirement namespace:** `SRS-VN-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-VN-001:** Post-calling variant normalization MUST be an optional capability consuming an evidence-backed `CalledVariantSet`, the matching reference, and an explicit normalization policy. It MUST NOT reinterpret source sequencing signal or change caller eligibility.
 - **SRS-VN-002:** Normalization MUST verify that the supplied reference name and sequence identity match the reference identity carried by the called-variant set before transforming any representation.
@@ -15,3 +19,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-VN-009:** Normalized variants MUST be emitted deterministically in reference/position/allele order.
 - **SRS-VN-010:** Variant normalization MUST NOT apply nomenclature-window policy, HGVS formatting, VCF interchange normalization, sample reconciliation, genotype interpretation, or clinical interpretation.
 - **SRS-VN-011:** A normalization result intended for downstream representation policy MUST retain the exact reference identity alongside source variants, reconstructed alternate sequence, and normalized variants.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/variant-normalization](../design/variant-normalization.md), [reference/profiles](../reference/profiles.md), [reference/rust-api](../reference/rust-api.md)
+<!-- docs:end backlinks -->

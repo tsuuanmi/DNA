@@ -1,7 +1,20 @@
+---
+id: ADR-0040
+status: accepted
+date: 2026-09-19
+family: [profile-geometry]
+---
+
 # ADR-0040: Accumulate eligible profiles with unit read mass
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence/locus-profiles](../../design/sample-evidence/locus-profiles.md), [requirements/sample-evidence/profile-aggregation](../../requirements/sample-evidence/profile-aggregation.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

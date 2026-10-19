@@ -1,7 +1,22 @@
+---
+id: ADR-0009
+status: accepted
+date: 2026-08-22
+family: [claim-boundary]
+supersedes: [ADR-0003]
+---
+
 # ADR-0009: Report Primary-Sequence Differences, Not Genotypes or Heteroplasmy
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-08-22
+- **Supersedes:** [ADR-0003](0003-behavioral-compatibility.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/scientific-state](../../architecture/invariants/scientific-state.md), [requirements/SRS](../../requirements/SRS.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

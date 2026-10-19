@@ -1,10 +1,21 @@
+---
+implements: [SRS-NOM, SRS-VAR]
+decided-by: [ADR-0047, ADR-0057, ADR-0060, ADR-0063, ADR-0065, ADR-0069, ADR-0077]
+covers:
+  - crates/dna-empop/src/conformance.rs
+  - crates/dna-normalize/src/variant_nomenclature/
+  - crates/dna-normalize/tests/fixtures/lab-convention.tsv
+  - src/pipeline/represent.rs
+  - src/report/notation.rs
+---
+
 # Variant Nomenclature
 
 Variant nomenclature is an optional target-specific representation layer after
 variant calling and haplotype-preserving normalization. The target knowledge —
 which windows exist, their reference sequence and structure, and which rules
 apply in which order — comes from a target profile (ADR-0063,
-[profile reference](../reference/profiles.md)); this layer owns only the generic
+[[reference/profiles|profile reference]]); this layer owns only the generic
 engine.
 
 It does not call variants, reinterpret Sanger signal, or change the reconstructed
@@ -72,7 +83,7 @@ as `309.1C`, `309.2C`, and `315.1C`.
    equality with the normalization result before returning.
 
 The rule vocabulary and its structure preconditions are in the
-[profile reference](../reference/profiles.md). The human-mtDNA profile uses:
+[[reference/profiles|profile reference]]. The human-mtDNA profile uses:
 
 | Window | Structure | Rules, in order |
 | --- | --- | --- |
@@ -209,7 +220,7 @@ record the length of the uninterrupted HVS-I C run that `16189C` creates
 `T16189`, the two short runs are read through. A length call there is
 evidence, so it stays unlabelled. On development panel v5 (main `4e6f8d1`), 31
 `sequence` samples differ from the truth only by labelled calls, and the
-[evaluation harness](../validation/evaluation-harness.md#discrepancy-causes)
+[[validation/evaluation-harness#discrepancy-causes|evaluation harness]]
 gives them to the lab as deferred. Two `16193DEL` samples whose `16185T`
 splits the run (C8) stay unlabelled.
 

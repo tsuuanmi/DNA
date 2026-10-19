@@ -11,4 +11,4 @@ Use the test type that matches the risk:
 - property/fuzz/adversarial tests for invariant and untrusted-input classes;
 - approved real-data validation for scientific claims.
 
-Normative minimums are in [validation acceptance criteria](../validation/acceptance-criteria.md). Broader evidence strategy is in [validation](../validation/README.md).
+Normative minimums are in [[validation/acceptance-criteria|validation acceptance criteria]]. Broader evidence strategy is in [validation](../validation/README.md).

@@ -1,12 +1,21 @@
+---
+id: ADR-0078
+status: accepted
+date: 2026-10-17
+related: [ADR-0047, ADR-0071, ADR-0073, ADR-0074, PROP-0006]
+---
+
 # ADR-0078: Call the consensus's decided edits without placing it again
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-17
-- **Related decisions:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
-  [ADR-0073](0073-sample-consensus.md),
-  [ADR-0074](0074-run-structure-consensus.md)
-- **Proposal:** [PROP-0006](../../proposals/0006-call-consensus-decisions.md)
+- **Related:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md), [ADR-0073](0073-sample-consensus.md), [ADR-0074](0074-run-structure-consensus.md), [PROP-0006](../../proposals/0006-call-consensus-decisions.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/data-flow](../../architecture/data-flow.md), [architecture/variant-lifecycle](../../architecture/variant-lifecycle.md), [design/pipeline](../../design/pipeline.md), [reference/consensus](../../reference/consensus.md), [reference/rust-api](../../reference/rust-api.md), [reference/variants](../../reference/variants.md), [requirements/variants](../../requirements/variants.md), [validation/known-limitations](../../validation/known-limitations.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

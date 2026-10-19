@@ -1,11 +1,21 @@
+---
+id: ADR-0077
+status: accepted
+date: 2026-10-17
+related: [ADR-0047, ADR-0060, ADR-0069, ADR-0070]
+---
+
 # ADR-0077: Post-calling split into normalize and EMPOP crates
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-17
-- **Related decisions:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md),
-  [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md),
-  [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0070](0070-workspace-split-by-plugin-family.md) (amends §1)
+- **Related:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md), [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md), [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0070](0070-workspace-split-by-plugin-family.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/overview](../../architecture/overview.md), [architecture/variant-lifecycle](../../architecture/variant-lifecycle.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [reference/rust-api](../../reference/rust-api.md), [validation/discrepancy-catalogue](../../validation/discrepancy-catalogue.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -76,7 +86,7 @@ it must never be guessed from the lab form.
      the reviewers not recording the HVS-I C-tract length. Such a convention
      needs its own labelled report policy, which classifies and never deletes.
    - Every difference from the truth is classified by its owner in the
-     [discrepancy catalogue](../../validation/discrepancy-catalogue.md). A
+     [[validation/discrepancy-catalogue|discrepancy catalogue]]. A
      class not handled yet stays there as a TODO. Reviewer truth can be wrong:
      a difference that the read evidence attributes to the truth goes to the
      reviewers for a re-check and does not change DNA.

@@ -1,19 +1,17 @@
 ---
 id: PROP-0005
-type: proposal
 status: draft
-owners: []
 created: 2026-10-14
-related-requirements: [SRS-NFR-003, SRS-NFR-006]
-related-decisions: [ADR-0018, ADR-0065, ADR-0066, ADR-0069, ADR-0075]
-implementation: []
+summary: "labels, metrics, fixed test panels drawn from about 100,000 reviewed samples, and a cached evidence → rules → compare loop for validating triage rules. Harness v0 (`dna-eval`, ADR-0075) is implemented."
+implements: [SRS-NFR-003, SRS-NFR-006]
+decided-by: [ADR-0018, ADR-0065, ADR-0066, ADR-0069, ADR-0075]
 ---
 
 # Proposal: Evaluation method and fast feedback loop
 
 ## Problem
 
-[PROP-0004](0004-review-triage.md) lets a rule act only after ground truth
+[[PROP-0004]] lets a rule act only after ground truth
 has validated it. The lab has about 100,000 samples with raw traces and
 reviewer results. Such a corpus can support strong claims, but only if two
 things exist:
@@ -135,7 +133,7 @@ make the loop possible they provide:
   lab's concordance rules (primary measure), with a stricter measure on the
   truth's analysed intervals, an IUPAC-compatible measure, and haplotype
   measures that do not count a haplotype written or placed differently
-  ([evaluation harness](../validation/evaluation-harness.md#measures)).
+  ([[validation/evaluation-harness#measures|evaluation harness]]).
   Work is ranked on the haplotype measures, so representation does not
   inflate the error counts. The haplotype measures compare only inside DNA's
   callable intervals, the HV regions, and the truth's analysed intervals
@@ -366,7 +364,7 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 ### Approval protocol (draft)
 
 The harness implements this protocol as `dna-eval approve` and `dna-eval
-power` ([approval](../validation/evaluation-harness.md#approval)); the bounds
+power` ([[validation/evaluation-harness#approval|approval]]); the bounds
 and rules below are inputs of the pre-registration, which the tool checks.
 
 This protocol approves pass rules on the hold-out (validation panel v3: 115
@@ -646,7 +644,7 @@ The harness logs stage timings, cache hit rates, and failures per sample.
 ## Security and privacy
 
 The corpus holds lab and personal sample data. The harness and its reports
-stay on the lab server under the [data policy](../governance/data.md). DNA
+stay on the lab server under the [[governance/data|data policy]]. DNA
 documents quote aggregates only.
 
 ## Compatibility and migration
@@ -667,7 +665,7 @@ Decided 2026-10-14: the harness is a crate in the DNA workspace
 earlier choice of a separate repository.
 
 The crate landed with
-[ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md), which
+[[ADR-0075]], which
 supersedes ADR-0065 in part, the matching revision of SRS-COMPAT-003, and the
 crate-graph rule in `validate_module_layers.py`: the harness may depend on
 `dna` and the plugin crates, and nothing may depend on the harness.
@@ -688,7 +686,7 @@ yet reviewed.
   previous release.
 
 **Harness v0** (`crates/dna-eval`,
-[evaluation harness](../validation/evaluation-harness.md)):
+[[validation/evaluation-harness|evaluation harness]]):
 
 - **Scope.** It runs DNA, compares the calls with reviewer truth, and
   reports weighted estimates, anchors, and the diff against a baseline run.
@@ -697,7 +695,7 @@ yet reviewed.
   PROP-0004 over a compact per-sample evidence record taken in stage E and
   held in memory; every policy of a sweep runs on that record without DNA.
   Results and timings are in
-  [PROP-0004](0004-review-triage.md#phase-0-results).
+  [[PROP-0004#phase-0-results|PROP-0004]].
 - **Stage E.** Instead of reading CLI result JSON (rollout step 2), it calls
   the library: `dna::sample_analysis::analyze_sanger` with one worker per
   sample, then `SampleAnalysis::call`, which completes `consensus` then `call`
@@ -779,7 +777,7 @@ yet reviewed.
   estimate equals the draft-triage run before this change, and no sample
   concordant on a base measure is discordant on its haplotype measure).
   - **Method**
-    ([measures](../validation/evaluation-harness.md#measures)). Inside the
+    ([[validation/evaluation-harness#measures|measures]]). Inside the
     HV regions within DNA's callable intervals each side's alleles are
     applied to rCRS and the two sequences are cut into blocks wherever their
     lengths agree; alleles outside differing blocks leave the comparison, and

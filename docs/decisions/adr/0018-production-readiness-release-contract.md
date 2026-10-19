@@ -1,8 +1,18 @@
+---
+id: ADR-0018
+status: accepted
+family: [release]
+---
+
 # ADR-0018: Production readiness is an explicit release contract
 
-## Status
+<!-- docs:begin lifecycle -->
+- **Status:** Accepted
+<!-- docs:end lifecycle -->
 
-Accepted
+<!-- docs:begin backlinks -->
+- **Governs:** [engineering/ci-cd](../../engineering/ci-cd.md), [engineering/release](../../engineering/release.md), [governance/versioning](../../governance/versioning.md), [operations/production-readiness](../../operations/production-readiness.md), [operations/release-evidence-template](../../operations/release-evidence-template.md), [security/supply-chain](../../security/supply-chain.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

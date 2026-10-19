@@ -1,8 +1,18 @@
+---
+id: ADR-0021
+status: accepted
+family: [release]
+---
+
 # ADR-0021: Define a scientific core confidence floor
 
-## Status
+<!-- docs:begin lifecycle -->
+- **Status:** Accepted
+<!-- docs:end lifecycle -->
 
-Accepted
+<!-- docs:begin backlinks -->
+- **Governs:** [engineering/release](../../engineering/release.md), [operations/production-readiness](../../operations/production-readiness.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

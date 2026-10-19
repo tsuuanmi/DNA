@@ -1,3 +1,17 @@
+---
+decided-by:
+  - ADR-0023
+  - ADR-0025
+  - ADR-0026
+  - ADR-0030
+  - ADR-0032
+  - ADR-0033
+  - ADR-0035
+  - ADR-0053
+  - ADR-0068
+  - ADR-0069
+---
+
 # DNA Sample Evidence JSON
 
 `dna sample <sample-id> <trace.ab1>... --reference <reference.fasta>`

@@ -1,9 +1,21 @@
+---
+id: ADR-0063
+status: accepted
+date: 2026-10-08
+related: [ADR-0060, ADR-0062]
+---
+
 # ADR-0063: Target knowledge in versioned profiles
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-08
-- **Related decisions:** [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md),
-  [ADR-0062](0062-read-callability.md)
+- **Related:** [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md), [ADR-0062](0062-read-callability.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/variant-lifecycle](../../architecture/variant-lifecycle.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [design/variant-normalization](../../design/variant-normalization.md), [reference/profiles](../../reference/profiles.md), [requirements/profiles](../../requirements/profiles.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

@@ -1,12 +1,10 @@
 ---
 id: PROP-0002
-type: proposal
 status: implemented
-owners: []
 created: 2026-10-09
-related-requirements: [SRS-VAR-012, SRS-VAR-013]
-related-decisions: [ADR-0058, ADR-0060, ADR-0064, ADR-0069, ADR-0070]
-implementation: []
+summary: "modality plugins, a standalone core over per-read evidence, and post-calling plugins, delivered in phases with exit criteria."
+implements: [SRS-VAR-012, SRS-VAR-013]
+decided-by: [ADR-0058, ADR-0060, ADR-0064, ADR-0069, ADR-0070]
 ---
 
 # Proposal: Plugin-first architecture
@@ -41,7 +39,7 @@ Today the core is not usable alone:
 
 ## Non-goals
 
-The non-goals of [PROP-0001](0001-modular-dna-analysis-platform.md) remain:
+The non-goals of [[PROP-0001]] remain:
 - no dynamic library loading;
 - not every module becomes a trait or a crate;
 - no claim of scientific equivalence between implementations.
@@ -70,7 +68,7 @@ In addition:
 ## Proposed design
 
 The decision is recorded in
-[ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md).
+[[ADR-0069]].
 The design lands in phases. Each phase is its own change with its own exit
 criterion.
 
@@ -147,7 +145,7 @@ aggregates are quoted.
 ## Decision
 
 Accepted on 2026-10-09 and recorded by
-[ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md).
+[[ADR-0069]].
 
 ## Implementation
 
@@ -198,7 +196,7 @@ Accepted on 2026-10-09 and recorded by
   - the module validator enforces the target crate map
     (kernel, core, sanger, post, dna) instead of layers.
   Every result document is byte-identical.
-- Phase 5b ([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md)):
+- Phase 5b ([[ADR-0070]]):
   - the workspace has `dna-kernel`, `dna-core`, `dna-sanger`, and `dna-post`
     under `crates/`, plus the `dna` facade at the root, with shared package
     metadata, dependencies, and lints;

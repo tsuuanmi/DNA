@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0023, ADR-0030, ADR-0032, ADR-0033, ADR-0035, ADR-0053, ADR-0068]
+---
+
 # Overlap and Topology Requirements
 
 **Requirement namespace:** `SRS-SAMPLE-007..SRS-SAMPLE-012`
@@ -10,3 +14,9 @@ These requirements are part of the canonical [sample evidence SRS](README.md) an
 - **SRS-SAMPLE-010:** Compact sample evidence MUST expose pairwise overlap/admission evidence in addition to the existing read registry, sparse differential loci, and normalized variant support. This evidence MUST NOT itself produce a consensus sequence, sample-level variant verdict, majority vote, genotype, heteroplasmy estimate, or reference vote.
 - **SRS-SAMPLE-011:** Sample evidence MUST expose a run-length encoded reference-coordinate coverage topology derived only from selected post-trim read segments. Each maximal interval MUST report total read depth plus forward/reverse orientation depth, with total depth equal to the orientation-depth sum. Coverage MUST include every independently placed read regardless of pairwise overlap eligibility and MUST NOT imply canonical-base agreement, consensus admission, or biological strand independence.
 - **SRS-SAMPLE-012:** Every normalized sample variant MUST retain a factorized support topology derived from its authoritative per-read support records and selected read orientations: total observing reads, eligible observing reads, forward/reverse observing reads, and eligible forward/reverse observing reads. Each read MUST contribute at most once to one normalized variant identity. The topology MUST include ineligible observations, MUST NOT count covering reference/unresolved/competing-event reads as support for the variant, and MUST NOT be interpreted as confidence, vote weight, sample-level verdict, or biological strand independence.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/pipeline](../../design/pipeline.md), [design/sample-evidence](../../design/sample-evidence/README.md), [reference/rust-api](../../reference/rust-api.md), [reference/sample-evidence/overlaps-loci](../../reference/sample-evidence/overlaps-loci.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [requirements/callability](../callability.md), [requirements/consensus](../consensus.md), [requirements/output](../output.md), [requirements/sample-evidence/callability](callability.md), [requirements/sample-evidence/core](core.md), [requirements/signal-processing](../signal-processing.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+<!-- docs:end backlinks -->

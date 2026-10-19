@@ -1,3 +1,14 @@
+---
+implements: [SRS-COMPAT, SRS-IN]
+decided-by: [ADR-0058, ADR-0059, ADR-0069, ADR-0070, ADR-0073, ADR-0075, ADR-0077, ADR-0079]
+covers:
+  - crates/dna-kernel/src/reference/
+  - src/cli/
+  - src/input/sanger/
+  - src/input/sequence.rs
+  - src/input/variants.rs
+---
+
 # Architecture Overview
 
 ## Principles
@@ -59,8 +70,8 @@
 | `pipeline` | dna | CLI orchestration of every command (analyze, basecall, sample, consensus, call, notation), path/log/publication lifecycle | scientific implementation ownership |
 
 DNA is a Cargo workspace of plugin-family crates, with the core split by step
-([ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),
-[ADR-0079](../decisions/adr/0079-core-crates-by-step.md),
+([[ADR-0070]],
+[[ADR-0079]],
 [crates](../../crates/README.md)):
 
 - `dna-kernel` holds the shared contracts;
@@ -70,13 +81,13 @@ DNA is a Cargo workspace of plugin-family crates, with the core split by step
 - `dna-sanger` is the Sanger modality;
 - `dna-normalize` holds post-calling representation, normalization, and
   nomenclature, and `dna-empop` holds conformance
-  ([ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md)). The core
+  ([[ADR-0077]]). The core
   decides the sequence; normalization only writes it, and conformance only
   checks it (ADR-0077 §5);
 - the `dna` facade at the repository root composes them;
 - `dna-eval` is the evaluation harness: it runs DNA over a test panel through
   the facade's library and compares the calls with reviewer truth
-  ([ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md)). It is
+  ([[ADR-0075]]). It is
   not part of the `dna` binary or the release.
 
 The Crate column above uses the short names. Each core crate depends only on
@@ -93,12 +104,12 @@ cycles are forbidden.
 
 External libraries may implement commodity algorithms or formats behind these
 boundaries, but dependency-specific types must not become accidental DNA domain
-contracts. See [dependency policy](../engineering/dependencies.md) and
-[ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
+contracts. See [[engineering/dependencies|dependency policy]] and
+[[ADR-0059]].
 
 ## Resource bounds
 
 Config/profile/FASTA source files, ABIF input, normalized reference length, changed indel
 length, and alignment cells are explicitly bounded. Exact current limits and
 requirements are owned by [requirements](../requirements/README.md) and
-[configuration reference](../reference/configuration.md).
+[[reference/configuration|configuration reference]].

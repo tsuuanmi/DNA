@@ -1,12 +1,22 @@
+---
+id: ADR-0076
+status: accepted
+date: 2026-10-16
+family: [callability]
+related: [ADR-0062, ADR-0067, ADR-0071, ADR-0074, ADR-0075]
+---
+
 # ADR-0076: Bounded runs before a post-repeat phase loss are exempt from `read_end`
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-16
-- **Related decisions:** [ADR-0062](0062-read-callability.md),
-  [ADR-0067](0067-signal-derived-read-callability.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
-  [ADR-0074](0074-run-structure-consensus.md),
-  [ADR-0075](0075-evaluation-harness-in-workspace.md)
+- **Related:** [ADR-0062](0062-read-callability.md), [ADR-0067](0067-signal-derived-read-callability.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md), [ADR-0074](0074-run-structure-consensus.md), [ADR-0075](0075-evaluation-harness-in-workspace.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/evidence](../../architecture/invariants/evidence.md), [architecture/invariants/pipeline](../../architecture/invariants/pipeline.md), [design/callability](../../design/callability.md), [design/variant-calling](../../design/variant-calling.md), [reference/review](../../reference/review.md), [reference/rust-api](../../reference/rust-api.md), [reference/sample-evidence/variants-signal](../../reference/sample-evidence/variants-signal.md), [requirements/callability](../../requirements/callability.md), [requirements/consensus](../../requirements/consensus.md), [requirements/variants](../../requirements/variants.md), [validation/evaluation-harness](../../validation/evaluation-harness.md), [validation/known-limitations](../../validation/known-limitations.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

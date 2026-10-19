@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0020]
+---
+
 # Rust implementation Invariants
 
 These invariants are part of the canonical [system invariant set](README.md).

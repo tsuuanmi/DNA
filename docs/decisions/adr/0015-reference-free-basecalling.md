@@ -1,7 +1,19 @@
+---
+id: ADR-0015
+status: accepted
+date: 2026-08-23
+---
+
 # ADR-0015: Add One Reference-Free Basecall JSON Contract
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-08-23
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/basecalling](../../design/basecalling.md), [reference/basecalls](../../reference/basecalls.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

@@ -1,13 +1,27 @@
+---
+implements: [SRS-ALN, SRS-CALL, SRS-CONS, SRS-PRF, SRS-QC]
+decided-by:
+  - ADR-0027
+  - ADR-0047
+  - ADR-0057
+  - ADR-0060
+  - ADR-0062
+  - ADR-0067
+  - ADR-0071
+  - ADR-0076
+  - ADR-0078
+---
+
 # Primary-sequence Difference Requirements
 
 **Requirement namespace:** `SRS-VAR-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-VAR-001:** Variants MUST derive only from the selected primary-sequence alignment.
 - **SRS-VAR-002:** Canonical primary A/C/G/T mismatches MAY produce normalized SNV observations; unresolved primary N differences MUST be excluded and counted. A mixed call may still produce a primary-sequence difference from its strongest channel, but mixed supporting signal MUST remain explicit and MUST NOT be presented as an ordinary clean SNV.
 - **SRS-VAR-003:** Contiguous gaps MAY produce insertions/deletions no longer than configured changed length, excluding the anchor.
-- **SRS-VAR-004:** Indel representation MUST preserve the canonical gap placement selected by alignment under `SRS-ALN-012` in the [alignment requirements](alignment.md); variant construction MUST NOT independently left-shift, rotate, or otherwise move a repeat-equivalent indel. When no aligned left flank exists, the actual reference predecessor MUST be derived when possible; a true leading linear insertion/deletion MUST use a real right-anchor representation. Circular origin-spanning representation MUST preserve the alignment-selected side of the rCRS seam.
+- **SRS-VAR-004:** Indel representation MUST preserve the canonical gap placement selected by alignment under `SRS-ALN-012` in the [[requirements/alignment|alignment requirements]]; variant construction MUST NOT independently left-shift, rotate, or otherwise move a repeat-equivalent indel. When no aligned left flank exists, the actual reference predecessor MUST be derived when possible; a true leading linear insertion/deletion MUST use a real right-anchor representation. Circular origin-spanning representation MUST preserve the alignment-selected side of the rCRS seam.
 - **SRS-VAR-005:** Reported caller variants MUST use a validated anchored REF/ALT representation and include only 1-based `position`, reference/alternate alleles, kind, and a direct `calls` array. Caller construction MUST preserve the alignment-selected event placement under `SRS-VAR-004`; optional post-calling representation normalization is owned by `SRS-VN-*`. Contig, classification, and normalization labels MUST NOT be duplicated in compact JSON.
 - **SRS-VAR-006:** Every public variant-associated call MUST preserve its role, reference-oriented called `base`, co-located reference-oriented A/C/G/T primary-event channel heights, and uncalibrated `quality`. Original call index, ABIF PLOC, mapped call position, trace-strand primary/ambiguity, peak positions/sources, and vendor evidence MUST remain internal. Deletions MUST contain real flanks only and MUST NOT fabricate deleted-base signal/quality. A flanking call whose primary base is unresolved (`N`: its strongest channels tie, carry no signal, or all qualify) MUST be omitted rather than published or given fabricated evidence; supporting calls are always resolved, and a variant whose calls are all unresolved flanks is a typed failure.
 - **SRS-VAR-007:** Variant construction MUST preserve observed call/reference mappings and the alignment-selected canonical indel topology. Reported allele anchoring MAY add the required adjacent reference base but MUST NOT relocate the event through a repeat or across the reference origin seam.
@@ -25,3 +39,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-VAR-019:** In the `call` workflow (`dna call` and `SampleAnalysis::call`), a record's callable reference segments (SRS-ALN-015) MUST NOT include a position of a variant excluded from reporting: a substitution's position, a deletion's deleted positions, and both reference positions beside an excluded insertion's junction. An excluded call leaves its positions undecided rather than read as the reference; so does a candidate excluded before it is observed, such as an unresolved allele or an insertion or deletion no flank reads. Per-read sample evidence is not affected.
 - **SRS-VAR-020:** An insertion whose inserted calls extend a repeat of their unit in the read (one base, or a unit such as AC), where the read bounds the run (no `run_boundary`), MUST be judged for support vetoes on its placements along that repeat: it raises none when some window of as many calls of the repeat, anywhere in the repeat and not necessarily next to the aligned insertion, is unmasked and carries no veto that applies to insertions: every such window is an equivalent placement of the same insertion. Which calls of a repeat the alignment takes as inserted is arbitrary (their 3'-most placement, SRS-ALN-012), so a veto on them alone MUST NOT decide the insertion's support. Variant calling and the consensus judge it with the same rule (SRS-CONS-003). Substitutions, insertions that extend no repeat, and deletions keep per-call vetoes.
 - **SRS-VAR-021:** `call` given a consensus document (`dna.consensus/v1`, which MUST be its only input, of the requested sample and the supplied reference) and `SampleAnalysis::call` MUST call each consensus segment from the consensus's decisions without placing it on the reference again (ADR-0078): positions outside every site read the reference; a site's call is aligned against its own reference interval only, an `N` standing for the position it replaces and not callable; and every insertion and deletion takes its 3'-most sequence-equivalent placement over the segment (ADR-0047). The decided variants MUST be judged by the record rules (SRS-VAR-013 to SRS-VAR-020), and a length change of the reference run at the segment's first or last position MUST be excluded as `run_boundary`, since no read shows that run's outer end (ADR-0071). For a run of length evidence `phase_loss` or `reference_frame`, the 3'-most reference position, the deleted positions beside the run included, MUST NOT be callable, and a variant changing it, which a change of the run's length does, MUST be excluded as `run_boundary`. The run's other positions stay callable, since the reads show its composition (PROP-0008 step 3). A FASTA sequence given to `call` keeps the placement path.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/consensus](../design/consensus.md), [design/pipeline](../design/pipeline.md), [design/variant-calling](../design/variant-calling.md), [design/variant-nomenclature](../design/variant-nomenclature.md), [reference/consensus](../reference/consensus.md), [reference/notation](../reference/notation.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/sample-evidence/variants-signal](../reference/sample-evidence/variants-signal.md), [reference/variants](../reference/variants.md), [requirements/alignment](alignment.md), [requirements/api](api.md), [requirements/callability](callability.md), [requirements/consensus](consensus.md), [requirements/profiles](profiles.md), [requirements/variant-nomenclature](variant-nomenclature.md), [validation/discrepancy-catalogue](../validation/discrepancy-catalogue.md), [validation/known-limitations](../validation/known-limitations.md)
+<!-- docs:end backlinks -->

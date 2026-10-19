@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0068]
+---
+
 # Normalized Variant Aggregation
 
 Part of the canonical [sample evidence aggregation method](README.md).

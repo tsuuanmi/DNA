@@ -1,6 +1,14 @@
+---
+implements: [SRS-VN]
+decided-by: [ADR-0047, ADR-0057, ADR-0060, ADR-0063]
+covers:
+  - crates/dna-normalize/src/variant_normalization/
+  - crates/dna-normalize/src/variant_representation.rs
+---
+
 # Variant Normalization Method
 
-Part of the canonical [DNA pipeline architecture](../architecture/variant-lifecycle.md).
+Part of the canonical [[architecture/variant-lifecycle|DNA pipeline architecture]].
 
 Variant normalization is an optional post-calling representation transform. It
 does not call variants from sequencing evidence and does not apply
@@ -185,4 +193,4 @@ It does not own:
 - VCF/HGVS serialization or interchange normalization.
 
 Those remain separate capabilities under
-[ADR-0060](../decisions/adr/0060-separate-variant-canonicalization-nomenclature.md).
+[[ADR-0060]].

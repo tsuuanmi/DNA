@@ -1,17 +1,34 @@
+---
+id: ADR-0067
+status: accepted
+date: 2026-10-09
+family: [callability, sanger-eligibility]
+supersedes: [ADR-0062]
+related:
+  - ADR-0013
+  - ADR-0019
+  - ADR-0021
+  - ADR-0027
+  - ADR-0029
+  - ADR-0053
+  - ADR-0060
+  - ADR-0062
+  - ADR-0064
+  - ADR-0065
+---
+
 # ADR-0067: Signal-derived read callability
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-09
-- **Related decisions:** [ADR-0013](0013-observational-signal-quality.md),
-  [ADR-0019](0019-scientific-evidence-hierarchy.md),
-  [ADR-0021](0021-scientific-core-confidence-floor.md),
-  [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md),
-  [ADR-0029](0029-profile-aware-gotoh.md),
-  [ADR-0053](0053-public-differential-locus-signal-evidence.md),
-  [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md),
-  [ADR-0062](0062-read-callability.md),
-  [ADR-0064](0064-crate-ready-module-layering.md),
-  [ADR-0065](0065-result-comparison-downstream.md)
+- **Supersedes:** [ADR-0062](0062-read-callability.md)
+- **Related:** [ADR-0013](0013-observational-signal-quality.md), [ADR-0019](0019-scientific-evidence-hierarchy.md), [ADR-0021](0021-scientific-core-confidence-floor.md), [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md), [ADR-0029](0029-profile-aware-gotoh.md), [ADR-0053](0053-public-differential-locus-signal-evidence.md), [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md), [ADR-0064](0064-crate-ready-module-layering.md), [ADR-0065](0065-result-comparison-downstream.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/evidence](../../architecture/invariants/evidence.md), [architecture/invariants/pipeline](../../architecture/invariants/pipeline.md), [design/callability](../../design/callability.md), [design/signal-processing](../../design/signal-processing/README.md), [design/variant-calling](../../design/variant-calling.md), [governance/reference-validation](../../governance/reference-validation.md), [reference/analysis/provenance-read-signal](../../reference/analysis/provenance-read-signal.md), [reference/configuration](../../reference/configuration.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [reference/sample-evidence/variants-signal](../../reference/sample-evidence/variants-signal.md), [requirements/callability](../../requirements/callability.md), [requirements/variants](../../requirements/variants.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -32,7 +49,7 @@ weaknesses follow:
   which the caller reads as phantom indels and mixed bases.
 
 Measured outside the repository (ADR-0065) against revision `67a25ae` on the
-local reviewed corpus (aggregate numbers only, per [data governance](../../governance/data.md)):
+local reviewed corpus (aggregate numbers only, per [[governance/data|data governance]]):
 
 - of 54 reviewed samples, 28 agreed exactly with the reviewer calls;
 - seven missed calls sat beside a poly-C run, where both strands had observed
@@ -142,7 +159,7 @@ read's own signal.
   data grows.
 - A slipped population above one half flips the primary inside the run with no
   in-run signature; only cross-strand disagreement at sample scope can reveal
-  it ([known limitations](../../validation/known-limitations.md)).
+  it ([[validation/known-limitations|known limitations]]).
 
 ## Calibration amendment (2026-10-09)
 
@@ -151,7 +168,7 @@ double peaks shared one modal neighbour offset. On the local corpus that rule
 called most post-run slippage `mixed`, because slippage is usually two-sided:
 shorter and longer length populations leave shadows one call before and one
 call after. Before increment 2, still inside the unreleased cycle, the rule is
-replaced by a shadow model ([callability method](../../design/callability.md),
+replaced by a shadow model ([[design/callability|callability method]],
 substep 4.4):
 
 - each double-peak segment's normalized corrected amplitudes are fitted by

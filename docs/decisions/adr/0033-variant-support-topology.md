@@ -1,7 +1,20 @@
+---
+id: ADR-0033
+status: accepted
+date: 2026-09-19
+family: [sample-topology]
+---
+
 # ADR-0033: Factor normalized-variant support by eligibility and orientation
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence/coverage-overlap](../../design/sample-evidence/coverage-overlap.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [requirements/sample-evidence/overlap-topology](../../requirements/sample-evidence/overlap-topology.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -110,7 +123,7 @@ the result-contract validator independently recomputes topology from
 
 ## Follow-up (2026-10-09)
 
-[ADR-0068](0068-variant-opposition-evidence.md) takes the opposition decision
+[[ADR-0068]] takes the opposition decision
 for callable coverage: every variant publishes the admitted reads that callably
 observe its evidence span without supporting it. The support topology above is
 unchanged.

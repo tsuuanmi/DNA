@@ -1,6 +1,10 @@
+---
+decided-by: [ADR-0031, ADR-0059]
+---
+
 # ABIF Decoding Method
 
-Part of the canonical [DNA pipeline](pipeline.md).
+Part of the canonical [[design/pipeline|DNA pipeline]].
 
 Within the source architecture, ABIF is a **format layer** in the Sanger modality crate (`dna_sanger::abif`), which the facade's Sanger input adapter (`input::sanger`) calls. Applied Biosystems Sanger sequencing sample files commonly use the `.ab1` extension, but decoding is determined by the ABIF container signature and required sequencing tags rather than the filename suffix.
 
@@ -31,7 +35,7 @@ size, and element count before access. It extracts:
   projected to canonical Sanger `locus_positions`. A position equal to its
   predecessor names the same signal event, so it is merged into one locus and
   the vendor entries at its index are dropped; the merged count is kept as
-  trace-integrity evidence ([ADR-0031](../decisions/adr/0031-trace-integrity-evidence.md));
+  trace-integrity evidence ([[ADR-0031]]);
 - optional vendor base strings and quality values. Their decoded cardinality may
   differ from PLOC and is retained as trace-integrity evidence rather than
   changing the PLOC-defined call series.

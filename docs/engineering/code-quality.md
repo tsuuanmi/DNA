@@ -1,3 +1,7 @@
+---
+implements: [INV-RUST]
+---
+
 # Code Quality
 
 DNA prefers one clear implementation with explicit ownership and no transitional compatibility layer unless the current specification requires one.
@@ -6,7 +10,7 @@ Required engineering properties include:
 
 - formatted, warning-free Rust and Python tooling;
 - typed failures rather than hidden fallback behavior, following the stage
-  failure vocabulary in [Rust public API](../reference/rust-api.md#errors);
+  failure vocabulary in [[reference/rust-api#errors|Rust public API]];
 - no first-party unsafe Rust without a new explicit decision and targeted validation;
 - no deprecated/legacy compatibility scaffolding or diagnostic suppression used to preserve obsolete paths;
 - deterministic behavior where required by the domain;
@@ -35,4 +39,4 @@ roots carry no lint attributes. CI runs Clippy with `-D warnings`, so every
   dead, unused, unreachable, or deprecated code (INV-RUST-004); shared
   integration-test helpers are `pub` in a `pub mod support` instead.
 
-The executable quality gates are defined by [CI/CD](ci-cd.md) and repository policy validators.
+The executable quality gates are defined by [[engineering/ci-cd|CI/CD]] and repository policy validators.

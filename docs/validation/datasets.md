@@ -8,7 +8,7 @@ Synthetic ABIF and deterministic fixtures may be committed when they contain no 
 
 ## Real AB1 evidence
 
-Real traces may be used only under [data governance](../governance/data.md). Release evidence must preserve provenance sufficient to reproduce the evaluation while keeping sensitive source data out of the repository unless explicitly approved.
+Real traces may be used only under [[governance/data|data governance]]. Release evidence must preserve provenance sufficient to reproduce the evaluation while keeping sensitive source data out of the repository unless explicitly approved.
 
 ## Ground truth
 

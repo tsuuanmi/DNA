@@ -1,3 +1,8 @@
+---
+implements: [SRS-COMPAT]
+decided-by: [ADR-0065, ADR-0066, ADR-0075]
+---
+
 # Data and Fixture Governance
 
 This document governs local biological data, derived results, validation truth, and approved real-trace evidence.

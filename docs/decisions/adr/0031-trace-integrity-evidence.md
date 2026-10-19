@@ -1,7 +1,20 @@
+---
+id: ADR-0031
+status: accepted
+date: 2026-09-19
+family: [signal-evidence]
+---
+
 # ADR-0031: Preserve PLOC and signal-integrity evidence without artifact reclassification
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/evidence](../../architecture/invariants/evidence.md), [design/abif-decoding](../../design/abif-decoding.md), [design/signal-processing](../../design/signal-processing/README.md), [requirements/signal-processing](../../requirements/signal-processing.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

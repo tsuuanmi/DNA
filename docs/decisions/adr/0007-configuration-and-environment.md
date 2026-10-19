@@ -1,7 +1,20 @@
+---
+id: ADR-0007
+status: accepted
+date: 2026-08-22
+family: [logging]
+---
+
 # ADR-0007: Use Strict TOML Configuration and a Safe Environment Policy
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-08-22
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [requirements/output](../../requirements/output.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

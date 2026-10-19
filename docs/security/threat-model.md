@@ -38,12 +38,12 @@ Controls: evidence hierarchy, explicit unresolved states, requirements/design in
 
 Threats include full sequences or dense signal appearing in logs, tests, issue reports, or unapproved fixtures.
 
-Controls: [data governance](../governance/data.md), minimal operational logging, synthetic committed fixtures by default.
+Controls: [[governance/data|data governance]], minimal operational logging, synthetic committed fixtures by default.
 
 ### Dependency/supply-chain compromise
 
 Threats include vulnerable or unreviewed third-party packages and non-reproducible release inputs.
 
-Controls: lockfiles, dependency review, advisory/license checks, artifact identity, [supply-chain policy](supply-chain.md).
+Controls: lockfiles, dependency review, advisory/license checks, artifact identity, [[security/supply-chain|supply-chain policy]].
 
 Any future network service, unsafe/FFI boundary, secret-bearing integration, or privileged deployment requires threat-model revision and an explicit architectural/security decision.

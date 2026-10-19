@@ -1,3 +1,17 @@
+---
+decided-by:
+  - ADR-0023
+  - ADR-0030
+  - ADR-0038
+  - ADR-0039
+  - ADR-0040
+  - ADR-0041
+  - ADR-0042
+  - ADR-0043
+  - ADR-0053
+  - ADR-0068
+---
+
 # Profile Aggregation Requirements
 
 **Requirement namespace:** `SRS-SAMPLE-019..SRS-SAMPLE-023`
@@ -9,3 +23,9 @@ These requirements are part of the canonical [sample evidence SRS](README.md) an
 - **SRS-SAMPLE-021:** Every non-empty total/forward/reverse eligible-profile partition MUST retain threshold-free heterogeneity geometry: mean within-profile Gini impurity, between-profile dispersion, and total mean-profile heterogeneity, with total heterogeneity equal to within impurity plus between dispersion within numerical tolerance. These metrics MUST NOT be interpreted as biological mixture, heteroplasmy, confidence, or a categorical consensus state.
 - **SRS-SAMPLE-022:** When both forward and reverse mean nucleotide profiles exist, DNA MUST retain their Total Variation distance in [0, 1]; otherwise the directional distance MUST be absent. This distance MUST remain a descriptive orientation-profile metric and MUST NOT introduce a discordance threshold, strand-bias verdict, confidence value, or consensus decision.
 - **SRS-SAMPLE-023:** Public sample differential-locus evidence MUST project the existing factorized support topology and, for each call-backed observation, the existing candidate-noisy-region membership plus optional normalized reference-oriented A/C/G/T `EvidenceProfile`. A call-backed observation with no real profile MUST omit `profile`; a deletion MUST omit both `profile` and `in_noisy_region`. The report layer MUST NOT recompute signal evidence, fabricate missing profiles, expose corrected amplitudes/SNR, or interpret topology/profile/noise as a consensus, confidence value, artifact label, or biological independence claim.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/pipeline](../../design/pipeline.md), [design/sample-evidence](../../design/sample-evidence/README.md), [reference/rust-api](../../reference/rust-api.md), [reference/sample-evidence/overlaps-loci](../../reference/sample-evidence/overlaps-loci.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [requirements/callability](../callability.md), [requirements/consensus](../consensus.md), [requirements/output](../output.md), [requirements/sample-evidence/callability](callability.md), [requirements/sample-evidence/core](core.md), [requirements/signal-processing](../signal-processing.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+<!-- docs:end backlinks -->

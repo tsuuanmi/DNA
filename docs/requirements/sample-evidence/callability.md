@@ -1,8 +1,13 @@
+---
+implements: [SRS-ALN, SRS-CALL, SRS-SAMPLE, SRS-SIG]
+decided-by: [ADR-0023, ADR-0030, ADR-0053, ADR-0068]
+---
+
 # Sample Callability Requirements
 
 **Requirement namespace:** `SRS-SAMPLE-024..SRS-SAMPLE-030`
 
-These requirements are part of the canonical [sample evidence SRS](README.md) and cover how read callability ([SRS-CALL](../callability.md)) enters sample evidence.
+These requirements are part of the canonical [sample evidence SRS](README.md) and cover how read callability ([[requirements/callability|SRS-CALL]]) enters sample evidence.
 
 - **SRS-SAMPLE-024:** A read's call that is masked (SRS-CALL-005) MUST observe a retained differential locus with state `masked`, keeping its reference-oriented primary base, relative quality, profile, and noisy-region context for review. A masked observation MUST NOT retain a locus by itself, MUST NOT enter pairwise comparable denominators, and MUST NOT contribute nucleotide mass (SRS-SAMPLE-018).
 - **SRS-SAMPLE-025:** Locus support topology MUST count masked observations as `masked_reads`, and the state counts MUST still sum to total reads.
@@ -11,3 +16,9 @@ These requirements are part of the canonical [sample evidence SRS](README.md) an
 - **SRS-SAMPLE-028:** Every sample variant MUST publish `opposition`: the admitted reads, in read-registry order, whose callable reference segments cover its evidence span — the anchored reference allele, plus the base after the anchor for an insertion — and that have no support record for the variant, with forward and reverse counts. Opposition MUST be derived only from published support, callable segments, and orientation, and MUST NOT be combined with support into a vote, verdict, weight, or confidence (ADR-0068).
 - **SRS-SAMPLE-029:** A read that the core cannot place MUST NOT fail the `sample` operation. This covers too few callable alignment columns, callable identity below `alignment.minimum_identity`, more than one best placement, and tied orientations. The read MUST be recorded in `rejected_reads[]` like a SRS-SAMPLE-027 read, with reason `callable_columns_below_minimum` (with `callable_columns` and `minimum_callable_columns`), `identity_below_minimum` (with `identity` and `minimum_identity`), `ambiguous_placement`, or `orientation_tie`. Every other alignment or processing failure, apart from SRS-SAMPLE-030, MUST still fail the operation. A sample whose every read is rejected for any of these reasons fails without a document.
 - **SRS-SAMPLE-030:** A read with fewer calls than `signal_processing.window_size_bases` (SRS-SIG-007) MUST NOT fail the `sample` operation. It MUST be recorded in `rejected_reads[]` like a SRS-SAMPLE-027 read, with reason `too_short` (with `calls` and `minimum_calls`) but without integrity or callability, because no processing stage runs on it. A trace that cannot be decoded MUST still fail the operation.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/pipeline](../../design/pipeline.md), [design/sample-evidence](../../design/sample-evidence/README.md), [reference/rust-api](../../reference/rust-api.md), [reference/sample-evidence/overlaps-loci](../../reference/sample-evidence/overlaps-loci.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [requirements/callability](../callability.md), [requirements/consensus](../consensus.md), [requirements/output](../output.md), [requirements/sample-evidence/core](core.md), [requirements/signal-processing](../signal-processing.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+<!-- docs:end backlinks -->

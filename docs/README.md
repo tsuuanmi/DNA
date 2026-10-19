@@ -2,7 +2,7 @@
 
 This is the canonical knowledge router for humans and coding agents.
 
-DNA documentation implements the reusable [Documentation Architecture Standard](governance/documentation-architecture.md). It is organized by **role, authority, lifecycle, and ownership**. One fact has one canonical home; other documents link to it rather than duplicating it.
+DNA documentation implements the reusable [Documentation Architecture Standard](governance/documentation-architecture.md). It is organized by **role, authority, lifecycle, and ownership**, linked by typed edges, and kept current by generated indexes. One fact has one canonical home; other documents link to it rather than duplicating it.
 
 ## Read order for a change
 
@@ -65,4 +65,21 @@ Categories are created when they have real artifacts or governance value. DNA in
 
 > Specs define truth. Research provides evidence. Proposals explore change. ADRs preserve decisions. Architecture describes structure. Design describes mechanisms. Code realizes design. Tests and validation prove behavior. Operations keep it supportable. Learning feeds new requirements and research.
 
-See the reusable [documentation architecture standard](governance/documentation-architecture.md), the [DNA documentation policy](governance/documentation.md), and [lifecycle](governance/lifecycle.md).
+## Finding everything connected
+
+Prose links tell a reader where to look; **typed edges** tell a tool. Current
+documents declare `implements`, `decided-by`, `covers`, and `verified-by` in front
+matter, and a decision declares what it `supersedes`. From `tools/python`:
+
+```bash
+uv run python scripts/docs_graph.py trace crates/dna-align/src/canonical.rs
+uv run python scripts/docs_graph.py trace SRS-ALN-003
+uv run python scripts/docs_graph.py trace ADR-0047
+```
+
+prints the requirements, designs, decisions (with what replaced them), reference,
+source, and tests that belong to the target. Indexes, status tables, and coverage
+tables are generated; change the front matter and run `docs_graph.py sync`.
+Removed documents stay findable through the [retired ledger](governance/retired.md).
+
+See the reusable [documentation architecture standard](governance/documentation-architecture.md) and the [DNA documentation policy](governance/documentation.md).

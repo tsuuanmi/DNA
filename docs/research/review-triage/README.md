@@ -1,3 +1,9 @@
+---
+id: RES-review-triage
+status: active
+summary: Evidence supporting the review triage proposal.
+---
+
 # Research: how other systems decide pass, review, and rerun
 
 **Status:** exploratory. This note has no production authority. It supports

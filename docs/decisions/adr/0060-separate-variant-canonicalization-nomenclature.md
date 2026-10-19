@@ -1,8 +1,24 @@
+---
+id: ADR-0060
+status: superseded-in-part
+date: 2026-10-03
+family: [variant-nomenclature]
+supersedes: [ADR-0047]
+related: [ADR-0047, ADR-0057, ADR-0058]
+---
+
 # ADR-0060: Separate variant calling, canonicalization, and nomenclature
 
+<!-- docs:begin lifecycle -->
 - **Status:** Superseded in part by [ADR-0069](0069-plugin-first-modality-core-post-calling.md) (§1, §6)
 - **Date:** 2026-10-03
-- **Related decisions:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md), [ADR-0057](0057-haplotype-correctness-and-variant-nomenclature.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
+- **Supersedes:** [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md)
+- **Related:** [ADR-0057](0057-haplotype-correctness-and-variant-nomenclature.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/data-flow](../../architecture/data-flow.md), [design/variant-calling](../../design/variant-calling.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [design/variant-normalization](../../design/variant-normalization.md), [requirements/variant-nomenclature](../../requirements/variant-nomenclature.md), [requirements/variant-normalization](../../requirements/variant-normalization.md), [requirements/variants](../../requirements/variants.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -267,7 +283,7 @@ canonical variant representation must always inherit the alignment-selected gap
 placement and that positional variant canonicalization has one authoritative
 home inside `alignment::canonical`.
 
-[ADR-0069](0069-plugin-first-modality-core-post-calling.md) supersedes §1 and
+[[ADR-0069]] supersedes §1 and
 §6 in part: the caller is a modality-neutral core over per-read evidence
 (`ReadEvidence`), and modality eligibility reaches it as data. Called variants
 remain the convergence boundary for imported calls.

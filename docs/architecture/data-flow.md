@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0060, ADR-0069, ADR-0078]
+---
+
 # Data Flow
 
 ## Current Sanger production path
@@ -77,7 +81,7 @@ it, in the `sample` and `consensus` commands and in the public Sample Analysis
 capability alike.
 
 Alignment and variant calling see the read only as `ReadEvidence`
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+([[ADR-0069]]):
 the Sanger adapter turns calls, signal, callability, and quality into bases,
 profiles, labelled masks, support vetoes, and the informative interval.
 
@@ -128,8 +132,8 @@ canonicalization for evidence placement and provenance. That alignment rule is
 separate from any post-calling normalization selected by another workflow.
 
 The detailed boundary is owned by
-[variant lifecycle](variant-lifecycle.md) and ADR-0060.
+[[architecture/variant-lifecycle|variant lifecycle]] and ADR-0060.
 
 Coordinate/strand semantics are canonical in
-[reference/coordinates](../reference/coordinates.md); pipeline invariants are
+[[reference/coordinates]]; pipeline invariants are
 canonical in [invariants](invariants/README.md).

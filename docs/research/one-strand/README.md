@@ -1,3 +1,9 @@
+---
+id: RES-one-strand
+status: active
+summary: Evidence for the open question on whether a single strand can pass a region.
+---
+
 # Research: when may a region read by one strand pass?
 
 **Status:** exploratory evidence for a decision. This note has no production

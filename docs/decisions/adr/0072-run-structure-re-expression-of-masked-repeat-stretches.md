@@ -1,13 +1,22 @@
+---
+id: ADR-0072
+status: accepted
+date: 2026-10-10
+family: [placement]
+related: [ADR-0029, ADR-0047, ADR-0065, ADR-0067, ADR-0069, ADR-0071]
+---
+
 # ADR-0072: Run-structure re-expression of masked repeat stretches
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-10
-- **Related decisions:** [ADR-0029](0029-profile-aware-gotoh.md),
-  [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md),
-  [ADR-0065](0065-result-comparison-downstream.md),
-  [ADR-0067](0067-signal-derived-read-callability.md),
-  [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md)
+- **Related:** [ADR-0029](0029-profile-aware-gotoh.md), [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md), [ADR-0065](0065-result-comparison-downstream.md), [ADR-0067](0067-signal-derived-read-callability.md), [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/alignment](../../architecture/invariants/alignment.md), [design/alignment](../../design/alignment.md), [requirements/alignment](../../requirements/alignment.md), [validation/known-limitations](../../validation/known-limitations.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

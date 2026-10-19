@@ -1,7 +1,19 @@
+---
+id: ADR-0003
+status: superseded-in-part
+date: 2026-08-22
+---
+
 # ADR-0003: Target Behavioral Compatibility with Apollo C++
 
-- **Status:** Superseded in part by ADR-0009
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0009](0009-biological-semantics.md)
 - **Date:** 2026-08-22
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- _Not yet referenced by a current document._
+<!-- docs:end backlinks -->
 
 ## Context
 

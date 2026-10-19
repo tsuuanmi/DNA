@@ -1,18 +1,30 @@
+---
+id: ADR-0070
+status: accepted
+date: 2026-10-09
+family: [modular-api, crates]
+supersedes: [ADR-0002, ADR-0058 §9, ADR-0064]
+related: [ADR-0002, ADR-0058, ADR-0064, ADR-0069, PROP-0002]
+---
+
 # ADR-0070: Workspace split by plugin family
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-09
-- **Related proposal:** [PROP-0002](../../proposals/0002-plugin-first-architecture.md) (phase 5)
-- **Related decisions:** [ADR-0002](0002-single-crate-layering.md),
-  [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md),
-  [ADR-0064](0064-crate-ready-module-layering.md),
-  [ADR-0069](0069-plugin-first-modality-core-post-calling.md)
+- **Supersedes:** [ADR-0002](../../governance/retired.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md) (§9), [ADR-0064](0064-crate-ready-module-layering.md)
+- **Related:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [PROP-0002](../../proposals/0002-plugin-first-architecture.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [engineering/ci-cd](../../engineering/ci-cd.md), [engineering/development](../../engineering/development.md), [governance/retired](../../governance/retired.md), [reference/rust-api](../../reference/rust-api.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
-[ADR-0002](0002-single-crate-layering.md) keeps one crate until reuse, build
+[[governance/retired|ADR-0002]] keeps one crate until reuse, build
 isolation, or independent release justifies a split.
-[ADR-0064](0064-crate-ready-module-layering.md) names the trigger: "a second
+[[ADR-0064]] names the trigger: "a second
 sequencing modality needs the core and representation layers without the
 Sanger stack". That trigger now holds. The reviewed-consensus `sequence`
 modality, `dna call`, and `dna notation` run the core and the post-calling
@@ -36,12 +48,12 @@ PROP-0002 phase 5a untangled the sources along those families in place:
      - target profiles and reference loading;
      - the plugin descriptor types with their compile-time validation.
    - `dna-core` is the core caller: alignment, variant calling, and sample
-     aggregation (split by [ADR-0079](0079-core-crates-by-step.md) into
+     aggregation (split by [[ADR-0079]] into
      `dna-align`, `dna-call`, `dna-sample`, and `dna-consensus`).
    - `dna-sanger` is the Sanger modality, from ABIF decoding to
      `ReadEvidence`.
    - `dna-post` holds the post-calling plugins (split by
-     [ADR-0077](0077-normalize-and-empop-crates.md) into `dna-normalize` and
+     [[ADR-0077]] into `dna-normalize` and
      `dna-empop`): representation,
      normalization, nomenclature, and conformance.
    - `dna` holds the CLI, the pipelines, the configuration envelope, input
@@ -84,10 +96,10 @@ PROP-0002 phase 5a untangled the sources along those families in place:
 
 ## Supersession
 
-- [ADR-0002](0002-single-crate-layering.md) is superseded.
-- [ADR-0064](0064-crate-ready-module-layering.md) is superseded in part:
+- [[governance/retired|ADR-0002]] is superseded.
+- [[ADR-0064]] is superseded in part:
   - its layer table and neutral-module rule give way to the crate graph
     above;
   - its acyclic-module rule still holds within each crate.
-- [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md) §9
+- [[ADR-0058]] §9
   (single-crate layering) is superseded.

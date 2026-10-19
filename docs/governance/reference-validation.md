@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0067]
+---
+
 # Apollo Reference Validation
 
 ## Policy

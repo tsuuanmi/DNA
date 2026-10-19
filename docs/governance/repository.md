@@ -42,7 +42,7 @@ Required pull-request status check:
 
 `CodeQL Rust`, `ABIF fuzz smoke`, the MSRV check, the release build, and the
 RustSec audit run on pushes to `main` and on schedules rather than on pull
-requests (see [CI/CD](../engineering/ci-cd.md)); a failure there blocks the next
+requests (see [[engineering/ci-cd|CI/CD]]); a failure there blocks the next
 release until fixed. `Release package` runs only on `v*` tags.
 
 The aggregate job must remain dependent on every mandatory job in `.github/workflows/ci.yml`; adding a new mandatory CI job requires adding it to `CI success` in the same change.

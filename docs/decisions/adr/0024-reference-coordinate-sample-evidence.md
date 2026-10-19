@@ -1,7 +1,19 @@
+---
+id: ADR-0024
+status: superseded-in-part
+date: 2026-09-18
+---
+
 # ADR-0024: Reference-coordinate sample evidence contract
 
-- **Status:** Superseded in part by ADR-0025
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0025](0025-compact-sample-evidence.md)
 - **Date:** 2026-09-18
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- _Not yet referenced by a current document._
+<!-- docs:end backlinks -->
 
 ## Context
 

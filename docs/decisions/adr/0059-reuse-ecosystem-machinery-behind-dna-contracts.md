@@ -1,9 +1,22 @@
+---
+id: ADR-0059
+status: accepted
+date: 2026-10-03
+family: [ecosystem-reuse]
+related: [ADR-0058, PROP-0001]
+---
+
 # ADR-0059: Reuse ecosystem machinery behind DNA-owned contracts
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-03
-- **Related decision:** [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
-- **Related proposal:** [PROP-0001](../../proposals/0001-modular-dna-analysis-platform.md)
+- **Related:** [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md), [PROP-0001](../../proposals/0001-modular-dna-analysis-platform.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [design/abif-decoding](../../design/abif-decoding.md), [design/alignment](../../design/alignment.md), [engineering/dependencies](../../engineering/dependencies.md), [requirements/quality-attributes](../../requirements/quality-attributes.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

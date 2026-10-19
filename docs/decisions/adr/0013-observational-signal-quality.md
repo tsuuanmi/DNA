@@ -1,7 +1,22 @@
+---
+id: ADR-0013
+status: accepted
+date: 2026-08-24
+family: [signal-evidence]
+supersedes: [ADR-0012]
+---
+
 # ADR-0013: Add Observational DNA-Quality Windows Before DNA Cleaning
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-08-24
+- **Supersedes:** [ADR-0012](0012-concise-mapped-variant-calls.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/evidence](../../architecture/invariants/evidence.md), [design/signal-processing](../../design/signal-processing/README.md), [requirements/signal-processing](../../requirements/signal-processing.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -33,4 +48,4 @@ DNA cleaning, noise-aware base calling, calibrated quality, or variant exclusion
 
 ## Follow-up (2026-10-09)
 
-[ADR-0067](0067-signal-derived-read-callability.md) takes the deferred decision on signal-driven exclusion through a separate read-callability view derived from locus evidence; the rolling SNR windows and noisy regions of this record stay observation-only, and signal cleaning remains research.
+[[ADR-0067]] takes the deferred decision on signal-driven exclusion through a separate read-callability view derived from locus evidence; the rolling SNR windows and noisy regions of this record stay observation-only, and signal cleaning remains research.

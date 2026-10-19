@@ -1,3 +1,18 @@
+---
+implements: [SRS-API, SRS-CALL, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
+decided-by: [ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079]
+covers:
+  - crates/dna-kernel/src/variant.rs
+  - crates/dna-normalize/src/
+  - src/lib.rs
+  - src/model/review_result.rs
+  - src/pipeline/review.rs
+  - src/pipeline/sample_call.rs
+  - src/report/review.rs
+  - src/sample_analysis/
+  - src/variant_analysis/
+---
+
 # Rust Public API
 
 This document defines the current stable Rust library boundary exposed by the
@@ -14,9 +29,9 @@ reporting, are private implementation detail.
 The workspace plugin crates (`dna-kernel`; the core's `dna-align`,
 `dna-call`, `dna-sample`, `dna-consensus`; `dna-sanger`, `dna-normalize`,
 `dna-empop`;
-[ADR-0070](../decisions/adr/0070-workspace-split-by-plugin-family.md),
-[ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md),
-[ADR-0079](../decisions/adr/0079-core-crates-by-step.md))
+[[ADR-0070]],
+[[ADR-0077]],
+[[ADR-0079]])
 are unpublished implementation crates, not part of this boundary. The `dna`
 facade re-exports exactly these public items from them:
 - `error` re-exports the failure vocabularies of `dna_kernel::error` (its
@@ -63,7 +78,7 @@ pub struct ProfileIdentity {
 }
 ```
 
-`dna::profile::Profile::load` reads and validates one [target profile](profiles.md);
+`dna::profile::Profile::load` reads and validates one [[reference/profiles|target profile]];
 `identity()` returns the declared `id` and the SHA-256 of the file bytes. The
 profile's contents are not public fields, so the file format can grow without
 an API break.
@@ -335,7 +350,7 @@ non-exhaustive.
 ### Consensus call
 
 `SampleAnalysis::call` completes the recommended per-sample workflow,
-`consensus` then `call` ([workflow](consensus.md#workflow)), in process:
+`consensus` then `call` ([[reference/consensus#workflow|workflow]]), in process:
 
 ```rust
 impl SampleAnalysis {

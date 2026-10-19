@@ -1,9 +1,22 @@
+---
+id: ADR-0062
+status: superseded-in-part
+date: 2026-10-08
+family: [sanger-eligibility]
+related: [ADR-0027, ADR-0060]
+---
+
 # ADR-0062: Read callability from the read's own calls
 
+<!-- docs:begin lifecycle -->
 - **Status:** Superseded in part by [ADR-0067](0067-signal-derived-read-callability.md)
 - **Date:** 2026-10-08
-- **Related decisions:** [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md),
-  [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md)
+- **Related:** [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md), [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/variant-calling](../../design/variant-calling.md), [reference/configuration](../../reference/configuration.md), [reference/sample-evidence/variants-signal](../../reference/sample-evidence/variants-signal.md), [requirements/variants](../../requirements/variants.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -71,7 +84,7 @@ ADR-0060 §5 requires.
 
 ## Follow-up (2026-10-09)
 
-[ADR-0067](0067-signal-derived-read-callability.md) derives callability from
+[[ADR-0067]] derives callability from
 the read's own signal. Its second increment replaces the sequence-only
 `post_homopolymer` window with the measured phase state and supersedes this
 record in part. `read_end` and the filename-free principle remain; the margin

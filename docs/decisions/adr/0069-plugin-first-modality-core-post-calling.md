@@ -1,14 +1,24 @@
+---
+id: ADR-0069
+status: accepted
+date: 2026-10-09
+family: [modular-api, plugins]
+supersedes: [ADR-0058 §4, "ADR-0060 §1, §6"]
+related: [ADR-0002, ADR-0058, ADR-0059, ADR-0060, ADR-0064, ADR-0067, PROP-0002]
+---
+
 # ADR-0069: Plugin-first composition of modality, core, and post-calling plugins
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-09
-- **Related proposal:** [PROP-0002](../../proposals/0002-plugin-first-architecture.md)
-- **Related decisions:** [ADR-0002](0002-single-crate-layering.md),
-  [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md),
-  [ADR-0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md),
-  [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md),
-  [ADR-0064](0064-crate-ready-module-layering.md),
-  [ADR-0067](0067-signal-derived-read-callability.md)
+- **Supersedes:** [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md) (§4), [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md) (§1, §6)
+- **Related:** [ADR-0002](../../governance/retired.md), [ADR-0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md), [ADR-0064](0064-crate-ready-module-layering.md), [ADR-0067](0067-signal-derived-read-callability.md), [PROP-0002](../../proposals/0002-plugin-first-architecture.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/data-flow](../../architecture/data-flow.md), [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [design/alignment](../../design/alignment.md), [design/callability](../../design/callability.md), [design/pipeline](../../design/pipeline.md), [design/sample-evidence/call-signal](../../design/sample-evidence/call-signal.md), [design/variant-calling](../../design/variant-calling.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [governance/versioning](../../governance/versioning.md), [reference/analysis/provenance-read-signal](../../reference/analysis/provenance-read-signal.md), [reference/basecalls](../../reference/basecalls.md), [reference/configuration](../../reference/configuration.md), [reference/notation](../../reference/notation.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [reference/variants](../../reference/variants.md), [requirements/alignment](../../requirements/alignment.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -95,7 +105,7 @@ loading plugins at run time.
    `variant_calling`, and the post-calling modules. `sample` joins them after
    the sample-attachment phase of PROP-0002.
 6. **Phasing.** The architecture lands in phases, each with its own exit
-   criterion ([PROP-0002](../../proposals/0002-plugin-first-architecture.md)).
+   criterion ([[PROP-0002]]).
    Phase 1 introduces the evidence contract inside the current crate and must
    leave every result document byte-identical.
 
@@ -132,17 +142,17 @@ loading plugins at run time.
 
 ## Supersession
 
-- [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md) §4
+- [[ADR-0058]] §4
   is superseded in part. The three families and their data contracts are
   declared variation seams. "A module is not automatically a plugin" still
   holds for stages inside a plugin.
-- [ADR-0060](0060-separate-variant-canonicalization-nomenclature.md) §1 and §6
+- [[ADR-0060]] §1 and §6
   are superseded in part. The caller is a modality-neutral core over
   `ReadEvidence`, and modality eligibility arrives as data. `CalledVariantSet`
   remains the convergence boundary for imported calls.
-- [ADR-0064](0064-crate-ready-module-layering.md) gains the `read_evidence`
+- [[ADR-0064]] gains the `read_evidence`
   module and the neutrality rule.
-- [ADR-0002](0002-single-crate-layering.md) stays in force until the
+- [[governance/retired|ADR-0002]] stays in force until the
   workspace-split phase, which needs its own record.
 
 ## Revision 2026-10-09 (phase 2)
@@ -154,7 +164,7 @@ a required contract that no earlier plugin of a workflow composition provides.
 A test checks that the registry's sections are exactly the shipped
 configuration's sections. Results record their workflow's plugins in
 `provenance.plugins` with a per-plugin method version
-([versioning](../../governance/versioning.md#plugins)). The Sanger support
+([[governance/versioning#plugins|versioning]]). The Sanger support
 thresholds moved from `[variant_calling]` to the Sanger-owned
 `[sanger_evidence]` section.
 
@@ -198,6 +208,6 @@ and calls its variants.
 ## Revision 2026-10-09 (phase 5)
 
 The plugin families are now crates
-([ADR-0070](0070-workspace-split-by-plugin-family.md)): `dna-kernel` holds the
+([[ADR-0070]]): `dna-kernel` holds the
 contracts and descriptor types, `dna-core`, `dna-sanger`, and `dna-post` each
 hold one family, and the `dna` facade composes them.

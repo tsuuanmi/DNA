@@ -1,10 +1,16 @@
+---
+implements: [SRS-SAMPLE, SRS-VAR]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0076]
+verified-by: [tests/consensus.rs]
+---
+
 # Sample consensus requirements
 
 **Requirement namespace:** `SRS-CONS-*`
 
-Design: [consensus method](../design/consensus.md). Contract:
-[consensus result](../reference/consensus.md). Decision:
-[ADR-0073](../decisions/adr/0073-sample-consensus.md), [ADR-0074](../decisions/adr/0074-run-structure-consensus.md).
+Design: [[design/consensus|consensus method]]. Contract:
+[[reference/consensus|consensus result]]. Decision:
+[[ADR-0073]], [[ADR-0074]].
 
 - **SRS-CONS-001:** `dna consensus <sample-id> <trace>... --reference <fasta>` MUST process the traces as `dna sample` does, with rejected reads (SRS-SAMPLE-027, SRS-SAMPLE-029, SRS-SAMPLE-030). It MUST write `results/<sample-id>.consensus.json` (`dna.consensus/v1`) and `results/<sample-id>.consensus.fasta`. It MUST fail without output when every read is rejected or when either target exists.
 - **SRS-CONS-002:** The consensus MUST be modality-neutral. It MUST read admitted reads only as `CalledRead` records (`ReadEvidence`, alignment) and MUST NOT use filenames, primer labels, or profile windows.
@@ -39,3 +45,9 @@ Design: [consensus method](../design/consensus.md). Contract:
 
   Each run's length evidence (`in_phase`, `anchored_end`, `confirmed_end`, `phase_loss`, `reference_frame`) MUST be published. The rule MUST NOT use target positions, regions, or conventions.
 - **SRS-CONS-009:** A decided site that changes the reference length MUST stay undecided while a position beside it is undecided or uncovered, unless it was decided by its run structure with every run's length shown by a read (`in_phase` or `anchored_end`), since those reads show the run's bounds: otherwise the bases beside an insertion or deletion place it, and inside a repeat they decide which unit changes. Undoing one site can leave another one's neighbour undecided, so the rule MUST apply until nothing changes.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/consensus](../design/consensus.md), [reference/configuration](../reference/configuration.md), [requirements/output](output.md), [requirements/variants](variants.md)
+<!-- docs:end backlinks -->

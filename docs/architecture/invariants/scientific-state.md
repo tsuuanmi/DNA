@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0009, ADR-0019]
+---
+
 # Scientific state Invariants
 
 These invariants are part of the canonical [system invariant set](README.md).

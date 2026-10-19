@@ -1,7 +1,22 @@
+---
+id: ADR-0037
+status: accepted
+date: 2026-09-19
+family: [call-signal]
+supersedes: [ADR-0034, ADR-0036]
+---
+
 # ADR-0037: Unify reference-oriented call signal evidence at sample scope
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+- **Supersedes:** [ADR-0034](0034-sample-evidence-profiles.md), [ADR-0036](0036-sample-local-noise-context.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence/call-signal](../../design/sample-evidence/call-signal.md), [reference/sample-evidence/variants-signal](../../reference/sample-evidence/variants-signal.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
