@@ -8,7 +8,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `15` | exactly 15 |
+| root | `schema_version` | `16` | exactly 16 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
@@ -22,6 +22,10 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `run_signal_minimum_calls` | `40` | integer at least `1`: fewest calls of a key, the sample's own taken out, to give a run level |
 | | `run_signal_margin` | `0.05` | finite fraction: smallest margin above a key's median |
 | | `run_signal_mad_factor` | `4.0` | finite and positive: median absolute deviations above a key's median |
+| | `second_cause_noise_ratio` | `3.0` | finite and positive: below this multiple of the call's lowest channel a second peak is `noise` (SRS-CALL-021) |
+| | `second_cause_tail_offset` | `0.4` | finite and positive: offset from the call's centre, in call spacings, from which a second peak is a `neighbour_tail` or `off_centre` |
+| | `second_cause_blob_width` | `1.8` | finite and positive: multiple of the neighbouring calls' median primary width from which a centred second peak is a `dye_blob` |
+| | `second_cause_width_calls` | `6` | integer at least `1`: calls on each side whose primary widths give that median |
 | `callability` | `window_calls` | `16` | integer `8..=64` |
 | | `onset_defect_fraction` | `0.375` | finite `(0,1]` |
 | | `exit_defect_fraction` | `0.125` | finite `[0,1]`, below `onset_defect_fraction` |
@@ -97,7 +101,7 @@ core alone (SRS-CFG-009).
 
 For a uniquely strongest basecalling peak, `secondary_peak_ratio` applies both to each channel's selected peak relative to that primary peak and to the channel signal sampled at the primary peak position. Both comparisons are inclusive; this prevents a remote maximum elsewhere in the same PLOC window from qualifying as ambiguity evidence.
 
-`basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 15 remain in the strict TOML selected for the run; the local path is omitted.
+`basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 16 remain in the strict TOML selected for the run; the local path is omitted.
 
 `read_end_margin` (ADR-0062) makes a variant ineligible when any of its mapped calls lies within that many calls of an uninformative call (`read_end`): beyond the trim interval, which is the callable span plus at most `trim_context_margin` dephased context calls per side, or inside a masked segment that aligns as unresolved. Masked evidence calls add the reason of their phase segment (ADR-0067). These rules use only the read's own calls and signal; no primer or file-name knowledge is involved.
 

@@ -62,6 +62,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         signal,
         callability: read_callability,
         quality,
+        second: _,
     } = sanger;
     let signal_quality = signal::project(signal);
     let reference_segments = alignment

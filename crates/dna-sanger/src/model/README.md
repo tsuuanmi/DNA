@@ -8,6 +8,7 @@ Owns canonical Sanger evidence:
 - `locus_evidence`;
 - `callability`;
 - `quality`;
+- `second_cause`: a call's second peak and the label for its cause;
 - `attachment`: the Sanger evidence that reports join to core records.
 
 See [dna-sanger](../README.md).

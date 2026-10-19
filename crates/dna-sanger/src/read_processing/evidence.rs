@@ -16,10 +16,11 @@ use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::QualityControlResult;
 use crate::model::signal::SignalAnalysis;
+use crate::second_cause::second_base;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
-    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, SecondBase, Verdict,
+    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -598,25 +599,6 @@ fn start_identity(
     accepted
 }
 
-/// The second base of a call's signal: the highest peak of the other three
-/// channels, with its share of the primary and that peak together.
-fn second_base(call: &crate::model::basecalls::BaseCall) -> Option<SecondBase> {
-    let primary = Nucleotide::from_char(call.primary)?.channel_index();
-    let first = call.peaks.get(primary)?.height;
-    let (channel, second) = call
-        .peaks
-        .iter()
-        .enumerate()
-        .filter(|(channel, _)| *channel != primary)
-        .map(|(channel, peak)| (channel, peak.height))
-        .max_by_key(|(channel, height)| (*height, std::cmp::Reverse(*channel)))?;
-    let total = f64::from(first) + f64::from(second);
-    (second > 0 && total > 0.0).then(|| SecondBase {
-        base: Nucleotide::ALL[channel].as_char(),
-        share: f64::from(second) / total,
-    })
-}
-
 /// The placement of a masked call: `post_homopolymer` when its segment starts
 /// right after a repeat run, otherwise its phase state; dephased calls still
 /// anchor the alignment, every other masked call is unresolved. `None` for an
@@ -1109,7 +1091,7 @@ mod tests {
         let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
         assert_eq!(
             evidence.calls()[0].second,
-            Some(SecondBase {
+            Some(dna_kernel::read_evidence::SecondBase {
                 base: 'G',
                 share: 0.2
             })

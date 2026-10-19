@@ -299,6 +299,16 @@ mod tests {
                 margin: 0.05,
                 mad_factor: 4.0,
             },
+
+            second_cause: crate::signal_processing::SecondCauseParameters {
+                noise_ratio: 3.0,
+
+                tail_offset: 0.4,
+
+                blob_width: 1.8,
+
+                width_calls: 6,
+            },
         }
     }
 

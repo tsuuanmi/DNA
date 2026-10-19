@@ -16,8 +16,10 @@ use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
+use crate::model::second_cause::SecondPeak;
 use crate::model::signal::SignalAnalysis;
 use crate::quality_control;
+use crate::second_cause;
 use crate::signal_processing;
 
 /// Warning counts shared by command-level operational summaries.
@@ -44,6 +46,8 @@ pub struct ProcessedRead {
     pub callability: ReadCallability,
     /// Relative quality and trim interval.
     pub quality: QualityControlResult,
+    /// Each call's second peak and its cause (SRS-CALL-021), by call index.
+    pub second: Vec<Option<SecondPeak>>,
     /// Warning counts for operational summaries.
     pub warnings: ReadWarnings,
 }
@@ -355,11 +359,13 @@ pub fn finish(
         vendor_quality_applicable,
     );
 
+    let second = second_cause::classify(&calls, &signal, &callability, &config.signal_processing);
     Ok(ProcessedRead {
         calls,
         signal,
         callability,
         quality,
+        second,
         warnings,
     })
 }
