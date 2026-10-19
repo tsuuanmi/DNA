@@ -41,7 +41,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 10,
+    version: 11,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -163,6 +163,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 masked: Some(masked_spans(
                     called.alignment.columns(),
                     &sanger.callability.segments,
+                    &analysis.trust(&read.input_sha256).ok_or_else(missing)?,
                     &regions,
                 )),
             })
@@ -1468,13 +1469,15 @@ const fn name(label: &LabelResult) -> &'static str {
 }
 
 /// The reference positions, within `regions`, that a read's aligned calls
-/// cover while the modality masks its signal, as maximal stretches of one
+/// cover while the modality masks its signal and the call stays masked
+/// (anchoring or unresolved, not vouched for), as maximal stretches of one
 /// phase state: where the read does not show its bases (it reads past a
 /// repeat out of phase, its signal is mixed, weak, or irregularly spaced).
 /// Recorded so that what the read did not show can be located and read later.
 fn masked_spans(
     columns: &[AlignmentColumn],
     segments: &[PhaseSegment],
+    trust: &[CallTrust],
     regions: &[[usize; 2]],
 ) -> Vec<MaskedSpanResult> {
     let mut spans: Vec<MaskedSpanResult> = Vec::new();
@@ -1494,7 +1497,13 @@ fn masked_spans(
         }) else {
             continue;
         };
-        if segment.state == PhaseState::InPhase {
+        // A call the modality vouched for despite its segment (a leading
+        // call, SRS-CALL-014) is scored: the read shows that base.
+        if segment.state == PhaseState::InPhase
+            || trust
+                .get(call)
+                .is_none_or(|trust| trust.placement == Placement::Scored)
+        {
             continue;
         }
         match spans.last_mut() {

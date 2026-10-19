@@ -386,6 +386,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A read's `masked` stretches no longer list a leading call the modality
+  vouches for at a read start (SRS-CALL-014): such a call is scored and the
+  read shows its base (`review` plugin 11, rules version 11). On current
+  development data this removes 5,167 of 486,695 masked positions, all at
+  the HV1F and HV2F read starts; nothing else changes.
 - A leading call before the callable span is no longer vouched for by its base
   (SRS-CALL-014) when its read is masked after a repeat run
   (`post_homopolymer`): that stretch is the read's dephased tail, not the

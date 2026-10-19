@@ -63,7 +63,9 @@ target still fails the command without output.
   as in [`dna.consensus/v1`](consensus.md). `masked` lists, in reference
   order, the maximal stretches `{first, last, state, after_repeat}` of
   reference positions inside the reportable regions that the read's aligned
-  calls cover while the modality masks its signal (rules version 10): `state`
+  calls cover while the modality masks its signal and the call stays masked
+  (rules version 10; since rules version 11 a leading call the modality
+  vouches for at a read start, SRS-CALL-014, is scored and not listed): `state`
   is the callability segment's phase state (`dephased`: superimposed ladders
   offset by slippage, as after a repeat run; `mixed`; `weak`; `irregular`),
   and `after_repeat` whether the segment starts in the window that follows a
@@ -171,7 +173,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 10)
+## Labels (rules version 11)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
