@@ -397,6 +397,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review shows why a call has a second peak: an evidence position's
+  `second` carries `cause` (SRS-CALL-021) when its share passes
+  `signal_processing.second_floor` or the call is masked as mixed, and with
+  `--signal` an unexplained second the run's reads share there reads
+  `context` (`review` plugin 12, rules version 12). Items, calls, and checks
+  are unchanged.
 - A read's `masked` stretches no longer list a leading call the modality
   vouches for at a read start (SRS-CALL-014): such a call is scored and the
   read shows its base (`review` plugin 11, rules version 11). On current

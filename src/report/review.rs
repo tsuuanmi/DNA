@@ -41,7 +41,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 11,
+    version: 12,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -818,12 +818,16 @@ impl<'a> Sample<'a> {
                     TrustScope::Full => ScopeResult::Full,
                     TrustScope::Base => ScopeResult::Base,
                 });
+                let cause = observation
+                    .call_index_0based
+                    .and_then(|call| self.second_cause(read, call));
                 let second = trust
                     .and_then(|trust| trust.second)
                     .filter(|_| observation.state != LocusState::Unresolved)
                     .map(|second| SecondResult {
                         base: read.strand.reference_base(second.base),
                         share: round(second.share),
+                        cause,
                     });
                 positions.entry(index).or_default().push(evidence(
                     position,
@@ -976,6 +980,17 @@ impl<'a> Sample<'a> {
     fn shown(&self, index: usize, first: usize, last: usize) -> Option<String> {
         let read = self.reads.get(index)?;
         bounded(read.columns, &read.trust, first, last)
+    }
+
+    /// Why call `call` of `read` shows a second peak: the modality's cause
+    /// (`SangerAttachment::second`), refined with the review's run signal,
+    /// the sample's own reads taken out, so that a share its key's run level
+    /// holds reads `context`. `None` when the call's second share does not
+    /// reach `signal_processing.second_floor` and it is not masked as mixed.
+    fn second_cause(&self, read: &Read<'_>, call: usize) -> Option<&'static str> {
+        let peak = read.sanger.second.get(call)?.as_ref()?;
+        let key = Key::of(read.evidence, call, peak.base, self.second.run_signal.flank);
+        Some(run_signal::refine(peak, key.as_ref(), self.signal.as_ref(), self.second).label())
     }
 
     /// The second base of a call at `position`, on the reference strand, its

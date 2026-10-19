@@ -997,6 +997,19 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 0.5
+                },
+                "cause": {
+                  "description": "Why the call shows a second peak, from its signal (SRS-CALL-021): the modality's cause, refined by the run signal to `context` when one is given; absent when the share does not reach signal_processing.second_floor.",
+                  "enum": [
+                    "noise",
+                    "neighbour_tail",
+                    "off_centre",
+                    "dye_blob",
+                    "phase_shift",
+                    "context",
+                    "second_template",
+                    "mixed_stretch"
+                  ]
                 }
               }
             },

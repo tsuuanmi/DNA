@@ -166,7 +166,7 @@ const RANKS: [(&str, u64); 15] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 11);
+    assert_eq!(value["provenance"]["rules"], 12);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
@@ -182,6 +182,29 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let items = items(value)?;
+    // A second peak's cause is one of the modality's labels.
+    for item in items {
+        for read in item["evidence"].as_array().ok_or("evidence")? {
+            for position in read["positions"].as_array().ok_or("positions")? {
+                if let Some(cause) = position["second"].get("cause") {
+                    assert!(
+                        [
+                            "noise",
+                            "neighbour_tail",
+                            "off_centre",
+                            "dye_blob",
+                            "phase_shift",
+                            "context",
+                            "second_template",
+                            "mixed_stretch"
+                        ]
+                        .contains(&cause.as_str().ok_or("cause")?),
+                        "{cause}"
+                    );
+                }
+            }
+        }
+    }
     let mut previous = None;
     let mut counts = std::collections::BTreeMap::<&str, u64>::new();
     let mut checks = 0;
