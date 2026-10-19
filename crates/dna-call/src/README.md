@@ -23,8 +23,8 @@ Owns extraction, direct evidence mapping, allele anchoring, and configured
 eligibility of primary-sequence SNVs and supported small indels. Reportable
 regions come from the target profile and are passed in by the caller.
 
-Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`, and
-`filter.rs`. The module reads each read only as `ReadEvidence`
+Key children: `extract.rs`, `mapping.rs`, `anchor.rs`, `eligibility.rs`,
+`filter.rs`, and `components.rs`. The module reads each read only as `ReadEvidence`
 ([ADR-0069](../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md))
 and imports no Sanger type.
 - `eligibility.rs` decides which calls of a read can support a variant. Calls
@@ -45,6 +45,11 @@ and imports no Sanger type.
   for an insertion `repeat_unvetoed` clears; it reads the reference around a
   substitution for the one-position-shift test.
 - A masked call is no SNV candidate in `extract.rs`.
+- `components.rs` compares each component of a read's explained phase
+  mixture with the reference on its own (`component_calls`, SRS-VAR-022,
+  ADR-0082): the component's sequence placed and called as a read, on the
+  read's strand, with its span (`within` tests a position against a span
+  that crosses the origin) and its edits. It changes no call of the read.
 
 The core never interprets a modality label; the Sanger labels are produced in
 [read_processing](../../dna-sanger/src/read_processing/README.md).

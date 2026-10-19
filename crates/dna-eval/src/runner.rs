@@ -28,6 +28,7 @@ use sha2::{Digest, Sha256};
 
 use crate::cause::loci::{self, Loci};
 use crate::compare::{Allele, Failure};
+use crate::components;
 use crate::error::{Error, Result};
 use crate::evidence::{self, Evidence};
 use crate::lod;
@@ -61,6 +62,8 @@ pub(crate) struct Called {
     pub(crate) checks: Vec<(i64, i64)>,
     /// The same with each item's label names, space-separated.
     pub(crate) check_labels: Vec<(i64, i64, String)>,
+    /// Every read's phase-mixture components (ADR-0082).
+    pub(crate) components: Vec<components::Row>,
 }
 
 /// A sample's EMPOP query (PROP-0007), and the consensus decisions its
@@ -397,6 +400,7 @@ fn call(
         loci,
         checks,
         check_labels,
+        components: components::rows(analysis),
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -610,6 +614,7 @@ mod tests {
                     empop: None,
                     checks: Vec::new(),
                     check_labels: Vec::new(),
+                    components: Vec::new(),
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

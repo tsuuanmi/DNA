@@ -239,6 +239,7 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
         &processed.callability,
         &processed.quality,
         &processed.second,
+        &processed.mixtures,
         &config.sanger_evidence,
     )?;
     Ok(Some(contributions(
@@ -632,6 +633,7 @@ mod tests {
                 blob_width: 1.8,
                 width_calls: 6,
             },
+            decompose_unexplained_quantile: 0.99,
         };
         let floor = Threshold {
             share: 0.21,
@@ -713,6 +715,7 @@ mod tests {
                 blob_width: 1.8,
                 width_calls: 6,
             },
+            decompose_unexplained_quantile: 0.99,
         };
         let peak = |share, cause| SecondPeak {
             base: 'C',

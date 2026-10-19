@@ -15,6 +15,7 @@ Output contract: [`dna.basecalls/v3`](../../../docs/reference/schemas/basecalls-
 - [basecalling](basecalling/README.md), [signal_processing](signal_processing/README.md), [callability](callability/README.md), and [quality_control](quality_control/README.md) — the reference-free stages.
 - [read_processing](read_processing/README.md) — stage orchestration, `SangerConfig`, the Sanger plugin descriptor, and the `ReadEvidence` adapter.
 - [run_signal](run_signal/README.md) — the second-channel signal a run's reads share (PROP-0009).
+- [decompose](decompose/README.md) — the phase mixtures of a dephased stretch after a repeat run (SRS-CALL-023); evidence only.
 - [second_cause](second_cause/README.md) — why a call shows a second peak (SRS-CALL-021); labels only.
 - [model](model/README.md) — canonical Sanger evidence.
 - [error](error/README.md) — the Sanger stage failures, `SangerError`.

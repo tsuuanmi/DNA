@@ -164,6 +164,7 @@ mod tests {
 
                     width_calls: 6,
                 },
+                decompose_unexplained_quantile: 0.99,
             },
             &mut SpanEstimates::new(&trace, 1.0),
         )?;

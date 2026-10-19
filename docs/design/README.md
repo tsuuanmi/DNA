@@ -8,6 +8,7 @@ These documents describe **current mechanisms**: how DNA implements its scientif
 - [Signal processing](signal-processing/README.md): rolling SNR, locus evidence, trace-integrity observations, and interpretation limits.
 - [Callability](callability.md): per-position signal features, phase-state segments, the typed mask, and the callable span over a modality-generic core with a Sanger adapter.
 - [Second-peak cause](second-peak-cause.md): labels for why a call shows a second peak (noise, a neighbour's tail, a dye blob, a phase shift, a run's shared shadow, or a second template), which decide nothing.
+- [Length mixtures](length-mixture.md): a dephased stretch after a repeat run fitted as the read's sequence superposed with offset copies, and each copy compared with the reference on its own; evidence only.
 - [Quality control](quality-control.md): penalty, relative quality, and the trim interval derived from the callable span.
 - [Alignment](alignment.md): profile-aware Gotoh placement, traceback, orientation, and circular mapping.
 - [Variant calling](variant-calling.md): difference extraction, allele anchoring, eligibility, and deterministic ordering.

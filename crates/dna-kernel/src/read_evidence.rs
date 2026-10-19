@@ -305,6 +305,47 @@ pub struct ReadEvidence {
     informative: Range<usize>,
     reason_order: Vec<EvidenceReason>,
     ends: ReadEnds,
+    mixtures: Vec<PhaseMixture>,
+}
+
+/// One sequence a phase mixture holds: the read's dominant sequence offset by
+/// `offset` calls, with its share of the signal (ADR-0082).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MixtureComponent {
+    /// Calls by which this sequence lags the dominant one: a positive offset
+    /// is a longer run before the mixture, a negative one a shorter run.
+    pub offset: i32,
+    /// Its share of the fitted signal, in `[0, 1]`; the shares sum to one.
+    pub fraction: f64,
+}
+
+/// The modality's assertion that, over calls `call_start..call_end`, the
+/// read's signal is its own dominant sequence (its calls there) superposed
+/// with copies of itself offset by whole calls, as a length mixture of the
+/// run that opens the stretch makes (ADR-0082). It decides nothing: the
+/// calls keep their verdicts.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PhaseMixture {
+    /// First call of the stretch: the start of the run whose length varies
+    /// (0-based, inclusive).
+    pub call_start: usize,
+    /// Call after the stretch (0-based, exclusive).
+    pub call_end: usize,
+    /// Calls of the run whose length varies, from `call_start`.
+    pub run_calls: usize,
+    /// The sequences the stretch holds, offset 0 (the dominant one) first,
+    /// the rest by decreasing fraction.
+    pub components: Vec<MixtureComponent>,
+    /// What the components leave of the signal, as the root mean square per
+    /// call on the modality's normalised scale.
+    pub residual: f64,
+    /// Calls of the stretch whose signal the components do not explain.
+    pub unexplained: Vec<usize>,
+    /// Whether the components explain the stretch: its residual is at most
+    /// the residual the read's own in-phase calls reach at the modality's
+    /// unexplained quantile. The components of an unexplained mixture are
+    /// the fit's best, not sequences the read is shown to hold.
+    pub explained: bool,
 }
 
 impl ReadEvidence {
@@ -363,7 +404,51 @@ impl ReadEvidence {
             informative,
             reason_order,
             ends: ReadEnds::Unvouched,
+            mixtures: Vec::new(),
         })
+    }
+
+    /// The same evidence with the modality's phase mixtures (ADR-0082).
+    ///
+    /// # Errors
+    ///
+    /// Returns `EvidenceError::InvalidMixture` when a mixture's stretch does
+    /// not fit the read's calls or its run, it has no offset-0 component
+    /// first, a fraction is not finite in `[0, 1]`, an offset is longer than
+    /// its run, or an unexplained call lies outside its stretch.
+    pub fn with_mixtures(mut self, mixtures: Vec<PhaseMixture>) -> Result<Self> {
+        for (index, mixture) in mixtures.iter().enumerate() {
+            let fits = mixture.call_start < mixture.call_end
+                && mixture.call_end <= self.calls.len()
+                && mixture.run_calls > 0
+                && mixture.call_start + mixture.run_calls <= mixture.call_end
+                && mixture
+                    .components
+                    .first()
+                    .is_some_and(|first| first.offset == 0)
+                && mixture.residual.is_finite()
+                && mixture.residual >= 0.0
+                && mixture.components.iter().all(|component| {
+                    component.fraction.is_finite()
+                        && (0.0..=1.0).contains(&component.fraction)
+                        && component.offset.unsigned_abs() as usize <= mixture.run_calls
+                })
+                && mixture
+                    .unexplained
+                    .iter()
+                    .all(|call| (mixture.call_start..mixture.call_end).contains(call));
+            if !fits {
+                return Err(EvidenceError::InvalidMixture { index }.into());
+            }
+        }
+        self.mixtures = mixtures;
+        Ok(self)
+    }
+
+    /// The modality's phase mixtures, in call order (ADR-0082).
+    #[must_use]
+    pub fn mixtures(&self) -> &[PhaseMixture] {
+        &self.mixtures
     }
 
     /// The same evidence with every call within `margin` calls of an
@@ -462,6 +547,7 @@ impl ReadEvidence {
             informative,
             reason_order: Vec::new(),
             ends: ReadEnds::Unvouched,
+            mixtures: Vec::new(),
         }
     }
 

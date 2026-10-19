@@ -7,7 +7,8 @@ modality-neutral core.
   control for one chromatogram. It decides whether the read can be analyzed at
   all (rejected reads: the signal-window length check before any stage, too few callable calls
   after callability) and returns the read products with their warning counts,
-  each call's second-peak label among them ([second_cause](../second_cause/README.md)).
+  each call's second-peak label among them ([second_cause](../second_cause/README.md))
+  and its phase mixtures ([decompose](../decompose/README.md)).
   Basecall and Variant Analysis both reuse it.
 - `evidence.rs` is the Sanger modality adapter
   ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
@@ -25,6 +26,8 @@ modality-neutral core.
     peak is a neighbour's tail or a dye blob, or a single-channel call
     withheld only for its quality or at a benign signal edge (the untrimmed
     start, a weak mask clear of repeat runs);
+  - the read's phase mixtures (SRS-CALL-023, ADR-0082), as `decompose`
+    asserted them;
   - the Sanger mask labels: `post_homopolymer`, or else the phase-state label.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.

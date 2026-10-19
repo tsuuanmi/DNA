@@ -1,5 +1,6 @@
 //! Normalized and configured-filtered primary-sequence SNVs and small indels.
 
+pub mod components;
 pub mod model;
 pub mod read_call;
 

@@ -221,6 +221,7 @@ mod tests {
                 blob_width: 1.8,
                 width_calls: 6,
             },
+            decompose_unexplained_quantile: 0.99,
         }
     }
 

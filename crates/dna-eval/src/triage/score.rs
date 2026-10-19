@@ -1747,6 +1747,7 @@ mod tests {
         let called = |alleles: Vec<Allele>, one_strand: Option<usize>| Run {
             traces: Some(1),
             result: Ok(Called {
+                components: Vec::new(),
                 rejected: 0,
                 alleles,
                 not_recorded: BTreeSet::new(),
