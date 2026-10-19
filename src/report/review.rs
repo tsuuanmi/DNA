@@ -42,7 +42,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 14,
+    version: 15,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -133,15 +133,23 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 reads,
                 calls: None,
                 callable: None,
+                reference_only: None,
                 empop: None,
                 zones: None,
-                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[]),
+                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[], &[]),
                 items: Vec::new(),
             });
         }
         Reviewed::Analyzed { analysis, call } => (analysis, call),
     };
 
+    let reference_only = analysis
+        .consensus
+        .reference_only
+        .iter()
+        .map(|position| position + 1)
+        .filter(|&position| inside(&regions, position))
+        .collect::<Vec<_>>();
     let (names, rejected_names) = reviewer_read_names(&analysis.evidence)?;
     let mut reads = analysis
         .evidence
@@ -259,13 +267,15 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 .map(|&[start, end]| IntervalResult { start, end })
                 .collect()
         }),
-        empop: call.and_then(|call| call.empop).map(project_empop),
         summary: summarize(
             &items,
             status,
             &regions,
             zones.as_deref().unwrap_or_default(),
+            if call.is_some() { &reference_only } else { &[] },
         ),
+        reference_only: call.as_ref().map(|_| reference_only.clone()),
+        empop: call.and_then(|call| call.empop).map(project_empop),
         zones,
         items,
     })
@@ -1677,13 +1687,14 @@ fn zones(
 }
 
 /// Counts over the items, the reportable positions inside `regions` that
-/// `check` items hold, and the `zones` they touch; `clear` when the call
-/// succeeded and no item is a check.
+/// `check` items hold, the `reference_only` positions, and the `zones` the
+/// checks touch; `clear` when the call succeeded and no item is a check.
 fn summarize(
     items: &[ItemResult],
     status: ReviewStatus,
     regions: &[[usize; 2]],
     zones: &[ZoneResult],
+    reference_only: &[usize],
 ) -> SummaryResult {
     let mut labels = LabelCounts::default();
     for item in items {
@@ -1729,6 +1740,7 @@ fn summarize(
         positions: PositionCounts {
             reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
             check,
+            reference_only: reference_only.len(),
         },
         zones: ZoneCounts {
             total: zones.len(),
@@ -2271,6 +2283,7 @@ mod tests {
             ReviewStatus::Called,
             &[[1, 10]],
             &[],
+            &[],
         );
         assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
         assert_eq!(summary.labels.one_strand, 1);
@@ -2279,26 +2292,31 @@ mod tests {
             summary.positions,
             PositionCounts {
                 reportable: 10,
-                check: 0
+                check: 0,
+                reference_only: 0
             }
         );
         assert!(summary.clear);
 
         let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
-        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[]);
+        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[]);
         assert_eq!((summary.checks, summary.labels.not_covered), (1, 1));
         // The check item holds position 1 of the ten reportable positions.
         assert_eq!(
             summary.positions,
             PositionCounts {
                 reportable: 10,
-                check: 1
+                check: 1,
+                reference_only: 0
             }
         );
         assert!(!summary.clear);
-        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[]).clear);
-        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[]).clear);
-        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[]).clear);
+        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[], &[]).clear);
+        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[], &[]).clear);
+        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[]).clear);
+        // Reference-only positions are counted, and never make a check.
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4]);
+        assert_eq!((summary.positions.reference_only, summary.clear), (2, true));
     }
 
     #[test]
@@ -2350,7 +2368,7 @@ mod tests {
                 zone(ZoneKind::Clean, 11, 13, None, 0),
             ]
         );
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones);
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones, &[]);
         assert_eq!(summary.zones, ZoneCounts { total: 7, check: 1 });
     }
 

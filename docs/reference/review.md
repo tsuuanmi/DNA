@@ -85,6 +85,12 @@ target still fails the command without output.
   they overlap or touch, as 1-based inclusive `start`/`end` ranges.
 - `empop` (`called`, when the profile declares `[empop]`): the EMPOP query,
   as in [`dna.notation/v1`](notation.md#empop-query).
+- `reference_only` (`called`, rules version 15): the reportable positions
+  (1-based, increasing) that the consensus decided as the reference by
+  reference confirmations alone ([ADR-0080](../decisions/adr/0080-reference-only-calls.md),
+  `reference_only` in [`dna.consensus/v1`](consensus.md)). No item lists
+  them; they are DNA's own decision on weaker evidence than a clean call,
+  and are listed so a reviewer can find where DNA decided that way.
 - `zones` (`called`, rules version 14): the reportable positions as the
   zones a reviewer opens whole, in reference order, tiling every reportable
   region. Each position takes the first kind that holds: `repeat`, inside a
@@ -104,7 +110,8 @@ target still fails the command without output.
     included, in the label order below;
   - `positions`: `reportable`, the positions of the profile's reportable
     regions; `check`, those a `check` item holds, which a reviewer looks at
-    (rules version 5). Every other reportable position is DNA's own decision
+    (rules version 5); `reference_only`, the `reference_only` positions
+    (rules version 15; `0` without them). Every other reportable position is DNA's own decision
     or outside every read, as its items say;
   - `zones`: `total`, the number of `zones`; `check`, those with a `check`
     item, which a reviewer opens (rules version 14; both `0` without

@@ -26,6 +26,11 @@ pub(crate) struct ReviewResult {
     /// Merged callable ranges, 1-based inclusive; only for `called`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) callable: Option<Vec<IntervalResult>>,
+    /// Reportable positions (1-based, increasing) the consensus decided as
+    /// the reference by reference confirmations alone (ADR-0080); only for
+    /// `called`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reference_only: Option<Vec<usize>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) empop: Option<EmpopResult>,
     /// The reportable positions as zones a reviewer opens whole, in
@@ -354,6 +359,8 @@ pub(crate) struct SummaryResult {
 pub(crate) struct PositionCounts {
     pub(crate) reportable: usize,
     pub(crate) check: usize,
+    /// Reportable positions decided by reference confirmations alone.
+    pub(crate) reference_only: usize,
 }
 
 /// The sample's zones, and those a `check` item touches: what a reviewer

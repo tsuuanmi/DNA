@@ -58,6 +58,15 @@
         "$ref": "#/$defs/range"
       }
     },
+    "reference_only": {
+      "description": "Reportable positions (1-based, increasing) the consensus decided as the reference by reference confirmations alone (ADR-0080); for called.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
     "empop": {
       "$ref": "urn:signal:schema:notation:v1#/$defs/empop"
     },
@@ -90,7 +99,8 @@
       "then": {
         "required": [
           "callable",
-          "zones"
+          "zones",
+          "reference_only"
         ],
         "not": {
           "required": [
@@ -114,6 +124,7 @@
         "properties": {
           "calls": false,
           "callable": false,
+          "reference_only": false,
           "empop": false,
           "zones": false
         }
@@ -132,6 +143,7 @@
           "error": false,
           "calls": false,
           "callable": false,
+          "reference_only": false,
           "empop": false,
           "zones": false,
           "items": {
@@ -1165,7 +1177,8 @@
           "additionalProperties": false,
           "required": [
             "reportable",
-            "check"
+            "check",
+            "reference_only"
           ],
           "properties": {
             "reportable": {
@@ -1173,6 +1186,10 @@
               "minimum": 0
             },
             "check": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reference_only": {
               "type": "integer",
               "minimum": 0
             }
