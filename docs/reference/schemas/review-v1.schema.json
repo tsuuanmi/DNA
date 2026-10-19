@@ -239,7 +239,8 @@
             "name",
             "sha256",
             "strand",
-            "admitted"
+            "admitted",
+            "masked"
           ],
           "properties": {
             "name": {
@@ -254,6 +255,41 @@
             },
             "admitted": {
               "const": true
+            },
+            "masked": {
+              "description": "The read's masked stretches over the reportable regions, from the modality's callability segments (SRS-API-014): reference positions its aligned calls cover while its signal is dephased, mixed, weak, or irregularly spaced, so that it does not show its bases there.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "first",
+                  "last",
+                  "state",
+                  "after_repeat"
+                ],
+                "properties": {
+                  "first": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "last": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "state": {
+                    "enum": [
+                      "dephased",
+                      "mixed",
+                      "weak",
+                      "irregular"
+                    ]
+                  },
+                  "after_repeat": {
+                    "type": "boolean"
+                  }
+                }
+              }
             }
           }
         },
@@ -782,6 +818,37 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "runs"
+          ],
+          "properties": {
+            "label": {
+              "const": "dephased_end"
+            },
+            "runs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "urn:signal:schema:consensus:v1#/$defs/run"
+                  },
+                  {
+                    "properties": {
+                      "length_evidence": {
+                        "const": "anchored_end"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "read"
           ],
           "properties": {
@@ -981,6 +1048,7 @@
             "noisy_signal",
             "not_covered",
             "phase_shift",
+            "dephased_end",
             "read_edge"
           ],
           "properties": {
@@ -1033,6 +1101,10 @@
               "minimum": 0
             },
             "phase_shift": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dephased_end": {
               "type": "integer",
               "minimum": 0
             },

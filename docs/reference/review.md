@@ -57,9 +57,21 @@ target still fails the command without output.
     `selection` version.
 - `reads`: the admitted reads in the sample's read order (content SHA-256),
   each with `name` (the trace stem), `sha256`, `strand` (`forward` or
-  `reverse`, its placement), and `admitted: true`; then the rejected reads
-  with `name`, `sha256`, `admitted: false`, and `rejection` as in
-  [`dna.consensus/v1`](consensus.md).
+  `reverse`, its placement), `admitted: true`, and `masked`; then the
+  rejected reads with `name`, `sha256`, `admitted: false`, and `rejection`
+  as in [`dna.consensus/v1`](consensus.md). `masked` lists, in reference
+  order, the maximal stretches `{first, last, state, after_repeat}` of
+  reference positions inside the reportable regions that the read's aligned
+  calls cover while the modality masks its signal (rules version 10): `state`
+  is the callability segment's phase state (`dephased`: superimposed ladders
+  offset by slippage, as after a repeat run; `mixed`; `weak`; `irregular`),
+  and `after_repeat` whether the segment starts in the window that follows a
+  long repeat run. The read does not show its bases there: no call, base, or
+  indel comes from such a call, except that a masked call reading another
+  base than a run's may mark where that run ends (`dephased_end`). The
+  stretches come from the read's own signal, never from fixed positions, so
+  they locate what each read left unread for a later reading of the
+  dephased tail, also where no item lists it.
 - `calls` (`called`, under a profile that declares notation): the sample's
   calls in the profile notation, distinct and in reference order, as
   `SampleAnalysis::call` gives them: `call` (`309.1C`), `position`,
@@ -156,9 +168,9 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 1 | `possible_heteroplasmy` |
 | 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `undecided` |
 | 3 | `one_read`, `one_strand` |
-| 4 | `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
+| 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 9)
+## Labels (rules version 10)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -254,6 +266,13 @@ exemption lifts the margin (ADR-0076).
   - `read_edge` `{read}`: the call is unmasked but neither trusted nor exempt:
     it lies inside the read-end margin of a read end, an untrimmed call, or a
     masked call.
+- `dephased_end` `{runs: [{base, length, length_evidence}]}`: the site's runs
+  whose length rests on an anchored end (`length_evidence` `anchored_end`):
+  a read loses phase after the run and its first masked call reading another
+  base marks where the run ends (ADR-0071). Context only (rules version 10):
+  such lengths were 98.4 % right on current development data, so the user
+  kept them; the label records that the length leans on the dephased tail,
+  which is read later. `long_run` still makes a long one a check.
 - `not_covered`: no admitted read covers the gap.
 
 `phase_shift` and `noisy_signal` read the core's view of the modality's masks;

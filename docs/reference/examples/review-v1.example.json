@@ -52,35 +52,53 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 9
+        "version": 10
       }
     ],
-    "rules": 9
+    "rules": 10
   },
   "reads": [
     {
       "name": "A12_HV1F_03",
       "sha256": "09cf6d52e58d28df5bc54a842ff3600fbe26bb6c87ef8fdc7ec3f4d0daaba202",
       "strand": "forward",
-      "admitted": true
+      "admitted": true,
+      "masked": [
+        {
+          "first": 16184,
+          "last": 16205,
+          "state": "dephased",
+          "after_repeat": true
+        }
+      ]
     },
     {
       "name": "A12_HV2F_03",
       "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
       "strand": "forward",
-      "admitted": true
+      "admitted": true,
+      "masked": []
     },
     {
       "name": "A12_HV3R_03",
       "sha256": "a6c0b613f1fe0bf2798d4fa2d6b0772993f3c3484fd5e8a1799a47757a64536f",
       "strand": "reverse",
-      "admitted": true
+      "admitted": true,
+      "masked": [
+        {
+          "first": 278,
+          "last": 315,
+          "state": "dephased",
+          "after_repeat": true
+        }
+      ]
     },
     {
       "name": "A12_HV1R_03",
       "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
       "strand": "reverse",
-      "admitted": true
+      "admitted": true,
+      "masked": []
     },
     {
       "name": "A12_HV2R_03",
@@ -1260,6 +1278,7 @@
       "noisy_signal": 0,
       "not_covered": 1,
       "phase_shift": 2,
+      "dephased_end": 0,
       "read_edge": 0
     },
     "positions": {
