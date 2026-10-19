@@ -1,19 +1,19 @@
 //! Projection of variant-associated calls into concise signal records.
 
-use crate::error::{ReportError, Result};
+use crate::error::{CallEvidenceError, ReportError, Result};
 use crate::model::result::{PeakHeightsResult, VariantCallResult, VariantResult};
+use crate::model::sanger_read::SangerCallSignal;
 use crate::report::sanger_call;
 use dna_align::model::alignment::Orientation;
 use dna_call::model::reference_call;
 use dna_call::model::variant::Variant;
 use dna_kernel::read_evidence::ReadEvidence;
-use dna_sanger::model::attachment::SangerAttachment;
 
 /// Projects normalized variants and joins their original calls to essential evidence.
 pub(super) fn project(
     variants: Vec<Variant>,
     evidence: &ReadEvidence,
-    sanger: &SangerAttachment,
+    sanger: &[SangerCallSignal],
     orientation: Orientation,
 ) -> Result<Vec<VariantResult>> {
     variants
@@ -25,7 +25,7 @@ pub(super) fn project(
 fn project_variant(
     variant: Variant,
     evidence: &ReadEvidence,
-    sanger: &SangerAttachment,
+    sanger: &[SangerCallSignal],
     orientation: Orientation,
 ) -> Result<VariantResult> {
     let projected_calls =
@@ -33,13 +33,14 @@ fn project_variant(
             .map_err(ReportError::CallEvidence)?
             .into_iter()
             .map(|call| {
-                let joined = sanger_call::evidence(
-                    &sanger.calls,
-                    &sanger.quality,
-                    orientation,
-                    call.mapping.call_index_0based,
-                )
-                .map_err(ReportError::CallEvidence)?;
+                let index = call.mapping.call_index_0based;
+                let signal = sanger
+                    .get(index)
+                    .copied()
+                    .ok_or(CallEvidenceError::MissingCall { index })
+                    .map_err(ReportError::CallEvidence)?;
+                let joined = sanger_call::on_reference(signal, orientation, index)
+                    .map_err(ReportError::CallEvidence)?;
                 Ok(VariantCallResult {
                     role: call.mapping.role,
                     base: call.base,

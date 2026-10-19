@@ -1,5 +1,7 @@
 //! CLI contract for reference-free read evidence (`dna.read_evidence/v1`,
-//! PROP-0011): deterministic JSON that matches the basecalls of the same trace.
+//! PROP-0011): deterministic JSON that matches the basecalls of the same
+//! trace, and from which `analyze --evidence` reproduces the trace's analysis
+//! byte for byte.
 
 pub mod support;
 
@@ -11,7 +13,9 @@ use predicates::prelude::*;
 use serde_json::Value;
 use tempfile::tempdir;
 
-use support::{basecall_output_path, write_abif, write_config};
+use support::{
+    analysis_output_path, basecall_output_path, write_abif, write_config, write_reference,
+};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 
@@ -108,6 +112,164 @@ fn refuses_to_overwrite_an_existing_result() -> Result<(), Box<dyn std::error::E
     run("evidence", &trace, &config, directory.path())?.failure();
     assert_eq!(fs::read(&output)?, before);
     Ok(())
+}
+
+/// The reverse complement of `sequence`.
+fn reverse_complement(sequence: &str) -> String {
+    sequence
+        .chars()
+        .rev()
+        .map(|base| match base {
+            'A' => 'T',
+            'C' => 'G',
+            'G' => 'C',
+            _ => 'A',
+        })
+        .collect()
+}
+
+// SRS-API-018 SRS-IN-010
+#[test]
+fn analyzes_a_read_from_its_evidence_exactly_as_from_its_trace()
+-> Result<(), Box<dyn std::error::Error>> {
+    // A read that matches its reference, one with a substitution, and the
+    // same read on the reverse strand.
+    let substituted = format!("{}T{}", &QUERY[..10], &QUERY[11..]);
+    let cases = [
+        ("matching", QUERY.to_owned(), QUERY.to_owned()),
+        ("forward", QUERY.to_owned(), substituted.clone()),
+        ("reverse", reverse_complement(QUERY), substituted),
+    ];
+    for (name, read, reference_sequence) in cases {
+        let from_trace = tempdir()?;
+        let from_evidence = tempdir()?;
+        for directory in [from_trace.path(), from_evidence.path()] {
+            write_abif(&directory.join(format!("{name}.ab1")), &read)?;
+            write_reference(
+                &directory.join("reference.fa"),
+                &format!("TTTT{reference_sequence}CCCC"),
+            )?;
+            write_config(&directory.join("dna.toml"), "linear")?;
+        }
+        let trace = from_trace.path().join(format!("{name}.ab1"));
+        analyze(
+            &[trace.as_os_str()],
+            from_trace.path(),
+            &from_trace.path().join("dna.toml"),
+        )
+        .success();
+
+        let directory = from_evidence.path();
+        let config = directory.join("dna.toml");
+        let evidence_trace = directory.join(format!("{name}.ab1"));
+        run("evidence", &evidence_trace, &config, directory)?.success();
+        let evidence = evidence_output_path(directory, &evidence_trace)?;
+        analyze(
+            &["--evidence".as_ref(), evidence.as_os_str()],
+            directory,
+            &config,
+        )
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::is_empty());
+
+        // Published under the trace's stem, byte-identical.
+        let expected = fs::read(analysis_output_path(from_trace.path(), &trace))?;
+        let actual = fs::read(analysis_output_path(directory, &evidence_trace))?;
+        assert_eq!(actual, expected, "{name}");
+        let value: Value = serde_json::from_slice(&actual)?;
+        let variants = value["variants"].as_array().map_or(0, Vec::len);
+        assert_eq!(variants > 0, name != "matching", "{name}");
+    }
+    Ok(())
+}
+
+// SRS-API-018
+#[test]
+fn refuses_evidence_it_cannot_read_back() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let directory = directory.path();
+    let trace = directory.join("trace.ab1");
+    let config = directory.join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_reference(&directory.join("reference.fa"), &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    run("evidence", &trace, &config, directory)?.success();
+    let document: Value =
+        serde_json::from_slice(&fs::read(evidence_output_path(directory, &trace)?)?)?;
+
+    let mut schema = document.clone();
+    schema["schema_version"] = "dna.read_evidence/v0".into();
+    let mut reason = document.clone();
+    reason["read"]["reasons"][0] = "made_up_reason".into();
+    let mut order = document.clone();
+    order["calls"][0]["index"] = 1.into();
+    order["calls"][1]["index"] = 0.into();
+    let mut configuration = document;
+    configuration["provenance"]["configuration_sha256"] = "0".repeat(64).into();
+    for (name, edited, message) in [
+        ("schema", schema, "unsupported schema version"),
+        ("reason", reason, "unknown reason label \"made_up_reason\""),
+        ("order", order, "call at position 0 has index 1"),
+        (
+            "configuration",
+            configuration,
+            "is not the loaded configuration",
+        ),
+    ] {
+        let path = directory.join(format!("{name}.evidence.json"));
+        fs::write(&path, serde_json::to_vec(&edited)?)?;
+        analyze(
+            &["--evidence".as_ref(), path.as_os_str()],
+            directory,
+            &config,
+        )
+        .failure()
+        .stderr(
+            predicate::str::contains("invalid read evidence")
+                .and(predicate::str::contains(message)),
+        );
+        assert!(
+            !directory
+                .join("results")
+                .join(format!("{name}.json"))
+                .exists()
+        );
+    }
+
+    // A trace and its evidence together, or neither, is no analysis.
+    let evidence = evidence_output_path(directory, &trace)?;
+    analyze(
+        &[
+            trace.as_os_str(),
+            "--evidence".as_ref(),
+            evidence.as_os_str(),
+        ],
+        directory,
+        &config,
+    )
+    .failure()
+    .stderr(predicate::str::contains("cannot be used with"));
+    analyze(&[], directory, &config).failure();
+    assert!(!directory.join("results").join("trace.json").exists());
+    Ok(())
+}
+
+/// Runs `analyze` with `arguments` and the reference `reference.fa` in `workdir`.
+fn analyze(
+    arguments: &[&std::ffi::OsStr],
+    workdir: &Path,
+    config: &Path,
+) -> assert_cmd::assert::Assert {
+    Command::new(dna_binary())
+        .current_dir(workdir)
+        .env("DNA_CONFIG", config)
+        .env("DNA_LOG_DIR", workdir.join("logs"))
+        .arg("analyze")
+        .args(arguments)
+        .arg("--reference")
+        .arg(workdir.join("reference.fa"))
+        .assert()
 }
 
 fn run(

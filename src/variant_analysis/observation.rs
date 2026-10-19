@@ -5,11 +5,12 @@ use crate::error::{Error, Result};
 use crate::model::read_observation::ReadObservation;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
-use dna_kernel::read_evidence::Placement;
+use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::sanger::Chromatogram;
-use dna_sanger::read_processing::{self, ProcessedRead};
+use dna_sanger::read_processing::{self, ProcessedRead, ReadWarnings};
 
+use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::{self, CoreRun, PlacementRejection, ReadIdentity};
 
 /// Completed one-read observation plus operational warning total.
@@ -74,6 +75,54 @@ pub(crate) fn observe(
         &mixtures,
         &config.sanger.sanger_evidence,
     )?;
+    record_evidence(&evidence, config);
+    drop(stage);
+    let called = match call(
+        ReadIdentity {
+            input_name: trace.source_name.clone(),
+            input_sha256: trace.source_sha256.clone(),
+            declared: None,
+        },
+        evidence,
+        reference,
+        config,
+        profile,
+    ) {
+        Ok(called) => called,
+        Err(error) => {
+            let Some(rejection) = PlacementRejection::of(&error) else {
+                return Err(error.into());
+            };
+            return Ok(Observation::Unplaced {
+                rejection,
+                error: error.into(),
+                sanger: Box::new(SangerRejection {
+                    integrity: signal.integrity,
+                    callability,
+                }),
+            });
+        }
+    };
+
+    let warning_total = warning_total(&read_warnings, &called);
+
+    Ok(Observation::Placed(Box::new(CompletedObservation {
+        read: ReadObservation {
+            called,
+            sanger: SangerAttachment {
+                calls,
+                signal,
+                callability,
+                quality,
+                second,
+            },
+        },
+        warning_total,
+    })))
+}
+
+/// Records what one read's evidence holds, as the core receives it.
+pub(crate) fn record_evidence(evidence: &ReadEvidence, config: &Config) {
     tracing::info!(
         event = "read_evidence_completed",
         calls = evidence.calls().len(),
@@ -96,13 +145,20 @@ pub(crate) fn observe(
         minimum_peak_height = config.sanger.sanger_evidence.minimum_peak_height,
         relative_quality_threshold = config.sanger.sanger_evidence.relative_quality_threshold,
     );
-    drop(stage);
-    let called = match read_call::call_read(
-        ReadIdentity {
-            input_name: trace.source_name.clone(),
-            input_sha256: trace.source_sha256.clone(),
-            declared: None,
-        },
+}
+
+/// Places and calls one read's evidence with the core: evidence from a
+/// trace's Sanger products, or from a recorded read evidence document
+/// (PROP-0011).
+pub(crate) fn call(
+    identity: ReadIdentity,
+    evidence: ReadEvidence,
+    reference: &Reference,
+    config: &Config,
+    profile: &Profile,
+) -> dna_kernel::error::Result<CalledRead> {
+    read_call::call_read(
+        identity,
         evidence,
         reference,
         &CoreRun {
@@ -110,23 +166,11 @@ pub(crate) fn observe(
             configuration_sha256: &config.source_sha256,
             regions: &profile.regions,
         },
-    ) {
-        Ok(called) => called,
-        Err(error) => {
-            let Some(rejection) = PlacementRejection::of(&error) else {
-                return Err(error.into());
-            };
-            return Ok(Observation::Unplaced {
-                rejection,
-                error: error.into(),
-                sanger: Box::new(SangerRejection {
-                    integrity: signal.integrity,
-                    callability,
-                }),
-            });
-        }
-    };
+    )
+}
 
+/// The read's operational warning total, logged when there are any.
+pub(crate) fn warning_total(read_warnings: &ReadWarnings, called: &CalledRead) -> usize {
     let excluded_variant_candidates = called.variants.excluded_count();
     let reference_origin_wrap = called.alignment.wraps_origin();
     let warning_total = read_warnings.unresolved_primary_calls
@@ -149,18 +193,5 @@ pub(crate) fn observe(
             reference_origin_wrap,
         );
     }
-
-    Ok(Observation::Placed(Box::new(CompletedObservation {
-        read: ReadObservation {
-            called,
-            sanger: SangerAttachment {
-                calls,
-                signal,
-                callability,
-                quality,
-                second,
-            },
-        },
-        warning_total,
-    })))
+    warning_total
 }

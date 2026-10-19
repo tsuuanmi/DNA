@@ -25,6 +25,17 @@ with their runs, back into the core's consensus model, under the same
 configuration, profile, and reference rules; the segments are named as the
 consensus FASTA names them.
 
+[`evidence.rs`](evidence.rs) reads a `dna.read_evidence/v1` document for
+`analyze --evidence` (PROP-0011, SRS-API-018) under the same configuration,
+profile, and reference rules: closed shape, at most 16 MiB, written under the
+loaded configuration by this build's evidence plugins, calls in call order.
+It maps every reason label onto the Sanger plugin's own reasons
+(`dna_sanger::read_processing::reason`; an unknown label fails typed) and
+rebuilds the kernel's `ReadEvidence` through its constructors, with the
+`SangerRead` the analysis document reports (trim, callability, signal quality,
+warnings, each call's primary-event peaks and relative quality), checked
+against the calls.
+
 [`variants.rs`](variants.rs) reads a `dna.variants/v1` document for the
 post-calling plugins: the sample, the reference identity, and each read's
 eligible variants, under the same configuration, profile, and reference rules.

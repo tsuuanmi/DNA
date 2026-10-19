@@ -177,5 +177,9 @@ output of that step can be checked and the flow is clear".
 - Increment 2, `dna.analysis/v10`: each aligned call's reference column and
   the core's trust in it; component calls follow PROP-0010.
 - Increment 3 (evaluation contracts): pending.
-- Increment 4 (contracts the next step reads): accepted by the user on 2026-10-19,
-  pending.
+- Increment 4 (contracts the next step reads): accepted by the user on 2026-10-19.
+  4a, `dna analyze --evidence` (SRS-API-018), is byte-identical to `dna analyze <trace>`
+  on 999 of 1,000 real traces; the remaining read is rejected by the Sanger plugin both
+  ways. Its evidence now carries full-precision profile weights: rounding them to three
+  decimals changed 2 of 1,000 analyses. 4b (sample, consensus and review from documents)
+  is pending.

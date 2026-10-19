@@ -50,6 +50,27 @@ const REASON_ORDER: [EvidenceReason; 3] = [
     MIXED_SUPPORTING_DNA,
 ];
 
+/// Every reason label the Sanger modality raises: the verdict reasons, then
+/// the mask labels.
+const REASONS: [EvidenceReason; 8] = [
+    PEAK_BELOW_MINIMUM,
+    RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
+    MIXED_SUPPORTING_DNA,
+    POST_HOMOPOLYMER,
+    DEPHASED_SIGNAL,
+    MIXED_SIGNAL,
+    WEAK_SIGNAL,
+    IRREGULAR_SPACING,
+];
+
+/// The Sanger reason a published `label` names, or `None` when the modality
+/// raises no such reason: a recorded read evidence document is read back
+/// onto the modality's own labels (PROP-0011).
+#[must_use]
+pub fn reason(label: &str) -> Option<EvidenceReason> {
+    REASONS.into_iter().find(|reason| reason.label() == label)
+}
+
 /// Builds one read's core evidence from its Sanger products. A call within
 /// `signal_edge_margin` calls of the trim interval's ends, of a masked call that
 /// does not anchor the alignment, or of the read's physical ends is at an
@@ -765,6 +786,16 @@ mod tests {
     use dna_kernel::model::nucleotide::Nucleotide;
 
     use super::*;
+
+    #[test]
+    fn reads_back_every_label_the_modality_raises_and_no_other() {
+        for known in REASONS {
+            assert_eq!(reason(known.label()), Some(known));
+        }
+        assert_eq!(reason("read_end"), None);
+        assert_eq!(reason("Weak_Signal"), None);
+        assert_eq!(reason(""), None);
+    }
 
     /// The evidence settings with every read-edge margin `margin`.
     fn config(margin: usize) -> SangerEvidenceConfig {

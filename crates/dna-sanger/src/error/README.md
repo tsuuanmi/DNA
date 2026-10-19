@@ -4,7 +4,9 @@ Owns the Sanger modality's typed failures: `SangerError`, the plugin's
 `Result<T>` alias, and one failure vocabulary per Sanger stage (`AbifError`
 with its `Tag`, `BasecallingError`, `SignalError`, `CallabilityError`,
 `QualityControlError`), plus `ProductsError` for one read's Sanger products
-disagreeing while its `ReadEvidence` is assembled. Configuration and evidence
+disagreeing while its `ReadEvidence` is assembled, `RunSignalError` for a
+`dna.signal/v1` document, and `ReadEvidenceError` for a `dna.read_evidence/v1`
+document read back (PROP-0011). Configuration and evidence
 validation failures stay the kernel's and travel as `SangerError::Kernel`.
 
 Every variant renders with the stage prefix it had before the modality owned

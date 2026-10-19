@@ -17,6 +17,19 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
+  and calls a read from its `dna.read_evidence/v1` document alone, without
+  the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis
+  document byte-identical to `dna analyze <trace>` for the same trace and
+  configuration, under the trace's `results/<trace-stem>.json`. The trace and
+  `--evidence` exclude each other. The reader refuses, typed and without
+  output, another schema version, configuration, or evidence plugin, a call
+  out of order, a reason label the Sanger plugin does not raise, and Sanger
+  evidence inconsistent with the calls; it rebuilds `ReadEvidence` through
+  the kernel's constructors. JSON numbers are now parsed correctly rounded
+  (`serde_json` `float_roundtrip`), so written values read back bit for bit.
+  On 1,000 real traces, 999 analyses are byte-identical and one read the
+  Sanger plugin rejects fails both ways alike.
 - The consensus sets aside dissent from a reference decision that a clean
   read of the other strand contradicts (SRS-CONS-011, ADR-0083): opposing
   reads whose second peak stands out and is explained by its modality, or
@@ -434,6 +447,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna.read_evidence/v1` carries everything the analysis document reports
+  beside the core's products, in place (pre-release): `read.trim`,
+  `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's
+  `signal.peaks` (A/C/G/T heights at its primary event, read strand). Profile
+  weights are written at full precision: rounded to three decimals they
+  changed the quantized alignment weight of 27 % of calls and the analysis
+  of 2 reads in 1,000. No plugin version changes: no plugin's output changes.
 - The review shows each admitted read's phase mixtures (ADR-0082): for
   every stretch after a run that the Sanger plugin decomposes into the read's
   own sequence at whole-call offsets, `reads[].mixtures` lists the dominant

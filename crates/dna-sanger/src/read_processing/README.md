@@ -41,7 +41,10 @@ modality-neutral core.
     computed by [second_cause](../second_cause/README.md)'s `second_base`).
 
   This file is the only place where Sanger peaks, relative quality,
-  qualifying channels, and phase states turn into core evidence.
+  qualifying channels, and phase states turn into core evidence. `reason`
+  maps a published label back onto the plugin's own reason, so a recorded
+  `dna.read_evidence/v1` document is read back without new labels
+  (PROP-0011).
 
 `config.rs` owns the `[sanger_evidence]` section and `SangerConfig`, which
 validates every Sanger-owned section together, including the cross-section
