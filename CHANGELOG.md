@@ -17,6 +17,33 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna analyze` writes, per call of the selected alignment, where the
+  alignment places it and what the core decided about it (PROP-0011,
+  increment 2; SRS-OUT-003): a new `calls` array, in call order, with each
+  call's `index`, its `column` (1-based reference position and insertion
+  ordinal), and `trust` (`placement`, `trusted`, `exempt`, `withheld_by`,
+  `scope`), the same trust `dna review` reads. One document then shows the
+  chain sanger → align → call for its read; it joins `dna.read_evidence/v1`
+  by call index. Every other field is unchanged; component calls of a phase
+  mixture (PROP-0010) are pending. **Breaking:** `dna.analysis/v9` → `v10`.
+  No plugin version changes: no plugin's output changes.
+- `dna evidence <trace>` writes `results/<trace-stem>.evidence.json`, `dna.read_evidence/v1` (SRS-API-017, PROP-0011): a read's per-call evidence exactly as the core receives it from the Sanger plugin, with the signal each verdict rests on, so the modality → core boundary can be checked on its own.
+- `docs/architecture/data-flow.md` maps each step to its input and output contracts and the command that writes them (PROP-0011); every crate's source README names its output contract, and `validate_docs_structure.py` fails when one is missing or names a schema that does not exist.
+- The Sanger plugin asserts a phase mixture for every dephased segment that
+  a repeat run opens (SRS-CALL-023, ADR-0082, PROP-0010 increment 1): the
+  stretch fitted by non-negative least squares as the read's own calls plus
+  copies offset by whole calls, with each component's offset and fraction,
+  the residual, the unexplained calls, and whether the components explain
+  the stretch, all against the read's own in-phase noise. The kernel carries
+  it as `ReadEvidence::mixtures`. `dna-call`'s `component_calls` compares
+  each component of an explained mixture with the reference on its own
+  (SRS-VAR-022), exposed as `SampleAnalysis::components`, and `dna-eval run`
+  writes `components.tsv`. New key `decompose_unexplained_quantile` (0.99)
+  in `[signal_processing]`; configuration schema 17; plugin `sanger` 13.
+  No call, consensus, or review output changes. On panel v5's current
+  slice, an explained component's entered run in the HVS-II C-tract is the
+  truth's in 95.6 % of HV2F and 99.3 % of HV3R reads.
+
 - Each Sanger call with a second peak above `signal_processing.second_floor`,
   or masked as mixed, is labelled with the peak's cause from its shape
   against the call's neighbours (SRS-CALL-021): `noise`, `neighbour_tail`,
@@ -397,6 +424,37 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review shows each admitted read's phase mixtures (ADR-0082): for
+  every stretch after a run that the Sanger plugin decomposes into the read's
+  own sequence at whole-call offsets, `reads[].mixtures` lists the dominant
+  and the other sequences with their fractions, each compared with the
+  reference on its own and written in the profile notation, and the calls
+  they leave unexplained (`review` plugin 17, rules version 17). Display
+  only: no item, label, or `clear` changes.
+- The review judges a site the reportable regions clip over its reportable
+  columns only (`review` plugin 16, rules version 16): the item's `sequence`
+  is the decision there, and an opposing read that shows it there, its
+  difference outside the regions, no longer makes `strands_disagree`. On the
+  current development data 32 such checks go (66 at position 73, where a
+  wrapped HV1F read differs at 66-72), clearing 30 samples, and 1,789 clipped
+  items now show their clipped sequence.
+- Read-start calls may confirm the reference too (ADR-0080, SRS-CALL-022,
+  SRS-CONS-010). The Sanger plugin marks as reference-only a single-channel
+  call without a second base standing out or unexplained, withheld only for
+  its peak floor or relative quality, or lying at a signal edge whose every
+  cause is the untrimmed read start or a weak mask clear of repeat runs. The
+  core lets such a call confirm beyond the read's unvouched ends (new
+  `Eligibility::clear_of_ends`).
+  - Every confirmation is now also withdrawn:
+    - at or beside any read's observed difference, clean or not;
+    - in a stretch;
+    - in a reference run of at least `consensus.seeded_run` across a
+      junction no read observes cleanly.
+  - Plugins `sanger` 12 and `consensus` 12.
+  - Development panel v5 against `main` b49ff87:
+    - samples with an unreviewed difference are unchanged in every period;
+    - clear samples go from 68.7 to 70.2 % on current data;
+    - no strict or `haplotype_lod` changes.
 - The review lists where DNA decided by reference confirmations alone:
   `reference_only` holds the reportable positions the consensus published as
   `reference_only` (ADR-0080), and `summary.positions.reference_only` counts

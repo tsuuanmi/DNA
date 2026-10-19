@@ -15,7 +15,7 @@ related: [ADR-0027, ADR-0069, ADR-0071, ADR-0074, ADR-0078]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/consensus](../../design/consensus.md), [design/second-peak-cause](../../design/second-peak-cause.md), [reference/consensus](../../reference/consensus.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [requirements/consensus](../../requirements/consensus.md)
+- **Governs:** [design/consensus](../../design/consensus.md), [design/second-peak-cause](../../design/second-peak-cause.md), [reference/consensus](../../reference/consensus.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [requirements/consensus](../../requirements/consensus.md)
 <!-- docs:end backlinks -->
 
 ## Context
@@ -75,6 +75,39 @@ call verbatim, and its run role is unchanged.
    `reference_only` in `dna.consensus/v1`. When the decisions are called
    (ADR-0078), the call at such a position shows its base only: it bounds no
    neighbouring run.
+
+### Read-start calls
+
+A second class of calls confirms the reference too. The class was measured
+on development panel v5 against `main` b49ff87. Reference-reading calls that
+only the peak floor or relative quality withholds, or that sit at a benign
+signal edge, were wrong in 0 of about 30,000 cases (per-call research dump,
+14 runs), while their differences were wrong 15–99 % of the time.
+
+The Sanger plugin marks such calls reference-only (SRS-CALL-022). It owns
+which edges are benign:
+- the untrimmed start of a read (not its untrimmed 3' end, where the
+  signal decays);
+- a weak-signal mask clear of every repeat run (beside one, a weak segment
+  is the dephased tail).
+
+The core waives only the modality's own edge verdict for these calls. The
+read's unvouched ends still stand.
+
+The core withdraws a confirmation in three more cases:
+- at or beside any read's observed difference, clean or not, since a read
+  shifted in a repeat shows the reference beside its own difference;
+- in a stretch, by its run structure or position by position, since a
+  confirmation shows a base, not a length;
+- in a reference run of at least `consensus.seeded_run` bases across a
+  junction no read observes cleanly, where a length may change unseen.
+  Applied to every run, this cost half the gain without removing a real
+  error.
+
+Measured result: samples with an unreviewed difference unchanged in every
+period; clear samples 68.7 → 70.2 % on current data, 47.4 → 47.7 % in
+2025-08..11, and 67.2 → 68.5 % older; no strict or `haplotype_lod` changes.
+Plugins `sanger` 12 and `consensus` 12.
 
 ## Alternatives
 

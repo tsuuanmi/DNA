@@ -13,6 +13,48 @@ SOURCES = [
 ]
 FORBIDDEN_NAMES = set(PROFILE.forbidden_names)
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+# PROP-0011: each crate's source README names the contract its step writes.
+OUTPUT_CONTRACT = "Output contract:"
+SCHEMA_FILE = re.compile(r"[A-Za-z0-9_.-]+\.schema\.json")
+
+
+def output_contract_violations(root: Path) -> list[str]:
+    """Check the "Output contract:" paragraphs of the source READMEs.
+
+    Every crate's source README has one; it names at least one schema unless it
+    states "none"; every schema it names exists under docs/reference/schemas.
+    """
+    errors: list[str] = []
+    schemas = root / "docs" / "reference" / "schemas"
+    crate_readmes = sorted(root.glob("crates/*/src/README.md"))
+    readmes = sorted(
+        {
+            *(root / "src").rglob("README.md"),
+            *root.glob("crates/*/src/**/README.md"),
+        }
+    )
+    for readme in readmes:
+        relative = readme.relative_to(root)
+        paragraphs = [
+            paragraph.strip()
+            for paragraph in re.split(r"\n\s*\n", readme.read_text(encoding="utf-8"))
+            if paragraph.lstrip().startswith(OUTPUT_CONTRACT)
+        ]
+        if not paragraphs and readme in crate_readmes:
+            errors.append(f"crate README names no output contract: {relative}")
+        for paragraph in paragraphs:
+            names = SCHEMA_FILE.findall(paragraph)
+            stated = paragraph.removeprefix(OUTPUT_CONTRACT).strip().lower()
+            if not names and not stated.startswith("none"):
+                errors.append(
+                    f"output contract names no schema and is not 'none': {relative}"
+                )
+            errors.extend(
+                f"output contract names a missing schema: {relative} -> {name}"
+                for name in names
+                if not (schemas / name).is_file()
+            )
+    return errors
 
 
 def validate_markdown_links(path: Path, errors: list[str]) -> None:
@@ -95,6 +137,7 @@ def main() -> None:
                 "source module/package directory is missing README.md: "
                 f"{directory.relative_to(ROOT)}"
             )
+    errors.extend(output_contract_violations(ROOT))
 
     markdown_files = [
         ROOT / "README.md",

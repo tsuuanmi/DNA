@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:signal:schema:analysis:v9",
-  "title": "DNA compact analysis v9",
+  "$id": "urn:signal:schema:analysis:v10",
+  "title": "DNA compact analysis v10",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,12 +10,13 @@
     "read",
     "signal_quality",
     "alignment",
+    "calls",
     "variants",
     "warnings"
   ],
   "properties": {
     "schema_version": {
-      "const": "dna.analysis/v9"
+      "const": "dna.analysis/v10"
     },
     "provenance": {
       "$ref": "#/$defs/provenance"
@@ -28,6 +29,13 @@
     },
     "alignment": {
       "$ref": "#/$defs/alignment"
+    },
+    "calls": {
+      "description": "Every call of the selected alignment, in call order, with its reference column and the core's trust in it (PROP-0011).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/alignedCall"
+      }
     },
     "variants": {
       "type": "array",
@@ -720,6 +728,137 @@
             "type": "integer",
             "minimum": 1
           }
+        }
+      }
+    },
+    "alignedCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "trust"
+      ],
+      "properties": {
+        "index": {
+          "description": "The call's 0-based index in the read's own order, as in dna.read_evidence/v1.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "description": "The 1-based reference position the alignment places the call at, and its insertion ordinal (0 for a matched column); absent for an insertion before the first reference position.",
+          "$ref": "#/$defs/column"
+        },
+        "trust": {
+          "$ref": "#/$defs/trust"
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "ordinal"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "trust": {
+      "description": "The core's trust in the call, as its variant calling and consensus judge it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "placement",
+        "trusted",
+        "exempt",
+        "withheld_by",
+        "scope"
+      ],
+      "properties": {
+        "placement": {
+          "$ref": "urn:signal:schema:read_evidence:v1#/$defs/call/properties/placement"
+        },
+        "trusted": {
+          "type": "boolean"
+        },
+        "exempt": {
+          "description": "A bounded-run exemption lifts read_end from the call (ADR-0076).",
+          "type": "boolean"
+        },
+        "withheld_by": {
+          "description": "What withholds trust, before then after the call in read order; empty when the call is trusted.",
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/withholder"
+          }
+        },
+        "scope": {
+          "description": "What the modality vouches for: the base, a run's length and ends, and the indels it shows (full), or the base only (base).",
+          "enum": [
+            "full",
+            "base"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "trusted": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "withheld_by": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    "withholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "read_end",
+            "untrimmed",
+            "masked"
+          ]
+        },
+        "reason": {
+          "$ref": "urn:signal:schema:read_evidence:v1#/$defs/reason"
+        }
+      },
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "masked"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "reason"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "reason"
+          ]
         }
       }
     }

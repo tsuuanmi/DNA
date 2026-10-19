@@ -15,6 +15,7 @@ mod baseline;
 mod cause;
 mod classes;
 mod compare;
+mod components;
 mod convention;
 mod error;
 mod estimate;
@@ -497,6 +498,23 @@ fn run(cli: &RunArgs) -> Result<String> {
         }
     }
     write(&cli.output, "checks.tsv", &checks)?;
+    let mut table = String::from(components::HEADER);
+    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
+        if let Ok(called) = &outcome.result {
+            components::append(
+                &mut table,
+                (&sample.id, sample.batch_date.as_deref().unwrap_or("")),
+                &called.components,
+                truth
+                    .database
+                    .samples
+                    .get(&sample.id)
+                    .map(|record| record.alleles.as_slice()),
+                reference.sequence.as_bytes(),
+            );
+        }
+    }
+    write(&cli.output, "components.tsv", &table)?;
     write(&cli.output, "forms.tsv", &forms.table(&truth.sha256))?;
     let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
     json.push('\n');

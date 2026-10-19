@@ -7,6 +7,9 @@ forensic (EMPOP-style) notation conventions, reported and never rewritten, and
 the offline EMPOP query. It formats and decides nothing about the sequence; it
 is deterministic and offline, and it depends only on `dna-kernel`.
 
+Output contract: the `conformance` and `empop` of
+[`dna.notation/v1`](../../../docs/reference/schemas/notation-v1.schema.json) (`dna notation`).
+
 - `conformance.rs` — reports represented calls that break the profile's notation conventions.
 - `export.rs` — the EMPOP query of a sample (SRS-NOM-018): interpretation
   ranges over the positions exactly one record calls, the rendered calls

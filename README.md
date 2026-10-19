@@ -173,7 +173,7 @@ Running DNA over many samples, converting its results, and comparing them with o
 Current public result contracts are:
 
 - `dna.basecalls/v3` — reference-free primary/ambiguity/retained read result with the read callability view;
-- `dna.analysis/v9` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence and the read callability view;
+- `dna.analysis/v10` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence, the read callability view, and each aligned call's reference column and the core's trust in it;
 - `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons;
 - `dna.variants/v1` — the core's per-read placements and observed variants from reviewed consensus sequences, with eligibility and optional notation, and no modality evidence;
 - `dna.notation/v1` — the post-calling notation of a variants document and the target profile's conformance findings;

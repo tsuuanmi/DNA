@@ -89,6 +89,34 @@ Completed typed scientific state is projected by the report layer and serialized
 before atomic no-overwrite CLI publication. Logging remains operational side
 evidence rather than part of deterministic scientific result contracts.
 
+## Step contracts
+
+Each step's output is a versioned contract that can be checked on its own
+([PROP-0011](../proposals/0011-step-contracts.md)). The facade serializes every
+contract; the crate computes what it holds. Each crate's source README names
+its output contract, and `validate_docs_structure.py` checks that the named
+schema exists.
+
+| Step (crate) | Input contract(s) | Output contract | Command | Schema |
+|---|---|---|---|---|
+| shared contracts ([dna-kernel](../../crates/dna-kernel/src/README.md)) | — | none: no step; `dna.read_evidence/v1` serializes its `ReadEvidence` | — | — |
+| read processing ([dna-sanger](../../crates/dna-sanger/src/README.md)) | ABIF trace | `dna.basecalls/v3` | `dna basecall` | [basecalls-v3](../reference/schemas/basecalls-v3.schema.json) |
+| per-call evidence ([dna-sanger](../../crates/dna-sanger/src/README.md) → `ReadEvidence`) | ABIF trace | `dna.read_evidence/v1` | `dna evidence` | [read-evidence-v1](../reference/schemas/read-evidence-v1.schema.json) |
+| run signal ([dna-sanger](../../crates/dna-sanger/src/README.md) `run_signal`) | a run's ABIF traces | `dna.signal/v1` | `dna signal` | [signal-v1](../reference/schemas/signal-v1.schema.json) |
+| placement ([dna-align](../../crates/dna-align/src/README.md)) | `dna.read_evidence/v1`, reference FASTA | `dna.analysis/v10` `alignment` and each call's `column` | `dna analyze` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
+| read assertion ([dna-call](../../crates/dna-call/src/README.md)) | `dna.read_evidence/v1`, `dna.analysis/v10` `alignment` | `dna.analysis/v10` `variants` and each call's `trust`; component calls: none yet ([PROP-0010](../proposals/0010-length-mixture-decomposition.md)) | `dna analyze` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
+| read assertion over reviewed sequences ([dna-call](../../crates/dna-call/src/README.md), facade `input::sequence`) | consensus FASTA | `dna.variants/v1` | `dna call <FASTA>...` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
+| sample evidence ([dna-sample](../../crates/dna-sample/src/README.md)) | the sample's placed reads (`CalledRead`, in process) | `dna.sample_evidence/v10` | `dna sample` | [sample-evidence-v10](../reference/schemas/sample-evidence-v10.schema.json) |
+| consensus ([dna-consensus](../../crates/dna-consensus/src/README.md) `build`) | the sample's placed reads (`CalledRead`, in process) | `dna.consensus/v1` and its FASTA | `dna consensus` | [consensus-v1](../reference/schemas/consensus-v1.schema.json) |
+| decided calls ([dna-consensus](../../crates/dna-consensus/src/README.md) `decided`) | `dna.consensus/v1` | `dna.variants/v1` | `dna call <consensus.json>` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
+| normalization and nomenclature ([dna-normalize](../../crates/dna-normalize/src/README.md)) | `dna.variants/v1` | `dna.notation/v1` `notation` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
+| conformance and EMPOP query ([dna-empop](../../crates/dna-empop/src/README.md)) | `dna.variants/v1`, as represented | `dna.notation/v1` `conformance`, `empop` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
+| review (facade [report](../../src/report/README.md) `review.rs`) | the sample's analysis and call (in process), optional `dna.signal/v1` | `dna.review/v1` | `dna review` | [review-v1](../reference/schemas/review-v1.schema.json) |
+| evaluation ([dna-eval](../../crates/dna-eval/src/README.md)) | panel manifest, reviewer truth, ABIF traces | none yet: `run.json` and TSV tables by convention ([increment 3](../proposals/0011-step-contracts.md#increment-3-evaluation-contracts)) | `dna-eval run` | — |
+
+When the profile declares notation, `dna sample` and `dna call` also carry
+dna-normalize's `notation` in their documents.
+
 ## Platform direction
 
 Future modalities keep source-specific evidence until a biological difference

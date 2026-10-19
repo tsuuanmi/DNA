@@ -167,12 +167,24 @@ const RANKS: [(&str, u64); 16] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 15);
+    assert_eq!(value["provenance"]["rules"], 17);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
             assert!(read.get("masked").is_none());
+            assert!(read.get("mixtures").is_none());
             continue;
+        }
+        // Each phase mixture leads with its dominant sequence, offset 0.
+        for mixture in read["mixtures"]
+            .as_array()
+            .ok_or("mixtures must be an array")?
+        {
+            let components = mixture["components"].as_array().ok_or("components")?;
+            assert_eq!(
+                components.first().map(|first| &first["offset"]),
+                Some(&Value::from(0))
+            );
         }
         let mut end = 0;
         for span in read["masked"].as_array().ok_or("masked must be an array")? {
@@ -374,8 +386,8 @@ fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>
     assert_eq!(
         value["reads"],
         serde_json::json!([
-            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": []},
-            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": []},
+            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": [], "mixtures": []},
+            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": [], "mixtures": []},
         ])
     );
     assert_eq!(value["calls"][0]["call"], "15A");
@@ -468,7 +480,11 @@ fn a_second_base_on_both_strands_is_possible_heteroplasmy() -> Result<(), Box<dy
     assert_consistent(&value)?;
     let first = &items(&value)?[0];
     assert_eq!(first["first"]["position"], 15);
-    assert_eq!(label_names(first), ["possible_heteroplasmy"]);
+    // Every call of these short reads is withheld for its relative quality,
+    // so only reference confirmations (ADR-0080) decide the positions around
+    // 15. Both reads show the second base there unexplained, so 15 is not
+    // confirmed: it stays undecided, a check that is not callable.
+    assert_eq!(label_names(first), ["possible_heteroplasmy", "undecided"]);
     let label = &first["labels"][0];
     assert_eq!(label["base"], "T");
     let reads = label["reads"].as_array().ok_or("reads must be an array")?;
@@ -480,7 +496,8 @@ fn a_second_base_on_both_strands_is_possible_heteroplasmy() -> Result<(), Box<dy
             && read.get("calls").is_none()
     }));
     assert!(value["provenance"].get("signal").is_none());
-    assert_eq!(first["sequence"], "G");
+    // Undecided, the position has no sequence.
+    assert!(first["sequence"].is_null());
     assert_eq!(first["evidence"][0]["positions"][0]["second"]["base"], "T");
     Ok(())
 }
@@ -577,7 +594,9 @@ fn a_run_signal_of_the_samples_run_is_recorded() -> Result<(), Box<dyn std::erro
     assert_eq!(recorded["selection"], 2);
     assert_eq!(recorded["sha256"].as_str().map(str::len), Some(64));
     let first = &items(&value)?[0];
-    assert_eq!(label_names(first), ["possible_heteroplasmy"]);
+    // As in `a_second_base_on_both_strands_is_possible_heteroplasmy`: the
+    // position stays undecided between reference confirmations.
+    assert_eq!(label_names(first), ["possible_heteroplasmy", "undecided"]);
     let reads = first["labels"][0]["reads"]
         .as_array()
         .ok_or("reads must be an array")?;

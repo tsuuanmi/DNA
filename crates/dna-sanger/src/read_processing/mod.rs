@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use crate::basecalling;
 use crate::callability;
+use crate::decompose;
 use crate::error::{CallabilityError, Result};
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
@@ -21,6 +22,7 @@ use crate::model::signal::SignalAnalysis;
 use crate::quality_control;
 use crate::second_cause;
 use crate::signal_processing;
+use dna_kernel::read_evidence::PhaseMixture;
 
 /// Warning counts shared by command-level operational summaries.
 pub struct ReadWarnings {
@@ -48,6 +50,8 @@ pub struct ProcessedRead {
     pub quality: QualityControlResult,
     /// Each call's second peak and its cause (SRS-CALL-021), by call index.
     pub second: Vec<Option<SecondPeak>>,
+    /// The read's phase mixtures after repeat runs (SRS-CALL-023).
+    pub mixtures: Vec<PhaseMixture>,
     /// Warning counts for operational summaries.
     pub warnings: ReadWarnings,
 }
@@ -360,12 +364,23 @@ pub fn finish(
     );
 
     let second = second_cause::classify(&calls, &signal, &callability, &config.signal_processing);
+    let mixtures = decompose::mixtures(
+        &calls,
+        &signal,
+        &callability,
+        quality.trim_start_0based,
+        config.signal_processing.decompose_unexplained_quantile,
+        config.callability.minimum_callable_calls,
+        config.callability.repeat_window_calls,
+    )
+    .unwrap_or_default();
     Ok(ProcessedRead {
         calls,
         signal,
         callability,
         quality,
         second,
+        mixtures,
         warnings,
     })
 }
@@ -375,7 +390,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 11,
+    version: 13,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[

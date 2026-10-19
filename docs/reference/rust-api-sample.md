@@ -73,6 +73,15 @@ impl SampleAnalysis {
         last_1based: usize,
     ) -> dna::error::Result<Vec<LocusObservations>>;
     pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>>;
+    pub fn components(&self) -> Vec<ReadMixtures>;
+}
+
+#[non_exhaustive]
+pub struct ReadMixtures {
+    pub read: String,
+    pub sha256: String,
+    pub forward: bool,
+    pub mixtures: Vec<MixtureCalls>,
 }
 
 #[non_exhaustive]
@@ -128,6 +137,16 @@ impl RejectionCause {
   keeps and changes nothing; uncovered positions have no record. The sample
   evidence keeps only differential loci; a caller that needs the minor
   channel at a position where every read calls the reference reads it here.
+- `components()` returns, per admitted read in placement order, its phase
+  mixtures (`MixtureCalls`, `dna_call::components`, re-exported here with
+  `ComponentCall`): the modality's assertion (`PhaseMixture`: stretch, run,
+  components with offset and fraction, residual, unexplained calls, and
+  whether it is explained, SRS-CALL-023) and, for an explained mixture, each
+  component compared with the reference on its own: its span (first and last
+  positions in read order on the reference strand, the first exceeding the
+  last across the origin), its bases there, and its observed variants
+  (SRS-VAR-022). It is computed on demand, changes nothing, and is evidence
+  for evaluation and review, not a calling contract.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the
   core rejected. The last two carry the read's integrity and callability

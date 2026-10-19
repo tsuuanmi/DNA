@@ -9,6 +9,10 @@ a sample's reads show together, for review? It depends on `dna-kernel`,
 Public surface: `aggregate`, `observations`, the `[sample_reconciliation]`
 section, and the [model](model/README.md).
 
+Output contract:
+[`dna.sample_evidence/v10`](../../../docs/reference/schemas/sample-evidence-v10.schema.json)
+(`dna sample`).
+
 Owns deterministic aggregation of independently processed reads into sample-level
 coverage, overlap, locus, nucleotide-profile, and normalized-variant evidence.
 

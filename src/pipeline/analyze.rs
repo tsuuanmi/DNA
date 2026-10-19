@@ -70,10 +70,15 @@ fn analyze(
     let stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
     let warning_total = completed.warning_total;
+    let trust = dna_call::read_trust(
+        &completed.read.called.evidence,
+        &inputs.config.core.variant_calling,
+    );
     let result = report::build_analysis(CompletedAnalysis {
         reference: inputs.reference,
         profile: inputs.profile.identity().clone(),
         read: completed.read,
+        trust,
         plugins: plugin::ANALYZE,
     })?;
     let result_variants = result.variants.len();

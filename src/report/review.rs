@@ -11,13 +11,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::config::ReviewConfig;
 use crate::error::{ReportError, Result, RunSignalError};
 use crate::model::read_observation::RejectedRead;
-use crate::model::result::{IntervalResult, ReferenceResult};
+use crate::model::result::{ColumnResult, IntervalResult, ReferenceResult, ScopeResult};
 use crate::model::review_result::{
-    ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
-    ItemResult, LabelCounts, LabelResult, MaskedSpanResult, PositionCounts, ReviewCallResult,
+    Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
+    LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
     ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
-    ScopeResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
-    ZoneCounts, ZoneKind, ZoneResult,
+    SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult, ZoneCounts,
+    ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::report::json::{project_plugins, project_profile};
@@ -42,7 +42,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 15,
+    version: 17,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -66,6 +66,8 @@ pub(crate) struct CompletedReview {
     pub(crate) plugins: &'static [&'static PluginDescriptor],
     /// The run signal the calls are judged against, with its file's SHA-256.
     pub(crate) signal: Option<(RunSignal, String)>,
+    /// Each admitted read's phase mixtures, by content SHA-256 (ADR-0082).
+    pub(crate) mixtures: BTreeMap<String, Vec<MixtureResult>>,
 }
 
 /// What the sample analysis and its call gave.
@@ -89,6 +91,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         outcome,
         plugins,
         signal,
+        mixtures,
     } = completed;
     let regions = clip(&profile.regions, reference.len());
     let provenance = ReviewProvenanceResult {
@@ -122,6 +125,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     admitted: false,
                     rejection: Some(project_rejection(&read.cause)),
                     masked: None,
+                    mixtures: None,
                 })
                 .collect();
             return Ok(ReviewResult {
@@ -176,6 +180,12 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     &analysis.trust(&read.input_sha256).ok_or_else(missing)?,
                     &regions,
                 )),
+                mixtures: Some(
+                    mixtures
+                        .get(&read.input_sha256)
+                        .cloned()
+                        .unwrap_or_default(),
+                ),
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -194,6 +204,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             admitted: false,
             rejection: Some(project_rejection(&rejected.cause)),
             masked: None,
+            mixtures: None,
         });
     }
 
@@ -496,13 +507,19 @@ impl<'a> Sample<'a> {
             if let Some([first, last]) =
                 within(self.regions, site.first_0based + 1, site.last_0based + 1)
             {
+                let mut labels = self.site_labels(site);
+                let mut sequence = site.call.clone();
+                if let Some(shown) = self.clipped_decision(site, first, last) {
+                    self.clip_disagreement(&mut labels, first, last, &shown);
+                    sequence = Some(shown);
+                }
                 drafts.push(Draft {
                     first,
                     last,
                     site: Some(site),
-                    sequence: site.call.clone(),
+                    sequence,
                     decided: site.call.as_ref().is_some_and(|call| !call.contains('N')),
-                    labels: self.site_labels(site),
+                    labels,
                 });
             }
         }
@@ -900,6 +917,68 @@ impl<'a> Sample<'a> {
             })
             .collect::<Result<_>>()?;
         Ok((labels.into_values().collect(), evidence))
+    }
+
+    /// The decision of a site the regions clip, over its reportable columns
+    /// `first..=last`: what most of its supporting reads show there (a tie
+    /// goes to the first in sequence order); `None` for an unclipped site, an
+    /// undecided one, or one no supporting read bounds over those columns.
+    fn clipped_decision(&self, site: &ConsensusSite, first: usize, last: usize) -> Option<String> {
+        if site.first_0based + 1 == first && site.last_0based + 1 == last {
+            return None;
+        }
+        site.call.as_ref().filter(|call| !call.contains('N'))?;
+        let mut shown = BTreeMap::<String, usize>::new();
+        for index in site
+            .supporting
+            .iter()
+            .filter_map(|input| self.by_input.get(input.as_str()).copied())
+        {
+            if let Some(sequence) = self.shown(index, first, last) {
+                *shown.entry(sequence).or_default() += 1;
+            }
+        }
+        let most = shown.values().copied().max()?;
+        shown
+            .into_iter()
+            .find(|(_, count)| *count == most)
+            .map(|(sequence, _)| sequence)
+    }
+
+    /// Keeps `strands_disagree` on a clipped site only for the opposing reads
+    /// that may differ from `decision` over its reportable columns: one that
+    /// shows the decision there, its difference lying outside the regions, no
+    /// longer opposes the item (a read that does not bound those columns
+    /// still does). The label goes when no opposing read is left on another
+    /// strand than a supporting one.
+    fn clip_disagreement(
+        &self,
+        labels: &mut Vec<LabelResult>,
+        first: usize,
+        last: usize,
+        decision: &str,
+    ) {
+        let agrees = |name: &str| {
+            self.reads
+                .iter()
+                .position(|read| read.name == name)
+                .and_then(|index| self.shown(index, first, last))
+                .is_some_and(|shown| shown == decision)
+        };
+        labels.retain_mut(|label| {
+            let LabelResult::StrandsDisagree { reads } = label else {
+                return true;
+            };
+            reads.retain(|side| side.role != Role::Opposing || !agrees(&side.read));
+            let strands = |role: Role| {
+                reads
+                    .iter()
+                    .filter(|side| side.role == role)
+                    .map(|side| side.strand)
+                    .collect::<Vec<_>>()
+            };
+            disagree(&strands(Role::Supporting), &strands(Role::Opposing))
+        });
     }
 
     /// `read_disagrees` for each read that supports a decided site, or that
@@ -2337,6 +2416,7 @@ mod tests {
                 span(6, 6, PhaseState::Dephased, true),
                 span(7, 7, PhaseState::Mixed, false),
             ]),
+            mixtures: Some(Vec::new()),
         }];
         let check = item(ItemKind::Check, vec![LabelResult::Undecided]);
         let variant = item(ItemKind::Variant, Vec::new());

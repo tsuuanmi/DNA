@@ -63,7 +63,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     let second_bytes = fs::read(analysis_output_path(second.path(), &second_trace))?;
     assert_eq!(first_bytes, second_bytes);
     let value: Value = serde_json::from_slice(&first_bytes)?;
-    assert_eq!(value["schema_version"], "dna.analysis/v9");
+    assert_eq!(value["schema_version"], "dna.analysis/v10");
     assert_object_keys(
         &value,
         &[
@@ -72,6 +72,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
             "read",
             "signal_quality",
             "alignment",
+            "calls",
             "variants",
             "warnings",
         ],
@@ -89,7 +90,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 11},
+            {"id": "sanger", "family": "modality", "version": 13},
             {"id": "core", "family": "core", "version": 11},
         ])
     );
@@ -135,6 +136,29 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     );
     assert_eq!(value["read"]["call_count"], 28);
     assert_eq!(value["alignment"]["orientation"], "forward");
+    let calls = value["calls"].as_array().ok_or("calls is not an array")?;
+    assert_eq!(calls.len(), 28);
+    for (index, call) in calls.iter().enumerate() {
+        assert_object_keys(call, &["index", "column", "trust"]);
+        assert_eq!(call["index"], index);
+        assert_eq!(
+            call["column"],
+            serde_json::json!({"position": index + 5, "ordinal": 0})
+        );
+        assert_object_keys(
+            &call["trust"],
+            &["placement", "trusted", "exempt", "withheld_by", "scope"],
+        );
+        assert_eq!(
+            call["trust"]["placement"],
+            serde_json::json!({"kind": "scored"})
+        );
+        assert_eq!(call["trust"]["exempt"], false);
+        assert_eq!(call["trust"]["scope"], "full");
+        // A clean read with no read-end margin: the core trusts every call.
+        assert_eq!(call["trust"]["trusted"], true);
+        assert_eq!(call["trust"]["withheld_by"], serde_json::json!([]));
+    }
     assert!(value["signal_quality"]["noisy_regions"].is_array());
     assert_eq!(value["signal_quality"]["integrity"]["ploc_count"], 28);
     assert_eq!(
@@ -693,6 +717,14 @@ fn maps_reverse_snv_to_original_call_and_ploc() -> Result<(), Box<dyn std::error
     assert_call_evidence(call);
     assert_eq!(call["base"], "T");
     assert_eq!(call["peaks"]["T"], 1000);
+    // Aligned calls stay in the read's own order: a reverse read's first
+    // call reads the last reference position.
+    let calls = value["calls"].as_array().ok_or("calls is not an array")?;
+    assert_eq!(calls.len(), QUERY.len());
+    for (index, call) in calls.iter().enumerate() {
+        assert_eq!(call["index"], index);
+        assert_eq!(call["column"]["position"], 4 + QUERY.len() - index);
+    }
     Ok(())
 }
 
@@ -726,6 +758,26 @@ fn reports_insertion_support_and_flanks() -> Result<(), Box<dyn std::error::Erro
     for call in calls {
         assert_call_evidence(call);
     }
+    // The inserted call takes the position before it with ordinal 1.
+    let columns = value["calls"]
+        .as_array()
+        .ok_or("calls is not an array")?
+        .iter()
+        .map(|call| &call["column"])
+        .collect::<Vec<_>>();
+    assert_eq!(columns.len(), QUERY.len());
+    assert_eq!(
+        *columns[11],
+        serde_json::json!({"position": 16, "ordinal": 0})
+    );
+    assert_eq!(
+        *columns[12],
+        serde_json::json!({"position": 16, "ordinal": 1})
+    );
+    assert_eq!(
+        *columns[13],
+        serde_json::json!({"position": 17, "ordinal": 0})
+    );
     Ok(())
 }
 
@@ -997,6 +1049,28 @@ fn aligns_an_internal_masked_stretch_as_unresolved() -> Result<(), Box<dyn std::
         .ok_or("variants must be an array")?;
     assert_eq!(variants.len(), 1, "{variants:?}");
     assert_eq!(variants[0]["position"], 4 + 70 + 1);
+    // Each masked call carries its reason and is withheld by itself; with no
+    // read-end margin, the calls next to the stretch stay trusted.
+    let calls = value["calls"].as_array().ok_or("calls is not an array")?;
+    let (start, end) = (usize::try_from(start)?, usize::try_from(end)?);
+    for call in &calls[start..end] {
+        assert_eq!(
+            call["trust"]["placement"],
+            serde_json::json!({"kind": "unresolved", "reason": "mixed_signal"})
+        );
+        assert_eq!(call["trust"]["trusted"], false);
+        assert_eq!(
+            call["trust"]["withheld_by"],
+            serde_json::json!([{"kind": "masked", "reason": "mixed_signal"}])
+        );
+    }
+    for neighbour in [&calls[start - 1], &calls[end]] {
+        assert_eq!(
+            neighbour["trust"]["placement"],
+            serde_json::json!({"kind": "scored"})
+        );
+        assert_eq!(neighbour["trust"]["trusted"], true);
+    }
     Ok(())
 }
 

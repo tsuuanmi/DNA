@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-VAR]
-decided-by: [ADR-0071, ADR-0076, ADR-0080]
+decided-by: [ADR-0071, ADR-0076, ADR-0080, ADR-0082]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -90,6 +90,20 @@ target still fails the command without output.
   stretches come from the read's own signal, never from fixed positions, so
   they locate what each read left unread for a later reading of the
   dephased tail, also where no item lists it.
+  Since rules version 17, an admitted read also has `mixtures`: the stretches
+  after a run whose signal the modality asserts is the read's own sequence
+  superposed with copies offset by whole calls (ADR-0082). Each says whether
+  it is `explained`: the components fit the stretch at the read's own noise
+  level. Each lists its `components`, the dominant sequence (`offset` 0)
+  first, each with its `fraction` of the fitted signal; in an explained
+  mixture, a component placed on the reference also gives the interval `first`..`last` it
+  covers, its `sequence` there on the reference strand (`first` after `last` when the interval crosses the origin), and its eligible
+  edits as profile-notation `calls`. Each component is placed and called as
+  a read of its own, so the dominant and the minor sequences are each
+  compared with the reference independently (for example `309.1C 315.1C`
+  against `309.1C 315.1C 315.2C`). `unexplained` lists the reference positions
+  of calls the components do not explain. Mixtures are display only: no
+  item, label, or `clear` depends on them.
 - `calls` (`called`, under a profile that declares notation): the sample's
   calls in the profile notation, distinct and in reference order, as
   `SampleAnalysis::call` gives them: `call` (`309.1C`), `position`,
@@ -137,7 +151,8 @@ target still fails the command without output.
 
 An item is one consensus site, or one position or run of positions outside
 every site, inside the profile's reportable regions (a site is clipped to
-them). It has:
+them; since rules version 16, a clipped site's `sequence` is its decision over
+the clipped columns, what most of its supporting reads show there). It has:
 
 - `first`, `last`: its first and last reference columns, each a `position`
   and an insertion `ordinal` (`309.1` is `309`/`1`). In version 1 both
@@ -231,6 +246,11 @@ exemption lifts the margin (ADR-0076).
 - `strands_disagree` `{reads: [{read, strand, role}]}`: the site has
   supporting and opposing reads, and a supporting read lies on another strand
   than an opposing one. Lists the supporting, then the opposing reads.
+  On a clipped site (rules version 16) an opposing read that shows the
+  clipped decision over the reportable columns no longer opposes the item:
+  its difference lies outside the regions. The label stays while an opposing
+  read that may differ there, or that does not bound those columns, remains
+  on another strand than a supporting one.
 - `read_disagrees` `{read, strand, sequence}`: at a decided site that is not
   clipped, a supporting or uninformative read shows the whole item as another
   sequence than the decision. The read's sequence comes from its own

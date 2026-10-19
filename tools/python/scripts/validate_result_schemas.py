@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import itertools
 import json
 import sys
 from pathlib import Path
@@ -14,8 +15,8 @@ from referencing import Registry, Resource
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "docs" / "reference"
-ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v9.schema.json"
-ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v9.example.json"
+ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v10.schema.json"
+ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v10.example.json"
 BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v3.schema.json"
 BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v3.example.json"
 SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v10.schema.json"
@@ -30,6 +31,8 @@ REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
 SIGNAL_SCHEMA = CONTRACTS / "schemas" / "signal-v1.schema.json"
 SIGNAL_EXAMPLE = CONTRACTS / "examples" / "signal-v1.example.json"
+EVIDENCE_SCHEMA = CONTRACTS / "schemas" / "read-evidence-v1.schema.json"
+EVIDENCE_EXAMPLE = CONTRACTS / "examples" / "read-evidence-v1.example.json"
 # Review labels that leave an item unassured, so that it is a check.
 REVIEW_UNASSURED = frozenset(
     {
@@ -155,7 +158,7 @@ def rejected_analysis_shapes(
     removed_software_version = copy.deepcopy(example)
     removed_software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.analysis/v8"
+    old_schema["schema_version"] = "dna.analysis/v9"
     missing_profile = copy.deepcopy(example)
     missing_profile["provenance"].pop("profile")
     invalid_profile_id = copy.deepcopy(example)
@@ -188,6 +191,27 @@ def rejected_analysis_shapes(
     alignment_without_masked_bases["alignment"].pop("masked_bases")
     alignment_without_callable_segments = copy.deepcopy(example)
     alignment_without_callable_segments["alignment"].pop("callable_reference_segments")
+    without_calls = copy.deepcopy(example)
+    without_calls.pop("calls")
+    trusted_withheld = copy.deepcopy(example)
+    trusted = next(
+        call for call in trusted_withheld["calls"] if call["trust"]["trusted"]
+    )
+    trusted["trust"]["withheld_by"] = [{"kind": "read_end"}]
+    masked_without_reason = copy.deepcopy(example)
+    masked_without_reason["calls"][0]["trust"]["withheld_by"] = [{"kind": "masked"}]
+    untrimmed_with_reason = copy.deepcopy(example)
+    untrimmed_with_reason["calls"][0]["trust"]["withheld_by"] = [
+        {"kind": "untrimmed", "reason": "weak_signal"}
+    ]
+    unknown_withholder = copy.deepcopy(example)
+    unknown_withholder["calls"][0]["trust"]["withheld_by"] = [{"kind": "edge"}]
+    column_zero = copy.deepcopy(example)
+    column_zero["calls"][0]["column"]["position"] = 0
+    unknown_scope = copy.deepcopy(example)
+    unknown_scope["calls"][0]["trust"]["scope"] = "length"
+    scored_with_reason = copy.deepcopy(example)
+    scored_with_reason["calls"][0]["trust"]["placement"]["reason"] = "weak_signal"
     segments = example["read"]["callability"]["segments"]
     dephased = next(
         index
@@ -253,8 +277,31 @@ def rejected_analysis_shapes(
             "analysis alignment without callable reference segments",
             alignment_without_callable_segments,
         ),
+        ("analysis without aligned calls", without_calls),
+        ("analysis trusted call with a withholder", trusted_withheld),
+        ("analysis masked withholder without its reason", masked_without_reason),
+        ("analysis untrimmed withholder with a reason", untrimmed_with_reason),
+        ("analysis withholder of an unknown kind", unknown_withholder),
+        ("analysis call column at position zero", column_zero),
+        ("analysis call with an unknown trust scope", unknown_scope),
+        ("analysis scored call with a placement reason", scored_with_reason),
         *shadow_cases,
     ]
+
+
+def validate_analysis_calls(document: Any, label: str, errors: list[str]) -> None:
+    """Check that an analysis's aligned calls are distinct, in call order, and calls of the read."""
+    if not isinstance(document, dict):
+        return
+    indices = [call.get("index") for call in document.get("calls", [])]
+    if any(
+        not isinstance(index, int) or not isinstance(after, int) or index >= after
+        for index, after in itertools.pairwise(indices)
+    ):
+        errors.append(f"{label}: aligned calls are not distinct and in call order")
+    call_count = document.get("read", {}).get("call_count", 0)
+    if any(isinstance(index, int) and index >= call_count for index in indices):
+        errors.append(f"{label}: an aligned call lies beyond the read's calls")
 
 
 def rejected_variants_shapes(
@@ -1108,6 +1155,32 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
                 f"{label}: summary reference_only count disagrees with the positions"
             )
     validate_zones(document, items, positions, summary, label, errors)
+    validate_mixtures(document, label, errors)
+
+
+def validate_mixtures(document: dict[str, Any], label: str, errors: list[str]) -> None:
+    """Check that each read's mixtures lead with the dominant sequence."""
+    for read in document.get("reads", []):
+        for index, mixture in enumerate(read.get("mixtures", [])):
+            components = mixture.get("components", [])
+            offsets = [component.get("offset") for component in components]
+            if not offsets or offsets[0] != 0 or len(set(offsets)) != len(offsets):
+                errors.append(
+                    f"{label}: mixture {index} of {read.get('name')} does not lead "
+                    "with one dominant sequence"
+                )
+            total = sum(component.get("fraction", 0) for component in components)
+            if total > 1.0 + 1e-6:
+                errors.append(
+                    f"{label}: mixture {index} of {read.get('name')} has fractions "
+                    "above one"
+                )
+            unexplained = mixture.get("unexplained", [])
+            if unexplained != sorted(set(unexplained)):
+                errors.append(
+                    f"{label}: mixture {index} of {read.get('name')} lists unexplained "
+                    "positions out of order"
+                )
 
 
 def validate_zones(
@@ -1176,6 +1249,19 @@ def rejected_review_shapes(
             break
     missing_count = copy.deepcopy(example)
     missing_count["summary"]["labels"].pop("read_edge")
+    compared_unexplained = copy.deepcopy(example)
+    for read in compared_unexplained["reads"]:
+        for mixture in read.get("mixtures", []):
+            mixture["explained"] = False
+    uncompared_explained = copy.deepcopy(example)
+    for read in uncompared_explained["reads"]:
+        for mixture in read.get("mixtures", []):
+            mixture["components"][0].pop("calls")  # partly compared
+    no_mixtures = copy.deepcopy(example)
+    for read in no_mixtures["reads"]:
+        if read.get("admitted"):
+            read.pop("mixtures")
+            break
     unnamed_repeat = copy.deepcopy(example)
     for zone in unnamed_repeat["zones"]:
         if zone["kind"] == "repeat":
@@ -1209,6 +1295,9 @@ def rejected_review_shapes(
         ("review summary without a label count", missing_count),
         ("review repeat zone without its window name", unnamed_repeat),
         ("review clean zone with a window name", named_clean),
+        ("admitted review read without mixtures", no_mixtures),
+        ("unexplained mixture with compared components", compared_unexplained),
+        ("mixture component compared without its calls", uncompared_explained),
         ("review evidence at an inserted column", inserted_evidence),
         ("possible heteroplasmy without its threshold", no_threshold),
         ("estimated length that a read shows", observed_length),
@@ -1282,7 +1371,79 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="run signal result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--evidence",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="read evidence result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
+
+
+def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
+    """Check a read evidence's call order, interval, and listed reasons."""
+    if not isinstance(document, dict):
+        return
+    read = document.get("read", {})
+    calls = document.get("calls", [])
+    if read.get("call_count") != len(calls):
+        errors.append(f"{label}: read call_count disagrees with the calls")
+    if [call.get("index") for call in calls] != list(range(len(calls))):
+        errors.append(f"{label}: calls are not in call order")
+    informative = read.get("informative", {})
+    if not 0 <= informative.get("start", 0) <= informative.get("end", 0) <= len(calls):
+        errors.append(f"{label}: informative interval exceeds the calls")
+    for index, mixture in enumerate(read.get("mixtures", [])):
+        span = mixture.get("calls", {})
+        offsets = [
+            component.get("offset") for component in mixture.get("components", [])
+        ]
+        if not 0 <= span.get("start", 0) < span.get("end", 0) <= len(calls):
+            errors.append(f"{label}: mixture {index} stretch exceeds the calls")
+        if not offsets or offsets[0] != 0 or len(set(offsets)) != len(offsets):
+            errors.append(
+                f"{label}: mixture {index} does not lead with one dominant sequence"
+            )
+        if any(
+            not span.get("start", 0) <= call < span.get("end", 0)
+            for call in mixture.get("unexplained", [])
+        ):
+            errors.append(
+                f"{label}: mixture {index} lists an unexplained call outside it"
+            )
+    listed = set(read.get("reasons", []))
+    for call in calls:
+        held = set(call.get("identity", {}).get("withheld", [])) | set(
+            call.get("indel", {}).get("withheld", [])
+        )
+        if not held <= listed:
+            errors.append(
+                f"{label}: call {call.get('index')} holds a reason read.reasons does not list"
+            )
+
+
+def rejected_evidence_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    scored_with_reason = copy.deepcopy(example)
+    scored_with_reason["calls"][0]["placement"]["reason"] = "weak_signal"
+    masked_without_reason = copy.deepcopy(example)
+    masked_without_reason["calls"][5]["placement"].pop("reason")
+    unknown_cause = copy.deepcopy(example)
+    unknown_cause["calls"][4]["signal"]["cause"] = "context"
+    wide_share = copy.deepcopy(example)
+    wide_share["calls"][0]["second"]["share"] = 0.6
+    no_signal = copy.deepcopy(example)
+    no_signal["calls"][0].pop("signal")
+    return [
+        ("evidence scored call with a placement reason", scored_with_reason),
+        ("evidence masked call without its reason", masked_without_reason),
+        ("evidence second-peak cause the modality does not give", unknown_cause),
+        ("evidence second share above one half", wide_share),
+        ("evidence call without its signal", no_signal),
+    ]
 
 
 def validate_signal(document: Any, label: str, errors: list[str]) -> None:
@@ -1325,6 +1486,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_validator = validator(CONSENSUS_SCHEMA, errors)
     review_validator = validator(REVIEW_SCHEMA, errors)
     signal_validator = validator(SIGNAL_SCHEMA, errors)
+    evidence_validator = validator(EVIDENCE_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
@@ -1333,6 +1495,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
     review_paths = args.review or [REVIEW_EXAMPLE]
     signal_paths = args.signal or [SIGNAL_EXAMPLE]
+    evidence_paths = args.evidence or [EVIDENCE_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
@@ -1341,6 +1504,9 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(consensus_validator, consensus_paths, errors)
     validate_documents(review_validator, review_paths, errors)
     validate_documents(signal_validator, signal_paths, errors)
+    validate_documents(evidence_validator, evidence_paths, errors)
+    for path in evidence_paths:
+        validate_evidence(load_json(path), str(path), errors)
     for path in signal_paths:
         validate_signal(load_json(path), str(path), errors)
     for path in review_paths:
@@ -1351,6 +1517,8 @@ def main(argv: list[str] | None = None) -> int:
             validate_consensus_rejections(document, str(path), errors)
     validate_sample_support_topology(sample_paths, errors)
     validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
+    for path in analysis_paths:
+        validate_analysis_calls(load_json(path), str(path), errors)
 
     analysis_example = load_json(ANALYSIS_EXAMPLE)
     valid_shapes = analysis_call_shapes(analysis_example)
@@ -1519,6 +1687,18 @@ def main(argv: list[str] | None = None) -> int:
     if not callability_errors:
         errors.append("expected inconsistent callability counts to be rejected")
 
+    for description, mutate in [
+        ("unordered", lambda calls: calls.reverse()),
+        ("repeated", lambda calls: calls.append(dict(calls[-1]))),
+        ("beyond the read", lambda calls: calls[-1].update(index=10_000)),
+    ]:
+        mutated = copy.deepcopy(analysis_example)
+        mutate(mutated["calls"])
+        call_errors: list[str] = []
+        validate_analysis_calls(mutated, f"synthetic {description} calls", call_errors)
+        if not call_errors:
+            errors.append(f"expected {description} aligned calls to be rejected")
+
     outside_callable = copy.deepcopy(analysis_example)
     outside_callable["alignment"]["callable_reference_segments"] = [
         {"start": 0, "end": 1_000_000}
@@ -1556,6 +1736,15 @@ def main(argv: list[str] | None = None) -> int:
     review_example = load_json(REVIEW_EXAMPLE)
     rejected_review = rejected_review_shapes(review_example)
     assert_rejected(review_validator, rejected_review, errors)
+    evidence_example = load_json(EVIDENCE_EXAMPLE)
+    rejected_evidence = rejected_evidence_shapes(evidence_example)
+    assert_rejected(evidence_validator, rejected_evidence, errors)
+    unlisted_reason = copy.deepcopy(evidence_example)
+    unlisted_reason["calls"][3]["identity"]["withheld"].append("unlisted_reason")
+    evidence_errors: list[str] = []
+    validate_evidence(unlisted_reason, "synthetic unlisted reason", evidence_errors)
+    if not evidence_errors:
+        errors.append("expected a reason read.reasons does not list to be rejected")
     unordered_review = copy.deepcopy(review_example)
     unordered_review["items"].reverse()
     review_errors: list[str] = []
@@ -1568,6 +1757,14 @@ def main(argv: list[str] | None = None) -> int:
     validate_review(miscounted, "synthetic miscounted reference_only", count_errors)
     if not count_errors:
         errors.append("expected a miscounted reference_only to be rejected")
+    minor_first = copy.deepcopy(review_example)
+    for read in minor_first["reads"]:
+        for mixture in read.get("mixtures", []):
+            mixture["components"].reverse()
+    mixture_errors: list[str] = []
+    validate_review(minor_first, "synthetic minor-first mixture", mixture_errors)
+    if not mixture_errors:
+        errors.append("expected a mixture led by a minor sequence to be rejected")
     gapped_zones = copy.deepcopy(review_example)
     gapped_zones["zones"].pop()
     zone_errors: list[str] = []
@@ -1584,10 +1781,11 @@ def main(argv: list[str] | None = None) -> int:
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
         f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, "
-        f"{len(review_paths)} review, and {len(signal_paths)} run signal document(s), "
+        f"{len(review_paths)} review, {len(signal_paths)} run signal, and "
+        f"{len(evidence_paths)} read evidence document(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review)} "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review) + len(rejected_evidence)} "
         "invalid shape(s)"
     )
     return 0

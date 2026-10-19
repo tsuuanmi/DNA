@@ -1,0 +1,309 @@
+{
+  "schema_version": "dna.read_evidence/v1",
+  "provenance": {
+    "input": {
+      "sha256": "a48e07b87c6c8e84bdb99a8fb4d4935522627134a6f0d6f7f471a20bf49f0c13"
+    },
+    "configuration_sha256": "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675",
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 13
+      }
+    ]
+  },
+  "read": {
+    "call_count": 6,
+    "informative": {
+      "start": 0,
+      "end": 5
+    },
+    "ends": "unvouched",
+    "reasons": [
+      "peak_below_minimum",
+      "relative_quality_not_above_threshold",
+      "mixed_supporting_dna"
+    ],
+    "callability": {
+      "callable_span": {
+        "start": 0,
+        "end": 4
+      },
+      "segments": [
+        {
+          "calls": {
+            "start": 0,
+            "end": 4
+          },
+          "state": "in_phase",
+          "after_repeat": false
+        },
+        {
+          "calls": {
+            "start": 4,
+            "end": 5
+          },
+          "state": "mixed",
+          "after_repeat": false
+        },
+        {
+          "calls": {
+            "start": 5,
+            "end": 6
+          },
+          "state": "weak",
+          "after_repeat": false
+        }
+      ],
+      "masked_calls": 2
+    },
+    "mixtures": [
+      {
+        "calls": {
+          "start": 2,
+          "end": 6
+        },
+        "run_calls": 2,
+        "explained": false,
+        "residual": 0.214,
+        "components": [
+          {
+            "offset": 0,
+            "fraction": 0.81
+          },
+          {
+            "offset": 1,
+            "fraction": 0.19
+          }
+        ],
+        "unexplained": [
+          5
+        ]
+      }
+    ]
+  },
+  "calls": [
+    {
+      "index": 0,
+      "base": "A",
+      "profile": [
+        0.97,
+        0.01,
+        0.01,
+        0.01
+      ],
+      "placement": {
+        "kind": "scored"
+      },
+      "identity": {
+        "edge": false,
+        "withheld": []
+      },
+      "indel": {
+        "edge": false,
+        "withheld": []
+      },
+      "bound": "in_phase",
+      "post_repeat": {
+        "call": false,
+        "bound": false
+      },
+      "second": {
+        "base": "G",
+        "share": 0.012,
+        "stands_out": false
+      },
+      "second_unexplained": false,
+      "reference_only": false,
+      "signal": {
+        "scan": 12,
+        "height": 812,
+        "relative_quality": 52
+      }
+    },
+    {
+      "index": 1,
+      "base": "C",
+      "profile": [
+        0.0,
+        0.98,
+        0.01,
+        0.01
+      ],
+      "placement": {
+        "kind": "scored"
+      },
+      "identity": {
+        "edge": false,
+        "withheld": []
+      },
+      "indel": {
+        "edge": false,
+        "withheld": []
+      },
+      "bound": "in_phase",
+      "post_repeat": {
+        "call": false,
+        "bound": false
+      },
+      "second": {
+        "base": "T",
+        "share": 0.02,
+        "stands_out": false
+      },
+      "second_unexplained": false,
+      "reference_only": false,
+      "signal": {
+        "scan": 24,
+        "height": 760,
+        "relative_quality": 55
+      }
+    },
+    {
+      "index": 2,
+      "base": "G",
+      "profile": [
+        0.01,
+        0.01,
+        0.97,
+        0.01
+      ],
+      "placement": {
+        "kind": "scored"
+      },
+      "identity": {
+        "edge": false,
+        "withheld": []
+      },
+      "indel": {
+        "edge": false,
+        "withheld": []
+      },
+      "bound": "in_phase",
+      "post_repeat": {
+        "call": false,
+        "bound": false
+      },
+      "second_unexplained": false,
+      "reference_only": false,
+      "signal": {
+        "scan": 36,
+        "height": 701,
+        "relative_quality": 54
+      }
+    },
+    {
+      "index": 3,
+      "base": "T",
+      "profile": [
+        0.02,
+        0.03,
+        0.0,
+        0.95
+      ],
+      "placement": {
+        "kind": "scored"
+      },
+      "identity": {
+        "edge": false,
+        "withheld": [
+          "relative_quality_not_above_threshold"
+        ]
+      },
+      "indel": {
+        "edge": false,
+        "withheld": [
+          "relative_quality_not_above_threshold"
+        ]
+      },
+      "bound": "in_phase",
+      "post_repeat": {
+        "call": false,
+        "bound": false
+      },
+      "second": {
+        "base": "C",
+        "share": 0.04,
+        "stands_out": false
+      },
+      "second_unexplained": false,
+      "reference_only": true,
+      "signal": {
+        "scan": 48,
+        "height": 402,
+        "relative_quality": 28
+      }
+    },
+    {
+      "index": 4,
+      "base": "C",
+      "profile": [
+        0.25,
+        0.73,
+        0.01,
+        0.01
+      ],
+      "placement": {
+        "kind": "anchoring",
+        "reason": "mixed_signal"
+      },
+      "identity": {
+        "edge": false,
+        "withheld": [
+          "mixed_supporting_dna"
+        ]
+      },
+      "indel": {
+        "edge": false,
+        "withheld": []
+      },
+      "bound": "anchored",
+      "post_repeat": {
+        "call": false,
+        "bound": false
+      },
+      "second": {
+        "base": "A",
+        "share": 0.262,
+        "stands_out": true
+      },
+      "second_unexplained": false,
+      "reference_only": false,
+      "signal": {
+        "scan": 60,
+        "height": 640,
+        "relative_quality": 40,
+        "cause": "neighbour_tail"
+      }
+    },
+    {
+      "index": 5,
+      "base": "N",
+      "placement": {
+        "kind": "unresolved",
+        "reason": "weak_signal"
+      },
+      "identity": {
+        "edge": true,
+        "withheld": []
+      },
+      "indel": {
+        "edge": true,
+        "withheld": []
+      },
+      "bound": "withheld",
+      "post_repeat": {
+        "call": false,
+        "bound": false
+      },
+      "second_unexplained": false,
+      "reference_only": false,
+      "signal": {
+        "scan": 72,
+        "height": 0,
+        "relative_quality": 0
+      }
+    }
+  ]
+}

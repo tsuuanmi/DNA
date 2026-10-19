@@ -42,6 +42,14 @@ pub(super) fn basecall_output(trace: &Path) -> Result<PathBuf> {
     Ok(output)
 }
 
+/// Returns and validates the deterministic CLI publication path for a read's
+/// evidence.
+pub(super) fn evidence_output(trace: &Path) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{}.evidence.json", trace_stem(trace)?));
+    validate_output(&output)?;
+    Ok(output)
+}
+
 /// Returns and validates the deterministic CLI publication path for sample evidence.
 pub(super) fn sample_output(sample_id: &str) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{sample_id}.sample.json"));

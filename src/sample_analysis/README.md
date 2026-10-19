@@ -21,7 +21,9 @@ returns both as a typed `SampleAnalysis` from one pass. The `sample` and
 their own logging, notation, projection, and publication. `mod.rs` also keeps
 the loaded configuration, profile, and reference in the result, exposes the
 profile's reportable regions (`SampleAnalysis::regions`), keeps the placed
-reads so that `SampleAnalysis::observations` gives every read's observation of
+reads so that `SampleAnalysis::components` gives every admitted read's
+phase-mixture components compared with the reference
+(`dna_call::components`, ADR-0082) and `SampleAnalysis::observations` gives every read's observation of
 each covered position of an interval as the core records it at a differential
 locus (`dna_sample::observations`),
 returns the rejected

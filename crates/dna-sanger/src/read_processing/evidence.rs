@@ -21,7 +21,8 @@ use crate::second_cause::second_base;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
-    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, SecondBase, Verdict,
+    Bound, CallEvidence, EvidenceReason, PhaseMixture, Placement, ReadEvidence, Reasons,
+    SecondBase, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -71,6 +72,7 @@ pub fn read_evidence(
     callability: &ReadCallability,
     quality: &QualityControlResult,
     second: &[Option<SecondPeak>],
+    mixtures: &[PhaseMixture],
     config: &SangerEvidenceConfig,
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
@@ -244,11 +246,100 @@ pub fn read_evidence(
         })
         .collect::<Vec<_>>();
     mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, config);
-    Ok(ReadEvidence::new(
-        evidence,
-        informative,
-        REASON_ORDER.to_vec(),
-    )?)
+    reference_only_calls(
+        &mut evidence,
+        calls,
+        callability,
+        (start, end),
+        config.signal_edge_margin,
+    );
+    Ok(
+        ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())?
+            .with_mixtures(mixtures.to_vec())?,
+    )
+}
+
+/// Marks the read's other reference-only calls (SRS-CALL-022, ADR-0080), once
+/// its signal edges are known, anywhere in the read. A scored single-channel
+/// call without a second base standing out or unexplained is reference-only
+/// when it is withheld only by the peak floor or relative quality, or lies at
+/// a signal edge every cause of which is benign: the untrimmed start of the
+/// read, or a weak-signal mask clear of every repeat run by more than the
+/// margin (beside a repeat run a weak segment is the dephased tail). The
+/// untrimmed 3' end is not benign: there the read's signal decays. A mixed
+/// reference-only call at a signal edge loses the mark: the edge stands
+/// against it.
+fn reference_only_calls(
+    evidence: &mut [CallEvidence],
+    calls: &BaseCalls,
+    callability: &ReadCallability,
+    (start, end): (usize, usize),
+    margin: usize,
+) {
+    let count = evidence.len();
+    let informative = |evidence: &[CallEvidence], at: usize| {
+        (start..end).contains(&at) && !matches!(evidence[at].placement, Placement::Unresolved(_))
+    };
+    // A weak segment is benign only clear of every repeat run: beside one it
+    // is the read's dephased tail, not a weak start.
+    let clear_of_repeats = |at: usize| {
+        callability.segment_at(at).is_some_and(|segment| {
+            callability.repeats.iter().all(|repeat| {
+                repeat.call_end_0based_exclusive + margin <= segment.call_start_0based
+                    || segment.call_end_0based_exclusive + margin <= repeat.call_start_0based
+            })
+        })
+    };
+    let benign = |evidence: &[CallEvidence], at: usize| {
+        at < start
+            || (evidence[at].placement == Placement::Unresolved(WEAK_SIGNAL)
+                && clear_of_repeats(at))
+    };
+    for index in 0..count {
+        let call = evidence[index];
+        if call.identity.withheld.contains(MIXED_SUPPORTING_DNA) {
+            if call.identity.edge {
+                evidence[index].reference_only = false;
+            }
+            continue;
+        }
+        let quality = call.identity.withheld.iter().all(|reason| {
+            reason == PEAK_BELOW_MINIMUM || reason == RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD
+        });
+        let single = calls
+            .calls
+            .get(index)
+            .is_some_and(|base| base.qualifying_channels.len() == 1);
+        if call.placement != Placement::Scored
+            || !single
+            || !quality
+            || call.second_unexplained
+            || call.second.is_some_and(|second| second.stands_out)
+            || (call.identity.withheld.is_empty() && !call.identity.edge)
+        {
+            continue;
+        }
+        if call.identity.edge {
+            // The nearest uninformative call within the margin on each side.
+            let left = (index.saturating_sub(margin)..index)
+                .rev()
+                .find(|&at| !informative(evidence, at));
+            let right =
+                (index + 1..(index + margin + 1).min(count)).find(|&at| !informative(evidence, at));
+            let left_ok = match left {
+                Some(at) => benign(evidence, at),
+                None => index >= margin,
+            };
+            let right_ok = match right {
+                Some(at) => benign(evidence, at),
+                None => index + margin < count,
+            };
+            if !(left_ok && right_ok) {
+                continue;
+            }
+        }
+        evidence[index].reference_only = true;
+    }
 }
 
 /// Marks every run of one base the read bounds right before it loses phase
@@ -667,7 +758,7 @@ fn placement(callability: &ReadCallability, index: usize) -> Option<Placement> {
 #[cfg(test)]
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
-    use crate::model::callability::PhaseSegment;
+    use crate::model::callability::{PhaseSegment, RepeatRun, RepeatUnit};
     use crate::model::locus_evidence::LocusEvidence;
     use crate::model::quality::CallQuality;
     use crate::model::signal::SangerIntegrity;
@@ -794,6 +885,75 @@ mod tests {
     }
 
     #[test]
+    fn a_quality_withheld_or_benign_edge_call_is_reference_only() -> Result<()> {
+        // Twenty single-channel calls; the trim starts at 4.
+        let (calls, _, mut callability, _) = products(&[300; 20], &[40; 20]);
+        let scored = |base| CallEvidence::scored(base, None);
+        let fresh = || vec![scored('A'); 20];
+        let mark = |evidence: &mut Vec<CallEvidence>, callability: &ReadCallability| {
+            reference_only_calls(evidence, &calls, callability, (4, 20), 3);
+        };
+        // Withheld by relative quality only: reference-only.
+        let mut evidence = fresh();
+        evidence[10]
+            .identity
+            .withheld
+            .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
+        mark(&mut evidence, &callability);
+        assert!(evidence[10].reference_only);
+        // A second base standing out keeps it off.
+        let mut evidence = fresh();
+        evidence[10]
+            .identity
+            .withheld
+            .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
+        evidence[10].second = Some(SecondBase {
+            base: 'C',
+            share: 0.3,
+            stands_out: true,
+        });
+        mark(&mut evidence, &callability);
+        assert!(!evidence[10].reference_only);
+        // At the edge the untrimmed start makes: reference-only.
+        let mut evidence = fresh();
+        evidence[5].identity.edge = true;
+        mark(&mut evidence, &callability);
+        assert!(evidence[5].reference_only);
+        // Untrimmed from its first call, the read's edge at call 1 is its
+        // physical end: not reference-only.
+        let mut evidence = fresh();
+        evidence[1].identity.edge = true;
+        reference_only_calls(&mut evidence, &calls, &callability, (0, 20), 3);
+        assert!(!evidence[1].reference_only);
+        // Beside a weak-signal mask clear of repeat runs: reference-only;
+        // beside one next to a repeat run, the dephased tail: not.
+        let weak = Placement::Unresolved(WEAK_SIGNAL);
+        callability.segments = vec![PhaseSegment {
+            call_start_0based: 14,
+            call_end_0based_exclusive: 15,
+            state: PhaseState::Weak,
+            after_repeat: false,
+            shadow: None,
+        }];
+        let mut evidence = fresh();
+        evidence[14] = evidence[14].masked(weak);
+        evidence[12].identity.edge = true;
+        mark(&mut evidence, &callability);
+        assert!(evidence[12].reference_only);
+        callability.repeats = vec![RepeatRun {
+            call_start_0based: 15,
+            call_end_0based_exclusive: 19,
+            unit: RepeatUnit::Homopolymer(0),
+        }];
+        let mut evidence = fresh();
+        evidence[14] = evidence[14].masked(weak);
+        evidence[12].identity.edge = true;
+        mark(&mut evidence, &callability);
+        assert!(!evidence[12].reference_only);
+        Ok(())
+    }
+
+    #[test]
     fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
         use crate::model::second_cause::{SecondCause, SecondPeak};
         let (mut calls, signal, callability, quality) = products(&[300; 5], &[40; 5]);
@@ -809,7 +969,15 @@ mod tests {
             second
         };
         let evidence = |calls: &BaseCalls, second: &[Option<SecondPeak>]| {
-            read_evidence(calls, &signal, &callability, &quality, second, &config(0))
+            read_evidence(
+                calls,
+                &signal,
+                &callability,
+                &quality,
+                second,
+                &[],
+                &config(0),
+            )
         };
         // A neighbour's tail: withheld as mixed all the same, its run role
         // unchanged, and reference-only; its second base stands out and is
@@ -837,7 +1005,15 @@ mod tests {
     #[test]
     fn raises_peak_and_quality_vetoes_at_their_boundaries() -> Result<()> {
         let (calls, signal, callability, quality) = products(&[149, 150, 150], &[31, 30, 31]);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(0),
+        )?;
         let vetoes = evidence
             .calls()
             .iter()
@@ -872,7 +1048,15 @@ mod tests {
         for peak in &mut calls.calls[2].peaks[1..] {
             peak.height = 60;
         }
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(0),
+        )?;
         let withheld = evidence
             .calls()
             .iter()
@@ -891,7 +1075,15 @@ mod tests {
     fn raises_the_mixed_veto_for_substitutions_only() -> Result<()> {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
         calls.calls[0].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(0),
+        )?;
         let call = evidence.calls()[0];
         assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
         assert!(!call.indel.withheld.contains(MIXED_SUPPORTING_DNA));
@@ -921,7 +1113,15 @@ mod tests {
         for &(start, end, state, _) in &segments {
             callability.mask[start..end].fill((state != PhaseState::InPhase).then_some(state));
         }
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(0),
+        )?;
         let placements = [0, 7, 12, 17, 22].map(|index| {
             (
                 evidence.calls()[index].placement,
@@ -969,7 +1169,15 @@ mod tests {
         callability.callable_start_0based = 4;
         quality.trim_start_0based = 4;
         quality.retained_sequence = "A".repeat(4);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(1))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(1),
+        )?;
         let vouched = evidence
             .calls()
             .iter()
@@ -995,7 +1203,15 @@ mod tests {
         // Masked after a repeat run, the stretch is a dephased tail, not start
         // noise: no call of it is vouched for.
         callability.segments[0].after_repeat = true;
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(1))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(1),
+        )?;
         assert!(evidence.calls()[..4].iter().all(|call| {
             call.placement == Placement::Unresolved(POST_HOMOPOLYMER) && !call.base_only()
         }));
@@ -1028,7 +1244,15 @@ mod tests {
         signal.loci[6].channel_widths = [0, 0, 10, 0];
         quality.trim_end_0based_exclusive = 8;
         quality.retained_sequence = "A".repeat(8);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(2))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(2),
+        )?;
         let lifted = evidence
             .calls()
             .iter()
@@ -1109,7 +1333,15 @@ mod tests {
         );
         // Call 5 is broader than the start's peaks.
         signal.loci[5].channel_widths = [0, 10, 0, 0];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(2))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(2),
+        )?;
         let lifted = (4..8)
             .map(|index| !evidence.calls()[index].identity.edge)
             .collect::<Vec<_>>();
@@ -1141,19 +1373,43 @@ mod tests {
         // Call 4 follows start noise reading `T` but not vouched for, so it
         // may be that call's signal one position off; calls 5 and 6 each
         // follow a call reading `T` that is.
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(3))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(3),
+        )?;
         assert_eq!(lifted(&evidence), [false, false, false]);
         // With call 3 reading `G`, call 4 qualifies, and the run chains on.
         let mut bases = bases;
         bases[3] = 'G';
         let (calls, signal, callability, quality) = start_products(bases, heights);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(3))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(3),
+        )?;
         assert_eq!(lifted(&evidence), [true, true, true]);
         // A broad call 5 breaks the chain: call 6 no longer follows a vouched
         // call of its base.
         let (calls, mut signal, callability, quality) = start_products(bases, heights);
         signal.loci[5].channel_widths = [0, 0, 0, 10];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(3))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(3),
+        )?;
         assert_eq!(lifted(&evidence), [true, false, false]);
         Ok(())
     }
@@ -1164,7 +1420,15 @@ mod tests {
         calls.calls[0].peaks[2].height = 50;
         calls.calls[0].peaks[1].height = 10;
         calls.calls[0].peaks[3].height = 0;
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &config(0),
+        )?;
         assert_eq!(
             evidence.calls()[0].second,
             Some(SecondBase {

@@ -4,8 +4,13 @@ Owns the contracts every plugin family shares
 ([ADR-0069](../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
 It depends on no other DNA crate.
 
+Output contract: none; the kernel runs no step. The facade serializes its
+`ReadEvidence` as [`dna.read_evidence/v1`](../../../docs/reference/schemas/read-evidence-v1.schema.json)
+([step contracts](../../../docs/architecture/data-flow.md#step-contracts)).
+
 - [error](error/README.md) — the one typed error of every stage, re-exported as `dna::error`.
-- `read_evidence.rs` — the modality → core per-read evidence contract.
+- `read_evidence.rs` — the modality → core per-read evidence contract, with a
+  modality's phase mixtures (`PhaseMixture`, ADR-0082).
 - `variant.rs` — public called-variant contracts, re-exported as `dna::variant`.
 - `plugin.rs` — plugin descriptor types and their compile-time validation.
 - [profile](profile/README.md) — target profiles.

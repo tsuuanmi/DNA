@@ -2,8 +2,9 @@
 
 This directory contains synthetic, non-identifying examples for the current public result contracts.
 
-- [analysis-v9.example.json](analysis-v9.example.json)
+- [analysis-v10.example.json](analysis-v10.example.json)
 - [basecalls-v3.example.json](basecalls-v3.example.json)
+- [read-evidence-v1.example.json](read-evidence-v1.example.json)
 - [sample-evidence-v10.example.json](sample-evidence-v10.example.json)
 - [variants-v1.example.json](variants-v1.example.json)
 - [notation-v1.example.json](notation-v1.example.json)

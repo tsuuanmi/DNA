@@ -1,10 +1,12 @@
 //! Typed deterministic JSON reporting and atomic publication.
 
+mod aligned_calls;
 mod atomic;
 mod basecall;
 mod call;
 mod callability;
 mod consensus;
+mod evidence;
 mod json;
 mod notation;
 mod review;
@@ -21,6 +23,7 @@ pub(crate) use consensus::{
     CompletedConsensus, build as build_consensus, fasta as consensus_fasta,
     segments_fasta as consensus_segments_fasta,
 };
+pub(crate) use evidence::{CompletedEvidence, build as build_evidence};
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
 pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,

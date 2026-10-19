@@ -75,7 +75,7 @@ All commands run from `tools/python`.
 
 | Command | Purpose |
 |---|---|
-| `uv run python scripts/validate_docs_structure.py` | `DOC-STR-*`, `DOC-LNK-001`: folder READMEs, source READMEs, forbidden paths, Markdown links |
+| `uv run python scripts/validate_docs_structure.py` | `DOC-STR-*`, `DOC-LNK-001`: folder READMEs, source READMEs, forbidden paths, Markdown links, and the `Output contract:` line of each crate README, which may name only schemas under `docs/reference/schemas/` ([[architecture/data-flow#step-contracts|step contracts]]) |
 | `uv run python scripts/docs_graph.py check` | `DOC-ID-*`, `DOC-LNK-002…006`, `DOC-GRF-*`, `DOC-GEN-*`, `DOC-RET-*`, `DOC-FRS-*` |
 | `uv run python scripts/docs_graph.py sync` | write missing edge declarations and refresh generated blocks |
 | `uv run python scripts/docs_graph.py trace <path\|ID>` | trace closure of a source path, requirement item, decision, or document |

@@ -28,6 +28,9 @@ pub struct SignalProcessingConfig {
     pub run_signal: RunSignalParameters,
     /// How a call's second peak is labelled with its cause (SRS-CALL-021).
     pub second_cause: SecondCauseParameters,
+    /// Nearest-rank quantile of a read's in-phase residuals above which a
+    /// call of a phase mixture is unexplained (SRS-CALL-023).
+    pub decompose_unexplained_quantile: f64,
 }
 
 /// How a call's second peak is labelled with its cause (SRS-CALL-021).
@@ -86,6 +89,7 @@ pub struct RawSignalProcessingConfig {
     pub(crate) second_cause_tail_offset: f64,
     pub(crate) second_cause_blob_width: f64,
     pub(crate) second_cause_width_calls: usize,
+    pub(crate) decompose_unexplained_quantile: f64,
 }
 
 impl RawSignalProcessingConfig {
@@ -154,6 +158,13 @@ impl RawSignalProcessingConfig {
         ] {
             bounds::positive_finite(key, value)?;
         }
+        if !(self.decompose_unexplained_quantile > 0.0 && self.decompose_unexplained_quantile < 1.0)
+        {
+            return Err(ConfigError::Constraint(
+                "signal_processing.decompose_unexplained_quantile must be in (0, 1)",
+            )
+            .into());
+        }
         if self.second_cause_width_calls == 0 {
             return Err(ConfigError::Constraint(
                 "signal_processing.second_cause_width_calls must be positive",
@@ -180,6 +191,7 @@ impl RawSignalProcessingConfig {
                 blob_width: self.second_cause_blob_width,
                 width_calls: self.second_cause_width_calls,
             },
+            decompose_unexplained_quantile: self.decompose_unexplained_quantile,
         })
     }
 }

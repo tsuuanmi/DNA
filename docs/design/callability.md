@@ -139,7 +139,7 @@ mask once and fails typed on an inconsistency.
 
 ## Projections
 
-- `read.callability` in `dna.basecalls/v3` and `dna.analysis/v9`, and
+- `read.callability` in `dna.basecalls/v3` and `dna.analysis/v10`, and
   `reads[].callability` in `dna.sample_evidence/v10`: the callable span, the
   ordered segments with state, `after_repeat`, and the ascending
   `shadow_offsets` of dephased segments, and the masked-call count.

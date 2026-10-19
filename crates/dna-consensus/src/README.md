@@ -10,6 +10,10 @@ Public surface: `build`, the `consensus` plugin descriptor (it requires
 `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
 plugin descriptor), and the [model](model/README.md).
 
+Output contract: [`dna.consensus/v1`](../../../docs/reference/schemas/consensus-v1.schema.json)
+(`dna consensus`); `decided`: [`dna.variants/v1`](../../../docs/reference/schemas/variants-v1.schema.json)
+(`dna call` over a consensus document).
+
 Owns the sample consensus
 ([ADR-0073](../../../docs/decisions/adr/0073-sample-consensus.md),
 [ADR-0074](../../../docs/decisions/adr/0074-run-structure-consensus.md),
