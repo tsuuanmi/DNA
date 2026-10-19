@@ -231,7 +231,7 @@ pub(crate) fn run(
             for group in groups(sample) {
                 signals
                     .entry(group.clone())
-                    .or_insert_with(|| RunSignal::build(group, BTreeSet::new(), []))
+                    .or_insert_with(|| analysis.run_signal(group))
                     .include(reads.clone(), count, &contributions);
             }
         }

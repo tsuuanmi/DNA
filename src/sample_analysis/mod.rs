@@ -67,6 +67,18 @@ pub struct SampleAnalysis {
 }
 
 impl SampleAnalysis {
+    /// An empty run signal of `run_id`, made with the flank and resolution of
+    /// this analysis's configuration, for its reads' contributions to join.
+    #[must_use]
+    pub fn run_signal(&self, run_id: String) -> RunSignal {
+        RunSignal::build(
+            run_id,
+            std::collections::BTreeSet::new(),
+            [],
+            &self.loaded.config.sanger.signal_processing.run_signal,
+        )
+    }
+
     /// What the admitted reads contribute to their run's signal
     /// (SRS-CALL-019), summed over the sample, with the content SHA-256 of
     /// those reads: what a run signal holds of this sample.
@@ -78,7 +90,11 @@ impl SampleAnalysis {
             let Some(sanger) = self.reads.get(&read.input_sha256) else {
                 continue;
             };
-            let own = dna_sanger::run_signal::contributions(&sanger.calls, &read.evidence);
+            let own = dna_sanger::run_signal::contributions(
+                &sanger.calls,
+                &read.evidence,
+                &self.loaded.config.sanger.signal_processing.run_signal,
+            );
             traces.push(read.input_sha256.clone());
             sum.calls += own.calls;
             for (key, shares) in own.keys {

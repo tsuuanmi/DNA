@@ -67,7 +67,12 @@ fn signal(
         .iter()
         .map(|trace| trace.source_sha256.clone())
         .collect::<BTreeSet<_>>();
-    let signal = RunSignal::build(run_id.to_owned(), identities, contributions);
+    let signal = RunSignal::build(
+        run_id.to_owned(),
+        identities,
+        contributions,
+        &inputs.config.sanger.signal_processing.run_signal,
+    );
     tracing::info!(
         event = "run_signal_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
