@@ -34,5 +34,5 @@ These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 ## Implemented in
 
 <!-- docs:begin backlinks -->
-- **Implemented in:** [design/pipeline](../design/pipeline.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/signal](../reference/signal.md), [requirements/output](output.md), [validation/evaluation-harness](../validation/evaluation-harness.md)
+- **Implemented in:** [design/pipeline](../design/pipeline.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/signal](../reference/signal.md), [requirements/output](output.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
 <!-- docs:end backlinks -->

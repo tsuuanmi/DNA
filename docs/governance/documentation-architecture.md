@@ -210,8 +210,9 @@ successor.
 links within a bounded depth (profile; default 3).
 `DOC-GRF-003` `covers` globs match at least one path.
 `DOC-GRF-004` (warning) A requirement item is implemented by at least one
-document and verified or explicitly waived (`unverified:` in the owning
-document).
+document and verified: cited by code or tests, or its defining document lists at
+least one `verified-by` path (verification at document granularity), or the item
+or namespace is waived with `unverified:`.
 `DOC-GRF-005` (warning) An accepted decision is governing at least one current
 document; otherwise it is a retirement candidate.
 
@@ -308,7 +309,9 @@ gap; record it as `never-committed` or retire it properly.
 
 `DOC-FRS-001` (warning) A living document's `reviewed` date is older than the
 profile's review window.
-`DOC-FRS-002` (warning) A document exceeds the profile's maximum line count.
+`DOC-FRS-002` (warning) A living document exceeds the profile's maximum line count.
+Evolutionary and historical records are exempt; they are retired or distilled
+instead.
 
 ## 9. Change impact
 

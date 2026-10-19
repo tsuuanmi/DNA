@@ -43,8 +43,8 @@ every difference is attributed to one of three owners:
 
 ## Classification rule
 
-The harness gives each sample one [[validation/evaluation-harness#discrepancy-classes|class]]
-and one [[validation/evaluation-harness#discrepancy-causes|cause]], with the evidence
+The harness gives each sample one [[validation/evaluation-measures#discrepancy-classes|class]]
+and one [[validation/evaluation-measures#discrepancy-causes|cause]], with the evidence
 for each finding. Those two sections define the rules; this catalogue only
 reads their counts and records what is done about each part.
 

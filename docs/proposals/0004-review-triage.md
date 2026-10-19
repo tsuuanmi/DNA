@@ -526,7 +526,7 @@ batches):
 
 Measured on 2026-10-15 with the draft triage of the evaluation harness
 (`dna-eval run --triage`,
-[[validation/evaluation-harness#draft-triage|draft triage]]) on the
+[[validation/evaluation-triage#draft-triage|draft triage]]) on the
 development panel v3: 2,618 active samples, revision 6a84daa plus the draft.
 The detectors are drafts in the harness, not DNA rules. The lab's database
 refresh of 2026-10-15 09:53 removed the truth of one zero-weight panel sample,
@@ -567,7 +567,7 @@ Clopper–Pearson upper bound):
 
 The haplotype measures (added after this measurement, same samples and
 policy) do not count a haplotype written or placed differently
-([[validation/evaluation-harness#measures|measures]]).
+([[validation/evaluation-measures#measures|measures]]).
 
 What leaks is invisible to stage-1 evidence:
 
@@ -662,7 +662,7 @@ its own as the pass rule:
 
 Measured on 2026-10-15 with the same panel, truth, and harness at revision
 a244644 plus the minor-signal draft (`region.minor_signal`,
-[[validation/evaluation-harness#draft-triage|minor rules]]), on the
+[[validation/evaluation-triage#draft-triage|minor rules]]), on the
 development panel only.
 
 **Evidence.** The sample evidence keeps A/C/G/T profiles only at

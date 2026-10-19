@@ -1,6 +1,7 @@
 ---
 implements: [SRS-IN]
 decided-by:
+  - ADR-0001
   - ADR-0002
   - ADR-0004
   - ADR-0005
@@ -56,4 +57,5 @@ ID.
 | ADR-0014 | Project a Compact Analysis Result Summary | Compact analysis result summary (v5); replaced by reviewer-facing signal evidence. | ADR-0026 | 2026-10-19 | `65c221e560e1:docs/decisions/adr/0014-compact-result-summary.md` |
 | governance/lifecycle | Documentation Lifecycle | Folded into the documentation architecture standard (classes, status vocabulary, promotion) and the DNA policy. | - | 2026-10-19 | `65c221e560e1:docs/governance/lifecycle.md` |
 | governance/ownership | Documentation and Code Ownership | Folded into the DNA policy area table and the standard's change-impact rule. | - | 2026-10-19 | `65c221e560e1:docs/governance/ownership.md` |
+| ADR-0001 | Deliver an End-to-End MVP First | Deliver an end-to-end Sanger MVP first (one AB1, one rCRS FASTA, re-calling, QC, alignment, variants); delivered and since extended by the sample, consensus, and plugin architecture. | - | 2026-10-19 | `14eb89d28fde:docs/decisions/adr/0001-mvp-vertical-slice.md` |
 <!-- ledger:end -->

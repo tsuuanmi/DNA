@@ -14,7 +14,7 @@ related: [ADR-0069, ADR-0070, ADR-0073, ADR-0078, PROP-0008]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [architecture/overview](../../architecture/overview.md), [engineering/ci-cd](../../engineering/ci-cd.md), [reference/rust-api](../../reference/rust-api.md)
+- **Governs:** [architecture/overview](../../architecture/overview.md), [engineering/ci-cd](../../engineering/ci-cd.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/rust-api](../../reference/rust-api.md), [reference/rust-api-sample](../../reference/rust-api-sample.md)
 <!-- docs:end backlinks -->
 
 ## Context

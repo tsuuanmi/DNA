@@ -1,3 +1,17 @@
+---
+decided-by:
+  - ADR-0009
+  - ADR-0016
+  - ADR-0021
+  - ADR-0058
+  - ADR-0067
+  - ADR-0069
+  - ADR-0070
+  - ADR-0074
+  - ADR-0076
+  - ADR-0079
+---
+
 # DNA Roadmap
 
 The roadmap is non-normative. It records current validation priorities and intentionally deferred product directions. Current behavior is defined by the [[requirements/SRS|SRS]], [methods](../design/README.md), [contracts](../reference/README.md), and accepted [ADRs](../decisions/adr/README.md).

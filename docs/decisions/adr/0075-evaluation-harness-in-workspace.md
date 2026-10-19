@@ -17,7 +17,7 @@ related: [ADR-0018, ADR-0065, ADR-0066, ADR-0070, PROP-0005]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [architecture/context](../../architecture/context.md), [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [engineering/ci-cd](../../engineering/ci-cd.md), [engineering/dependencies](../../engineering/dependencies.md), [engineering/development](../../engineering/development.md), [governance/data](../../governance/data.md), [requirements/constraints](../../requirements/constraints.md), [validation/acceptance-criteria](../../validation/acceptance-criteria.md), [validation/evaluation-harness](../../validation/evaluation-harness.md), [validation/strategy](../../validation/strategy.md)
+- **Governs:** [architecture/context](../../architecture/context.md), [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [engineering/ci-cd](../../engineering/ci-cd.md), [engineering/dependencies](../../engineering/dependencies.md), [engineering/development](../../engineering/development.md), [governance/data](../../governance/data.md), [requirements/constraints](../../requirements/constraints.md), [validation/acceptance-criteria](../../validation/acceptance-criteria.md), [validation/evaluation-harness](../../validation/evaluation-harness.md), [validation/evaluation-measures](../../validation/evaluation-measures.md), [validation/evaluation-triage](../../validation/evaluation-triage.md), [validation/strategy](../../validation/strategy.md)
 <!-- docs:end backlinks -->
 
 ## Context
@@ -69,7 +69,7 @@ option B), so that a change to DNA and its evaluation can land together.
 - One change can update DNA and its evaluation together, and the harness
   builds and tests with the workspace.
 - DNA exposes the `consensus` then `call` workflow as a library call
-  ([[reference/rust-api#consensus-call|`SampleAnalysis::call`]]), so the
+  ([[reference/rust-api-sample#consensus-call|`SampleAnalysis::call`]]), so the
   harness needs no CLI process or JSON parse per sample.
 - The release still builds and ships only `dna` (`cargo build -p dna`).
 - Downstream pipelines may keep comparing published results; ADR-0065 still

@@ -15,5 +15,5 @@ These cross-cutting constraints govern external-reference comparison, compatibil
 ## Implemented in
 
 <!-- docs:begin backlinks -->
-- **Implemented in:** [architecture/overview](../architecture/overview.md), [governance/data](../governance/data.md), [validation/evaluation-harness](../validation/evaluation-harness.md)
+- **Implemented in:** [architecture/overview](../architecture/overview.md), [governance/data](../governance/data.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
 <!-- docs:end backlinks -->

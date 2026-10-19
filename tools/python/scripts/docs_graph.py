@@ -534,7 +534,11 @@ class Graph:
     # ------------------------------------------------------------------- checks
 
     def living(self, doc: Doc) -> bool:
-        return doc.type not in NON_LIVING and doc.type != "router"
+        """Current-state documents, including standing ones in a historical area."""
+        if doc.type == "router":
+            return False
+        standing = doc.id is None and doc.path.name != "README.md"
+        return doc.type not in NON_LIVING or standing
 
     def check(self) -> list[Finding]:
         for doc in self.docs:
@@ -763,7 +767,7 @@ class Graph:
 
     def check_freshness(self, doc: Doc) -> None:
         lines = doc.text.count("\n")
-        if lines > self.profile.max_lines:
+        if lines > self.profile.max_lines and self.living(doc):
             self.add(
                 "DOC-FRS-002",
                 "warning",
@@ -932,9 +936,12 @@ class Graph:
         implemented: set[str] = set()
         verified: set[str] = set()
         waived: set[str] = set()
+        verifying: set[Doc] = set()
         for doc in self.docs:
             implemented |= {strip_wiki(e) for e in doc.fm.get("implements", [])}
             verified |= {strip_wiki(e) for e in doc.fm.get("verified-by", [])}
+            if doc.fm.get("verified-by"):
+                verifying.add(doc)
             waived |= {strip_wiki(e) for e in doc.fm.get("unverified", [])}
         for doc in self.docs:
             if not doc.items or doc.type != "requirement":
@@ -948,6 +955,7 @@ class Graph:
                 i
                 for i in doc.items
                 if i not in sources
+                and doc not in verifying
                 and i not in verified
                 and i not in waived
                 and re.sub(r"-\d+$", "", i) not in waived

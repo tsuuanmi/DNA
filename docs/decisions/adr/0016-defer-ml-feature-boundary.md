@@ -12,7 +12,7 @@ date: 2026-08-26
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- _Not yet referenced by a current document._
+- **Governs:** [proposals/roadmap](../../proposals/roadmap.md)
 <!-- docs:end backlinks -->
 
 ## Context

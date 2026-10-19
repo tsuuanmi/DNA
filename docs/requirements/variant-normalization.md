@@ -23,5 +23,5 @@ These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 ## Implemented in
 
 <!-- docs:begin backlinks -->
-- **Implemented in:** [design/variant-normalization](../design/variant-normalization.md), [reference/profiles](../reference/profiles.md), [reference/rust-api](../reference/rust-api.md)
+- **Implemented in:** [design/variant-normalization](../design/variant-normalization.md), [reference/profiles](../reference/profiles.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md)
 <!-- docs:end backlinks -->

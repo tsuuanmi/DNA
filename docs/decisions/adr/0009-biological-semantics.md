@@ -15,7 +15,7 @@ supersedes: [ADR-0003]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [architecture/invariants/scientific-state](../../architecture/invariants/scientific-state.md), [requirements/SRS](../../requirements/SRS.md)
+- **Governs:** [architecture/invariants/scientific-state](../../architecture/invariants/scientific-state.md), [proposals/roadmap](../../proposals/roadmap.md), [requirements/SRS](../../requirements/SRS.md)
 <!-- docs:end backlinks -->
 
 ## Context

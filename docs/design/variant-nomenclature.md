@@ -220,7 +220,7 @@ record the length of the uninterrupted HVS-I C run that `16189C` creates
 `T16189`, the two short runs are read through. A length call there is
 evidence, so it stays unlabelled. On development panel v5 (main `4e6f8d1`), 31
 `sequence` samples differ from the truth only by labelled calls, and the
-[[validation/evaluation-harness#discrepancy-causes|evaluation harness]]
+[[validation/evaluation-measures#discrepancy-causes|evaluation harness]]
 gives them to the lab as deferred. Two `16193DEL` samples whose `16185T`
 splits the run (C8) stay unlabelled.
 

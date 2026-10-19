@@ -21,6 +21,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Run signal](signal.md): `dna.signal/v1`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
+  - [Sample analysis API](rust-api-sample.md)
 - [Glossary](glossary.md): terms used across the contracts.
 
 ## Machine-readable contracts

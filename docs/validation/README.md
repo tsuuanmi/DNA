@@ -8,7 +8,9 @@ Validation describes **how DNA demonstrates that implementation and scientific c
 - [Performance evidence](benchmarks.md)
 - [Known limitations](known-limitations.md)
 - [Discrepancy catalogue](discrepancy-catalogue.md)
-- [Evaluation harness](evaluation-harness.md)
+- [Evaluation harness](evaluation-harness.md): commands, approval, inputs, running, outputs
+  - [Measures and discrepancy classes](evaluation-measures.md)
+  - [Review triage evaluation](evaluation-triage.md)
 - [Requirement-to-implementation traceability](traceability.md)
 
 Validation is evidence, not a second specification. Normative behavior lives in [requirements](../requirements/README.md); mechanisms live in [design](../design/README.md).

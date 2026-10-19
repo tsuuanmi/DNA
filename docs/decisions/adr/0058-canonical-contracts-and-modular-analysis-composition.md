@@ -15,7 +15,7 @@ related: [PROP-0001]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md)
+- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [proposals/roadmap](../../proposals/roadmap.md)
 <!-- docs:end backlinks -->
 
 ## Context

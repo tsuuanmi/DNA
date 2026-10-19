@@ -133,7 +133,7 @@ make the loop possible they provide:
   lab's concordance rules (primary measure), with a stricter measure on the
   truth's analysed intervals, an IUPAC-compatible measure, and haplotype
   measures that do not count a haplotype written or placed differently
-  ([[validation/evaluation-harness#measures|evaluation harness]]).
+  ([[validation/evaluation-measures#measures|evaluation harness]]).
   Work is ranked on the haplotype measures, so representation does not
   inflate the error counts. The haplotype measures compare only inside DNA's
   callable intervals, the HV regions, and the truth's analysed intervals
@@ -777,7 +777,7 @@ yet reviewed.
   estimate equals the draft-triage run before this change, and no sample
   concordant on a base measure is discordant on its haplotype measure).
   - **Method**
-    ([[validation/evaluation-harness#measures|measures]]). Inside the
+    ([[validation/evaluation-measures#measures|measures]]). Inside the
     HV regions within DNA's callable intervals each side's alleles are
     applied to rCRS and the two sequences are cut into blocks wherever their
     lengths agree; alleles outside differing blocks leave the comparison, and
