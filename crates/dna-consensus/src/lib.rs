@@ -1749,7 +1749,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 14,
+    version: 15,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2226,6 +2226,46 @@ mod tests {
         let consensus = build(&[&read], &reference(), &config()?, &config::tests::config());
         assert!(consensus.reference_only.contains(&14));
         assert_eq!(consensus.segments[0].sequence, REFERENCE);
+        Ok(())
+    }
+
+    // SRS-CONS-010
+    #[test]
+    fn a_vouched_call_within_the_end_margin_confirms_the_reference()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use super::observe::observe;
+        // A read equal to the reference, its ends unvouched: calls 0-2 lie
+        // within a margin of three calls of its start, and call `i` observes
+        // position `i`.
+        let mut read = placed("r", REFERENCE, &[])?;
+        let mut edge = read.evidence.calls()[0];
+        edge.identity.edge = true;
+        let mut second = read.evidence.calls()[1];
+        second.second = Some(dna_kernel::read_evidence::SecondBase {
+            base: 'A',
+            share: 0.3,
+            stands_out: true,
+        });
+        read.evidence = read.evidence.with_call(0, edge).with_call(1, second);
+        let settings = RawVariantCallingConfig {
+            max_indel_length: 50,
+            read_end_margin: 3,
+        }
+        .validate()?;
+        let observed = observe(&read, &settings, REFERENCE.as_bytes(), 4);
+        let site = |position: usize| {
+            observed
+                .positions
+                .get(&position)
+                .map(|site| (site.clean, site.confirms))
+        };
+        // The modality's edge verdict, or a second base standing out, leaves
+        // the reference unconfirmed; the call at 2, vouched for its base,
+        // confirms it. Beyond the margin, calls are clean on their own.
+        assert_eq!(site(0), Some((false, false)));
+        assert_eq!(site(1), Some((false, false)));
+        assert_eq!(site(2), Some((true, true)));
+        assert_eq!(site(3), Some((true, false)));
         Ok(())
     }
 

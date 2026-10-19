@@ -55,7 +55,12 @@ still contributes the bases its alignment places on the run.
 marks `reference_only` is withheld for its base, but its base observation is
 clean when the base is the reference's: it confirms the reference at its
 position. The modality's own edge verdict does not stand against it, but
-the read's unvouched ends do (`Eligibility::clear_of_ends`). Its trust level
+the read's unvouched ends do (`Eligibility::clear_of_ends`). Within that
+margin of an unvouched end, a call the modality vouches for its base
+(scored, off its edges, withheld for nothing) confirms the reference too,
+when it shows no second base standing out and no unexplained second peak:
+the margin keeps indels and run ends off a read end's calls, and a
+confirmation shows neither. Its trust level
 stays `Unmasked`, so it counts and bounds runs as before. Only the
 position-by-position vote outside stretches changes; a stretch is decided as
 if the confirmation were not there. The confirmation is withdrawn:

@@ -507,6 +507,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   unchanged in every period, no status changes, and 156 samples become clear
   (current 71.00 -> 71.39 %, 2025-08..11 48.59 -> 52.15 %, older 69.41 ->
   70.01 %). Plugin `consensus` 14.
+- A call within `variant_calling.read_end_margin` of an unvouched read end
+  confirms the reference when its modality vouches for its base (scored,
+  off its edges, withheld for nothing) and it shows no second base standing
+  out and no unexplained second peak (SRS-CONS-010, ADR-0080). Every guard of
+  a confirmation applies; such a call still bounds no run and supports no
+  variant. On panel v5 against the stack of #169-#173, unreviewed and
+  non-het are unchanged in every period, no status changes, and 48 samples
+  held only by HVS-I read-start checks become clear (current 72.80 ->
+  73.16 %, older 71.63 -> 71.96 %). Plugin `consensus` 15.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's
