@@ -43,12 +43,20 @@ still contributes the bases its alignment places on the run.
 **Reference confirmations** (ADR-0080, SRS-CONS-010). A call its modality
 marks `reference_only` is withheld for its base, but its base observation is
 clean when the base is the reference's: it confirms the reference at its
-position. Its trust level stays `Unmasked`, so it counts and bounds runs as
-before; only the position-by-position vote changes. The confirmation is
-withdrawn:
+position. The modality's own edge verdict does not stand against it, but
+the read's unvouched ends do (`Eligibility::clear_of_ends`). Its trust level
+stays `Unmasked`, so it counts and bounds runs as before. Only the
+position-by-position vote outside stretches changes; a stretch is decided as
+if the confirmation were not there. The confirmation is withdrawn:
 - where any read's call at the position has `second_unexplained`;
 - where a read of the other strand shows the confirming call's own second
   base standing out (`SecondBase.stands_out`);
+- at or beside a position where any read observes something other than the
+  reference, cleanly or not (a read shifted in a repeat shows the reference
+  beside its own difference);
+- where no read observes the position cleanly otherwise and it forms a
+  reference run of at least `consensus.seeded_run` bases with a neighbour
+  across a junction no read observes cleanly (a length may change there);
 - within or beside a decided site that differs from the reference (a site
   written partly as `N` included), after which the positions are decided
   again until no confirmation is withdrawn.

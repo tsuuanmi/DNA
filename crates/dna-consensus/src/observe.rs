@@ -371,7 +371,10 @@ pub(super) fn observe(
                 && call.is_some_and(|(call, evidence)| {
                     evidence.reference_only
                         && evidence.placement == Placement::Scored
-                        && trusted_call(call)
+                        // The modality's own edge verdict does not stand
+                        // against a call it asserts reference-only; the
+                        // read's unvouched ends still do.
+                        && (trusted_call(call) || eligibility.clear_of_ends(call))
                 });
             Observation {
                 value: SiteValue::Base(column.query_base()),

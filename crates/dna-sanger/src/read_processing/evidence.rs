@@ -244,11 +244,101 @@ pub fn read_evidence(
         })
         .collect::<Vec<_>>();
     mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, config);
+    reference_only_calls(
+        &mut evidence,
+        calls,
+        callability,
+        (start, end),
+        config.signal_edge_margin,
+    );
     Ok(ReadEvidence::new(
         evidence,
         informative,
         REASON_ORDER.to_vec(),
     )?)
+}
+
+/// Marks the read's other reference-only calls (SRS-CALL-022, ADR-0080), once
+/// its signal edges are known, anywhere in the read. A scored single-channel
+/// call without a second base standing out or unexplained is reference-only
+/// when it is withheld only by the peak floor or relative quality, or lies at
+/// a signal edge every cause of which is benign: the untrimmed start of the
+/// read, or a weak-signal mask clear of every repeat run by more than the
+/// margin (beside a repeat run a weak segment is the dephased tail). The
+/// untrimmed 3' end is not benign: there the read's signal decays. A mixed
+/// reference-only call at a signal edge loses the mark: the edge stands
+/// against it.
+fn reference_only_calls(
+    evidence: &mut [CallEvidence],
+    calls: &BaseCalls,
+    callability: &ReadCallability,
+    (start, end): (usize, usize),
+    margin: usize,
+) {
+    let count = evidence.len();
+    let informative = |evidence: &[CallEvidence], at: usize| {
+        (start..end).contains(&at) && !matches!(evidence[at].placement, Placement::Unresolved(_))
+    };
+    // A weak segment is benign only clear of every repeat run: beside one it
+    // is the read's dephased tail, not a weak start.
+    let clear_of_repeats = |at: usize| {
+        callability.segment_at(at).is_some_and(|segment| {
+            callability.repeats.iter().all(|repeat| {
+                repeat.call_end_0based_exclusive + margin <= segment.call_start_0based
+                    || segment.call_end_0based_exclusive + margin <= repeat.call_start_0based
+            })
+        })
+    };
+    let benign = |evidence: &[CallEvidence], at: usize| {
+        at < start
+            || (evidence[at].placement == Placement::Unresolved(WEAK_SIGNAL)
+                && clear_of_repeats(at))
+    };
+    for index in 0..count {
+        let call = evidence[index];
+        if call.identity.withheld.contains(MIXED_SUPPORTING_DNA) {
+            if call.identity.edge {
+                evidence[index].reference_only = false;
+            }
+            continue;
+        }
+        let quality = call.identity.withheld.iter().all(|reason| {
+            reason == PEAK_BELOW_MINIMUM || reason == RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD
+        });
+        let single = calls
+            .calls
+            .get(index)
+            .is_some_and(|base| base.qualifying_channels.len() == 1);
+        if call.placement != Placement::Scored
+            || !single
+            || !quality
+            || call.second_unexplained
+            || call.second.is_some_and(|second| second.stands_out)
+            || (call.identity.withheld.is_empty() && !call.identity.edge)
+        {
+            continue;
+        }
+        if call.identity.edge {
+            // The nearest uninformative call within the margin on each side.
+            let left = (index.saturating_sub(margin)..index)
+                .rev()
+                .find(|&at| !informative(evidence, at));
+            let right =
+                (index + 1..(index + margin + 1).min(count)).find(|&at| !informative(evidence, at));
+            let left_ok = match left {
+                Some(at) => benign(evidence, at),
+                None => index >= margin,
+            };
+            let right_ok = match right {
+                Some(at) => benign(evidence, at),
+                None => index + margin < count,
+            };
+            if !(left_ok && right_ok) {
+                continue;
+            }
+        }
+        evidence[index].reference_only = true;
+    }
 }
 
 /// Marks every run of one base the read bounds right before it loses phase
@@ -667,7 +757,7 @@ fn placement(callability: &ReadCallability, index: usize) -> Option<Placement> {
 #[cfg(test)]
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
-    use crate::model::callability::PhaseSegment;
+    use crate::model::callability::{PhaseSegment, RepeatRun, RepeatUnit};
     use crate::model::locus_evidence::LocusEvidence;
     use crate::model::quality::CallQuality;
     use crate::model::signal::SangerIntegrity;
@@ -791,6 +881,75 @@ mod tests {
             ReadCallability::in_phase(count),
             quality,
         )
+    }
+
+    #[test]
+    fn a_quality_withheld_or_benign_edge_call_is_reference_only() -> Result<()> {
+        // Twenty single-channel calls; the trim starts at 4.
+        let (calls, _, mut callability, _) = products(&[300; 20], &[40; 20]);
+        let scored = |base| CallEvidence::scored(base, None);
+        let fresh = || vec![scored('A'); 20];
+        let mark = |evidence: &mut Vec<CallEvidence>, callability: &ReadCallability| {
+            reference_only_calls(evidence, &calls, callability, (4, 20), 3);
+        };
+        // Withheld by relative quality only: reference-only.
+        let mut evidence = fresh();
+        evidence[10]
+            .identity
+            .withheld
+            .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
+        mark(&mut evidence, &callability);
+        assert!(evidence[10].reference_only);
+        // A second base standing out keeps it off.
+        let mut evidence = fresh();
+        evidence[10]
+            .identity
+            .withheld
+            .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
+        evidence[10].second = Some(SecondBase {
+            base: 'C',
+            share: 0.3,
+            stands_out: true,
+        });
+        mark(&mut evidence, &callability);
+        assert!(!evidence[10].reference_only);
+        // At the edge the untrimmed start makes: reference-only.
+        let mut evidence = fresh();
+        evidence[5].identity.edge = true;
+        mark(&mut evidence, &callability);
+        assert!(evidence[5].reference_only);
+        // Untrimmed from its first call, the read's edge at call 1 is its
+        // physical end: not reference-only.
+        let mut evidence = fresh();
+        evidence[1].identity.edge = true;
+        reference_only_calls(&mut evidence, &calls, &callability, (0, 20), 3);
+        assert!(!evidence[1].reference_only);
+        // Beside a weak-signal mask clear of repeat runs: reference-only;
+        // beside one next to a repeat run, the dephased tail: not.
+        let weak = Placement::Unresolved(WEAK_SIGNAL);
+        callability.segments = vec![PhaseSegment {
+            call_start_0based: 14,
+            call_end_0based_exclusive: 15,
+            state: PhaseState::Weak,
+            after_repeat: false,
+            shadow: None,
+        }];
+        let mut evidence = fresh();
+        evidence[14] = evidence[14].masked(weak);
+        evidence[12].identity.edge = true;
+        mark(&mut evidence, &callability);
+        assert!(evidence[12].reference_only);
+        callability.repeats = vec![RepeatRun {
+            call_start_0based: 15,
+            call_end_0based_exclusive: 19,
+            unit: RepeatUnit::Homopolymer(0),
+        }];
+        let mut evidence = fresh();
+        evidence[14] = evidence[14].masked(weak);
+        evidence[12].identity.edge = true;
+        mark(&mut evidence, &callability);
+        assert!(!evidence[12].reference_only);
+        Ok(())
     }
 
     #[test]
