@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 12
+        "version": 13
       }
     ],
-    "rules": 12
+    "rules": 13
   },
   "reads": [
     {
@@ -1273,6 +1273,7 @@
       "not_called": 0,
       "long_run": 0,
       "edge_deletion": 0,
+      "run_deletion": 0,
       "one_read": 2,
       "one_strand": 2,
       "noisy_signal": 0,

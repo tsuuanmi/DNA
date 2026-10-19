@@ -167,6 +167,9 @@ pub(crate) enum LabelResult {
     EdgeDeletion {
         read: String,
     },
+    RunDeletion {
+        read: String,
+    },
     PossibleHeteroplasmy {
         position: usize,
         base: char,
@@ -328,6 +331,7 @@ pub(crate) struct LabelCounts {
     pub(crate) not_called: usize,
     pub(crate) long_run: usize,
     pub(crate) edge_deletion: usize,
+    pub(crate) run_deletion: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,
     pub(crate) noisy_signal: usize,

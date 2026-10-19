@@ -109,6 +109,7 @@ them). It has:
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy`,
   `estimated_length`, `undecided`, `not_called`, `long_run`, `edge_deletion`,
+  `run_deletion`,
   `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
@@ -178,11 +179,11 @@ and `5` for a variant without a label. Items are ordered by priority, then
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy` |
-| 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `undecided` |
+| 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 12)
+## Labels (rules version 13)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -264,6 +265,14 @@ exemption lifts the margin (ADR-0076).
   or last position, where a read's own edge loses or doubles a base (rules
   version 7). On current development data such deletions were 88 % wrong,
   against 0.2 % inside the regions and 0.8 % with both strands.
+- `run_deletion` `{read}`: a decided site that rests on a single read whose
+  call is at least `review.run_growth` bases shorter than its reference,
+  where the reference holds a run of at least `review.phase_run` equal bases
+  (rules version 13). A read that loses or compresses part of a run aligns it
+  as a long deletion, and one read cannot assure that. On current
+  development data it made 6 sites checks: the 4 auto-passed wrong ones (a
+  compressed HVS-II run, and a composition taken from one read's end) and 2
+  true deletions.
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
   lie on one strand. It describes the support of the call, so it can come

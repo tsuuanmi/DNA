@@ -723,6 +723,23 @@
           ],
           "properties": {
             "label": {
+              "const": "run_deletion"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
               "const": "one_read"
             },
             "read": {
@@ -1056,6 +1073,7 @@
             "not_called",
             "long_run",
             "edge_deletion",
+            "run_deletion",
             "one_read",
             "one_strand",
             "noisy_signal",
@@ -1094,6 +1112,10 @@
               "minimum": 0
             },
             "edge_deletion": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "run_deletion": {
               "type": "integer",
               "minimum": 0
             },

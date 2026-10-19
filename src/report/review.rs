@@ -41,7 +41,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 12,
+    version: 13,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -637,11 +637,34 @@ impl<'a> Sample<'a> {
             if !growth.is_empty() {
                 labels.push(LabelResult::LongRun { runs: growth });
             }
+            if let Some(read) = self.run_deletion(site) {
+                labels.push(LabelResult::RunDeletion { read });
+            }
             if let Some(read) = self.edge_deletion(site) {
                 labels.push(LabelResult::EdgeDeletion { read });
             }
         }
         labels
+    }
+
+    /// The single read a site rests on when its call is at least
+    /// `review.run_growth` bases shorter than its reference and the reference
+    /// holds a run of at least `review.phase_run` equal bases: a read that
+    /// loses or compresses part of a run aligns it as a long deletion, and
+    /// one read cannot assure that; `None` for any other site.
+    fn run_deletion(&self, site: &ConsensusSite) -> Option<String> {
+        let call = site.call.as_deref()?;
+        let [input] = site.supporting.as_slice() else {
+            return None;
+        };
+        let index = *self.by_input.get(input.as_str())?;
+        run_lost(
+            &site.reference,
+            call,
+            self.config.run_growth,
+            self.config.phase_run,
+        )
+        .then(|| self.reads[index].name.to_owned())
     }
 
     /// The single read a deletion within `edge_zone` positions of a
@@ -1288,6 +1311,13 @@ fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> 
     })
 }
 
+/// Whether `call` is at least `growth` bases shorter than `reference` and the
+/// reference holds a run of at least `run` equal bases.
+fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
+    call.len() + growth <= reference.len()
+        && runs_of(reference).iter().any(|(_, length)| *length >= run)
+}
+
 /// A sequence's runs of one base, in order, with their lengths.
 fn runs_of(sequence: &str) -> Vec<(char, usize)> {
     let mut runs: Vec<(char, usize)> = Vec::new();
@@ -1439,6 +1469,7 @@ const fn unassured(label: &LabelResult) -> bool {
             | LabelResult::NotCalled
             | LabelResult::LongRun { .. }
             | LabelResult::EdgeDeletion { .. }
+            | LabelResult::RunDeletion { .. }
             | LabelResult::NotCovered
     )
 }
@@ -1452,7 +1483,8 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::Undecided
         | LabelResult::NotCalled
         | LabelResult::LongRun { .. }
-        | LabelResult::EdgeDeletion { .. } => 2,
+        | LabelResult::EdgeDeletion { .. }
+        | LabelResult::RunDeletion { .. } => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
         LabelResult::NoisySignal { .. }
         | LabelResult::NotCovered
@@ -1470,6 +1502,7 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::NotCalled => "not_called",
         LabelResult::LongRun { .. } => "long_run",
         LabelResult::EdgeDeletion { .. } => "edge_deletion",
+        LabelResult::RunDeletion { .. } => "run_deletion",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
         LabelResult::EstimatedLength { .. } => "estimated_length",
         LabelResult::Undecided => "undecided",
@@ -1547,6 +1580,7 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
         LabelResult::OneRead { read }
         | LabelResult::ReadDisagrees { read, .. }
         | LabelResult::EdgeDeletion { read }
+        | LabelResult::RunDeletion { read }
         | LabelResult::NoisySignal { read, .. }
         | LabelResult::PhaseShift { read, .. }
         | LabelResult::ReadEdge { read } => (0, read.as_str()),
@@ -1574,6 +1608,7 @@ fn summarize(items: &[ItemResult], status: ReviewStatus, regions: &[[usize; 2]])
                 "not_called" => &mut labels.not_called,
                 "long_run" => &mut labels.long_run,
                 "edge_deletion" => &mut labels.edge_deletion,
+                "run_deletion" => &mut labels.run_deletion,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "estimated_length" => &mut labels.estimated_length,
                 "undecided" => &mut labels.undecided,
@@ -1866,6 +1901,16 @@ mod tests {
             &long
         ));
         assert!(!not_recorded(&[], &at, &long));
+    }
+
+    #[test]
+    fn a_long_deletion_inside_a_run_is_lost_run() {
+        // 2550268: CCCCCTCCCC decided as CTC.
+        assert!(run_lost("CCCCCTCCCC", "CTC", 3, 4));
+        // Two bases shorter stays below the growth.
+        assert!(!run_lost("CCCCCTCCCC", "CCCCCCCC", 3, 4));
+        // No run of four in the reference: a deletion elsewhere.
+        assert!(!run_lost("CCGGAGCACCC", "CCCCC", 3, 4));
     }
 
     #[test]
