@@ -22,6 +22,11 @@ pub struct ConsensusConfig {
     pub(crate) site_gap_open_cost: u32,
     /// Cost of extending one.
     pub(crate) site_gap_extension_cost: u32,
+    /// Calls from a read's ends within which its insertion or deletion
+    /// against a reference decision is set aside, when a read of the other
+    /// strand reads the site cleanly at least this far from its own ends
+    /// (SRS-CONS-011).
+    pub(crate) dissent_edge: usize,
 }
 
 /// The `[consensus]` section as written in the configuration.
@@ -34,6 +39,7 @@ pub struct RawConsensusConfig {
     site_mismatch_cost: u32,
     site_gap_open_cost: u32,
     site_gap_extension_cost: u32,
+    dissent_edge: usize,
 }
 
 impl RawConsensusConfig {
@@ -48,6 +54,9 @@ impl RawConsensusConfig {
     pub fn validate(self) -> Result<ConsensusConfig> {
         if self.seeded_run < 2 {
             return Err(ConfigError::Constraint("consensus.seeded_run must be at least 2").into());
+        }
+        if self.dissent_edge == 0 {
+            return Err(ConfigError::Constraint("consensus.dissent_edge must be positive").into());
         }
         if self.minimum_resolved_bases == 0 {
             return Err(ConfigError::Constraint(
@@ -76,6 +85,7 @@ impl RawConsensusConfig {
             site_mismatch_cost: self.site_mismatch_cost,
             site_gap_open_cost: self.site_gap_open_cost,
             site_gap_extension_cost: self.site_gap_extension_cost,
+            dissent_edge: self.dissent_edge,
         })
     }
 }
@@ -94,6 +104,7 @@ pub(crate) mod tests {
             site_mismatch_cost: 2,
             site_gap_open_cost: 3,
             site_gap_extension_cost: 2,
+            dissent_edge: 40,
         }
     }
 
@@ -105,6 +116,7 @@ pub(crate) mod tests {
             site_mismatch_cost: 2,
             site_gap_open_cost: 3,
             site_gap_extension_cost: 2,
+            dissent_edge: 40,
         }
     }
 
@@ -123,6 +135,10 @@ pub(crate) mod tests {
             },
             RawConsensusConfig {
                 site_gap_extension_cost: 0,
+                ..raw()
+            },
+            RawConsensusConfig {
+                dissent_edge: 0,
                 ..raw()
             },
             // A two-base gap and a substitution would cost no more than two

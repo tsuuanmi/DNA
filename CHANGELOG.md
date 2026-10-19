@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- The consensus sets aside dissent from a reference decision that a clean
+  read of the other strand contradicts (SRS-CONS-011, ADR-0083): opposing
+  reads whose second peak stands out and is explained by its modality, or
+  whose only difference is an insertion or deletion within
+  `consensus.dissent_edge` (40) calls of their own ends. The decided value
+  never changes. On panel v5, `strands_disagree` items on the current slice
+  fall from 271 to 170 and 110 samples become clear, with unreviewed and
+  non-het unchanged in every period. New key `dissent_edge` in
+  `[consensus]`; configuration schema 18; plugin `consensus` 13.
+
 - `dna analyze` writes, per call of the selected alignment, where the
   alignment places it and what the core decided about it (PROP-0011,
   increment 2; SRS-OUT-003): a new `calls` array, in call order, with each
