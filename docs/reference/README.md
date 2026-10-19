@@ -37,6 +37,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Consensus JSON Schema](schemas/consensus-v1.schema.json)
 - [Review JSON Schema](schemas/review-v1.schema.json)
 - [Run signal JSON Schema](schemas/signal-v1.schema.json)
+- [Evaluation run JSON Schema](schemas/eval-run-v1.schema.json): `dna.eval_run/v1`, the evaluation harness output, described in [validation](../validation/evaluation-harness.md#outputs)
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.

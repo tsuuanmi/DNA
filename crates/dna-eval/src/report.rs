@@ -2011,6 +2011,7 @@ mod tests {
         };
         let one = outputs(1)?;
         assert_eq!(one, outputs(8)?);
+        crate::contract::check_files(one.iter().map(|(name, text)| (*name, text.as_str())))?;
         let names = one.iter().map(|(name, _)| *name).collect::<Vec<_>>();
         assert_eq!(
             names,
@@ -2132,7 +2133,7 @@ mod tests {
     }
 
     #[test]
-    fn a_changed_truth_is_reported_and_listed() {
+    fn a_changed_truth_is_reported_and_listed() -> crate::contract::Checked {
         let digest = |text: &str| text.repeat(64);
         let check = TruthCheck {
             recorded: Some(digest("a")),
@@ -2163,6 +2164,7 @@ mod tests {
                 .1
                 .contains(&format!("S1\tclean\t0\t{}\t{}\n", digest("c"), digest("d")))
         );
+        crate::contract::check_table("truth_changes.tsv", &files[4].1)?;
         let summary = &files[5].1;
         assert!(summary.starts_with("# Evaluation run\n\n**Truth changed:** the truth of 1 panel"));
         assert!(summary.contains("| truth changed since the panel was built | 1 |"));
@@ -2192,5 +2194,6 @@ mod tests {
         );
         let summary = &files[files.len() - 1].1;
         assert!(summary.contains("although no sample's recorded digest does"));
+        Ok(())
     }
 }

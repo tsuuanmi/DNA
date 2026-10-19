@@ -16,6 +16,8 @@ mod cause;
 mod classes;
 mod compare;
 mod components;
+#[cfg(test)]
+mod contract;
 mod convention;
 mod error;
 mod estimate;
@@ -68,6 +70,12 @@ const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted forced-window list.
 const MAX_FORCED_BYTES: u64 = 1024 * 1024;
+
+/// The header of `signals.tsv`.
+const SIGNALS_HEADER: &str =
+    "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
+/// The header of `checks.tsv`.
+const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -480,16 +488,14 @@ fn run(cli: &RunArgs) -> Result<String> {
         write(&cli.output, name, &contents)?;
     }
     if cli.run_signal.is_some() {
-        let mut text = String::from(
-            "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n",
-        );
+        let mut text = String::from(SIGNALS_HEADER);
         for line in &signal_groups {
             text.push_str(line);
             text.push('\n');
         }
         write(&cli.output, "signals.tsv", &text)?;
     }
-    let mut checks = String::from("sample_id\tfirst\tlast\tlabels\n");
+    let mut checks = String::from(CHECKS_HEADER);
     for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
         if let Ok(called) = &outcome.result {
             for (first, last, labels) in &called.check_labels {
@@ -1096,6 +1102,100 @@ mod tests {
             columns: Vec::new(),
             samples: Vec::new(),
         }
+    }
+
+    /// `run.json` with every optional field, and without them, and the
+    /// headers of `checks.tsv` and `signals.tsv`, follow `dna.eval_run/v1`.
+    #[test]
+    fn the_run_header_and_tables_follow_the_contract() -> contract::Checked {
+        let digest = "a".repeat(64);
+        let counts = || Counts {
+            total: 3,
+            concordant: 1,
+            discordant: 1,
+            not_applicable: 0,
+            failed: 1,
+        };
+        let header = Header {
+            harness: env!("CARGO_PKG_NAME"),
+            harness_version: env!("CARGO_PKG_VERSION"),
+            source: Source {
+                revision: Some("0".repeat(40)),
+                dirty: Some(false),
+            },
+            threads: 4,
+            manifest: ManifestHeader {
+                path: PathBuf::from("/panel.tsv"),
+                fields: BTreeMap::from([("panel".to_owned(), "dev".to_owned())]),
+                body_sha256: digest.clone(),
+                rows: 3,
+            },
+            truth: TruthHeader {
+                path: PathBuf::from("/statistics.sqlite"),
+                sha256: digest.clone(),
+                info: BTreeMap::from([("schema_version".to_owned(), "1".to_owned())]),
+                digest: digest.clone(),
+                recorded_digest: Some(digest.clone()),
+                state: truth::TruthState::Unchanged.label(),
+                changed_samples: 0,
+                panel_samples_found: 3,
+            },
+            configuration_path: PathBuf::from("/dna.toml"),
+            reference_path: PathBuf::from("/rCRS.fasta"),
+            identities: vec![Identity {
+                configuration_sha256: digest.clone(),
+                reference_name: "rCRS".into(),
+                reference_sha256: digest.clone(),
+                profile_id: "human-mtdna-rcrs".into(),
+                profile_sha256: digest,
+            }],
+            baseline: Some(PathBuf::from("/earlier")),
+            review_window: report::REVIEW_WINDOW,
+            current_since: Some("2026-01".into()),
+            run_signal: Some("batch".into()),
+            forced_windows: Some(PathBuf::from("/forced.txt")),
+            zones: ZoneHeader {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+            constants: Constants::current(),
+            samples: Measure::ALL
+                .into_iter()
+                .map(|measure| (measure.label(), counts()))
+                .collect(),
+            seconds: Seconds {
+                total: 2.5,
+                truth: 0.5,
+                dna: 1.5,
+                sample_median: 0.5,
+                sample_p95: 0.75,
+                sample_max: 1.0,
+                sample_sum: 1.5,
+            },
+            triage: Some(TriageHeader {
+                policy: "draft: short_calls=100".into(),
+                policies: 2,
+                seconds: 0.25,
+            }),
+        };
+        contract::check_document("run.json", &serde_json::to_value(&header)?)?;
+        let bare = Header {
+            source: Source {
+                revision: None,
+                dirty: None,
+            },
+            identities: Vec::new(),
+            baseline: None,
+            current_since: None,
+            run_signal: None,
+            forced_windows: None,
+            triage: None,
+            ..header
+        };
+        contract::check_document("run.json", &serde_json::to_value(&bare)?)?;
+        contract::check_table("checks.tsv", CHECKS_HEADER)?;
+        contract::check_table("signals.tsv", SIGNALS_HEADER)
     }
 
     #[test]

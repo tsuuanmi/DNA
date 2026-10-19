@@ -13,9 +13,13 @@ to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
-Output contract: none yet; `run.json` and the TSV tables follow the
-[evaluation harness](../../../docs/validation/evaluation-harness.md#outputs)
-by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+Output contract: `dna-eval run` writes
+[`dna.eval_run/v1`](../../../docs/reference/schemas/eval-run-v1.schema.json):
+which files a run directory holds, `run.json`, and every table's columns
+([evaluation harness](../../../docs/validation/evaluation-harness.md#outputs),
+[PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+The outputs of `approve` and `convention`, and the manifest `panel` writes,
+have no schema; the evaluation harness document describes them.
 
 - `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`), run orchestration, output
   directory, and the `run.json` header.
@@ -82,6 +86,9 @@ by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contrac
   through DNA's normalization and nomenclature windows, and the change
   patterns where DNA writes them differently.
 - `error.rs` — failures that stop a run.
+- `contract.rs` — test support: the `dna.eval_run/v1` schema, read so the
+  tests check each table's header and cells, and `run.json`'s fields, as the
+  harness writes them.
 
 `build.rs` records the git revision the harness is built from, and whether
 tracked files differed from it, for `run.json`.

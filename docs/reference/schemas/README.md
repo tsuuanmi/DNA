@@ -11,5 +11,6 @@ This directory contains the authoritative machine-readable schemas for current p
 - [consensus-v1.schema.json](consensus-v1.schema.json) — `dna.consensus/v1`
 - [review-v1.schema.json](review-v1.schema.json) — `dna.review/v1`; it references definitions of the notation and consensus schemas by `$id`
 - [signal-v1.schema.json](signal-v1.schema.json) — `dna.signal/v1`
+- [eval-run-v1.schema.json](eval-run-v1.schema.json) — `dna.eval_run/v1`, the output directory of the evaluation harness `dna-eval run`: validation evidence, not a DNA result; its semantics are in the [evaluation harness](../../validation/evaluation-harness.md#outputs)
 
 Schemas define exact serialized shape. Human-readable semantics remain in the parent [contracts index](../README.md) and the corresponding contract folders.
