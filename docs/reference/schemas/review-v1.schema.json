@@ -650,6 +650,7 @@
                     "enum": [
                       "in_phase",
                       "anchored_end",
+                      "confirmed_end",
                       "phase_loss",
                       "reference_frame",
                       null

@@ -34,8 +34,8 @@ behind every non-trivial decision.
   reference runs (seeded by clean differences and by disputed runs no read
   bounds), segment assembly, and the `consensus` plugin descriptor.
   Each stretch is decided by its run structure (ADR-0074): composition, then
-  lengths with their evidence (`in_phase`, `anchored_end`, `phase_loss`,
-  `reference_frame`), or position by position.
+  lengths with their evidence (`in_phase`, `anchored_end`, `confirmed_end`,
+  `phase_loss`, `reference_frame`), or position by position.
 
 The module reads only `CalledRead` records, so it is modality-neutral
 (ADR-0069). It uses no profile window or filename. `decided.rs` turns its

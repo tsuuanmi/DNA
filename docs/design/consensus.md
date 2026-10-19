@@ -124,6 +124,11 @@ stretch's start, and a clean end likewise.
   ends. Its label is `in_phase` when a supporting read shows both ends
   `InPhase`, and `anchored_end` otherwise.
 - **A run whose length no read shows** takes one of these:
+  - `confirmed_end`: the count two reads agree on, each entering the run
+    `InPhase` from an opposite end, every call of the run unmasked, and
+    losing phase (`PhaseLoss`) at the other end on a call that does not read
+    the run's base. A same-base call there means the run goes on, so its
+    count is only a lower bound. Every read entering this way must agree.
   - `reference_frame`: the reference positions between its ends. Every read
     that shows an end must place it alike, and every position between must be
     read cleanly by some read.

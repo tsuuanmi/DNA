@@ -104,6 +104,15 @@ Two rules refine these ends:
 3. **Run by run.** Otherwise, each run's length is voted from reads that show
    both of its ends.
 4. **A run whose length no read shows** takes the first of these:
+   - **`confirmed_end`:** the count two reads agree on, each entering the run
+     in phase from an opposite end, reading every call of the run unmasked,
+     and losing phase at the other end on a call that does not read the run's
+     base. Each read's count shows the end the other read cannot. Added with
+     `consensus` plugin version 9: mostly at the HVS-II run `303-309`, where
+     the forward read loses phase at `310` and the reverse read at the run's
+     5' end, such runs took the reference frame although both strands
+     counted their length (133 samples of the development panel corrected,
+     none newly wrong).
    - **`reference_frame`:** the number of reference positions between its
      ends. Each end must be placed alike by every read that shows it, and
      every position between must be read cleanly by some read. This assumes
@@ -116,8 +125,8 @@ Two rules refine these ends:
 ### Reporting
 
 Every run of a stretch decided this way is published with its
-`length_evidence`: `in_phase`, `anchored_end`, `phase_loss`, or
-`reference_frame`. The summary counts `phase_loss` and `reference_frame` runs.
+`length_evidence`: `in_phase`, `anchored_end`, `confirmed_end`,
+`phase_loss`, or `reference_frame`. The summary counts `phase_loss` and `reference_frame` runs.
 The FASTA carries only the sequence.
 
 No position, target, or region enters the rule (ADR-0021). A profile
