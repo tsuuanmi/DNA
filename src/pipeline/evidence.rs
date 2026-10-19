@@ -64,12 +64,12 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
 
     let _stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
+    let sanger = report::project_sanger_read(&calls, signal, &callability, &quality)?;
     let result = report::build_evidence(CompletedEvidence {
         config: inputs.config,
         trace: inputs.trace,
         calls,
-        callability,
-        quality,
+        sanger,
         second,
         evidence,
         plugins: plugin::EVIDENCE,

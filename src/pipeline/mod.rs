@@ -30,6 +30,15 @@ pub(crate) fn analyze(trace: &Path, reference: &Path, config_path: &Path) -> Res
     analyze::run(trace, reference, config_path)
 }
 
+/// Runs one analysis of a read from its recorded evidence (PROP-0011).
+pub(crate) fn analyze_evidence(
+    document: &Path,
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    analyze::run_evidence(document, reference, config_path)
+}
+
 /// Runs one reference-free AB1 basecall operation.
 pub(crate) fn basecall(trace: &Path, config_path: &Path) -> Result<()> {
     basecall::run(trace, config_path)

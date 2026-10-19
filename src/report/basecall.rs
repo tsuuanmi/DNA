@@ -2,12 +2,10 @@
 
 use crate::config::Config;
 use crate::error::{ReportError, Result};
-use crate::model::basecall_result::{
-    BasecallProvenanceResult, BasecallReadResult, BasecallResult, BasecallWarningSummaryResult,
-};
+use crate::model::basecall_result::{BasecallProvenanceResult, BasecallReadResult, BasecallResult};
 use crate::model::result::{InputResult, IntervalResult};
 use crate::report::json::project_plugins;
-use crate::report::{callability, signal};
+use crate::report::{callability, sanger_read, signal};
 use dna_kernel::plugin::PluginDescriptor;
 use dna_sanger::model::basecalls::BaseCalls;
 use dna_sanger::model::callability::ReadCallability;
@@ -59,23 +57,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
         )
         .into());
     }
-    let unresolved_primary_calls = calls
-        .calls
-        .iter()
-        .filter(|call| call.primary == 'N')
-        .count();
-    let multi_channel_unresolved_calls = calls
-        .calls
-        .iter()
-        .filter(|call| call.ambiguity == 'N' && call.qualifying_channels.len() > 2)
-        .count();
-    let vendor_disagreements = calls
-        .calls
-        .iter()
-        .filter(|call| call.vendor_agrees == Some(false))
-        .count();
-    let locus_vendor_length_mismatches = signal_analysis.integrity.vendor_length_mismatch_count();
-    let clipped_channel_samples = signal_analysis.integrity.clipped_channel_samples;
+    let warnings = sanger_read::warnings(&calls, &signal_analysis.integrity);
     let signal_quality = signal::project(signal_analysis);
 
     Ok(BasecallResult {
@@ -99,12 +81,6 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
             callability: callability::project(&read_callability),
         },
         signal_quality,
-        warnings: BasecallWarningSummaryResult {
-            unresolved_primary_calls,
-            multi_channel_unresolved_calls,
-            vendor_disagreements,
-            ploc_vendor_length_mismatches: locus_vendor_length_mismatches,
-            clipped_channel_samples,
-        },
+        warnings,
     })
 }

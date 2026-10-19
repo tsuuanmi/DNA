@@ -8,6 +8,7 @@ mod abif;
 mod basecalling;
 mod callability;
 mod quality_control;
+mod read_evidence;
 mod run_signal;
 mod signal;
 
@@ -15,6 +16,7 @@ pub use abif::{AbifError, Tag};
 pub use basecalling::BasecallingError;
 pub use callability::CallabilityError;
 pub use quality_control::QualityControlError;
+pub use read_evidence::ReadEvidenceError;
 pub use run_signal::RunSignalError;
 pub use signal::SignalError;
 
@@ -45,6 +47,9 @@ pub enum SangerError {
     /// A run signal cannot be used.
     #[error("invalid run signal: {0}")]
     RunSignal(RunSignalError),
+    /// A recorded read evidence document cannot be read back.
+    #[error("invalid read evidence: {0}")]
+    ReadEvidence(ReadEvidenceError),
     /// The Sanger products of one read disagree while its core evidence is
     /// assembled.
     #[error("{0}")]
@@ -147,6 +152,12 @@ impl From<QualityControlError> for SangerError {
 impl From<RunSignalError> for SangerError {
     fn from(failure: RunSignalError) -> Self {
         Self::RunSignal(failure)
+    }
+}
+
+impl From<ReadEvidenceError> for SangerError {
+    fn from(failure: ReadEvidenceError) -> Self {
+        Self::ReadEvidence(failure)
     }
 }
 

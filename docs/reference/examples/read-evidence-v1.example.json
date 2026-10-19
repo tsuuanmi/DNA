@@ -15,6 +15,10 @@
   },
   "read": {
     "call_count": 6,
+    "trim": {
+      "start": 0,
+      "end": 5
+    },
     "informative": {
       "start": 0,
       "end": 5
@@ -83,15 +87,48 @@
       }
     ]
   },
+  "signal_quality": {
+    "integrity": {
+      "ploc_count": 6,
+      "duplicate_ploc_positions": 0,
+      "vendor_primary_count": 6,
+      "vendor_quality_count": 6,
+      "minimum_ploc_spacing": 12,
+      "median_ploc_spacing": 12,
+      "maximum_ploc_spacing": 12,
+      "clipped_channel_samples": 0,
+      "maximum_to_median_event_signal_ratio": 1.16
+    },
+    "noisy_regions": [
+      {
+        "calls": {
+          "start": 4,
+          "end": 6
+        },
+        "samples": {
+          "start": 54,
+          "end": 78
+        },
+        "minimum_primary_snr": 2.75
+      }
+    ]
+  },
+  "warnings": {
+    "unresolved_primary_calls": 1,
+    "multi_channel_unresolved_calls": 0,
+    "vendor_disagreements": 0,
+    "ploc_vendor_length_mismatches": 0,
+    "clipped_channel_samples": 0
+  },
   "calls": [
     {
       "index": 0,
       "base": "A",
       "profile": [
-        0.97,
-        0.01,
-        0.01,
-        0.01
+        0.9702970297029703,
+        0.009900990099009901,
+        0.009900990099009901,
+        0.009900990099009901
       ],
       "placement": {
         "kind": "scored"
@@ -119,6 +156,12 @@
       "signal": {
         "scan": 12,
         "height": 812,
+        "peaks": {
+          "A": 812,
+          "C": 6,
+          "G": 10,
+          "T": 4
+        },
         "relative_quality": 52
       }
     },
@@ -157,6 +200,12 @@
       "signal": {
         "scan": 24,
         "height": 760,
+        "peaks": {
+          "A": 0,
+          "C": 760,
+          "G": 8,
+          "T": 15
+        },
         "relative_quality": 55
       }
     },
@@ -190,6 +239,12 @@
       "signal": {
         "scan": 36,
         "height": 701,
+        "peaks": {
+          "A": 7,
+          "C": 9,
+          "G": 701,
+          "T": 5
+        },
         "relative_quality": 54
       }
     },
@@ -232,6 +287,12 @@
       "signal": {
         "scan": 48,
         "height": 402,
+        "peaks": {
+          "A": 8,
+          "C": 16,
+          "G": 0,
+          "T": 402
+        },
         "relative_quality": 28
       }
     },
@@ -273,6 +334,12 @@
       "signal": {
         "scan": 60,
         "height": 640,
+        "peaks": {
+          "A": 168,
+          "C": 640,
+          "G": 3,
+          "T": 2
+        },
         "relative_quality": 40,
         "cause": "neighbour_tail"
       }

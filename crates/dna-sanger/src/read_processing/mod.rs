@@ -5,7 +5,7 @@ mod config;
 pub(crate) mod evidence;
 
 pub use config::{RawSangerConfig, RawSangerEvidenceConfig, SangerConfig, SangerEvidenceConfig};
-pub use evidence::read_evidence;
+pub use evidence::{read_evidence, reason};
 
 use std::time::Instant;
 

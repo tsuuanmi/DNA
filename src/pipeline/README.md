@@ -48,6 +48,12 @@ builds the same query in process. `call.rs` runs `call`: over a consensus docume
 edits (`call_consensus`); over reviewed consensus sequences, the core
 alone: the sequence
 adapter, `read_call`, optional notation, and `dna.variants/v1`.
+`analyze.rs` runs `analyze` from a trace or, with `--evidence`, from the
+read's `dna.read_evidence/v1` document (`input::evidence`, SRS-API-018): both
+paths place and call the read with `variant_analysis::observation::call` and
+build the same document from the core's `CalledRead` and the read's
+`SangerRead`, under the trace's stem (`path::evidence_stem` drops the
+document's `.evidence`).
 `sample.rs` splits every read into its `CalledRead`, which the neutral `sample`
 aggregation consumes, and its Sanger attachment, which `sample_metrics.rs` and
 the sample report join by read identity (ADR-0069).

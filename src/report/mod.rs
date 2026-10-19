@@ -13,6 +13,7 @@ mod review;
 mod run_signal;
 mod sample;
 mod sanger_call;
+mod sanger_read;
 mod signal;
 mod variant;
 
@@ -34,3 +35,4 @@ pub(crate) use review::{
 };
 pub(crate) use run_signal::{CompletedRunSignal, build as build_run_signal};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};
+pub(crate) use sanger_read::project as project_sanger_read;

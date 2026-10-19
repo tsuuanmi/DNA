@@ -1,25 +1,26 @@
 //! Compact typed assembly and deterministic JSON serialization.
 
 use crate::error::{KernelError, ReportError, Result};
-use crate::model::read_observation::ReadObservation;
 use crate::model::result::{
     AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,
     ProvenanceResult, ReadResult, ReferenceResult, WarningSummaryResult,
 };
-use crate::report::{aligned_calls, callability, signal, variant};
+use crate::model::sanger_read::SangerRead;
+use crate::report::{aligned_calls, variant};
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::trust::CallTrust;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
-use dna_sanger::model::attachment::SangerAttachment;
-use dna_sanger::model::basecalls::BaseCalls;
 
 /// Inputs consumed to build the immutable analysis document.
 pub(crate) struct CompletedAnalysis {
     pub(crate) reference: Reference,
     pub(crate) profile: ProfileIdentity,
-    pub(crate) read: ReadObservation,
+    /// The core's products for the read.
+    pub(crate) called: CalledRead,
+    /// The read's Sanger evidence.
+    pub(crate) sanger: SangerRead,
     /// The core's trust in every call of the read, in call order.
     pub(crate) trust: Vec<CallTrust>,
     /// Plugins of the workflow, in execution order.
@@ -31,11 +32,6 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
     let CompletedAnalysis {
         reference,
         profile,
-        read,
-        trust,
-        plugins,
-    } = completed;
-    let ReadObservation {
         called:
             CalledRead {
                 input_name: _,
@@ -47,7 +43,9 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
                 variants,
             },
         sanger,
-    } = read;
+        trust,
+        plugins,
+    } = completed;
     if reference_sha256 != reference.sequence_sha256 {
         return Err(ReportError::Inconsistent(
             "read observation reference identity does not match report reference",
@@ -59,22 +57,33 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
             ReportError::Inconsistent("analysis trust and evidence differ in call count").into(),
         );
     }
+    if sanger.calls.len() != evidence.calls().len() {
+        return Err(ReportError::Inconsistent(
+            "analysis Sanger evidence and core evidence differ in call count",
+        )
+        .into());
+    }
     let calls_result = aligned_calls::project(alignment.columns(), &trust)?;
-    let warnings = warning_summary(&sanger.calls, &sanger.signal, variants.excluded_count());
+    let warnings = WarningSummaryResult {
+        unresolved_primary_calls: sanger.warnings.unresolved_primary_calls,
+        multi_channel_unresolved_calls: sanger.warnings.multi_channel_unresolved_calls,
+        ploc_vendor_length_mismatches: sanger.warnings.ploc_vendor_length_mismatches,
+        clipped_channel_samples: sanger.warnings.clipped_channel_samples,
+        excluded_variant_candidates: variants.excluded_count(),
+    };
     let variant_results = variant::project(
         variants.reported,
         &evidence,
-        &sanger,
+        &sanger.calls,
         alignment.orientation(),
     )?;
-    let SangerAttachment {
+    let SangerRead {
+        trim,
+        callability,
+        signal_quality,
+        warnings: _,
         calls,
-        signal,
-        callability: read_callability,
-        quality,
-        second: _,
     } = sanger;
-    let signal_quality = signal::project(signal);
     let reference_segments = alignment
         .reference_segments()
         .iter()
@@ -109,11 +118,8 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         },
         read: ReadResult {
             call_count: calls.len(),
-            trim: IntervalResult {
-                start: quality.trim_start_0based,
-                end: quality.trim_end_0based_exclusive,
-            },
-            callability: callability::project(&read_callability),
+            trim,
+            callability,
         },
         signal_quality,
         alignment: AlignmentResult {
@@ -159,28 +165,4 @@ pub(crate) fn serialize<T: serde::Serialize>(result: &T) -> Result<Vec<u8>> {
         .map_err(|error| KernelError::Serialize(Box::new(error)))?;
     bytes.push(b'\n');
     Ok(bytes)
-}
-
-fn warning_summary(
-    calls: &BaseCalls,
-    signal: &dna_sanger::model::signal::SignalAnalysis,
-    excluded_variant_candidates: usize,
-) -> WarningSummaryResult {
-    let unresolved_primary_calls = calls
-        .calls
-        .iter()
-        .filter(|call| call.primary == 'N')
-        .count();
-    let multi_channel_unresolved_calls = calls
-        .calls
-        .iter()
-        .filter(|call| call.ambiguity == 'N' && call.qualifying_channels.len() > 2)
-        .count();
-    WarningSummaryResult {
-        unresolved_primary_calls,
-        multi_channel_unresolved_calls,
-        ploc_vendor_length_mismatches: signal.integrity.vendor_length_mismatch_count(),
-        clipped_channel_samples: signal.integrity.clipped_channel_samples,
-        excluded_variant_candidates,
-    }
 }

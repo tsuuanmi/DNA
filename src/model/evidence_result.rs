@@ -3,8 +3,10 @@
 
 use serde::Serialize;
 
+use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::result::{
-    CallabilityResult, InputResult, IntervalResult, PlacementResult, PluginResult,
+    CallabilityResult, InputResult, IntervalResult, PeakHeightsResult, PlacementResult,
+    PluginResult, SignalQualityResult,
 };
 
 /// One read's evidence document.
@@ -13,6 +15,10 @@ pub(crate) struct EvidenceResult {
     pub(crate) schema_version: &'static str,
     pub(crate) provenance: EvidenceProvenanceResult,
     pub(crate) read: EvidenceReadResult,
+    /// Trace integrity and merged noisy regions, as in `dna.basecalls/v3`.
+    pub(crate) signal_quality: SignalQualityResult,
+    /// The modality's warning counts, as in `dna.basecalls/v3`.
+    pub(crate) warnings: BasecallWarningSummaryResult,
     pub(crate) calls: Vec<CallEvidenceResult>,
 }
 
@@ -28,6 +34,8 @@ pub(crate) struct EvidenceProvenanceResult {
 #[derive(Debug, Serialize)]
 pub(crate) struct EvidenceReadResult {
     pub(crate) call_count: usize,
+    /// The relative-quality trim interval, as in `dna.basecalls/v3`.
+    pub(crate) trim: IntervalResult,
     /// The calls the modality retains, 0-based half-open call indices.
     pub(crate) informative: IntervalResult,
     /// Whether the modality vouches for the calls up to the read's ends.
@@ -121,12 +129,17 @@ pub(crate) struct SecondBaseResult {
     pub(crate) stands_out: bool,
 }
 
-/// The Sanger signal of the call: its trace position, its strongest peak, its
-/// relative quality, and the cause of its second peak (SRS-CALL-021).
+/// The Sanger signal of the call: its trace position, its strongest peak,
+/// its channel heights at the primary event, its relative quality, and the
+/// cause of its second peak (SRS-CALL-021).
 #[derive(Debug, Serialize)]
 pub(crate) struct CallSignalResult {
     pub(crate) scan: usize,
     pub(crate) height: u32,
+    /// A/C/G/T heights at the primary event on the read strand, when the call
+    /// has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) peaks: Option<PeakHeightsResult>,
     pub(crate) relative_quality: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) cause: Option<&'static str>,

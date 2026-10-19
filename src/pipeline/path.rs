@@ -28,9 +28,10 @@ fn validate_output(output: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Returns and validates the deterministic CLI publication path for analysis.
-pub(super) fn analysis_output(trace: &Path) -> Result<PathBuf> {
-    let output = PathBuf::from("results").join(format!("{}.json", trace_stem(trace)?));
+/// Returns and validates the deterministic CLI publication path for the
+/// analysis of the read named `stem`.
+pub(super) fn analysis_output(stem: &str) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{stem}.json"));
     validate_output(&output)?;
     Ok(output)
 }
@@ -95,6 +96,25 @@ pub(super) fn signal_output(run_id: &str) -> Result<PathBuf> {
     Ok(output)
 }
 
+/// Returns the validated UTF-8 read stem of a read evidence document, shared
+/// by result and log paths: its file stem without the `.evidence` suffix
+/// `evidence` writes, so it is the stem of the trace it was written from.
+pub(super) fn evidence_stem(evidence: &Path) -> Result<&str> {
+    evidence
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .map(|value| value.strip_suffix(".evidence").unwrap_or(value))
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            KernelError::Path {
+                kind: "read evidence",
+                path: evidence.to_path_buf(),
+                reason: "file stem must be valid non-empty UTF-8",
+            }
+            .into()
+        })
+}
+
 /// Returns the validated UTF-8 trace stem shared by result and log paths.
 pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
     trace
@@ -109,4 +129,20 @@ pub(super) fn trace_stem(trace: &Path) -> Result<&str> {
             }
             .into()
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // SRS-IN-010
+    #[test]
+    fn an_evidence_document_is_named_after_its_trace() {
+        assert_eq!(
+            evidence_stem(Path::new("results/A01_HV1F.evidence.json")).ok(),
+            Some("A01_HV1F")
+        );
+        assert_eq!(evidence_stem(Path::new("edited.json")).ok(), Some("edited"));
+        assert!(evidence_stem(Path::new(".evidence.json")).is_err());
+    }
 }
