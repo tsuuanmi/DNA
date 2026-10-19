@@ -397,6 +397,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review marks a long deletion one read decides inside a run: a new
+  check label `run_deletion` for a site resting on a single read whose call
+  is at least `review.run_growth` bases shorter than its reference, where the
+  reference holds a run of at least `review.phase_run` bases (`review` plugin
+  13, rules version 13). On the current development data it turns the 4
+  auto-passed sites whose deletion was wrong (2550268's HVS-I run, three
+  compressed HVS-II runs) into checks, with 2 more checks on true deletions;
+  older slices add one check.
 - The review shows why a call has a second peak: an evidence position's
   `second` carries `cause` (SRS-CALL-021) when its share passes
   `signal_processing.second_floor` or the call is masked as mixed, and with
