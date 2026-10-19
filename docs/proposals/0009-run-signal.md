@@ -151,7 +151,8 @@ answers.
    - **The Sanger mixed verdict (ADR-0027)**, in increment (iii), uses the same `threshold()`
      in place of its fixed `0.33` peak ratio, and ADR-0027 is amended then. A run signal can
      only raise the threshold above the floor, so it lifts a mixed verdict only where the run
-     itself shows the shadow as common.
+     itself shows the shadow as common. Deferred to the [roadmap](roadmap.md) on 2026-10-19:
+     lifting every mixed verdict, its ceiling, did more harm than good.
    - **Such a minor keeps its identity**: the consensus decides the primary base, and the
      review makes the position a check. Reporting it as IUPAC remains a separate, deferred
      decision.

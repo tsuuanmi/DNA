@@ -17,7 +17,8 @@ It also owns the one second-channel threshold (SRS-CALL-020):
 to the key's run level (`RunSignal::level`) when a run signal holds the key
 with enough reads and calls. `Key::of` gives a call's key from its read's
 evidence. Every rule that judges a second peak share uses it: the review's
-`possible_heteroplasmy` now, the Sanger mixed verdict next (PROP-0009).
+`possible_heteroplasmy`. The Sanger mixed verdict keeps its own ratio: judging
+it against the run signal is deferred (PROP-0009 increment iii, roadmap).
 
 The module sits above [read_processing](../read_processing/README.md): its
 selection reads the callability mask and the signal edges of the read's
