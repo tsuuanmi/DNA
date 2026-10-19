@@ -6,8 +6,9 @@ use crate::model::result::{
     AlignmentResult, AnalysisResult, InputResult, IntervalResult, PluginResult, ProfileResult,
     ProvenanceResult, ReadResult, ReferenceResult, WarningSummaryResult,
 };
-use crate::report::{callability, signal, variant};
+use crate::report::{aligned_calls, callability, signal, variant};
 use dna_call::model::called_read::CalledRead;
+use dna_call::model::trust::CallTrust;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
@@ -19,16 +20,19 @@ pub(crate) struct CompletedAnalysis {
     pub(crate) reference: Reference,
     pub(crate) profile: ProfileIdentity,
     pub(crate) read: ReadObservation,
+    /// The core's trust in every call of the read, in call order.
+    pub(crate) trust: Vec<CallTrust>,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
 
-/// Builds the compact v9 document without filesystem side effects.
+/// Builds the compact v10 document without filesystem side effects.
 pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisResult> {
     let CompletedAnalysis {
         reference,
         profile,
         read,
+        trust,
         plugins,
     } = completed;
     let ReadObservation {
@@ -50,6 +54,12 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         )
         .into());
     }
+    if trust.len() != evidence.calls().len() {
+        return Err(
+            ReportError::Inconsistent("analysis trust and evidence differ in call count").into(),
+        );
+    }
+    let calls_result = aligned_calls::project(alignment.columns(), &trust)?;
     let warnings = warning_summary(&sanger.calls, &sanger.signal, variants.excluded_count());
     let variant_results = variant::project(
         variants.reported,
@@ -83,7 +93,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
         .collect();
 
     Ok(AnalysisResult {
-        schema_version: "dna.analysis/v9",
+        schema_version: "dna.analysis/v10",
         provenance: ProvenanceResult {
             input: InputResult {
                 sha256: input_sha256,
@@ -117,6 +127,7 @@ pub(crate) fn build_analysis(completed: CompletedAnalysis) -> Result<AnalysisRes
             callable_reference_segments,
             wraps_origin: alignment.wraps_origin(),
         },
+        calls: calls_result,
         variants: variant_results,
         warnings,
     })

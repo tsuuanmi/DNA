@@ -6,10 +6,9 @@ use crate::config::Config;
 use crate::error::{ReportError, Result};
 use crate::model::evidence_result::{
     BoundResult, CallEvidenceResult, CallSignalResult, Ends, EvidenceProvenanceResult,
-    EvidenceReadResult, EvidenceResult, PlacementKind, PlacementResult, PostRepeatResult,
-    SecondBaseResult, VerdictResult,
+    EvidenceReadResult, EvidenceResult, PostRepeatResult, SecondBaseResult, VerdictResult,
 };
-use crate::model::result::{InputResult, IntervalResult};
+use crate::model::result::{InputResult, IntervalResult, PlacementKind, PlacementResult};
 use crate::report::callability;
 use crate::report::json::project_plugins;
 use dna_kernel::plugin::PluginDescriptor;
@@ -134,7 +133,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
 }
 
 /// The kernel placement as its kind and the modality's reason.
-fn placement(placement: Placement) -> PlacementResult {
+pub(super) fn placement(placement: Placement) -> PlacementResult {
     let kind = match placement {
         Placement::Scored => PlacementKind::Scored,
         Placement::Anchoring(_) => PlacementKind::Anchoring,

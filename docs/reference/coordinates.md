@@ -12,6 +12,7 @@ DNA uses several coordinate domains. They are deliberately distinct.
 | reference segments | 0-based | half-open | `[start, end)` |
 | callable reference segments | 0-based | half-open | `[start, end)` |
 | reported biological variant position | 1-based | scalar | `position = 73` |
+| aligned call column | 1-based position, 0-based insertion ordinal | scalar pair | `{position: 309, ordinal: 1}` |
 
 ## Rules
 
@@ -24,4 +25,4 @@ DNA uses several coordinate domains. They are deliberately distinct.
 
 See also [system invariants](../architecture/invariants/README.md) and the versioned output contracts.
 
-Reviewer-facing `dna.analysis/v9` and `dna.sample_evidence/v10` variant evidence intentionally does not serialize original call index or PLOC. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.
+Reviewer-facing `dna.analysis/v10` and `dna.sample_evidence/v10` variant evidence intentionally does not serialize original call index or PLOC. The `calls` of `dna.analysis/v10` name each aligned call by its original call index, so they join `dna.read_evidence/v1` call for call; an inserted call there takes the last reference position before it in reference order with its 1-based ordinal among the calls inserted after that position, before normalization. Those coordinates remain internal for mapping and tests; public variant evidence uses normalized biological position plus reference-oriented base/peaks/quality.

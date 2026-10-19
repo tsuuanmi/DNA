@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import itertools
 import json
 import sys
 from pathlib import Path
@@ -14,8 +15,8 @@ from referencing import Registry, Resource
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "docs" / "reference"
-ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v9.schema.json"
-ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v9.example.json"
+ANALYSIS_SCHEMA = CONTRACTS / "schemas" / "analysis-v10.schema.json"
+ANALYSIS_EXAMPLE = CONTRACTS / "examples" / "analysis-v10.example.json"
 BASECALL_SCHEMA = CONTRACTS / "schemas" / "basecalls-v3.schema.json"
 BASECALL_EXAMPLE = CONTRACTS / "examples" / "basecalls-v3.example.json"
 SAMPLE_SCHEMA = CONTRACTS / "schemas" / "sample-evidence-v10.schema.json"
@@ -157,7 +158,7 @@ def rejected_analysis_shapes(
     removed_software_version = copy.deepcopy(example)
     removed_software_version["provenance"]["software_version"] = "0.1.0"
     old_schema = copy.deepcopy(example)
-    old_schema["schema_version"] = "dna.analysis/v8"
+    old_schema["schema_version"] = "dna.analysis/v9"
     missing_profile = copy.deepcopy(example)
     missing_profile["provenance"].pop("profile")
     invalid_profile_id = copy.deepcopy(example)
@@ -190,6 +191,27 @@ def rejected_analysis_shapes(
     alignment_without_masked_bases["alignment"].pop("masked_bases")
     alignment_without_callable_segments = copy.deepcopy(example)
     alignment_without_callable_segments["alignment"].pop("callable_reference_segments")
+    without_calls = copy.deepcopy(example)
+    without_calls.pop("calls")
+    trusted_withheld = copy.deepcopy(example)
+    trusted = next(
+        call for call in trusted_withheld["calls"] if call["trust"]["trusted"]
+    )
+    trusted["trust"]["withheld_by"] = [{"kind": "read_end"}]
+    masked_without_reason = copy.deepcopy(example)
+    masked_without_reason["calls"][0]["trust"]["withheld_by"] = [{"kind": "masked"}]
+    untrimmed_with_reason = copy.deepcopy(example)
+    untrimmed_with_reason["calls"][0]["trust"]["withheld_by"] = [
+        {"kind": "untrimmed", "reason": "weak_signal"}
+    ]
+    unknown_withholder = copy.deepcopy(example)
+    unknown_withholder["calls"][0]["trust"]["withheld_by"] = [{"kind": "edge"}]
+    column_zero = copy.deepcopy(example)
+    column_zero["calls"][0]["column"]["position"] = 0
+    unknown_scope = copy.deepcopy(example)
+    unknown_scope["calls"][0]["trust"]["scope"] = "length"
+    scored_with_reason = copy.deepcopy(example)
+    scored_with_reason["calls"][0]["trust"]["placement"]["reason"] = "weak_signal"
     segments = example["read"]["callability"]["segments"]
     dephased = next(
         index
@@ -255,8 +277,31 @@ def rejected_analysis_shapes(
             "analysis alignment without callable reference segments",
             alignment_without_callable_segments,
         ),
+        ("analysis without aligned calls", without_calls),
+        ("analysis trusted call with a withholder", trusted_withheld),
+        ("analysis masked withholder without its reason", masked_without_reason),
+        ("analysis untrimmed withholder with a reason", untrimmed_with_reason),
+        ("analysis withholder of an unknown kind", unknown_withholder),
+        ("analysis call column at position zero", column_zero),
+        ("analysis call with an unknown trust scope", unknown_scope),
+        ("analysis scored call with a placement reason", scored_with_reason),
         *shadow_cases,
     ]
+
+
+def validate_analysis_calls(document: Any, label: str, errors: list[str]) -> None:
+    """Check that an analysis's aligned calls are distinct, in call order, and calls of the read."""
+    if not isinstance(document, dict):
+        return
+    indices = [call.get("index") for call in document.get("calls", [])]
+    if any(
+        not isinstance(index, int) or not isinstance(after, int) or index >= after
+        for index, after in itertools.pairwise(indices)
+    ):
+        errors.append(f"{label}: aligned calls are not distinct and in call order")
+    call_count = document.get("read", {}).get("call_count", 0)
+    if any(isinstance(index, int) and index >= call_count for index in indices):
+        errors.append(f"{label}: an aligned call lies beyond the read's calls")
 
 
 def rejected_variants_shapes(
@@ -1412,6 +1457,8 @@ def main(argv: list[str] | None = None) -> int:
             validate_consensus_rejections(document, str(path), errors)
     validate_sample_support_topology(sample_paths, errors)
     validate_read_callability(analysis_paths + basecall_paths + sample_paths, errors)
+    for path in analysis_paths:
+        validate_analysis_calls(load_json(path), str(path), errors)
 
     analysis_example = load_json(ANALYSIS_EXAMPLE)
     valid_shapes = analysis_call_shapes(analysis_example)
@@ -1579,6 +1626,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not callability_errors:
         errors.append("expected inconsistent callability counts to be rejected")
+
+    for description, mutate in [
+        ("unordered", lambda calls: calls.reverse()),
+        ("repeated", lambda calls: calls.append(dict(calls[-1]))),
+        ("beyond the read", lambda calls: calls[-1].update(index=10_000)),
+    ]:
+        mutated = copy.deepcopy(analysis_example)
+        mutate(mutated["calls"])
+        call_errors: list[str] = []
+        validate_analysis_calls(mutated, f"synthetic {description} calls", call_errors)
+        if not call_errors:
+            errors.append(f"expected {description} aligned calls to be rejected")
 
     outside_callable = copy.deepcopy(analysis_example)
     outside_callable["alignment"]["callable_reference_segments"] = [

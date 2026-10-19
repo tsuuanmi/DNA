@@ -6,7 +6,7 @@ owners: []
 created: 2026-10-19
 related-requirements: [SRS-OUT, SRS-API-014]
 related-decisions: [ADR-0069, ADR-0075, ADR-0079, ADR-0080]
-implementation: ["#160"]
+implementation: ["#160", "#161"]
 ---
 
 # Proposal: A contract at every step
@@ -160,4 +160,6 @@ output of that step can be checked and the flow is clear".
 - Data-flow map and enforcement: the "Step contracts" table in
   `docs/architecture/data-flow.md`, an "Output contract:" line in every crate
   README, and the check in `validate_docs_structure.py`.
-- Increments 2 (`dna.analysis/v10`) and 3 (evaluation contracts): pending.
+- Increment 2, `dna.analysis/v10`: each aligned call's reference column and
+  the core's trust in it; component calls follow PROP-0010.
+- Increment 3 (evaluation contracts): pending.

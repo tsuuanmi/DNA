@@ -8,7 +8,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Target profiles](profiles.md): target knowledge referenced by the configuration.
 - [Basecall result](basecalls.md): `dna.basecalls/v3`.
 - [Read evidence](read-evidence.md): `dna.read_evidence/v1`, the modality → core boundary.
-- [Analysis result](analysis/README.md): `dna.analysis/v9`.
+- [Analysis result](analysis/README.md): `dna.analysis/v10`.
 - [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v10`.
 - [Variants result](variants.md): `dna.variants/v1`.
 - [Notation result](notation.md): `dna.notation/v1`.
@@ -21,7 +21,7 @@ This directory is the canonical reference for public, machine-visible, configura
 ## Machine-readable contracts
 
 - [Schema index](schemas/README.md)
-  - [Analysis JSON Schema](schemas/analysis-v9.schema.json)
+  - [Analysis JSON Schema](schemas/analysis-v10.schema.json)
 - [Basecall JSON Schema](schemas/basecalls-v3.schema.json)
 - [Read evidence JSON Schema](schemas/read-evidence-v1.schema.json)
 - [Sample evidence JSON Schema](schemas/sample-evidence-v10.schema.json)

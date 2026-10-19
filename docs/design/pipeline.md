@@ -10,7 +10,7 @@ AB1 + TOML ──► decode ──► basecalling ──► signal_processing �
 FASTA reference ──────────────────────────────────────────────────────────────────────┴─► alignment ─► variant_calling
                                                                                                                │
                                                                                                         ReadObservation
-                                                                                                          ├─► analysis/v9
+                                                                                                          ├─► analysis/v10
                                                                                                           └─► sample aggregation
 
 consensus FASTA + TOML ──► input::sequence ──► ReadEvidence ──► alignment ─► variant_calling ──► CalledRead ──► variants/v1
@@ -141,7 +141,7 @@ are in the [review reference](../reference/review.md); their version is the
 
 ## Output boundary
 
-Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v9`, `dna.sample_evidence/v10`, `dna.variants/v1`, `dna.notation/v1`, `dna.consensus/v1`, and `dna.review/v1`, including schemas, examples, coordinate semantics, and publication-visible fields.
+Public serialization is not defined by the method layer. See [production contracts](../reference/README.md) for `dna.basecalls/v3`, `dna.analysis/v10`, `dna.sample_evidence/v10`, `dna.variants/v1`, `dna.notation/v1`, `dna.consensus/v1`, and `dna.review/v1`, including schemas, examples, coordinate semantics, and publication-visible fields.
 
 ## Interpretation boundary
 

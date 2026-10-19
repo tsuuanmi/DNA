@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna analyze` writes, per call of the selected alignment, where the
+  alignment places it and what the core decided about it (PROP-0011,
+  increment 2; SRS-OUT-003): a new `calls` array, in call order, with each
+  call's `index`, its `column` (1-based reference position and insertion
+  ordinal), and `trust` (`placement`, `trusted`, `exempt`, `withheld_by`,
+  `scope`), the same trust `dna review` reads. One document then shows the
+  chain sanger → align → call for its read; it joins `dna.read_evidence/v1`
+  by call index. Every other field is unchanged; component calls of a phase
+  mixture (PROP-0010) are pending. **Breaking:** `dna.analysis/v9` → `v10`.
+  No plugin version changes: no plugin's output changes.
 - `dna evidence <trace>` writes `results/<trace-stem>.evidence.json`, `dna.read_evidence/v1` (SRS-API-017, PROP-0011): a read's per-call evidence exactly as the core receives it from the Sanger plugin, with the signal each verdict rests on, so the modality → core boundary can be checked on its own.
 - `docs/architecture/data-flow.md` maps each step to its input and output contracts and the command that writes them (PROP-0011); every crate's source README names its output contract, and `validate_docs_structure.py` fails when one is missing or names a schema that does not exist.
 - Each Sanger call with a second peak above `signal_processing.second_floor`,

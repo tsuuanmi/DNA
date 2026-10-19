@@ -1,4 +1,4 @@
-//! Compact serializable `dna.analysis/v9` contract.
+//! Compact serializable `dna.analysis/v10` contract.
 
 use serde::Serialize;
 
@@ -15,6 +15,8 @@ pub(crate) struct AnalysisResult {
     pub(crate) read: ReadResult,
     pub(crate) signal_quality: SignalQualityResult,
     pub(crate) alignment: AlignmentResult,
+    /// Every call of the selected alignment, in call order (PROP-0011).
+    pub(crate) calls: Vec<AlignedCallResult>,
     pub(crate) variants: Vec<VariantResult>,
     pub(crate) warnings: WarningSummaryResult,
 }
@@ -139,6 +141,77 @@ pub(crate) struct AlignmentResult {
     pub(crate) reference_segments: Vec<IntervalResult>,
     pub(crate) callable_reference_segments: Vec<IntervalResult>,
     pub(crate) wraps_origin: bool,
+}
+
+/// One call of the selected alignment: where the alignment places it and what
+/// the core decided about it.
+#[derive(Debug, Serialize)]
+pub(crate) struct AlignedCallResult {
+    pub(crate) index: usize,
+    /// The reference position (1-based) and insertion ordinal the alignment
+    /// places the call at; absent for an insertion before the first
+    /// reference position.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) column: Option<ColumnResult>,
+    pub(crate) trust: TrustResult,
+}
+
+/// The core's trust in one call (`dna_call::model::trust::CallTrust`).
+#[derive(Debug, Serialize)]
+pub(crate) struct TrustResult {
+    pub(crate) placement: PlacementResult,
+    pub(crate) trusted: bool,
+    pub(crate) exempt: bool,
+    /// What withholds trust, before then after the call in read order.
+    pub(crate) withheld_by: Vec<WithholderResult>,
+    pub(crate) scope: ScopeResult,
+}
+
+/// How the core aligns the call, and the modality's reason when masked.
+#[derive(Debug, Serialize)]
+pub(crate) struct PlacementResult {
+    pub(crate) kind: PlacementKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reason: Option<&'static str>,
+}
+
+/// The placement kinds of the kernel contract.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PlacementKind {
+    Scored,
+    Anchoring,
+    Unresolved,
+}
+
+/// One reference column: a position and an insertion ordinal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub(crate) struct ColumnResult {
+    pub(crate) position: usize,
+    pub(crate) ordinal: usize,
+}
+
+/// How far the core trusts a call (`dna::sample_analysis::TrustScope`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ScopeResult {
+    /// The base, a run's length and ends, and the indels it shows.
+    Full,
+    /// The base only.
+    Base,
+}
+
+/// What withholds trust from a call (`dna_call::model::trust::Withholder`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(crate) enum WithholderResult {
+    /// The read's own end, which its modality does not vouch for.
+    ReadEnd,
+    /// A call outside the read's informative interval.
+    Untrimmed,
+    /// A masked call that does not anchor the alignment, with the modality's
+    /// reason.
+    Masked { reason: &'static str },
 }
 
 /// Compact normalized variant with mapped trace calls.

@@ -1,5 +1,6 @@
 //! Typed deterministic JSON reporting and atomic publication.
 
+mod aligned_calls;
 mod atomic;
 mod basecall;
 mod call;
