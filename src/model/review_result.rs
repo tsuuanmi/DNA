@@ -3,7 +3,9 @@
 use serde::Serialize;
 
 use crate::model::notation_result::EmpopResult;
-use crate::model::result::{IntervalResult, PluginResult, ProfileResult, ReferenceResult};
+use crate::model::result::{
+    ColumnResult, IntervalResult, PluginResult, ProfileResult, ReferenceResult, ScopeResult,
+};
 use crate::model::sample_result::{ConventionResult, ReadRejectionResult};
 use dna_align::model::alignment::Orientation;
 use dna_sample::model::sample_evidence::LocusState;
@@ -141,13 +143,6 @@ pub(crate) struct ReviewCallResult {
     pub(crate) alternate: Option<char>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) convention: Option<ConventionResult>,
-}
-
-/// One reference column: a position and an insertion ordinal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-pub(crate) struct ColumnResult {
-    pub(crate) position: usize,
-    pub(crate) ordinal: usize,
 }
 
 /// One position or stretch a reviewer should look at.
@@ -314,16 +309,6 @@ pub(crate) struct EvidencePositionResult {
     pub(crate) scan: Option<usize>,
     pub(crate) quality: Option<u8>,
     pub(crate) second: Option<SecondResult>,
-}
-
-/// How far the core trusts a call (`dna::sample_analysis::TrustScope`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum ScopeResult {
-    /// The base, a run's length and ends, and the indels it shows.
-    Full,
-    /// The base only.
-    Base,
 }
 
 /// The call's second base on the reference strand and its peak share

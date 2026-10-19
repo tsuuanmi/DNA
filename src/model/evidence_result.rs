@@ -3,7 +3,9 @@
 
 use serde::Serialize;
 
-use crate::model::result::{CallabilityResult, InputResult, IntervalResult, PluginResult};
+use crate::model::result::{
+    CallabilityResult, InputResult, IntervalResult, PlacementResult, PluginResult,
+};
 
 /// One read's evidence document.
 #[derive(Debug, Serialize)]
@@ -63,23 +65,6 @@ pub(crate) struct CallEvidenceResult {
     pub(crate) second_unexplained: bool,
     pub(crate) reference_only: bool,
     pub(crate) signal: CallSignalResult,
-}
-
-/// How the core aligns the call, and the modality's reason when masked.
-#[derive(Debug, Serialize)]
-pub(crate) struct PlacementResult {
-    pub(crate) kind: PlacementKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) reason: Option<&'static str>,
-}
-
-/// The placement kinds of the kernel contract.
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum PlacementKind {
-    Scored,
-    Anchoring,
-    Unresolved,
 }
 
 /// The modality's verdict on one use of the call.

@@ -11,13 +11,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::config::ReviewConfig;
 use crate::error::{ReportError, Result, RunSignalError};
 use crate::model::read_observation::RejectedRead;
-use crate::model::result::{IntervalResult, ReferenceResult};
+use crate::model::result::{ColumnResult, IntervalResult, ReferenceResult, ScopeResult};
 use crate::model::review_result::{
-    ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
-    ItemResult, LabelCounts, LabelResult, MaskedSpanResult, PositionCounts, ReviewCallResult,
+    Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
+    LabelCounts, LabelResult, MaskedSpanResult, PositionCounts, ReviewCallResult,
     ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
-    ScopeResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
-    ZoneCounts, ZoneKind, ZoneResult,
+    SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult, ZoneCounts,
+    ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::report::json::{project_plugins, project_profile};

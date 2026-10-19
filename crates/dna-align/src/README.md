@@ -14,9 +14,8 @@ decided reads): it checks the invariants `align_best` guarantees and
 computes the metrics from the columns. The `test-support` feature adds
 `Alignment::fixture` for the guards of downstream crates.
 
-Output contract: the `alignment` of
-[`dna.analysis/v9`](../../../docs/reference/schemas/analysis-v9.schema.json) (`dna analyze`); its
-per-call columns: none yet ([PROP-0011 increment 2](../../../docs/proposals/0011-step-contracts.md#increment-2-dnaanalysisv10-placement-and-per-read-calling)).
+Output contract: the `alignment` and each call's `column` of
+[`dna.analysis/v10`](../../../docs/reference/schemas/analysis-v10.schema.json) (`dna analyze`).
 
 Owns bounded, deterministic affine-gap alignment, strand selection, traceback,
 and canonical repeat-equivalent gap placement.

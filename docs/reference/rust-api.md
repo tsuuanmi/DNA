@@ -627,7 +627,7 @@ worker those of different reads may interleave.
 The Rust API returns stable typed data for the current Variant Analysis and
 Sample Analysis capabilities. The versioned JSON documents under
 this reference directory remain separate serialization/publication contracts;
-`dna.analysis/v9`, `dna.sample_evidence/v10`, and `dna.consensus/v1` are not
+`dna.analysis/v10`, `dna.sample_evidence/v10`, and `dna.consensus/v1` are not
 Rust API result models.
 
 The Sanger adapter name is source-specific by design. Future input modalities
