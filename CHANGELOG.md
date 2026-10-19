@@ -397,6 +397,27 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A mixed Sanger call whose second peak is a neighbour's tail or a dye blob,
+  isolated between in-phase single-channel calls and withheld for nothing
+  else, may now confirm the reference at its position (ADR-0080,
+  SRS-CALL-022, SRS-CONS-010). It keeps its `mixed_supporting_dna` reason
+  and its run role. The kernel contract gains three modality assertions:
+  `CallEvidence.reference_only`, `CallEvidence.second_unexplained`, and
+  `SecondBase.stands_out`.
+  - The consensus withdraws a confirmation where any read shows an
+    unexplained second peak, where the other strand shows the same second
+    base standing out, and within or beside a site that differs from the
+    reference.
+  - It publishes the positions only confirmations decided as `reference_only`
+    in `dna.consensus/v1` (revised in place). The call step lets them bound
+    no neighbouring run.
+  - Plugins `sanger` 11, `consensus` 11, and `decided` 3.
+  - Development panel v5 against `main` 65c221e:
+    - samples with an unreviewed difference are unchanged on current data
+      and in 2025-08..11; older data gains one, a truth `N` at 538;
+    - clear samples go from 66.1 to 68.7 % on current data, 42.3 to 47.4 %
+      in 2025-08..11, and 60.0 to 67.2 % older;
+    - no strict status changes.
 - The review lists the sample's zones: `zones` tiles the reportable regions
   into maximal stretches of one kind, from the profile's repeat windows and
   the sample's own reads (`repeat`, `not_callable`, `dephased`, `masked`,

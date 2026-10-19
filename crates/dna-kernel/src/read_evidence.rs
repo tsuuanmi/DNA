@@ -185,6 +185,9 @@ pub struct SecondBase {
     pub base: char,
     /// Its share of the call's two strongest bases, in `[0, 0.5]`.
     pub share: f64,
+    /// The modality asserts that the share stands out: it exceeds the
+    /// modality's own floor for a second base.
+    pub stands_out: bool,
 }
 
 /// Evidence for one called position, in call order.
@@ -207,9 +210,19 @@ pub struct CallEvidence {
     /// The call's part in a run the read bounds before a post-repeat phase
     /// loss (ADR-0076).
     pub post_repeat: PostRepeatRun,
-    /// The second base of the call's signal, when the modality sees one;
-    /// evidence for review, read by no calling rule.
+    /// The second base of the call's signal, when the modality sees one.
+    /// Evidence for review; the core reads only its base and whether it
+    /// stands out, to keep a reference-only call from hiding a second
+    /// sequence (ADR-0080).
     pub second: Option<SecondBase>,
+    /// The modality asserts that the call shows a second peak standing out
+    /// that it does not explain by the signal's own shape: possibly a second
+    /// sequence (ADR-0080).
+    pub second_unexplained: bool,
+    /// The modality withholds the call's base, yet asserts that its signal
+    /// shows that base where it is the reference's: the call may confirm the
+    /// reference at its own position, and nothing else (ADR-0080).
+    pub reference_only: bool,
 }
 
 impl CallEvidence {
@@ -235,6 +248,8 @@ impl CallEvidence {
                 bound: false,
             },
             second: None,
+            second_unexplained: false,
+            reference_only: false,
         }
     }
 

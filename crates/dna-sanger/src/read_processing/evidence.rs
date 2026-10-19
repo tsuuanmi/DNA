@@ -15,12 +15,13 @@ use crate::error::{ProductsError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::quality::QualityControlResult;
+use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::model::signal::SignalAnalysis;
 use crate::second_cause::second_base;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
-    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, Verdict,
+    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, SecondBase, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -69,6 +70,7 @@ pub fn read_evidence(
     signal: &SignalAnalysis,
     callability: &ReadCallability,
     quality: &QualityControlResult,
+    second: &[Option<SecondPeak>],
     config: &SangerEvidenceConfig,
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
@@ -114,8 +116,23 @@ pub fn read_evidence(
                 .map(|peak| peak.height)
                 .max()
                 .ok_or(ProductsError::NoChannelPeaks { index })?;
+            // The call's second peak and its cause (SRS-CALL-021): a cause
+            // other than a neighbour's tail or a dye blob leaves it
+            // unexplained.
+            let peak = second.get(index).copied().flatten();
+            let stands_out = peak.is_some_and(|peak| peak.stands_out);
+            let artefact = peak.is_some_and(|peak| {
+                matches!(
+                    peak.cause,
+                    SecondCause::NeighbourTail | SecondCause::DyeBlob
+                )
+            });
             let mut evidence = CallEvidence {
-                second: second_base(call),
+                second: second_base(call).map(|second| SecondBase {
+                    stands_out,
+                    ..second
+                }),
+                second_unexplained: peak.is_some() && !artefact,
                 ..CallEvidence::scored(call.primary, signal.loci[index].profile)
             };
             // Peak floor and relative quality withhold the base and an
@@ -145,6 +162,24 @@ pub fn read_evidence(
                     .insert(RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD)?;
             }
             if call.qualifying_channels.len() > 1 {
+                // A mixed call withheld for nothing else, in phase between
+                // in-phase single-channel calls, whose second peak is a
+                // neighbour's tail or a dye blob, may still confirm the
+                // reference (SRS-CALL-022): its base is withheld all the same.
+                let single = |at: Option<usize>| {
+                    at.is_some_and(|at| {
+                        callability.mask.get(at).is_some_and(Option::is_none)
+                            && calls
+                                .calls
+                                .get(at)
+                                .is_some_and(|call| call.qualifying_channels.len() == 1)
+                    })
+                };
+                evidence.reference_only = artefact
+                    && evidence.identity.withheld.is_empty()
+                    && callability.mask.get(index).is_some_and(Option::is_none)
+                    && single(index.checked_sub(1))
+                    && single(Some(index + 1));
                 evidence.identity.withheld.insert(MIXED_SUPPORTING_DNA)?;
             }
             Ok(match placement(callability, index) {
@@ -759,9 +794,50 @@ mod tests {
     }
 
     #[test]
+    fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
+        use crate::model::second_cause::{SecondCause, SecondPeak};
+        let (mut calls, signal, callability, quality) = products(&[300; 5], &[40; 5]);
+        calls.calls[2].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
+        let peak = |cause| {
+            let mut second = vec![None; 5];
+            second[2] = Some(SecondPeak {
+                base: 'C',
+                share: 0.3,
+                stands_out: cause != SecondCause::MixedStretch,
+                cause,
+            });
+            second
+        };
+        let evidence = |calls: &BaseCalls, second: &[Option<SecondPeak>]| {
+            read_evidence(calls, &signal, &callability, &quality, second, &config(0))
+        };
+        // A neighbour's tail: withheld as mixed all the same, its run role
+        // unchanged, and reference-only; its second base stands out and is
+        // explained.
+        let tail = evidence(&calls, &peak(SecondCause::NeighbourTail))?;
+        let call = tail.calls()[2];
+        assert!(call.reference_only && !call.second_unexplained);
+        assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
+        assert_eq!(call.bound, Bound::InPhase);
+        assert!(call.second.is_some_and(|second| second.stands_out));
+        // An unexplained second peak: not reference-only, and flagged.
+        let template = evidence(&calls, &peak(SecondCause::SecondTemplate))?;
+        assert!(!template.calls()[2].reference_only && template.calls()[2].second_unexplained);
+        // A mixed stretch: flagged, but its second base does not stand out.
+        let stretch = evidence(&calls, &peak(SecondCause::MixedStretch))?;
+        let call = stretch.calls()[2];
+        assert!(call.second_unexplained && !call.second.is_some_and(|second| second.stands_out));
+        // Beside another mixed call it is not isolated.
+        calls.calls[3].qualifying_channels = vec![Nucleotide::A, Nucleotide::G];
+        let crowded = evidence(&calls, &peak(SecondCause::DyeBlob))?;
+        assert!(!crowded.calls()[2].reference_only);
+        Ok(())
+    }
+
+    #[test]
     fn raises_peak_and_quality_vetoes_at_their_boundaries() -> Result<()> {
         let (calls, signal, callability, quality) = products(&[149, 150, 150], &[31, 30, 31]);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let vetoes = evidence
             .calls()
             .iter()
@@ -796,7 +872,7 @@ mod tests {
         for peak in &mut calls.calls[2].peaks[1..] {
             peak.height = 60;
         }
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let withheld = evidence
             .calls()
             .iter()
@@ -815,7 +891,7 @@ mod tests {
     fn raises_the_mixed_veto_for_substitutions_only() -> Result<()> {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
         calls.calls[0].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let call = evidence.calls()[0];
         assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
         assert!(!call.indel.withheld.contains(MIXED_SUPPORTING_DNA));
@@ -845,7 +921,7 @@ mod tests {
         for &(start, end, state, _) in &segments {
             callability.mask[start..end].fill((state != PhaseState::InPhase).then_some(state));
         }
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let placements = [0, 7, 12, 17, 22].map(|index| {
             (
                 evidence.calls()[index].placement,
@@ -893,7 +969,7 @@ mod tests {
         callability.callable_start_0based = 4;
         quality.trim_start_0based = 4;
         quality.retained_sequence = "A".repeat(4);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(1))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(1))?;
         let vouched = evidence
             .calls()
             .iter()
@@ -919,7 +995,7 @@ mod tests {
         // Masked after a repeat run, the stretch is a dephased tail, not start
         // noise: no call of it is vouched for.
         callability.segments[0].after_repeat = true;
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(1))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(1))?;
         assert!(evidence.calls()[..4].iter().all(|call| {
             call.placement == Placement::Unresolved(POST_HOMOPOLYMER) && !call.base_only()
         }));
@@ -952,7 +1028,7 @@ mod tests {
         signal.loci[6].channel_widths = [0, 0, 10, 0];
         quality.trim_end_0based_exclusive = 8;
         quality.retained_sequence = "A".repeat(8);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(2))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(2))?;
         let lifted = evidence
             .calls()
             .iter()
@@ -1033,7 +1109,7 @@ mod tests {
         );
         // Call 5 is broader than the start's peaks.
         signal.loci[5].channel_widths = [0, 10, 0, 0];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(2))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(2))?;
         let lifted = (4..8)
             .map(|index| !evidence.calls()[index].identity.edge)
             .collect::<Vec<_>>();
@@ -1065,19 +1141,19 @@ mod tests {
         // Call 4 follows start noise reading `T` but not vouched for, so it
         // may be that call's signal one position off; calls 5 and 6 each
         // follow a call reading `T` that is.
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(3))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(3))?;
         assert_eq!(lifted(&evidence), [false, false, false]);
         // With call 3 reading `G`, call 4 qualifies, and the run chains on.
         let mut bases = bases;
         bases[3] = 'G';
         let (calls, signal, callability, quality) = start_products(bases, heights);
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(3))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(3))?;
         assert_eq!(lifted(&evidence), [true, true, true]);
         // A broad call 5 breaks the chain: call 6 no longer follows a vouched
         // call of its base.
         let (calls, mut signal, callability, quality) = start_products(bases, heights);
         signal.loci[5].channel_widths = [0, 0, 0, 10];
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(3))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(3))?;
         assert_eq!(lifted(&evidence), [true, false, false]);
         Ok(())
     }
@@ -1088,12 +1164,13 @@ mod tests {
         calls.calls[0].peaks[2].height = 50;
         calls.calls[0].peaks[1].height = 10;
         calls.calls[0].peaks[3].height = 0;
-        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(0))?;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &[], &config(0))?;
         assert_eq!(
             evidence.calls()[0].second,
-            Some(dna_kernel::read_evidence::SecondBase {
+            Some(SecondBase {
                 base: 'G',
-                share: 0.2
+                share: 0.2,
+                stands_out: false,
             })
         );
         Ok(())

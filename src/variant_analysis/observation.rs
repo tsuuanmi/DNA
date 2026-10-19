@@ -69,6 +69,7 @@ pub(crate) fn observe(
         &signal,
         &callability,
         &quality,
+        &second,
         &config.sanger.sanger_evidence,
     )?;
     tracing::info!(

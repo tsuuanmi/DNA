@@ -46,6 +46,7 @@ struct RawDocument {
     provenance: RawProvenance,
     segments: Vec<RawSegment>,
     sites: Vec<RawSite>,
+    reference_only: Vec<usize>,
 }
 
 #[derive(Deserialize)]
@@ -227,9 +228,23 @@ fn parse(bytes: &[u8], path: &Path, sample_id: &str, reference: &Reference) -> R
             })
         })
         .collect::<std::result::Result<Vec<_>, _>>()?;
+    let length = reference.sequence.len();
+    let reference_only = raw
+        .reference_only
+        .into_iter()
+        .map(|position| {
+            (1..=length)
+                .contains(&position)
+                .then(|| position - 1)
+                .ok_or(ConsensusDocumentError::Inconsistent(
+                    "a reference-only position is outside the reference",
+                ))
+        })
+        .collect::<std::result::Result<_, _>>()?;
     Ok(Consensus {
         segments,
         sites,
         summary: ConsensusSummary::default(),
+        reference_only,
     })
 }

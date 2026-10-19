@@ -56,6 +56,8 @@ pub struct SecondPeak {
     pub base: char,
     /// Its share of the call's two strongest bases (SRS-CALL-015).
     pub share: f64,
+    /// The share exceeds `signal_processing.second_floor`.
+    pub stands_out: bool,
     /// Why the call shows it.
     pub cause: SecondCause,
 }

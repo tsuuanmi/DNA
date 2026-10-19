@@ -1,0 +1,98 @@
+# ADR-0080: A modality may assert a call confirms only the reference
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+- **Related decisions:** [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md),
+  [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
+  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
+  [ADR-0074](0074-run-structure-consensus.md),
+  [ADR-0078](0078-call-the-consensus-decisions.md)
+
+## Context
+
+The Sanger plugin withholds the base of a call whose second channel
+qualifies (`mixed_supporting_dna`, ADR-0027). Such a position, read by no
+other read cleanly, stays undecided, and the review lists it as a check. The
+second-peak cause (SRS-CALL-021) shows that many of these second peaks are
+the signal's own shape: the tail of a neighbouring call of that base, or a
+wide dye blob. They are not a second sequence.
+
+Lifting the veto for those causes was measured on development panel v5
+against `main` 65c221e, in steps. Lifting it outright cleared about 930
+samples, but samples with an unreviewed difference rose in every period. The
+harm came through four paths:
+
+- one-strand calls deciding the reference where a variant hid;
+- decided reference neighbours unlocking a weak one-read variant (`530G`)
+  that a run end left uncallable;
+- an undecided neighbour no longer making a variant's item a check;
+- a base-only lift removing a call's run count that had opposed a length.
+
+## Decision
+
+A modality may assert, per call, that the call confirms only the reference.
+The core reads that assertion through the kernel contract and never the
+modality's reasons.
+
+**Contract** (`dna-kernel`, `CallEvidence`):
+
+- `reference_only`: the modality withholds the call's base, yet asserts that
+  its signal shows that base where it is the reference's. The call may
+  confirm the reference at its own position, and nothing else.
+- `second_unexplained`: the call shows a second peak standing out that the
+  modality does not explain by the signal's own shape, so possibly a second
+  sequence.
+- `SecondBase.stands_out`: the second base's share exceeds the modality's own
+  floor, so no threshold lives in the core.
+
+**Sanger** sets `reference_only` on a mixed call withheld for nothing else,
+in phase between in-phase single-channel calls, whose second-peak cause is
+`neighbour_tail` or `dye_blob` (SRS-CALL-022). The mixed reason stays on the
+call verbatim, and its run role is unchanged.
+
+**Consensus** (SRS-CONS-010):
+
+1. A reference-only call whose base is the reference's makes its position's
+   base observation clean, as a confirmation of the reference. Its run role
+   (counting, run ends) stays its call's.
+2. A confirmation is withdrawn where any read shows an unexplained second
+   peak at the position, and where a read of the other strand shows the
+   confirming call's own second base standing out.
+3. A confirmation within or beside a decided site that differs from the
+   reference, including a site written partly as `N`, is withdrawn. The
+   positions are then decided again, until no confirmation is withdrawn.
+4. The positions only confirmations observe cleanly are published as
+   `reference_only` in `dna.consensus/v1`. When the decisions are called
+   (ADR-0078), the call at such a position shows its base only: it bounds no
+   neighbouring run.
+
+## Alternatives
+
+- **Lift the veto by cause in the modality.** This gave the largest gain and
+  failed the review gate through the four paths above.
+- **Require a clean read of the other strand.** Nothing was left to gain:
+  where the other strand reads the base cleanly, the position was already
+  decided.
+- **Unresolve every differing site beside a confirmed position.** This held
+  the gate, but turned about 100 correct calls into `N`.
+- **Let the core read the modality's reason labels.** This was rejected:
+  reasons are reported verbatim, and the core interprets none of them
+  (ADR-0069).
+
+## Consequences
+
+Development panel v5 against `main` 65c221e, before the version bumps:
+
+| Period | Unreviewed | Clear |
+|---|---|---|
+| current | unchanged | 66.1 → 68.7 % |
+| 2025-08..11 | unchanged | 42.3 → 47.4 % |
+| older | +1 (`538`, truth `N`) | 60.0 → 67.2 % |
+
+- No strict status changes.
+- About 630 samples become clear.
+- Heteroplasmy stays the review's two-strand rule. A confirmation never
+  stands where another read shows an unexplained second peak.
+
+`dna.consensus/v1` gains `reference_only`, revised in place before its first
+release. Plugins `sanger` 11, `consensus` 11, and `decided` 3.

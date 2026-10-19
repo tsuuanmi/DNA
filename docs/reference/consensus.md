@@ -64,6 +64,10 @@ The method is described in [design](../design/consensus.md).
       the reference and read every base between cleanly. The length is the
       number of reference positions between them. It assumes no length
       change and is not observed.
+- **`reference_only`:** reference positions (1-based, increasing) that only
+  reference confirmations decided (ADR-0080). They read the reference, and
+  when the decisions are called (`dna call` of this document) they bound no
+  neighbouring run.
 - **`summary`:** counts over the segments:
   - `called_positions`;
   - `contested_sites`;
