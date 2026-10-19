@@ -22,6 +22,10 @@
 //!   of its length is written; that position is not callable either. The
 //!   run's other positions, and so its composition, stay callable
 //!   (PROP-0008 step 3).
+//!
+//! A position only reference confirmations decided (ADR-0080) shows its
+//! base only: it bounds no neighbouring run, so a change that a run end there
+//! would bound stays excluded as it was while that position was undecided.
 
 use dna_align::model::alignment::{Alignment, AlignmentColumn, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
@@ -37,7 +41,7 @@ use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::placement;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
-use dna_kernel::read_evidence::ReadEvidence;
+use dna_kernel::read_evidence::{Bound, ReadEnds, ReadEvidence};
 
 /// Calls the consensus segment at `index` from the consensus's decisions.
 /// `evidence` is the segment sequence's evidence, as a record of it reads,
@@ -62,6 +66,7 @@ pub fn call_segment(
         .ok_or(VariantError::Inconsistent("no consensus segment at index"))?;
     let (columns, estimated) = columns(consensus, segment, reference.sequence.as_bytes(), config)?;
     let columns = right_aligned(columns);
+    let evidence = confirmed_base_only(consensus, &columns, evidence)?;
     let cut = estimated
         .iter()
         .filter_map(|range| run_end(&columns, range))
@@ -141,6 +146,45 @@ pub fn call_segment(
         evidence,
         alignment,
         variants,
+    })
+}
+
+/// `evidence` with the calls at the consensus's reference-only positions
+/// (ADR-0080) vouched for by their base only: they bound no run.
+fn confirmed_base_only(
+    consensus: &Consensus,
+    columns: &[AlignmentColumn],
+    evidence: ReadEvidence,
+) -> Result<ReadEvidence> {
+    let confirmed = columns
+        .iter()
+        .filter_map(|column| {
+            consensus
+                .reference_only
+                .contains(&column.reference_index_0based()?)
+                .then(|| column.original_call_index_0based())
+                .flatten()
+        })
+        .collect::<BTreeSet<_>>();
+    if confirmed.is_empty() {
+        return Ok(evidence);
+    }
+    let vouched = evidence.ends() == ReadEnds::Vouched;
+    let mut calls = evidence.calls().to_vec();
+    for &call in &confirmed {
+        if let Some(call) = calls.get_mut(call) {
+            call.bound = Bound::Withheld;
+        }
+    }
+    let rebuilt = ReadEvidence::new(
+        calls,
+        evidence.informative(),
+        evidence.reason_order().to_vec(),
+    )?;
+    Ok(if vouched {
+        rebuilt.with_vouched_ends()
+    } else {
+        rebuilt
     })
 }
 
@@ -526,7 +570,7 @@ fn callable(columns: &[AlignmentColumn]) -> Vec<ReferenceSegment> {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "decided",
     family: PluginFamily::Core,
-    version: 2,
+    version: 3,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::Consensus],
     config_sections: &[],
@@ -603,6 +647,17 @@ mod tests {
         sequence: &str,
         sites: Vec<ConsensusSite>,
     ) -> Result<CalledRead> {
+        called_confirmed(first, last, sequence, sites, BTreeSet::new())
+    }
+
+    /// As [`called`], with the 0-based reference-only positions.
+    fn called_confirmed(
+        first: usize,
+        last: usize,
+        sequence: &str,
+        sites: Vec<ConsensusSite>,
+        reference_only: BTreeSet<usize>,
+    ) -> Result<CalledRead> {
         let consensus = Consensus {
             segments: vec![ConsensusSegment {
                 start_0based: first - 1,
@@ -611,6 +666,7 @@ mod tests {
             }],
             sites,
             summary: ConsensusSummary::default(),
+            reference_only,
         };
         let config = config()?;
         call_segment(
@@ -777,6 +833,23 @@ mod tests {
             callable(&read)
                 .iter()
                 .all(|&(start, end)| !(start..end).contains(&11) && !(start..end).contains(&12))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_reference_only_position_bounds_no_neighbouring_run() -> Result<()> {
+        // 10C>T joins the T run 5-9; the A at 11 is its 3' end.
+        let sequence = "ACGATTTTTTAGGCTAGCATCG";
+        let sites = || vec![site(10, 10, Some("T"), SiteState::Called, Vec::new())];
+        let bounded = called(1, 22, sequence, sites())?;
+        assert_eq!(edits(&bounded), [(10, "C".into(), "T".into(), Vec::new())]);
+        // Decided only by a reference confirmation, the A at 11 shows its base
+        // but not where the run ends, as while it was undecided.
+        let confirmed = called_confirmed(1, 22, sequence, sites(), BTreeSet::from([10]))?;
+        assert_eq!(
+            edits(&confirmed),
+            [(10, "C".into(), "T".into(), vec!["run_boundary"])]
         );
         Ok(())
     }

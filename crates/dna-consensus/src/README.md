@@ -18,7 +18,9 @@ sample's placed reads and assembles consensus segments, with the evidence
 behind every non-trivial decision.
 
 - `observe.rs`: each read's observations per reference position and junction,
-  with each base's trust level (`Trust`) and reference position. It reuses
+  with each base's trust level (`Trust`) and reference position, the reference
+  confirmations of reference-only calls, and the second bases the confirmations
+  must not hide (ADR-0080). It reuses
   `dna_call::Eligibility` for the trusted calls and for the run-end
   test of insertions and deletions (ADR-0071).
 - `decide.rs`: decision rule version 1 over clean observations.
@@ -29,13 +31,16 @@ behind every non-trivial decision.
   of `dna-call`; a length change of a segment-edge run, and a change
   at the 3' end of a run of length evidence `phase_loss` or
   `reference_frame`, excluded as `run_boundary`, with that end left out of
-  the callable segments.
+  the callable segments; a `reference_only` position shows its base only and
+  bounds no neighbouring run (ADR-0080).
 - `lib.rs`: the entry point `build`, which handles stretches of whole
   reference runs (seeded by clean differences and by disputed runs no read
   bounds), segment assembly, and the `consensus` plugin descriptor.
   Each stretch is decided by its run structure (ADR-0074): composition, then
   lengths with their evidence (`in_phase`, `anchored_end`, `confirmed_end`,
-  `phase_loss`, `reference_frame`), or position by position.
+  `phase_loss`, `reference_frame`), or position by position. Reference
+  confirmations are withdrawn where a second sequence may hide or beside a
+  differing site, with the positions decided again (SRS-CONS-010).
 
 The module reads only `CalledRead` records, so it is modality-neutral
 (ADR-0069). It uses no profile window or filename. `decided.rs` turns its

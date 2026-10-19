@@ -15,6 +15,9 @@ pub(crate) struct ConsensusResult {
     pub(crate) rejected_reads: Vec<ConsensusRejectedReadResult>,
     pub(crate) segments: Vec<ConsensusSegmentResult>,
     pub(crate) sites: Vec<ConsensusSiteResult>,
+    /// Reference positions (1-based) only reference confirmations decided
+    /// (ADR-0080), in order.
+    pub(crate) reference_only: Vec<usize>,
     pub(crate) summary: ConsensusSummaryResult,
 }
 

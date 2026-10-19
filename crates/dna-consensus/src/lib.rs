@@ -28,7 +28,7 @@ use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
-use observe::{Char, ReadObservations, SiteValue, Trust, observe};
+use observe::{Char, Observation, ReadObservations, SiteValue, Trust, observe};
 
 pub use config::{ConsensusConfig, RawConsensusConfig};
 
@@ -44,7 +44,7 @@ pub fn build(
     consensus_config: &ConsensusConfig,
 ) -> Consensus {
     let bases = reference.sequence.as_bytes();
-    let observed = reads
+    let mut observed = reads
         .iter()
         .map(|read| {
             observe(
@@ -55,14 +55,51 @@ pub fn build(
             )
         })
         .collect::<Vec<_>>();
+    // Reference confirmations (ADR-0080): none where a second sequence may
+    // hide, none within or beside a site that differs from the reference, and
+    // the positions they alone decide bound no neighbour's run when called.
+    hide_confirmations(&mut observed);
+    let mut decided = decide_positions(&observed, bases, consensus_config.seeded_run);
+    // Deciding again can move a differing site beside another confirmation:
+    // each pass withdraws at least one, so this ends.
+    while withdraw_near_differences(&mut observed, &decided, bases) {
+        decided = decide_positions(&observed, bases, consensus_config.seeded_run);
+    }
+    let reference_only = confirmed_only(&observed);
+
+    let mut consensus = Consensus {
+        segments: Vec::new(),
+        sites: Vec::new(),
+        summary: ConsensusSummary::default(),
+        reference_only,
+    };
+    for piece in pieces(&decided, consensus_config.maximum_undecided_gap) {
+        assemble(
+            &piece,
+            &decided,
+            bases,
+            consensus_config.minimum_resolved_bases,
+            &mut consensus,
+        );
+    }
+    consensus
+}
+
+/// Decides every stretch by its run structure and every other covered
+/// position by its clean observations, then leaves unplaced the length
+/// changes nothing beside them places.
+fn decide_positions(
+    observed: &[ReadObservations],
+    bases: &[u8],
+    seeded_run: usize,
+) -> BTreeMap<usize, (usize, Decision)> {
     let covered = observed
         .iter()
         .flat_map(|read| read.positions.keys().copied())
         .collect::<BTreeSet<_>>();
-
     let mut decided: BTreeMap<usize, (usize, Decision)> = BTreeMap::new();
-    for (first, last) in stretches(&observed, bases, consensus_config.seeded_run) {
-        decided.insert(first, (last, decide_stretch(&observed, first, last, bases)));
+    for (first, last) in stretches(observed, bases, seeded_run) {
+        decided.insert(first, (last, decide_stretch(observed, first, last, bases)));
     }
     let inside = decided
         .iter()
@@ -84,24 +121,104 @@ pub fn build(
         let expected = char::from(bases[position]).to_string();
         decided.insert(position, (position, decide(&observations, &expected)));
     }
-
     unplace_unbounded_indels(&mut decided, bases.len());
+    decided
+}
 
-    let mut consensus = Consensus {
-        segments: Vec::new(),
-        sites: Vec::new(),
-        summary: ConsensusSummary::default(),
-    };
-    for piece in pieces(&decided, consensus_config.maximum_undecided_gap) {
-        assemble(
-            &piece,
-            &decided,
-            bases,
-            consensus_config.minimum_resolved_bases,
-            &mut consensus,
-        );
+/// Withdraws the reference confirmations a second sequence may hide
+/// (ADR-0080): at a position where any read shows a second peak its modality
+/// does not explain, and where a read of the other strand shows the
+/// confirming call's own second base standing out.
+fn hide_confirmations(observed: &mut [ReadObservations]) {
+    let hidden = observed
+        .iter()
+        .enumerate()
+        .flat_map(|(index, read)| {
+            read.positions
+                .iter()
+                .filter(|(_, observation)| observation.confirms)
+                .filter(|(position, _)| {
+                    let second = read.seconds.get(position);
+                    observed.iter().any(|other| {
+                        other.unexplained.contains(position)
+                            || (other.forward != read.forward
+                                && second.is_some()
+                                && other.seconds.get(position) == second)
+                    })
+                })
+                .map(move |(position, _)| (index, *position))
+        })
+        .collect::<Vec<_>>();
+    for (index, position) in hidden {
+        if let Some(observation) = observed[index].positions.get_mut(&position) {
+            withdraw(observation);
+        }
     }
-    consensus
+}
+
+/// Withdraws every reference confirmation within or beside a decided site
+/// that differs from the reference (ADR-0080): there the position stays as
+/// the other reads leave it, so the site keeps the neighbours it had. A site
+/// written partly as `N` differs too, so a confirmation beside a partly
+/// undecided site is withdrawn as well. Whether any was withdrawn.
+fn withdraw_near_differences(
+    observed: &mut [ReadObservations],
+    decided: &BTreeMap<usize, (usize, Decision)>,
+    bases: &[u8],
+) -> bool {
+    let differing = decided
+        .iter()
+        .filter(|(first, (last, decision))| {
+            let reference = (**first..=*last)
+                .map(|position| char::from(bases[position]))
+                .collect::<String>();
+            decision
+                .value
+                .as_deref()
+                .is_some_and(|value| value != reference)
+        })
+        .map(|(&first, (last, _))| first.saturating_sub(1)..=last + 1)
+        .collect::<Vec<_>>();
+    let mut withdrawn = false;
+    for read in observed {
+        for (position, observation) in &mut read.positions {
+            if observation.confirms && differing.iter().any(|near| near.contains(position)) {
+                withdraw(observation);
+                withdrawn = true;
+            }
+        }
+    }
+    withdrawn
+}
+
+/// A reference confirmation withdrawn: the observation is unclean, as its
+/// call's verdict leaves it.
+fn withdraw(observation: &mut Observation) {
+    observation.clean = false;
+    observation.confirms = false;
+}
+
+/// The positions only reference confirmations observe cleanly.
+fn confirmed_only(observed: &[ReadObservations]) -> BTreeSet<usize> {
+    let confirmed = observed
+        .iter()
+        .flat_map(|read| {
+            read.positions
+                .iter()
+                .filter(|(_, observation)| observation.confirms)
+                .map(|(position, _)| *position)
+        })
+        .collect::<BTreeSet<_>>();
+    confirmed
+        .into_iter()
+        .filter(|position| {
+            !observed.iter().any(|read| {
+                read.positions
+                    .get(position)
+                    .is_some_and(|observation| observation.clean && !observation.confirms)
+            })
+        })
+        .collect()
 }
 
 /// Leaves undecided every decided site that changes the reference length
@@ -1332,7 +1449,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 10,
+    version: 11,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -1705,6 +1822,106 @@ mod tests {
         Ok(())
     }
 
+    /// `sequence` placed with its call `index` withheld as mixed and, when
+    /// `reference_only`, asserted reference-only, its second base `second`
+    /// standing out.
+    fn confirming(
+        name: &str,
+        sequence: &str,
+        index: usize,
+        reference_only: bool,
+    ) -> std::result::Result<CalledRead, Box<dyn std::error::Error>> {
+        let mut read = placed(name, sequence, &[])?;
+        let mut call = read.evidence.calls()[index];
+        call.identity
+            .withheld
+            .insert(EvidenceReason::new("mixed_supporting_dna"))?;
+        call.reference_only = reference_only;
+        call.second = Some(dna_kernel::read_evidence::SecondBase {
+            base: 'C',
+            share: 0.3,
+            stands_out: true,
+        });
+        read.evidence = read.evidence.with_call(index, call);
+        Ok(read)
+    }
+
+    #[test]
+    fn a_reference_only_call_confirms_the_reference_and_nothing_else()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let build_alone =
+            |read: &CalledRead| -> std::result::Result<Consensus, Box<dyn std::error::Error>> {
+                Ok(build(
+                    &[read],
+                    &reference(),
+                    &config()?,
+                    &config::tests::config(),
+                ))
+            };
+        // Withheld, the call at 14 leaves its position undecided.
+        let withheld = build_alone(&confirming("r", REFERENCE, 14, false)?)?;
+        assert_eq!(&withheld.segments[0].sequence[13..16], "GNT");
+        // Reference-only, it confirms the reference there, and the position
+        // is marked as decided by that confirmation alone.
+        let confirmed = build_alone(&confirming("r", REFERENCE, 14, true)?)?;
+        assert_eq!(confirmed.segments[0].sequence, REFERENCE);
+        assert_eq!(confirmed.reference_only, BTreeSet::from([14]));
+        // A reference-only call reading another base than the reference's
+        // decides nothing.
+        let other = "TTGACGTCAGTACGTTCGTACCTGAGTACGAGGACT";
+        let differing = build_alone(&confirming("r", other, 14, true)?)?;
+        assert_eq!(&differing.segments[0].sequence[13..16], "GNT");
+        assert!(differing.reference_only.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_confirmation_beside_a_differing_site_is_withdrawn()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // The read substitutes G>T at 13, cleanly, and its call at 14 is a
+        // reference-only A: the substitution's neighbour stays undecided, as
+        // the read's verdict leaves it.
+        let substituted = "TTGACGTCAGTACTATCGTACCTGAGTACGAGGACT";
+        let read = confirming("r", substituted, 14, true)?;
+        let consensus = build(&[&read], &reference(), &config()?, &config::tests::config());
+        assert_eq!(&consensus.segments[0].sequence[12..16], "CTNT");
+        assert!(consensus.reference_only.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_second_sequence_any_read_shows_withdraws_a_confirmation() {
+        // Two reads at position 14: the first confirms the reference with a
+        // second C; the second does not observe the position cleanly.
+        let observations = |first_forward: bool, second: (bool, Option<char>, bool)| {
+            let mut first = rows("a", 0, REFERENCE, REFERENCE, &"c".repeat(REFERENCE.len()));
+            first.forward = first_forward;
+            if let Some(observation) = first.positions.get_mut(&14) {
+                observation.confirms = true;
+            }
+            first.seconds.insert(14, 'C');
+            let mut other = rows("b", 0, REFERENCE, REFERENCE, &"c".repeat(REFERENCE.len()));
+            other.forward = second.0;
+            if let Some(base) = second.1 {
+                other.seconds.insert(14, base);
+            }
+            if second.2 {
+                other.unexplained.insert(14);
+            }
+            let mut observed = vec![first, other];
+            hide_confirmations(&mut observed);
+            observed[0].positions[&14].confirms
+        };
+        // Nothing on the other read: the confirmation stands.
+        assert!(observations(true, (false, None, false)));
+        // The other strand shows the same second base standing out.
+        assert!(!observations(true, (false, Some('C'), false)));
+        // The same strand doing so is not a second sequence by itself.
+        assert!(observations(true, (true, Some('C'), false)));
+        // Any read with a second peak its modality does not explain.
+        assert!(!observations(true, (true, None, true)));
+    }
+
     #[test]
     fn masked_calls_never_decide() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // The variant read's call at 10 is masked: the reference read decides.
@@ -1848,6 +2065,7 @@ mod tests {
                         value: SiteValue::Insertion(
                             inserted.iter().map(|char| char.base).collect(),
                         ),
+                        confirms: false,
                         clean: inserted.iter().all(|char| char.clean()),
                         chars: std::mem::take(&mut inserted),
                     },
@@ -1856,6 +2074,7 @@ mod tests {
             let observation = if read == '-' {
                 Observation {
                     value: SiteValue::Deletion,
+                    confirms: false,
                     clean: true,
                     chars: Vec::new(),
                 }
@@ -1863,6 +2082,7 @@ mod tests {
                 let char = char_of(read, kind, Some(position));
                 Observation {
                     value: SiteValue::Base(read),
+                    confirms: false,
                     clean: char.clean(),
                     chars: vec![char],
                 }
@@ -1872,6 +2092,9 @@ mod tests {
             position += 1;
         }
         ReadObservations {
+            forward: true,
+            seconds: BTreeMap::new(),
+            unexplained: BTreeSet::new(),
             name: name.into(),
             positions,
             junctions,
@@ -2095,6 +2318,7 @@ mod tests {
                 segments: Vec::new(),
                 sites: Vec::new(),
                 summary: ConsensusSummary::default(),
+                reference_only: BTreeSet::new(),
             };
             assemble(&[7], &decided, TRACT.as_bytes(), 1, &mut consensus);
             consensus.sites.len()

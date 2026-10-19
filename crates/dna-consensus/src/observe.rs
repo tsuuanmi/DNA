@@ -1,11 +1,13 @@
 //! What one placed read observes at each reference position and junction.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+use dna_align::model::alignment::Orientation;
 use dna_call::Eligibility;
 use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::variant::VariantKind;
+use dna_kernel::model::nucleotide::reverse_complement;
 use dna_kernel::read_evidence::{CallEvidence, Placement};
 
 /// What one read contributes at one reference position or junction.
@@ -91,6 +93,9 @@ pub(super) struct Observation {
     /// The calls behind the value are unmasked, trusted (`read_end`), and
     /// raise no support veto.
     pub(super) clean: bool,
+    /// Clean only because a reference-only call confirms the reference here
+    /// (ADR-0080).
+    pub(super) confirms: bool,
     /// The observed bases: one for a base, none for a deletion, the inserted
     /// ones at a junction.
     pub(super) chars: Vec<Char>,
@@ -101,8 +106,16 @@ pub(super) struct Observation {
 #[derive(Debug, Clone)]
 pub(super) struct ReadObservations {
     pub(super) name: String,
+    /// The read is placed on the reference strand.
+    pub(super) forward: bool,
     pub(super) positions: BTreeMap<usize, Observation>,
     pub(super) junctions: BTreeMap<usize, Observation>,
+    /// The second base, on the reference strand, of each position whose call
+    /// shows one standing out (ADR-0080).
+    pub(super) seconds: BTreeMap<usize, char>,
+    /// Positions whose call shows a second peak its modality does not explain
+    /// (ADR-0080).
+    pub(super) unexplained: BTreeSet<usize>,
 }
 
 /// Walks the read's alignment columns in reference order.
@@ -113,7 +126,10 @@ pub(super) struct ReadObservations {
 /// nearest calls on both sides are clean; it carries the inserted bases, or
 /// none. An insertion or deletion that changes the length of a run the read
 /// does not bound is never clean (`run_boundary`, ADR-0071): the read does
-/// not show how long that run is.
+/// not show how long that run is. A reference-only call whose base is the
+/// reference's makes its position's base observation clean as a
+/// confirmation of the reference (ADR-0080), and nothing else: its run role
+/// stays its call's.
 pub(super) fn observe(
     read: &CalledRead,
     config: &VariantCallingConfig,
@@ -251,6 +267,16 @@ pub(super) fn observe(
 
     let mut positions = BTreeMap::new();
     let mut junctions = BTreeMap::new();
+    let mut seconds = BTreeMap::new();
+    let mut unexplained = BTreeSet::new();
+    // A read-strand base on the reference strand.
+    let on_reference = |base: char| match orientation {
+        Orientation::Forward => base,
+        Orientation::Reverse => reverse_complement(&base.to_string())
+            .chars()
+            .next()
+            .unwrap_or('N'),
+    };
     let mut previous: Option<(usize, usize)> = None; // (reference position, column)
     let mut inserted: Vec<(char, usize)> = Vec::new();
     // Per deleted position: the nearest calls on both sides, and the base.
@@ -287,6 +313,7 @@ pub(super) fn observe(
                 previous_position,
                 Observation {
                     value: SiteValue::Insertion(bases),
+                    confirms: false,
                     clean,
                     chars: inserted
                         .iter()
@@ -312,6 +339,7 @@ pub(super) fn observe(
             deletions.insert(position, (flanks, column.reference_base()));
             Observation {
                 value: SiteValue::Deletion,
+                confirms: false,
                 clean: bounded(flanks.0, flanks.1),
                 chars: Vec::new(),
             }
@@ -321,11 +349,34 @@ pub(super) fn observe(
             let shifted = column.original_call_index_0based().is_some_and(|call| {
                 unanchored(call, column.query_base(), position) || unbounded_run(call, position)
             });
+            let call = column
+                .original_call_index_0based()
+                .and_then(|call| calls.get(call).map(|evidence| (call, evidence)));
+            if let Some((_, evidence)) = call {
+                if evidence.second_unexplained {
+                    unexplained.insert(position);
+                }
+                if let Some(second) = evidence.second.filter(|second| second.stands_out) {
+                    seconds.insert(position, on_reference(second.base));
+                }
+            }
+            let clean = canonical(column.query_base())
+                && !shifted
+                && column.original_call_index_0based().is_some_and(clean_call);
+            // A reference-only call confirms the reference at its position.
+            let confirms = !clean
+                && canonical(column.query_base())
+                && !shifted
+                && reference_at(position) == Some(column.query_base())
+                && call.is_some_and(|(call, evidence)| {
+                    evidence.reference_only
+                        && evidence.placement == Placement::Scored
+                        && trusted_call(call)
+                });
             Observation {
                 value: SiteValue::Base(column.query_base()),
-                clean: canonical(column.query_base())
-                    && !shifted
-                    && column.original_call_index_0based().is_some_and(clean_call),
+                confirms,
+                clean: clean || confirms,
                 chars: column
                     .original_call_index_0based()
                     .map(|call| {
@@ -383,8 +434,11 @@ pub(super) fn observe(
     }
     ReadObservations {
         name: read.input_name.clone(),
+        forward: orientation == Orientation::Forward,
         positions,
         junctions,
+        seconds,
+        unexplained,
     }
 }
 

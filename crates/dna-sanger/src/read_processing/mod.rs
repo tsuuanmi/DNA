@@ -375,7 +375,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 10,
+    version: 11,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[

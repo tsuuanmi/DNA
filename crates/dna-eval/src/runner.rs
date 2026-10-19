@@ -531,6 +531,7 @@ mod tests {
                 site(50, "G", Some("G"), SiteState::Contested),
             ],
             summary: ConsensusSummary::default(),
+            reference_only: BTreeSet::new(),
         };
         let export = EmpopExport {
             ranges: vec![[11, 30], [32, 41], [50, 50]],
