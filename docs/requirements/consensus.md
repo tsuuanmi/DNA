@@ -14,7 +14,7 @@ Design: [consensus method](../design/consensus.md). Contract:
   - its run lengths first as whole sequences, from reads that show every run's length, a tie leaving the stretch to the position-by-position decision; otherwise run by run, from reads that show both ends of a run with unmasked run calls;
   - position by position from reads without a clean indel inside it.
 
-  A run end is shown only by a call beyond the run that reads another base: unmasked (`in_phase`), or masked but anchoring, possibly beyond one unresolved call (`anchored_end`). An anchored end placed elsewhere than where reads show that end in phase MUST NOT count. A partly clean run at the inner edge of a read's clean start or end MUST contribute only its base.
+  A run end is shown only by a call beyond the run that reads another base: unmasked (`in_phase`), or masked but anchoring, possibly beyond one unresolved call (`anchored_end`). An anchored end placed elsewhere than where reads show that end in phase MUST NOT count. A partly clean run at the inner edge of a read's clean start or end MUST contribute only its base, and a clean start or end that holds every run of the composition while the read reads further runs over the stretch MUST contribute nothing, since it places a run end of the composition inside the stretch.
 - **SRS-CONS-005:** Every decision MUST follow rule version 1:
   - all clean observations agree: that sequence;
   - a strict majority wins;

@@ -996,6 +996,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- A read's clean start or end that holds every run of a stretch's
+  composition no longer stands for the whole stretch when the read reads
+  further runs there. In the HVS-I C-tract a read reading `C7 T C T C` had the
+  clean end `C T C`, the reference composition, and its inserted `C` gave the
+  first C run a length of one: a one-read seven-base deletion that
+  auto-passed (`16185T` with `16187-16193DEL` against the truth's
+  `16189C 16191Y 16191.1C 16192T`). Plugin `consensus` 10. Development panel
+  v5 against `main` 3bbf194: samples with an unreviewed difference 4.13 to
+  4.11 % on current data, non-heteroplasmic 0.91 to 0.88 %, unchanged in the
+  other periods; four samples lose an unreviewed block and one gains a
+  heteroplasmic one (`16192Y`).
 - A run that no read shows both ends of, but that two reads count alike from
   opposite ends, now takes their count (`length_evidence` `confirmed_end` in
   `dna.consensus/v1` and `dna.review/v1`; plugin `consensus` 9). Each read

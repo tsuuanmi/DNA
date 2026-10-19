@@ -113,6 +113,11 @@ stretch's start, and a clean end likewise.
 - Otherwise, only its clean start and end map.
 - A partly clean run at their inner edge shows its base only: it neither
   counts nor shows its inner end.
+- A clean start or end that holds every run of the composition while the read
+  reads further runs over the stretch maps nothing: its outer run would stand
+  for a run that starts or ends elsewhere. A read reading `C7 T C T C` over
+  `CCCCCTCCCC` has the clean end `C T C`, whose inserted `C` would otherwise
+  give the first C run a length of one.
 - An `Anchored` end placed elsewhere than where reads show that end
   `InPhase` becomes `PhaseLoss`.
 
