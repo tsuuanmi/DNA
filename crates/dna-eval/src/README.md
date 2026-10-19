@@ -13,6 +13,10 @@ to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
+Output contract: none yet; `run.json` and the TSV tables follow the
+[evaluation harness](../../../docs/validation/evaluation-harness.md#outputs)
+by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+
 - `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`), run orchestration, output
   directory, and the `run.json` header.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and

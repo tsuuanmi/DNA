@@ -14,6 +14,12 @@ plugin, one provenance identity across `dna-align`, `dna-call`, and
 `dna-sample`), and the [model](model/README.md). The `test-support` feature
 adds fixtures of its records for downstream tests.
 
+Output contract: the `variants` of
+[`dna.analysis/v9`](../../../docs/reference/schemas/analysis-v9.schema.json) (`dna analyze`), and
+[`dna.variants/v1`](../../../docs/reference/schemas/variants-v1.schema.json) over reviewed sequences
+(`dna call`); per-call trust and component calls: none yet
+([PROP-0011 increment 2](../../../docs/proposals/0011-step-contracts.md#increment-2-dnaanalysisv10-placement-and-per-read-calling)).
+
 Owns extraction, direct evidence mapping, allele anchoring, and configured
 eligibility of primary-sequence SNVs and supported small indels. Reportable
 regions come from the target profile and are passed in by the caller.

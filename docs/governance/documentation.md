@@ -113,6 +113,9 @@ decision for this documentation system.
 
 - one README per documentation folder;
 - one README per source directory;
+- an `Output contract:` line in every crate's source README, naming only
+  schemas that exist under `docs/reference/schemas/`
+  ([step contracts](../architecture/data-flow.md#step-contracts));
 - no `docs/src/` shadow tree;
 - no duplicate `topic.md` + `topic/README.md` entry points;
 - no repository-defined legacy/archive/history/temp current-state paths;

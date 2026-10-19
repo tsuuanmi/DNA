@@ -1,12 +1,12 @@
 ---
 id: PROP-0011
 type: proposal
-status: accepted
+status: implementing
 owners: []
 created: 2026-10-19
 related-requirements: [SRS-OUT, SRS-API-014]
 related-decisions: [ADR-0069, ADR-0075, ADR-0079, ADR-0080]
-implementation: []
+implementation: ["#160"]
 ---
 
 # Proposal: A contract at every step
@@ -155,4 +155,9 @@ output of that step can be checked and the flow is clear".
 
 ## Implementation
 
-None yet.
+- Increment 1, `dna.read_evidence/v1` and `dna evidence`: #160 (SRS-API-017,
+  `docs/reference/read-evidence.md`).
+- Data-flow map and enforcement: the "Step contracts" table in
+  `docs/architecture/data-flow.md`, an "Output contract:" line in every crate
+  README, and the check in `validate_docs_structure.py`.
+- Increments 2 (`dna.analysis/v10`) and 3 (evaluation contracts): pending.

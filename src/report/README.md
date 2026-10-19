@@ -3,6 +3,13 @@
 Owns projection of completed scientific state into versioned public contracts,
 deterministic JSON serialization, and atomic no-overwrite publication.
 
+Output contract: every public JSON contract
+([schemas](../../docs/reference/schemas/README.md)); the
+[step contracts](../../docs/architecture/data-flow.md#step-contracts) map each
+to its step and command. The review list,
+[`dna.review/v1`](../../docs/reference/schemas/review-v1.schema.json), is
+derived here.
+
 Key children separate analysis, basecall, read evidence (`evidence.rs`, `dna.read_evidence/v1`), sample, signal, run signal (`run_signal.rs`, `dna.signal/v1`), variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
 publication concerns. Every document's provenance records the workflow's

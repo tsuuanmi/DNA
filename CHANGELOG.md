@@ -18,6 +18,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 ### Added
 
 - `dna evidence <trace>` writes `results/<trace-stem>.evidence.json`, `dna.read_evidence/v1` (SRS-API-017, PROP-0011): a read's per-call evidence exactly as the core receives it from the Sanger plugin, with the signal each verdict rests on, so the modality → core boundary can be checked on its own.
+- `docs/architecture/data-flow.md` maps each step to its input and output contracts and the command that writes them (PROP-0011); every crate's source README names its output contract, and `validate_docs_structure.py` fails when one is missing or names a schema that does not exist.
 - Each Sanger call with a second peak above `signal_processing.second_floor`,
   or masked as mixed, is labelled with the peak's cause from its shape
   against the call's neighbours (SRS-CALL-021): `noise`, `neighbour_tail`,
