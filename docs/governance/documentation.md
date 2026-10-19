@@ -1,136 +1,115 @@
+---
+decided-by: [ADR-0022, ADR-0080]
+level: [3]
+areas:
+  - requirements=requirement
+  - architecture=architecture
+  - design=design
+  - reference=reference
+  - decisions=decision
+  - proposals=proposal
+  - research=research
+  - validation=validation
+  - engineering=engineering
+  - operations=operations
+  - security=security
+  - governance=governance
+id-prefixes: [decision=ADR, proposal=PROP, research=RES]
+source-roots: [src, crates/*/src]
+forbidden-names: [archive, archives, deprecated, history, legacy, old, temp, temporary]
+ledger: [governance/retired.md]
+reachability-depth: [4]
+review-days: [365]
+max-lines: [500]
+---
+
 # DNA Documentation Policy
 
-DNA adopts the reusable [Documentation Architecture Standard](documentation-architecture.md).
-This document records the DNA-specific application of that standard and the
-repository rules enforced by CI.
+DNA adopts the repository-agnostic [[governance/documentation-architecture]]. The
+front matter above is DNA's profile of that standard (Appendix A there); this
+document records only what is DNA-specific. Do not restate the standard here.
 
-## Current DNA knowledge areas
+## Areas in use
 
 | Area | DNA-specific responsibility |
 |---|---|
 | [requirements](../requirements/README.md) | normative DNA SRS, quality attributes, and constraints |
-| [architecture](../architecture/README.md) | DNA system context, module boundaries, flow, interfaces, and invariants |
+| [architecture](../architecture/README.md) | system context, module boundaries, flow, interfaces, invariants |
 | [design](../design/README.md) | current scientific and algorithmic mechanisms |
-| [decisions](../decisions/README.md) | durable DNA ADR history |
-| [proposals](../proposals/README.md) | DNA changes under review plus the non-normative roadmap |
-| [research](../research/README.md) | exploratory scientific/engineering evidence |
-| [validation](../validation/README.md) | acceptance, datasets/evidence, limitations, benchmarks, and traceability |
-| [engineering](../engineering/README.md) | development, testing, CI/CD, release, dependencies, and code quality |
-| [operations](../operations/README.md) | readiness, observability, and investigation playbook |
-| [security](../security/README.md) | local-CLI trust boundaries, threat model, and supply-chain policy |
-| [reference](../reference/README.md) | JSON schemas, result/configuration semantics, coordinates, examples, glossary |
-| [governance](README.md) | documentation/data/versioning/ownership/lifecycle policy |
+| [decisions](../decisions/README.md) | durable ADR history |
+| [proposals](../proposals/README.md) | changes under review, plus the non-normative roadmap |
+| [research](../research/README.md) | exploratory scientific and engineering evidence |
+| [validation](../validation/README.md) | acceptance, datasets, limitations, benchmarks, traceability |
+| [engineering](../engineering/README.md) | development, testing, CI/CD, release, dependencies, code quality |
+| [operations](../operations/README.md) | readiness, observability, investigation playbook |
+| [security](../security/README.md) | local-CLI trust boundaries, threat model, supply chain |
+| [reference](../reference/README.md) | JSON schemas, result and configuration semantics, coordinates, glossary |
+| [governance](README.md) | this policy, versioning, data, and external-reference validation |
 
-DNA does not create empty service-only documentation such as deployment topology,
-service SLOs, incident/postmortem collections, or disaster recovery while those
-boundaries do not exist.
+DNA creates no service-only areas (deployment topology, SLOs, incident history,
+disaster recovery) while those boundaries do not exist.
 
-## Navigation
+## Identity and metadata
 
-- root `README.md` is the product/contributor router;
-- `docs/README.md` is the knowledge router;
-- every documentation folder has one `README.md` index;
-- every directory under `src/` and `crates/*/src/` has a colocated `README.md`;
-- `AGENTS.md` contains agent routing plus repository-wide invariants.
-
-README files do not duplicate full specifications.
-
-## Authority
-
-For DNA:
-
-- requirements define intended behavior;
-- architecture/design/reference define current structure, mechanisms, and exact
-  interfaces;
-- source is executable reality;
-- tests and validation provide evidence;
-- accepted ADRs preserve rationale but do not override newer current-state docs;
-- proposals and research are non-authoritative until explicitly promoted.
-
-If source and normative current-state documentation disagree, treat that as a
-defect to reconcile in the owning change.
+- ADRs are `ADR-NNNN`, proposals `PROP-NNNN`, research topics `RES-<topic>`.
+  Requirement items are bold list items such as `SRS-ALN-001`; the part before the
+  number (`SRS-ALN`) is the namespace. Identifiers are never reused.
+- A decision's front matter carries `status`, `date`, `family`, `supersedes`,
+  `related`; its header lines are a generated `lifecycle` block.
+- A current document declares the decisions and requirement namespaces it rests on
+  in `decided-by` and `implements`, and the source it describes in `covers`. These
+  are the edges `trace` follows; prose citations without a declaration fail
+  `DOC-LNK-006`.
+- Cross-references to documents and IDs use `[[wikilinks]]`; relative Markdown
+  links stay for source files, schemas, router READMEs, and generated blocks.
 
 ## Source-local documentation
 
-Every `src/**/` and `crates/*/src/**/` directory has an up-to-date `README.md` describing its
-responsibility boundary and navigation.
-
-File-only Rust modules use rustdoc/source comments. DNA does not maintain a
+Every directory under `src/` and `crates/*/src/` has a `README.md` describing its
+responsibility boundary. File-only Rust modules use rustdoc. DNA keeps no
 `docs/src/` mirror.
 
-## DNA promotion flow
+## Commands and CI
 
-```text
-research
-  ↓
-proposal / review
-  ↓
-ADR when durable rationale is needed
-  ↓
-requirements + architecture + design + reference
-  ↓
-source + source README + tests
-  ↓
-validation
-  ↓
-engineering / release
-  ↓
-operations feedback
-```
+All commands run from `tools/python`.
 
-Not every change needs every stage. The affected canonical layers must still be
-updated atomically with the implementation.
+| Command | Purpose |
+|---|---|
+| `uv run python scripts/validate_docs_structure.py` | `DOC-STR-*`, `DOC-LNK-001`: folder READMEs, source READMEs, forbidden paths, Markdown links |
+| `uv run python scripts/docs_graph.py check` | `DOC-ID-*`, `DOC-LNK-002…006`, `DOC-GRF-*`, `DOC-GEN-*`, `DOC-RET-*`, `DOC-FRS-*` |
+| `uv run python scripts/docs_graph.py sync` | write missing edge declarations and refresh generated blocks |
+| `uv run python scripts/docs_graph.py trace <path\|ID>` | trace closure of a source path, requirement item, decision, or document |
+| `uv run python scripts/docs_graph.py impact <base>` | `DOC-IMP-001` against a base ref; CI runs it on pull requests |
+| `uv run python scripts/docs_graph.py candidates` | retirement candidates |
+| `uv run python scripts/docs_graph.py retire <doc> --outcome "…"` | move a document into the [ledger](retired.md) |
 
-## Change impact
-
-- internal refactor without boundary/behavior change -> source/tests only as needed;
-- module responsibility/dependency change -> source README + architecture;
-- scientific/algorithm behavior change -> requirements + design + tests + validation;
-- public schema/config/CLI change -> requirements + reference + examples/tests;
-- durable architectural/scientific/security choice -> ADR or successor ADR;
-- unaccepted change -> proposal;
-- exploratory work -> research;
-- build/test/release process -> engineering;
-- runtime/support procedure -> operations;
-- trust-boundary or vulnerability policy -> security.
-
-## ADR policy
-
-DNA ADRs are append-only decision history.
-
-- search existing current-state docs and ADRs before creating another record;
-- do not create ADRs for ordinary implementation progress;
-- create a successor for a materially changed decision;
-- mark supersession in both directions where applicable;
-- never reuse an ADR identifier.
-
-[ADR-0022](../decisions/adr/0022-documentation-knowledge-system.md) is the owning
-decision for this documentation system.
-
-## CI enforcement
-
-`tools/python/scripts/validate_docs_structure.py` enforces:
-
-- one README per documentation folder;
-- one README per source directory;
-- no `docs/src/` shadow tree;
-- no duplicate `topic.md` + `topic/README.md` entry points;
-- no repository-defined legacy/archive/history/temp current-state paths;
-- repository-local Markdown links resolve.
-
-Other CI gates validate source policy, formatting, static analysis, tests, schemas,
-configuration, and reference identity.
+CI runs `validate_docs_structure.py`, `docs_graph.py check`, `docs_graph.py sync
+--check`, and, on pull requests, `docs_graph.py impact`. To waive an impact finding,
+write `docs-unchanged: <document> — <reason>` in the pull-request description.
 
 Structural validation cannot prove prose accuracy. Reviewers still own semantic
 correctness.
 
+## ADR policy
+
+ADRs are append-only while live and are retired through the ledger, not deleted
+(decision: [[ADR-0080]]).
+
+- Search existing documents and decisions before creating one; do not record
+  ordinary implementation progress.
+- Refine a decision without replacing its core choice by amending the record; a
+  material change creates a successor whose `supersedes` names the old record (with
+  a section qualifier for a partial supersession, for example `ADR-0058 §4`).
+- Do not leave two accepted ADRs claiming one decision scope; the generated family
+  map in the [ADR index](../decisions/adr/README.md) shows each concern's chain
+  and the current documents it governs.
+- Retire a fully superseded record after folding anything still true into its
+  successor (standard section 8).
+
 ## Cleanup
 
-Do not keep renamed compatibility pointers, old/current parallel docs, or a generic
-legacy archive after migration. Git preserves history.
+Do not keep compatibility pointers, old-and-current parallel documents, or a
+`legacy/` folder. Retired knowledge lives in the ledger and in git.
 
-When research or temporary planning is fully promoted, delete duplicated text
-unless it contains unique evidence worth retaining.
-
-See also [lifecycle](lifecycle.md), [ownership](ownership.md), and
-[versioning](versioning.md).
+Versioning of contracts is in [[governance/versioning|versioning]]; ownership of areas is the
+table above and the CODEOWNERS file when present.
