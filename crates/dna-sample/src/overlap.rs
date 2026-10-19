@@ -190,6 +190,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-SAMPLE-007
     #[test]
     fn omits_non_overlapping_pairs() -> Result<()> {
         let left = coordinates(&[(1, 'A', Some('A'))]);
@@ -199,6 +200,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SAMPLE-008, SRS-SAMPLE-009
     #[test]
     fn admits_sufficient_canonical_overlap_and_agreement() -> TestResult {
         let left = coordinates(&[
@@ -226,6 +228,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SAMPLE-008, SRS-SAMPLE-009
     #[test]
     fn excludes_gaps_and_unresolved_calls_from_nucleotide_agreement() -> TestResult {
         let left = coordinates(&[(1, 'A', Some('A')), (2, 'C', None), (3, 'G', Some('G'))]);
@@ -244,6 +247,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SAMPLE-008, SRS-SAMPLE-009
     #[test]
     fn keeps_zero_comparable_overlap_explicit_without_synthetic_agreement() -> TestResult {
         let left = coordinates(&[(1, 'A', None), (2, 'C', None)]);
@@ -264,6 +268,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SAMPLE-009
     #[test]
     fn reports_both_failed_overlap_rules_in_stable_order() -> TestResult {
         let left = coordinates(&[(1, 'A', Some('A')), (2, 'C', Some('C'))]);

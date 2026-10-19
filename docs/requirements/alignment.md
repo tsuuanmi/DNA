@@ -5,6 +5,7 @@ verified-by:
   - crates/dna-align/src
   - crates/dna-call/src/model/called_read.rs
   - crates/dna-sanger/src/model/locus_evidence.rs
+unverified: [SRS-ALN-003, SRS-ALN-005, SRS-ALN-007, SRS-ALN-008, SRS-ALN-009, SRS-ALN-011]
 ---
 
 # Alignment Requirements

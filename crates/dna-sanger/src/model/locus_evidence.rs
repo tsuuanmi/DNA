@@ -38,6 +38,7 @@ pub struct LocusEvidence {
 mod tests {
     use super::*;
 
+    // SRS-SIG-009
     #[test]
     fn normalizes_positive_corrected_signal() {
         let Some(profile) = EvidenceProfile::from_corrected_amplitudes([0.0, 40.0, 100.0, 0.0])
@@ -55,6 +56,7 @@ mod tests {
         assert_eq!(profile.complemented().weights, [0.4, 0.3, 0.2, 0.1]);
     }
 
+    // SRS-SIG-009
     #[test]
     fn zero_signal_has_no_profile() {
         assert!(EvidenceProfile::from_corrected_amplitudes([0.0; 4]).is_none());

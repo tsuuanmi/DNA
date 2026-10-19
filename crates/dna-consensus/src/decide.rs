@@ -81,6 +81,7 @@ mod tests {
         decide(&owned, "C")
     }
 
+    // SRS-CONS-005
     #[test]
     fn calls_agreement_and_strict_majority() {
         let agreed = decided(&[("a", Some("T")), ("b", Some("T"))]);
@@ -96,6 +97,7 @@ mod tests {
         assert_eq!(majority.opposing, ["c"]);
     }
 
+    // SRS-CONS-005
     #[test]
     fn breaks_a_one_against_one_tie_toward_the_reference() {
         let tie = decided(&[("a", Some("T")), ("b", Some("C"))]);
@@ -118,6 +120,7 @@ mod tests {
         assert_eq!((wider.value, wider.state), (None, SiteState::Contested));
     }
 
+    // SRS-CONS-003, SRS-CONS-005
     #[test]
     fn lets_only_clean_observations_decide() {
         let masked = decided(&[("a", Some("T")), ("b", None)]);

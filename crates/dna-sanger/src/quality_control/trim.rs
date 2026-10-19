@@ -88,6 +88,7 @@ mod tests {
 
     use super::*;
 
+    // SRS-CALL-010, SRS-QC-004
     #[test]
     fn trims_to_the_callable_span_and_applies_matching_vendor_quality() -> Result<()> {
         let locations = [2, 6, 10, 14];

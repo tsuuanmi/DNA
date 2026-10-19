@@ -265,6 +265,7 @@ def relative(root: Path, path: Path) -> Path:
     return path.relative_to(root) if path.is_relative_to(root) else path
 
 
+# SRS-COMPAT-003
 def validate(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     members, unknown = crates(root)

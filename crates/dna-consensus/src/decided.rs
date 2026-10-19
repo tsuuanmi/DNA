@@ -715,6 +715,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-VAR-021
     #[test]
     fn a_run_length_change_takes_the_runs_3_prime_end() -> Result<()> {
         let read = called(
@@ -738,6 +739,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-021
     #[test]
     fn an_undecided_site_is_not_callable_and_a_decided_base_is_reported() -> Result<()> {
         // 12A decided; 15 undecided, written N; a resolved tie at 18 keeps the
@@ -757,6 +759,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-021
     #[test]
     fn a_length_change_of_the_run_at_a_segment_end_is_unbounded() -> Result<()> {
         // The segment starts inside the T run: no read shows its 5' end.
@@ -783,6 +786,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-021
     #[test]
     fn an_estimated_run_length_is_not_callable() -> Result<()> {
         // A sixth T the consensus only estimated: the run's 3' end is not
@@ -812,6 +816,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-019, SRS-VAR-021
     #[test]
     fn a_decided_deletion_between_undecided_positions_is_not_callable_reference() -> Result<()> {
         // 11 and 14 undecided, 12-13 (GG) decided deleted: the deletion's gap
@@ -837,6 +842,8 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-021
+    // SRS-CONS-010
     #[test]
     fn a_reference_only_position_bounds_no_neighbouring_run() -> Result<()> {
         // 10C>T joins the T run 5-9; the A at 11 is its 3' end.

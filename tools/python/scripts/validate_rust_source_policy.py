@@ -132,6 +132,7 @@ def inspect_source(path: Path) -> list[Violation]:
     return violations
 
 
+# SRS-NFR-005
 def validate(roots: list[Path] | None = None) -> list[Violation]:
     violations: list[Violation] = []
     for root in roots or SOURCE_ROOTS:

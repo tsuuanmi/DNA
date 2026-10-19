@@ -884,6 +884,7 @@ mod tests {
         )
     }
 
+    // SRS-CALL-022
     #[test]
     fn a_quality_withheld_or_benign_edge_call_is_reference_only() -> Result<()> {
         // Twenty single-channel calls; the trim starts at 4.
@@ -953,6 +954,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-022
     #[test]
     fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
         use crate::model::second_cause::{SecondCause, SecondPeak};
@@ -1090,6 +1092,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-011
     #[test]
     fn maps_phase_segments_to_placements() -> Result<()> {
         let (calls, signal, mut callability, quality) = products(&[200; 25], &[31; 25]);
@@ -1141,6 +1144,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-013, SRS-CALL-014
     #[test]
     fn vouches_for_strong_unambiguous_leading_calls_by_their_base() -> Result<()> {
         // Calls 0-3 lead a mixed stretch; the read's median primary peak is 200.
@@ -1218,6 +1222,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-013, SRS-CALL-017
     #[test]
     fn vouches_for_unambiguous_edge_calls_by_their_base_only() -> Result<()> {
         // Ten distinct, single-channel calls of equal height; calls 8-9 lie
@@ -1319,6 +1324,7 @@ mod tests {
         (calls, signal, callability, quality)
     }
 
+    // SRS-CALL-018
     #[test]
     fn vouches_for_unambiguous_start_calls_against_the_start_norms() -> Result<()> {
         // With a margin of 2 the start reaches call 6. The read's signal
@@ -1353,6 +1359,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-018
     #[test]
     fn a_start_call_reads_its_predecessors_base_only_behind_a_vouched_call() -> Result<()> {
         // Calls 4-6 read `TTT` at the start of the callable span; with a
@@ -1414,6 +1421,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-015
     #[test]
     fn gives_each_call_its_second_base() -> Result<()> {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
@@ -1479,6 +1487,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-CALL-016
     #[test]
     fn marks_a_bounded_run_before_a_post_repeat_phase_loss() {
         let marks = post_repeat_marks(true, true, false);
@@ -1488,6 +1497,7 @@ mod tests {
         assert!(!post_repeat_marks(true, true, true)[13].0);
     }
 
+    // SRS-CALL-016
     #[test]
     fn other_edges_mark_no_run() {
         // A masked segment not after a repeat run, or the read's own end.

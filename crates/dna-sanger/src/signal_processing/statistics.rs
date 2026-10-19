@@ -196,12 +196,14 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-004
     #[test]
     fn flat_samples_use_the_quantization_floor() -> Result<()> {
         assert_eq!(estimate(&[4, 4, 4, 4], 1.0)?.noise_sigma, 1.0);
         Ok(())
     }
 
+    // SRS-SIG-004
     #[test]
     fn first_difference_mad_uses_the_existing_scale() -> Result<()> {
         let statistics = estimate(&[0, 2, 0, 2, 0], 1.0)?;
@@ -251,6 +253,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-004
     #[test]
     fn corrects_and_rounds_finite_metrics() {
         assert_eq!(corrected_amplitude(-7, 0.0), 0.0);

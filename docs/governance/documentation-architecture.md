@@ -210,9 +210,10 @@ successor.
 links within a bounded depth (profile; default 3).
 `DOC-GRF-003` `covers` globs match at least one path.
 `DOC-GRF-004` (warning) A requirement item is implemented by at least one
-document and verified: cited by code or tests, or its defining document lists at
-least one `verified-by` path (verification at document granularity), or the item
-or namespace is waived with `unverified:`.
+document and verified item by item: cited by a test, code, or enforcing
+workflow (`SRS-X-001` in a comment), or listed in `verified-by`, or waived with
+`unverified:` (item or namespace). A `verified-by` path on a document is context
+for readers and the trace closure; it does not verify its items.
 `DOC-GRF-005` (warning) An accepted decision is governing at least one current
 document; otherwise it is a retirement candidate.
 
@@ -468,7 +469,7 @@ the line. Rules and levels are in sections 4–9 and 11. Checks that need no gra
 | `lifecycle` | a decision's header lines: status (with successors and section qualifiers), date, supersedes, related |
 | `index:<type>[:<group>]` | every document of the type: ID/path, title, status, summary; retired members come from the ledger. Groups: proposals and research have `open` (draft, proposed, accepted, implementing / active) and `done` (the rest) |
 | `families:decision` | per `family` named in the containing README's `family-labels`, the decisions (superseded ones marked) and the current documents that name them in `decided-by` |
-| `coverage:requirement` | per requirement namespace: defining documents, item count, implementing documents, governing decisions, covered source, items cited in code or tests |
+| `coverage:requirement` | per requirement namespace: defining documents, item count, implementing documents, governing decisions, covered source, items cited in code or tests, items waived as unverified |
 | `backlinks` | the computed inverse edges of the containing document: `Governs` (decisions) and `Implemented in` (requirements) |
 
 | Command | Behavior |

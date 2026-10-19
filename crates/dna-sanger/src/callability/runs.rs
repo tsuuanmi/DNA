@@ -89,6 +89,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-CALL-004
     #[test]
     fn finds_long_homopolymers_and_ignores_short_or_broken_runs() {
         let runs = find(&channels("ACCCCCCCCTAAAAAAAACCCCNCCCC"), 8);
@@ -109,6 +110,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-004
     #[test]
     fn finds_dinucleotide_tandem_repeats_in_call_order() {
         let runs = find(&channels("GACACACACACGTGTGTGTGTT"), 8);

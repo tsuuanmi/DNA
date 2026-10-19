@@ -413,6 +413,7 @@ mod tests {
             .collect())
     }
 
+    // SRS-OUT-008
     #[test]
     fn appends_one_line_record_per_event_across_operations() -> TestResult {
         let directory = tempdir()?;
@@ -449,6 +450,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-OUT-008
     #[test]
     fn escapes_record_delimiters_and_control_characters() -> TestResult {
         let directory = tempdir()?;
@@ -474,6 +476,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-OUT-008
     #[test]
     fn appends_records_captured_on_worker_threads_in_the_order_given() -> TestResult {
         let directory = tempdir()?;

@@ -55,6 +55,7 @@ mod tests {
 
     use super::*;
 
+    // SRS-BC-003
     #[test]
     fn selects_each_channel_independently_and_falls_back_to_locus_position() {
         let trace = Chromatogram {

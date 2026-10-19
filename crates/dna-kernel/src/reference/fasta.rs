@@ -129,6 +129,7 @@ mod tests {
         Ok((directory, path))
     }
 
+    // SRS-IN-005
     #[test]
     fn loads_one_record_and_preserves_dna_reference_semantics() -> Result<()> {
         let (_directory, path) =
@@ -143,6 +144,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-005 SRS-IN-006
     #[test]
     fn rejects_multiple_records() -> Result<()> {
         let (_directory, path) = write_reference(b">one\nACGT\n>two\nACGT\n")?;
@@ -153,6 +155,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-006
     #[test]
     fn rejects_a_blank_header_line_as_unparseable() -> Result<()> {
         let (_directory, path) = write_reference(b">   \nACGT\n")?;
@@ -163,6 +166,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-006
     #[test]
     fn rejects_identifier_made_only_of_unicode_whitespace() -> Result<()> {
         let (_directory, path) = write_reference(">\u{a0}\nACGT\n".as_bytes())?;
@@ -173,6 +177,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-005 SRS-IN-006
     #[test]
     fn rejects_empty_sequence() -> Result<()> {
         let (_directory, path) = write_reference(b">ref\n")?;
@@ -183,6 +188,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-005 SRS-IN-006
     #[test]
     fn rejects_unsupported_reference_base() -> Result<()> {
         let (_directory, path) = write_reference(b">ref\nACGR\n")?;
@@ -193,6 +199,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-005 SRS-IN-006 SRS-CFG-006
     #[test]
     fn rejects_reference_above_length_cap() -> Result<()> {
         let sequence = "A".repeat(MAX_REFERENCE_LENGTH + 1);
@@ -207,6 +214,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-006
     #[test]
     fn rejects_non_utf8_reference() -> Result<()> {
         let (_directory, path) = write_reference(&[b'>', b'r', b'e', b'f', b'\n', 0xff, b'\n'])?;

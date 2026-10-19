@@ -28,6 +28,7 @@ fn dna_binary() -> String {
 }
 const REPRESENTATIVE_TRACE_STEM: &str = "E01_20260504_2544522_HV1F_13";
 
+// SRS-SIG-003 SRS-IN-010 SRS-OUT-001 SRS-OUT-002 SRS-OUT-003 SRS-OUT-004 SRS-OUT-005 SRS-OUT-007 SRS-OUT-008 SRS-CFG-005 SRS-PRF-007
 #[test]
 fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>> {
     let first = tempdir()?;
@@ -220,6 +221,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
+// SRS-PRF-005
 #[test]
 fn fails_closed_when_the_profile_names_another_reference() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -248,6 +250,7 @@ fn fails_closed_when_the_profile_names_another_reference() -> Result<(), Box<dyn
     Ok(())
 }
 
+// SRS-CFG-002
 #[test]
 fn requires_the_configured_profile_file() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -266,6 +269,7 @@ fn requires_the_configured_profile_file() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+// SRS-IN-003
 #[test]
 fn reorders_noncanonical_fwo_channels() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -284,6 +288,7 @@ fn reorders_noncanonical_fwo_channels() -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+// SRS-IN-004
 #[test]
 fn ignores_unused_p2ba_content() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -298,6 +303,7 @@ fn ignores_unused_p2ba_content() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// SRS-IN-003 SRS-IN-006
 #[test]
 fn rejects_decreasing_ploc_without_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -317,6 +323,7 @@ fn rejects_decreasing_ploc_without_output() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
+// SRS-SIG-007
 /// A trace shorter than one signal window fails typed in signal processing,
 /// before basecalling, and publishes nothing (SRS-SIG-007); a single locus
 /// fails the same way rather than in locus-window geometry.
@@ -344,6 +351,7 @@ fn rejects_a_trace_shorter_than_the_signal_window() -> Result<(), Box<dyn std::e
     Ok(())
 }
 
+// SRS-BC-001 SRS-IN-003
 #[test]
 fn merges_a_repeated_ploc_position_with_its_vendor_entries()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -370,6 +378,7 @@ fn merges_a_repeated_ploc_position_with_its_vendor_entries()
     Ok(())
 }
 
+// SRS-IN-003 SRS-IN-006
 #[test]
 fn rejects_out_of_range_ploc_without_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -389,6 +398,7 @@ fn rejects_out_of_range_ploc_without_output() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+// SRS-SIG-010, SRS-SIG-011, SRS-IN-008
 #[test]
 fn preserves_vendor_length_mismatch_as_integrity_evidence() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -415,6 +425,7 @@ fn preserves_vendor_length_mismatch_as_integrity_evidence() -> Result<(), Box<dy
     Ok(())
 }
 
+// SRS-SIG-010, SRS-SIG-011
 #[test]
 fn reports_exact_signal_clipping_without_reclassifying_the_read()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -444,6 +455,7 @@ fn reports_exact_signal_clipping_without_reclassifying_the_read()
     Ok(())
 }
 
+// SRS-BC-001 SRS-IN-008
 #[test]
 fn processes_only_valid_ploc_loci_when_vendor_series_are_longer()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -476,6 +488,8 @@ fn processes_only_valid_ploc_loci_when_vendor_series_are_longer()
     Ok(())
 }
 
+// SRS-BC-006, SRS-QC-004
+// SRS-VAR-005, SRS-VAR-006
 #[test]
 fn reports_snv_with_peaks_and_quality() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -528,6 +542,7 @@ fn reports_snv_with_peaks_and_quality() -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+// SRS-VAR-012
 #[test]
 fn excludes_mixed_supporting_snv_without_erasing_the_observation()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -553,6 +568,7 @@ fn excludes_mixed_supporting_snv_without_erasing_the_observation()
     Ok(())
 }
 
+// SRS-SIG-006
 #[test]
 fn annotates_noisy_region_without_filtering_supported_snv() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -610,6 +626,7 @@ fn annotates_noisy_region_without_filtering_supported_snv() -> Result<(), Box<dy
     Ok(())
 }
 
+// SRS-VAR-011
 #[test]
 fn reports_extracted_snv_at_peak_floor() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -632,6 +649,7 @@ fn reports_extracted_snv_at_peak_floor() -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+// SRS-VAR-011 SRS-OUT-009
 #[test]
 fn filters_extracted_snv_below_peak_floor() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -667,6 +685,7 @@ fn filters_extracted_snv_below_peak_floor() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
+// SRS-VAR-010 SRS-PRF-004
 #[test]
 fn filters_by_normalized_anchor_region() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -694,6 +713,7 @@ fn filters_by_normalized_anchor_region() -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+// SRS-VAR-008
 #[test]
 fn maps_reverse_snv_to_original_call_and_ploc() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -728,6 +748,7 @@ fn maps_reverse_snv_to_original_call_and_ploc() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+// SRS-VAR-006
 #[test]
 fn reports_insertion_support_and_flanks() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -781,6 +802,7 @@ fn reports_insertion_support_and_flanks() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+// SRS-VAR-011
 #[test]
 fn filters_multibase_insertion_when_any_inserted_peak_is_low()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -802,6 +824,7 @@ fn filters_multibase_insertion_when_any_inserted_peak_is_low()
     Ok(())
 }
 
+// SRS-VAR-006
 #[test]
 fn reports_deletion_with_flanks_only() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -832,6 +855,7 @@ fn reports_deletion_with_flanks_only() -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
+// SRS-ALN-004
 #[test]
 fn represents_circular_origin_wrap() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -860,6 +884,7 @@ fn represents_circular_origin_wrap() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// SRS-ALN-004
 #[test]
 fn maps_circular_origin_snv_to_original_call_and_ploc() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -885,6 +910,7 @@ fn maps_circular_origin_snv_to_original_call_and_ploc() -> Result<(), Box<dyn st
     Ok(())
 }
 
+// SRS-IN-004
 #[test]
 fn accepts_iupac_vendor_calls_and_char_pcon() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -908,6 +934,7 @@ fn accepts_iupac_vendor_calls_and_char_pcon() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+// SRS-IN-002 SRS-IN-006 SRS-OUT-006
 #[test]
 fn malformed_abif_leaves_no_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -929,6 +956,7 @@ fn malformed_abif_leaves_no_output() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// SRS-OUT-006
 #[test]
 fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -954,6 +982,7 @@ fn refuses_to_overwrite_completed_output() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+// SRS-CALL-010, SRS-CALL-011, SRS-CALL-012, SRS-QC-004
 /// Read callability (ADR-0067): an SNV right after a long homopolymer is
 /// reported while the signal stays in phase, and is no candidate at all once
 /// a shadow ladder masks the calls after the run.
@@ -999,6 +1028,8 @@ fn reports_an_snv_after_a_homopolymer_only_while_the_signal_is_in_phase()
     Ok(())
 }
 
+// SRS-CALL-011, SRS-CALL-012
+// SRS-ALN-015, SRS-VAR-013
 /// Read callability (ADR-0067): an internal mixed-signal stretch stays inside
 /// the trim interval, aligns as unresolved, and supports no variant, while an
 /// SNV in the callable signal after it is reported.
@@ -1074,6 +1105,7 @@ fn aligns_an_internal_masked_stretch_as_unresolved() -> Result<(), Box<dyn std::
     Ok(())
 }
 
+// SRS-CALL-003, SRS-CALL-004, SRS-CALL-005, SRS-CALL-006
 /// Read callability (ADR-0067): a slippage shadow ladder behind a long
 /// homopolymer is published as a dephased segment attributed to the repeat,
 /// while the in-phase prefix through the run's last call stays callable.
@@ -1124,6 +1156,7 @@ fn publishes_a_dephased_segment_after_a_long_homopolymer() -> Result<(), Box<dyn
     Ok(())
 }
 
+// SRS-CALL-003, SRS-CALL-005
 /// Two-sided slippage (shorter and longer length populations) behind a long
 /// homopolymer is dephased with shadows on both sides, not mixed.
 #[test]
@@ -1155,6 +1188,7 @@ fn publishes_two_sided_shadows_after_a_long_homopolymer() -> Result<(), Box<dyn 
     Ok(())
 }
 
+// SRS-CALL-003, SRS-CALL-005
 /// Double peaks that no neighbour offset explains are a mixed segment, and a
 /// collapsed tail is weak; neither is attributed to a repeat.
 #[test]
@@ -1200,6 +1234,7 @@ fn publishes_mixed_and_weak_segments_without_a_repeat() -> Result<(), Box<dyn st
     Ok(())
 }
 
+// SRS-VAR-018
 /// Regression: an indel flank whose two strongest channels tie is an unresolved
 /// `N` with no primary event; the analysis does not fail, and the deletion it
 /// flanks is not reported, since an `N` cannot place it (`unresolved_flank`,
@@ -1227,6 +1262,7 @@ fn excludes_a_deletion_with_an_unresolved_flank_without_failing()
     Ok(())
 }
 
+// SRS-VAR-018
 /// Regression: a flank whose four channels all qualify is called `N` despite a
 /// primary event; the deletion it flanks is not reported (`unresolved_flank`).
 #[test]
@@ -1258,6 +1294,7 @@ fn excludes_a_deletion_with_a_mixed_signal_flank_called_n() -> Result<(), Box<dy
 
 /// Every operation-log write fails (ENOSPC): the run fails fast on the first
 /// record with the log error and publishes no result.
+// SRS-OUT-006 SRS-OUT-008
 #[cfg(target_os = "linux")]
 #[test]
 fn unwritable_operation_log_fails_fast_without_publishing_a_result()

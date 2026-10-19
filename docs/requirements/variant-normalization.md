@@ -1,6 +1,7 @@
 ---
 decided-by: [ADR-0060]
 verified-by: [crates/dna-normalize/src/variant_normalization]
+unverified: [SRS-VN-001, SRS-VN-003, SRS-VN-004, SRS-VN-009, SRS-VN-010]
 ---
 
 # Variant Normalization Requirements

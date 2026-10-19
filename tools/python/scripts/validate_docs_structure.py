@@ -131,6 +131,7 @@ def main() -> None:
             *sorted(path for path in source.rglob("*") if path.is_dir()),
         ]
     ]
+    # SRS-NFR-004
     for directory in source_directories:
         if not (directory / "README.md").is_file():
             errors.append(

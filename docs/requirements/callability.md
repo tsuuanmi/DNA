@@ -2,6 +2,7 @@
 implements: [SRS-ALN, SRS-CFG, SRS-QC, SRS-SAMPLE, SRS-VAR]
 decided-by: [ADR-0067, ADR-0076, ADR-0080, ADR-0082]
 verified-by: [crates/dna-sanger/src/callability]
+unverified: [SRS-CALL-001, SRS-CALL-007, SRS-CALL-008]
 ---
 
 # Signal-derived Read Callability Requirements

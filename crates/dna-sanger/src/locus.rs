@@ -78,6 +78,7 @@ mod tests {
         assert_eq!(windows(&trace), Err(LocusWindowError::TooFewLoci));
     }
 
+    // SRS-BC-002
     #[test]
     fn keeps_each_locus_inside_its_window_when_loci_are_one_sample_apart()
     -> Result<(), LocusWindowError> {
@@ -101,6 +102,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-002
     #[test]
     fn builds_neighbor_midpoint_windows() -> Result<(), LocusWindowError> {
         let trace = Chromatogram {

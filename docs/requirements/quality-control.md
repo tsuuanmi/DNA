@@ -1,6 +1,7 @@
 ---
 implements: [SRS-CALL]
 verified-by: [crates/dna-sanger/src/quality_control]
+unverified: [SRS-QC-002, SRS-QC-005]
 ---
 
 # Quality Control Requirements

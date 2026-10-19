@@ -66,6 +66,7 @@ fn document(workdir: &Path) -> Result<Value, Box<dyn std::error::Error>> {
 
 /// Two reads that agree on a substitution give it in the consensus sequence,
 /// its FASTA, and one called site naming both reads.
+// SRS-CONS-001, SRS-CONS-004, SRS-CONS-007, SRS-IN-010, SRS-OUT-001, SRS-OUT-002
 #[test]
 fn agreeing_reads_call_their_difference() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -159,6 +160,7 @@ fn a_read_shorter_than_the_signal_window_is_rejected() -> Result<(), Box<dyn std
 
 /// One read against one read keeps the reference base and marks the site
 /// contested.
+// SRS-CONS-005, SRS-CONS-007
 #[test]
 fn a_lone_difference_against_a_reference_read_is_contested()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -207,6 +209,7 @@ fn stable_record(line: &str) -> String {
 /// Reads on one CPU and on every available CPU give the same documents and the
 /// same log, apart from timestamps, run ids, and timings (SRS-SAMPLE-001,
 /// SRS-OUT-008).
+// SRS-OUT-007 SRS-OUT-008
 #[cfg(target_os = "linux")]
 #[test]
 fn one_worker_and_many_publish_the_same_documents_and_log() -> Result<(), Box<dyn std::error::Error>>
@@ -267,6 +270,7 @@ fn one_worker_and_many_publish_the_same_documents_and_log() -> Result<(), Box<dy
     Ok(())
 }
 
+// SRS-VAR-021
 /// `call` takes the consensus document on its own, of the requested sample
 /// (PROP-0006).
 #[test]

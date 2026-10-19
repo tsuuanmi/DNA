@@ -936,12 +936,9 @@ class Graph:
         implemented: set[str] = set()
         verified: set[str] = set()
         waived: set[str] = set()
-        verifying: set[Doc] = set()
         for doc in self.docs:
             implemented |= {strip_wiki(e) for e in doc.fm.get("implements", [])}
             verified |= {strip_wiki(e) for e in doc.fm.get("verified-by", [])}
-            if doc.fm.get("verified-by"):
-                verifying.add(doc)
             waived |= {strip_wiki(e) for e in doc.fm.get("unverified", [])}
         for doc in self.docs:
             if not doc.items or doc.type != "requirement":
@@ -955,7 +952,6 @@ class Graph:
                 i
                 for i in doc.items
                 if i not in sources
-                and doc not in verifying
                 and i not in verified
                 and i not in waived
                 and re.sub(r"-\d+$", "", i) not in waived
@@ -1203,8 +1199,8 @@ class Graph:
     def gen_coverage(self, doc: Doc) -> list[str]:
         cited = self.source_text()
         rows = [
-            "| Namespace | Defined in | Items | Implemented in | Decisions | Source covered | Cited in code |",
-            "|---|---|---|---|---|---|---|",
+            "| Namespace | Defined in | Items | Implemented in | Decisions | Source covered | Cited in code | Unverified |",
+            "|---|---|---|---|---|---|---|---|",
         ]
         for namespace in sorted(self.namespaces):
             definers = self.namespaces[namespace]
@@ -1236,6 +1232,10 @@ class Graph:
                 {strip_wiki(e) for d in implementers for e in d.fm.get("covers", [])}
             )
             cites = len([i for i in items if i in cited])
+            waived = {
+                strip_wiki(e) for d in definers for e in d.fm.get("unverified", [])
+            }
+            unverified = len([i for i in items if i in waived and i not in cited])
 
             def link(d: Doc) -> str:
                 return f"[{d.ident or 'docs'}]({self.link(doc, d)})"
@@ -1246,7 +1246,7 @@ class Graph:
             rows.append(
                 f"| `{namespace}` | {', '.join(link(d) for d in definers)} | {len(items)} | "
                 f"{', '.join(link(d) for d in implementers) or '—'} | "
-                f"{', '.join(self.ref(doc, d) for d in decisions) or '—'} | {shown or '—'} | {cites}/{len(items)} |"
+                f"{', '.join(self.ref(doc, d) for d in decisions) or '—'} | {shown or '—'} | {cites}/{len(items)} | {unverified} |"
             )
         return rows
 

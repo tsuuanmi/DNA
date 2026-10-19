@@ -1733,6 +1733,7 @@ mod tests {
         Ok(observe(&read, &settings, reference.sequence.as_bytes(), 4))
     }
 
+    // SRS-CONS-003
     #[test]
     fn an_exempt_run_trusts_its_matches_but_never_a_substituted_call()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -1753,6 +1754,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-003
     #[test]
     fn an_exempt_run_bound_on_another_base_keeps_its_trust()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -1768,6 +1770,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-003
     #[test]
     fn each_placement_and_verdict_maps_to_one_trust_level()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -1803,6 +1806,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-003
     #[test]
     fn each_use_of_a_call_reads_its_own_reasons()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -1841,6 +1845,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-009
     #[test]
     fn an_indel_with_an_undecided_neighbour_stays_undecided() {
         let decision = |value: Option<&str>| Decision {
@@ -1885,6 +1890,7 @@ mod tests {
             .find(|site| (site.first_0based..=site.last_0based).contains(&position))
     }
 
+    // SRS-CONS-004, SRS-CONS-005
     #[test]
     fn agreeing_reads_give_their_haplotype() -> std::result::Result<(), Box<dyn std::error::Error>>
     {
@@ -1928,6 +1934,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-005
     #[test]
     fn a_lone_read_against_a_reference_read_is_contested()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -1974,6 +1981,7 @@ mod tests {
         Ok(read)
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_reference_only_call_confirms_the_reference_and_nothing_else()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -2003,6 +2011,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_confirmation_beside_a_differing_site_is_withdrawn()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -2035,6 +2044,7 @@ mod tests {
         Ok(read)
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_reference_only_call_at_an_edge_confirms_clear_of_the_read_ends()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -2047,6 +2057,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_confirmation_beside_any_observed_difference_is_withdrawn()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -2071,6 +2082,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_stretch_is_decided_without_confirmations() {
         // T12C merges the tract into one stretch (7-16). A second read reads
@@ -2097,6 +2109,7 @@ mod tests {
         assert_eq!(decided(true), decided(false));
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_confirmation_never_closes_an_unobserved_junction_in_a_long_run() {
         // The C run at 7-11 of the tract, five long. A confirmation at 9 with
@@ -2118,6 +2131,7 @@ mod tests {
         assert!(confirmations(6));
     }
 
+    // SRS-CONS-010
     #[test]
     fn a_second_sequence_any_read_shows_withdraws_a_confirmation() {
         // Two reads at position 14: the first confirms the reference with a
@@ -2151,6 +2165,7 @@ mod tests {
         assert!(!observations(true, (true, None, true)));
     }
 
+    // SRS-CONS-003, SRS-CONS-006
     #[test]
     fn masked_calls_never_decide() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // The variant read's call at 10 is masked: the reference read decides.
@@ -2176,6 +2191,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-003
     #[test]
     fn no_masked_call_places_a_substitution_or_an_indel()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -2224,6 +2240,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-003
     #[test]
     fn an_insertion_into_a_run_the_read_does_not_bound_never_decides()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -2341,6 +2358,7 @@ mod tests {
     /// An A-tract, then the C-tract `CCCCCTCCCC` (0-based 7-16).
     const TRACT: &str = "GTCAAAACCCCCTCCCCATG";
 
+    // SRS-CONS-004, SRS-CONS-008
     #[test]
     fn a_run_two_reads_enter_from_its_ends_takes_their_agreed_count() {
         // T12C merges the tract. The forward read enters it in phase and
@@ -2390,6 +2408,7 @@ mod tests {
         assert_eq!(decision.runs, [run('C', 10, RunEvidence::ReferenceFrame)]);
     }
 
+    // SRS-CONS-004
     #[test]
     fn a_clean_end_holding_every_run_does_not_stand_for_a_read_with_more_runs() {
         // The tract CCCCC T CCCC (7-16). One read shows its run structure
@@ -2414,6 +2433,7 @@ mod tests {
         );
     }
 
+    // SRS-CONS-004
     #[test]
     fn a_read_reading_only_the_exit_cleanly_opposes_a_run_that_swallows_it() {
         // The forward read reads the whole stretch 3-17 as `AAAA` and eleven
@@ -2436,6 +2456,7 @@ mod tests {
         assert_eq!(alone.value.as_deref(), Some("AAAACCCCCCCCCCC"));
     }
 
+    // SRS-CONS-004, SRS-CONS-008
     #[test]
     fn a_read_losing_phase_in_a_run_does_not_decide_what_follows_it() {
         // The forward read reads an eleventh C in phase over the A at 17 before
@@ -2469,6 +2490,7 @@ mod tests {
     const WINDOW: &str = "GTCAAACCCCCCCTCCCCCGCTT";
     const WINDOW_ROW: &str = "GTCAAACCCCCCC--TCCCCC-GCTT";
 
+    // SRS-CONS-004, SRS-CONS-008
     #[test]
     fn a_run_read_until_phase_loss_takes_its_in_phase_length() {
         // A C9 T C6 haplotype; the only read loses phase where the C9 run
@@ -2492,6 +2514,7 @@ mod tests {
         );
     }
 
+    // SRS-CONS-004, SRS-CONS-008
     #[test]
     fn a_lone_unresolved_call_at_a_run_end_shows_an_anchored_end() {
         // The same read, its phase lost through one unresolved call before a
@@ -2508,6 +2531,7 @@ mod tests {
         assert_eq!(decision.runs[0], run('C', 9, RunEvidence::AnchoredEnd));
     }
 
+    // SRS-CONS-004
     #[test]
     fn a_disputed_run_no_read_bounds_seeds_a_stretch() {
         // A C inserted into the C7 run (0-based 6-12) through masked calls: the
@@ -2527,6 +2551,7 @@ mod tests {
         assert!(stretches(&[inserting(), bounding], WINDOW.as_bytes(), 4).is_empty());
     }
 
+    // SRS-CONS-007
     #[test]
     fn an_estimated_length_equal_to_the_reference_keeps_its_site() {
         let estimated = |evidence: RunEvidence| {
@@ -2556,6 +2581,7 @@ mod tests {
         assert_eq!(estimated(RunEvidence::InPhase), 0);
     }
 
+    // SRS-CONS-004
     #[test]
     fn reads_that_place_a_run_boundary_differently_are_decided_by_position() {
         // One read deletes a T, the other substitutes it: their run lengths

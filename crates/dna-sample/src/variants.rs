@@ -192,6 +192,7 @@ mod tests {
         }
     }
 
+    // SRS-SAMPLE-028
     #[test]
     fn spans_the_anchored_reference_allele_and_both_sides_of_an_insertion() {
         assert_eq!(evidence_span(&key(73, "A", VariantKind::Snv)), 72..73);

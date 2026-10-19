@@ -146,6 +146,7 @@ mod tests {
         }
     }
 
+    // SRS-CALL-002
     #[test]
     fn ranks_channels_with_lower_index_winning_ties() {
         assert_eq!(rank([5.0, 9.0, 9.0, 1.0]), (Some(1), Some(2)));
@@ -153,6 +154,7 @@ mod tests {
         assert_eq!(rank([0.0, 3.0, 0.0, 0.0]), (Some(1), Some(0)));
     }
 
+    // SRS-CALL-002
     #[test]
     fn computes_dominance_ratio_and_weakness() -> Result<()> {
         let features = calculate(
@@ -178,6 +180,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-002
     #[test]
     fn measures_spacing_deviation_against_the_local_median() -> Result<()> {
         let coordinates = [0, 12, 24, 36, 48, 60, 90, 102, 114];

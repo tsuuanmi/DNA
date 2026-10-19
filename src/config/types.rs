@@ -156,6 +156,7 @@ mod tests {
         Ok(raw.validate("dna.toml".into(), String::new()))
     }
 
+    // SRS-CFG-003
     #[test]
     fn rejects_out_of_range_values_with_the_offending_key()
     -> std::result::Result<(), toml::de::Error> {
@@ -196,6 +197,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CFG-002
     #[test]
     fn resolves_the_profile_against_the_configuration_directory()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -220,6 +222,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CFG-002 SRS-CFG-003
     #[test]
     fn rejects_old_schema_and_missing_required_fields() -> std::result::Result<(), toml::de::Error>
     {
@@ -252,6 +255,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-002 SRS-CFG-003 SRS-CFG-009
     #[test]
     fn rejects_invalid_signal_settings() {
         for invalid in [
@@ -269,6 +273,7 @@ mod tests {
         }
     }
 
+    // SRS-CALL-002 SRS-CFG-003 SRS-CFG-008
     #[test]
     fn rejects_invalid_callability_settings() {
         for invalid in [
@@ -299,6 +304,7 @@ mod tests {
         );
     }
 
+    // SRS-CFG-003 SRS-CFG-009
     #[test]
     fn rejects_invalid_read_edge_settings() {
         for invalid in [
@@ -318,6 +324,7 @@ mod tests {
         }
     }
 
+    // SRS-CFG-003 SRS-CFG-009
     #[test]
     fn rejects_invalid_consensus_and_stretch_settings() {
         for invalid in [
@@ -334,6 +341,7 @@ mod tests {
         }
     }
 
+    // SRS-CFG-003 SRS-CFG-007
     #[test]
     fn rejects_invalid_sample_reconciliation_settings() {
         for invalid in [
@@ -358,6 +366,7 @@ mod tests {
         }
     }
 
+    // SRS-CFG-003 SRS-CFG-006 SRS-PRF-001
     #[test]
     fn rejects_invalid_filter_thresholds() {
         for invalid in [

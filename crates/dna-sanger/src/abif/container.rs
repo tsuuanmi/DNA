@@ -178,6 +178,7 @@ mod tests {
     const DIRECTORY_ENTRY_SIZE_U32: u32 = 28;
     const PAYLOAD_OFFSET_U32: u32 = 92;
 
+    // SRS-IN-007
     #[test]
     fn accepts_oversized_root_directory_allocation() -> Result<()> {
         let mut bytes = vec![0_u8; DIRECTORY_OFFSET + 56];
@@ -201,6 +202,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-007
     #[test]
     fn returns_logical_payload_from_oversized_external_allocation() -> Result<()> {
         let payload_offset = DIRECTORY_OFFSET + DIRECTORY_ENTRY_SIZE;
@@ -226,6 +228,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-007
     #[test]
     fn rejects_allocation_smaller_than_logical_payload() {
         let mut bytes = vec![0_u8; DIRECTORY_OFFSET + DIRECTORY_ENTRY_SIZE];
@@ -255,6 +258,7 @@ mod tests {
         ));
     }
 
+    // SRS-IN-002
     #[test]
     fn rejects_content_without_abif_signature() {
         assert!(matches!(

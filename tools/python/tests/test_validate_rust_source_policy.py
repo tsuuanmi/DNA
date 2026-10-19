@@ -30,6 +30,7 @@ class RustSourcePolicyTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    # SRS-NFR-005
     def test_rejects_deprecated_api_declarations(self) -> None:
         result = self.run_policy(
             '#[deprecated(note = "old API")]\npub fn old_api() {}\n'
@@ -37,16 +38,19 @@ class RustSourcePolicyTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("deprecated-api", result.stderr)
 
+    # SRS-NFR-005
     def test_rejects_warning_suppression_for_stale_code(self) -> None:
         result = self.run_policy("#[allow(dead_code)]\nfn unused_path() {}\n")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("lint-suppression", result.stderr)
 
+    # SRS-NFR-005
     def test_rejects_explicit_compatibility_identifiers(self) -> None:
         result = self.run_policy("fn legacy_adapter() {}\n")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("legacy-identifier", result.stderr)
 
+    # SRS-NFR-005
     def test_rejects_compatibility_feature_gates(self) -> None:
         result = self.run_policy('#[cfg(feature = "legacy-output")]\nfn output() {}\n')
         self.assertNotEqual(result.returncode, 0)

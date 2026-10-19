@@ -222,6 +222,7 @@ mod tests {
         right_align(REFERENCE, &alternate, &source, bounds, 20)
     }
 
+    // SRS-VN-008
     #[test]
     fn a_deletion_that_runs_into_a_substitution_trades_past_it() -> RepresentationResult<()> {
         // `16297DEL 16298C` over `TT`: the shift would delete the substituted
@@ -236,6 +237,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VN-008
     #[test]
     fn a_deletion_trades_within_its_bounds() -> RepresentationResult<()> {
         let traded = vec![edit(3, 4, "C"), edit(7, 8, "C"), edit(8, 9, "")];
@@ -250,6 +252,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VN-008
     #[test]
     fn a_deletion_trades_neither_across_a_window_boundary_nor_an_unread_base()
     -> RepresentationResult<()> {

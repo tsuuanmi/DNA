@@ -139,6 +139,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-CALL-003, SRS-CALL-005
     #[test]
     fn labels_double_peak_runs_from_their_shadow_fit() {
         let dephased = ShadowFit {
@@ -159,6 +160,7 @@ mod tests {
         assert_eq!(double_state(None, &RULES), (PhaseState::Mixed, None));
     }
 
+    // SRS-CALL-003, SRS-CALL-004
     #[test]
     fn labels_weak_and_irregular_runs_and_attributes_runs_after_a_repeat() {
         let callable = [false, false, false, true, true, true, true, false, false];
@@ -198,6 +200,7 @@ mod tests {
         assert!(labelled[2].after_repeat);
     }
 
+    // SRS-CALL-003
     #[test]
     fn labels_a_short_double_peak_run_mixed() {
         let callable = [true, true, false, false, false, true, true];

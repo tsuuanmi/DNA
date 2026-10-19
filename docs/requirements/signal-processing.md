@@ -5,6 +5,7 @@ verified-by:
   - crates/dna-sanger/src/locus.rs
   - crates/dna-sanger/src/model/locus_evidence.rs
   - crates/dna-sanger/src/signal_processing
+unverified: [SRS-SIG-001]
 ---
 
 # Observational Signal Processing Requirements

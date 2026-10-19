@@ -1,6 +1,7 @@
 ---
 decided-by: [ADR-0065, ADR-0075]
 verified-by: [crates/dna-eval/src]
+unverified: [SRS-COMPAT-001, SRS-COMPAT-002]
 ---
 
 # System Constraints

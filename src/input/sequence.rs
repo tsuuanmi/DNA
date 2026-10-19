@@ -258,6 +258,7 @@ pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
 mod tests {
     use super::*;
 
+    // SRS-IN-013
     #[test]
     fn parses_records_and_normalizes_case() -> Result<()> {
         let reads = parse(b">HV1 reviewed\nacgT\nNY\n>HV2|68-340\nGG\n")?;
@@ -269,6 +270,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-006 SRS-IN-013
     #[test]
     fn rejects_invalid_records() {
         assert!(parse(b"").is_err());
@@ -291,6 +293,7 @@ mod tests {
         assert!(require_unique(&reads(["a", "b"], ["AC", "GT"])).is_ok());
     }
 
+    // SRS-VAR-015
     #[test]
     fn builds_vouched_evidence_with_iupac_profiles() -> Result<()> {
         let read = SequenceRead {

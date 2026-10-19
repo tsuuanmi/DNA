@@ -75,6 +75,7 @@ rules = ["anchored_run_lengths"]
     Ok(Profile::load(&path)?)
 }
 
+// SRS-VN-005 SRS-VN-011 SRS-NOM-003
 #[test]
 fn normalization_result_exposes_complete_read_only_nomenclature_context()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -98,6 +99,7 @@ fn normalization_result_exposes_complete_read_only_nomenclature_context()
     Ok(())
 }
 
+// SRS-NOM-003 SRS-NOM-005 SRS-API-008 SRS-PRF-001
 #[test]
 fn hv2_anchor_shift_is_represented_as_run_length_change() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -131,6 +133,7 @@ fn hv2_anchor_shift_is_represented_as_run_length_change() -> Result<(), Box<dyn 
     Ok(())
 }
 
+// SRS-NOM-003 SRS-NOM-006
 #[test]
 fn hv2_multiple_c_insertions_keep_309_and_315_run_boundaries()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -162,6 +165,7 @@ fn hv2_multiple_c_insertions_keep_309_and_315_run_boundaries()
     Ok(())
 }
 
+// SRS-NOM-003 SRS-NOM-005 SRS-NOM-007
 #[test]
 fn hv2_nomenclature_preserves_variants_outside_the_window() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -195,6 +199,7 @@ fn hv2_nomenclature_preserves_variants_outside_the_window() -> Result<(), Box<dy
     Ok(())
 }
 
+// SRS-NOM-003 SRS-NOM-004 SRS-NOM-014 SRS-NOM-015
 #[test]
 fn human_mtdna_profile_names_hvs3_and_hvs1_forms_on_the_rcrs()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -246,6 +251,7 @@ fn human_mtdna_profile_names_hvs3_and_hvs1_forms_on_the_rcrs()
     Ok(())
 }
 
+// SRS-NOM-004 SRS-API-008 SRS-PRF-005
 #[test]
 fn a_profile_fails_closed_on_another_reference() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

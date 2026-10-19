@@ -88,6 +88,7 @@ fn unique(result: UpperBoundPlacement) -> RawAlignment {
     }
 }
 
+// SRS-ALN-013
 #[test]
 fn proves_unique_gapless_upper_bound_placement() {
     let query = "ACGT";
@@ -106,6 +107,7 @@ fn proves_unique_gapless_upper_bound_placement() {
     assert_eq!(alignment.metrics.gap_opens, 0);
 }
 
+// SRS-ALN-013
 #[test]
 fn proof_follows_profile_optimum_not_primary_sequence() {
     let alignment = unique(upper_bound_on(
@@ -122,6 +124,7 @@ fn proof_follows_profile_optimum_not_primary_sequence() {
     assert_eq!(alignment.metrics.mismatches, 1);
 }
 
+// SRS-ALN-013
 #[test]
 fn reports_multiple_upper_bound_placements_as_ambiguous() {
     assert!(matches!(
@@ -130,6 +133,7 @@ fn reports_multiple_upper_bound_placements_as_ambiguous() {
     ));
 }
 
+// SRS-ALN-013
 #[test]
 fn distinguishes_unattained_bound_from_unprovable_bound() {
     assert!(matches!(
@@ -160,6 +164,7 @@ fn distinguishes_unattained_bound_from_unprovable_bound() {
     ));
 }
 
+// SRS-ALN-013
 #[test]
 fn over_limit_problem_falls_back_to_authoritative_gotoh() {
     let query = "A".repeat(2_000);
@@ -208,6 +213,7 @@ fn require_pruned(value: Pruned, scenario: &str) -> TestResult<Vec<RawAlignment>
     }
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_matches_gotoh_for_one_snv() -> TestResult {
     let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -226,6 +232,7 @@ fn seeded_pruning_matches_gotoh_for_one_snv() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_matches_gotoh_for_one_insertion() -> TestResult {
     let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -243,6 +250,7 @@ fn seeded_pruning_matches_gotoh_for_one_insertion() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> TestResult {
     let reference_query = "GCCAAAAGTTACGTCAGTACGATCGTAC";
@@ -266,6 +274,7 @@ fn seeded_pruning_preserves_rightmost_homopolymer_deletion() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_preserves_distinct_equal_placements() -> TestResult {
     let motif = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -285,6 +294,7 @@ fn seeded_pruning_preserves_distinct_equal_placements() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_supports_circular_non_origin_windows() -> TestResult {
     let reference = "ACGTCAGTACGATCGTACCTGAGTACGATTTTGGGGCCCCAAAATTTT";
@@ -330,6 +340,7 @@ fn reverse_complement(sequence: &str) -> String {
         .collect()
 }
 
+// SRS-ALN-014
 /// The seed lower bound is the score of a valid alignment, so a complete
 /// proof at that threshold that finds no placement is an internal fault, not a
 /// reason to fall back.
@@ -349,6 +360,7 @@ fn empty_proof_at_the_seed_lower_bound_is_inconsistent() {
     ));
 }
 
+// SRS-ALN-014
 #[test]
 fn threshold_proof_can_exclude_opposite_orientation() -> TestResult {
     let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -377,6 +389,7 @@ fn threshold_proof_can_exclude_opposite_orientation() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_matches_gotoh_across_circular_origin() -> TestResult {
     let reference = "ACGTCAGTACGATCGTACCTGAGTACGATTGGCCAATGCATGCAAGTTCCAGTCGATGGCATCTAGGACT";
@@ -409,6 +422,7 @@ fn seeded_pruning_matches_gotoh_across_circular_origin() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-014
 /// A read spanning the whole circle whose last probe seed lands just after the
 /// origin needs a probe window reaching further back than one circle, which
 /// must start at the doubled reference's beginning rather than underflow.
@@ -450,6 +464,7 @@ fn seeded_pruning_clamps_a_window_reaching_past_the_doubled_reference_start() ->
     Ok(())
 }
 
+// SRS-ALN-014
 #[test]
 fn seeded_pruning_matches_gotoh_with_unresolved_and_mixed_loci() -> TestResult {
     let reference_query = "ACGTCAGTACGATCGTACCTGAGTACGATTGGCCAATGCATG";
@@ -515,6 +530,7 @@ fn random_profile(generator: &mut Generator, base: u8) -> Option<EvidenceProfile
     Some(EvidenceProfile { weights })
 }
 
+// SRS-ALN-014
 /// Randomized reads with substitutions, indels, unresolved and mixed loci,
 /// against linear and circular references with an `N` or a repeated unit,
 /// must prune to exactly the whole-reference Gotoh placements whenever a proof
@@ -650,6 +666,7 @@ fn seeded_pruning_matches_gotoh_on_random_reads() -> TestResult {
     Ok(())
 }
 
+// SRS-ALN-013
 #[test]
 fn proves_unique_circular_origin_crossing_placement() {
     let reference = "ACGT";

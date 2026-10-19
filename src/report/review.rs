@@ -2250,6 +2250,7 @@ mod tests {
         read.to_owned()
     }
 
+    // SRS-API-014
     #[test]
     fn labels_and_items_sort_by_priority() {
         let mut labels = vec![
@@ -2331,6 +2332,7 @@ mod tests {
         assert!(!undecided(&site(SiteState::Called, Some("T"))));
     }
 
+    // SRS-API-014
     #[test]
     fn only_labels_that_leave_an_item_unassured_make_a_check() {
         assert!(unassured(&LabelResult::Undecided));
@@ -2343,6 +2345,7 @@ mod tests {
         }));
     }
 
+    // SRS-API-014
     #[test]
     fn summary_counts_items_per_label_and_clears_only_called_samples_without_checks() {
         let variant = item(ItemKind::Variant, Vec::new());
@@ -2398,6 +2401,7 @@ mod tests {
         assert_eq!((summary.positions.reference_only, summary.clear), (2, true));
     }
 
+    // SRS-API-014
     #[test]
     fn zones_follow_the_profile_windows_and_what_the_reads_show() {
         let span = |first, last, state, after_repeat| MaskedSpanResult {

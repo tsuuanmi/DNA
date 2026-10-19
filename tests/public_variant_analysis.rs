@@ -12,6 +12,7 @@ use support::{write_abif, write_config, write_reference};
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
 
+// SRS-API-001 SRS-API-002 SRS-API-003 SRS-API-004 SRS-API-006
 #[test]
 fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -58,6 +59,7 @@ fn sanger_analysis_returns_canonical_variants_without_cli_side_effects()
     Ok(())
 }
 
+// SRS-IN-001
 #[test]
 fn sanger_analysis_accepts_abif_filename_without_extension_coupling()
 -> Result<(), Box<dyn std::error::Error>> {

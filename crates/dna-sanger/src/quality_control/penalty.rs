@@ -98,6 +98,7 @@ mod tests {
         }
     }
 
+    // SRS-QC-001
     #[test]
     fn calculates_deterministic_ambiguity_and_spacing_penalties() -> Result<()> {
         let penalties = calculate(&calls(&[0, 4, 8, 20], &['A', 'A', 'N', 'A']), 3)?;

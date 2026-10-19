@@ -510,6 +510,7 @@ mod tests {
         ))
     }
 
+    // SRS-CALL-019
     #[test]
     fn counts_every_selected_call_under_each_other_channel() -> TestResult {
         let (calls, evidence) = read("CGTNCGTAC", [0, 250, 0, 100])?;
@@ -545,6 +546,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-019
     #[test]
     fn taking_a_read_out_equals_building_without_it() -> TestResult {
         let (calls, evidence) = read("ACGTACGTAC", [100, 0, 50, 0])?;
@@ -563,6 +565,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-020
     #[test]
     fn a_level_needs_enough_reads_and_calls_and_stands_above_the_spread() {
         let key = Key {
@@ -602,6 +605,7 @@ mod tests {
         assert_eq!(signal.level(&key, &small), None);
     }
 
+    // SRS-CALL-020
     #[test]
     fn the_threshold_is_the_floor_raised_to_a_usable_run_level() {
         let key = Key {
@@ -666,6 +670,7 @@ mod tests {
         assert_eq!(threshold(Some(&key), Some(&signal), &config), floor);
     }
 
+    // SRS-CALL-019
     #[test]
     fn a_run_signal_of_another_flank_or_resolution_is_refused() {
         let signal = RunSignal::build("run".into(), BTreeSet::new(), [], &PARAMETERS);
@@ -687,6 +692,7 @@ mod tests {
         }
     }
 
+    // SRS-CALL-020, SRS-CALL-021
     #[test]
     fn a_second_template_within_its_run_level_is_context() {
         let key = Key {

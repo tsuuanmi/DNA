@@ -65,6 +65,7 @@ fn run(
         .assert()
 }
 
+// SRS-VAR-015 SRS-IN-010 SRS-IN-013 SRS-OUT-001 SRS-OUT-002 SRS-OUT-005 SRS-OUT-010
 #[test]
 fn calls_variants_from_consensus_sequences_with_the_core_alone()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -139,6 +140,7 @@ fn calls_variants_from_consensus_sequences_with_the_core_alone()
     Ok(())
 }
 
+// SRS-IN-006 SRS-IN-013
 #[test]
 fn rejects_sequences_with_unsupported_symbols() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -162,6 +164,7 @@ fn rejects_sequences_with_unsupported_symbols() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+// SRS-ALN-015, SRS-VAR-015, SRS-IN-013, SRS-OUT-005
 #[test]
 fn unresolved_bases_split_the_callable_reference_segments() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -215,6 +218,7 @@ fn unresolved_bases_split_the_callable_reference_segments() -> Result<(), Box<dy
     Ok(())
 }
 
+// SRS-IN-006
 #[test]
 fn rejects_a_sequence_without_a_resolved_base() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -233,6 +237,7 @@ fn rejects_a_sequence_without_a_resolved_base() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+// SRS-VAR-017
 #[test]
 fn a_record_placed_away_from_its_declared_interval_calls_nothing()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -285,6 +290,7 @@ fn a_record_placed_away_from_its_declared_interval_calls_nothing()
     Ok(())
 }
 
+// SRS-ALN-017
 #[test]
 fn a_deletion_beside_unresolved_bases_takes_the_3_prime_placement()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -326,6 +332,7 @@ fn a_deletion_beside_unresolved_bases_takes_the_3_prime_placement()
     Ok(())
 }
 
+// SRS-VAR-018, SRS-VAR-019
 #[test]
 fn a_deletion_after_an_unresolved_base_is_not_reported() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

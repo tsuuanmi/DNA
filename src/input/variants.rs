@@ -303,6 +303,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-014
     #[test]
     fn rejects_other_contracts_samples_references_and_variants() {
         assert!(read(&document("dna.sample_evidence/v10", "s", "SNV"), "s").is_err());

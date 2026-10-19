@@ -27,6 +27,7 @@ pub(crate) fn code(bases: &[Nucleotide]) -> char {
 mod tests {
     use super::*;
 
+    // SRS-BC-005
     #[test]
     fn maps_two_base_codes() {
         assert_eq!(code(&[Nucleotide::A, Nucleotide::G]), 'R');

@@ -284,6 +284,7 @@ mod tests {
         NonZeroUsize::new(count).unwrap_or(NonZeroUsize::MIN)
     }
 
+    // SRS-SAMPLE-001
     #[test]
     fn concurrent_results_keep_index_order() {
         for count in [1, 4, 16] {
@@ -296,6 +297,7 @@ mod tests {
         assert!(concurrently(0, workers(4), |index| index, |_| false).is_empty());
     }
 
+    // SRS-SAMPLE-001
     #[test]
     fn workers_stop_after_the_lowest_failure_and_keep_every_result_below_it() {
         for count in [1, 4, 16] {
@@ -351,6 +353,7 @@ mod tests {
         (settled, replayed)
     }
 
+    // SRS-SAMPLE-001
     #[test]
     fn an_earlier_error_wins_over_a_later_panic() {
         for threads in [1, 4] {
@@ -365,6 +368,7 @@ mod tests {
         }
     }
 
+    // SRS-SAMPLE-001
     #[test]
     fn an_earlier_panic_wins_over_a_later_error() {
         for threads in [1, 4] {

@@ -86,6 +86,7 @@ fn run_command(
     )?)?)
 }
 
+// SRS-API-009 SRS-API-010 SRS-API-011
 #[test]
 fn one_pass_returns_sample_evidence_and_consensus_without_cli_side_effects()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -125,6 +126,7 @@ fn one_pass_returns_sample_evidence_and_consensus_without_cli_side_effects()
 /// `observations` records every covered position of an interval, reference
 /// matches included, and the differential locus's observations as the sample
 /// evidence does.
+// SRS-API-013
 #[test]
 fn observations_cover_every_covered_position() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -162,6 +164,7 @@ fn observations_cover_every_covered_position() -> Result<(), Box<dyn std::error:
 
 /// The library pass and the two commands describe the same reads, variants,
 /// and consensus.
+// SRS-CONS-001 SRS-API-009
 #[test]
 fn one_pass_matches_the_sample_and_consensus_commands() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -216,6 +219,7 @@ fn one_pass_matches_the_sample_and_consensus_commands() -> Result<(), Box<dyn st
 }
 
 /// One worker and several give the same result.
+// SRS-SAMPLE-001 SRS-API-011
 #[test]
 fn the_result_does_not_depend_on_the_number_of_workers() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -231,6 +235,7 @@ fn the_result_does_not_depend_on_the_number_of_workers() -> Result<(), Box<dyn s
 
 /// A read shorter than one signal window is a rejection, not a failure: the
 /// reads after it are still placed, on one worker or several (SRS-SAMPLE-030).
+// SRS-SAMPLE-001 SRS-API-011
 #[test]
 fn a_too_short_read_is_rejected_without_stopping_the_other_reads()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -263,6 +268,7 @@ fn a_too_short_read_is_rejected_without_stopping_the_other_reads()
 /// When every read is rejected, `analyze_sanger_outcome` returns those reads
 /// with their causes, and `analyze_sanger` fails as before; with an admitted
 /// read both give the same analysis.
+// SRS-API-009 SRS-API-010
 #[test]
 fn the_outcome_names_the_rejected_reads_when_none_is_admitted()
 -> Result<(), Box<dyn std::error::Error>> {

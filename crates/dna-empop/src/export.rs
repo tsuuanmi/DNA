@@ -255,6 +255,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-NOM-018
     #[test]
     fn an_unresolved_position_splits_a_range_and_regions_keep_their_order() {
         // Record one reads 5-40 (0-based 4..40) with 15-16 unresolved;
@@ -269,6 +270,7 @@ mod tests {
         assert_eq!(reasons(&exported), [(15, 16, "unresolved")]);
     }
 
+    // SRS-NOM-018
     #[test]
     fn an_excluded_variant_and_an_excluded_insertion_cut_their_positions() {
         let excluded = |position: usize, reference: &str, alternate: &str, kind| Variant {
@@ -296,6 +298,7 @@ mod tests {
         );
     }
 
+    // SRS-NOM-018
     #[test]
     fn positions_two_records_call_are_cut() {
         let records = [record((10, 20), &[(10, 20)]), record((15, 30), &[(15, 30)])];
@@ -304,6 +307,7 @@ mod tests {
         assert_eq!(reasons(&exported), [(16, 20, "overlap")]);
     }
 
+    // SRS-NOM-018
     #[test]
     fn keeps_the_calls_inside_the_ranges_distinct_and_sorted() {
         let records = [record((10, 30), &[(10, 20), (22, 30)])];
@@ -327,6 +331,7 @@ mod tests {
         assert_eq!(exported.mitotype_text(), "12DEL 15.1C 15.2C 20.1C 25G 28Y");
     }
 
+    // SRS-NOM-018
     #[test]
     fn a_region_without_records_exports_nothing() {
         let exported = export(&REGIONS, &[], &[call(15, 0, "15G")]);

@@ -275,6 +275,7 @@ mod tests {
         }
     }
 
+    // SRS-VAR-010, SRS-VAR-014
     #[test]
     fn keeps_inclusive_region_endpoints_and_orders_region_before_vetoes() -> Result<()> {
         let read = evidence(&[&[PEAK], &[], &[], &[]])?;
@@ -304,6 +305,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-011, SRS-VAR-014
     #[test]
     fn reports_vetoes_of_all_supporting_calls_in_vocabulary_order() -> Result<()> {
         let read = evidence(&[&[QUALITY], &[PEAK]])?;
@@ -329,6 +331,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-012
     #[test]
     fn applies_substitution_only_vetoes_to_snvs() -> Result<()> {
         let read = evidence(&[&[MIXED], &[MIXED]])?;
@@ -358,6 +361,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-011
     #[test]
     fn ignores_insertion_flanks_and_deletion_flanks() -> Result<()> {
         let read = evidence(&[&[], &[PEAK, QUALITY]])?;
@@ -411,6 +415,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-013
     #[test]
     fn marks_a_variant_supported_at_the_read_end_ineligible() -> Result<()> {
         let none: &[usize] = &[];

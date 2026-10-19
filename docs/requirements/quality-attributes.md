@@ -1,6 +1,7 @@
 ---
 decided-by: [ADR-0059]
 verified-by: [.github/workflows/ci.yml, fuzz]
+unverified: [SRS-NFR-002, SRS-NFR-003, SRS-NFR-006, SRS-NFR-007]
 ---
 
 # Quality Attributes
