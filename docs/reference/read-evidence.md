@@ -28,6 +28,13 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
   - `reasons`: the modality's reason labels in the order the core reports
     them; every reason a verdict holds is listed;
   - `callability`: the read callability view, as in `dna.basecalls/v3`.
+  - `mixtures`: the stretches after a run that the modality decomposes into
+    the read's own sequence at whole-call offsets (ADR-0082): the stretch
+    `calls`, the `run_calls` of the run whose length varies, whether the
+    components are `explained` at the read's own noise level, the `residual`,
+    the `components` (offset and fraction, the dominant sequence first), and
+    the `unexplained` calls. How each component compares with the reference is
+    a read assertion of the core, in `dna review` (`reads[].mixtures`).
 - `calls`, one per call in call order. First the kernel contract the core reads:
   - `index`, `base` (read strand; `N` when unresolved), and `profile`, the
     basecall-independent A/C/G/T weights when the call has signal;

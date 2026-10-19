@@ -424,6 +424,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review shows each admitted read's phase mixtures (ADR-0082): for
+  every stretch after a run that the Sanger plugin decomposes into the read's
+  own sequence at whole-call offsets, `reads[].mixtures` lists the dominant
+  and the other sequences with their fractions, each compared with the
+  reference on its own and written in the profile notation, and the calls
+  they leave unexplained (`review` plugin 17, rules version 17). Display
+  only: no item, label, or `clear` changes.
 - The review judges a site the reportable regions clip over its reportable
   columns only (`review` plugin 16, rules version 16): the item's `sequence`
   is the decision there, and an opposing read that shows it there, its

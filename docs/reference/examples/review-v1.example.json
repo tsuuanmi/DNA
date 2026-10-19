@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 16
+        "version": 17
       }
     ],
-    "rules": 16
+    "rules": 17
   },
   "reads": [
     {
@@ -70,14 +70,16 @@
           "state": "dephased",
           "after_repeat": true
         }
-      ]
+      ],
+      "mixtures": []
     },
     {
       "name": "A12_HV2F_03",
       "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
       "strand": "forward",
       "admitted": true,
-      "masked": []
+      "masked": [],
+      "mixtures": []
     },
     {
       "name": "A12_HV3R_03",
@@ -91,6 +93,37 @@
           "state": "dephased",
           "after_repeat": true
         }
+      ],
+      "mixtures": [
+        {
+          "explained": true,
+          "components": [
+            {
+              "offset": 0,
+              "fraction": 0.82,
+              "first": 303,
+              "last": 320,
+              "sequence": "CCCCCCCCTCCCCCCGCTTC",
+              "calls": [
+                "309.1C",
+                "315.1C"
+              ]
+            },
+            {
+              "offset": 1,
+              "fraction": 0.18,
+              "first": 303,
+              "last": 320,
+              "sequence": "CCCCCCCCTCCCCCCCGCTTC",
+              "calls": [
+                "309.1C",
+                "315.1C",
+                "315.2C"
+              ]
+            }
+          ],
+          "unexplained": []
+        }
       ]
     },
     {
@@ -98,7 +131,8 @@
       "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
       "strand": "reverse",
       "admitted": true,
-      "masked": []
+      "masked": [],
+      "mixtures": []
     },
     {
       "name": "A12_HV2R_03",

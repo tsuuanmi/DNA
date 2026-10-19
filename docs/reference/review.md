@@ -75,6 +75,20 @@ target still fails the command without output.
   stretches come from the read's own signal, never from fixed positions, so
   they locate what each read left unread for a later reading of the
   dephased tail, also where no item lists it.
+  Since rules version 17, an admitted read also has `mixtures`: the stretches
+  after a run whose signal the modality asserts is the read's own sequence
+  superposed with copies offset by whole calls (ADR-0082). Each says whether
+  it is `explained`: the components fit the stretch at the read's own noise
+  level. Each lists its `components`, the dominant sequence (`offset` 0)
+  first, each with its `fraction` of the fitted signal; in an explained
+  mixture, a component placed on the reference also gives the interval `first`..`last` it
+  covers, its `sequence` there on the reference strand (`first` after `last` when the interval crosses the origin), and its eligible
+  edits as profile-notation `calls`. Each component is placed and called as
+  a read of its own, so the dominant and the minor sequences are each
+  compared with the reference independently (for example `309.1C 315.1C`
+  against `309.1C 315.1C 315.2C`). `unexplained` lists the reference positions
+  of calls the components do not explain. Mixtures are display only: no
+  item, label, or `clear` depends on them.
 - `calls` (`called`, under a profile that declares notation): the sample's
   calls in the profile notation, distinct and in reference order, as
   `SampleAnalysis::call` gives them: `call` (`309.1C`), `position`,

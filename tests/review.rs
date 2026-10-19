@@ -167,12 +167,24 @@ const RANKS: [(&str, u64); 16] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 16);
+    assert_eq!(value["provenance"]["rules"], 17);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
             assert!(read.get("masked").is_none());
+            assert!(read.get("mixtures").is_none());
             continue;
+        }
+        // Each phase mixture leads with its dominant sequence, offset 0.
+        for mixture in read["mixtures"]
+            .as_array()
+            .ok_or("mixtures must be an array")?
+        {
+            let components = mixture["components"].as_array().ok_or("components")?;
+            assert_eq!(
+                components.first().map(|first| &first["offset"]),
+                Some(&Value::from(0))
+            );
         }
         let mut end = 0;
         for span in read["masked"].as_array().ok_or("masked must be an array")? {
@@ -374,8 +386,8 @@ fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>
     assert_eq!(
         value["reads"],
         serde_json::json!([
-            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": []},
-            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": []},
+            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": [], "mixtures": []},
+            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": [], "mixtures": []},
         ])
     );
     assert_eq!(value["calls"][0]["call"], "15A");

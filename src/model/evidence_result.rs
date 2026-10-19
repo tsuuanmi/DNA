@@ -36,6 +36,29 @@ pub(crate) struct EvidenceReadResult {
     pub(crate) reasons: Vec<&'static str>,
     /// The modality's callability, as in `dna.basecalls/v3`.
     pub(crate) callability: CallabilityResult,
+    /// The stretches the modality decomposes into the read's own sequence at
+    /// whole-call offsets (ADR-0082).
+    pub(crate) mixtures: Vec<MixtureEvidenceResult>,
+}
+
+/// One phase mixture as the modality asserts it, over call indices.
+#[derive(Debug, Serialize)]
+pub(crate) struct MixtureEvidenceResult {
+    /// The stretch, 0-based half-open call indices, from the run whose length
+    /// varies.
+    pub(crate) calls: IntervalResult,
+    pub(crate) run_calls: usize,
+    pub(crate) explained: bool,
+    pub(crate) residual: f64,
+    pub(crate) components: Vec<MixtureComponentResult>,
+    pub(crate) unexplained: Vec<usize>,
+}
+
+/// One component: its offset from the dominant sequence and its fraction.
+#[derive(Debug, Serialize)]
+pub(crate) struct MixtureComponentResult {
+    pub(crate) offset: i32,
+    pub(crate) fraction: f64,
 }
 
 /// Whether the read's ends bound its evidence.

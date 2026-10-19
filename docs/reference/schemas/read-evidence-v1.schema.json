@@ -26,7 +26,8 @@
         "informative",
         "ends",
         "reasons",
-        "callability"
+        "callability",
+        "mixtures"
       ],
       "properties": {
         "call_count": {
@@ -53,6 +54,13 @@
         },
         "callability": {
           "$ref": "urn:signal:schema:basecalls:v3#/$defs/callability"
+        },
+        "mixtures": {
+          "description": "The stretches the modality decomposes into the read's own sequence at whole-call offsets (ADR-0082), in call order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mixture"
+          }
         }
       }
     },
@@ -264,6 +272,70 @@
                 "mixed_stretch"
               ]
             }
+          }
+        }
+      }
+    },
+    "mixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "run_calls",
+        "explained",
+        "residual",
+        "components",
+        "unexplained"
+      ],
+      "properties": {
+        "calls": {
+          "description": "The stretch, 0-based half-open call indices, from the run whose length varies.",
+          "$ref": "urn:signal:schema:basecalls:v3#/$defs/interval"
+        },
+        "run_calls": {
+          "description": "Calls of that run, from calls.start.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "explained": {
+          "description": "The residual is at most the read's own in-phase residual at the modality's unexplained quantile.",
+          "type": "boolean"
+        },
+        "residual": {
+          "description": "Root mean square per call of what the components leave, on the modality's normalised scale.",
+          "type": "number",
+          "minimum": 0
+        },
+        "components": {
+          "description": "Offset 0 (the dominant sequence) first, the rest by decreasing fraction.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "offset",
+              "fraction"
+            ],
+            "properties": {
+              "offset": {
+                "type": "integer"
+              },
+              "fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "unexplained": {
+          "description": "Calls of the stretch whose signal the components do not explain, increasing.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }

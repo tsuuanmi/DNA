@@ -14,7 +14,7 @@ use crate::model::read_observation::RejectedRead;
 use crate::model::result::{ColumnResult, IntervalResult, ReferenceResult, ScopeResult};
 use crate::model::review_result::{
     Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
-    LabelCounts, LabelResult, MaskedSpanResult, PositionCounts, ReviewCallResult,
+    LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
     ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
     SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult, ZoneCounts,
     ZoneKind, ZoneResult,
@@ -42,7 +42,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 16,
+    version: 17,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -66,6 +66,8 @@ pub(crate) struct CompletedReview {
     pub(crate) plugins: &'static [&'static PluginDescriptor],
     /// The run signal the calls are judged against, with its file's SHA-256.
     pub(crate) signal: Option<(RunSignal, String)>,
+    /// Each admitted read's phase mixtures, by content SHA-256 (ADR-0082).
+    pub(crate) mixtures: BTreeMap<String, Vec<MixtureResult>>,
 }
 
 /// What the sample analysis and its call gave.
@@ -89,6 +91,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         outcome,
         plugins,
         signal,
+        mixtures,
     } = completed;
     let regions = clip(&profile.regions, reference.len());
     let provenance = ReviewProvenanceResult {
@@ -122,6 +125,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     admitted: false,
                     rejection: Some(project_rejection(&read.cause)),
                     masked: None,
+                    mixtures: None,
                 })
                 .collect();
             return Ok(ReviewResult {
@@ -176,6 +180,12 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     &analysis.trust(&read.input_sha256).ok_or_else(missing)?,
                     &regions,
                 )),
+                mixtures: Some(
+                    mixtures
+                        .get(&read.input_sha256)
+                        .cloned()
+                        .unwrap_or_default(),
+                ),
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -194,6 +204,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             admitted: false,
             rejection: Some(project_rejection(&rejected.cause)),
             masked: None,
+            mixtures: None,
         });
     }
 
@@ -2405,6 +2416,7 @@ mod tests {
                 span(6, 6, PhaseState::Dephased, true),
                 span(7, 7, PhaseState::Mixed, false),
             ]),
+            mixtures: Some(Vec::new()),
         }];
         let check = item(ItemKind::Check, vec![LabelResult::Undecided]);
         let variant = item(ItemKind::Variant, Vec::new());

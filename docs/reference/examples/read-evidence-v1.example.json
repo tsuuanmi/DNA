@@ -57,7 +57,31 @@
         }
       ],
       "masked_calls": 2
-    }
+    },
+    "mixtures": [
+      {
+        "calls": {
+          "start": 2,
+          "end": 6
+        },
+        "run_calls": 2,
+        "explained": false,
+        "residual": 0.214,
+        "components": [
+          {
+            "offset": 0,
+            "fraction": 0.81
+          },
+          {
+            "offset": 1,
+            "fraction": 0.19
+          }
+        ],
+        "unexplained": [
+          5
+        ]
+      }
+    ]
   },
   "calls": [
     {
