@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 14
+        "version": 15
       }
     ],
-    "rules": 14
+    "rules": 15
   },
   "reads": [
     {
@@ -172,6 +172,9 @@
       "start": 16194,
       "end": 16420
     }
+  ],
+  "reference_only": [
+    16031
   ],
   "empop": {
     "ranges": [
@@ -1373,7 +1376,8 @@
     },
     "positions": {
       "reportable": 749,
-      "check": 24
+      "check": 24,
+      "reference_only": 1
     },
     "zones": {
       "total": 14,

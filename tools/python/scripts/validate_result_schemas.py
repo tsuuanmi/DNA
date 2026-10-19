@@ -1099,6 +1099,14 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
     clear = document.get("status") == "called" and checks == 0
     if summary.get("clear") != clear:
         errors.append(f"{label}: summary clear disagrees with the status and checks")
+    confirmed = document.get("reference_only", [])
+    if isinstance(confirmed, list):
+        if confirmed != sorted(set(confirmed)):
+            errors.append(f"{label}: reference_only positions are not increasing")
+        if positions.get("reference_only") != len(confirmed):
+            errors.append(
+                f"{label}: summary reference_only count disagrees with the positions"
+            )
     validate_zones(document, items, positions, summary, label, errors)
 
 
@@ -1153,13 +1161,13 @@ def rejected_review_shapes(
     unknown_label["items"][0]["labels"].append({"label": "watched"})
     failed_without_error = copy.deepcopy(example)
     failed_without_error["status"] = "call_failed"
-    for key in ("calls", "callable", "empop", "zones"):
+    for key in ("calls", "callable", "reference_only", "empop", "zones"):
         failed_without_error.pop(key)
     called_with_error = copy.deepcopy(example)
     called_with_error["error"] = "the consensus has no segment"
     rejected_with_items = copy.deepcopy(example)
     rejected_with_items["status"] = "rejected"
-    for key in ("calls", "callable", "empop", "zones"):
+    for key in ("calls", "callable", "reference_only", "empop", "zones"):
         rejected_with_items.pop(key)
     unlisted_call = copy.deepcopy(example)
     for item in unlisted_call["items"]:
@@ -1554,6 +1562,12 @@ def main(argv: list[str] | None = None) -> int:
     validate_review(unordered_review, "synthetic unordered review", review_errors)
     if not review_errors:
         errors.append("expected review items out of priority order to be rejected")
+    miscounted = copy.deepcopy(review_example)
+    miscounted["reference_only"].append(miscounted["reference_only"][-1] + 1)
+    count_errors: list[str] = []
+    validate_review(miscounted, "synthetic miscounted reference_only", count_errors)
+    if not count_errors:
+        errors.append("expected a miscounted reference_only to be rejected")
     gapped_zones = copy.deepcopy(review_example)
     gapped_zones["zones"].pop()
     zone_errors: list[str] = []

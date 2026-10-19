@@ -397,6 +397,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review lists where DNA decided by reference confirmations alone:
+  `reference_only` holds the reportable positions the consensus published as
+  `reference_only` (ADR-0080), and `summary.positions.reference_only` counts
+  them (`review` plugin 15, rules version 15). Such a position has no item,
+  so this is the only place a reviewer can find it.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob,
   isolated between in-phase single-channel calls and withheld for nothing
   else, may now confirm the reference at its position (ADR-0080,
