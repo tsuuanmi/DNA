@@ -948,6 +948,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Fixed
 
+- A run that no read shows both ends of, but that two reads count alike from
+  opposite ends, now takes their count (`length_evidence` `confirmed_end` in
+  `dna.consensus/v1` and `dna.review/v1`; plugin `consensus` 9). Each read
+  enters the run in phase, reads all of it unmasked, and loses phase at the
+  other end on a call that does not read the run's base. Such runs took the
+  reference frame before, mostly the HVS-II run `303-309` with the forward
+  read losing phase at `310`: DNA wrote `C7` where both strands counted
+  `C8`. Development panel v5 against `main` a19d69d: 133 samples from
+  discordant to concordant (strict) and none worse; samples with a clear
+  review 65.6 to 66.1 % on current data; samples with an unreviewed
+  difference unchanged in every period (4.13 % on current data).
 - A run read through its exit by one read no longer swallows the exit base
   that another read shows cleanly. A stretch's composition came only from
   reads that read it whole; a read that reads only an edge of it cleanly was

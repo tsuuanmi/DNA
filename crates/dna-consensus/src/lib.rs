@@ -225,6 +225,9 @@ struct RunView {
     /// Reference positions of the calls just before and after the run.
     left_at: Option<usize>,
     right_at: Option<usize>,
+    /// Bases of the calls just before and after the run, masked or not.
+    left_base: Option<char>,
+    right_base: Option<char>,
     /// Reference positions of the run's clean calls.
     clean_at: Vec<usize>,
 }
@@ -362,6 +365,8 @@ fn read_runs<'a>(
                 right: end(after, base),
                 left_at: before.and_then(|char| char.position),
                 right_at: after.and_then(|char| char.position),
+                left_base: before.map(|char| char.base),
+                right_base: after.map(|char| char.base),
                 clean_at: group
                     .iter()
                     .filter(|char| char.clean())
@@ -745,11 +750,48 @@ fn decide_stretch(
         })
         .collect::<Vec<_>>();
 
-    // A run no read shows the length of takes the reference frame between its
-    // observed ends; without one, the longest run read in phase before a read
-    // loses phase.
+    // A run no read shows the length of takes the length two reads count in
+    // phase from its opposite ends, every call of the run unmasked, when they
+    // agree; otherwise the reference frame between its observed ends; without
+    // one, the longest run read in phase before a read loses phase.
     for (index, (base, decision, evidence)) in decisions.iter_mut().enumerate() {
         if decision.value.is_some() || decision.state != SiteState::Unresolved {
+            continue;
+        }
+        let entries = |from_left: bool| {
+            mapped
+                .iter()
+                .filter_map(|(name, views)| {
+                    let view = &views.iter().find(|(mapped, _)| *mapped == index)?.1;
+                    let (entry, exit, beyond) = if from_left {
+                        (view.left, view.right, view.right_base)
+                    } else {
+                        (view.right, view.left, view.left_base)
+                    };
+                    let other = beyond.is_some_and(|beyond| beyond != view.base);
+                    // The read loses phase at the exit call, which does not
+                    // read the run's base: it shows no longer run.
+                    (view.counted && entry == End::InPhase && exit == End::PhaseLoss && other)
+                        .then_some((*name, view.length))
+                })
+                .collect::<Vec<_>>()
+        };
+        let (from_left, from_right) = (entries(true), entries(false));
+        let counts = from_left
+            .iter()
+            .chain(&from_right)
+            .map(|(_, length)| *length)
+            .collect::<BTreeSet<_>>();
+        if !from_left.is_empty() && !from_right.is_empty() && counts.len() == 1 {
+            let length = counts.into_iter().next().unwrap_or_default();
+            decision.value = Some(base.to_string().repeat(length));
+            decision.state = SiteState::Called;
+            decision.supporting = from_left
+                .iter()
+                .chain(&from_right)
+                .map(|(name, _)| (*name).to_owned())
+                .collect();
+            *evidence = RunEvidence::ConfirmedEnd;
             continue;
         }
         let bounds = mapped
@@ -1224,7 +1266,7 @@ fn assemble(
             match run.evidence {
                 RunEvidence::ReferenceFrame => summary.reference_frame_runs += 1,
                 RunEvidence::PhaseLoss => summary.phase_loss_runs += 1,
-                RunEvidence::InPhase | RunEvidence::AnchoredEnd => {}
+                RunEvidence::InPhase | RunEvidence::AnchoredEnd | RunEvidence::ConfirmedEnd => {}
             }
         }
         match decision.state {
@@ -1283,7 +1325,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 8,
+    version: 9,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -1793,27 +1835,52 @@ mod tests {
     const TRACT: &str = "GTCAAAACCCCCTCCCCATG";
 
     #[test]
-    fn a_run_whose_ends_two_reads_show_takes_the_reference_frame() {
-        // T12C merges the tract. The forward read shows its start and loses
-        // phase at its end; the reverse read the other way round.
+    fn a_run_two_reads_enter_from_its_ends_takes_their_agreed_count() {
+        // T12C merges the tract. The forward read enters it in phase and
+        // loses phase at its end, on an unresolved call; the reverse read the
+        // other way round. Both read every call of the run unmasked and count
+        // ten.
         let forward = rows(
             "f",
             0,
             TRACT,
-            "GTCAAAACCCCCCCCCCCTG",
+            "GTCAAAACCCCCCCCCCNTG",
             "cccccccccccccccccmmm",
         );
         let reverse = rows(
             "r",
             0,
             TRACT,
-            "GTCAAACCCCCCCCCCCATG",
+            "GTCAAANCCCCCCCCCCATG",
             "mmmmmmmccccccccccccc",
         );
-        let decision = decide_stretch(&[forward, reverse], 7, 16, TRACT.as_bytes());
+        let decision = decide_stretch(&[forward.clone(), reverse.clone()], 7, 16, TRACT.as_bytes());
+        assert_eq!(decision.value.as_deref(), Some("CCCCCCCCCC"));
+        assert_eq!(decision.runs, [run('C', 10, RunEvidence::ConfirmedEnd)]);
+        assert_eq!(decision.supporting, ["f", "r"]);
+        // When the reverse read loses phase one call earlier, the counts
+        // differ: the run takes the reference frame between its observed ends.
+        let early = rows(
+            "r",
+            0,
+            TRACT,
+            "GTCAAANCCCCCCCCCCATG",
+            "mmmmmmmmcccccccccccc",
+        );
+        let decision = decide_stretch(&[forward, early], 7, 16, TRACT.as_bytes());
         assert_eq!(decision.value.as_deref(), Some("CCCCCCCCCC"));
         assert_eq!(decision.runs, [run('C', 10, RunEvidence::ReferenceFrame)]);
-        assert_eq!(decision.supporting, ["f", "r"]);
+        // When the forward read's exit call reads the run's base, masked, the
+        // run goes on past its count: the count bounds the run from below.
+        let going_on = rows(
+            "f",
+            0,
+            TRACT,
+            "GTCAAAACCCCCCCCCCCTG",
+            "cccccccccccccccccmmm",
+        );
+        let decision = decide_stretch(&[going_on, reverse], 7, 16, TRACT.as_bytes());
+        assert_eq!(decision.runs, [run('C', 10, RunEvidence::ReferenceFrame)]);
     }
 
     #[test]

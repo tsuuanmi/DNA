@@ -53,6 +53,10 @@ The method is described in [design](../design/consensus.md).
     - `anchored_end`: a read shows both ends, one only through a masked call
       that still reads the next base. This is at most the dominant length of
       a mixture.
+    - `confirmed_end`: no read shows both ends, but two reads enter the run
+      in phase from opposite ends, read all of it unmasked, lose phase at the
+      other end on a call that does not read the run's base, and count the
+      same length. Each shows the end the other cannot.
     - `phase_loss`: no read shows both ends, and no reads locate both. The
       length is the longest run read in phase before a read loses phase. It
       is an estimate near the dominant length.

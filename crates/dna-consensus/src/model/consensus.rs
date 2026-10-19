@@ -39,6 +39,12 @@ pub enum RunEvidence {
     /// in phase before losing phase. Within a length mixture this lies near
     /// the dominant length; it is an estimate.
     PhaseLoss,
+    /// No read shows both ends, but a read enters the run in phase from each
+    /// end, every call of the run unmasked, and both lose phase at the other
+    /// end, on a call that does not read the run's base, after the same
+    /// number of calls: each read's count stands for the end the other read
+    /// cannot show.
+    ConfirmedEnd,
     /// No read shows both ends, but reads locate each end on the reference
     /// and read every base between them cleanly: the length is the number of
     /// reference positions between those ends. It assumes no length change
@@ -54,6 +60,7 @@ impl RunEvidence {
             Self::InPhase => "in_phase",
             Self::AnchoredEnd => "anchored_end",
             Self::PhaseLoss => "phase_loss",
+            Self::ConfirmedEnd => "confirmed_end",
             Self::ReferenceFrame => "reference_frame",
         }
     }

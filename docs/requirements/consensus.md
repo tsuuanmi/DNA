@@ -32,9 +32,10 @@ Design: [consensus method](../design/consensus.md). Contract:
 
   It MUST NOT carry a genotype, heteroplasmy fraction, or sample verdict beyond the consensus sequence (SRS-VAR-009).
 - **SRS-CONS-008:** A run whose length no read shows MUST take, in order:
+  - `confirmed_end`: the count of two reads that agree on it, each entering the run in phase from an opposite end, reading every call of the run unmasked, and losing phase at the other end on a call that does not read the run's base; every such read MUST agree;
   - `reference_frame`: the reference positions between its ends, when every read that shows an end places it alike and every position between is read cleanly by some read;
   - `phase_loss`: otherwise, the longest run read in phase by a read that shows one end and loses phase at the other (its next call masked, unresolved, or unclean and not reading another base);
   - otherwise it stays undecided.
 
-  Each run's length evidence (`in_phase`, `anchored_end`, `phase_loss`, `reference_frame`) MUST be published. The rule MUST NOT use target positions, regions, or conventions.
+  Each run's length evidence (`in_phase`, `anchored_end`, `confirmed_end`, `phase_loss`, `reference_frame`) MUST be published. The rule MUST NOT use target positions, regions, or conventions.
 - **SRS-CONS-009:** A decided site that changes the reference length MUST stay undecided while a position beside it is undecided or uncovered, unless it was decided by its run structure with every run's length shown by a read (`in_phase` or `anchored_end`), since those reads show the run's bounds: otherwise the bases beside an insertion or deletion place it, and inside a repeat they decide which unit changes. Undoing one site can leave another one's neighbour undecided, so the rule MUST apply until nothing changes.

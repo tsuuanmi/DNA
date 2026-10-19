@@ -407,7 +407,7 @@ fn site_causes(site: &ConsensusSite) -> Vec<Cause> {
         match run.evidence {
             RunEvidence::PhaseLoss => causes.push(Cause::PhaseLoss),
             RunEvidence::ReferenceFrame => causes.push(Cause::ReferenceFrame),
-            RunEvidence::InPhase | RunEvidence::AnchoredEnd => {}
+            RunEvidence::InPhase | RunEvidence::AnchoredEnd | RunEvidence::ConfirmedEnd => {}
         }
     }
     causes
