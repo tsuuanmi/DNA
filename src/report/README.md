@@ -3,7 +3,7 @@
 Owns projection of completed scientific state into versioned public contracts,
 deterministic JSON serialization, and atomic no-overwrite publication.
 
-Key children separate analysis, basecall, sample, signal, run signal (`run_signal.rs`, `dna.signal/v1`), variant,
+Key children separate analysis, basecall, read evidence (`evidence.rs`, `dna.read_evidence/v1`), sample, signal, run signal (`run_signal.rs`, `dna.signal/v1`), variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
 publication concerns. Every document's provenance records the workflow's
 plugins; analysis, sample, variants, notation, consensus, and review provenance
