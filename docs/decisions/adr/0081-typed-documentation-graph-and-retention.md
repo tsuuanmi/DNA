@@ -1,5 +1,5 @@
 ---
-id: ADR-0080
+id: ADR-0081
 status: accepted
 date: 2026-10-19
 family: [documentation]
@@ -7,7 +7,7 @@ supersedes: [ADR-0022 §4/§6/§8]
 related: [ADR-0006]
 ---
 
-# ADR-0080: Document as a typed graph with generated indexes and ledgered retention
+# ADR-0081: Document as a typed graph with generated indexes and ledgered retention
 
 <!-- docs:begin lifecycle -->
 - **Status:** Accepted

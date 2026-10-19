@@ -142,6 +142,11 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
         rejected_reads,
         segments,
         sites,
+        reference_only: consensus
+            .reference_only
+            .iter()
+            .map(|position| position + 1)
+            .collect(),
         summary: ConsensusSummaryResult {
             called_positions: consensus.summary.called_positions,
             contested_sites: consensus.summary.contested_sites,

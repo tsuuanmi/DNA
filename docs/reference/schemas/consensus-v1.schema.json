@@ -12,6 +12,7 @@
     "rejected_reads",
     "segments",
     "sites",
+    "reference_only",
     "summary"
   ],
   "properties": {
@@ -42,6 +43,15 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/segment"
+      }
+    },
+    "reference_only": {
+      "description": "Reference positions (1-based, increasing) decided only by reference-confirming votes of reference-only calls (ADR-0080); in a call they bound no neighbouring run.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
       }
     },
     "sites": {

@@ -9,7 +9,7 @@ supersedes: [ADR-0006]
 # ADR-0022: Govern documentation as an executable knowledge system
 
 <!-- docs:begin lifecycle -->
-- **Status:** Superseded in part by [ADR-0080](0080-typed-documentation-graph-and-retention.md) (§4/§6/§8)
+- **Status:** Superseded in part by [ADR-0081](0081-typed-documentation-graph-and-retention.md) (§4/§6/§8)
 - **Date:** 2026-09-22
 - **Supersedes:** [ADR-0006](../../governance/retired.md)
 <!-- docs:end lifecycle -->

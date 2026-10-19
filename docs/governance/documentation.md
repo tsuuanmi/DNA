@@ -1,5 +1,5 @@
 ---
-decided-by: [ADR-0022, ADR-0080]
+decided-by: [ADR-0022, ADR-0081]
 level: [3]
 areas:
   - requirements=requirement
@@ -93,7 +93,7 @@ correctness.
 ## ADR policy
 
 ADRs are append-only while live and are retired through the ledger, not deleted
-(decision: [[ADR-0080]]).
+(decision: [[ADR-0081]]).
 
 - Search existing documents and decisions before creating one; do not record
   ordinary implementation progress.

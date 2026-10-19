@@ -1,6 +1,6 @@
 ---
 implements: [SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0073, ADR-0074]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080]
 covers:
   - crates/dna-consensus/src/
   - crates/dna-consensus/src/model/consensus.rs
@@ -50,6 +50,25 @@ when the read does not resolve both ends of that run. This is the
 `Eligibility::unbounded_run`. Such a read shows the run's base but not its
 length. It seeds no stretch through that indel, and position by position it
 still contributes the bases its alignment places on the run.
+
+**Reference confirmations** (ADR-0080, SRS-CONS-010). A call its modality
+marks `reference_only` is withheld for its base, but its base observation is
+clean when the base is the reference's: it confirms the reference at its
+position. Its trust level stays `Unmasked`, so it counts and bounds runs as
+before; only the position-by-position vote changes. The confirmation is
+withdrawn:
+- where any read's call at the position has `second_unexplained`;
+- where a read of the other strand shows the confirming call's own second
+  base standing out (`SecondBase.stands_out`);
+- within or beside a decided site that differs from the reference (a site
+  written partly as `N` included), after which the positions are decided
+  again until no confirmation is withdrawn.
+
+So a confirmation never decides a position a second sequence may explain, and
+never changes what a variant's neighbours were. The positions only
+confirmations observe cleanly are published as `reference_only`. Calling the
+decisions treats the call there as showing its base only, so it bounds no
+neighbouring run: a change that needed a run end there stays `run_boundary`.
 
 ## Step 2 — Stretches
 

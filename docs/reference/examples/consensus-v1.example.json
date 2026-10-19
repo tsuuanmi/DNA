@@ -101,6 +101,7 @@
       "runs": []
     }
   ],
+  "reference_only": [],
   "summary": {
     "called_positions": 6,
     "contested_sites": 1,

@@ -238,6 +238,7 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
         &processed.signal,
         &processed.callability,
         &processed.quality,
+        &processed.second,
         &config.sanger_evidence,
     )?;
     Ok(Some(contributions(
@@ -716,6 +717,7 @@ mod tests {
         let peak = |share, cause| SecondPeak {
             base: 'C',
             share,
+            stands_out: true,
             cause,
         };
         let template = peak(0.30, SecondCause::SecondTemplate);

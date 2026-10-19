@@ -19,6 +19,10 @@ modality-neutral core.
   - the Sanger support vetoes: `peak_below_minimum`,
     `relative_quality_not_above_threshold`, and `mixed_supporting_dna`
     (SNVs only);
+  - the second-peak assertions (SRS-CALL-022, ADR-0080): whether each
+    call's second base stands out, whether its second peak is unexplained,
+    and whether an isolated mixed call whose peak is a neighbour's tail or a
+    dye blob is `reference_only`;
   - the Sanger mask labels: `post_homopolymer`, or else the phase-state label.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.

@@ -1,6 +1,8 @@
 //! An adjudicated sample consensus: sequence segments and the evidence behind
 //! each decision (PROP-0003, ADR-0073).
 
+use std::collections::BTreeSet;
+
 /// How the rule decided a site or stretch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SiteState {
@@ -142,4 +144,8 @@ pub struct Consensus {
     pub sites: Vec<ConsensusSite>,
     /// Decision counts.
     pub summary: ConsensusSummary,
+    /// Reference positions (0-based) that only reference confirmations
+    /// observe cleanly (ADR-0080): decided as the reference, they bound no
+    /// neighbour's run when the decisions are called.
+    pub reference_only: BTreeSet<usize>,
 }

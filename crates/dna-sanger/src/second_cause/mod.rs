@@ -41,7 +41,8 @@ use crate::signal_processing::SignalProcessingConfig;
 
 /// The second base of a call's signal (SRS-CALL-015): the highest peak of the
 /// other three channels, with its share of the primary and that peak
-/// together.
+/// together. Whether it stands out is [`classify`]'s judgement against the
+/// floor, set by the evidence adapter.
 #[must_use]
 pub fn second_base(call: &BaseCall) -> Option<SecondBase> {
     let primary = Nucleotide::from_char(call.primary)?.channel_index();
@@ -57,6 +58,7 @@ pub fn second_base(call: &BaseCall) -> Option<SecondBase> {
     (second > 0 && total > 0.0).then(|| SecondBase {
         base: Nucleotide::ALL[channel].as_char(),
         share: f64::from(second) / total,
+        stands_out: false,
     })
 }
 
@@ -77,11 +79,13 @@ pub fn classify(
                 Some(second) if second.share > config.second_floor => Some(SecondPeak {
                     base: second.base,
                     share: second.share,
+                    stands_out: true,
                     cause: shape(calls, signal, index, second.base, config),
                 }),
                 _ if mixed => Some(SecondPeak {
                     base: second.map_or('N', |second| second.base),
                     share: second.map_or(0.0, |second| second.share),
+                    stands_out: false,
                     cause: SecondCause::MixedStretch,
                 }),
                 _ => None,

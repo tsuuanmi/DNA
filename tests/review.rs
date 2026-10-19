@@ -167,7 +167,7 @@ const RANKS: [(&str, u64); 16] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 14);
+    assert_eq!(value["provenance"]["rules"], 15);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
@@ -221,8 +221,26 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
             u64::try_from(zones.len()).ok()
         );
         assert_eq!(summary["zones"]["check"].as_u64(), Some(flagged));
+        // Reference-only positions are increasing, inside the zones, and counted.
+        let confirmed = value["reference_only"]
+            .as_array()
+            .ok_or("reference_only must be an array")?;
+        let mut previous = 0;
+        for position in confirmed {
+            let position = position.as_u64().ok_or("reference_only position")?;
+            assert!(previous < position);
+            assert!(zones.iter().any(|zone| {
+                zone["first"].as_u64() <= Some(position) && Some(position) <= zone["last"].as_u64()
+            }));
+            previous = position;
+        }
+        assert_eq!(
+            summary["positions"]["reference_only"].as_u64(),
+            u64::try_from(confirmed.len()).ok()
+        );
     } else {
         assert!(value.get("zones").is_none());
+        assert!(value.get("reference_only").is_none());
     }
     // A second peak's cause is one of the modality's labels.
     for item in items {

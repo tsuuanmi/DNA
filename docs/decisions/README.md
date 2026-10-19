@@ -9,7 +9,7 @@ Decision records preserve **why DNA arrived at its current direction**. They are
 - Search existing decisions before creating a new record.
 - Use a proposal for a change that is still being explored or reviewed.
 - Create an ADR only for a durable architectural, scientific, security, contract, or operational decision boundary.
-- Live ADRs are append-only history. A material replacement creates a successor whose `supersedes` names the prior record; a fully superseded record is retired to the [ledger](../governance/retired.md) once anything still true is folded into current documents ([ADR-0080](adr/0080-typed-documentation-graph-and-retention.md)).
+- Live ADRs are append-only history. A material replacement creates a successor whose `supersedes` names the prior record; a fully superseded record is retired to the [ledger](../governance/retired.md) once anything still true is folded into current documents ([ADR-0081](adr/0081-typed-documentation-graph-and-retention.md)).
 - Do not use ADRs as current-state design manuals.
 
 See [proposal lifecycle](../proposals/README.md) and [documentation governance](../governance/documentation.md).

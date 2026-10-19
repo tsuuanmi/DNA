@@ -1,15 +1,20 @@
 ---
 implements: [SRS-CALL]
+decided-by: [ADR-0080]
 ---
 
 # Second-peak cause
 
 A call's second peak (SRS-CALL-015) has several causes. A reviewer tells them
 apart by the peak's shape against the call's neighbours. `dna-sanger`'s
-`second_cause` module labels each call with one of them (SRS-CALL-021). The
-label decides nothing: verdicts, masks, the consensus, and the review's items
-read none of it. It explains a second peak to a reviewer and to later
-measurement.
+`second_cause` module labels each call with one of them (SRS-CALL-021). No
+verdict, mask, consensus rule, or review item reads the label. It explains a
+second peak to a reviewer, and the evidence adapter turns it into three
+generic assertions the core may read (SRS-CALL-022, ADR-0080):
+- whether the second base stands out;
+- whether the call shows a second peak it does not explain;
+- whether an isolated mixed call whose peak is a neighbour's tail or a dye
+  blob may confirm the reference.
 
 ## Inputs
 
@@ -69,6 +74,11 @@ primary base would be wrong if they were lifted was:
 
 Truth heteroplasmy is 0–0.04 % in every class, and most truth heteroplasmies
 show a second share below 0.15. So the label is not a heteroplasmy detector;
-heteroplasmy stays the review's two-strand rule. Lifting the mixed verdict
-for `context`, `neighbour_tail`, and `dye_blob` is later work, to be measured
-with the evaluation harness first.
+heteroplasmy stays the review's two-strand rule.
+
+Lifting the mixed verdict for `neighbour_tail` and `dye_blob` outright failed
+the review gate on the development panel. The reference confirmation of
+ADR-0080 is the narrow form that holds it.
+
+`context` lifts nothing. It needs a run signal, which the consensus does not
+read.
