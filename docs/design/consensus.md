@@ -59,7 +59,12 @@ the read's unvouched ends do (`Eligibility::clear_of_ends`). Its trust level
 stays `Unmasked`, so it counts and bounds runs as before. Only the
 position-by-position vote outside stretches changes; a stretch is decided as
 if the confirmation were not there. The confirmation is withdrawn:
-- where any read's call at the position has `second_unexplained`;
+- where a read of the confirming call's strand has `second_unexplained` at
+  the position, or a read of the other strand has it with no second base
+  standing out, or with one that a read of the confirming strand shows
+  standing out too: an unexplained second on one strand alone is not the
+  two-strand signature of a second sequence, and the confirming strand reads
+  its base cleanly apart from an explained artefact;
 - where a read of the other strand shows the confirming call's own second
   base standing out (`SecondBase.stands_out`);
 - at or beside a position where any read observes something other than the
