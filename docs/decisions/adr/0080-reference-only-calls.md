@@ -109,6 +109,28 @@ period; clear samples 68.7 → 70.2 % on current data, 47.4 → 47.7 % in
 2025-08..11, and 67.2 → 68.5 % older; no strict or `haplotype_lod` changes.
 Plugins `sanger` 12 and `consensus` 12.
 
+### Start-tail confirmations
+
+The two Sanger rules were then widened together, measured on development
+panel v5 against `main` 20fc7ca:
+- a single-channel call may confirm the reference with a second base
+  standing out when its cause is `neighbour_tail` or `dye_blob`;
+- an isolated mixed tail or blob call keeps its confirmation at a signal edge
+  whose every cause is benign, by the same test as a single-channel call;
+- an isolated mixed tail or blob call may also be withheld for the peak floor
+  or its relative quality, and a neighbour masked as weak before the trim
+  interval counts as single-channel.
+
+Every core guard is unchanged: an unexplained second peak on any read, the
+other strand's same second base, beside-difference withdrawal, the run
+junction, and stretches. An `off_centre`, `second_template`, or `phase_shift`
+second never lets a call confirm, and a read's physical end is never benign.
+
+Measured result: samples with an unreviewed difference and with a non-het
+one unchanged in every period, no status of any measure changed; clear
+samples 71.00 → 72.05 % on current data (+113), 48.59 → 49.29 % in 2025-08..11
+(+19), and 69.41 → 70.84 % older (+43). Plugin `sanger` 14.
+
 ## Alternatives
 
 - **Lift the veto by cause in the modality.** This gave the largest gain and

@@ -13,8 +13,10 @@ second peak to a reviewer, and the evidence adapter turns it into three
 generic assertions the core may read (SRS-CALL-022, ADR-0080):
 - whether the second base stands out;
 - whether the call shows a second peak it does not explain;
-- whether an isolated mixed call whose peak is a neighbour's tail or a dye
-  blob may confirm the reference.
+- whether a call may confirm the reference: an isolated mixed call whose
+  peak is a neighbour's tail or a dye blob, or a single-channel call withheld
+  only for its quality or at a benign signal edge whose second peak, if it
+  stands out, is one of those two.
 
 ## Inputs
 
@@ -78,7 +80,11 @@ heteroplasmy stays the review's two-strand rule.
 
 Lifting the mixed verdict for `neighbour_tail` and `dye_blob` outright failed
 the review gate on the development panel. The reference confirmation of
-ADR-0080 is the narrow form that holds it.
+ADR-0080 is the narrow form that holds it. Only these two causes let a call
+confirm the reference; `off_centre`, `phase_shift`, `second_template`,
+`noise`, and `mixed_stretch` leave the second peak unexplained and keep every
+read's confirmation at the position off (ADR-0080, start-tail
+confirmations).
 
 `context` lifts nothing. It needs a run signal, which the consensus does not
 read.
