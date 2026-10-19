@@ -23,7 +23,8 @@ modality-neutral core.
     unresolved.
 
   - the signal-edge verdict of every call (SRS-CALL-013), the leading calls
-    vouched for by their base only (SRS-CALL-014), the edge calls whose own
+    vouched for by their base only (SRS-CALL-014; start noise, never a call
+    masked after a repeat run), the edge calls whose own
     signal takes their base off the edge (SRS-CALL-017, and at the read's
     start against the start's own norms, SRS-CALL-018; using the peak widths
     signal processing measures), and every call's second base (SRS-CALL-015).

@@ -386,6 +386,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A leading call before the callable span is no longer vouched for by its base
+  (SRS-CALL-014) when its read is masked after a repeat run
+  (`post_homopolymer`): that stretch is the read's dephased tail, not the
+  start noise the rule is for. With it, no base, insertion, or deletion comes
+  from a masked call; a masked call shows at most a run's end (`anchored_end`,
+  ADR-0071), which the review labels `dephased_end` (#145). Plugin `sanger`
+  10. Development panel v5: no output changes.
 - The run signal's context width and share resolution are configuration:
   `signal_processing.run_signal_flank` (2, a 5-mer key) and
   `signal_processing.run_signal_resolution` (1000, thousandths), configuration
