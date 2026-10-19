@@ -22,8 +22,93 @@ use std::thread;
 use std::time::Instant;
 
 use crate::error::{Error, Result};
+use crate::input::evidence::{self as input_evidence, Recorded};
+use crate::input::sanger;
 use crate::operation_log::{OperationLog, Records};
-use crate::sample_analysis::reads::ReadScope;
+use crate::sample_analysis::Loaded;
+use crate::sample_analysis::reads::{ReadScope, Reads};
+use dna_sanger::model::sanger::Chromatogram;
+
+/// The reads of a sample command: AB1 traces, or the read evidence documents
+/// `evidence` wrote for them (PROP-0011).
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum SampleInput<'a> {
+    /// AB1 traces.
+    Traces(&'a [PathBuf]),
+    /// `dna.read_evidence/v1` documents.
+    Evidence(&'a [PathBuf]),
+}
+
+impl SampleInput<'_> {
+    /// Number of reads.
+    const fn len(self) -> usize {
+        match self {
+            Self::Traces(paths) | Self::Evidence(paths) => paths.len(),
+        }
+    }
+}
+
+/// One sample's loaded configuration, profile, reference, and reads.
+struct LoadedSample {
+    loaded: Loaded,
+    reads: LoadedReads,
+}
+
+/// A sample's reads as loaded: decoded traces, or recorded evidence.
+enum LoadedReads {
+    Traces(Vec<Chromatogram>),
+    Recorded(Vec<Recorded>),
+}
+
+impl LoadedReads {
+    fn reads(&self) -> Reads<'_> {
+        match self {
+            Self::Traces(traces) => Reads::Traces(traces),
+            Self::Recorded(reads) => Reads::Recorded(reads),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Traces(traces) => traces.len(),
+            Self::Recorded(reads) => reads.len(),
+        }
+    }
+}
+
+/// Validates and loads one sample's inputs; recorded evidence must come from
+/// the loaded configuration and this build's evidence plugins.
+fn load_sample(
+    input: SampleInput<'_>,
+    reference: &Path,
+    config_path: &Path,
+) -> Result<LoadedSample> {
+    Ok(match input {
+        SampleInput::Traces(paths) => {
+            let inputs = sanger::load_sample(paths, reference, config_path)?;
+            LoadedSample {
+                loaded: Loaded {
+                    config: inputs.config,
+                    profile: inputs.profile,
+                    reference: inputs.reference,
+                },
+                reads: LoadedReads::Traces(inputs.traces),
+            }
+        }
+        SampleInput::Evidence(paths) => {
+            let inputs =
+                input_evidence::load_sample(paths, reference, config_path, plugins::EVIDENCE)?;
+            LoadedSample {
+                loaded: Loaded {
+                    config: inputs.config,
+                    profile: inputs.profile,
+                    reference: inputs.reference,
+                },
+                reads: LoadedReads::Recorded(inputs.reads),
+            }
+        }
+    })
+}
 
 /// Runs one AB1-to-reference analysis.
 pub(crate) fn analyze(trace: &Path, reference: &Path, config_path: &Path) -> Result<()> {
@@ -52,11 +137,11 @@ pub(crate) fn evidence(trace: &Path, config_path: &Path) -> Result<()> {
 /// Runs one sample consensus operation (PROP-0003).
 pub(crate) fn consensus(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     config_path: &Path,
 ) -> Result<()> {
-    consensus::run(sample_id, traces, reference, config_path)
+    consensus::run(sample_id, input, reference, config_path)
 }
 
 /// Runs one core-only call over consensus sequences.
@@ -87,22 +172,22 @@ pub(crate) fn signal(run_id: &str, traces: &[PathBuf], config_path: &Path) -> Re
 /// Runs one sample review operation (PROP-0004).
 pub(crate) fn review(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     signal: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
-    review::run(sample_id, traces, reference, signal, config_path)
+    review::run(sample_id, input, reference, signal, config_path)
 }
 
 /// Runs one multi-read sample evidence operation.
 pub(crate) fn sample(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     config_path: &Path,
 ) -> Result<()> {
-    sample::run(sample_id, traces, reference, config_path)
+    sample::run(sample_id, input, reference, config_path)
 }
 
 /// Worker threads for a sample's reads: the available parallelism, read once

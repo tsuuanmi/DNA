@@ -54,9 +54,16 @@ paths place and call the read with `variant_analysis::observation::call` and
 build the same document from the core's `CalledRead` and the read's
 `SangerRead`, under the trace's stem (`path::evidence_stem` drops the
 document's `.evidence`).
-`sample.rs` splits every read into its `CalledRead`, which the neutral `sample`
-aggregation consumes, and its Sanger attachment, which `sample_metrics.rs` and
-the sample report join by read identity (ADR-0069).
+`sample.rs`, `consensus.rs`, and `review.rs` take a `SampleInput`: the
+sample's traces, or with `--evidence` the reads' `dna.read_evidence/v1`
+documents (`input::evidence`, SRS-API-019), which `mod.rs` loads into the
+reads of one placement pass. `sample.rs` splits every read into its
+`CalledRead`, which the neutral `sample` aggregation consumes, and its
+`SangerRead`, which `sample_metrics.rs` and the sample report join by read
+identity (ADR-0069).
+`evidence.rs` admits the read as the sample commands do
+(`read_processing::admit`): a read set aside before the core gets a document
+with its `Rejection` instead of its calls.
 
 Scientific input adapters are independent of deterministic CLI publication
 targets. Pipeline validates output naming and overwrite protection separately,

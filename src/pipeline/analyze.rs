@@ -18,7 +18,6 @@ use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::ReadIdentity;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
-use dna_sanger::read_processing::ReadWarnings;
 
 use super::Operation;
 
@@ -92,12 +91,7 @@ fn analyze(
         &inputs.profile,
     )?;
     let ReadObservation { called, sanger } = completed.read;
-    let sanger = report::project_sanger_read(
-        &sanger.calls,
-        sanger.signal,
-        &sanger.callability,
-        &sanger.quality,
-    )?;
+    let sanger = SangerRead::of(&sanger)?;
     publish(
         Analyzed {
             config: &inputs.config,
@@ -129,7 +123,7 @@ fn analyze_evidence(
     tracing::info!(
         event = "inputs_loaded",
         elapsed_ms = stage_started.elapsed().as_millis(),
-        evidence_name = ?read.input_name,
+        trace_name = ?read.input_name,
         trace_sha256 = %read.input_sha256,
         calls = read.evidence.calls().len(),
         reference_name = ?inputs.reference.name,
@@ -158,17 +152,8 @@ fn analyze_evidence(
         &inputs.config,
         &inputs.profile,
     )?;
-    let warnings = &read.sanger.warnings;
-    let warning_total = variant_analysis::observation::warning_total(
-        &ReadWarnings {
-            unresolved_primary_calls: warnings.unresolved_primary_calls,
-            multi_channel_unresolved_calls: warnings.multi_channel_unresolved_calls,
-            vendor_disagreements: warnings.vendor_disagreements,
-            locus_vendor_length_mismatches: warnings.ploc_vendor_length_mismatches,
-            clipped_channel_samples: warnings.clipped_channel_samples,
-        },
-        &called,
-    );
+    let warning_total =
+        variant_analysis::observation::warning_total(&read.sanger.read_warnings(), &called);
     publish(
         Analyzed {
             config: &inputs.config,

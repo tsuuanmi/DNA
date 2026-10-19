@@ -4,8 +4,8 @@ use crate::config::Config;
 use crate::error::{ReportError, Result};
 use crate::model::basecall_result::{BasecallProvenanceResult, BasecallReadResult, BasecallResult};
 use crate::model::result::{InputResult, IntervalResult};
+use crate::model::sanger_read;
 use crate::report::json::project_plugins;
-use crate::report::{callability, sanger_read, signal};
 use dna_kernel::plugin::PluginDescriptor;
 use dna_sanger::model::basecalls::BaseCalls;
 use dna_sanger::model::callability::ReadCallability;
@@ -58,7 +58,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
         .into());
     }
     let warnings = sanger_read::warnings(&calls, &signal_analysis.integrity);
-    let signal_quality = signal::project(signal_analysis);
+    let signal_quality = sanger_read::signal_quality(&signal_analysis);
 
     Ok(BasecallResult {
         schema_version: "dna.basecalls/v3",
@@ -78,7 +78,7 @@ pub(crate) fn build(completed: CompletedBasecall) -> Result<BasecallResult> {
                 start: quality.trim_start_0based,
                 end: quality.trim_end_0based_exclusive,
             },
-            callability: callability::project(&read_callability),
+            callability: sanger_read::callability(&read_callability),
         },
         signal_quality,
         warnings,

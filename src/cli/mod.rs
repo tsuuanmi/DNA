@@ -2,8 +2,9 @@
 //!
 //! Single-read commands accept exactly one AB1 path; analyze accepts the
 //! read's evidence document (`--evidence`) in its place. The sample command accepts
-//! one user-supplied sample identifier plus one or more AB1 paths and derives one
-//! sample-evidence result. The call command accepts one sample identifier plus
+//! one user-supplied sample identifier plus one or more AB1 paths, or their
+//! read evidence documents (`--evidence`), and derives one sample-evidence
+//! result; consensus and review take the same reads. The call command accepts one sample identifier plus
 //! one or more consensus-sequence FASTA files and runs the core caller alone.
 //! The notation command accepts one sample identifier plus that sample's
 //! variants document and derives its notation with the post-calling plugins.
@@ -38,9 +39,9 @@ pub enum Command {
     Basecall(BasecallArgs),
     /// Write one AB1 trace's per-call evidence as the core receives it, without a reference.
     Evidence(BasecallArgs),
-    /// Aggregate independently analyzed AB1 traces into sample evidence.
+    /// Aggregate independently analyzed AB1 traces, or their recorded evidence, into sample evidence.
     Sample(SampleArgs),
-    /// Adjudicate a sample's AB1 traces into a consensus sequence.
+    /// Adjudicate a sample's AB1 traces, or their recorded evidence, into a consensus sequence.
     Consensus(SampleArgs),
     /// List the positions of a sample a reviewer should look at, with their evidence.
     Review(ReviewArgs),
@@ -77,30 +78,42 @@ pub struct BasecallArgs {
     pub trace: PathBuf,
 }
 
-/// Arguments for reference-coordinate sample evidence aggregation.
+/// Arguments for reference-coordinate sample evidence aggregation: the
+/// sample's traces, or their `dna.read_evidence/v1` documents, never both.
 #[derive(Debug, Args)]
+#[command(group(ArgGroup::new("reads").required(true).args(["traces", "evidence"])))]
 pub struct SampleArgs {
     /// Stable sample identifier used only for result/log naming and provenance.
     pub sample_id: String,
 
     /// Independently processed ABIF/AB1 traces belonging to the sample.
-    #[arg(required = true, num_args = 1..)]
     pub traces: Vec<PathBuf>,
+
+    /// The reads' evidence (`dna.read_evidence/v1`, written by `evidence`),
+    /// in place of their traces (PROP-0011).
+    #[arg(long, num_args = 1..)]
+    pub evidence: Vec<PathBuf>,
 
     /// Single-contig reference FASTA shared by every trace.
     #[arg(long)]
     pub reference: PathBuf,
 }
 
-/// Arguments for a sample review.
+/// Arguments for a sample review: the sample's traces, or their
+/// `dna.read_evidence/v1` documents, never both.
 #[derive(Debug, Args)]
+#[command(group(ArgGroup::new("reads").required(true).args(["traces", "evidence"])))]
 pub struct ReviewArgs {
     /// Stable sample identifier used only for result/log naming and provenance.
     pub sample_id: String,
 
     /// Independently processed ABIF/AB1 traces belonging to the sample.
-    #[arg(required = true, num_args = 1..)]
     pub traces: Vec<PathBuf>,
+
+    /// The reads' evidence (`dna.read_evidence/v1`, written by `evidence`),
+    /// in place of their traces (PROP-0011).
+    #[arg(long, num_args = 1..)]
+    pub evidence: Vec<PathBuf>,
 
     /// Single-contig reference FASTA shared by every trace.
     #[arg(long)]

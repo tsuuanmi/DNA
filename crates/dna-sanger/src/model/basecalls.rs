@@ -84,4 +84,13 @@ impl BaseCalls {
     pub fn is_empty(&self) -> bool {
         self.calls.is_empty()
     }
+
+    /// Each call's selected A/C/G/T peak heights in its window, in call order.
+    #[must_use]
+    pub fn heights(&self) -> Vec<[i32; 4]> {
+        self.calls
+            .iter()
+            .map(|call| call.peaks.map(|peak| peak.height))
+            .collect()
+    }
 }

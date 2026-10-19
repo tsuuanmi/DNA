@@ -26,6 +26,15 @@ pub struct SangerConfig {
     pub sanger_evidence: SangerEvidenceConfig,
 }
 
+impl SangerConfig {
+    /// Fewest callable calls a read needs to be analyzed
+    /// (`callability.minimum_callable_calls`).
+    #[must_use]
+    pub const fn minimum_callable_calls(&self) -> usize {
+        self.callability.minimum_callable_calls
+    }
+}
+
 /// The Sanger plugin's sections as written in the configuration.
 pub struct RawSangerConfig {
     /// The `[basecalling]` section as written.

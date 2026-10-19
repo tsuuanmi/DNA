@@ -1,53 +1,79 @@
 //! Typed assembly of `dna.read_evidence/v1`: one read's evidence exactly as
 //! the modality hands it to the core, with the Sanger signal each verdict
-//! rests on (PROP-0011).
+//! rests on, or why the modality set the read aside (PROP-0011).
 
 use crate::config::Config;
 use crate::error::{ReportError, Result};
 use crate::model::evidence_result::{
-    BoundResult, CallEvidenceResult, CallSignalResult, Ends, EvidenceProvenanceResult,
-    EvidenceReadResult, EvidenceResult, MixtureComponentResult, MixtureEvidenceResult,
-    PostRepeatResult, SecondBaseResult, VerdictResult,
+    BoundResult, CallEvidenceResult, CallSignalResult, Ends, EvidenceDocument, EvidenceInputResult,
+    EvidenceProvenanceResult, EvidenceReadResult, EvidenceResult, MixtureComponentResult,
+    MixtureEvidenceResult, PostRepeatResult, RejectedEvidenceResult, SecondBaseResult,
+    VerdictResult,
 };
-use crate::model::result::{
-    InputResult, IntervalResult, PeakHeightsResult, PlacementKind, PlacementResult,
-};
-use crate::model::sanger_read::SangerRead;
+use crate::model::result::{IntervalResult, PeakHeightsResult, PlacementKind, PlacementResult};
+use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::report::json::project_plugins;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::read_evidence::{
     Bound, EvidenceReason, Placement, ReadEnds, ReadEvidence, Verdict,
 };
-use dna_sanger::model::basecalls::BaseCalls;
-use dna_sanger::model::sanger::Chromatogram;
-use dna_sanger::model::second_cause::SecondPeak;
+
+/// The schema every read evidence document names.
+const SCHEMA_VERSION: &str = "dna.read_evidence/v1";
 
 /// Inputs consumed to build one evidence document.
 pub(crate) struct CompletedEvidence {
     pub(crate) config: Config,
-    pub(crate) trace: Chromatogram,
-    pub(crate) calls: BaseCalls,
-    /// The read's Sanger evidence, as the analysis document reports it.
-    pub(crate) sanger: SangerRead,
-    pub(crate) second: Vec<Option<SecondPeak>>,
-    pub(crate) evidence: ReadEvidence,
+    /// The trace's file name and content SHA-256.
+    pub(crate) input: (String, String),
+    pub(crate) outcome: Evidenced,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
 }
 
+/// What the modality made of the read.
+pub(crate) enum Evidenced {
+    /// The read's evidence as the core receives it, and its Sanger evidence
+    /// as the documents report it.
+    Read {
+        sanger: Box<SangerRead>,
+        evidence: Box<ReadEvidence>,
+    },
+    /// The modality set the read aside.
+    Rejected(Box<Rejection>),
+}
+
 /// Builds `dna.read_evidence/v1` without filesystem side effects.
-pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
+pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceDocument> {
     let CompletedEvidence {
         config,
-        trace,
-        calls,
-        sanger,
-        second,
-        evidence,
+        input: (name, sha256),
+        outcome,
         plugins,
     } = completed;
+    let provenance = EvidenceProvenanceResult {
+        input: EvidenceInputResult { name, sha256 },
+        configuration_sha256: config.source_sha256,
+        plugins: project_plugins(plugins),
+    };
+    let (sanger, evidence) = match outcome {
+        Evidenced::Read { sanger, evidence } => (*sanger, *evidence),
+        Evidenced::Rejected(rejection) => {
+            let Rejection { cause, sanger, .. } = *rejection;
+            let (integrity, callability) = sanger
+                .map(|sanger| (sanger.integrity, sanger.callability))
+                .unzip();
+            return Ok(EvidenceDocument::Rejected(RejectedEvidenceResult {
+                schema_version: SCHEMA_VERSION,
+                provenance,
+                rejection: cause,
+                integrity,
+                callability,
+            }));
+        }
+    };
     let count = evidence.calls().len();
-    if calls.calls.len() != count || sanger.calls.len() != count {
+    if sanger.calls.len() != count {
         return Err(
             ReportError::Inconsistent("evidence and basecalls differ in call count").into(),
         );
@@ -58,14 +84,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
         .iter()
         .enumerate()
         .map(|(index, call)| {
-            let basecall = &calls.calls[index];
             let signal = sanger.calls[index];
-            let height = basecall
-                .peaks
-                .iter()
-                .map(|peak| peak.height)
-                .max()
-                .unwrap_or(0);
             CallEvidenceResult {
                 index,
                 base: call.base,
@@ -85,36 +104,28 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
                     call: call.post_repeat.call,
                     bound: call.post_repeat.bound,
                 },
+                // At full precision, as every other value read back: the
+                // review judges each share against its threshold.
                 second: call.second.map(|second| SecondBaseResult {
                     base: second.base,
-                    share: round(second.share),
+                    share: second.share,
                     stands_out: second.stands_out,
                 }),
                 second_unexplained: call.second_unexplained,
                 reference_only: call.reference_only,
                 signal: CallSignalResult {
-                    scan: basecall.locus_position_0based,
-                    height: u32::try_from(height).unwrap_or(0),
+                    scan: signal.scan,
+                    channels: PeakHeightsResult::from(signal.channels),
                     peaks: signal.peaks.map(PeakHeightsResult::from),
                     relative_quality: signal.quality,
-                    cause: second
-                        .get(index)
-                        .copied()
-                        .flatten()
-                        .map(|peak| peak.cause.label()),
+                    cause: signal.second.map(|peak| peak.cause.label()),
                 },
             }
         })
         .collect();
-    Ok(EvidenceResult {
-        schema_version: "dna.read_evidence/v1",
-        provenance: EvidenceProvenanceResult {
-            input: InputResult {
-                sha256: trace.source_sha256,
-            },
-            configuration_sha256: config.source_sha256,
-            plugins: project_plugins(plugins),
-        },
+    Ok(EvidenceDocument::Read(EvidenceResult {
+        schema_version: SCHEMA_VERSION,
+        provenance,
         read: EvidenceReadResult {
             call_count: count,
             trim: sanger.trim,
@@ -143,13 +154,13 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
                     },
                     run_calls: mixture.run_calls,
                     explained: mixture.explained,
-                    residual: round(mixture.residual),
+                    residual: mixture.residual,
                     components: mixture
                         .components
                         .iter()
                         .map(|component| MixtureComponentResult {
                             offset: component.offset,
-                            fraction: round(component.fraction),
+                            fraction: component.fraction,
                         })
                         .collect(),
                     unexplained: mixture.unexplained.clone(),
@@ -159,7 +170,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
         signal_quality: sanger.signal_quality,
         warnings: sanger.warnings,
         calls: results,
-    })
+    }))
 }
 
 /// The kernel placement as its kind and the modality's reason.
@@ -181,9 +192,4 @@ fn verdict(verdict: Verdict) -> VerdictResult {
         edge: verdict.edge,
         withheld: verdict.withheld.iter().map(EvidenceReason::label).collect(),
     }
-}
-
-/// A share or fraction to three decimals, as every DNA document writes them.
-fn round(value: f64) -> f64 {
-    (value * 1000.0).round() / 1000.0
 }

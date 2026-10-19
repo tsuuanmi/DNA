@@ -33,6 +33,9 @@ SIGNAL_SCHEMA = CONTRACTS / "schemas" / "signal-v1.schema.json"
 SIGNAL_EXAMPLE = CONTRACTS / "examples" / "signal-v1.example.json"
 EVIDENCE_SCHEMA = CONTRACTS / "schemas" / "read-evidence-v1.schema.json"
 EVIDENCE_EXAMPLE = CONTRACTS / "examples" / "read-evidence-v1.example.json"
+REJECTED_EVIDENCE_EXAMPLE = (
+    CONTRACTS / "examples" / "read-evidence-v1.rejected.example.json"
+)
 # Review labels that leave an item unassured, so that it is a check.
 REVIEW_UNASSURED = frozenset(
     {
@@ -1382,9 +1385,37 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def validate_rejected_evidence(
+    document: dict[str, Any], label: str, errors: list[str]
+) -> None:
+    """Check a rejected read's numbers: below its minimum, and callable and masked calls that add up."""
+    rejection = document.get("rejection", {})
+    if rejection.get("reason") == "too_short":
+        if not rejection.get("calls", 0) < rejection.get("minimum_calls", 0):
+            errors.append(f"{label}: a too-short read reaches its minimum calls")
+        return
+    callable_calls = rejection.get("callable_calls", 0)
+    if not callable_calls < rejection.get("minimum_callable_calls", 0):
+        errors.append(f"{label}: a read reaches its minimum callable calls")
+    callability = document.get("callability", {})
+    segments = callability.get("segments", [])
+    spans = [
+        (segment.get("calls", {}).get("start"), segment.get("calls", {}).get("end"))
+        for segment in segments
+    ]
+    calls = spans[-1][1] if spans else 0
+    if [start for start, _ in spans] != [0] + [end for _, end in spans[:-1]]:
+        errors.append(f"{label}: callability segments do not partition the calls")
+    if callable_calls + callability.get("masked_calls", 0) != calls:
+        errors.append(f"{label}: callable and masked calls do not add up to the calls")
+
+
 def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
-    """Check a read evidence's call order, intervals, warnings, and listed reasons."""
+    """Check a read evidence's call order, intervals, warnings, and listed reasons, or a rejected read's numbers."""
     if not isinstance(document, dict):
+        return
+    if "rejection" in document:
+        validate_rejected_evidence(document, label, errors)
         return
     read = document.get("read", {})
     calls = document.get("calls", [])
@@ -1455,6 +1486,29 @@ def rejected_evidence_shapes(
     no_warnings.pop("warnings")
     three_peaks = copy.deepcopy(example)
     three_peaks["calls"][0]["signal"]["peaks"].pop("T")
+    no_channels = copy.deepcopy(example)
+    no_channels["calls"][0]["signal"].pop("channels")
+    no_name = copy.deepcopy(example)
+    no_name["provenance"]["input"].pop("name")
+    path_name = copy.deepcopy(example)
+    path_name["provenance"]["input"]["name"] = "runs/trace.ab1"
+    read_and_rejection = copy.deepcopy(example)
+    read_and_rejection["rejection"] = {
+        "reason": "too_short",
+        "calls": 5,
+        "minimum_calls": 10,
+    }
+    rejected = load_json(REJECTED_EVIDENCE_EXAMPLE)
+    short_with_callability = copy.deepcopy(rejected)
+    short_with_callability["rejection"] = {
+        "reason": "too_short",
+        "calls": 5,
+        "minimum_calls": 10,
+    }
+    callable_without_integrity = copy.deepcopy(rejected)
+    callable_without_integrity.pop("integrity")
+    placement_rejection = copy.deepcopy(rejected)
+    placement_rejection["rejection"] = {"reason": "ambiguous_placement"}
     return [
         ("evidence scored call with a placement reason", scored_with_reason),
         ("evidence masked call without its reason", masked_without_reason),
@@ -1465,6 +1519,13 @@ def rejected_evidence_shapes(
         ("evidence without its signal quality", no_signal_quality),
         ("evidence without its warnings", no_warnings),
         ("evidence peaks without one channel", three_peaks),
+        ("evidence call without its window peaks", no_channels),
+        ("evidence without the trace's name", no_name),
+        ("evidence naming its trace by a path", path_name),
+        ("evidence of a read with a rejection", read_and_rejection),
+        ("too-short evidence with callability", short_with_callability),
+        ("rejected evidence without its integrity", callable_without_integrity),
+        ("evidence rejected by the core", placement_rejection),
     ]
 
 
@@ -1518,7 +1579,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
     review_paths = args.review or [REVIEW_EXAMPLE]
     signal_paths = args.signal or [SIGNAL_EXAMPLE]
-    evidence_paths = args.evidence or [EVIDENCE_EXAMPLE]
+    evidence_paths = args.evidence or [EVIDENCE_EXAMPLE, REJECTED_EVIDENCE_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
@@ -1777,6 +1838,14 @@ def main(argv: list[str] | None = None) -> int:
     if not warning_errors:
         errors.append(
             "expected evidence warnings that disagree with the calls to be rejected"
+        )
+    uncounted = load_json(REJECTED_EVIDENCE_EXAMPLE)
+    uncounted["rejection"]["callable_calls"] += 1
+    uncounted_errors: list[str] = []
+    validate_evidence(uncounted, "synthetic uncounted rejection", uncounted_errors)
+    if not uncounted_errors:
+        errors.append(
+            "expected rejected evidence whose calls do not add up to be rejected"
         )
     unordered_review = copy.deepcopy(review_example)
     unordered_review["items"].reverse()

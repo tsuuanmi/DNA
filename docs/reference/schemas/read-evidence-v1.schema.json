@@ -2,23 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:signal:schema:read_evidence:v1",
   "title": "DNA read evidence v1",
-  "description": "One read's evidence exactly as the modality hands it to the core (ADR-0069, PROP-0011): per-call verdicts of the kernel contract, with the Sanger signal each rests on, and the Sanger evidence `dna analyze --evidence` reports beside the core's products.",
+  "description": "One read's evidence exactly as the modality hands it to the core (ADR-0069, PROP-0011): per-call verdicts of the kernel contract, with the Sanger signal each rests on, and the Sanger evidence the analysis, sample, consensus, and review documents report beside the core's products; or, for a read the modality sets aside, its rejection with the numbers and evidence the sample documents report.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "provenance",
-    "read",
-    "signal_quality",
-    "warnings",
-    "calls"
+    "provenance"
   ],
   "properties": {
     "schema_version": {
       "const": "dna.read_evidence/v1"
     },
     "provenance": {
-      "$ref": "urn:signal:schema:basecalls:v3#/$defs/provenance"
+      "$ref": "#/$defs/provenance"
     },
     "read": {
       "type": "object",
@@ -84,9 +80,105 @@
       "items": {
         "$ref": "#/$defs/call"
       }
+    },
+    "rejection": {
+      "description": "Why the modality set the read aside, as the sample documents report it.",
+      "$ref": "#/$defs/rejection"
+    },
+    "integrity": {
+      "description": "Trace integrity of a read with too few callable calls, as in dna.basecalls/v3.",
+      "$ref": "urn:signal:schema:basecalls:v3#/$defs/integrity"
+    },
+    "callability": {
+      "description": "Callability of a read with too few callable calls, as in dna.basecalls/v3.",
+      "$ref": "urn:signal:schema:basecalls:v3#/$defs/callability"
     }
   },
   "$defs": {
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input",
+        "configuration_sha256",
+        "plugins"
+      ],
+      "properties": {
+        "input": {
+          "description": "The trace the evidence was written from: its file name, from which the sample documents name the read, and its content SHA-256.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^/]+$"
+            },
+            "sha256": {
+              "$ref": "urn:signal:schema:basecalls:v3#/$defs/sha256"
+            }
+          }
+        },
+        "configuration_sha256": {
+          "$ref": "urn:signal:schema:basecalls:v3#/$defs/sha256"
+        },
+        "plugins": {
+          "$ref": "urn:signal:schema:basecalls:v3#/$defs/plugins"
+        }
+      }
+    },
+    "rejection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "calls",
+            "minimum_calls"
+          ],
+          "properties": {
+            "reason": {
+              "const": "too_short"
+            },
+            "calls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minimum_calls": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason",
+            "callable_calls",
+            "minimum_callable_calls"
+          ],
+          "properties": {
+            "reason": {
+              "const": "callable_calls_below_minimum"
+            },
+            "callable_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minimum_callable_calls": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ]
+    },
     "reason": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*$"
@@ -240,7 +332,8 @@
             "share": {
               "type": "number",
               "minimum": 0,
-              "maximum": 0.5
+              "maximum": 0.5,
+              "description": "The second channel's share of the call's two strongest peaks, at full precision: the review judges it against its threshold."
             },
             "stands_out": {
               "type": "boolean"
@@ -254,12 +347,12 @@
           "type": "boolean"
         },
         "signal": {
-          "description": "The Sanger signal the verdicts rest on: the trace sample of the call's locus, its strongest channel peak, the A/C/G/T heights at its primary event, its relative quality, and the cause of its second peak (SRS-CALL-021).",
+          "description": "The Sanger signal the verdicts rest on: the trace sample of the call's locus, the selected A/C/G/T peak of each channel in its window, the A/C/G/T heights at its primary event, its relative quality, and the cause of its second peak (SRS-CALL-021).",
           "type": "object",
           "additionalProperties": false,
           "required": [
             "scan",
-            "height",
+            "channels",
             "relative_quality"
           ],
           "properties": {
@@ -267,34 +360,13 @@
               "type": "integer",
               "minimum": 0
             },
-            "height": {
-              "type": "integer",
-              "minimum": 0
+            "channels": {
+              "description": "The selected A/C/G/T peak heights in the call's window, on the read strand: what the run signal counts and second shares are measured from.",
+              "$ref": "#/$defs/peaks"
             },
             "peaks": {
               "description": "A/C/G/T channel heights at the call's primary event, on the read strand, when the call has one.",
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "A",
-                "C",
-                "G",
-                "T"
-              ],
-              "properties": {
-                "A": {
-                  "type": "integer"
-                },
-                "C": {
-                  "type": "integer"
-                },
-                "G": {
-                  "type": "integer"
-                },
-                "T": {
-                  "type": "integer"
-                }
-              }
+              "$ref": "#/$defs/peaks"
             },
             "relative_quality": {
               "type": "integer",
@@ -310,7 +382,8 @@
                 "phase_shift",
                 "second_template",
                 "mixed_stretch"
-              ]
+              ],
+              "description": "Present exactly when the call has a second peak (SRS-CALL-021): a share above signal_processing.second_floor, whose second base then stands out, or a call masked as mixed whose own second peak is small (mixed_stretch), whose second base does not."
             }
           }
         }
@@ -342,7 +415,7 @@
           "type": "boolean"
         },
         "residual": {
-          "description": "Root mean square per call of what the components leave, on the modality's normalised scale.",
+          "description": "Root mean square per call of what the components leave, on the modality's normalised scale. At full precision.",
           "type": "number",
           "minimum": 0
         },
@@ -364,7 +437,8 @@
               "fraction": {
                 "type": "number",
                 "minimum": 0,
-                "maximum": 1
+                "maximum": 1,
+                "description": "The component's fraction, at full precision."
               }
             }
           }
@@ -379,6 +453,123 @@
           }
         }
       }
+    },
+    "peaks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ],
+      "properties": {
+        "A": {
+          "type": "integer"
+        },
+        "C": {
+          "type": "integer"
+        },
+        "G": {
+          "type": "integer"
+        },
+        "T": {
+          "type": "integer"
+        }
+      }
     }
-  }
+  },
+  "oneOf": [
+    {
+      "description": "A read the modality hands to the core.",
+      "required": [
+        "read",
+        "signal_quality",
+        "warnings",
+        "calls"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "rejection"
+            ]
+          },
+          {
+            "required": [
+              "integrity"
+            ]
+          },
+          {
+            "required": [
+              "callability"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "A read the modality set aside: with its integrity and callability unless it was too short to process.",
+      "required": [
+        "rejection"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "read"
+            ]
+          },
+          {
+            "required": [
+              "signal_quality"
+            ]
+          },
+          {
+            "required": [
+              "warnings"
+            ]
+          },
+          {
+            "required": [
+              "calls"
+            ]
+          }
+        ]
+      },
+      "if": {
+        "properties": {
+          "rejection": {
+            "properties": {
+              "reason": {
+                "const": "too_short"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "integrity"
+              ]
+            },
+            {
+              "required": [
+                "callability"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "integrity",
+          "callability"
+        ]
+      }
+    }
+  ]
 }

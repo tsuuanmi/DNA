@@ -4,26 +4,23 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::error::{ReportError, Result};
-use crate::model::read_observation::{RejectedRead, RejectionCause};
 use crate::model::result::{AlignmentResult, IntervalResult, PeakHeightsResult, ReferenceResult};
 use crate::model::sample_result::{
-    ReadRejectionResult, RejectedSampleReadResult, SampleCoverageResult,
-    SampleEvidenceProfileResult, SampleEvidenceResult, SampleLocusDifferenceObservationResult,
-    SampleLocusDifferenceResult, SampleLocusSupportTopologyResult, SampleOverlapResult,
-    SampleProvenanceResult, SampleReadResult, SampleVariantCallResult,
-    SampleVariantOppositionResult, SampleVariantResult, SampleVariantSupportResult,
-    SampleVariantSupportTopologyResult,
+    RejectedSampleReadResult, SampleCoverageResult, SampleEvidenceProfileResult,
+    SampleEvidenceResult, SampleLocusDifferenceObservationResult, SampleLocusDifferenceResult,
+    SampleLocusSupportTopologyResult, SampleOverlapResult, SampleProvenanceResult,
+    SampleReadResult, SampleVariantCallResult, SampleVariantOppositionResult, SampleVariantResult,
+    SampleVariantSupportResult, SampleVariantSupportTopologyResult,
 };
+use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::{self, SampleNotation};
 use crate::report::sanger_call;
 use dna_align::model::alignment::Orientation;
-use dna_call::read_call::PlacementRejection;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::ProfileIdentity;
 use dna_sample::model::sample_evidence::SampleEvidence;
-use dna_sanger::model::attachment::SangerAttachment;
 
 /// Inputs consumed to build one immutable sample-evidence document.
 pub(crate) struct CompletedSampleEvidence {
@@ -42,15 +39,15 @@ pub(crate) struct CompletedSampleEvidence {
 /// Sanger evidence of a sample's reads, keyed by read content identity. The
 /// core sample evidence never carries it (ADR-0069).
 pub(crate) struct SangerSampleEvidence {
-    pub(crate) reads: BTreeMap<String, SangerAttachment>,
-    pub(crate) rejected: BTreeMap<String, RejectedRead>,
+    pub(crate) reads: BTreeMap<String, SangerRead>,
+    pub(crate) rejected: BTreeMap<String, Rejection>,
 }
 
 /// One admitted read's Sanger evidence and selected orientation, in
 /// read-registry order.
 #[derive(Clone, Copy)]
 struct JoinedRead<'a> {
-    sanger: &'a SangerAttachment,
+    sanger: &'a SangerRead,
     orientation: Orientation,
 }
 
@@ -85,15 +82,18 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                     .ok_or(ReportError::Inconsistent(
                         "rejected sample read lacks its rejection record",
                     ))?;
-            let sanger = rejected.cause.sanger();
             Ok(RejectedSampleReadResult {
                 name,
                 sha256: read.input_sha256.clone(),
-                integrity: sanger
-                    .map(|sanger| crate::report::signal::project_integrity(&sanger.integrity)),
-                callability: sanger
-                    .map(|sanger| crate::report::callability::project(&sanger.callability)),
-                rejection: project_rejection(&rejected.cause),
+                integrity: rejected
+                    .sanger
+                    .as_ref()
+                    .map(|sanger| sanger.integrity.clone()),
+                callability: rejected
+                    .sanger
+                    .as_ref()
+                    .map(|sanger| sanger.callability.clone()),
+                rejection: rejected.cause,
             })
         })
         .collect::<Result<_>>()?;
@@ -127,8 +127,8 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
         .map(|(read, (name, joined))| SampleReadResult {
             name: name.clone(),
             sha256: read.input_sha256,
-            integrity: crate::report::signal::project_integrity(&joined.sanger.signal.integrity),
-            callability: crate::report::callability::project(&joined.sanger.callability),
+            integrity: joined.sanger.signal_quality.integrity.clone(),
+            callability: joined.sanger.callability.clone(),
             alignment: AlignmentResult {
                 orientation: read.alignment.orientation,
                 callable_bases: read.alignment.callable_bases,
@@ -266,7 +266,6 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                             .map(|call| {
                                 let sanger = sanger_call::evidence(
                                     &read.sanger.calls,
-                                    &read.sanger.quality,
                                     read.orientation,
                                     call.call_index_0based,
                                 )
@@ -379,17 +378,15 @@ fn joined_read<'a>(joined: &[JoinedRead<'a>], index: usize) -> Result<JoinedRead
         .ok_or(ReportError::MissingRead { index })?)
 }
 
-/// Relative quality of call `index`, whose record must carry that index.
-fn call_quality(sanger: &SangerAttachment, index: usize) -> Result<u8> {
+/// Relative quality of call `index`.
+fn call_quality(sanger: &SangerRead, index: usize) -> Result<u8> {
     Ok(sanger
-        .quality
-        .per_call
+        .calls
         .get(index)
-        .filter(|quality| quality.index_0based == index)
         .ok_or(ReportError::Inconsistent(
             "sample locus call lacks matching quality evidence",
         ))?
-        .relative_quality_score)
+        .quality)
 }
 
 fn read_name(read_names: &[String], index: usize) -> Result<&str> {
@@ -397,36 +394,4 @@ fn read_name(read_names: &[String], index: usize) -> Result<&str> {
         .get(index)
         .map(String::as_str)
         .ok_or(ReportError::MissingRead { index })?)
-}
-
-pub(super) const fn project_rejection(cause: &RejectionCause) -> ReadRejectionResult {
-    match *cause {
-        RejectionCause::TooShort(short) => ReadRejectionResult::TooShort {
-            calls: short.calls,
-            minimum_calls: short.minimum_calls,
-        },
-        RejectionCause::Callability { rejection, .. } => {
-            ReadRejectionResult::CallableCallsBelowMinimum {
-                callable_calls: rejection.callable_calls,
-                minimum_callable_calls: rejection.minimum_callable_calls,
-            }
-        }
-        RejectionCause::Placement { rejection, .. } => match rejection {
-            PlacementRejection::CallableColumnsBelowMinimum {
-                callable_columns,
-                minimum,
-            } => ReadRejectionResult::CallableColumnsBelowMinimum {
-                callable_columns,
-                minimum_callable_columns: minimum,
-            },
-            PlacementRejection::IdentityBelowMinimum { identity, minimum } => {
-                ReadRejectionResult::IdentityBelowMinimum {
-                    identity,
-                    minimum_identity: minimum,
-                }
-            }
-            PlacementRejection::AmbiguousPlacement => ReadRejectionResult::AmbiguousPlacement,
-            PlacementRejection::OrientationTie => ReadRejectionResult::OrientationTie,
-        },
-    }
 }

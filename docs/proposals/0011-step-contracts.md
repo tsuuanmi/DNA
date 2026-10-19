@@ -110,8 +110,10 @@ or fed an edited input without the traces:
 - 4a. `dna analyze --evidence <read_evidence.json> --reference <fasta>` places and calls a
   read from its `dna.read_evidence/v1` alone. The contract then carries everything the core
   needs: bases, profiles, verdicts, bounds, flags, informative interval, ends, and mixtures.
-- 4b. `dna sample`, `dna consensus` and `dna review` start from a sample's read-evidence and
-  analysis documents in place of its traces.
+- 4b. `dna sample`, `dna consensus` and `dna review` start from a sample's read-evidence
+  documents in place of its traces (`--evidence`) and run the core in process, as
+  `dna analyze --evidence` does. A read the Sanger plugin sets aside gets a document with
+  its rejection, so the sample documents still list it with its cause.
 - The acceptance test for every step: running through the files is byte-identical to
   running in process, on the synthetic tests and on real traces. A field missing from a
   contract then shows as a difference, not as a silent default.
@@ -181,5 +183,13 @@ output of that step can be checked and the flow is clear".
   4a, `dna analyze --evidence` (SRS-API-018), is byte-identical to `dna analyze <trace>`
   on 999 of 1,000 real traces; the remaining read is rejected by the Sanger plugin both
   ways. Its evidence now carries full-precision profile weights: rounding them to three
-  decimals changed 2 of 1,000 analyses. 4b (sample, consensus and review from documents)
-  is pending.
+  decimals changed 2 of 1,000 analyses. 4b, `dna sample|consensus|review --evidence`
+  (SRS-API-019), is byte-identical to the trace-based commands on 1,120 real samples
+  (30 picked with every rejection kind, the 90 samples of one run reviewed with
+  `--signal`, and 1,000 random): sample, consensus document and FASTA, and review. For it
+  `dna.read_evidence/v1` changed in place (pre-release): the trace's file name in
+  provenance (the read's name in the sample documents), each call's window peaks
+  (`signal.channels`, in place of `height`, which the run signal counts), second shares,
+  mixture fractions, and residuals at full precision, and a document with its `rejection`
+  for a read the Sanger plugin sets aside, which `dna evidence` now writes instead of
+  failing.

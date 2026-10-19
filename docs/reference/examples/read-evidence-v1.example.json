@@ -2,6 +2,7 @@
   "schema_version": "dna.read_evidence/v1",
   "provenance": {
     "input": {
+      "name": "trace.ab1",
       "sha256": "a48e07b87c6c8e84bdb99a8fb4d4935522627134a6f0d6f7f471a20bf49f0c13"
     },
     "configuration_sha256": "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675",
@@ -148,14 +149,19 @@
       },
       "second": {
         "base": "G",
-        "share": 0.012,
+        "share": 0.012165450121654502,
         "stands_out": false
       },
       "second_unexplained": false,
       "reference_only": false,
       "signal": {
         "scan": 12,
-        "height": 812,
+        "channels": {
+          "A": 812,
+          "C": 6,
+          "G": 10,
+          "T": 4
+        },
         "peaks": {
           "A": 812,
           "C": 6,
@@ -192,14 +198,19 @@
       },
       "second": {
         "base": "T",
-        "share": 0.02,
+        "share": 0.01935483870967742,
         "stands_out": false
       },
       "second_unexplained": false,
       "reference_only": false,
       "signal": {
         "scan": 24,
-        "height": 760,
+        "channels": {
+          "A": 0,
+          "C": 760,
+          "G": 8,
+          "T": 15
+        },
         "peaks": {
           "A": 0,
           "C": 760,
@@ -238,7 +249,12 @@
       "reference_only": false,
       "signal": {
         "scan": 36,
-        "height": 701,
+        "channels": {
+          "A": 7,
+          "C": 9,
+          "G": 701,
+          "T": 5
+        },
         "peaks": {
           "A": 7,
           "C": 9,
@@ -279,14 +295,19 @@
       },
       "second": {
         "base": "C",
-        "share": 0.04,
+        "share": 0.03827751196172249,
         "stands_out": false
       },
       "second_unexplained": false,
       "reference_only": true,
       "signal": {
         "scan": 48,
-        "height": 402,
+        "channels": {
+          "A": 8,
+          "C": 16,
+          "G": 0,
+          "T": 402
+        },
         "peaks": {
           "A": 8,
           "C": 16,
@@ -326,14 +347,19 @@
       },
       "second": {
         "base": "A",
-        "share": 0.262,
+        "share": 0.2079207920792079,
         "stands_out": true
       },
       "second_unexplained": false,
       "reference_only": false,
       "signal": {
         "scan": 60,
-        "height": 640,
+        "channels": {
+          "A": 168,
+          "C": 640,
+          "G": 3,
+          "T": 2
+        },
         "peaks": {
           "A": 168,
           "C": 640,
@@ -368,7 +394,12 @@
       "reference_only": false,
       "signal": {
         "scan": 72,
-        "height": 0,
+        "channels": {
+          "A": 0,
+          "C": 0,
+          "G": 0,
+          "T": 0
+        },
         "relative_quality": 0
       }
     }

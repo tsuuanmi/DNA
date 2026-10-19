@@ -15,6 +15,12 @@ so the modality → core boundary can be checked on its own
 ([PROP-0011](../proposals/0011-step-contracts.md)). It does not load a
 reference, align, or call variants. Existing targets are never overwritten.
 
+A read the sample commands set aside before the core still gets its document:
+one too short for a signal window or with too few callable calls is
+recorded with its `rejection` instead of its calls (below). A read the core
+cannot place has an ordinary document: the core rejects it again when it
+reads it.
+
 The authoritative contract is
 [`schemas/read-evidence-v1.schema.json`](schemas/read-evidence-v1.schema.json); a
 synthetic example is
@@ -23,9 +29,11 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
 
 ## Fields
 
-- `provenance`: as in [`dna.basecalls/v3`](basecalls.md): the input AB1 SHA-256,
-  the configuration SHA-256, and `plugins` (`evidence` runs only the `sanger`
-  plugin).
+- `provenance`: as in [`dna.basecalls/v3`](basecalls.md), the input AB1
+  SHA-256, the configuration SHA-256, and `plugins` (`evidence` runs only the
+  `sanger` plugin), and the trace's file `name` beside its SHA-256. The
+  sample documents name a read by the stem of that name, so a read from its
+  document has the name its trace gives it, whatever the document is called.
 - `read`:
   - `call_count`: the number of calls;
   - `trim`: the relative-quality trim interval, as in `dna.basecalls/v3`;
@@ -59,18 +67,41 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
   - `second_unexplained` and `reference_only` (ADR-0080).
 
   Then `signal`, the Sanger evidence the verdicts rest on: the trace sample
-  `scan` of the call's locus, the `height` of its strongest channel peak, the
-  A/C/G/T `peaks` at its primary event on the read strand when it has one,
-  its `relative_quality`, and the `cause` of its second peak when it has one
-  (SRS-CALL-021).
+  `scan` of the call's locus, the selected A/C/G/T peak of each channel in
+  its window (`channels`, read strand), the A/C/G/T `peaks` at its primary
+  event on the read strand when it has one, its `relative_quality`, and the
+  `cause` of its second peak when it has one (SRS-CALL-021). A call has a
+  second peak when its second base stands out, or when it is masked as mixed
+  and its own second peak is small (`mixed_stretch`, its second base then not
+  standing out). The review reads `scan`, `relative_quality`, the second peak
+  with its cause, and `channels`, from which the run signal counts a read's
+  calls.
 
-Second-base shares, mixture fractions, and residuals are rounded to three
-decimals; the core reads none of them. Profile weights are written at full
-precision: the aligner quantizes them to 1/1024, so three decimals change the
-quantized weight of about a quarter of all calls, and placed two reads in a
-thousand differently. The document is the same for the same trace and
-configuration, and its bases, trim, callability, signal quality, and warnings
-equal the `dna.basecalls/v3` document's.
+Every number is written at full precision, so the documents a later step
+writes from it are those it writes in process. Profile weights matter most:
+the aligner quantizes them to 1/1024, so three decimals change the quantized
+weight of about a quarter of all calls, and placed two reads in a thousand
+differently. Second-base shares are judged against their threshold by the
+review, and the review and the core read mixture fractions and residuals.
+The document is the same for the same trace and configuration, and its
+bases, trim, callability, signal quality, and warnings equal the
+`dna.basecalls/v3` document's.
+
+### A read set aside
+
+A read the Sanger plugin sets aside has `provenance` and, in place of `read`,
+`signal_quality`, `warnings`, and `calls`, its `rejection` as the
+[[reference/sample-evidence/reads-coverage|sample read registry]] reports it:
+
+- `too_short`, with its `calls` and `minimum_calls`
+  (`signal_processing.window_size_bases`): no stage ran, so the document has
+  nothing else;
+- `callable_calls_below_minimum`, with its `callable_calls` and
+  `minimum_callable_calls` (`callability.minimum_callable_calls`), and the
+  read's `integrity` and `callability` as in `dna.basecalls/v3`.
+
+A synthetic example is
+[`examples/read-evidence-v1.rejected.example.json`](examples/read-evidence-v1.rejected.example.json).
 
 ## As an input
 
@@ -79,16 +110,31 @@ The document is also the input of `dna analyze --evidence <file> --reference
 without the trace, and writes the [analysis document](analysis/README.md)
 that `dna analyze <trace>` writes for the same trace and configuration, byte
 for byte, under `results/<trace-stem>.json` (the file stem without
-`.evidence`). The reader:
+`.evidence`). The document of a read set aside fails the command as the
+analysis of its trace does, with the same error.
+
+`dna sample`, `dna consensus`, and `dna review` take a sample's documents
+with `--evidence <file>...` in place of its traces (SRS-API-019): the core
+places every read from its document, a read set aside is rejected with its
+recorded cause, and the commands write the documents the trace-based
+commands write for the same traces and configuration, byte for byte,
+`--signal` included. Traces and `--evidence` exclude each other.
+
+The reader:
 
 - accepts only `dna.read_evidence/v1`, each object closed, at most 16 MiB;
 - requires the configuration SHA-256 of the loaded configuration and this
   build's evidence plugins in provenance, so the analysis records one
   configuration and the plugins that made it;
-- requires the calls in call order, every reason label one the Sanger plugin
-  raises (a core label or an unknown one is refused), each verdict's reasons
-  listed once, and the trim, callability, noisy regions, and warnings
-  consistent with the calls;
+- requires a trace file name without a directory, the calls in call order,
+  every reason label one the Sanger plugin raises (a core label or an unknown
+  one is refused), each verdict's reasons listed once, callability segments
+  that partition the calls, the trim, noisy regions, and warnings consistent
+  with the calls, and a second-peak cause exactly when the call has a second
+  peak;
+- requires of a read set aside either a read or a rejection, never both, the
+  loaded configuration's minimum, a count below it, and callable and masked
+  calls that add up to the read's calls;
 - rebuilds the kernel's `ReadEvidence` through its own constructors (reason
   order, informative interval, ends, mixtures), so every kernel invariant is
   checked again.
@@ -96,5 +142,3 @@ for byte, under `results/<trace-stem>.json` (the file stem without
 Numbers are parsed correctly rounded, so every value written is read back
 bit for bit. Each failure is a typed `invalid read evidence` error and writes
 no output.
-The `scan`, `height`, and `cause` of each call are checked for shape only:
-the analysis reports none of them.

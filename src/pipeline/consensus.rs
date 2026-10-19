@@ -1,23 +1,22 @@
 //! Sample consensus orchestration and publication (PROP-0003).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
-use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedConsensus};
 use crate::sample_analysis::{self, reads};
 
-use super::Operation;
 use super::sample::validate_sample_id;
+use super::{Operation, SampleInput};
 
 /// Runs one sample consensus operation with one sample-level append-only log.
 pub(crate) fn run(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     config_path: &Path,
 ) -> Result<()> {
@@ -27,27 +26,31 @@ pub(crate) fn run(
             event = "consensus_started",
             version = env!("CARGO_PKG_VERSION"),
             sample_id = ?sample_id,
-            traces = traces.len(),
+            traces = input.len(),
+            evidence = matches!(input, SampleInput::Evidence(_)),
             reference_path = ?reference.display().to_string(),
         );
     })?
-    .run(|log, started| build(sample_id, traces, reference, config_path, log, started))
+    .run(|log, started| build(sample_id, input, reference, config_path, log, started))
 }
 
 fn build(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     config_path: &Path,
     log: &OperationLog,
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
-    let inputs = sanger::load_sample(traces, reference, config_path)?;
+    let super::LoadedSample {
+        loaded: inputs,
+        reads,
+    } = super::load_sample(input, reference, config_path)?;
     let (document, fasta) = path::consensus_outputs(sample_id)?;
     tracing::info!(
         event = "consensus_inputs_loaded",
-        traces = inputs.traces.len(),
+        traces = reads.len(),
         reference_sha256 = %inputs.reference.sequence_sha256,
         config_sha256 = %inputs.config.source_sha256,
         profile_id = ?inputs.profile.identity().id,
@@ -57,7 +60,7 @@ fn build(
 
     drop(stage);
     let placed = reads::place(
-        &inputs.traces,
+        reads.reads(),
         &inputs.reference,
         &inputs.config,
         &inputs.profile,

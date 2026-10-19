@@ -7,11 +7,11 @@ use crate::model::consensus_result::{
     ConsensusReadResult, ConsensusRejectedReadResult, ConsensusResult, ConsensusRunResult,
     ConsensusSegmentResult, ConsensusSiteResult, ConsensusSummaryResult,
 };
-use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::sample_result::SampleProvenanceResult;
+use crate::model::sanger_read::Rejection;
 use crate::report::json::{project_plugins, project_profile};
-use crate::report::sample::{project_rejection, reviewer_read_names};
+use crate::report::sample::reviewer_read_names;
 use dna_consensus::model::consensus::{Consensus, ConsensusSegment};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
@@ -29,7 +29,7 @@ pub(crate) struct CompletedConsensus {
     /// The sample's read registry and rejected reads.
     pub(crate) evidence: SampleEvidence,
     /// Rejected reads with their causes, by content SHA-256.
-    pub(crate) rejected: BTreeMap<String, RejectedRead>,
+    pub(crate) rejected: BTreeMap<String, Rejection>,
     pub(crate) consensus: Consensus,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
@@ -76,7 +76,7 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
             Ok(ConsensusRejectedReadResult {
                 name,
                 sha256: read.input_sha256.clone(),
-                rejection: project_rejection(&cause.cause),
+                rejection: cause.cause,
             })
         })
         .collect::<Result<_>>()?;

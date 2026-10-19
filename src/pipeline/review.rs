@@ -1,11 +1,10 @@
 //! Sample review orchestration and publication (PROP-0004).
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
-use crate::input::sanger;
 use crate::input::signal as input_signal;
 use crate::model::review_result::{
     ComparedResult, ComponentResult, ItemKind, LabelResult, MixtureResult,
@@ -15,18 +14,18 @@ use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::pipeline::represent;
 use crate::report::{self, CompletedReview, Reviewed};
-use crate::sample_analysis::{self, ConsensusCall, ReviewCheck, SampleAnalysis, SampleOutcome};
+use crate::sample_analysis::{self, ConsensusCall, Outcome, ReviewCheck, SampleAnalysis};
 use dna_call::components::ComponentCall;
 use dna_kernel::variant::Variant;
 use dna_sanger::run_signal::RunSignal;
 
-use super::Operation;
 use super::sample::validate_sample_id;
+use super::{Operation, SampleInput};
 
 /// Runs one sample review operation with one sample-level append-only log.
 pub(crate) fn run(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     signal: Option<&Path>,
     config_path: &Path,
@@ -37,14 +36,15 @@ pub(crate) fn run(
             event = "review_started",
             version = env!("CARGO_PKG_VERSION"),
             sample_id = ?sample_id,
-            traces = traces.len(),
+            traces = input.len(),
+            evidence = matches!(input, SampleInput::Evidence(_)),
             reference_path = ?reference.display().to_string(),
         );
     })?
     .run(|log, started| {
         review(
             sample_id,
-            traces,
+            input,
             reference,
             signal,
             config_path,
@@ -56,7 +56,7 @@ pub(crate) fn run(
 
 fn review(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     signal: Option<&Path>,
     config_path: &Path,
@@ -64,7 +64,10 @@ fn review(
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
-    let inputs = sanger::load_sample(traces, reference, config_path)?;
+    let super::LoadedSample {
+        loaded: inputs,
+        reads,
+    } = super::load_sample(input, reference, config_path)?;
     let signal = signal.map(input_signal::load).transpose()?;
     if let Some((signal, sha256)) = &signal {
         tracing::info!(
@@ -78,7 +81,7 @@ fn review(
     let output = path::review_output(sample_id)?;
     tracing::info!(
         event = "review_inputs_loaded",
-        traces = inputs.traces.len(),
+        traces = reads.len(),
         reference_sha256 = %inputs.reference.sequence_sha256,
         config_sha256 = %inputs.config.source_sha256,
         profile_id = ?inputs.profile.identity().id,
@@ -89,14 +92,14 @@ fn review(
     let configuration_sha256 = inputs.config.source_sha256.clone();
 
     drop(stage);
-    let outcome = sample_analysis::analyze(inputs, log, super::read_workers())?;
+    let outcome = sample_analysis::analyze(reads.reads(), inputs, log, super::read_workers())?;
 
     let stage = tracing::info_span!("review").entered();
     let stage_started = Instant::now();
     let mut read_mixtures = BTreeMap::new();
     let outcome = match outcome {
-        SampleOutcome::Rejected(rejected) => Reviewed::Rejected(rejected),
-        SampleOutcome::Analyzed(analysis) => {
+        Outcome::Rejected { rejections, .. } => Reviewed::Rejected(rejections),
+        Outcome::Analyzed(analysis) => {
             read_mixtures = mixtures(&analysis)?;
             let call = analysis.call(sample_id);
             if let Err(error) = &call {

@@ -1,21 +1,25 @@
-//! Read evidence documents (`dna.read_evidence/v1`) as input to `analyze`
-//! (PROP-0011): one read's evidence, read back into the kernel's
-//! `ReadEvidence` through its own constructors, with the Sanger evidence the
-//! analysis document reports beside the core's products.
+//! Read evidence documents (`dna.read_evidence/v1`) as input (PROP-0011):
+//! one read's evidence, read back into the kernel's `ReadEvidence` through
+//! its own constructors, with the Sanger evidence the documents report
+//! beside the core's products; or a read the Sanger plugin set aside, with
+//! its cause.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
 use crate::config::Config;
-use crate::error::{KernelError, ReadEvidenceError, Result};
+use crate::error::{
+    CallabilityError, KernelError, ReadEvidenceError, Result, SampleError, SangerError, SignalError,
+};
 use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::result::{
     CallabilityResult, CallabilitySegmentResult, IntervalResult, NoisyRegionResult,
     SignalQualityResult, TraceIntegrityResult,
 };
-use crate::model::sanger_read::{SangerCallSignal, SangerRead};
+use crate::model::sample_result::ReadRejectionResult;
+use crate::model::sanger_read::{RejectedSanger, Rejection, SangerCallSignal, SangerRead};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::Profile;
@@ -24,12 +28,13 @@ use dna_kernel::read_evidence::{
     ReadEvidence, Reasons, SecondBase, Verdict,
 };
 use dna_sanger::model::callability::PhaseState;
+use dna_sanger::model::second_cause::{SecondCause, SecondPeak};
 use dna_sanger::read_processing;
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
 
 /// Largest accepted read evidence document.
-const MAX_EVIDENCE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_EVIDENCE_BYTES: u64 = 16 * 1024 * 1024;
 
 /// The contract this reader accepts.
 const SCHEMA_VERSION: &str = "dna.read_evidence/v1";
@@ -42,16 +47,54 @@ pub(crate) struct EvidenceInputs {
     pub(crate) read: RecordedRead,
 }
 
+/// Scientific inputs for one sample from its reads' recorded evidence.
+pub(crate) struct SampleInputs {
+    pub(crate) config: Config,
+    pub(crate) profile: Profile,
+    pub(crate) reference: Reference,
+    /// The reads, in document order.
+    pub(crate) reads: Vec<Recorded>,
+}
+
 /// One read as its read evidence document records it.
+pub(crate) enum Recorded {
+    /// A read the Sanger plugin hands to the core.
+    Read(Box<RecordedRead>),
+    /// A read the Sanger plugin set aside, with its cause.
+    Rejected(Box<Rejection>),
+}
+
+/// One read the Sanger plugin hands to the core, as its document records it.
 pub(crate) struct RecordedRead {
-    /// Reviewer-facing name of the input: the document's file name.
+    /// Reviewer-facing name of the input: the file name of the trace the
+    /// evidence was written from.
     pub(crate) input_name: String,
     /// SHA-256 of the trace the evidence was written from.
     pub(crate) input_sha256: String,
     /// The read's evidence as the core receives it.
     pub(crate) evidence: ReadEvidence,
-    /// The read's Sanger evidence as the analysis document reports it.
+    /// The read's Sanger evidence as the documents report it.
     pub(crate) sanger: SangerRead,
+}
+
+/// What a document must have been written under: the loaded
+/// configuration, its rejection minimums, and this build's evidence plugins.
+struct Expected<'a> {
+    configuration_sha256: &'a str,
+    minimum_calls: usize,
+    minimum_callable_calls: usize,
+    plugins: &'a [&'a PluginDescriptor],
+}
+
+impl<'a> Expected<'a> {
+    fn of(config: &'a Config, plugins: &'a [&'a PluginDescriptor]) -> Self {
+        Self {
+            configuration_sha256: &config.source_sha256,
+            minimum_calls: config.sanger.signal_processing.window_size_bases,
+            minimum_callable_calls: config.sanger.minimum_callable_calls(),
+            plugins,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -59,10 +102,13 @@ pub(crate) struct RecordedRead {
 struct RawDocument {
     schema_version: String,
     provenance: RawProvenance,
-    read: RawRead,
-    signal_quality: RawSignalQuality,
-    warnings: RawWarnings,
-    calls: Vec<RawCall>,
+    read: Option<RawRead>,
+    signal_quality: Option<RawSignalQuality>,
+    warnings: Option<RawWarnings>,
+    calls: Option<Vec<RawCall>>,
+    rejection: Option<RawRejection>,
+    integrity: Option<RawIntegrity>,
+    callability: Option<RawCallability>,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +122,7 @@ struct RawProvenance {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawInput {
+    name: String,
     sha256: String,
 }
 
@@ -85,6 +132,19 @@ struct RawPlugin {
     id: String,
     family: String,
     version: u32,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(tag = "reason", rename_all = "snake_case", deny_unknown_fields)]
+enum RawRejection {
+    TooShort {
+        calls: usize,
+        minimum_calls: usize,
+    },
+    CallableCallsBelowMinimum {
+        callable_calls: usize,
+        minimum_callable_calls: usize,
+    },
 }
 
 #[derive(Deserialize)]
@@ -262,14 +322,11 @@ struct RawSecond {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawSignal {
-    #[serde(rename = "scan")]
-    _scan: usize,
-    #[serde(rename = "height")]
-    _height: u32,
+    scan: usize,
+    channels: RawPeaks,
     peaks: Option<RawPeaks>,
     relative_quality: u8,
-    #[serde(rename = "cause")]
-    _cause: Option<RawCause>,
+    cause: Option<RawCause>,
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -285,8 +342,14 @@ struct RawPeaks {
     t: i32,
 }
 
-/// The second-peak causes the contract names; read only to check the shape.
-#[derive(Deserialize)]
+impl RawPeaks {
+    const fn channels(self) -> [i32; 4] {
+        [self.a, self.c, self.g, self.t]
+    }
+}
+
+/// The second-peak causes the modality gives a call from its shape.
+#[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum RawCause {
     Noise,
@@ -300,7 +363,8 @@ enum RawCause {
 
 /// Validates paths, loads configuration, profile, and reference, and reads
 /// the read evidence document `document`, which `plugins` must have written
-/// under the loaded configuration.
+/// under the loaded configuration. A document of a read the Sanger plugin set
+/// aside fails as the analysis of its trace does.
 pub(crate) fn load_analysis(
     document: &Path,
     reference_path: &Path,
@@ -311,6 +375,55 @@ pub(crate) fn load_analysis(
     require_regular_file(reference_path, "reference")?;
     let config = load_config(config_path)?;
     let profile = load_profile(&config)?;
+    let read = match read_document(document, &Expected::of(&config, plugins))? {
+        Recorded::Read(read) => *read,
+        Recorded::Rejected(rejection) => return Err(set_aside(&rejection.cause)),
+    };
+    let reference = load_reference(reference_path, &profile)?;
+    Ok(EvidenceInputs {
+        config,
+        profile,
+        reference,
+        read,
+    })
+}
+
+/// Validates paths, loads configuration, profile, and reference, and reads
+/// one sample's read evidence `documents`, each of which `plugins` must have
+/// written under the loaded configuration.
+pub(crate) fn load_sample(
+    documents: &[PathBuf],
+    reference_path: &Path,
+    config_path: &Path,
+    plugins: &[&PluginDescriptor],
+) -> Result<SampleInputs> {
+    if documents.is_empty() {
+        return Err(SampleError::NoTraces.into());
+    }
+    for document in documents {
+        require_regular_file(document, "read evidence")?;
+    }
+    require_regular_file(reference_path, "reference")?;
+    let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
+    let reads = {
+        let expected = Expected::of(&config, plugins);
+        documents
+            .iter()
+            .map(|document| read_document(document, &expected))
+            .collect::<Result<Vec<_>>>()?
+    };
+    let reference = load_reference(reference_path, &profile)?;
+    Ok(SampleInputs {
+        config,
+        profile,
+        reference,
+        reads,
+    })
+}
+
+/// Reads one bounded document from disk into the read it records.
+fn read_document(document: &Path, expected: &Expected<'_>) -> Result<Recorded> {
     let read_error = |source| KernelError::Read {
         kind: "read evidence",
         path: document.to_path_buf(),
@@ -325,23 +438,34 @@ pub(crate) fn load_analysis(
         .into());
     }
     let bytes = fs::read(document).map_err(read_error)?;
-    let read = parse(&bytes, document, &config.source_sha256, plugins)?;
-    let reference = load_reference(reference_path, &profile)?;
-    Ok(EvidenceInputs {
-        config,
-        profile,
-        reference,
-        read,
-    })
+    parse(&bytes, document, expected)
+}
+
+/// The failure the analysis of a set-aside read's trace returns.
+fn set_aside(rejection: &ReadRejectionResult) -> crate::error::Error {
+    match *rejection {
+        ReadRejectionResult::TooShort {
+            calls,
+            minimum_calls,
+        } => SangerError::from(SignalError::TooFewCalls {
+            calls,
+            window: minimum_calls,
+        })
+        .into(),
+        ReadRejectionResult::CallableCallsBelowMinimum {
+            callable_calls,
+            minimum_callable_calls,
+        } => SangerError::from(CallabilityError::TooFewCallableCalls {
+            callable: callable_calls,
+            minimum: minimum_callable_calls,
+        })
+        .into(),
+        _ => inconsistent("a recorded rejection is not the Sanger plugin's"),
+    }
 }
 
 /// Reads one document into the read it records.
-fn parse(
-    bytes: &[u8],
-    path: &Path,
-    configuration_sha256: &str,
-    plugins: &[&PluginDescriptor],
-) -> Result<RecordedRead> {
+fn parse(bytes: &[u8], path: &Path, expected: &Expected<'_>) -> Result<Recorded> {
     let raw: RawDocument =
         serde_json::from_slice(bytes).map_err(|error| ReadEvidenceError::Parse {
             path: path.to_path_buf(),
@@ -353,59 +477,53 @@ fn parse(
         }
         .into());
     }
-    check_provenance(&raw.provenance, configuration_sha256, plugins)?;
-    let count = raw.read.call_count;
-    if raw.calls.len() != count {
-        return Err(inconsistent(
-            "read.call_count differs from the number of calls",
-        ));
-    }
-    for (position, call) in raw.calls.iter().enumerate() {
-        if call.index != position {
-            return Err(ReadEvidenceError::CallOrder {
-                position,
-                index: call.index,
-            }
-            .into());
+    check_provenance(&raw.provenance, expected)?;
+    let RawDocument {
+        provenance,
+        read,
+        signal_quality,
+        warnings,
+        calls,
+        rejection,
+        integrity,
+        callability,
+        ..
+    } = raw;
+    let RawInput { name, sha256 } = provenance.input;
+    match (read, signal_quality, warnings, calls, rejection) {
+        (Some(read), Some(signal_quality), Some(warnings), Some(calls), None)
+            if integrity.is_none() && callability.is_none() =>
+        {
+            let (evidence, sanger) = recorded_read(&read, &signal_quality, &warnings, &calls)?;
+            Ok(Recorded::Read(Box::new(RecordedRead {
+                input_name: name,
+                input_sha256: sha256,
+                evidence,
+                sanger,
+            })))
         }
+        (None, None, None, None, Some(rejection)) => {
+            let (cause, sanger) = recorded_rejection(rejection, integrity, callability, expected)?;
+            Ok(Recorded::Rejected(Box::new(Rejection {
+                input_name: name,
+                input_sha256: sha256,
+                cause,
+                sanger,
+            })))
+        }
+        _ => Err(inconsistent(
+            "a document records neither a read with its calls nor a rejection alone",
+        )),
     }
-    let sanger = sanger_read(&raw, count)?;
-    let reason_order = raw
-        .read
-        .reasons
-        .iter()
-        .map(|label| reason(label))
-        .collect::<Result<Vec<_>>>()?;
-    let calls = raw
-        .calls
-        .iter()
-        .map(call_evidence)
-        .collect::<Result<Vec<_>>>()?;
-    let informative = interval(raw.read.informative);
-    let evidence = ReadEvidence::new(calls, informative.start..informative.end, reason_order)?;
-    let evidence = match raw.read.ends {
-        RawEnds::Unvouched => evidence,
-        RawEnds::Vouched => evidence.with_vouched_ends(),
-    };
-    let evidence = evidence.with_mixtures(raw.read.mixtures.iter().map(mixture).collect())?;
-    Ok(RecordedRead {
-        input_name: path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-        input_sha256: raw.provenance.input.sha256,
-        evidence,
-        sanger,
-    })
 }
 
-/// Requires a trace identity, the loaded configuration, and this build's
-/// evidence plugins.
-fn check_provenance(
-    provenance: &RawProvenance,
-    configuration_sha256: &str,
-    plugins: &[&PluginDescriptor],
-) -> Result<()> {
+/// Requires a trace name and identity, the loaded configuration, and this
+/// build's evidence plugins.
+fn check_provenance(provenance: &RawProvenance, expected: &Expected<'_>) -> Result<()> {
+    let name = &provenance.input.name;
+    if name.is_empty() || Path::new(name).file_name() != Some(name.as_ref()) {
+        return Err(inconsistent("provenance.input.name is not a file name"));
+    }
     let sha256 = &provenance.input.sha256;
     if sha256.len() != 64
         || !sha256
@@ -414,13 +532,14 @@ fn check_provenance(
     {
         return Err(inconsistent("provenance.input.sha256 is not a SHA-256"));
     }
-    if provenance.configuration_sha256 != configuration_sha256 {
+    if provenance.configuration_sha256 != expected.configuration_sha256 {
         return Err(ReadEvidenceError::Configuration {
             found: provenance.configuration_sha256.clone(),
-            expected: configuration_sha256.to_owned(),
+            expected: expected.configuration_sha256.to_owned(),
         }
         .into());
     }
+    let plugins = expected.plugins;
     let same = provenance.plugins.len() == plugins.len()
         && provenance
             .plugins
@@ -453,28 +572,141 @@ fn check_provenance(
     Ok(())
 }
 
-/// The Sanger evidence the analysis document reports, checked against the
-/// calls it summarizes.
-fn sanger_read(raw: &RawDocument, count: usize) -> Result<SangerRead> {
+/// A rejection the Sanger plugin records, checked against the loaded
+/// configuration's minimums and the evidence its stages produced.
+fn recorded_rejection(
+    rejection: RawRejection,
+    integrity: Option<RawIntegrity>,
+    callability: Option<RawCallability>,
+    expected: &Expected<'_>,
+) -> Result<(ReadRejectionResult, Option<RejectedSanger>)> {
+    match rejection {
+        RawRejection::TooShort {
+            calls,
+            minimum_calls,
+        } => {
+            if minimum_calls != expected.minimum_calls || calls >= minimum_calls {
+                return Err(inconsistent(
+                    "a too-short read does not fall short of the configured signal window",
+                ));
+            }
+            if integrity.is_some() || callability.is_some() {
+                return Err(inconsistent(
+                    "a too-short read records integrity or callability",
+                ));
+            }
+            Ok((
+                ReadRejectionResult::TooShort {
+                    calls,
+                    minimum_calls,
+                },
+                None,
+            ))
+        }
+        RawRejection::CallableCallsBelowMinimum {
+            callable_calls,
+            minimum_callable_calls,
+        } => {
+            if minimum_callable_calls != expected.minimum_callable_calls
+                || callable_calls >= minimum_callable_calls
+            {
+                return Err(inconsistent(
+                    "a read rejected for its callable calls reaches the configured minimum",
+                ));
+            }
+            let (Some(integrity), Some(raw)) = (integrity, callability) else {
+                return Err(inconsistent(
+                    "a read rejected for its callable calls lacks its integrity or callability",
+                ));
+            };
+            let count = raw.segments.last().map_or(0, |segment| segment.calls.end);
+            let callability = callability_result(&raw, count)?;
+            if callable_calls + callability.masked_calls != count {
+                return Err(inconsistent(
+                    "callable and masked calls do not add up to the read's calls",
+                ));
+            }
+            Ok((
+                ReadRejectionResult::CallableCallsBelowMinimum {
+                    callable_calls,
+                    minimum_callable_calls,
+                },
+                Some(RejectedSanger {
+                    integrity: integrity_result(&integrity),
+                    callability,
+                }),
+            ))
+        }
+    }
+}
+
+/// The kernel evidence and the Sanger evidence of a read the Sanger plugin
+/// hands to the core.
+fn recorded_read(
+    read: &RawRead,
+    signal_quality: &RawSignalQuality,
+    warnings: &RawWarnings,
+    calls: &[RawCall],
+) -> Result<(ReadEvidence, SangerRead)> {
+    let count = read.call_count;
+    if calls.len() != count {
+        return Err(inconsistent(
+            "read.call_count differs from the number of calls",
+        ));
+    }
+    for (position, call) in calls.iter().enumerate() {
+        if call.index != position {
+            return Err(ReadEvidenceError::CallOrder {
+                position,
+                index: call.index,
+            }
+            .into());
+        }
+    }
+    let sanger = sanger_read(read, signal_quality, warnings, calls)?;
+    let reason_order = read
+        .reasons
+        .iter()
+        .map(|label| reason(label))
+        .collect::<Result<Vec<_>>>()?;
+    let call_evidence = calls
+        .iter()
+        .map(call_evidence)
+        .collect::<Result<Vec<_>>>()?;
+    let informative = interval(read.informative);
+    let evidence = ReadEvidence::new(
+        call_evidence,
+        informative.start..informative.end,
+        reason_order,
+    )?;
+    let evidence = match read.ends {
+        RawEnds::Unvouched => evidence,
+        RawEnds::Vouched => evidence.with_vouched_ends(),
+    };
+    let evidence = evidence.with_mixtures(read.mixtures.iter().map(mixture).collect())?;
+    Ok((evidence, sanger))
+}
+
+/// The Sanger evidence the documents report, checked against the calls it
+/// summarizes.
+fn sanger_read(
+    read: &RawRead,
+    signal_quality: &RawSignalQuality,
+    warnings: &RawWarnings,
+    calls: &[RawCall],
+) -> Result<SangerRead> {
+    let count = read.call_count;
     let within = |interval: RawInterval| interval.start <= interval.end && interval.end <= count;
-    let callability = &raw.read.callability;
-    if !within(raw.read.trim)
-        || !within(callability.callable_span)
-        || !callability
-            .segments
-            .iter()
-            .all(|segment| within(segment.calls))
-        || callability.masked_calls > count
-        || !raw
-            .signal_quality
+    if !within(read.trim)
+        || !signal_quality
             .noisy_regions
             .iter()
             .all(|region| within(region.calls) && region.samples.start <= region.samples.end)
     {
         return Err(inconsistent("an interval of the read exceeds its calls"));
     }
-    let integrity = &raw.signal_quality.integrity;
-    let warnings = &raw.warnings;
+    let callability = callability_result(&read.callability, count)?;
+    let integrity = &signal_quality.integrity;
     let mismatches = [
         integrity.vendor_primary_count,
         integrity.vendor_quality_count,
@@ -483,7 +715,7 @@ fn sanger_read(raw: &RawDocument, count: usize) -> Result<SangerRead> {
     .flatten()
     .filter(|&vendor| vendor != integrity.ploc_count)
     .count();
-    let unresolved = raw.calls.iter().filter(|call| call.base == 'N').count();
+    let unresolved = calls.iter().filter(|call| call.base == 'N').count();
     if warnings.unresolved_primary_calls != unresolved
         || warnings.ploc_vendor_length_mismatches != mismatches
         || warnings.clipped_channel_samples != integrity.clipped_channel_samples
@@ -495,42 +727,11 @@ fn sanger_read(raw: &RawDocument, count: usize) -> Result<SangerRead> {
         ));
     }
     Ok(SangerRead {
-        trim: interval(raw.read.trim),
-        callability: CallabilityResult {
-            callable_span: interval(callability.callable_span),
-            segments: callability
-                .segments
-                .iter()
-                .map(|segment| CallabilitySegmentResult {
-                    calls: interval(segment.calls),
-                    state: match segment.state {
-                        RawPhaseState::InPhase => PhaseState::InPhase,
-                        RawPhaseState::Dephased => PhaseState::Dephased,
-                        RawPhaseState::Mixed => PhaseState::Mixed,
-                        RawPhaseState::Weak => PhaseState::Weak,
-                        RawPhaseState::Irregular => PhaseState::Irregular,
-                    },
-                    after_repeat: segment.after_repeat,
-                    shadow_offsets: segment.shadow_offsets.clone(),
-                })
-                .collect(),
-            masked_calls: callability.masked_calls,
-        },
+        trim: interval(read.trim),
+        callability,
         signal_quality: SignalQualityResult {
-            integrity: TraceIntegrityResult {
-                ploc_count: integrity.ploc_count,
-                duplicate_ploc_positions: integrity.duplicate_ploc_positions,
-                vendor_primary_count: integrity.vendor_primary_count,
-                vendor_quality_count: integrity.vendor_quality_count,
-                minimum_ploc_spacing: integrity.minimum_ploc_spacing,
-                median_ploc_spacing: integrity.median_ploc_spacing,
-                maximum_ploc_spacing: integrity.maximum_ploc_spacing,
-                clipped_channel_samples: integrity.clipped_channel_samples,
-                maximum_to_median_event_signal_ratio: integrity
-                    .maximum_to_median_event_signal_ratio,
-            },
-            noisy_regions: raw
-                .signal_quality
+            integrity: integrity_result(integrity),
+            noisy_regions: signal_quality
                 .noisy_regions
                 .iter()
                 .map(|region| NoisyRegionResult {
@@ -547,18 +748,115 @@ fn sanger_read(raw: &RawDocument, count: usize) -> Result<SangerRead> {
             ploc_vendor_length_mismatches: warnings.ploc_vendor_length_mismatches,
             clipped_channel_samples: warnings.clipped_channel_samples,
         },
-        calls: raw
-            .calls
+        calls: calls
             .iter()
-            .map(|call| SangerCallSignal {
-                peaks: call
-                    .signal
-                    .peaks
-                    .map(|peaks| [peaks.a, peaks.c, peaks.g, peaks.t]),
-                quality: call.signal.relative_quality,
+            .map(|call| {
+                Ok(SangerCallSignal {
+                    scan: call.signal.scan,
+                    channels: call.signal.channels.channels(),
+                    peaks: call.signal.peaks.map(RawPeaks::channels),
+                    quality: call.signal.relative_quality,
+                    second: second_peak(call.second, call.signal.cause)?,
+                })
+            })
+            .collect::<Result<_>>()?,
+    })
+}
+
+/// The callability view of a read of `count` calls, whose segments must
+/// partition its calls in order.
+fn callability_result(raw: &RawCallability, count: usize) -> Result<CallabilityResult> {
+    let span = raw.callable_span;
+    let mut next = 0;
+    for segment in &raw.segments {
+        if segment.calls.start != next || segment.calls.end <= segment.calls.start {
+            return Err(inconsistent(
+                "the callability segments do not partition the read's calls",
+            ));
+        }
+        next = segment.calls.end;
+    }
+    if next != count || span.start > span.end || span.end > count || raw.masked_calls > count {
+        return Err(inconsistent(
+            "the callability does not cover exactly the read's calls",
+        ));
+    }
+    Ok(CallabilityResult {
+        callable_span: interval(span),
+        segments: raw
+            .segments
+            .iter()
+            .map(|segment| CallabilitySegmentResult {
+                calls: interval(segment.calls),
+                state: match segment.state {
+                    RawPhaseState::InPhase => PhaseState::InPhase,
+                    RawPhaseState::Dephased => PhaseState::Dephased,
+                    RawPhaseState::Mixed => PhaseState::Mixed,
+                    RawPhaseState::Weak => PhaseState::Weak,
+                    RawPhaseState::Irregular => PhaseState::Irregular,
+                },
+                after_repeat: segment.after_repeat,
+                shadow_offsets: segment.shadow_offsets.clone(),
             })
             .collect(),
+        masked_calls: raw.masked_calls,
     })
+}
+
+fn integrity_result(integrity: &RawIntegrity) -> TraceIntegrityResult {
+    TraceIntegrityResult {
+        ploc_count: integrity.ploc_count,
+        duplicate_ploc_positions: integrity.duplicate_ploc_positions,
+        vendor_primary_count: integrity.vendor_primary_count,
+        vendor_quality_count: integrity.vendor_quality_count,
+        minimum_ploc_spacing: integrity.minimum_ploc_spacing,
+        median_ploc_spacing: integrity.median_ploc_spacing,
+        maximum_ploc_spacing: integrity.maximum_ploc_spacing,
+        clipped_channel_samples: integrity.clipped_channel_samples,
+        maximum_to_median_event_signal_ratio: integrity.maximum_to_median_event_signal_ratio,
+    }
+}
+
+/// A call's second peak (SRS-CALL-021) from its second base and the cause
+/// the modality gives it: a peak whose share exceeds the floor stands out
+/// with its shape's cause; a call masked as mixed whose own second peak is
+/// small is a `mixed_stretch`, with its second base if it has one.
+fn second_peak(second: Option<RawSecond>, cause: Option<RawCause>) -> Result<Option<SecondPeak>> {
+    let Some(cause) = cause else {
+        if second.is_some_and(|second| second.stands_out) {
+            return Err(inconsistent(
+                "a second base stands out without the cause of its peak",
+            ));
+        }
+        return Ok(None);
+    };
+    let cause = match cause {
+        RawCause::Noise => SecondCause::Noise,
+        RawCause::NeighbourTail => SecondCause::NeighbourTail,
+        RawCause::OffCentre => SecondCause::OffCentre,
+        RawCause::DyeBlob => SecondCause::DyeBlob,
+        RawCause::PhaseShift => SecondCause::PhaseShift,
+        RawCause::SecondTemplate => SecondCause::SecondTemplate,
+        RawCause::MixedStretch => SecondCause::MixedStretch,
+    };
+    let stands_out = cause != SecondCause::MixedStretch;
+    match second {
+        Some(second) if second.stands_out == stands_out => Ok(Some(SecondPeak {
+            base: second.base,
+            share: second.share,
+            stands_out,
+            cause,
+        })),
+        None if !stands_out => Ok(Some(SecondPeak {
+            base: 'N',
+            share: 0.0,
+            stands_out,
+            cause,
+        })),
+        _ => Err(inconsistent(
+            "the cause of a second peak disagrees with the call's second base",
+        )),
+    }
 }
 
 /// One call's kernel evidence, through the kernel's own types.
@@ -689,13 +987,33 @@ mod tests {
         include_str!("../../docs/reference/examples/read-evidence-v1.example.json");
     const CONFIGURATION: &str = "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675";
 
-    fn read(document: &str) -> Result<RecordedRead> {
+    const EXPECTED: Expected<'static> = Expected {
+        configuration_sha256: CONFIGURATION,
+        minimum_calls: 10,
+        minimum_callable_calls: 20,
+        plugins: &[&SANGER],
+    };
+
+    fn recorded(document: &str) -> Result<Recorded> {
         parse(
             document.as_bytes(),
             Path::new("trace.evidence.json"),
-            CONFIGURATION,
-            &[&SANGER],
+            &EXPECTED,
         )
+    }
+
+    fn read(document: &str) -> Result<RecordedRead> {
+        match recorded(document)? {
+            Recorded::Read(read) => Ok(*read),
+            Recorded::Rejected(_) => Err(inconsistent("the document records a rejection")),
+        }
+    }
+
+    fn rejection(document: &str) -> Result<Rejection> {
+        match recorded(document)? {
+            Recorded::Rejected(rejection) => Ok(*rejection),
+            Recorded::Read(_) => Err(inconsistent("the document records a read")),
+        }
     }
 
     fn edited(edit: impl FnOnce(&mut serde_json::Value)) -> String {
@@ -705,7 +1023,7 @@ mod tests {
     }
 
     fn failure(document: &str) -> Option<ReadEvidenceError> {
-        match read(document) {
+        match recorded(document) {
             Err(Error::Sanger(SangerError::ReadEvidence(failure))) => Some(failure),
             _ => None,
         }
@@ -714,9 +1032,10 @@ mod tests {
     // SRS-API-018
     #[test]
     fn reads_the_example_back_into_the_kernel_evidence() -> Result<()> {
-        let read = read(EXAMPLE)?;
-        let evidence = &read.evidence;
-        assert_eq!(read.input_name, "trace.evidence.json");
+        let example = read(EXAMPLE)?;
+        let evidence = &example.evidence;
+        // The read is named after its trace, whatever the document's name.
+        assert_eq!(example.input_name, "trace.ab1");
         assert_eq!(evidence.calls().len(), 6);
         assert_eq!(evidence.informative(), 0..5);
         assert_eq!(evidence.ends(), ReadEnds::Unvouched);
@@ -745,10 +1064,139 @@ mod tests {
             Some("mixed_signal")
         );
         assert_eq!(evidence.mixtures().len(), 1);
-        assert_eq!(read.sanger.calls[0].peaks, Some([812, 6, 10, 4]));
-        assert_eq!(read.sanger.calls[5].peaks, None);
-        assert_eq!(read.sanger.trim.end, 5);
+        assert_eq!(example.sanger.calls[0].peaks, Some([812, 6, 10, 4]));
+        assert_eq!(example.sanger.calls[5].peaks, None);
+        assert_eq!(example.sanger.trim.end, 5);
+        // The review's Sanger evidence: scan, window peaks, and second peaks.
+        assert_eq!(example.sanger.calls[0].scan, 12);
+        assert_eq!(example.sanger.calls[0].channels, [812, 6, 10, 4]);
+        // Shares come back at full precision.
+        let second = example.sanger.calls[4]
+            .second
+            .ok_or_else(|| inconsistent("no peak"))?;
+        assert_eq!(
+            (second.base, second.share, second.stands_out, second.cause),
+            ('A', 168.0 / 808.0, true, SecondCause::NeighbourTail)
+        );
+        assert_eq!(example.sanger.calls[0].second, None);
+        // A call masked as mixed whose own second peak is small.
+        let mixed = read(&edited(|value| {
+            value["calls"][4]["second"]["stands_out"] = false.into();
+            value["calls"][4]["signal"]["cause"] = "mixed_stretch".into();
+        }))?;
+        let mixed = mixed.sanger.calls[4]
+            .second
+            .ok_or_else(|| inconsistent("no peak"))?;
+        assert_eq!(
+            (mixed.base, mixed.stands_out, mixed.cause),
+            ('A', false, SecondCause::MixedStretch)
+        );
         Ok(())
+    }
+
+    /// The example as the document of a read rejected for too few callable
+    /// calls, with the example's integrity and callability.
+    fn rejected(edit: impl FnOnce(&mut serde_json::Value)) -> String {
+        edited(|value| {
+            let integrity = value["signal_quality"]["integrity"].take();
+            let callability = value["read"]["callability"].take();
+            let mut document = serde_json::json!({
+                "schema_version": value["schema_version"].take(),
+                "provenance": value["provenance"].take(),
+                "rejection": {
+                    "reason": "callable_calls_below_minimum",
+                    "callable_calls": 4,
+                    "minimum_callable_calls": 20
+                },
+                "integrity": integrity,
+                "callability": callability,
+            });
+            edit(&mut document);
+            *value = document;
+        })
+    }
+
+    // SRS-API-017 SRS-API-019
+    #[test]
+    fn reads_a_rejected_read_back_with_its_cause() -> Result<()> {
+        let read = rejection(&rejected(|_| {}))?;
+        assert_eq!(read.input_name, "trace.ab1");
+        assert!(matches!(
+            read.cause,
+            ReadRejectionResult::CallableCallsBelowMinimum {
+                callable_calls: 4,
+                minimum_callable_calls: 20
+            }
+        ));
+        let sanger = read
+            .sanger
+            .ok_or_else(|| inconsistent("no Sanger evidence"))?;
+        assert_eq!(sanger.callability.masked_calls, 2);
+        assert_eq!(sanger.integrity.ploc_count, 6);
+        let short = rejection(&rejected(|value| {
+            value["rejection"] =
+                serde_json::json!({"reason": "too_short", "calls": 6, "minimum_calls": 10});
+            value.as_object_mut().map(|object| {
+                object.remove("integrity");
+                object.remove("callability")
+            });
+        }))?;
+        assert!(matches!(
+            short.cause,
+            ReadRejectionResult::TooShort {
+                calls: 6,
+                minimum_calls: 10
+            }
+        ));
+        assert!(short.sanger.is_none());
+        // The analysis of a rejected read fails as that of its trace does.
+        assert!(matches!(
+            set_aside(&short.cause),
+            Error::Sanger(SangerError::Signal(SignalError::TooFewCalls {
+                calls: 6,
+                window: 10
+            }))
+        ));
+        Ok(())
+    }
+
+    // SRS-API-019
+    #[test]
+    fn refuses_a_rejection_the_configuration_or_the_read_contradicts() {
+        type Edit = fn(&mut serde_json::Value);
+        let cases: [(&str, Edit); 5] = [
+            ("another minimum", |value| {
+                value["rejection"]["minimum_callable_calls"] = 21.into();
+            }),
+            ("enough callable calls", |value| {
+                value["rejection"]["callable_calls"] = 20.into();
+            }),
+            ("calls that do not add up", |value| {
+                value["rejection"]["callable_calls"] = 3.into();
+            }),
+            ("no callability", |value| {
+                value
+                    .as_object_mut()
+                    .map(|object| object.remove("callability"));
+            }),
+            ("calls beside the rejection", |value| {
+                value["calls"] = serde_json::json!([]);
+            }),
+        ];
+        for (case, edit) in cases {
+            assert!(
+                matches!(
+                    failure(&rejected(edit)),
+                    Some(ReadEvidenceError::Inconsistent(_))
+                ),
+                "{case}"
+            );
+        }
+        let unknown = rejected(|value| value["rejection"]["reason"] = "ambiguous_placement".into());
+        assert!(matches!(
+            failure(&unknown),
+            Some(ReadEvidenceError::Parse { .. })
+        ));
     }
 
     // SRS-API-018
@@ -808,7 +1256,7 @@ mod tests {
     #[test]
     fn refuses_values_the_contract_or_the_kernel_rejects() {
         type Edit = fn(&mut serde_json::Value);
-        let cases: [(&str, Edit); 6] = [
+        let cases: [(&str, Edit); 9] = [
             ("scored call with a reason", |value| {
                 value["calls"][0]["placement"]["reason"] = "weak_signal".into();
             }),
@@ -827,6 +1275,17 @@ mod tests {
             }),
             ("call count", |value| {
                 value["read"]["call_count"] = 5.into();
+            }),
+            ("trace path for a name", |value| {
+                value["provenance"]["input"]["name"] = "runs/trace.ab1".into();
+            }),
+            ("standing second base without a cause", |value| {
+                value["calls"][4]["signal"]
+                    .as_object_mut()
+                    .map(|signal| signal.remove("cause"));
+            }),
+            ("segments with a gap", |value| {
+                value["read"]["callability"]["segments"][1]["calls"]["start"] = 5.into();
             }),
         ];
         for (case, edit) in cases {

@@ -17,7 +17,8 @@ that could not be analyzed are listed separately in `rejected_reads[]` (see
 Each record contains:
 
 - `name`: the AB1 filename stem, for example
-  `D11_20260404_LN_26_AB0442_HV1F_11`;
+  `D11_20260404_LN_26_AB0442_HV1F_11`; from a read evidence document, the
+  stem of the trace file name it records;
 - `sha256`: stable content identity;
 - `integrity`: the same concise PLOC/vendor cardinality, merged repeated-PLOC count, PLOC-spacing,
   exact-clipping, and event-signal-scale observations retained by the one-read

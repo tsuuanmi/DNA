@@ -17,6 +17,30 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna sample`, `dna consensus`, and `dna review` take `--evidence
+  <read_evidence.json>...` in place of a sample's traces (SRS-API-019,
+  PROP-0011 increment 4b): the core places every read from its
+  `dna.read_evidence/v1` document in process, and the commands write their
+  documents byte-identical to the trace-based commands for the same traces
+  and configuration, `dna review --signal` included. Traces and `--evidence`
+  exclude each other. On 1,120 real samples (30 picked with every rejection
+  kind, the 90 samples of one run reviewed with `--signal`, and 1,000
+  random) every sample, consensus, FASTA, and review document is
+  byte-identical. `dna.read_evidence/v1` changes in place (pre-release) to
+  carry everything the sample documents read: the trace's file name in
+  `provenance.input.name`, from which the documents name the read; each
+  call's selected window peaks `signal.channels` in place of `height`, which
+  the run signal counts; second shares, mixture fractions, and residuals at
+  full precision; and the second-peak `cause` read back with the call's
+  second base. `dna evidence` now writes a document for a read the sample
+  commands set aside before the core, instead of failing: its `rejection`
+  (`too_short`, or `callable_calls_below_minimum` with its integrity and
+  callability) as the sample documents report it; `dna analyze --evidence`
+  fails on it as on its trace. The read evidence reader accepts at most
+  16 MiB, as documented (it accepted 64 MiB). The `sample` log's channel
+  counts now count positive profile weights (`*_positive_profile_channels`)
+  in place of positive corrected amplitudes and SNRs, which the documents do
+  not carry. No plugin version changes: no plugin's output changes.
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis

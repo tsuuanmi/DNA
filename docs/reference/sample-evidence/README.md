@@ -1,4 +1,5 @@
 ---
+implements: [SRS-API]
 decided-by:
   - ADR-0023
   - ADR-0025
@@ -23,6 +24,10 @@ and the example is
 
 Reads that are shorter than one signal window, that have too few callable calls, or that cannot be placed,
 are recorded in `rejected_reads[]` and contribute to no other array ([reads and coverage](reads-coverage.md)).
+
+`dna sample <sample-id> --evidence <read.evidence.json>... --reference <reference.fasta>`
+starts from the reads' [[reference/read-evidence|read evidence documents]]
+in place of their traces and writes the same document (SRS-API-019).
 
 `provenance` records the reference identity, `configuration_sha256`, the
 target `profile`, and `plugins`: the plugins that produced the document ([ADR-0069](../../decisions/adr/0069-plugin-first-modality-core-post-calling.md)), in execution order, each with its `id`, `family` (`modality`, `core`, or `post_calling`), and method `version` ([versioning](../../governance/versioning.md#plugins)). `sample` runs

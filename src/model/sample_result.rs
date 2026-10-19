@@ -83,7 +83,7 @@ pub(crate) struct RejectedSampleReadResult {
 }
 
 /// Why a read was not analyzed, with the measured value and its minimum.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 #[serde(tag = "reason", rename_all = "snake_case")]
 pub(crate) enum ReadRejectionResult {
     TooShort {

@@ -15,7 +15,7 @@ covers:
 
 # DNA Review JSON
 
-`dna review <sample-id> <trace>... --reference <reference.fasta> [--signal <run.signal.json>]` writes one
+`dna review <sample-id> <trace>... --reference <reference.fasta> [--signal <run.signal.json>]`, or with `--evidence <read.evidence.json>...` in place of the traces, writes one
 deterministic document, `results/<sample-id>.review.json`, identified as
 `dna.review/v1` (SRS-API-014, [[PROP-0004]]).
 It lists the positions of one sample a reviewer should look at, each with the
@@ -34,7 +34,12 @@ sample placement pass, the consensus, and `SampleAnalysis::call` (the
 consensus's decided edits, then the notation and the EMPOP query the profile
 declares). Traces, reference, and configuration (`DNA_CONFIG`) are read as by
 [[reference/consensus|`dna consensus`]], and reads are rejected the same way. The
-operation log is `logs/<sample-id>.log`.
+operation log is `logs/<sample-id>.log`. With `--evidence <read.evidence.json>...`
+in place of the traces, the command starts from the reads'
+[[reference/read-evidence|read evidence documents]], which carry every
+Sanger value the review reads (each call's scan position, relative quality,
+second peak with its cause, and window peaks for the run signal), and writes
+the same document, with or without `--signal` (SRS-API-019).
 
 `--signal` names the sample's run signal ([[reference/signal|`dna.signal/v1`]]).
 The sample's own admitted reads are taken out of it, so the sample is never

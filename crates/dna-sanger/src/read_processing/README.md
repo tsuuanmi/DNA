@@ -6,7 +6,9 @@ modality-neutral core.
 - `mod.rs` runs basecalling, signal processing, callability, and quality
   control for one chromatogram. It decides whether the read can be analyzed at
   all (rejected reads: the signal-window length check before any stage, too few callable calls
-  after callability) and returns the read products with their warning counts,
+  after callability; `admit` returns either as an `Admission` with the evidence
+  its stages produced, as the sample commands, `dna evidence`, and the run
+  signal take it) and returns the read products with their warning counts,
   each call's second-peak label among them ([second_cause](../second_cause/README.md))
   and its phase mixtures ([decompose](../decompose/README.md)).
   Basecall and Variant Analysis both reuse it.

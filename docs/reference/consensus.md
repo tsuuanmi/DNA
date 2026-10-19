@@ -1,5 +1,5 @@
 ---
-implements: [SRS-VAR]
+implements: [SRS-API, SRS-VAR]
 decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080]
 ---
 
@@ -9,6 +9,10 @@ decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080]
 files:
 - `results/<sample-id>.consensus.json`, identified as `dna.consensus/v1`;
 - `results/<sample-id>.consensus.fasta`.
+
+With `--evidence <read.evidence.json>...` in place of the traces, it starts
+from the reads' [[reference/read-evidence|read evidence documents]] and
+writes the same files (SRS-API-019).
 
 The authoritative schema is
 [`schemas/consensus-v1.schema.json`](schemas/consensus-v1.schema.json); the
