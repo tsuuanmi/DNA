@@ -15,5 +15,5 @@ Children of `../evidence.rs`, the compact triage evidence of
   says why; a policy with a minor rule then reviews the would-pass regions.
 
 The evidence is specified in the
-[evaluation harness](../../../../docs/validation/evaluation-harness.md#draft-triage)
+[evaluation harness](../../../../docs/validation/evaluation-triage.md#draft-triage)
 document. Tests use synthetic observations only.

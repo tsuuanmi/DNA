@@ -25,5 +25,5 @@ It reads the compact triage evidence that the runner takes per sample
   rules against the policy without them (`triage_minor.tsv`, [minor score](score/README.md)).
 
 The detectors, outcomes, measures, and outputs are specified in the
-[evaluation harness](../../../../docs/validation/evaluation-harness.md#draft-triage)
+[evaluation harness](../../../../docs/validation/evaluation-triage.md#draft-triage)
 document. Tests use synthetic evidence only.

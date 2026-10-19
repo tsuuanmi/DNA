@@ -1,7 +1,7 @@
 # cause
 
 The cause of a sample's discrepancy
-([discrepancy causes](../../../../docs/validation/evaluation-harness.md#discrepancy-causes)):
+([discrepancy causes](../../../../docs/validation/evaluation-measures.md#discrepancy-causes)):
 whether DNA, the lab (its assay, runs, or reviewers' truth), or the
 sequencing technology accounts for each difference, read from the evidence,
 so the difference reaches the one who can act on it. Every `technology`
