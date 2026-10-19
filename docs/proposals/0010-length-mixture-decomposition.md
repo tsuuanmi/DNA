@@ -1,6 +1,6 @@
 ---
 id: PROP-0010
-status: draft
+status: implementing
 created: 2026-10-19
 summary: "after a repeat run with length heteroplasmy, the Sanger plugin decomposes the dephased stretch into the read's own sequence at offsets with fractions, each component is compared with the reference, and the consensus decides a run's dominant length where both strands agree."
 implements: [SRS-CALL-004, SRS-CALL-005, SRS-CONS-008, SRS-API-014]
@@ -152,6 +152,22 @@ Increments are merged one at a time, each measured on its own.
   ADR: inside an asserted mixture, the dominant component may show a run's length. Bases
   downstream are not read in this increment.
 
+**Scope after the 2026-10-19 decoding spike (user decision).** The 1,077 current
+samples with an HVS-II tract check are heavy mixtures:
+
+- forward primaries lose the 310 T in about 90 % of them;
+- the reverse read reads run 311–315 in phase without error;
+- run 303–309 is near-equal between adjacent lengths. A data-only decoder (each run
+  from the strand that enters it in phase, both strands agreeing) reproduces the
+  recorded length where the dominant molecule is clear. Where adjacent lengths are
+  close, the recorded length is consistently one shorter than the dominant, a
+  reporting convention that the signal alone cannot decide.
+
+Increment 2 therefore decides run 311–315 from the reverse read first. Run 303–309
+waits for a blind reviewer re-check of the confident disagreements. A fitted
+reporting convention is never coded into the core. Near-equal mixtures stay checks
+until signal processing alone resolves them.
+
 ### Increment 3 (later, separate decision): read the tail
 
 The dominant component also reads the bases after the run (316–340, 16194–16200). Deciding
@@ -212,7 +228,9 @@ first release, as for ADR-0080.
 
 ## Decision
 
-Pending.
+Accepted by the user on 2026-10-19, increment by increment: increment 1 is implemented.
+Increment 2 is scoped to run 311–315 until the re-check of run 303–309 (see the
+increment 2 scope note).
 
 ## Implementation
 
