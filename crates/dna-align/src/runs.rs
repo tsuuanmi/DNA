@@ -272,6 +272,7 @@ fn rebuild(
     (!same).then_some(rebuilt)
 }
 
+// SRS-ALN-016
 #[cfg(test)]
 mod tests {
     use dna_kernel::model::reference::ReferenceTopology;

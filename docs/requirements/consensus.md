@@ -1,10 +1,17 @@
+---
+implements: [SRS-SAMPLE, SRS-VAR]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0076, ADR-0080]
+verified-by: [tests/consensus.rs]
+unverified: [SRS-CONS-002]
+---
+
 # Sample consensus requirements
 
 **Requirement namespace:** `SRS-CONS-*`
 
-Design: [consensus method](../design/consensus.md). Contract:
-[consensus result](../reference/consensus.md). Decision:
-[ADR-0073](../decisions/adr/0073-sample-consensus.md), [ADR-0074](../decisions/adr/0074-run-structure-consensus.md).
+Design: [[design/consensus|consensus method]]. Contract:
+[[reference/consensus|consensus result]]. Decision:
+[[ADR-0073]], [[ADR-0074]].
 
 - **SRS-CONS-001:** `dna consensus <sample-id> <trace>... --reference <fasta>` MUST process the traces as `dna sample` does, with rejected reads (SRS-SAMPLE-027, SRS-SAMPLE-029, SRS-SAMPLE-030). It MUST write `results/<sample-id>.consensus.json` (`dna.consensus/v1`) and `results/<sample-id>.consensus.fasta`. It MUST fail without output when every read is rejected or when either target exists.
 - **SRS-CONS-002:** The consensus MUST be modality-neutral. It MUST read admitted reads only as `CalledRead` records (`ReadEvidence`, alignment) and MUST NOT use filenames, primer labels, or profile windows.
@@ -40,3 +47,9 @@ Design: [consensus method](../design/consensus.md). Contract:
   Each run's length evidence (`in_phase`, `anchored_end`, `confirmed_end`, `phase_loss`, `reference_frame`) MUST be published. The rule MUST NOT use target positions, regions, or conventions.
 - **SRS-CONS-009:** A decided site that changes the reference length MUST stay undecided while a position beside it is undecided or uncovered, unless it was decided by its run structure with every run's length shown by a read (`in_phase` or `anchored_end`), since those reads show the run's bounds: otherwise the bases beside an insertion or deletion place it, and inside a repeat they decide which unit changes. Undoing one site can leave another one's neighbour undecided, so the rule MUST apply until nothing changes.
 - **SRS-CONS-010:** A reference-only call (ADR-0080) whose base is the reference's at its position, scored and lying beyond `variant_calling.read_end_margin` of every unvouched read end (its modality's own edge verdict does not stand against it), MUST make that position's base observation clean as a confirmation of the reference, and nothing else: its run role MUST stay its call's, and no stretch, by its run structure or position by position, MUST count it. A confirmation MUST be withdrawn where any read's call at the position shows a second peak its modality does not explain, at or beside a position where any read observes something other than the reference, cleanly or not (another base, a deletion, or an insertion at a junction beside it), where the position forms a reference run of at least `consensus.seeded_run` bases with a neighbour across a junction no read observes cleanly and no read observes the position cleanly otherwise, where a read of the other strand shows the confirming call's own second base standing out there, and within or beside a decided site that differs from the reference (a site written partly as `N` included), after which the positions MUST be decided again until no confirmation is withdrawn. The positions that only confirmations observe cleanly MUST be published as `reference_only`, and calling the decisions (SRS-VAR-021) MUST treat the call at such a position as showing its base only, so that it bounds no neighbouring run.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/consensus](../design/consensus.md), [reference/configuration](../reference/configuration.md), [requirements/output](output.md), [requirements/variants](variants.md)
+<!-- docs:end backlinks -->

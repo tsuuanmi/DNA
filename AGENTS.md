@@ -1,8 +1,10 @@
 # AGENTS.md
 
 This file is the repository-level routing and invariant guide for coding agents.
-It is intentionally concise. Product knowledge belongs in canonical documentation
-and source-local README files, not here.
+It follows the agent contract of the
+[documentation architecture standard](docs/governance/documentation-architecture.md)
+(Appendix B). Product knowledge belongs in canonical documentation and
+source-local README files, not here.
 
 ## Read before changing
 
@@ -11,10 +13,14 @@ For any non-trivial change:
 1. Read the repository `README.md` for scope and development entry points.
 2. Read `docs/README.md` to find the authoritative requirements, architecture,
    decisions, design, reference, validation, and operations documentation.
-3. Read the nearest `README.md` in the affected source directory to understand
+3. **Trace every file, requirement, or decision you will change** and read the
+   closure it prints; do not rely on memory of what else is connected. From
+   `tools/python`:
+   `uv run python scripts/docs_graph.py trace <path | SRS-… | ADR-… | document>`.
+4. Read the nearest `README.md` in the affected source directory to understand
    module responsibility and dependency boundaries.
-4. Read the affected source and tests.
-5. Read research or roadmap material only for context; do not treat it as current
+5. Read the affected source and tests.
+6. Read research or roadmap material only for context; do not treat it as current
    production authority.
 
 Resolve documentation by role rather than filename. If source and normative
@@ -45,6 +51,18 @@ Documentation is part of the change:
   create a successor only when the decision materially changes;
 - research-only work -> keep it under research until promotion.
 
+Keep the knowledge graph in step with the change:
+
+- declare relations in front matter (`implements`, `decided-by`, `covers`,
+  `verified-by`, `supersedes`), not only in prose; refer to documents and IDs with
+  `[[wikilinks]]`;
+- run `docs_graph.py sync` after changing statuses or edges, and never edit a
+  generated block by hand;
+- drop a document with `docs_graph.py retire`, not `rm`, so its ID, outcome, and
+  full-text commit stay in the ledger;
+- when a pull request changes a path that a document `covers`, change that
+  document or state `docs-unchanged: <document> — <reason>` in the description.
+
 Do not duplicate the same fact across documents. Keep one canonical home and link
 to it from routers and related material.
 
@@ -64,8 +82,14 @@ Before completion:
 - remove stale paths, dead documentation, and accidental compatibility layers;
 - confirm source, tests, contracts, and documentation agree;
 - confirm every source directory still has an up-to-date `README.md`;
+- confirm `docs_graph.py check` and `docs_graph.py sync --check` pass;
 - report what changed, what was verified, and any remaining uncertainty.
 
 ## Canonical navigation
 
-Use [docs/README.md](docs/README.md) as the knowledge router. The reusable taxonomy and authority model are defined by the [documentation architecture standard](docs/governance/documentation-architecture.md); DNA-specific enforcement is in the [documentation policy](docs/governance/documentation.md). Development/verification commands belong in [engineering](docs/engineering/README.md), not in this file.
+Use [docs/README.md](docs/README.md) as the knowledge router. The reusable taxonomy,
+link model, and retention rules are defined by the [documentation architecture
+standard](docs/governance/documentation-architecture.md); DNA's profile, commands,
+and CI enforcement are in the [documentation policy](docs/governance/documentation.md).
+Development/verification commands belong in [engineering](docs/engineering/README.md),
+not in this file.

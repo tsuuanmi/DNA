@@ -61,6 +61,7 @@ mod tests {
         }
     }
 
+    // SRS-CALL-005
     #[test]
     fn masks_every_position_outside_in_phase_segments() -> Result<()> {
         let callability = build(
@@ -102,6 +103,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-005
     #[test]
     fn reports_an_empty_callable_span_when_everything_is_masked() -> Result<()> {
         let callability = build(Vec::new(), vec![segment(0, 3, PhaseState::Mixed)], 3)?;
@@ -116,6 +118,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-003
     #[test]
     fn rejects_segments_that_do_not_partition_the_read() {
         for segments in [

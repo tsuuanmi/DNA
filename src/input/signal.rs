@@ -157,6 +157,7 @@ mod tests {
 
     const DOCUMENT: &str = r#"{"schema_version":"dna.signal/v1","run_id":"R","provenance":{"configuration_sha256":"0","plugins":[],"selection":2,"flank":2,"resolution":1000},"traces":["a"],"reads":1,"rejected_reads":0,"calls":1,"keys":[{"context":"ACGTA","base":"G","second":"A","shares":[[0,1]]},{"context":"ACGTA","base":"G","second":"C","shares":[[12,1]]},{"context":"ACGTA","base":"G","second":"T","shares":[[3,1]]}]}"#;
 
+    // SRS-API-014 SRS-API-016
     #[test]
     fn reads_a_run_signal_and_refuses_another_selection_or_shape()
     -> std::result::Result<(), RunSignalError> {

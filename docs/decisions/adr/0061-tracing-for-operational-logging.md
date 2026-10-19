@@ -1,9 +1,22 @@
+---
+id: ADR-0061
+status: accepted
+date: 2026-10-08
+family: [logging]
+related: [ADR-0007, ADR-0059]
+---
+
 # ADR-0061: Use `tracing` for operational logging
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-08
-- **Related decisions:** [ADR-0007](0007-configuration-and-environment.md),
-  [ADR-0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md)
+- **Related:** [ADR-0007](0007-configuration-and-environment.md), [ADR-0059](0059-reuse-ecosystem-machinery-behind-dna-contracts.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [engineering/dependencies](../../engineering/dependencies.md), [requirements/output](../../requirements/output.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

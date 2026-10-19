@@ -1,3 +1,8 @@
+---
+implements: [SRS-CALL, SRS-VAR]
+decided-by: [ADR-0082]
+---
+
 # Length mixtures
 
 A homopolymer that carries length heteroplasmy is a population of molecules

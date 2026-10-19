@@ -1,7 +1,20 @@
+---
+id: ADR-0030
+status: accepted
+date: 2026-09-19
+family: [sample-topology]
+---
+
 # ADR-0030: Add Tracy-derived pairwise overlap admission before sample consensus
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence](../../design/sample-evidence/README.md), [design/sample-evidence/coverage-overlap](../../design/sample-evidence/coverage-overlap.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [requirements/sample-evidence/callability](../../requirements/sample-evidence/callability.md), [requirements/sample-evidence/core](../../requirements/sample-evidence/core.md), [requirements/sample-evidence/overlap-topology](../../requirements/sample-evidence/overlap-topology.md), [requirements/sample-evidence/profile-aggregation](../../requirements/sample-evidence/profile-aggregation.md), [requirements/sample-evidence/signal-evidence](../../requirements/sample-evidence/signal-evidence.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

@@ -299,6 +299,7 @@ mod tests {
         fit(evidence, &features(evidence), calls)
     }
 
+    // SRS-CALL-003
     #[test]
     fn recovers_a_two_sided_shadow_ladder() {
         let evidence = mixture(SEQUENCE, 0.5, &[(-1, 0.25), (1, 0.25)]);
@@ -314,6 +315,7 @@ mod tests {
         assert_eq!(summary.offsets().collect::<Vec<_>>(), [-1, 1]);
     }
 
+    // SRS-CALL-003
     #[test]
     fn recovers_a_one_sided_shadow_ladder() {
         let evidence = mixture(SEQUENCE, 0.7, &[(-1, 0.3)]);
@@ -324,6 +326,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-003
     #[test]
     fn never_reports_negative_weights() {
         let mut evidence = mixture(SEQUENCE, 1.0, &[]);
@@ -339,6 +342,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-003
     #[test]
     fn treats_coincident_templates_as_one() {
         // Inside a dinucleotide repeat the offset-two template equals the main
@@ -351,6 +355,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-003
     #[test]
     fn is_deterministic() {
         let evidence = mixture(SEQUENCE, 0.5, &[(-1, 0.2), (1, 0.2), (2, 0.1)]);
@@ -360,6 +365,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-002, SRS-CALL-003
     #[test]
     fn needs_enough_usable_positions() {
         let mut evidence = mixture(SEQUENCE, 1.0, &[]);
@@ -373,6 +379,7 @@ mod tests {
         assert!(fit(&evidence, &weak, 4..MINIMUM_FIT_POSITIONS + 5).is_some());
     }
 
+    // SRS-CALL-003
     #[test]
     fn fits_at_the_read_edges() {
         let evidence = mixture(SEQUENCE, 0.6, &[(-1, 0.4)]);
@@ -388,6 +395,7 @@ mod tests {
         (dephased, summary.offsets().collect())
     }
 
+    // SRS-CALL-003
     #[test]
     fn separates_dephased_from_mixed_stretches() {
         // Moderate two-sided slippage.
@@ -411,6 +419,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-003
     #[test]
     fn applies_the_thresholds_inclusively() {
         // main 0.35, far 0.12, near shadow 0.1 exactly.

@@ -85,6 +85,7 @@ mod tests {
         }
     }
 
+    // SRS-SIG-005
     #[test]
     fn requires_two_candidate_windows_for_a_region() {
         let regions = merge(&[window(0, 5, true), window(1, 6, false)], 2);
@@ -96,6 +97,7 @@ mod tests {
         assert_eq!(regions[0].call_end_0based_exclusive, 6);
     }
 
+    // SRS-SIG-005
     #[test]
     fn merges_overlapping_and_adjacent_windows() {
         let regions = merge(
@@ -109,6 +111,7 @@ mod tests {
         assert_eq!(regions[0].minimum_primary_snr, 0.0);
     }
 
+    // SRS-SIG-005
     #[test]
     fn keeps_regions_separate_across_a_clean_gap() {
         let regions = merge(

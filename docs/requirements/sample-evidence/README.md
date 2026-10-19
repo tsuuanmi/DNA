@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0023, ADR-0025]
+---
+
 # Sample Evidence Requirements
 
 **Requirement namespace:** `SRS-SAMPLE-*`

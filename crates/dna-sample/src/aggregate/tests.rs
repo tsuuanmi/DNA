@@ -125,6 +125,7 @@ fn snv(position_1based: usize, reference: &str, alternate: &str) -> Variant {
     }
 }
 
+// SRS-SAMPLE-008
 #[test]
 fn overlap_agreement_compares_only_bases_the_core_trusts() -> TestResult {
     let read = |name: &str| {
@@ -152,6 +153,7 @@ fn overlap_agreement_compares_only_bases_the_core_trusts() -> TestResult {
     Ok(())
 }
 
+// SRS-SAMPLE-004, SRS-SAMPLE-011, SRS-SAMPLE-012, SRS-SAMPLE-013, SRS-SAMPLE-014, SRS-SAMPLE-016, SRS-SAMPLE-017, SRS-SAMPLE-018, SRS-SAMPLE-019, SRS-SAMPLE-020, SRS-SAMPLE-021, SRS-SAMPLE-022
 #[test]
 fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
     let forward = observation(
@@ -322,6 +324,7 @@ fn orders_reads_once_and_factors_read_identity_from_evidence() -> TestResult {
     Ok(())
 }
 
+// SRS-SAMPLE-005, SRS-SAMPLE-013, SRS-SAMPLE-014, SRS-SAMPLE-016, SRS-SAMPLE-017, SRS-SAMPLE-018, SRS-SAMPLE-019, SRS-SAMPLE-020, SRS-SAMPLE-021, SRS-SAMPLE-022
 #[test]
 fn omits_reference_matches_but_preserves_non_reference_states() -> Result<()> {
     let mut read = observation(
@@ -479,6 +482,7 @@ fn omits_reference_matches_but_preserves_non_reference_states() -> Result<()> {
     Ok(())
 }
 
+// SRS-SAMPLE-017, SRS-SAMPLE-018, SRS-SAMPLE-020, SRS-SAMPLE-021, SRS-SAMPLE-022
 #[test]
 fn unresolved_call_with_profile_remains_nucleotide_eligible() -> TestResult {
     let read = observation(
@@ -538,6 +542,7 @@ fn unresolved_call_with_profile_remains_nucleotide_eligible() -> TestResult {
     Ok(())
 }
 
+// SRS-SAMPLE-005, SRS-SAMPLE-018, SRS-SAMPLE-019, SRS-SAMPLE-024, SRS-SAMPLE-025
 #[test]
 fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -> TestResult {
     let differing = observation(
@@ -585,6 +590,7 @@ fn masked_calls_never_retain_a_locus_but_are_kept_where_another_read_differs() -
     Ok(())
 }
 
+// SRS-SAMPLE-005, SRS-SAMPLE-014
 #[test]
 fn differential_locus_retains_reference_support_from_overlapping_reads() -> Result<()> {
     let alternate = observation(
@@ -634,6 +640,7 @@ fn differential_locus_retains_reference_support_from_overlapping_reads() -> Resu
     Ok(())
 }
 
+// SRS-SAMPLE-005
 #[test]
 fn all_reference_overlap_needs_no_per_locus_records() -> Result<()> {
     let first = observation(
@@ -659,6 +666,7 @@ fn all_reference_overlap_needs_no_per_locus_records() -> Result<()> {
     Ok(())
 }
 
+// SRS-SAMPLE-028
 #[test]
 fn records_callable_reads_that_do_not_support_a_variant_as_opposition() -> Result<()> {
     let variant = snv(73, "A", "G");
@@ -696,6 +704,7 @@ fn records_callable_reads_that_do_not_support_a_variant_as_opposition() -> Resul
     Ok(())
 }
 
+// SRS-SAMPLE-028
 #[test]
 fn an_unresolved_call_neither_supports_nor_opposes() -> Result<()> {
     let variant = snv(73, "A", "G");
@@ -730,6 +739,7 @@ fn an_unresolved_call_neither_supports_nor_opposes() -> Result<()> {
     Ok(())
 }
 
+// SRS-SAMPLE-006, SRS-SAMPLE-012
 #[test]
 fn preserves_filtered_variant_observation_without_reporting_it() -> Result<()> {
     let variant = snv(73, "A", "G");
@@ -815,6 +825,7 @@ fn rejects_duplicate_reference_coordinate_within_one_read() {
     assert!(run(&[read]).is_err());
 }
 
+// SRS-SAMPLE-012
 #[test]
 fn rejects_duplicate_normalized_variant_identity_within_one_read() {
     let variant = snv(73, "A", "G");
@@ -830,6 +841,7 @@ fn rejects_duplicate_normalized_variant_identity_within_one_read() {
     assert!(run(&[read]).is_err());
 }
 
+// SRS-SAMPLE-004
 #[test]
 fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
     let first = observation(
@@ -862,6 +874,7 @@ fn rejects_incompatible_or_duplicate_reads_even_when_renamed() {
     assert!(run(&[first, duplicate]).is_err());
 }
 
+// SRS-API-013
 #[test]
 fn observations_record_every_covered_position_of_an_interval() -> TestResult {
     let forward = observation(

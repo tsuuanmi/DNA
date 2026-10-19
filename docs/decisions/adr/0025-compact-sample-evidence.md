@@ -1,7 +1,22 @@
+---
+id: ADR-0025
+status: accepted
+date: 2026-09-19
+family: [sample-boundary]
+supersedes: [ADR-0024]
+---
+
 # ADR-0025: Factor sample evidence into a read registry and sparse differences
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+- **Supersedes:** [ADR-0024](0024-reference-coordinate-sample-evidence.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence](../../design/sample-evidence/README.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [requirements/sample-evidence](../../requirements/sample-evidence/README.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

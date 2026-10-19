@@ -1,12 +1,17 @@
+---
+implements: [SRS-CALL, SRS-VAR]
+decided-by: [ADR-0069, ADR-0078]
+---
+
 # DNA Variants JSON
 
 `dna call <sample-id> <sequences.fasta>... --reference <reference.fasta>`
 runs the core caller alone over reviewed consensus sequences
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+([[ADR-0069]]).
 `dna call <sample-id> <sample-id>.consensus.json --reference
 <reference.fasta>`, given the sample's consensus document alone, calls the
 edits the consensus decided without placing its segments again
-([ADR-0078](../decisions/adr/0078-call-the-consensus-decisions.md),
+([[ADR-0078]],
 SRS-VAR-021). Either writes one deterministic `results/<sample-id>.variants.json` document
 identified as `dna.variants/v1`. The authoritative schema is
 [`schemas/variants-v1.schema.json`](schemas/variants-v1.schema.json),
@@ -31,7 +36,7 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
   - `name`: the record identifier, unique within the call;
   - `sha256`: the SHA-256 of the record's upper-case sequence;
   - `alignment`: the selected-alignment summary of the
-    [sample read registry](sample-evidence/reads-coverage.md). A consensus
+    [[reference/sample-evidence/reads-coverage|sample read registry]]. A consensus
     masks no call, so `masked_bases` is `0`. Its `N` and IUPAC codes count
     in `unresolved_bases` and observe no base, so the callable reference
     segments are the mapped ones less those positions, and less every
@@ -53,7 +58,7 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
     consensus segments are named) that its placement does not overlap, and
     such a record has no callable reference segments.
 - `notation` (only when the profile declares notation): the same per-read view
-  as in [sample evidence](sample-evidence/notation.md). Each rendered call
+  as in [[reference/sample-evidence/notation|sample evidence]]. Each rendered call
   lists the reads whose represented eligible calls contain it.
 
 Reads are not reconciled with each other. Reads that disagree contribute

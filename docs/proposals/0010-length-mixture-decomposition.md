@@ -1,12 +1,10 @@
 ---
 id: PROP-0010
-type: proposal
 status: draft
-owners: []
 created: 2026-10-19
-related-requirements: [SRS-CALL-004, SRS-CALL-005, SRS-CONS-008, SRS-API-014]
-related-decisions: [ADR-0069, ADR-0071, ADR-0074, ADR-0076, ADR-0080]
-implementation: []
+summary: "after a repeat run with length heteroplasmy, the Sanger plugin decomposes the dephased stretch into the read's own sequence at offsets with fractions, each component is compared with the reference, and the consensus decides a run's dominant length where both strands agree."
+implements: [SRS-CALL-004, SRS-CALL-005, SRS-CONS-008, SRS-API-014]
+decided-by: [ADR-0069, ADR-0071, ADR-0074, ADR-0076, ADR-0080]
 ---
 
 # Proposal: Decompose a length mixture into its sequences

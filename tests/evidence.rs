@@ -33,6 +33,7 @@ fn evidence_output_path(
         .join(format!("{stem}.evidence.json")))
 }
 
+// SRS-API-017 SRS-OUT-001 SRS-OUT-007
 #[test]
 fn writes_deterministic_evidence_that_matches_the_basecalls()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -93,6 +94,7 @@ fn writes_deterministic_evidence_that_matches_the_basecalls()
     Ok(())
 }
 
+// SRS-API-017 SRS-OUT-006
 #[test]
 fn refuses_to_overwrite_an_existing_result() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

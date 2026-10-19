@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0018, ADR-0021]
+---
+
 # Production Readiness
 
 Production readiness is an evidence-backed release state, not a label inferred from a successful build.
@@ -18,13 +22,13 @@ Production readiness is an evidence-backed release state, not a label inferred f
 Evidence locations:
 
 - [requirements](../requirements/README.md)
-- [CI/CD](../engineering/ci-cd.md)
-- [release engineering](../engineering/release.md)
-- [platform support](../engineering/platform-support.md)
-- [release evidence template](release-evidence-template.md)
-- [repository governance](../governance/repository.md)
+- [[engineering/ci-cd|CI/CD]]
+- [[engineering/release|release engineering]]
+- [[engineering/platform-support|platform support]]
+- [[operations/release-evidence-template|release evidence template]]
+- [[governance/repository|repository governance]]
 - [validation](../validation/README.md)
 - [security](../security/README.md)
-- [ADR-0018 rationale](../decisions/adr/0018-production-readiness-release-contract.md)
+- [[ADR-0018|ADR-0018 rationale]]
 
 The checklist is living current-state readiness documentation. ADR-0018 preserves why this release contract exists.

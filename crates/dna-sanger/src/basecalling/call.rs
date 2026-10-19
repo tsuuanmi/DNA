@@ -127,6 +127,7 @@ mod tests {
         }
     }
 
+    // SRS-BC-005
     #[test]
     fn calls_unambiguous_strongest_channel() -> Result<()> {
         let chromatogram = trace_at(
@@ -164,6 +165,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-004
     #[test]
     fn exact_strongest_tie_is_unresolved() -> Result<()> {
         let chromatogram = trace([
@@ -188,6 +190,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-004
     #[test]
     fn non_positive_channels_have_no_primary_evidence() -> Result<()> {
         let chromatogram = trace([vec![0; 8], vec![0; 8], vec![0; 8], vec![0; 8]]);
@@ -207,6 +210,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-005
     #[test]
     fn off_locus_secondary_peak_does_not_create_ambiguity() -> Result<()> {
         let chromatogram = trace([
@@ -254,6 +258,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-005
     #[test]
     fn overlapping_offset_secondary_peak_still_qualifies() -> Result<()> {
         let chromatogram = trace([
@@ -294,6 +299,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-005
     #[test]
     fn offset_secondary_signal_at_exact_ratio_threshold_qualifies() -> Result<()> {
         let chromatogram = trace([
@@ -317,6 +323,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-003
     #[test]
     fn locus_fallback_primary_always_qualifies() -> Result<()> {
         let chromatogram = trace([(0..8).collect(), vec![0; 8], vec![0; 8], vec![0; 8]]);
@@ -342,6 +349,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-003
     #[test]
     fn locus_fallback_secondary_must_be_colocated() -> Result<()> {
         let chromatogram = trace([
@@ -366,6 +374,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-005
     #[test]
     fn three_qualifying_channels_keep_primary_but_not_ambiguity() -> Result<()> {
         let chromatogram = trace([
@@ -392,6 +401,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-BC-005
     #[test]
     fn four_qualifying_channels_are_fully_unresolved() -> Result<()> {
         let chromatogram = trace([

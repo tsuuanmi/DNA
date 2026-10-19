@@ -75,6 +75,7 @@ mod tests {
         }
     }
 
+    // SRS-VAR-008
     #[test]
     fn projects_reverse_reads_onto_the_reference_strand() {
         let evidence = ReadEvidence::clean("A");
@@ -82,6 +83,7 @@ mod tests {
         assert_eq!(resolve(&evidence, Orientation::Reverse, 0), Ok('T'));
     }
 
+    // SRS-VAR-006
     #[test]
     fn omits_unresolved_flanks_from_public_calls() {
         let evidence = ReadEvidence::clean("NGN");
@@ -100,6 +102,7 @@ mod tests {
         );
     }
 
+    // SRS-VAR-006
     #[test]
     fn requires_supporting_calls_and_at_least_one_public_call() {
         let evidence = ReadEvidence::clean("NN");

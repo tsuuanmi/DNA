@@ -1,8 +1,18 @@
+---
+implements: [SRS-CALL, SRS-VAR]
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0069, ADR-0072]
+verified-by:
+  - crates/dna-align/src
+  - crates/dna-call/src/model/called_read.rs
+  - crates/dna-sanger/src/model/locus_evidence.rs
+unverified: [SRS-ALN-003, SRS-ALN-005, SRS-ALN-007, SRS-ALN-008, SRS-ALN-009, SRS-ALN-011]
+---
+
 # Alignment Requirements
 
 **Requirement namespace:** `SRS-ALN-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-ALN-001:** DNA MUST evaluate retained forward and reverse-complement evidence-profile queries under the affine-gap semi-global Gotoh scoring contract, consuming the complete retained query and allowing free reference flanks. An implementation MAY bypass dynamic-programming evaluation only when it proves the same globally optimal score, orientation/placement ambiguity semantics, and traceback columns under SRS-ALN-013 or SRS-ALN-014.
 - **SRS-ALN-002:** Canonical reference substitution scoring MUST use the retained `EvidenceProfile` mass for that reference base as a fixed-point expected match/mismatch score. A missing profile or non-canonical reference base MUST use the configured ambiguous score. A gap of length `k` MUST retain `open + k × extension` semantics in the same fixed-point score scale.
@@ -24,3 +34,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-ALN-015:** The alignment query MUST present every masked call inside the trim interval as an unresolved base without an evidence profile, except a call whose mask anchors the alignment (`Anchoring`), which keeps its call and profile; the Sanger modality marks its `dephased` calls so (SRS-CALL-011). Masked query bases MUST be counted as `masked_bases`, separately from `unresolved_bases`, and the reference segments observed by callable calls — unmasked calls that read a resolved base (A, C, G, or T) — and by deletions between them, MUST be reported in alignment order as `callable_reference_segments`, each inside one mapped reference segment. An unresolved call (`N`) observes no base, whether or not its modality masks it.
 - **SRS-ALN-016:** After orientation and placement selection and the admission gates, each maximal block of non-exact-match columns MUST be grown to whole reference runs, run by run, until both sides end at an anchor: an exact canonical match whose base the read's adjacent call inside does not repeat. Growth MUST stop without a change at the alignment end, at the circular origin, or beyond `alignment.max_stretch` reference bases. A stretch whose read calls are all canonical, include a masked call, spell the reference's run bases in order, and change run lengths in one direction only (all longer or all shorter) MUST be rewritten as paired matches plus one length edit at the 3' end of each changed run. The placement, span, score, and every column outside rewritten stretches MUST be kept, and metrics MUST be recomputed from the rewritten columns (ADR-0072).
 - **SRS-ALN-017:** On a read whose ends its modality vouches for (a reviewed consensus record, SRS-VAR-015), each deletion MUST be moved 3' across every adjacent unresolved call (`N`) without an evidence profile, and across the repeat-equivalent bases beyond, before run-structure re-expression. Such a call scores the same against every reference base, so it leaves the deletion's place among equally scoring placements undecided; DNA MUST take the 3'-most, as SRS-ALN-012 does for repeats, rather than the traceback's arbitrary one. The move MUST NOT change the score or cross the rCRS origin seam, and it MUST NOT apply to a read whose ends are not vouched, where an unresolved call stands for a masked stretch whose gaps carry no placement.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/alignment](../design/alignment.md), [design/variant-calling](../design/variant-calling.md), [reference/configuration](../reference/configuration.md), [reference/sample-evidence/variants-signal](../reference/sample-evidence/variants-signal.md), [requirements/callability](callability.md), [requirements/output](output.md), [requirements/sample-evidence/callability](sample-evidence/callability.md), [requirements/variants](variants.md), [validation/discrepancy-catalogue](../validation/discrepancy-catalogue.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md), [validation/known-limitations](../validation/known-limitations.md)
+<!-- docs:end backlinks -->

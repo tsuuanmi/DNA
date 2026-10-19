@@ -47,6 +47,7 @@ fn normalize(
     )
 }
 
+// SRS-VN-005 SRS-VN-008 SRS-API-007
 #[test]
 fn right_alignment_leaves_snv_unchanged() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -63,6 +64,7 @@ fn right_alignment_leaves_snv_unchanged() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+// SRS-VN-006
 #[test]
 fn right_aligns_homopolymer_deletion_without_changing_haplotype()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -83,6 +85,7 @@ fn right_aligns_homopolymer_deletion_without_changing_haplotype()
     Ok(())
 }
 
+// SRS-VN-006
 #[test]
 fn right_aligns_homopolymer_insertion_without_changing_haplotype()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -103,6 +106,7 @@ fn right_aligns_homopolymer_insertion_without_changing_haplotype()
     Ok(())
 }
 
+// SRS-VN-006
 #[test]
 fn right_aligns_tandem_repeat_deletion() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -123,6 +127,7 @@ fn right_aligns_tandem_repeat_deletion() -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+// SRS-VN-006
 #[test]
 fn right_aligns_tandem_repeat_insertion() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -143,6 +148,7 @@ fn right_aligns_tandem_repeat_insertion() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+// SRS-VN-005 SRS-VN-007
 #[test]
 fn normalization_preserves_phase_across_nearby_edits() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -166,6 +172,7 @@ fn normalization_preserves_phase_across_nearby_edits() -> Result<(), Box<dyn std
     Ok(())
 }
 
+// SRS-VN-006 SRS-VN-007
 #[test]
 fn an_insertion_crosses_a_substituted_base_of_its_own() -> Result<(), Box<dyn std::error::Error>> {
     // As 16172C with an inserted C at 16171: the sample's C run is 4-6 plus
@@ -188,6 +195,7 @@ fn an_insertion_crosses_a_substituted_base_of_its_own() -> Result<(), Box<dyn st
     Ok(())
 }
 
+// SRS-VN-007 SRS-VN-008
 #[test]
 fn a_deletion_moves_3_prime_across_substitutions_it_replaces()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -219,6 +227,7 @@ fn a_deletion_moves_3_prime_across_substitutions_it_replaces()
     Ok(())
 }
 
+// SRS-VN-006
 #[test]
 fn right_alignment_stops_at_the_mtdna_coordinate_seam() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -237,6 +246,7 @@ fn right_alignment_stops_at_the_mtdna_coordinate_seam() -> Result<(), Box<dyn st
     Ok(())
 }
 
+// SRS-VN-002
 #[test]
 fn rejects_reference_identity_mismatch() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

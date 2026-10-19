@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0018, ADR-0069]
+---
+
 # Versioning
 
 DNA versions externally meaningful contracts explicitly.
@@ -15,7 +19,7 @@ Configuration is strict and versioned by its documented schema/version field. Un
 ## Plugins
 
 Each plugin of the static registry
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md))
+([[ADR-0069]])
 carries a method version, recorded in result provenance. A change that can
 alter a plugin's output for the same inputs and configuration increases that
 plugin's version in the same change, and the CHANGELOG records it. A pure

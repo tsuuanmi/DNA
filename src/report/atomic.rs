@@ -109,6 +109,7 @@ fn create_temporary(path: &Path) -> Result<(PathBuf, File)> {
 mod tests {
     use super::*;
 
+    // SRS-OUT-006
     #[test]
     fn skips_a_stale_temporary_name() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;

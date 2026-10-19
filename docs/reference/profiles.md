@@ -1,9 +1,15 @@
+---
+implements: [SRS-NOM, SRS-PRF, SRS-VN]
+decided-by: [ADR-0063]
+covers: [config/profiles/human-mtdna-rcrs.toml, crates/dna-kernel/src/profile/, src/input/mod.rs]
+---
+
 # Target Profiles
 
 A target profile holds the knowledge about one sequencing target; the
-[configuration](configuration.md) holds method parameters and names one profile
-with its root `profile` key. Requirements are [`SRS-PRF-*`](../requirements/profiles.md);
-the rationale is [ADR-0063](../decisions/adr/0063-target-profiles.md). The
+[[reference/configuration|configuration]] holds method parameters and names one profile
+with its root `profile` key. Requirements are [[requirements/profiles|`SRS-PRF-*`]];
+the rationale is [[ADR-0063]]. The
 shipped profile is [`config/profiles/human-mtdna-rcrs.toml`](../../config/profiles/human-mtdna-rcrs.toml).
 
 Profiles are strict TOML of at most 1 MiB. Unknown or missing keys and every
@@ -57,7 +63,7 @@ Each `[[nomenclature.windows]]` table:
 
 A rule only proposes; the first candidate that reproduces the window haplotype
 exactly is used, and a window no rule matches keeps its normalized form
-([design](../design/variant-nomenclature.md)).
+([[design/variant-nomenclature|design]]).
 
 Each `[[nomenclature.conventions]]` table declares a report convention: rendered
 calls that the target's reviewers write differently. A covered call is

@@ -27,6 +27,7 @@ jobs:
         run: rustup toolchain install nightly-2026-09-01 --profile minimal
       - name: Install cargo-fuzz
         run: cargo +nightly-2026-09-01 install cargo-fuzz --version 0.13.2 --locked
+      # SRS-IN-002 SRS-IN-006
       - name: Fuzz ABIF parser
         env:
           FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '300' || '30' }}

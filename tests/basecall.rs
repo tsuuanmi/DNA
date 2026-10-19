@@ -22,6 +22,7 @@ fn dna_binary() -> String {
         .unwrap_or_else(|error| panic!("Cargo must provide the DNA test binary: {error}"))
 }
 
+// SRS-IN-001 SRS-IN-010 SRS-OUT-001 SRS-OUT-002 SRS-OUT-003 SRS-OUT-004 SRS-OUT-005 SRS-OUT-007 SRS-OUT-008 SRS-CFG-005
 #[test]
 fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::Error>> {
     let first = tempdir()?;
@@ -151,6 +152,7 @@ fn writes_deterministic_reference_free_json() -> Result<(), Box<dyn std::error::
 }
 
 /// Basecalling is reference-free and never reads the target profile.
+// SRS-PRF-007
 #[test]
 fn basecall_does_not_read_the_profile() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -165,6 +167,7 @@ fn basecall_does_not_read_the_profile() -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+// SRS-IN-002 SRS-IN-006 SRS-OUT-006
 #[test]
 fn malformed_abif_leaves_no_basecall_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -182,6 +185,7 @@ fn malformed_abif_leaves_no_basecall_output() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+// SRS-OUT-006
 #[test]
 fn refuses_to_overwrite_basecall_output() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -200,6 +204,7 @@ fn refuses_to_overwrite_basecall_output() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+// SRS-OUT-001
 #[test]
 fn basecall_and_analysis_outputs_coexist() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

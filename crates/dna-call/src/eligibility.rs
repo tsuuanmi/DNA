@@ -578,6 +578,7 @@ mod tests {
             .unwrap_or_else(|_| ReadEvidence::clean(sequence))
     }
 
+    // SRS-VAR-013
     #[test]
     fn names_what_withholds_trust_on_each_side() {
         use crate::model::trust::Withholder;
@@ -602,6 +603,7 @@ mod tests {
         assert!(!trust[18].trusted);
     }
 
+    // SRS-VAR-020
     #[test]
     fn an_insertion_into_a_repeat_is_unvetoed_if_some_placement_is() {
         let settings = settings(0);
@@ -707,6 +709,7 @@ mod tests {
         read.with_signal_edges(8)
     }
 
+    // SRS-VAR-013
     #[test]
     fn a_bounded_run_before_a_post_repeat_edge_is_exempt_but_not_its_bounds() {
         let read = run_read(true);
@@ -718,12 +721,14 @@ mod tests {
         assert!(!eligibility.run_exempt(16) && !eligibility.trusted(16));
     }
 
+    // SRS-VAR-013
     #[test]
     fn only_the_modality_marks_a_run_exempt() {
         let read = run_read(false);
         assert!(!Eligibility::new(&read, &settings(8)).run_exempt(13));
     }
 
+    // SRS-VAR-013
     #[test]
     fn the_exemption_lifts_read_end_from_run_indels_only() {
         let read = run_read(true);
@@ -763,6 +768,7 @@ mod tests {
         read
     }
 
+    // SRS-VAR-013
     #[test]
     fn a_base_only_call_supports_a_substitution_but_no_indel() {
         let read = identity_read(false);
@@ -782,6 +788,7 @@ mod tests {
         assert!(!eligibility.resolves(5, 'A'));
     }
 
+    // SRS-VAR-018
     #[test]
     fn a_base_only_call_beside_a_masked_call_may_sit_one_position_off() {
         let anchored = identity_read(false);
@@ -797,6 +804,7 @@ mod tests {
         assert!(!unanchored(&anchored, [Some('G'), Some('T')]));
     }
 
+    // SRS-VAR-013
     #[test]
     fn flags_calls_within_the_margin_of_the_informative_interval_ends() {
         let read = evidence(32, 5..25, &[]).with_signal_edges(3);
@@ -817,6 +825,7 @@ mod tests {
         }
     }
 
+    // SRS-VAR-013
     #[test]
     fn trusts_calls_at_vouched_read_ends() {
         let unvouched = evidence(16, 0..16, &[]);
@@ -846,6 +855,7 @@ mod tests {
         assert!(snv(&masked, 8));
     }
 
+    // SRS-VAR-013
     #[test]
     fn checks_supporting_calls_of_insertions_and_flanks_of_deletions() {
         let read = evidence(
@@ -881,6 +891,7 @@ mod tests {
         );
     }
 
+    // SRS-VAR-013
     #[test]
     fn reports_the_modality_reason_of_a_masked_call() {
         let read = evidence(
@@ -906,6 +917,7 @@ mod tests {
         );
     }
 
+    // SRS-VAR-013
     #[test]
     fn flags_evidence_near_an_unresolved_mask_but_not_an_anchoring_one() {
         let read = evidence(
@@ -941,6 +953,7 @@ mod tests {
         }
     }
 
+    // SRS-VAR-013, SRS-VAR-014
     #[test]
     fn reports_each_reason_once_per_variant() {
         let read = evidence(12, 0..12, &[(8, 12, Placement::Unresolved, "mixed_signal")]);
@@ -977,6 +990,7 @@ mod tests {
             .contains(&VariantExclusionReason::RunBoundary)
     }
 
+    // SRS-VAR-016
     #[test]
     fn needs_both_ends_of_a_run_an_insertion_lengthens() {
         let inserted = [mapping(VariantCallRole::Supporting, 4)];
@@ -994,6 +1008,7 @@ mod tests {
         assert!(run_boundary(&masked, VariantKind::Ins, &inserted));
     }
 
+    // SRS-VAR-016
     #[test]
     fn reads_reference_alleles_on_the_trace_strand_of_a_reverse_read() {
         // The trace run GGGGG is a reference run of C on a reverse read; its end
@@ -1014,6 +1029,7 @@ mod tests {
         assert!(!flagged(Orientation::Forward));
     }
 
+    // SRS-VAR-016
     #[test]
     fn needs_only_the_run_end_a_substitution_lies_on() {
         // Calls 4..=9 read CCCCCC; the masked call 10 resolves no base.
@@ -1026,6 +1042,7 @@ mod tests {
         assert!(run_boundary(&read, VariantKind::Snv, &snv(9)));
     }
 
+    // SRS-VAR-016
     #[test]
     fn bounds_what_a_deletion_leaves_of_a_run() {
         let flanks = [
@@ -1051,6 +1068,7 @@ mod tests {
         assert!(!reasons(&read, 'A').contains(&VariantExclusionReason::RunBoundary));
     }
 
+    // SRS-VAR-016
     #[test]
     fn leaves_a_lone_edited_base_to_the_other_rules() {
         // A substituted T between C and an unresolved call lengthens no run.
@@ -1061,6 +1079,7 @@ mod tests {
         assert!(!run_boundary(&read, VariantKind::Ins, &inserted));
     }
 
+    // SRS-VAR-016
     #[test]
     fn lets_vouched_ends_bound_a_run_and_ignores_mixed_edits() {
         let read = sequence("CCCCAGT", &[]);

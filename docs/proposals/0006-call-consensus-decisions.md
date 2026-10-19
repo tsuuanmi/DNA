@@ -1,12 +1,10 @@
 ---
 id: PROP-0006
-type: proposal
 status: implemented
-owners: []
 created: 2026-10-17
-related-requirements: [SRS-API-012, SRS-VAR-015, SRS-VAR-017, SRS-ALN-015]
-related-decisions: [ADR-0047, ADR-0073, ADR-0074, ADR-0077]
-implementation: []
+summary: "`call` reports the edits the consensus decided instead of aligning its FASTA again, which loses where `N`s sit (placement, run bounds, AC deletions), and every read places an equivalent indel at one canonical position before the consensus votes, with the laboratory's conventions applied after it."
+implements: [SRS-API-012, SRS-VAR-015, SRS-VAR-017, SRS-ALN-015]
+decided-by: [ADR-0047, ADR-0073, ADR-0074, ADR-0077]
 ---
 
 # Proposal: Call the consensus's decisions without re-aligning them
@@ -23,7 +21,7 @@ base is `N`. An `N` scores alike against any base and observes nothing, so
 around undecided bases the re-alignment is free to choose differently from
 the consensus.
 
-The [discrepancy catalogue](../validation/discrepancy-catalogue.md) counts
+The [[validation/discrepancy-catalogue|discrepancy catalogue]] counts
 three classes with this one cause on development panel v5:
 
 | Class | Samples | Current handling |
@@ -72,7 +70,7 @@ every read shows (116 contested AC sites, 112 with the truth `524.1A 524.2C`).
   `in_phase`, leaves `513`, `514`, and `516` unresolved, and writes
   `…CCCA NN A N ACACACC G…`. With the `N`s neutral, every deletion placement
   from `513` to `523` scores the same.
-- Run bounds: [known limitations](../validation/known-limitations.md),
+- Run bounds: [[validation/known-limitations|known limitations]],
   "Run lengths lost between consensus and call".
 - AC placement: profile-aware alignment scoring sets an insertion in a tandem
   repeat where the read's own call purities are lowest, and the canonical

@@ -1475,6 +1475,7 @@ def validate_signal(document: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: traces are not sorted")
 
 
+# SRS-OUT-002
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     errors: list[str] = []

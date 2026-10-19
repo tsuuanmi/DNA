@@ -1,3 +1,9 @@
+---
+id: RES-phase-recovery
+status: concluded
+summary: "Recovered calls as variant evidence after phase loss; concluded, not promoted."
+---
+
 # Research: phase-shift classification and recovery behind homopolymer runs
 
 **Status:** concluded for recovered calls as variant evidence (not promoted); open follow-ups are listed at the end. This note is exploratory evidence and has no production authority.

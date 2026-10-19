@@ -1,9 +1,13 @@
+---
+decided-by: [ADR-0037, ADR-0069]
+---
+
 # Reference-oriented Call Signal Projection
 
 Part of the canonical [sample evidence aggregation method](README.md).
 
 Sample aggregation works on modality-neutral `CalledRead` records
-([ADR-0069](../../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+([[ADR-0069]]).
 Every call-backed observation keeps its source call index and the call's
 optional basecall-independent `EvidenceProfile` from the read's `ReadEvidence`.
 The profile is projected into reference orientation:

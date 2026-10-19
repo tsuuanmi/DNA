@@ -60,6 +60,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-IN-002
     #[test]
     fn rejects_out_of_bounds_and_overflowing_ranges() {
         let reader = Reader::new(&[0, 1]);

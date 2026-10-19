@@ -81,6 +81,7 @@ fn cli(
     )?)?)
 }
 
+// SRS-VAR-021 SRS-API-005 SRS-API-011 SRS-API-012 SRS-PRF-007
 #[test]
 fn calls_a_sample_like_consensus_then_call_without_side_effects()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -209,6 +210,7 @@ fn calls_a_sample_like_consensus_then_call_without_side_effects()
     Ok(())
 }
 
+// SRS-API-011 SRS-API-012
 #[test]
 fn validates_the_sample_identifier_and_follows_the_profile()
 -> Result<(), Box<dyn std::error::Error>> {

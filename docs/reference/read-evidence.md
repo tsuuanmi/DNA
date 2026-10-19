@@ -1,3 +1,8 @@
+---
+implements: [SRS-CALL]
+decided-by: [ADR-0069, ADR-0076, ADR-0080, ADR-0082]
+---
+
 # DNA Read Evidence Output
 
 `dna evidence <trace.ab1>` reads the strict configuration selected by

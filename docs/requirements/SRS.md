@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0009, ADR-0019, ADR-0066]
+---
+
 # DNA Software Requirements Specification
 
 This document is the canonical index for DNA's normative Software Requirements Specification (SRS).
@@ -42,7 +46,7 @@ chemistry sets C; DNA decides it quickly and names the cause. DNA aims to:
 
 Today DNA reports the evidence for these decisions (callability, rejected
 reads, eligibility reasons, consensus `N` and `contested` marks), but not the
-decisions themselves. [PROP-0004](../proposals/0004-review-triage.md) proposes
+decisions themselves. [[PROP-0004]] proposes
 how DNA could make them.
 
 ## Requirement families

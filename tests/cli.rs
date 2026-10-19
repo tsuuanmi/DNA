@@ -9,6 +9,7 @@ fn dna_binary() -> String {
         .unwrap_or_else(|error| panic!("Cargo must provide the DNA test binary: {error}"))
 }
 
+// SRS-IN-011
 #[test]
 fn help_succeeds() {
     let mut command = Command::new(dna_binary());
@@ -22,6 +23,7 @@ fn help_succeeds() {
         .stdout(predicate::str::contains("call"));
 }
 
+// SRS-IN-012
 #[test]
 fn call_requires_a_sequence_file() {
     let mut command = Command::new(dna_binary());
@@ -32,6 +34,7 @@ fn call_requires_a_sequence_file() {
         .stderr(predicate::str::contains("Usage:"));
 }
 
+// SRS-IN-001 SRS-IN-012
 #[test]
 fn basecall_requires_a_trace() {
     let mut command = Command::new(dna_binary());
@@ -42,6 +45,7 @@ fn basecall_requires_a_trace() {
         .stderr(predicate::str::contains("Usage:"));
 }
 
+// SRS-IN-001 SRS-IN-012
 #[test]
 fn basecall_rejects_reference_option() {
     let mut command = Command::new(dna_binary());
@@ -54,6 +58,7 @@ fn basecall_rejects_reference_option() {
         ));
 }
 
+// SRS-IN-012
 #[test]
 fn analyze_requires_arguments() {
     let mut command = Command::new(dna_binary());
@@ -64,6 +69,7 @@ fn analyze_requires_arguments() {
         .stderr(predicate::str::contains("Usage:"));
 }
 
+// SRS-IN-010 SRS-IN-012
 #[test]
 fn rejects_removed_out_prefix_option() {
     let mut command = Command::new(dna_binary());
@@ -83,6 +89,7 @@ fn rejects_removed_out_prefix_option() {
         ));
 }
 
+// SRS-IN-006 SRS-OUT-008 SRS-CFG-004
 #[test]
 fn missing_trace_fails_explicitly() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -107,6 +114,7 @@ fn missing_trace_fails_explicitly() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// SRS-IN-001 SRS-IN-012
 #[test]
 fn sample_requires_at_least_one_trace() {
     let mut command = Command::new(dna_binary());
@@ -117,6 +125,7 @@ fn sample_requires_at_least_one_trace() {
         .stderr(predicate::str::contains("Usage:"));
 }
 
+// SRS-IN-012
 #[test]
 fn sample_rejects_unsafe_sample_id_before_io() {
     let mut command = Command::new(dna_binary());

@@ -1,8 +1,19 @@
+---
+implements: [SRS-PRF, SRS-VAR]
+decided-by: [ADR-0047, ADR-0057, ADR-0060]
+verified-by:
+  - crates/dna-empop/src/conformance.rs
+  - crates/dna-normalize/src/variant_nomenclature
+  - src/pipeline/represent.rs
+  - src/report/notation.rs
+unverified: [SRS-NOM-001, SRS-NOM-002, SRS-NOM-009, SRS-NOM-012]
+---
+
 # Variant Nomenclature Requirements
 
 **Requirement namespace:** `SRS-NOM-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-NOM-001:** Target-specific variant nomenclature MUST be an optional post-calling representation capability. It MUST NOT reinterpret sequencing signal, change caller eligibility, manufacture phase, or change the represented biological haplotype.
 - **SRS-NOM-002:** A nomenclature operation consuming a normalization result MUST verify that the supplied reference name and sequence identity match the reference identity carried by that result.
@@ -22,3 +33,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-NOM-016:** When the profile declares conformance, `notation` MUST check each read's represented variants against the declared rules (`insertion_at_run_end`, `insertion_matches_run`) over reference homopolymers of at least `minimum_run_length` bases and MUST report every finding without changing any represented call or the reconstructed haplotype.
 - **SRS-NOM-017:** A profile report convention (`[[nomenclature.conventions]]`) MUST label every rendered call it covers in each notation view (`sample`, `call`, `notation`, and `SampleAnalysis::call`), and MUST NOT drop, add, or rewrite a call or change the reconstructed haplotype. It MUST match only on a read's represented calls and the reference, never on read evidence. `run_length` covers an inserted `base` whose anchor lies in `window`, and a deleted `base` in `window`, when the read's represented haplotype has an uninterrupted run of `base` of at least `minimum_run` bases at the call, counting a deleted base in the run it shortens; it never covers a substitution. A distinct call is labelled only when every read containing it labels it with the same convention.
 - **SRS-NOM-018:** When the profile declares `[empop]`, `notation` MUST export an offline EMPOP query and send it nowhere. Its interpretation ranges MUST cover exactly the profile-region positions that one record of the variants document calls (its callable reference segments, SRS-VAR-019), in the profile's region order and then position order, merged where they touch; a record position no range covers MUST be listed with its reason (`unresolved`, `excluded_variant`, `overlap`). The mitotype MUST hold the represented calls inside the ranges, distinct and ordered by position and insertion ordinal, an insertion written when its anchor lies in a range (EMPOP numbers `X.k` at `X`), labelled calls included, and IUPAC codes passed through. `SampleAnalysis::call` MUST give the same query.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/variant-nomenclature](../design/variant-nomenclature.md), [reference/notation](../reference/notation.md), [reference/profiles](../reference/profiles.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/sample-evidence/notation](../reference/sample-evidence/notation.md), [requirements/output](output.md), [requirements/profiles](profiles.md), [validation/discrepancy-catalogue](../validation/discrepancy-catalogue.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
+<!-- docs:end backlinks -->

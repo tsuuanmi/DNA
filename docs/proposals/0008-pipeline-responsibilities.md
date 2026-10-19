@@ -1,12 +1,17 @@
 ---
 id: PROP-0008
-type: proposal
 status: accepted
-owners: []
 created: 2026-10-17
-related-requirements: [SRS-VAR-011, SRS-VAR-013, SRS-VAR-016, SRS-CONS-003, SRS-CONS-004, SRS-CONS-008, SRS-ALN-015]
-related-decisions: [ADR-0047, ADR-0069, ADR-0070, ADR-0071, ADR-0074, ADR-0076, ADR-0077]
-implementation: []
+summary: "the modality decides trust as per-call verdicts, the core asserts only what a placed read shows whole, the consensus votes stretch sequences on bounded reads, and the core splits into align, call, sample, and consensus crates."
+implements:
+  - SRS-VAR-011
+  - SRS-VAR-013
+  - SRS-VAR-016
+  - SRS-CONS-003
+  - SRS-CONS-004
+  - SRS-CONS-008
+  - SRS-ALN-015
+decided-by: [ADR-0047, ADR-0069, ADR-0070, ADR-0071, ADR-0074, ADR-0076, ADR-0077]
 ---
 
 # Proposal: One responsibility per pipeline step

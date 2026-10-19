@@ -1,7 +1,21 @@
+---
+id: ADR-0008
+status: superseded-in-part
+date: 2026-08-22
+supersedes: [ADR-0005]
+---
+
 # ADR-0008: Emit a Single JSON-Only, Auditable Analysis Document
 
-- **Status:** Superseded in part by ADR-0011
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0011](0011-compact-variant-focused-json.md)
 - **Date:** 2026-08-22
+- **Supersedes:** [ADR-0005](../../governance/retired.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [governance/retired](../../governance/retired.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

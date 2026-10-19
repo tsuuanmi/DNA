@@ -130,6 +130,7 @@ mod tests {
         }
     }
 
+    // SRS-ALN-002
     #[test]
     fn one_hot_profiles_preserve_clean_match_and_mismatch_scores() {
         let profile = EvidenceProfile {
@@ -145,6 +146,7 @@ mod tests {
         );
     }
 
+    // SRS-ALN-002, SRS-ALN-010
     #[test]
     fn mixed_profile_uses_quantized_expected_score() {
         let profile = EvidenceProfile {
@@ -160,6 +162,7 @@ mod tests {
         );
     }
 
+    // SRS-ALN-002
     #[test]
     fn missing_profile_or_ambiguous_reference_uses_ambiguous_score() {
         assert_eq!(substitution(None, 'A', &config()), 0);
@@ -188,6 +191,7 @@ mod tests {
         }
     }
 
+    // SRS-ALN-010
     #[test]
     fn half_unit_quantization_rounds_up() {
         assert_eq!(quantize_weight(0.5 / SCORE_SCALE as f64), 1);

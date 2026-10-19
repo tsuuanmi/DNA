@@ -1,17 +1,32 @@
+---
+id: ADR-0073
+status: accepted
+date: 2026-10-10
+family: [consensus]
+related:
+  - ADR-0023
+  - ADR-0033
+  - ADR-0035
+  - ADR-0041
+  - ADR-0065
+  - ADR-0068
+  - ADR-0069
+  - ADR-0071
+  - ADR-0074
+  - PROP-0003
+---
+
 # ADR-0073: Sample consensus as the adjudication layer
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-10
-- **Related proposal:** [PROP-0003](../../proposals/0003-sample-consensus.md)
-- **Related decisions:** [ADR-0023](0023-evidence-derived-read-placement-and-sample-boundary.md),
-  [ADR-0033](0033-variant-support-topology.md),
-  [ADR-0035](0035-locus-support-topology.md),
-  [ADR-0041](0041-mean-nucleotide-evidence-profiles.md),
-  [ADR-0065](0065-result-comparison-downstream.md),
-  [ADR-0068](0068-variant-opposition-evidence.md),
-  [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
-  [ADR-0074](0074-run-structure-consensus.md)
+- **Related:** [ADR-0023](0023-evidence-derived-read-placement-and-sample-boundary.md), [ADR-0033](0033-variant-support-topology.md), [ADR-0035](0035-locus-support-topology.md), [ADR-0041](0041-mean-nucleotide-evidence-profiles.md), [ADR-0065](0065-result-comparison-downstream.md), [ADR-0068](0068-variant-opposition-evidence.md), [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md), [ADR-0074](0074-run-structure-consensus.md), [PROP-0003](../../proposals/0003-sample-consensus.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/overview](../../architecture/overview.md), [design/consensus](../../design/consensus.md), [reference/consensus](../../reference/consensus.md), [requirements/consensus](../../requirements/consensus.md), [validation/known-limitations](../../validation/known-limitations.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -58,7 +73,7 @@ decide nothing and do not widen a stretch. Method version 1 decided a stretch:
    inside it.
 
 Method version 2 decides a stretch by its run structure and labels how each
-run length is known ([ADR-0074](0074-run-structure-consensus.md)).
+run length is known ([[ADR-0074]]).
 
 Positions outside stretches are decided one by one.
 

@@ -1,8 +1,17 @@
+---
+implements: [SRS-CALL, SRS-VAR]
+decided-by: [ADR-0080, ADR-0082]
+verified-by:
+  - tests/public_sample_analysis.rs
+  - tests/public_sample_analysis_call.rs
+  - tests/review.rs
+---
+
 # Public API Requirements
 
 **Requirement namespace:** `SRS-API-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-API-001:** DNA MUST expose a Rust library capability for reference-guided Sanger Variant Analysis without requiring callers to construct CLI/`clap` types.
 - **SRS-API-002:** The Sanger Variant Analysis API MUST accept explicit AB1, reference FASTA, and configuration paths and MUST reuse the same scientific read-processing, alignment, and variant-calling behavior as the production CLI.
@@ -22,3 +31,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-API-015:** A Sample Analysis whose consensus was called MUST expose, in process (`SampleAnalysis::review_checks`), the items of its review list that a reviewer must look at (`check` items of SRS-API-014), each with its first and last reference positions (1-based) and its label names, built by the same rules as `dna review` with an optional in-process run signal in place of `--signal`, with no file, log, or document written.
 - **SRS-API-016:** `dna signal <run-id> <trace>...` MUST write one deterministic `results/<run-id>.signal.json` identified as `dna.signal/v1` (SRS-CALL-019) with the configuration's SHA-256 and the plugins in its provenance, whatever the order of the traces: reads the sample commands reject are counted but contribute nothing, and an unreadable input, an invalid configuration or run identifier, or an existing target fails the command without output.
 - **SRS-API-017:** `dna evidence <trace>` MUST write one deterministic `results/<trace-stem>.evidence.json` identified as `dna.read_evidence/v1`, without a reference: the read's `ReadEvidence` exactly as the core receives it from the Sanger plugin (every call's placement, per-use verdicts with their reasons verbatim, run bound, second base, `second_unexplained`, and `reference_only`) with the Sanger signal each rests on (locus scan, strongest peak height, relative quality, second-peak cause), its bases and callability equal to `dna basecall`'s for the same trace and configuration; an unreadable input, an invalid configuration, a read the Sanger plugin cannot process, or an existing target fails the command without output (PROP-0011).
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/pipeline](../design/pipeline.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/signal](../reference/signal.md), [requirements/output](output.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
+<!-- docs:end backlinks -->

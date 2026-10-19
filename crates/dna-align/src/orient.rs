@@ -536,6 +536,7 @@ mod tests {
         }
     }
 
+    // SRS-ALN-012
     #[test]
     fn forward_and_reverse_reads_share_canonical_deletion_coordinate() -> Result<()> {
         let forward = align_best(&ReadEvidence::clean("GCCAAAGTT"), &reference(), &config())?;
@@ -559,6 +560,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-006, SRS-ALN-013
     #[test]
     fn upper_bound_orientation_tie_preserves_existing_error() {
         let reference = Reference {
@@ -576,6 +578,7 @@ mod tests {
         );
     }
 
+    // SRS-ALN-006, SRS-ALN-013
     #[test]
     fn repeated_upper_bound_placement_preserves_existing_error() {
         let reference = Reference {
@@ -710,6 +713,7 @@ mod tests {
         Ok(actual)
     }
 
+    // SRS-ALN-014
     /// Neither orientation is proven when the read's probe windows cover most
     /// of the reference: three near copies of the read's source. Forward,
     /// first on equal lower bounds, runs full Gotoh, and its optimum proves
@@ -764,6 +768,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-014
     /// Neither orientation is proven when most read loci are weak calls that
     /// the reference contradicts: too many seeds would be needed. The reverse
     /// read's seeds give a lower bound, so reverse runs full Gotoh first, and
@@ -817,6 +822,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-015
     #[test]
     fn callable_segments_skip_uncallable_calls_and_deletions_beside_them() {
         let column = |call: Option<usize>, reference: Option<usize>| AlignmentColumn {
@@ -851,6 +857,7 @@ mod tests {
         );
     }
 
+    // SRS-ALN-015
     #[test]
     fn unresolved_unmasked_calls_are_not_callable() -> Result<()> {
         let reference = Reference {
@@ -883,6 +890,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-006
     #[test]
     fn orientation_comparison_uses_profile_score_only() {
         let left = raw(100, 1, 9, 5);
@@ -891,6 +899,7 @@ mod tests {
         assert_eq!(compare(&raw(101, 0, 10, 10), &right), Ordering::Greater);
     }
 
+    // SRS-ALN-016
     #[test]
     fn re_expresses_a_masked_repeat_stretch_one_length_edit_per_run() -> Result<()> {
         let reference = Reference {

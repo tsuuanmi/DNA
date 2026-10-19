@@ -81,6 +81,7 @@ toml = "0.8"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
 
+# SRS-NFR-001
 [workspace.lints.rust]
 deprecated = "deny"
 missing_docs = "warn"

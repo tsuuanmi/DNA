@@ -1,8 +1,17 @@
+---
+id: ADR-0020
+status: accepted
+---
+
 # ADR-0020: Use Rust as correctness architecture, not only as an implementation language
 
-## Status
+<!-- docs:begin lifecycle -->
+- **Status:** Accepted
+<!-- docs:end lifecycle -->
 
-Accepted
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/rust](../../architecture/invariants/rust.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

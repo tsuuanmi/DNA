@@ -1,3 +1,9 @@
+---
+id: RES-one-strand
+status: active
+summary: Evidence for the open question on whether a single strand can pass a region.
+---
+
 # Research: when may a region read by one strand pass?
 
 **Status:** exploratory evidence for a decision. This note has no production
@@ -17,7 +23,7 @@ exception, if any, would raise A without letting errors pass?
 - **Panel and truth.** Development panel v3 only (2,618 active samples), the
   lab's statistics database of 2026-10-15, `config/dna.toml`, rCRS, revision
   a244644. The validation panel was not used.
-- **Run.** `dna-eval run --triage` ([draft triage](../../validation/evaluation-harness.md#draft-triage)).
+- **Run.** `dna-eval run --triage` ([draft triage](../../validation/evaluation-triage.md#draft-triage)).
   Its draft outcomes are the baseline: 515 passed samples, A = 0.178
   corpus-weighted.
 - **Extra evidence, outside the repository.** A throwaway copy of the harness
@@ -35,7 +41,7 @@ exception, if any, would raise A without letting errors pass?
   - *Location:* `edge` touches the first or last 8 positions of a region
     (16024–16031, 16358–16365, 73–80, 333–340, 438–445, 569–576);
     `repeat` reaches within 3 positions of a repeat window of the
-    [measures](../../validation/evaluation-harness.md#measures) (`hv1_polyc`
+    [measures](../../validation/evaluation-measures.md#measures) (`hv1_polyc`
     16180–16195, `hv2_polyc` 302–316, `hv3_polyc` 560–576, `ac_repeat`
     513–526); `edge_to_repeat` does both, typically the half of a region
     between a primer end and a poly-C; `other` does neither. HVS-III's last

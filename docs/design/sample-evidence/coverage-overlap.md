@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0030, ADR-0032, ADR-0033, ADR-0035, ADR-0068]
+---
+
 # Coverage and Pairwise Overlap
 
 Part of the canonical [sample evidence aggregation method](README.md).

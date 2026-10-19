@@ -1,12 +1,21 @@
+---
+id: ADR-0079
+status: accepted
+date: 2026-10-18
+related: [ADR-0069, ADR-0070, ADR-0073, ADR-0078, PROP-0008]
+---
+
 # ADR-0079: One crate per core step
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-18
-- **Related decisions:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0070](0070-workspace-split-by-plugin-family.md),
-  [ADR-0073](0073-sample-consensus.md),
-  [ADR-0078](0078-call-the-consensus-decisions.md)
-- **Proposal:** [PROP-0008](../../proposals/0008-pipeline-responsibilities.md)
+- **Related:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0070](0070-workspace-split-by-plugin-family.md), [ADR-0073](0073-sample-consensus.md), [ADR-0078](0078-call-the-consensus-decisions.md), [PROP-0008](../../proposals/0008-pipeline-responsibilities.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/overview](../../architecture/overview.md), [engineering/ci-cd](../../engineering/ci-cd.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/rust-api](../../reference/rust-api.md), [reference/rust-api-sample](../../reference/rust-api-sample.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

@@ -1,8 +1,22 @@
+---
+id: ADR-0022
+status: superseded-in-part
+date: 2026-09-22
+family: [documentation]
+supersedes: [ADR-0006]
+---
+
 # ADR-0022: Govern documentation as an executable knowledge system
 
-- **Status:** Accepted
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0081](0081-typed-documentation-graph-and-retention.md) (§4/§6/§8)
 - **Date:** 2026-09-22
-- **Supersedes:** ADR-0006
+- **Supersedes:** [ADR-0006](../../governance/retired.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [governance/documentation](../../governance/documentation.md), [governance/retired](../../governance/retired.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -145,5 +159,5 @@ are created when the system has a real artifact or governance boundary to place
 there.
 
 The repository-agnostic rationale and adoption guidance live in the reusable
-[Documentation Architecture Standard](../../governance/documentation-architecture.md).
-DNA-specific enforcement lives in the [DNA documentation policy](../../governance/documentation.md).
+[[governance/documentation-architecture|Documentation Architecture Standard]].
+DNA-specific enforcement lives in the [[governance/documentation|DNA documentation policy]].

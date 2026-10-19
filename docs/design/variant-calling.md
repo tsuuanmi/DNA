@@ -1,6 +1,27 @@
+---
+implements: [SRS-ALN, SRS-CALL, SRS-VAR]
+decided-by:
+  - ADR-0027
+  - ADR-0047
+  - ADR-0057
+  - ADR-0060
+  - ADR-0062
+  - ADR-0067
+  - ADR-0069
+  - ADR-0071
+  - ADR-0076
+covers:
+  - crates/dna-call/src/
+  - crates/dna-call/src/model/variant.rs
+  - crates/dna-call/src/read_call.rs
+  - crates/dna-kernel/src/read_evidence.rs
+  - crates/dna-sanger/src/read_processing/evidence.rs
+  - src/input/sequence.rs
+---
+
 # Variant Calling Method
 
-Part of the canonical [DNA pipeline](pipeline.md).
+Part of the canonical [[design/pipeline|DNA pipeline]].
 
 Extracts evidence-backed primary-sequence differences from the selected
 alignment and constructs validated anchored REF/ALT alleles. Only differences
@@ -16,7 +37,7 @@ Walking the alignment columns:
 - a column where the reference is `-` is an **insertion** of the query bases;
 - a column with unequal canonical query and reference bases is an **SNV**.
 
-A column on a masked call ([callability](callability.md)) is no SNV candidate
+A column on a masked call ([[design/callability|callability]]) is no SNV candidate
 and produces no record. An insertion with a masked inserted call is excluded
 with the mask reasons of those calls. Other differences whose allele contains a
 non-canonical base, or whose indel length exceeds `max_indel_length`, increment
@@ -113,7 +134,7 @@ with the read's trace-strand calls through the read's placement.
 Vendor PCON is not used by this filter. For SNVs, a supporting call with more than one co-localized qualifying channel is retained as an observed called difference but is ineligible for clean-SNV reporting with `mixed_supporting_dna`. Insertions and deletions are not subjected to this point-mixed-signal gate; persistent mixed-length evidence is a separate method boundary.
 
 The caller reads each read only as `ReadEvidence`
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+([[ADR-0069]]).
 The region gate, `indel_length_exceeded`, `non_canonical_allele`,
 `read_end`, `run_boundary`, `unresolved_flank`, and `placement_conflict` are
 core rules. Everything else arrives from the modality as data:

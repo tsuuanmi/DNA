@@ -1,12 +1,11 @@
 ---
 id: PROP-0011
-type: proposal
 status: implementing
-owners: []
 created: 2026-10-19
-related-requirements: [SRS-OUT, SRS-API-014]
-related-decisions: [ADR-0069, ADR-0075, ADR-0079, ADR-0080]
-implementation: ["#160", "#161"]
+summary: "every crate's output is a versioned, schema-validated contract producible on its own (`dna.read_evidence/v1`, `dna.analysis/v10` with per-call trust and component calls, schemas for the evaluation outputs), with a crate → contract → command map, so a wrong result is traceable to the step that made it."
+implements: [SRS-OUT, SRS-API-014]
+decided-by: [ADR-0069, ADR-0075, ADR-0079, ADR-0080]
+implementation: [PR-160, PR-161]
 ---
 
 # Proposal: A contract at every step

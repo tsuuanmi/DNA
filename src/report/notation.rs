@@ -365,6 +365,7 @@ mod tests {
             .collect())
     }
 
+    // SRS-NOM-011
     #[test]
     fn renders_one_call_per_changed_base_in_position_order() -> Result<(), RepresentationError> {
         let variants = [
@@ -377,6 +378,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-011
     #[test]
     fn renders_the_alleles_of_each_call() -> Result<(), RepresentationError> {
         let variants = [
@@ -399,6 +401,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-011
     #[test]
     fn orders_an_insertion_after_a_change_at_its_anchor() -> Result<(), RepresentationError> {
         let variants = [
@@ -410,12 +413,14 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-011
     #[test]
     fn renders_a_leading_insertion_before_the_first_base() -> Result<(), RepresentationError> {
         assert_eq!(texts(&[variant(1, "G", "CG", VariantKind::Ins)])?, ["0.1C"]);
         Ok(())
     }
 
+    // SRS-NOM-017
     #[test]
     fn labels_a_call_only_when_every_read_containing_it_does() -> crate::error::Result<()> {
         use dna_kernel::checksum::hex_sha256;

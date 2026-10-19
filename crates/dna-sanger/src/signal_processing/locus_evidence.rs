@@ -354,6 +354,7 @@ mod tests {
         );
     }
 
+    // SRS-SIG-009
     #[test]
     fn produces_profile_without_any_basecall_input() -> Result<()> {
         let evidence = evidence_of(&trace(), &config(5))?;
@@ -372,6 +373,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-009
     #[test]
     fn profile_retains_mixed_channel_mass_without_threshold_membership() -> TestResult {
         let mut trace = trace();
@@ -384,6 +386,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-008
     #[test]
     fn event_refinement_prefers_nearest_local_event_over_stronger_neighbor() -> Result<()> {
         let mut channels = std::array::from_fn(|_| vec![0; 40]);
@@ -405,6 +408,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-008
     #[test]
     fn event_refinement_breaks_equal_distance_by_signal_then_coordinate() -> Result<()> {
         let mut channels = std::array::from_fn(|_| vec![0; 20]);
@@ -428,6 +432,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-008
     #[test]
     fn event_refinement_falls_back_to_locus_position_without_positive_local_maximum() -> Result<()>
     {
@@ -447,6 +452,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-009
     #[test]
     fn zero_corrected_signal_has_no_profile() -> Result<()> {
         let mut trace = trace();

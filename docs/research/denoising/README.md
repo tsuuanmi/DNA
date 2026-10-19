@@ -1,3 +1,9 @@
+---
+id: RES-denoising
+status: active
+summary: Does a conditioned projection of the instrument-analyzed channels improve re-calling or read callability on real traces?
+---
+
 # Research: signal denoising and baseline correction
 
 **Status:** active — exploratory evidence, not production authority.

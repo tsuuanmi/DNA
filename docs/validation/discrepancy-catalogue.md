@@ -1,3 +1,8 @@
+---
+implements: [SRS-ALN, SRS-CALL, SRS-NOM, SRS-VAR]
+decided-by: [ADR-0047, ADR-0077]
+---
+
 # Discrepancy Catalogue
 
 This catalogue sorts every difference between DNA's calls and reviewer truth on
@@ -12,13 +17,13 @@ evidence supports DNA, DNA is not changed: the case goes to the reviewers for
 a re-check (see *Truth re-check*).
 
 The layers and their boundary are those of
-[ADR-0077](../decisions/adr/0077-normalize-and-empop-crates.md) §5:
+[[ADR-0077]] §5:
 
 - the core caller decides **what** the sample's sequence is;
 - `dna-normalize` decides **how** a decided sequence is written, in the lab's
   convention;
 - `dna-empop` checks and exports the **format**;
-- the [evaluation harness](evaluation-harness.md) classifies.
+- the [[validation/evaluation-harness|evaluation harness]] classifies.
 
 ## Working hypothesis
 
@@ -32,14 +37,14 @@ every difference is attributed to one of three owners:
   length mixture** (`technology`): the core cannot recover it. Cleaning the
   signal, correcting noise, and recovering phase belong to the Sanger
   modality (`dna-sanger`) and are later work, listed among the
-  [roadmap's deferred directions](../proposals/roadmap.md#deferred-product-directions):
+  [[proposals/roadmap#deferred-product-directions|roadmap's deferred directions]]:
   phase recovery, signal denoising, and length-mixture decomposition;
 - **the core** (`dna`): the current focus.
 
 ## Classification rule
 
-The harness gives each sample one [class](evaluation-harness.md#discrepancy-classes)
-and one [cause](evaluation-harness.md#discrepancy-causes), with the evidence
+The harness gives each sample one [[validation/evaluation-measures#discrepancy-classes|class]]
+and one [[validation/evaluation-measures#discrepancy-causes|cause]], with the evidence
 for each finding. Those two sections define the rules; this catalogue only
 reads their counts and records what is done about each part.
 
@@ -58,7 +63,7 @@ review rather than a defect.
 A convention that changes content is not normalization. For example, the
 reviewers do not record the HVS-I C-tract length. It is handled by a labelled
 convention that classifies a call and never deletes it
-([PROP-0007](../proposals/0007-empop-export-and-report-conventions.md)).
+([[PROP-0007]]).
 
 ## Development panel v5 (revision f6b979e)
 
@@ -96,7 +101,7 @@ DNA's unlabelled HVS-II C-run length (see *Open and TODO*) is now visible.
 **Coverage** (a truth allele where DNA has no callable base). By finding:
 - `lab`: no read covers it (`no_read`, mostly `73G` at the HVS-II forward
   read's start, an assay and run-quality matter, see
-  [known limitations](known-limitations.md)), a weak-signal veto
+  [[validation/known-limitations|known limitations]]), a weak-signal veto
   (`weak_call`), the read's own end (`read_edge`), or masked weak signal;
 - `technology`, deferred to signal processing: phase loss, a run no read
   shows whole (`run_unread`), or the margin beside a phase-loss mask;
@@ -174,7 +179,7 @@ with the run outputs under `results/` on the lab server and never in
 repository documents. A corrected truth reaches the harness through the
 statistics database, whose changes the panel's truth digests detect. Until
 then the case still counts as a leak in an approval run, as pre-registered
-([PROP-0005](../proposals/0005-evaluation-feedback-loop.md)).
+([[PROP-0005]]).
 
 Candidates on development panel v5 (revision 4e6f8d1):
 

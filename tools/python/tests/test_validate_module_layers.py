@@ -153,6 +153,7 @@ class CrateMapTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    # SRS-COMPAT-003
     def test_rejects_any_crate_depending_on_the_harness(self) -> None:
         result = self.run_map(
             {

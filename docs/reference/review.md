@@ -1,8 +1,23 @@
+---
+implements: [SRS-API, SRS-CALL, SRS-VAR]
+decided-by: [ADR-0071, ADR-0076, ADR-0080, ADR-0082]
+covers:
+  - crates/dna-kernel/src/variant.rs
+  - crates/dna-normalize/src/
+  - src/lib.rs
+  - src/model/review_result.rs
+  - src/pipeline/review.rs
+  - src/pipeline/sample_call.rs
+  - src/report/review.rs
+  - src/sample_analysis/
+  - src/variant_analysis/
+---
+
 # DNA Review JSON
 
 `dna review <sample-id> <trace>... --reference <reference.fasta> [--signal <run.signal.json>]` writes one
 deterministic document, `results/<sample-id>.review.json`, identified as
-`dna.review/v1` (SRS-API-014, [PROP-0004](../proposals/0004-review-triage.md)).
+`dna.review/v1` (SRS-API-014, [[PROP-0004]]).
 It lists the positions of one sample a reviewer should look at, each with the
 evidence labels that make it quick to settle. It never states the reviewer's
 conclusion.
@@ -18,10 +33,10 @@ The command runs the in-process path of SRS-API-012 once per sample: the
 sample placement pass, the consensus, and `SampleAnalysis::call` (the
 consensus's decided edits, then the notation and the EMPOP query the profile
 declares). Traces, reference, and configuration (`DNA_CONFIG`) are read as by
-[`dna consensus`](consensus.md), and reads are rejected the same way. The
+[[reference/consensus|`dna consensus`]], and reads are rejected the same way. The
 operation log is `logs/<sample-id>.log`.
 
-`--signal` names the sample's run signal ([`dna.signal/v1`](signal.md)).
+`--signal` names the sample's run signal ([[reference/signal|`dna.signal/v1`]]).
 The sample's own admitted reads are taken out of it, so the sample is never
 judged against itself, and `possible_heteroplasmy` judges each call against
 its key's run level (SRS-CALL-020). A run signal that holds none of the
@@ -60,7 +75,7 @@ target still fails the command without output.
   each with `name` (the trace stem), `sha256`, `strand` (`forward` or
   `reverse`, its placement), `admitted: true`, and `masked`; then the
   rejected reads with `name`, `sha256`, `admitted: false`, and `rejection`
-  as in [`dna.consensus/v1`](consensus.md). `masked` lists, in reference
+  as in [[reference/consensus|`dna.consensus/v1`]]. `masked` lists, in reference
   order, the maximal stretches `{first, last, state, after_repeat}` of
   reference positions inside the reportable regions that the read's aligned
   calls cover while the modality masks its signal and the call stays masked
@@ -94,7 +109,7 @@ target still fails the command without output.
   `SampleAnalysis::call` gives them: `call` (`309.1C`), `position`,
   insertion `ordinal`, `reference` (`null` for an inserted base), `alternate`
   (`null` for a deleted base), and the `convention` that labels it, when one
-  does ([notation](notation.md)).
+  does ([[reference/notation|notation]]).
 - `callable` (`called`): the call's callable reference segments, merged where
   they overlap or touch, as 1-based inclusive `start`/`end` ranges.
 - `empop` (`called`, when the profile declares `[empop]`): the EMPOP query,
@@ -192,7 +207,7 @@ the clipped columns, what most of its supporting reads show there). It has:
 
 Items come from three sources:
 
-1. **Sites.** Every consensus site ([consensus](consensus.md)). A site with no
+1. **Sites.** Every consensus site ([[reference/consensus|consensus]]). A site with no
    call and no label that leaves it unassured is DNA's own decision and is not
    an item.
 2. **Second bases.** Every callable position outside every site where
@@ -340,14 +355,14 @@ exemption lifts the margin (ADR-0076).
 
 `phase_shift` and `noisy_signal` read the core's view of the modality's masks;
 their counts may move when the modality's per-call verdicts carry their own
-reasons ([PROP-0008](../proposals/0008-pipeline-responsibilities.md)).
+reasons ([[PROP-0008]]).
 
 ## Not in version 1
 
 - Inserted calls, which have no reference position, are not listed in
   `evidence`; their item's `sequence` and `calls` carry them.
 - Watched positions, which a profile declares for every sample
-  ([PROP-0004](../proposals/0004-review-triage.md#review-list-canonical-output)),
+  ([[PROP-0004#review-list-canonical-output|PROP-0004]]),
   come in a later revision with the raw signal they need.
 
 - The circular origin: the neighbour test of `possible_heteroplasmy` and

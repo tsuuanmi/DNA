@@ -1,3 +1,8 @@
+---
+implements: [SRS-CALL]
+decided-by: [ADR-0080]
+---
+
 # Second-peak cause
 
 A call's second peak (SRS-CALL-015) has several causes. A reviewer tells them

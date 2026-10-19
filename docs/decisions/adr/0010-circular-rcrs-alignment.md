@@ -1,7 +1,22 @@
+---
+id: ADR-0010
+status: accepted
+date: 2026-08-22
+family: [placement]
+supersedes: [ADR-0004]
+---
+
 # ADR-0010: Align to the Circular rCRS Reference with Origin Wrapping
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-08-22
+- **Supersedes:** [ADR-0004](../../governance/retired.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/alignment](../../architecture/invariants/alignment.md), [design/alignment](../../design/alignment.md), [governance/retired](../../governance/retired.md), [requirements/alignment](../../requirements/alignment.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

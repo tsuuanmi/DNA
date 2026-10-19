@@ -312,6 +312,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-PRF-005
     #[test]
     fn rejects_a_reference_other_than_the_declared_sequence() -> Result<()> {
         let profile = human_mtdna()?;
@@ -329,6 +330,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-PRF-005
     #[test]
     fn rejects_a_reference_without_a_window_sequence() -> Result<()> {
         let mut profile = human_mtdna()?;
@@ -356,6 +358,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-PRF-002
     #[test]
     fn rejects_oversized_and_unreadable_profiles()
     -> std::result::Result<(), Box<dyn std::error::Error>> {

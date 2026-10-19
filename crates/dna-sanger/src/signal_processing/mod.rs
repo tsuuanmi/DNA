@@ -99,6 +99,7 @@ mod tests {
         }
     }
 
+    // SRS-SIG-007
     /// A read of exactly one window passes; one call fewer fails with the
     /// error that `ShortRead::of` reads back (SRS-SIG-007).
     #[test]

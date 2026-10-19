@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0076]
+---
+
 # Analysis Alignment, Aligned Calls, and Variants
 
 Part of the canonical [analysis contract](README.md).

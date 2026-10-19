@@ -1,3 +1,7 @@
+---
+implements: [SRS-SAMPLE]
+---
+
 # Overlaps and Differential Loci
 
 Part of the canonical [sample evidence contract](README.md).

@@ -1,7 +1,22 @@
+---
+id: ADR-0026
+status: accepted
+date: 2026-09-19
+family: [public-signal]
+supersedes: [ADR-0014]
+---
+
 # ADR-0026: Prefer reviewer-facing signal evidence over implementation call coordinates
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+- **Supersedes:** [ADR-0014](../../governance/retired.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [governance/retired](../../governance/retired.md), [reference/analysis](../../reference/analysis/README.md), [reference/sample-evidence](../../reference/sample-evidence/README.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

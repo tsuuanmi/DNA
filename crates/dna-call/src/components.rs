@@ -269,6 +269,7 @@ pub fn within(span: [usize; 2], position: usize) -> bool {
     }
 }
 
+// SRS-VAR-022
 #[cfg(test)]
 mod tests {
     use dna_align::RawAlignmentConfig;

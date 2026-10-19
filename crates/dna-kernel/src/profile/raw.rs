@@ -663,6 +663,7 @@ rules = ["motif_shift"]
         }
     }
 
+    // SRS-PRF-001 SRS-PRF-006
     #[test]
     fn validates_a_target_without_any_mtdna_knowledge()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -808,6 +809,7 @@ rules = ["motif_shift"]
         Ok(())
     }
 
+    // SRS-PRF-008
     #[test]
     fn validates_conformance_rules() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let declared = format!(
@@ -847,6 +849,7 @@ rules = ["motif_shift"]
         Ok(())
     }
 
+    // SRS-PRF-002
     #[test]
     fn rejects_unknown_keys_and_old_schemas() -> std::result::Result<(), toml::de::Error> {
         assert!(parse(&VALID.replace("id = \"toy\"", "id = \"toy\"\nextra = 1")).is_err());
@@ -863,6 +866,7 @@ rules = ["motif_shift"]
         Ok(())
     }
 
+    // SRS-PRF-003 SRS-PRF-004 SRS-PRF-006
     #[test]
     fn rejects_invalid_identity_regions_and_dependencies()
     -> std::result::Result<(), toml::de::Error> {
@@ -908,6 +912,7 @@ rules = ["motif_shift"]
         Ok(())
     }
 
+    // SRS-PRF-006
     #[test]
     fn rejects_inconsistent_windows() {
         let cases = [

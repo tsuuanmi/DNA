@@ -1,7 +1,19 @@
+---
+id: ADR-0017
+status: accepted
+date: 2026-09-07
+---
+
 # ADR-0017: Gate Secondary Calls at the Primary Peak Sample
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-07
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/basecalling](../../design/basecalling.md), [requirements/basecalling](../../requirements/basecalling.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

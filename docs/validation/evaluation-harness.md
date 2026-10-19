@@ -1,11 +1,18 @@
+---
+implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
+decided-by: [ADR-0065, ADR-0075, ADR-0076, ADR-0077, ADR-0082]
+---
+
 # Evaluation harness
 
 `dna-eval` runs DNA over a fixed test panel and compares the calls with
-reviewer truth ([PROP-0005](../proposals/0005-evaluation-feedback-loop.md),
-[ADR-0075](../decisions/adr/0075-evaluation-harness-in-workspace.md)). It is
+reviewer truth ([[PROP-0005]],
+[[ADR-0075]]). It is
 the only place in the repository for truth formats and comparison
 (SRS-COMPAT-003). Its outputs are validation evidence about a DNA revision,
 not DNA contracts. Source: [crates/dna-eval](../../crates/dna-eval/src/README.md).
+
+Measures, discrepancy classes, and causes are in [[validation/evaluation-measures]]; review workload, estimates, and the draft triage are in [[validation/evaluation-triage]].
 
 ## Commands
 
@@ -146,7 +153,7 @@ lab's reviewers write their own calls, without traces. Every truth sample
 whose calls are plain A/C/G/T substitutions, deletions, and insertions is
 rebuilt as anchored variants (runs of deleted positions as one deletion,
 insertion ordinals `1, 2, …` without a gap as one insertion) and goes through
-DNA's right-aligned [normalization](../design/variant-normalization.md) and
+DNA's right-aligned [[design/variant-normalization|normalization]] and
 the profile's nomenclature windows, as DNA's own calls do, with a deletion
 trade bounded by the windows and every base taken as read. A sample whose
 written calls come back unchanged is a fixed point of DNA's notation; a
@@ -260,7 +267,7 @@ and runs the [draft triage](#draft-triage); without it the run and its
 outputs are unchanged.
 
 `--run-signal` judges each sample's review against a run signal
-([PROP-0009](../proposals/0009-run-signal.md), SRS-CALL-020) built in
+([[PROP-0009]], SRS-CALL-020) built in
 process, the way `dna review --signal` would with a per-run file. A first
 pass analyses every sample and adds its admitted reads' contributions
 (`SampleAnalysis::signal_contributions`) to its groups' run signals: its
@@ -272,231 +279,6 @@ batch's signal when that batch has at least `--run-signal-batch-reads` reads
 manifest's batch stands for the laboratory's run, which the panel does not
 record. Without the flag, no run signal is built and the floor alone sets
 every threshold.
-
-## Measures
-
-The truth side is compared as stored in the database; DNA's side uses its
-notation. Every sample is compared under six measures: primary, strict,
-IUPAC-compatible, the two haplotype measures, and haplotype LoD.
-
-Run lengths a profile convention leaves unrecorded (`not_recorded`,
-SRS-NOM-017) are not compared under any measure, on either side: an
-insertion of the convention's base anchored in its window, or a deletion of
-it there, is left out when that side's haplotype with its substitutions only
-has a run of the base of at least `minimum_run` at the call. The reviewers do
-not write such a length (`hvs1_c_length`: 1.1 % of the truth's samples with
-`16189C` carry an indel at 16180-16195), so DNA's length and the reference
-length the truth keeps are no difference. Counting the run without either
-side's insertions and deletions keeps an over-estimated length from carrying
-a run across the minimum.
-
-**Primary.** The lab's concordance (`mtdna_raw`, `src/core/comparison.py`,
-`SampleComparator.is_concordant`), with DNA as tool A (the automated caller)
-and the truth as tool B:
-
-- an allele is `(position, reference, alternate)`. Positions are normalised
-  (`16193.0` → `16193`, thousands separators removed), and alleles whose
-  reference equals the alternate are dropped;
-- `N/A` when either side has no allele;
-- insertions and deletions at 309, 455, 463, and 573, and at their `.n`
-  insertion positions, are left out ("special" positions); substitutions
-  there count. This is the lab's rule, and only the primary measure keeps
-  it. DNA is target-agnostic, so the strict, IUPAC-compatible, and
-  haplotype measures judge a run length at these positions like any other;
-- `N` when a position both sides call holds different allele sets
-  (`comparison.py` also skips 309.1, 309.2, and 573.1, which hold insertions
-  and are special already);
-- `N` when DNA alone calls an allele inside HV1 (16024–16365), HV2 (73–340),
-  or HV3 (438–576);
-- `N` when the truth alone calls an allele inside an HV region and inside
-  DNA's callable intervals, or DNA reports none;
-- `Y` otherwise. Interval and region tests use an allele's anchor base, so
-  `16193.1` lies in `[16024, 16193]`.
-
-A truth allele where DNA has no callable base is therefore not counted, and
-a truth IUPAC allele differs from any definite base DNA calls.
-
-**Strict.** The primary rules with the special positions judged, and a truth-only allele in an HV region also
-counts inside the truth's analysed intervals: where DNA has no callable base
-it is missed (rule `uncovered`). This makes DNA's coverage gaps visible.
-
-**IUPAC-compatible.** The primary rules with the special positions judged, and DNA's base matches a truth IUPAC
-code that admits it, like `iupac_bases_compatible`: two alleles with the same
-position and reference match when their called bases share a possible base
-(`16189C` and `16189Y`), and where DNA calls nothing inside its callable
-intervals its base is the reference, which matches a truth IUPAC allele whose
-code admits the reference (`16189Y` over a reference `T`).
-
-**Haplotype and haplotype IUPAC-compatible.** The primary and the
-IUPAC-compatible rules, with the special positions judged, applied only to alleles that do not describe the same
-sequence on both sides, so a haplotype written or placed differently is not a
-difference (`16190.1C` and `16193.1C` in the C run 16190–16193, `248DEL` and
-`249DEL` over `AA`, `514DEL 515DEL` and `523DEL 524DEL` in the AC repeat,
-`16182.1C 16189C 16193DEL` and `16183C 16184A 16189C`):
-
-- the comparable intervals are the HV regions within DNA's callable
-  intervals (merged where they touch), or the HV regions when DNA reports
-  none, and within the truth's analysed intervals when it records any: a
-  stretch the reviewers did not analyse holds no truth to compare. There is
-  no circular seam inside them;
-- a DNA allele outside the truth's analysed intervals raises no `dna_only`
-  (the primary rules, the lab's own comparator, still count it);
-- in each, both sides' alleles are applied to the reference: an allele
-  replaces as many bases as its reference has (`514`, `CA`, `-` deletes 514
-  and 515; equally many alternate bases substitute them one by one),
-  insertions follow their anchor base in ordinal order, and IUPAC codes stay
-  as written. Only the reference's length is used, not its bases;
-- the interval is walked base by base and cut wherever both local sequences
-  have the same length, so the sequences are equal exactly when every piece
-  is. A piece that differs is a *block*. A block that reaches the end of its
-  interval with unequal lengths is *open*: the length difference may
-  continue where DNA has no callable base;
-- the haplotype measure compares symbols exactly. The haplotype
-  IUPAC-compatible measure also lets a symbol that a truth allele wrote match
-  a DNA symbol that shares a base with it (`16191Y` against DNA's `T`, or
-  against the reference base where DNA calls nothing), as two alleles do
-  under the IUPAC-compatible rules. A symbol that comes from the reference on
-  the truth side matches only itself, so a DNA code (`Y`, `N`) where the
-  truth calls nothing stays a difference;
-- alleles whose bases lie in the interval outside every block describe the
-  same sequence and leave the comparison; the rules decide the rest, special
-  positions included, and `N/A` is decided on all alleles.
-  An interval where one side has two alleles at one base or insertion
-  ordinal, or an allele that cannot be applied (an insertion without an
-  ordinal, an ordinal on a reference base, an inserted `-`, a reference or
-  alternate that is empty or not ASCII, or bases past the interval), cannot
-  be built and stays under the rules.
-
-Only representation therefore changes a status relative to the base rules
-with the special positions judged: a sample is concordant on a haplotype
-measure exactly when every allele the rules count describes the same sequence
-as the other side's, or the rules find it concordant anyway.
-
-**Haplotype LoD.** The haplotype measure, except at a truth heteroplasmy
-the traces cannot show (`lod.rs`). A truth substitution to a two-base IUPAC
-code is *observed* when the covering admitted reads show both of its bases
-there, each as some read's call or as some read's second channel (a channel
-other than its own call) at 0.10 or more of its normalised A/C/G/T profile
-(rounded to thousandths, so 0.0995 counts), or when one of its bases shows
-as such a second channel; otherwise it is *below the limit of detection*.
-Every observation of an admitted read counts, masked ones included, so the
-limit errs toward counting a heteroplasmy as observed. Below the limit the allele compares as under the haplotype
-IUPAC-compatible measure: DNA's base there, or the reference where DNA calls
-nothing but reads the position, matches when it is one of the code's bases,
-in the alleles and in the sequences. At or above the limit the code must
-match exactly. A minor reference base where DNA calls the alternate shows the
-heteroplasmy as well. The limit is 10 % (user, 2026-10-16; see the
-[approval protocol](../proposals/0005-evaluation-feedback-loop.md)); each
-sample's count of truth IUPAC positions below it is reported (`below_lod`).
-
-**DNA's callable intervals.** The comparable span is DNA's callable
-intervals, which leave out unresolved consensus bases (`N`; SRS-ALN-015), so
-neither DNA's sequence nor the IUPAC-compatible rules' "where DNA calls
-nothing" ever stands for a position DNA left unresolved.
-
-For each sample the harness also reports, on the primary measure, the alleles
-unique to each side (special positions left out), every rule that applies,
-the positions those rules name, whether every such position holds a truth
-IUPAC allele (`iupac_only`), and their windows: `hv2_polyc` 302–316,
-`hv1_polyc` 16180–16195, `hv3_polyc` 560–576, `ac_repeat` 513–526, `other`.
-It lists the `uncovered` truth alleles as well.
-
-## Discrepancy classes
-
-Each sample takes one class, which names the part of DNA (or the lab) that
-owns its difference from the truth (ADR-0077). A sample that failed under a
-measure is `failed`, and one not applicable under a measure (a side without an
-allele) is `not_comparable`; any other takes the first of these whose measure
-is discordant:
-
-| Class | Measure | Difference | Owner |
-|---|---|---|---|
-| `failed` | any | DNA failed, or the truth has no record | core or the input |
-| `not_comparable` | any | DNA or the truth has no allele | the input, or coverage |
-| `sequence` | haplotype IUPAC-compatible | the sequences differ | core, or the truth (adjudication) |
-| `heteroplasmy` | haplotype | only at a truth IUPAC code | core minor signal (deferred) |
-| `unanalysed` | primary | every primary difference is a DNA call outside the truth's analysed intervals | a review where the truth has no analysis |
-| `representation` | primary | the same sequence written differently | `dna-normalize`, or a truth minority form |
-| `coverage` | strict | a truth allele where DNA has no callable base | core callability, or the lab's assay |
-| `none` | — | every measure concordant | — |
-
-`class_regions` lists the windows of the discordant positions of the class's
-measure. Whether a representation is DNA's to fix or a minority form in the
-truth is measured on the corpus with `dna-eval convention`, not per sample.
-The class follows from the statuses alone, so a baseline run's classes come
-from its `scores.tsv` when it reports all four measures.
-
-## Discrepancy causes
-
-Each sample with a discrepancy also has a cause: who accounts for it, so the
-difference reaches the one who can act on it. The core is judged on the
-working hypothesis that its input signal is good, or clearly poor through the
-lab. Each cause says which case applies:
-- `lab`: the lab did poorly (a missing or short trace, a weak run, or a truth
-  the reads contradict);
-- `technology`: the lab did its part, but the read shows dephasing, noise, or
-  length heterogeneity that the core cannot resolve and signal processing in
-  `dna-sanger` may later;
-- `dna`: a core defect;
-- `undetermined`: a reviewer decides.
-
-Every discordant position of
-the sample's class gives a finding, `cause:evidence@position` (or `@window`)
-in `cause_evidence`; the sample's `cause` is the first of `dna`, `lab`,
-`technology`, and `undetermined` among them. Each finding also has a scope
-(`cause_scope` for the sample): `defect`, or `deferred` for an item left
-undone by design. Three kinds are deferred:
-- the IUPAC codes DNA does not write;
-- a call the reviewers' convention does not record;
-- signal processing in `dna-sanger`, which takes every `technology` finding.
-
-A defect comes before a deferred item, so a sample with both a `lab` and a
-`technology` finding is the lab's. The causes come from the
-admitted reads' evidence at each region position (with the core's own trust
-verdict on each call, `SampleAnalysis::trust`), the limit-of-detection
-signals, and how the reviewers write each sequence over the whole truth
-database; nothing is listed by hand, and the truth is only read.
-
-| Class | Evidence | Cause |
-|---|---|---|
-| `coverage` (each uncovered truth allele) | no admitted read covers the position (`no_read`) | `lab`: a missing or short trace |
-| | a truth IUPAC code of two bases that a read shows, judged as under `heteroplasmy` (`iupac_not_reported`, `below_lod`) | `dna` deferred, or `technology` deferred |
-| | a read covers it with a call masked for phase loss: dephased or mixed signal (a mixed segment counts as phase loss), or a segment after a repeat run (`phase_loss`) | `technology`, deferred: signal processing |
-| | a read covers it with a call masked for weak signal or irregular spacing (`weak_signal`) | `lab`: the run's quality |
-| | clean reads tie and the consensus writes `N` (`contested_reads`) | `undetermined`: for the reviewer |
-| | it lies in a stretch of runs the consensus left undecided, no read showing both run ends (`run_unread`) | `technology`, deferred: signal processing |
-| | a read's call there is `N` (`unresolved_call`) | `dna`: its callability policy |
-| | a clean call the core does not trust, withheld by a call masked for phase loss: dephased or mixed signal, or a segment DNA starts after a repeat run (`beside_phase_loss`) | `technology`, deferred: signal processing |
-| | a weak-signal veto denies a call that reads the reference (`veto_out_of_scope`) | `dna`: the veto guards variant support |
-| | a call there shows more than one qualifying channel (`mixed_call`) | `undetermined` |
-| | every untrusted call is withheld by its read's own end, its trim, or a call masked for weak signal (`read_edge`), or carries a weak-signal veto (`weak_call`); an ADR-0076 exemption counts as trust | `lab`: read quality |
-| | otherwise (`untrusted_call`) | `dna`: its callability policy |
-| `unanalysed` (each window) | DNA calls where the reviewers did not analyse (`outside_truth_intervals`) | `undetermined`: only a review there verifies them |
-| `representation` (each window) | DNA writes the reviewers' majority form of the window sequence (`truth_minority_form`) | `lab`: a minority form in the truth |
-| | the truth writes it (`dna_minority_form`) | `dna`: its notation |
-| | outside the windows, the majority of truth samples carrying each side's calls (`…_proxy`) | as above |
-| `heteroplasmy` (each truth IUPAC code) | a read shows the code's second base at the limit of detection (`iupac_not_reported`) | `dna`, deferred: DNA writes no IUPAC code by design |
-| | a read shows it only at 3 % or more (`below_lod`) | `technology`, deferred: signal processing |
-| | clean reads on both strands show no second base at 3 % (`no_second_base`) | `lab`: the truth, for a re-check |
-| | one strand only (`one_strand`), or a code of more than two bases (`iupac_code`) | `undetermined` |
-| `sequence` (each window) | every DNA-only call is one a profile convention labels `not_recorded` (SRS-NOM-017), and the truth has no call of its own (`convention_not_recorded`) | `lab`, deferred: the reviewers' convention |
-| `sequence` (each SNV or deletion) | otherwise, a DNA-only call where clean reads on both strands show only the reference (`phantom`) | `dna` |
-| | a truth-only call there (`reads_show_reference`) | `lab`: the truth, for a re-check |
-| `failed` | no record in the truth, an unreadable trace, or every trace rejected | `lab` |
-| | a DNA error | `dna` |
-
-Any other discrepancy is `undetermined` (`adjudicate`, `not_comparable`).
-The written forms group the truth's IUPAC-free samples by the sequence of
-each repeat window, so DNA's form and the truth's are compared for the same
-sequence; outside the windows no sequence groups them, and the count of
-samples carrying each side's calls is a proxy. Each run writes this index as
-`forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
-earlier run's instead of indexing the whole database, and a file written for
-another database stops the run. A sample can need more than
-one party: the summary counts the samples per class and cause, defects
-first and then deferred items, each in cause order, and per cause, scope, and evidence the samples with such a
-finding. Insertions are not judged under `sequence` yet: reads showing the
-reference at an anchor do not exclude one.
 
 ## EMPOP queries
 
@@ -514,259 +296,6 @@ placed a consensus `N` elsewhere: a consensus-to-`call` interface loss, not an
 export defect. A tie the consensus resolved is exported as DNA's decision;
 `empop_ties` counts its positions. The summary gives the samples with a query
 and the positions and samples of each count.
-
-## Review workload
-
-The review workload says how much of each sample DNA leaves to a reviewer,
-and which errors no reviewer would see. The review items are `dna review`'s
-own, read through `SampleAnalysis::review_checks` (SRS-API-015), so the
-harness applies no review rule of its own.
-
-- The HV regions split into windows of `--review-window` positions (default
-  10), aligned to each region's first position; a region's last window may
-  be shorter. A reviewer looks at every window a check item touches: those
-  windows' positions are the sample's positions to review
-  (`review_positions`). With a window of 1 they are the positions inside
-  check items.
-- A `haplotype_lod` differing block that overlaps no check item is
-  unreviewed (`unreviewed`): an error the report would carry without anyone
-  looking. The safety measure is per sample, the share of samples with an
-  unreviewed block, since one such block makes the report wrong.
-- `--forced-windows` lists windows always sent to review, one `start-end`
-  (1-based, inclusive) per line; the workload is reported again with them
-  reviewed (`unreviewed_forced`). Choosing them is a policy decision:
-  `windows.tsv` only ranks windows. A list must be learned on one run and
-  judged on a hold-out half or later batches; applied to the run it was
-  learned on, it overstates its effect.
-
-Only samples compared under `haplotype_lod` with a concordant or discordant
-status count. The summary's "Review workload" section gives the positions to
-review, the samples with an unreviewed difference overall, by region, and by
-batch month (from the manifest's optional `batch_date` column), the clear samples (no check item), the windows with the most
-unreviewed differences, the effect of the forced windows, and with a baseline
-that reports the workload, its values on the same samples.
-
-**Zones to check.** A reviewer opens a functional part of a region as a
-whole, so the workload is also counted in zones. Every position of a
-reportable region of the configuration's target profile has one zone kind,
-by precedence:
-
-1. `window`: a repeat window, one of the profile's nomenclature windows
-   (polyC of HV1 and HV2, the AC repeat of HV3);
-2. `after`: within `--zone-after` positions (default 20) of a window on
-   either side, since the harness does not see a read's direction;
-3. `start` and `end`: the first and last `--zone-edge` positions (default
-   40) of the region, its amplicon's start and end;
-4. `interior`: the rest.
-
-A zone is a kind in one region (`kind@region`, such as `after@HV2`),
-contiguous or not. A check item counts for every zone it touches. An item
-that overlaps a window counts its positions within `--zone-overrun`
-positions (default 2) of the window for the window, since the consensus
-often decides a repeat as one stretch a position or two past it. The
-summary gives:
-
-- zones per sample (mean, median, 90th percentile);
-- the samples with none;
-- the check items that touch more than one zone;
-- the samples with a check in each zone;
-- the unreviewed blocks by the zone kind of their first position;
-- with a baseline that reports zones, its zones per sample on the same
-  samples.
-
-The profile is the one the configuration names, and every analysed sample
-must have used it. The widths are in `run.json`.
-
-`--current-since <YYYY-MM>` names the first batch month of the current data:
-the samples whose `batch_date` is in or after it. Recent batches come first,
-since old batches may predate the laboratory's current practice. The
-summary then reports the review workload on the current data before the
-whole panel, and with a baseline, the changes of status class per measure on
-the current data after those of the whole panel. Without it, nothing changes.
-
-## Estimates
-
-For each weighting (`corpus` = `weight_corpus`, `pool` = `weight`), each
-measure with the metrics `not_concordant` (anything but `Y`, failures
-included) and `discordant`, and `failed` (measure `all`), over samples of
-positive weight that are not retired:
-
-- rate `p = Σ w·y / Σ w`, per stratum and over all;
-- stratum size `N_h = Σ_h w`, `W_h = N_h / N`;
-- variance `Σ_h W_h² · p_h(1 − p_h) / n_h · max(0, 1 − n_h / N_h)`;
-- 95 % interval `p ± 1.96·√variance`, and the unweighted rate.
-
-## Anchors and baseline
-
-Statuses fall into classes so that runs of other conventions stay comparable:
-`exact` and `concordant` are good; `error` and `discordant` are bad;
-`not_applicable` and `failed` are their own classes.
-
-- Anchor candidates are the manifest's `anchor_candidate = 1` samples, listed
-  under each measure. With a baseline, the anchor set is the candidates whose
-  baseline `status` was good.
-- Changes against the baseline, per measure the baseline reports:
-  `regression` (good before, not now), `fix` (the reverse), `changed` (another
-  change of class), `added`, `removed`. The summary also tabulates the
-  baseline `status` against the primary status.
-
-## Draft triage
-
-`run --triage` measures whether the triage of
-[PROP-0004](../proposals/0004-review-triage.md) is worth building (phase 0).
-Its detectors are research drafts over the evidence DNA already produces:
-nothing in DNA reads them, they decide no call, and none is approved.
-
-**Evidence.** Per sample, from the analysis the run already made
-(`analyze_sanger_outcome`), kept even when the call then fails:
-
-- the reportable regions of the target profile (`SampleAnalysis::regions`);
-- per region position, its clean and masked reads from one source: at a
-  consensus site, the site's supporting and opposing reads observe it cleanly
-  and its uninformative reads are masked; elsewhere, a read observes it
-  cleanly inside its callable reference segments and masked in the rest of its
-  reference segments. Clean reads are counted per strand. Sites name reads by
-  trace name; a name that two admitted reads share counts a strand only when
-  the site names every read of that name or all of them share the strand,
-  otherwise as masked;
-- the marks of the consensus sites over each position;
-- per region position, each read's *minor channel* where that read calls a
-  canonical base without a mask (every covered position, through
-  `SampleAnalysis::observations`, read once over the span of the regions):
-  the strongest channel of its reference-oriented
-  A/C/G/T profile other than its own call, kept when its weight is at least
-  0.05; the pair (call, minor base); whether the minor base is the base the
-  read calls just before or just after in sequencing order (a neighbour's
-  shadow); how systematic each of those two shadows is in the read here,
-  the share of its calls within 10 on either side (the call itself left
-  out) whose minor channel, at 0.05 or more, is the base of the call before
-  (or after) them; and the read's local noise, the median minor weight of
-  its calls within 10 calls on either side. Weights and shares are kept in
-  thousandths, rounded down for shares;
-- per input trace: its name, the primer in the name (a `HV<n><F|R>` token),
-  whether it was admitted (with its strand) or rejected (too short, too few
-  callable calls, or unplaced), and its callable span in calls.
-
-When every read is rejected, the evidence is the traces alone, with no region
-evidence. When DNA cannot give an analysed sample's observations, the
-stage-1 evidence is kept without minor channels: the sample's call and scores
-stand, a policy with a minor-signal rule sends its would-pass regions to
-review because the gate could not run, and `triage.tsv` gives the cause
-(`minor_unavailable=…`).
-
-**Detectors.**
-
-| Level | Finding | Fires when |
-|---|---|---|
-| trace | `trace.too_short`, `trace.weak`, `trace.unplaced` | the read was rejected for that cause (SRS-SAMPLE-030, SRS-SAMPLE-027, SRS-SAMPLE-029) |
-| trace | `trace.short` | the callable span has fewer than `short_calls` calls (default 100; `0` turns it off) |
-| region | `region.unreliable` | a position is `n` (a site without a call or with `N`), `contested`, `masked` (a site with an uninformative read), or `phase_loss` or `reference_frame` (a run of the site has that length evidence); `masked_read` (a covering read reads the position only through a masked call) is measured but not applied by default |
-| region | `region.one_strand` | a position is observed cleanly by one strand only, where the policy requires both strands: everywhere (the draft), nowhere (`off`), or only inside the repeat windows ±3 (`outside_repeats`, R6m) and also in or next to a reference homopolymer of at least `k` bases (`outside_repeats_h<k>`, R6m-h4 with 4); the windows are the measures' windows (`compare::Region::WINDOWS`) and the runs are read from the reference |
-| region | `region.minor_signal_single_strand` | a position one strand alone reads cleanly shows a minor signal under the policy's single-strand rule (off by default); it applies only where the policy lets one strand pass |
-| region | `region.gap` | a position is observed cleanly by no read |
-| region | `region.minor_signal` | a position's reads show a second allele under one of the policy's minor rules (default `upstream@100`; off turns it off) |
-
-**Minor rules.** A rule is a kind and a threshold `t` in thousandths; a read
-counts when its minor weight (its second channel's share of the read's
-normalised A/C/G/T profile, which sums to 1, rounded to thousandths, so 0.0995
-counts at `t` = 100) is at least `t` (`>=`) and it passes the kind's shadow
-test. The shadow tests compare the minor base with the read's *adjacent
-calls* in reference order, not with the reference bases. The cross-strand
-kinds mark a position when a forward and a reverse read that count show the
-same unordered pair:
-
-| Kind | A read counts when | Marks when |
-|---|---|---|
-| `strands` | always | a forward and a reverse read show the same pair |
-| `unshadowed` | its minor base is neither neighbour's base | as `strands` |
-| `upstream` | its minor base is not the base of its 3′-side adjacent call in reference order (the call after it on a forward read, the call before it in sequencing order on a reverse read) | as `strands` |
-| `noise` | its minor weight is at least 3 times its local noise | as `strands` |
-| `local_shadow` | its minor base is not a neighbour's base whose shadow at least 0.05 of the read's nearby calls show | as `strands` |
-| `any` | its minor base is neither neighbour's base | any read counts |
-| `lone` | as `unshadowed` | as `unshadowed`, or any read counts where one strand alone reads the position cleanly |
-
-A minor signal never asks for a rerun.
-
-**Blind spot by construction.** A cross-strand kind marks a position only when
-a forward and a reverse read count, so none of them can fire where one strand
-alone reads cleanly. `upstream` can never mark a heteroplasmy whose alternate
-base equals the 3′ neighbour (next reference base), and `unshadowed` and `any`
-also miss one equal to the 5′ neighbour. In the merged reviewer truth of about
-103,000 samples, 9,368 reference-plus-one-alternate IUPAC sites split as
-alternate = previous reference base only 15.5 %, next only 11.3 %, both
-10.4 %, neither 62.8 %. `upstream` is therefore blind to about 21.7 % of
-corpus heteroplasmy sites (common examples: 146Y, 16189Y, 16183M) and
-`unshadowed` to about 37.2 %. The leak bound of a policy with these rules
-holds only for the classes they can see; [PROP-0004](../proposals/0004-review-triage.md)
-gives the dev-panel split.
-
-A trace with any trace finding is *poor*; it stays a diagnostic unless a
-region asks for it. A sample without an admitted read is `rerun` with every
-poor trace, the clearest rerun case. A sample DNA cannot analyse (a trace that
-cannot be read, an invalid input) or whose consensus cannot be called is its
-own class, `failed`; after a call failure its trace findings are still
-reported.
-
-**Outcomes.** A region is `rerun` when it has a gap, or a one-strand position
-while the policy applies `region.one_strand`, and a poor trace could have read
-it; `review` when any applied finding remains; `pass` otherwise. A sample takes
-its worst region (rerun > review > pass). Which poor trace could have read a
-region is a proxy:
-
-- `primer` (default): the poor trace's primer reads the region on a strand
-  the region lacks. A primer's strand is its `F` or `R`; its regions are those
-  that at least half of the admitted traces with that primer in the run's
-  active samples observe cleanly at 50 positions or more (its footprint). A
-  sample's own traces are not left out: a poor trace never contributes to a
-  footprint, and a sample's admitted traces are a negligible share of a
-  primer's;
-- `any`: any poor trace of the sample.
-
-**Measurement.** Retired samples are left out; samples without a comparison
-count in A/B/C but not in leaks or catches.
-
-- **A/B/C:** the share of samples in each outcome, unweighted and
-  corpus-weighted with the stratified estimator (with its interval); and the
-  share of regions of decided samples with region evidence, unweighted and
-  weighted by their sample's `weight_corpus` (a point estimate).
-- **Leaks:** passed samples that are not concordant under each measure, with
-  the one-sided 95 % Clopper–Pearson upper bound on the leak rate among passed
-  samples (`1 − 0.05^(1/n)`, about `3/n`, at zero leaks) and the
-  corpus-weighted rate. Region leaks are discordant positions inside passed
-  regions, each with its kind (`dna_unique`, `truth_unique`, `both`,
-  `uncovered`), allele class (`iupac`, `insertion`, `deletion`,
-  `substitution`), window, and the detectors that mark the position itself.
-- **Catches** per region detector: not-concordant samples it flags (catches),
-  concordant samples it flags (burden), and primary discordant positions it
-  marks itself (hits). For a detector the policy applies, also the catches no
-  other applied detector makes (unique) and the concordant samples only it
-  holds back (sole burden: clearing it would pass them). For a detector the
-  policy does not apply, instead what applying it would add: the
-  not-concordant samples it would newly catch and the concordant samples it
-  would newly hold back.
-- **Sweep:** the draft and policies that each change one thing
-  (`short_calls` 0, 50, 150, 200, 300; the `any` proxy; `region.one_strand`
-  off; `masked` off; `masked_read` on; `n` and `contested` only; no unreliable
-  cause; one-strand and `masked` off; the gap alone; the minor signal off),
-  then the draft with each minor rule but `lone` (which equals `unshadowed`
-  while `region.one_strand` applies) at thresholds 60, 80, 100, 120, 150, 200,
-  and 250, leaving out the draft's own rule, `lone` at the same
-  thresholds with `region.one_strand` off, and the draft's rule joined by
-  `local_shadow` at the same thresholds;
-  each with A/B/C and its leaks under every measure: a risk–coverage table.
-  Every policy runs on the evidence already taken, without DNA.
-- **Minor signal:** for the draft and each policy with another minor rule,
-  against the same policy without the rule, decided like any policy:
-  corpus-weighted A without and
-  with the rule and its cost; the compared samples the rule alone moves from
-  pass to review and the concordant ones among them (burden); passed samples
-  and leaks under every measure without and with the rule; and the recall of
-  truth IUPAC alleles (primary discordant positions of class `iupac`) that
-  the rule marks itself, among those inside a region that passes without the
-  rule and among those inside any region.
-
-Phase-0 results are in
-[PROP-0004](../proposals/0004-review-triage.md#phase-0-results).
 
 ## Outputs
 
@@ -800,4 +329,4 @@ calls (and with `--triage` its evidence), and the configuration, reference, prof
 names, so it is byte-identical whatever the thread count and whatever revision
 or database file it ran on. Run outputs and
 panel manifests hold sample identifiers and stay outside the repository under
-the [data policy](../governance/data.md); DNA documents quote aggregates only.
+the [[governance/data|data policy]]; DNA documents quote aggregates only.

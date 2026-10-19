@@ -166,7 +166,7 @@ notation  -> results/<sample-id>.notation.json
 
 Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `review`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
 
-Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066). The library offers the same workflow in process: `dna::sample_analysis::analyze_sanger`, then `SampleAnalysis::call` ([Rust API](docs/reference/rust-api.md#sample-analysis)). For validation, the workspace's evaluation harness `dna-eval` runs DNA over a fixed test panel in process and compares its calls with reviewer truth; it is not part of the `dna` binary or the release ([evaluation harness](docs/validation/evaluation-harness.md), ADR-0075).
+Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066). The library offers the same workflow in process: `dna::sample_analysis::analyze_sanger`, then `SampleAnalysis::call` ([Rust API](docs/reference/rust-api-sample.md#sample-analysis)). For validation, the workspace's evaluation harness `dna-eval` runs DNA over a fixed test panel in process and compares its calls with reviewer truth; it is not part of the `dna` binary or the release ([evaluation harness](docs/validation/evaluation-harness.md), ADR-0075).
 
 ## Output contracts
 
@@ -245,6 +245,8 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 uv run python scripts/validate_docs_structure.py
+uv run python scripts/docs_graph.py check
+uv run python scripts/docs_graph.py sync --check
 uv run python scripts/validate_module_layers.py
 uv run python scripts/validate_workflow_policy.py
 ```

@@ -1,3 +1,9 @@
+---
+id: RES-point-heteroplasmy
+status: concluded
+summary: "Point heteroplasmy as future work; concluded, not promoted."
+---
+
 # Research: point-heteroplasmy evidence in Sanger reads
 
 **Status:** concluded as future work (not promoted). This note is exploratory

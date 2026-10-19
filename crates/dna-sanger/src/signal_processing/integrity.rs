@@ -97,6 +97,7 @@ mod tests {
         }
     }
 
+    // SRS-SIG-010 SRS-IN-008
     #[test]
     fn preserves_vendor_length_mismatch_as_integrity_evidence() -> Result<()> {
         let trace = Chromatogram {
@@ -123,6 +124,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SIG-010
     #[test]
     fn reports_exact_channel_clipping_without_classifying_other_amplitude_outliers() -> Result<()> {
         let mut channels = std::array::from_fn(|_| vec![0; 12]);

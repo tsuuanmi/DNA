@@ -1,3 +1,8 @@
+---
+implements: [SRS-VAR]
+decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080]
+---
+
 # DNA Consensus JSON
 
 `dna consensus <sample-id> <trace>... --reference <reference.fasta>` writes two
@@ -9,17 +14,17 @@ The authoritative schema is
 [`schemas/consensus-v1.schema.json`](schemas/consensus-v1.schema.json); the
 synthetic example is
 [`examples/consensus-v1.example.json`](examples/consensus-v1.example.json).
-The method is described in [design](../design/consensus.md).
+The method is described in [[design/consensus|design]].
 
 ## Fields
 
-- **`provenance`**, as in [variants](variants.md). Its `plugins` are
+- **`provenance`**, as in [[reference/variants|variants]]. Its `plugins` are
   `sanger`, `core`, and `consensus`.
 - **`reads[]`:** the admitted reads in the sample's read order (content
   SHA-256), each with `name` (the trace stem) and `sha256`.
 - **`rejected_reads[]`:** reads set aside before the consensus, with `name`,
   `sha256`, and `rejection` as in the
-  [sample read registry](sample-evidence/reads-coverage.md).
+  [[reference/sample-evidence/reads-coverage|sample read registry]].
 - **`segments[]`:** the consensus sequence.
   - `name`: the FASTA record identifier, `<sample-id>_<first>-<last>` in
     1-based reference positions. `call` places the record and excludes
@@ -45,7 +50,7 @@ The method is described in [design](../design/consensus.md).
     clean sequence matches the call, whose clean sequence differs, and that
     cover the interval without a clean sequence.
   - `runs`: for a stretch decided by its run structure
-    ([ADR-0074](../decisions/adr/0074-run-structure-consensus.md)), the call's
+    ([[ADR-0074]]), the call's
     runs in order, each with `base`, `length`, and `length_evidence`. The list
     is empty for a single position, an undecided stretch, or one decided
     position by position.
@@ -102,7 +107,7 @@ To turn a sample's traces into variants:
 read placement, callability, loci, support and opposition. Its notation lists
 every read's calls and makes no decision. On two disjoint 320-sample held-out
 subsets, the consensus path matched more samples exactly and was more precise
-than that union ([ADR-0073](../decisions/adr/0073-sample-consensus.md)).
+than that union ([[ADR-0073]]).
 
 ## Interpretation boundary
 

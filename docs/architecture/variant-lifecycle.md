@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0047, ADR-0063, ADR-0077, ADR-0078]
+---
+
 # Variant Lifecycle
 
 This document defines the architectural boundaries from source-specific evidence
@@ -136,7 +140,7 @@ CalledVariant
 ~~~
 
 The current exact Rust shape is owned by
-[Rust public API](../reference/rust-api.md); architecture owns only its semantic
+[[reference/rust-api|Rust public API]]; architecture owns only its semantic
 boundary.
 
 A `CalledVariantSet` is not required to be right-aligned, left-aligned,

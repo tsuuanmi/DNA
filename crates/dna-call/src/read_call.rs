@@ -273,6 +273,7 @@ mod placement_tests {
         }
     }
 
+    // SRS-VAR-017
     #[test]
     fn a_placement_overlaps_its_declared_interval_by_one_base_or_more() {
         // 1-based 100..=150 is 0-based 99..150.

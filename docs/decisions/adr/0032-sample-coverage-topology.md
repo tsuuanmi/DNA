@@ -1,7 +1,20 @@
+---
+id: ADR-0032
+status: accepted
+date: 2026-09-19
+family: [sample-topology]
+---
+
 # ADR-0032: Expose sample coverage topology before consensus
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence/coverage-overlap](../../design/sample-evidence/coverage-overlap.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [requirements/sample-evidence/overlap-topology](../../requirements/sample-evidence/overlap-topology.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

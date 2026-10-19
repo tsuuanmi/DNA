@@ -26,6 +26,7 @@ fn dna_binary() -> String {
         .unwrap_or_else(|error| panic!("Cargo must provide the DNA test binary: {error}"))
 }
 
+// SRS-SAMPLE-001, SRS-SAMPLE-004, SRS-SAMPLE-005, SRS-SAMPLE-006, SRS-SAMPLE-008, SRS-SAMPLE-010, SRS-SAMPLE-011, SRS-SAMPLE-012, SRS-SAMPLE-014, SRS-SAMPLE-015, SRS-SAMPLE-017, SRS-SAMPLE-023, SRS-SAMPLE-028, SRS-IN-001, SRS-IN-010, SRS-OUT-001, SRS-OUT-002, SRS-OUT-003, SRS-OUT-007, SRS-OUT-008
 #[test]
 fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::error::Error>> {
     let first = tempdir()?;
@@ -246,6 +247,7 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     Ok(())
 }
 
+// SRS-SAMPLE-006, SRS-SAMPLE-012
 #[test]
 fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -313,6 +315,7 @@ fn preserves_mixed_snv_as_ineligible_sample_evidence() -> Result<(), Box<dyn std
 /// Under the human-mtDNA profile, each read's calls are right-aligned and given
 /// the HVS-II representation, then published as per-base notation with
 /// supporting reads, and the profile identity is recorded.
+// SRS-NOM-010 SRS-NOM-011 SRS-OUT-003 SRS-PRF-007
 #[test]
 fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -410,10 +413,12 @@ fn omits_unresolved_indel_flank_from_sample_evidence() -> Result<(), Box<dyn std
     Ok(())
 }
 
+// SRS-CALL-009
 /// Writes the forward reference read and a reverse read carrying `15A` against
 /// `TTTT{QUERY}CCCC`, returning the two trace paths.
 /// Read callability (ADR-0067): a read with too few callable calls is recorded
 /// as rejected and the remaining reads are still aggregated.
+// SRS-SAMPLE-027
 #[test]
 fn records_a_read_with_too_few_callable_calls_as_rejected() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -471,6 +476,7 @@ fn records_a_read_with_too_few_callable_calls_as_rejected() -> Result<(), Box<dy
 
 /// A read the core cannot place is recorded as rejected and the remaining
 /// reads are still aggregated (SRS-SAMPLE-029).
+// SRS-OUT-008
 #[test]
 fn records_an_unplaceable_read_as_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -572,6 +578,7 @@ fn records_a_read_shorter_than_the_signal_window_as_rejected()
 }
 
 /// A sample whose every read is rejected fails typed and publishes nothing.
+// SRS-SAMPLE-027
 #[test]
 fn fails_when_every_read_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -612,6 +619,7 @@ fn write_two_reads(
 
 /// A profile that declares notation drives the generic notation path for any
 /// target, not only human mtDNA.
+// SRS-NOM-010 SRS-NOM-011 SRS-PRF-001 SRS-PRF-007
 #[test]
 fn publishes_notation_for_a_non_mtdna_profile() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -639,6 +647,7 @@ fn publishes_notation_for_a_non_mtdna_profile() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
+// SRS-PRF-005
 #[test]
 fn sample_fails_closed_when_the_profile_names_another_reference()
 -> Result<(), Box<dyn std::error::Error>> {

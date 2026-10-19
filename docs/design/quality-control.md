@@ -1,14 +1,19 @@
+---
+implements: [SRS-QC]
+covers: [crates/dna-sanger/src/quality_control/]
+---
+
 # Quality Control Method
 
-Part of the canonical [DNA pipeline](pipeline.md).
+Part of the canonical [[design/pipeline|DNA pipeline]].
 
 **Method identifiers:** `dna.apollo_relative_quality/v1`, `dna.callable_span_trim/v1`
 
 Computes one bounded, uncalibrated quality value per call and derives one
-retained interval from the read's [callability](callability.md). Masked
+retained interval from the read's [[design/callability|callability]]. Masked
 segments inside the interval stay in the retained sequence; alignment keeps
 dephased calls with their evidence profile and presents every other masked call
-as unresolved ([alignment](alignment.md)).
+as unresolved ([[design/alignment|alignment]]).
 
 ### Substep 5.1 — Per-call penalty
 
@@ -46,7 +51,7 @@ extends the interval by up to `quality_control.trim_context_margin` of its calls
 when it is `dephased`, because a dephased call still reads the main ladder and
 anchors the alignment next to the span; a `mixed`, `weak`, or `irregular`
 neighbour carries no alignment information and is not kept. The read-end
-margin of [variant eligibility](variant-calling.md) is measured from this
+margin of [[design/variant-calling|variant eligibility]] is measured from this
 interval, so a call close to an uninformative end cannot support a variant.
 The retained sequence is `primary_sequence[trim_start..trim_end]`.
 

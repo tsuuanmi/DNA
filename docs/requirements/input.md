@@ -1,8 +1,12 @@
+---
+verified-by: [tests/call.rs, tests/notation.rs]
+---
+
 # Input and Process Boundary Requirements
 
 **Requirement namespace:** `SRS-IN-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-IN-001:** `analyze` and `basecall` MUST accept exactly one regular non-empty Sanger trace path. `sample` MUST accept one sample identifier and one or more regular non-empty Sanger trace paths. The current supported Sanger encoding is ABIF; filename suffix MUST NOT determine support. Reference-guided commands MUST require one regular non-empty FASTA path; `basecall` MUST NOT accept a reference. Directories, manifest/list compatibility inputs, and globs MUST NOT be accepted by the core CLI.
 - **SRS-IN-002:** Supported Sanger trace bytes MUST begin with the `ABIF` signature; every directory count, size, product, offset, inline payload, and allocation MUST be checked before use.
@@ -17,3 +21,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-IN-014:** `notation` MUST accept one sample identifier and one regular non-empty `dna.variants/v1` document of at most 16 MiB whose `sample_id` is that identifier and whose reference SHA-256 is the supplied reference's. Its variants MUST have a known kind and non-empty A/C/G/T alleles. The configured target profile MUST declare notation.
 - **SRS-IN-011:** Help/version MUST succeed without reading analysis inputs.
 - **SRS-IN-012:** Invalid CLI arguments MUST produce concise stderr and nonzero status.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [architecture/overview](../architecture/overview.md), [design/pipeline](../design/pipeline.md), [governance/retired](../governance/retired.md)
+<!-- docs:end backlinks -->

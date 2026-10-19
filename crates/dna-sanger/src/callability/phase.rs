@@ -220,6 +220,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-003
     #[test]
     fn masks_a_defective_tail_and_recovers_after_a_transient_stretch() {
         assert_eq!(run("..........dd", &THRESHOLDS), "ccccccccccmm");
@@ -229,6 +230,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-004
     #[test]
     fn lowers_the_onset_threshold_inside_a_repeat_prior_window() {
         let defects = pattern("........d...d...........");
@@ -249,6 +251,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-004
     #[test]
     fn keeps_a_mask_that_starts_inside_a_repeat_run() {
         // The run's last call carries the shadow of the base after the run.
@@ -270,6 +273,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-004
     #[test]
     fn pulls_a_mask_that_starts_after_a_repeat_run_back_to_the_run_end() {
         let defects = pattern("............dddd.d..............");
@@ -299,6 +303,7 @@ mod tests {
         assert_eq!(run("dddddddddd.d", &wide), "mmmmmmmmmmmm");
     }
 
+    // SRS-CALL-003
     #[test]
     fn absorbs_callable_islands_shorter_than_one_window() {
         let mut callable = [
@@ -316,6 +321,7 @@ mod tests {
         assert_eq!(leading, [false; 4]);
     }
 
+    // SRS-CALL-002
     #[test]
     fn classifies_defects_by_precedence() {
         let feature = |weak, ratio, spacing| PositionFeatures {
@@ -345,6 +351,7 @@ mod tests {
         );
     }
 
+    // SRS-CALL-004
     #[test]
     fn prior_windows_start_after_each_run_and_never_cover_a_run() {
         let runs = [RepeatRun {

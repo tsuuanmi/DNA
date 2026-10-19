@@ -24,6 +24,7 @@ pub(crate) fn relative_scores(penalties: &[i32], maximum: u8) -> Vec<u8> {
 mod tests {
     use super::*;
 
+    // SRS-QC-003
     #[test]
     fn zero_penalty_receives_maximum() {
         assert_eq!(relative_scores(&[0, 0], 60), vec![60, 60]);

@@ -311,6 +311,7 @@ mod tests {
         read
     }
 
+    // SRS-VAR-004, SRS-VAR-006
     #[test]
     fn leading_alignment_deletion_uses_reference_predecessor() -> Result<()> {
         let result = extract(
@@ -331,6 +332,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-018
     #[test]
     fn a_deletion_no_flank_reads_is_excluded() -> Result<()> {
         // The deleted C lies between two calls read as N.
@@ -357,6 +359,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-002
     #[test]
     fn unresolved_primary_difference_is_excluded() -> Result<()> {
         let result = extract(
@@ -374,6 +377,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-004
     #[test]
     fn leading_alignment_insertion_keeps_inserted_and_flanking_mappings() -> Result<()> {
         let result = extract(
@@ -397,6 +401,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-013
     #[test]
     fn masked_calls_are_no_snv_candidates_and_exclude_insertions() -> Result<()> {
         let columns = vec![

@@ -36,6 +36,7 @@ fn run(
     Ok(command.assert())
 }
 
+// SRS-CALL-019 SRS-API-016 SRS-OUT-007
 #[test]
 fn writes_a_deterministic_run_signal_whatever_the_trace_order()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -78,6 +79,7 @@ fn writes_a_deterministic_run_signal_whatever_the_trace_order()
     Ok(())
 }
 
+// SRS-API-016
 #[test]
 fn refuses_an_invalid_run_identifier() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

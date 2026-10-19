@@ -1,9 +1,20 @@
+---
+implements: [SRS-CONS, SRS-VAR]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080]
+covers:
+  - crates/dna-consensus/src/
+  - crates/dna-consensus/src/model/consensus.rs
+  - src/model/consensus_result.rs
+  - src/pipeline/consensus.rs
+  - src/report/consensus.rs
+---
+
 # Sample Consensus Method
 
-Part of the canonical [DNA pipeline](pipeline.md). Requirements:
-[SRS-CONS](../requirements/consensus.md). Decisions:
-[ADR-0073](../decisions/adr/0073-sample-consensus.md),
-[ADR-0074](../decisions/adr/0074-run-structure-consensus.md).
+Part of the canonical [[design/pipeline|DNA pipeline]]. Requirements:
+[[requirements/consensus|SRS-CONS]]. Decisions:
+[[ADR-0073]],
+[[ADR-0074]].
 
 `dna consensus` runs the `sample` read path (read processing, placement,
 rejected reads), aggregates the admitted reads to fix their order, and then
@@ -90,7 +101,7 @@ origin.
 
 ## Step 3 — Deciding a stretch by its run structure
 
-This step follows [ADR-0074](../decisions/adr/0074-run-structure-consensus.md).
+This step follows [[ADR-0074]].
 
 **A read's runs.** Each read that covers the stretch and both neighbouring
 positions contributes its bases over the stretch, insertions included, and

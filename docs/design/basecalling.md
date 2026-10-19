@@ -1,6 +1,12 @@
+---
+implements: [SRS-BC]
+covers: [crates/dna-sanger/src/basecalling/, crates/dna-sanger/src/model/basecalls.rs]
+decided-by: [ADR-0015, ADR-0017]
+---
+
 # Basecalling Method
 
-Part of the canonical [DNA pipeline](pipeline.md).
+Part of the canonical [[design/pipeline|DNA pipeline]].
 
 Re-calls every vendor-defined locus from the channel signals. ABIF `PLOC.2` is
 resolved by the Sanger input adapter into canonical locus positions before this

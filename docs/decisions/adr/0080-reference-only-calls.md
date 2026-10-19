@@ -1,12 +1,22 @@
+---
+id: ADR-0080
+status: accepted
+date: 2026-10-19
+family: [callability, sanger-eligibility]
+related: [ADR-0027, ADR-0069, ADR-0071, ADR-0074, ADR-0078]
+---
+
 # ADR-0080: A modality may assert a call confirms only the reference
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-19
-- **Related decisions:** [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md),
-  [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
-  [ADR-0074](0074-run-structure-consensus.md),
-  [ADR-0078](0078-call-the-consensus-decisions.md)
+- **Related:** [ADR-0027](0027-mixed-supporting-signal-snv-eligibility.md), [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md), [ADR-0074](0074-run-structure-consensus.md), [ADR-0078](0078-call-the-consensus-decisions.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/consensus](../../design/consensus.md), [design/second-peak-cause](../../design/second-peak-cause.md), [reference/consensus](../../reference/consensus.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [requirements/consensus](../../requirements/consensus.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

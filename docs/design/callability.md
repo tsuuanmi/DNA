@@ -1,6 +1,15 @@
+---
+implements: [SRS-CALL]
+decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076]
+covers:
+  - crates/dna-sanger/src/callability/
+  - crates/dna-sanger/src/callability/sanger.rs
+  - crates/dna-sanger/src/model/callability.rs
+---
+
 # Callability Method
 
-Part of the canonical [DNA pipeline](pipeline.md).
+Part of the canonical [[design/pipeline|DNA pipeline]].
 
 **Method identifier:** `dna.read_callability/v1`
 
@@ -10,7 +19,7 @@ before quality control for every read, reference-, profile-, and filename-free.
 It never modifies channels, loci, calls, selected peaks, or locus evidence; a
 masked position keeps its original call and evidence. Quality control,
 alignment, variant eligibility, and sample aggregation consume the mask
-([ADR-0067](../decisions/adr/0067-signal-derived-read-callability.md); see
+([[ADR-0067]]; see
 [Consumers](#consumers)).
 
 ## Inputs
@@ -18,7 +27,7 @@ alignment, variant eligibility, and sample aggregation consume the mask
 One record per call position, in call order:
 
 - the non-negative corrected A/C/G/T amplitudes at the locus event
-  (`LocusEvidence.corrected_amplitudes`, [locus evidence](signal-processing/locus-evidence.md));
+  (`LocusEvidence.corrected_amplitudes`, [[design/signal-processing/locus-evidence|locus evidence]]);
 - the canonical locus sample position, used only for spacing;
 - the primary call's channel, `None` for an unresolved `N`.
 
@@ -145,7 +154,7 @@ mask once and fails typed on an inconsistency.
 
 The core caller does not read callability directly. The Sanger adapter
 (`read_processing::evidence`) turns every masked call into a `ReadEvidence` mask
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+([[ADR-0069]]):
 - the mask is *anchoring* for a `dephased` call and *unresolved* otherwise;
 - its reason is `post_homopolymer` when the segment starts in the window after
   a repeat run, and otherwise the state label;
@@ -202,16 +211,16 @@ The core caller does not read callability directly. The Sanger adapter
 
 - **Quality control** trims to the callable span plus up to
   `quality_control.trim_context_margin` calls of an adjacent dephased segment
-  ([quality control](quality-control.md), substep 5.3). A read with fewer than
+  ([[design/quality-control|quality control]], substep 5.3). A read with fewer than
   `minimum_callable_calls` unmasked calls fails `analyze` and `basecall`
   typed after the `callability_completed` event; `sample` and `consensus`
-  record it as rejected and continue ([read registry](sample-evidence/read-registry.md)).
+  record it as rejected and continue ([[design/sample-evidence/read-registry|read registry]]).
 - **Alignment** keeps dephased calls with their call and evidence profile, which
   still read the main ladder and anchor the alignment, and presents every other
-  masked call as unresolved `N` without a profile ([alignment](alignment.md)).
+  masked call as unresolved `N` without a profile ([[design/alignment|alignment]]).
 - **Variant eligibility** turns a masked evidence call into the reason of its
   segment, and a column on a masked call is no SNV candidate
-  ([variant calling](variant-calling.md)).
+  ([[design/variant-calling|variant calling]]).
 - **Sample aggregation** records a masked call as a `masked` observation that
   never retains a locus by itself and carries no nucleotide mass
   ([sample evidence](sample-evidence/README.md)).
@@ -223,7 +232,7 @@ The core caller does not read callability directly. The Sanger adapter
 `minimum_shadow_share`, `weak_amplitude_fraction`, `repeat_min_length`,
 `minimum_callable_calls`, `repeat_window_calls`, `double_peak_ratio`,
 `spacing_defect`, and `spacing_half_window`
-([configuration](../reference/configuration.md)). `repeat_min_length` sets the
+([[reference/configuration|configuration]]). `repeat_min_length` sets the
 shortest repeat run, and `minimum_callable_calls` the fewest unmasked calls a
 read needs. The shadow model's offsets (±1..±3), its minimum fit size (one more
 than its seven parameters), and the solver tolerances are the model's
@@ -257,7 +266,7 @@ behind a long homopolymer, incoherent double peaks, and an amplitude-collapsed
 tail; the CLI
 tests pin the published view and the completion event. Real-trace evidence is
 produced outside the repository and quoted in aggregate (ADR-0065,
-[data governance](../governance/data.md)).
+[[governance/data|data governance]]).
 
 ## Non-goals
 

@@ -54,6 +54,7 @@ mod tests {
 
     use super::*;
 
+    // SRS-CFG-003
     #[test]
     fn rejects_unknown_keys() -> Result<()> {
         let directory = tempdir().map_err(|source| KernelError::Output {
@@ -73,6 +74,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CFG-001 SRS-CFG-002
     #[test]
     fn loads_the_shipped_configuration_and_its_profile() -> Result<()> {
         let config = load_path(&Path::new(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_CONFIG_PATH))?;

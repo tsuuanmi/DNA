@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0065, ADR-0066, ADR-0075]
+---
+
 # System Context
 
 DNA is a local scientific Rust library and CLI for DNA analysis.
@@ -48,7 +52,7 @@ requirements, adapters, validation, and public contracts are implemented.
 
 Input bytes, paths, filenames, manifests, configuration, future HTS records, and
 external scientific data are untrusted. Sensitive biological data is governed by
-[data policy](../governance/data.md) and [security](../security/README.md).
+[[governance/data|data policy]] and [security](../security/README.md).
 
 The core is not a network service and currently has no deployment topology. A
 deployment document should be added only if a real deployed runtime boundary is

@@ -64,6 +64,7 @@ mod tests {
         EvidenceProfile { weights }
     }
 
+    // SRS-SAMPLE-021
     #[test]
     fn separates_replicated_mixture_from_between_read_disagreement() -> Result<(), &'static str> {
         let mixed = profile([0.5, 0.0, 0.5, 0.0]);
@@ -83,6 +84,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SAMPLE-022
     #[test]
     fn total_variation_is_zero_for_identical_profiles_and_one_for_disjoint_profiles() {
         let pure_a = profile([1.0, 0.0, 0.0, 0.0]);
@@ -93,6 +95,7 @@ mod tests {
         assert_eq!(total_variation(Some(pure_a), None), None);
     }
 
+    // SRS-SAMPLE-022
     #[test]
     fn total_variation_of_disjoint_rounded_profiles_stays_within_one() {
         // Observed on a real sample: the unclamped sum is 1.0000000000000002.

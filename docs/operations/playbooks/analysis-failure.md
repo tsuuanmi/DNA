@@ -30,4 +30,4 @@ Read the relevant [requirements](../../requirements/README.md), [design](../../d
 
 ## 5. Escalate
 
-If the issue is a scientific disagreement, follow [validation strategy](../../validation/strategy.md). If it is a security/data concern, follow [security](../../security/README.md) and [data governance](../../governance/data.md).
+If the issue is a scientific disagreement, follow [[validation/strategy|validation strategy]]. If it is a security/data concern, follow [security](../../security/README.md) and [[governance/data|data governance]].

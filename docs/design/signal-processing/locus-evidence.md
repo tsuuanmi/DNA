@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0029]
+---
+
 # Locus Evidence and Evidence Profile
 
 Part of the canonical [signal-processing method](README.md).

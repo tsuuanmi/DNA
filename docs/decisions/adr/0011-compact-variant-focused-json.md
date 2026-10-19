@@ -1,7 +1,21 @@
+---
+id: ADR-0011
+status: superseded-in-part
+date: 2026-08-23
+supersedes: [ADR-0008]
+---
+
 # ADR-0011: Emit Compact Variant-Focused JSON
 
-- **Status:** Superseded in part by ADR-0012
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0012](0012-concise-mapped-variant-calls.md)
 - **Date:** 2026-08-23
+- **Supersedes:** [ADR-0008](0008-json-only-auditable-analysis.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- _Not yet referenced by a current document._
+<!-- docs:end backlinks -->
 
 ## Context
 

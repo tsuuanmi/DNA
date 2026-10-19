@@ -1,3 +1,13 @@
+---
+decided-by: [ADR-0018, ADR-0065, ADR-0070, ADR-0075, ADR-0079]
+covers:
+  - .github/workflows/ci.yml
+  - .github/workflows/release.yml
+  - config/dna.toml
+  - config/profiles
+  - src
+---
+
 # CI and Verification Lanes
 
 CI exists to protect documented invariants and security boundaries, not to maximize the number of badges.
@@ -161,7 +171,7 @@ A check is added only when its protected failure mode is documented.
 
 ## Enforcement
 
-CI is not itself an enforcement mechanism. The protected-`main` and protected-`v*` rules described in [repository governance](../governance/repository.md) make the required checks non-bypassable.
+CI is not itself an enforcement mechanism. The protected-`main` and protected-`v*` rules described in [[governance/repository|repository governance]] make the required checks non-bypassable.
 
 ## Failure ownership
 
@@ -176,4 +186,4 @@ CI is not itself an enforcement mechanism. The protected-`main` and protected-`v
 - real-trace disagreement: scientific validation issue requiring analysis, not automatic suppression;
 - provenance/SBOM/attestation failure: delivery blocker.
 
-See [release operations](release.md), [repository governance](../governance/repository.md), the [production-readiness ADR](../decisions/adr/0018-production-readiness-release-contract.md), and the [data policy](../governance/data.md).
+See [[engineering/release|release operations]], [[governance/repository|repository governance]], the [[ADR-0018|production-readiness ADR]], and the [[governance/data|data policy]].

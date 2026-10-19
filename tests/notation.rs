@@ -61,6 +61,7 @@ fn hvs2(reference: &str) -> String {
     region
 }
 
+// SRS-NOM-016 SRS-NOM-018 SRS-IN-010 SRS-IN-014 SRS-OUT-001 SRS-OUT-002 SRS-OUT-011
 #[test]
 fn derives_the_in_process_notation_and_reports_conformance()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -143,6 +144,7 @@ fn derives_the_in_process_notation_and_reports_conformance()
     Ok(())
 }
 
+// SRS-NOM-018
 #[test]
 fn an_unresolved_base_splits_the_empop_range() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -183,6 +185,7 @@ fn an_unresolved_base_splits_the_empop_range() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
+// SRS-IN-006 SRS-IN-014
 #[test]
 fn rejects_a_document_of_another_sample() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

@@ -1,10 +1,22 @@
+---
+id: ADR-0065
+status: superseded-in-part
+date: 2026-10-08
+family: [comparison]
+related: [ADR-0005, ADR-0019, ADR-0058]
+---
+
 # ADR-0065: Result comparison belongs to downstream pipelines
 
+<!-- docs:begin lifecycle -->
 - **Status:** Superseded in part by [ADR-0075](0075-evaluation-harness-in-workspace.md)
 - **Date:** 2026-10-08
-- **Related decisions:** [ADR-0005](0005-versioned-output-contracts.md),
-  [ADR-0019](0019-scientific-evidence-hierarchy.md),
-  [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
+- **Related:** [ADR-0005](../../governance/retired.md), [ADR-0019](0019-scientific-evidence-hierarchy.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/context](../../architecture/context.md), [design/callability](../../design/callability.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [engineering/ci-cd](../../engineering/ci-cd.md), [governance/data](../../governance/data.md), [requirements/constraints](../../requirements/constraints.md), [validation/acceptance-criteria](../../validation/acceptance-criteria.md), [validation/evaluation-harness](../../validation/evaluation-harness.md), [validation/evaluation-measures](../../validation/evaluation-measures.md), [validation/evaluation-triage](../../validation/evaluation-triage.md), [validation/strategy](../../validation/strategy.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -43,7 +55,7 @@ revision; they are not DNA code, fixtures, or contracts.
 ## Superseded scope
 
 > **Superseded in part (2026-10-14):**
-> [ADR-0075](0075-evaluation-harness-in-workspace.md) lets truth adapters and
+> [[ADR-0075]] lets truth adapters and
 > comparison live in the evaluation harness crate `dna-eval`, and nowhere
 > else in the repository. The `dna` facade and the plugin crates stay free of
 > them, and the other consequences above still hold.

@@ -1,3 +1,15 @@
+---
+implements: [SRS-API, SRS-IN, SRS-OUT, SRS-SAMPLE, SRS-VAR]
+decided-by: [ADR-0069, ADR-0078]
+covers:
+  - config/dna.toml
+  - crates/dna-kernel/src/reference/
+  - src/cli/
+  - src/input/sanger/
+  - src/input/sequence.rs
+  - src/input/variants.rs
+---
+
 # DNA Pipeline
 
 This document is the canonical orchestration map for the production scientific pipeline. Stage-specific algorithms live in dedicated method documents so a change can load only the relevant method.
@@ -20,7 +32,7 @@ variants/v1 + TOML + FASTA ──► input::variants ──► normalization ─
 AB1s + TOML + FASTA ──► sample placement pass ──► consensus ──► SampleAnalysis::call ──► review list ──► review/v1
 ```
 
-`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_call::read_call` path that Sanger reads take after their evidence adapter ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [variant nomenclature](variant-nomenclature.md#notation-command-and-conformance), then the profile's conformance checks. `review` runs the sample placement pass and the consensus as `consensus` does, calls the consensus in process (below), and lists the positions a reviewer should look at with their evidence labels ([review list](../reference/review.md)). Each
+`analyze` and `basecall` consume exactly one AB1 trace. `sample` consumes one or more AB1 traces and processes each independently through the same reference-guided observation path. `analyze` and `sample` additionally consume one single-record FASTA reference; `basecall` performs no reference I/O. `call` consumes one or more FASTA files of reviewed consensus sequences plus the reference and runs the core alone: each record becomes `ReadEvidence` through the sequence modality, then follows the same `dna_call::read_call` path that Sanger reads take after their evidence adapter ([[ADR-0069]]). `notation` reads one variants document and runs only the post-calling plugins: the per-read representation of [[design/variant-nomenclature#notation-command-and-conformance|variant nomenclature]], then the profile's conformance checks. `review` runs the sample placement pass and the consensus as `consensus` does, calls the consensus in process (below), and lists the positions a reviewer should look at with their evidence labels ([[reference/review|review list]]). Each
 stage consumes the validated output of the previous stage and produces a new
 typed result; no stage mutates shared state.
 
@@ -72,7 +84,7 @@ implementation.
 
 ## One-read observation boundary
 
-After selected alignment and variant calling, DNA materializes a `ReadObservation` for exactly one trace. It has two parts ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)):
+After selected alignment and variant calling, DNA materializes a `ReadObservation` for exactly one trace. It has two parts ([[ADR-0069]]):
 
 - `CalledRead` is the core's modality-neutral part: input identity, the `ReadEvidence` the core consumed, the selected alignment, and the read-level variant result. Sample aggregation reads only this part.
 - `SangerAttachment` holds the base calls, basecall-independent locus/signal observations, read callability, and quality-control result. Reports join it to core records by read identity and call index.
@@ -136,7 +148,7 @@ from the analysis alone: the consensus sites, every read's observations
 (`SampleAnalysis::trust`), the Sanger scan position and relative quality of
 each call, and the call's notation, callable ranges, and EMPOP query. It
 never reads a truth, and it changes no call. The rules and their thresholds
-are in the [review reference](../reference/review.md); their version is the
+are in the [[reference/review|review reference]]; their version is the
 `review` plugin version.
 
 ## Output boundary
@@ -145,4 +157,4 @@ Public serialization is not defined by the method layer. See [production contrac
 
 ## Interpretation boundary
 
-The pipeline produces signal evidence, read interpretation, and primary-sequence differences under the [scientific-state invariants](../architecture/invariants/scientific-state.md). It does not turn a single chromatogram into genotype, quantitative heteroplasmy, pathogenicity, or clinical significance.
+The pipeline produces signal evidence, read interpretation, and primary-sequence differences under the [[architecture/invariants/scientific-state|scientific-state invariants]]. It does not turn a single chromatogram into genotype, quantitative heteroplasmy, pathogenicity, or clinical significance.

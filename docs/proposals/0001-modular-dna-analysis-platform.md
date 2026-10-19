@@ -1,12 +1,26 @@
 ---
 id: PROP-0001
-type: proposal
 status: implementing
-owners: []
 created: 2026-10-03
-related-requirements: []
-related-decisions: [ADR-0058, ADR-0059, ADR-0060, ADR-0069]
-implementation: [PR-9, PR-10, PR-11, PR-12, PR-15, PR-17, PR-18, PR-19, PR-20, PR-21, PR-22, PR-23, PR-25, PR-26, PR-32, PR-34]
+summary: "public Rust API, canonical contracts, multiple input modalities, replaceable scientific implementations and data providers, and downstream analysis modules."
+decided-by: [ADR-0058, ADR-0059, ADR-0060, ADR-0069]
+implementation:
+  - PR-9
+  - PR-10
+  - PR-11
+  - PR-12
+  - PR-15
+  - PR-17
+  - PR-18
+  - PR-19
+  - PR-20
+  - PR-21
+  - PR-22
+  - PR-23
+  - PR-25
+  - PR-26
+  - PR-32
+  - PR-34
 ---
 
 # Proposal: Modular DNA Analysis Platform
@@ -194,7 +208,7 @@ contracts. Dependencies are added only when a current production capability uses
 them; no package is added speculatively.
 
 This policy is recorded by
-[ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
+[[ADR-0059]].
 
 ### High-level variant analysis
 
@@ -579,16 +593,16 @@ Accepted on 2026-10-03.
 The durable architectural choices around canonical contracts, dependency
 direction, public API ownership, replaceable implementations, provider
 boundaries, and provenance are recorded by
-[ADR-0058](../decisions/adr/0058-canonical-contracts-and-modular-analysis-composition.md).
+[[ADR-0058]].
 The reuse-first implementation policy is recorded by
-[ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
+[[ADR-0059]].
 The variant lifecycle boundary between calling, canonicalization, and
 nomenclature is recorded by
-[ADR-0060](../decisions/adr/0060-separate-variant-canonicalization-nomenclature.md).
+[[ADR-0060]].
 
 The plugin families and the modality → core evidence contract are refined by
-[ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md) and
-[PROP-0002](0002-plugin-first-architecture.md).
+[[ADR-0069]] and
+[[PROP-0002]].
 
 Acceptance establishes architectural direction; it does not make unimplemented
 capabilities current production behavior.

@@ -1,9 +1,14 @@
+---
+implements: [SRS-NOM, SRS-VAR]
+decided-by: [ADR-0069]
+---
+
 # DNA Notation JSON
 
 `dna notation <sample-id> <sample-id>.variants.json --reference <reference.fasta>`
 runs the post-calling plugins over one variants document
-([`dna.variants/v1`](variants.md),
-[ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md))
+([[reference/variants|`dna.variants/v1`]],
+[[ADR-0069]])
 and writes one deterministic `results/<sample-id>.notation.json` document
 identified as `dna.notation/v1`. The authoritative schema is
 [`schemas/notation-v1.schema.json`](schemas/notation-v1.schema.json), and the
@@ -24,7 +29,7 @@ supplied reference. Only eligible variants are represented.
     `empop` when the profile declares them;
   - `source`: the `schema_version` and the SHA-256 of the variants document's
     bytes.
-- `notation`: the per-read view of [sample notation](sample-evidence/notation.md),
+- `notation`: the per-read view of [[reference/sample-evidence/notation|sample notation]],
   with reads named as in the source document. For the same profile it equals
   the `notation` of the source document.
 - `conformance` (only when the profile declares it):
@@ -53,7 +58,7 @@ positions that DNA decided:
   an insertion `X.k` at `X`, so an insertion is written when its anchor `X`
   lies in a range. An excluded insertion cuts `X` itself, so a range that
   includes `X` lists every insertion after `X`. A labelled call
-  ([report convention](sample-evidence/notation.md)) is written too: the
+  ([[reference/sample-evidence/notation|report convention]]) is written too: the
   query must not misstate the sequence, and EMPOP's standard query disregards
   hotspot length differences anyway.
 - `cut`: positions inside a profile region and a record that no range
@@ -65,7 +70,7 @@ positions that DNA decided:
 A tie the consensus resolved is DNA's decision and is exported as such. The
 query covers only what the variants document states: when `call` places a
 consensus `N` at another reference position than the consensus site, the
-range follows the document ([catalogue](../validation/discrepancy-catalogue.md)).
+range follows the document ([[validation/discrepancy-catalogue|catalogue]]).
 
 ## Rules
 

@@ -1,7 +1,20 @@
+---
+id: ADR-0027
+status: accepted
+date: 2026-09-19
+family: [sanger-eligibility]
+---
+
 # ADR-0027: Mixed supporting signal is not a clean SNV
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/variant-calling](../../design/variant-calling.md), [requirements/variants](../../requirements/variants.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -75,6 +88,6 @@ evidence. The `mixed_supporting_dna` eligibility semantics defined here remain
 unchanged.
 
 2026-10-09: the persistent post-indel phase shift this record left to a
-separate method is detected by [ADR-0067](0067-signal-derived-read-callability.md)
+separate method is detected by [[ADR-0067]]
 as a read-callability state; `mixed_supporting_dna` is unchanged and no
 length-mixture method is introduced.

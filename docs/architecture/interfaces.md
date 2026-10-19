@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0007, ADR-0058, ADR-0059, ADR-0061, ADR-0069, ADR-0070, ADR-0075]
+---
+
 # Interfaces and Boundaries
 
 DNA separates biological scope from software boundaries. Biological target is independent of sequencing modality and format: mtDNA, nuclear/genomic DNA, and targeted loci may reuse capabilities without making the platform mtDNA-specific. SNP/genotyping is an analysis use case rather than an input modality.
@@ -18,7 +22,7 @@ DNA separates six interface classes:
    decoding, calling, signal, callability, QC, alignment, variant, and sample
    stages. The modality evidence boundary is one of them: a modality plugin
    hands the core caller per-read `ReadEvidence`, and the core sees no modality
-   type ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+   type ([[ADR-0069]]).
 5. **Public serialized result boundary** — closed versioned JSON contracts.
 6. **Filesystem/operational boundary** — atomic publication and append-only logs.
 
@@ -40,7 +44,7 @@ on the ABIF tag name. It does not derive `results/*` paths, validate overwrite
 targets, select log paths, or publish outputs. Those remain outer operation/publication concerns.
 
 Operational stage logging crosses this boundary as `tracing` instrumentation
-([ADR-0061](../decisions/adr/0061-tracing-for-operational-logging.md)). Shared
+([[ADR-0061]]). Shared
 reference-free read processing and reference-guided Variant Analysis emit
 structured events and one span per stage without knowing any destination; log
 destination selection, record rendering, terminal error logging, and
@@ -52,7 +56,7 @@ in `dna_sanger::read_processing`; reference-guided one-read observation is owned
 `variant_analysis` and is reused by CLI analysis, sample evidence, and the
 public Rust API.
 
-The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns stable typed called-variant evidence directly and does not open logs or publish JSON. Optional post-calling normalization and nomenclature belong to separate capabilities; see [variant lifecycle](variant-lifecycle.md). The exact current contracts are owned by [Rust public API](../reference/rust-api.md).
+The first public Rust capability is `variant_analysis::analyze_sanger`. It reuses the same scientific stages as the CLI but returns stable typed called-variant evidence directly and does not open logs or publish JSON. Optional post-calling normalization and nomenclature belong to separate capabilities; see [[architecture/variant-lifecycle|variant lifecycle]]. The exact current contracts are owned by [[reference/rust-api|Rust public API]].
 
 `sample_analysis::analyze_sanger` is the sample-level capability: one placement
 pass over a sample's traces returns the typed sample evidence and consensus. The
@@ -69,7 +73,7 @@ Exact syntax and serialized shapes are owned by
 [src](../../src/README.md). Cross-cutting rules that must hold across interfaces
 are indexed under [invariants](invariants/README.md).
 
-Commodity bioinformatics machinery may be supplied by maintained external libraries behind these boundaries. DNA-owned canonical contracts remain independent of dependency-specific representations; see [dependency policy](../engineering/dependencies.md) and [ADR-0059](../decisions/adr/0059-reuse-ecosystem-machinery-behind-dna-contracts.md).
+Commodity bioinformatics machinery may be supplied by maintained external libraries behind these boundaries. DNA-owned canonical contracts remain independent of dependency-specific representations; see [[engineering/dependencies|dependency policy]] and [[ADR-0059]].
 
 Architecture defines where responsibilities belong; it does not duplicate
 algorithm details from [design](../design/README.md).

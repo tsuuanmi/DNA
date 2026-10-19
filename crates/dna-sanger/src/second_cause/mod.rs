@@ -189,6 +189,7 @@ fn wide(
         .is_some_and(|&median| own as f64 >= parameters.blob_width * median as f64)
 }
 
+// SRS-CALL-021
 #[cfg(test)]
 mod tests {
     use super::*;

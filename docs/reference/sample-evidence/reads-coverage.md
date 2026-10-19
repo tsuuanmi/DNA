@@ -1,3 +1,8 @@
+---
+implements: [SRS-SAMPLE]
+decided-by: [ADR-0067]
+---
+
 # Reads and Coverage
 
 Part of the canonical [sample evidence contract](README.md).
@@ -21,7 +26,7 @@ Each record contains:
 - `callability`: the read's `dna.read_callability/v1` view — callable span,
   ordered phase-state segments with repeat attribution and the shadow offsets of
   dephased segments, and masked-call count —
-  exactly as the one-read contracts publish it ([method](../../design/callability.md));
+  exactly as the one-read contracts publish it ([[design/callability|method]]);
 - `alignment`: the evidence-derived orientation, callable-base count and
   identity, unresolved-base count, masked-base count, gap-open count, mapped
   reference segments, callable reference segments, and origin-wrap state.

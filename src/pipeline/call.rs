@@ -281,6 +281,7 @@ pub(super) fn call_consensus(
 mod tests {
     use super::*;
 
+    // SRS-VAR-017
     #[test]
     fn a_consensus_record_name_declares_its_interval() {
         assert_eq!(

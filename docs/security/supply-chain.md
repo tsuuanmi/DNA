@@ -1,3 +1,8 @@
+---
+decided-by: [ADR-0018]
+covers: [config/dna.toml, config/profiles]
+---
+
 # Supply-Chain and Vulnerability Management
 
 Dependency, CI, and release integrity are part of the production trust boundary.
@@ -50,4 +55,4 @@ A newly discovered vulnerability is triaged by:
 
 If a mitigation changes architecture, public behavior, or trust boundaries, update the corresponding decision and canonical docs rather than maintaining a hidden workaround.
 
-See [dependency policy](../engineering/dependencies.md), [release engineering](../engineering/release.md), [repository governance](../governance/repository.md), and [ADR-0018](../decisions/adr/0018-production-readiness-release-contract.md).
+See [[engineering/dependencies|dependency policy]], [[engineering/release|release engineering]], [[governance/repository|repository governance]], and [[ADR-0018]].

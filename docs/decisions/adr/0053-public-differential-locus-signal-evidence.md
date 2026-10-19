@@ -1,7 +1,20 @@
+---
+id: ADR-0053
+status: accepted
+date: 2026-09-20
+family: [public-signal]
+---
+
 # ADR-0053: Expose concise differential-locus signal evidence in sample output
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-20
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence](../../design/sample-evidence/README.md), [reference/analysis](../../reference/analysis/README.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [requirements/sample-evidence/callability](../../requirements/sample-evidence/callability.md), [requirements/sample-evidence/core](../../requirements/sample-evidence/core.md), [requirements/sample-evidence/overlap-topology](../../requirements/sample-evidence/overlap-topology.md), [requirements/sample-evidence/profile-aggregation](../../requirements/sample-evidence/profile-aggregation.md), [requirements/sample-evidence/signal-evidence](../../requirements/sample-evidence/signal-evidence.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -102,6 +115,6 @@ detector, assay metadata contract, or additional read-admission rule.
 
 ## Follow-up (2026-10-09)
 
-[ADR-0067](0067-signal-derived-read-callability.md) promotes phase-shift
+[[ADR-0067]] promotes phase-shift
 detection to a read-callability state published as observation; recovery
 modelling, contribution weighting, and consensus remain outside this record.

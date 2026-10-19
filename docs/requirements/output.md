@@ -1,8 +1,14 @@
+---
+implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-CONS, SRS-NOM, SRS-PRF, SRS-SAMPLE]
+decided-by: [ADR-0007, ADR-0061]
+verified-by: [src/operation_log.rs, src/pipeline, src/report]
+---
+
 # Output Requirements
 
 **Requirement namespace:** `SRS-OUT-*`
 
-These requirements are part of the canonical [DNA SRS](SRS.md).
+These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 
 - **SRS-OUT-001:** A successful core CLI invocation MUST create exactly one command-specific result: analysis at `results/<trace-stem>.json`, reference-free basecalls at `results/<trace-stem>.basecalls.json`, reference-free read evidence at `results/<trace-stem>.evidence.json`, sample evidence at `results/<sample-id>.sample.json`, a sample consensus at `results/<sample-id>.consensus.json` together with its FASTA `results/<sample-id>.consensus.fasta` (SRS-CONS-001), called variants at `results/<sample-id>.variants.json`, notation at `results/<sample-id>.notation.json`, or a review list at `results/<sample-id>.review.json` (SRS-API-014). VCF/BCF, legacy JSON, duplicate compatibility output, and output-path/format compatibility options MUST NOT be created. Operational logging MUST remain a separate append-only sidecar.
 - **SRS-OUT-002:** Analysis JSON MUST validate against Draft 2020-12 `docs/reference/schemas/analysis-v10.schema.json` (with the read evidence schema it references) and identify `dna.analysis/v10`. Basecall JSON MUST validate against `docs/reference/schemas/basecalls-v3.schema.json` and identify `dna.basecalls/v3`. Read evidence JSON MUST validate against `docs/reference/schemas/read-evidence-v1.schema.json` and identify `dna.read_evidence/v1`. Sample evidence JSON MUST validate against `docs/reference/schemas/sample-evidence-v10.schema.json` and identify `dna.sample_evidence/v10`. Variants JSON MUST validate against `docs/reference/schemas/variants-v1.schema.json` and identify `dna.variants/v1`. Notation JSON MUST validate against `docs/reference/schemas/notation-v1.schema.json` and identify `dna.notation/v1`. Review JSON MUST validate against `docs/reference/schemas/review-v1.schema.json` (with the notation and consensus schemas it references) and identify `dna.review/v1`. Strict configuration MUST carry the schema version the [configuration reference](../reference/configuration.md) declares, and target profiles schema version 1.
@@ -15,3 +21,9 @@ These requirements are part of the canonical [DNA SRS](SRS.md).
 - **SRS-OUT-007:** Deterministic output MUST omit timestamp, duration, host, random ID, local input/config paths, unordered maps, and all compatibility aliases.
 - **SRS-OUT-008:** Rust MUST append timestamped, run-correlated INFO/WARN/ERROR stage records without writing operational records to application stdout/stderr. Standalone single-read operations MUST use `$DNA_LOG_DIR/<trace-stem>.log`; one sample, consensus, review, call, or notation operation MUST use exactly one `$DNA_LOG_DIR/<sample-id>.log` (default root `logs/`) and MUST route every nested trace-processing stage through that same sample logger rather than opening per-trace files. A sample operation MUST write the records of its traces grouped by trace in input order, up to the first trace that fails, whether or not it processes them concurrently. Records MUST cover each processing-stage boundary with concise aggregate metrics and timings, MUST remain one physical line, and MUST omit complete sequences, peak arrays, configured region contents, alleles, operation strings, and JSON bodies.
 - **SRS-OUT-009:** Each excluded variant candidate MUST produce a WARN record containing its kind, contig, normalized position when available, and every rejection reason. Removed-variant records MUST omit reference and alternate alleles.
+
+## Implemented in
+
+<!-- docs:begin backlinks -->
+- **Implemented in:** [design/pipeline](../design/pipeline.md), [engineering/dependencies](../engineering/dependencies.md), [reference](../reference/README.md)
+<!-- docs:end backlinks -->

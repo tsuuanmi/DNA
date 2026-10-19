@@ -135,6 +135,7 @@ mod tests {
         )
     }
 
+    // SRS-SIG-003, SRS-SIG-004
     #[test]
     fn computes_full_windows_and_keeps_exact_threshold_clean() -> Result<()> {
         let (trace, calls) = evidence(7);

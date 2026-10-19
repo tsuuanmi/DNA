@@ -1,13 +1,22 @@
+---
+id: ADR-0074
+status: accepted
+date: 2026-10-10
+family: [consensus]
+related: [ADR-0009, ADR-0021, ADR-0065, ADR-0067, ADR-0071, ADR-0073]
+---
+
 # ADR-0074: Run-structure consensus and how a run length is known
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-10
-- **Related decisions:** [ADR-0009](0009-biological-semantics.md),
-  [ADR-0021](0021-scientific-core-confidence-floor.md),
-  [ADR-0065](0065-result-comparison-downstream.md),
-  [ADR-0067](0067-signal-derived-read-callability.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
-  [ADR-0073](0073-sample-consensus.md)
+- **Related:** [ADR-0009](0009-biological-semantics.md), [ADR-0021](0021-scientific-core-confidence-floor.md), [ADR-0065](0065-result-comparison-downstream.md), [ADR-0067](0067-signal-derived-read-callability.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md), [ADR-0073](0073-sample-consensus.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/consensus](../../design/consensus.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/consensus](../../reference/consensus.md), [requirements/consensus](../../requirements/consensus.md), [validation/known-limitations](../../validation/known-limitations.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

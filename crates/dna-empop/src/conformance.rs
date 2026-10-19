@@ -186,6 +186,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-NOM-016
     #[test]
     fn accepts_insertions_at_the_3_prime_end_of_a_run() {
         assert!(
@@ -198,6 +199,7 @@ mod tests {
         );
     }
 
+    // SRS-NOM-016
     #[test]
     fn flags_a_run_insertion_away_from_its_3_prime_end() {
         assert_eq!(
@@ -210,6 +212,7 @@ mod tests {
         );
     }
 
+    // SRS-NOM-016
     #[test]
     fn flags_another_base_inserted_inside_a_run() {
         assert_eq!(
@@ -219,6 +222,7 @@ mod tests {
         assert!(rules(&[insertion(316, "CA")]).is_empty());
     }
 
+    // SRS-NOM-016
     #[test]
     fn ignores_substitutions_deletions_and_short_runs() {
         let snv = Variant {

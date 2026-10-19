@@ -343,6 +343,7 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
 
 /// Two reads that agree on a substitution give a variant item with each
 /// read's evidence, and the reference ends no read covers are `not_covered`.
+// SRS-IN-010 SRS-OUT-001 SRS-API-014
 #[test]
 fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -431,6 +432,7 @@ fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>
 
 /// A read against a read on the other strand is a `strands_disagree` check,
 /// listed first.
+// SRS-API-014
 #[test]
 fn reads_that_disagree_across_strands_come_first() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -460,6 +462,7 @@ fn reads_that_disagree_across_strands_come_first() -> Result<(), Box<dyn std::er
 
 /// A second base on both strands at one position, beyond the reads'
 /// neighbours, is a `possible_heteroplasmy` check with each read's share.
+// SRS-API-014
 #[test]
 fn a_second_base_on_both_strands_is_possible_heteroplasmy() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -504,6 +507,7 @@ fn a_second_base_on_both_strands_is_possible_heteroplasmy() -> Result<(), Box<dy
 
 /// A sample whose every read is rejected still gets its document, with the
 /// rejected reads and their causes and no items.
+// SRS-API-014
 #[test]
 fn a_sample_without_an_admitted_read_lists_its_rejected_reads()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -532,6 +536,7 @@ fn a_sample_without_an_admitted_read_lists_its_rejected_reads()
 
 /// The same inputs give byte-identical documents, and an existing document
 /// is never overwritten.
+// SRS-API-014 SRS-OUT-006 SRS-OUT-007
 #[test]
 fn reruns_are_identical_and_never_overwrite() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -560,6 +565,7 @@ fn reruns_are_identical_and_never_overwrite() -> Result<(), Box<dyn std::error::
 /// A run signal of the sample's run is recorded in provenance; with fewer
 /// reads than the minimum it gives no run level, so the floor decides
 /// (SRS-API-014, SRS-CALL-020).
+// SRS-API-014
 #[test]
 fn a_run_signal_of_the_samples_run_is_recorded() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -610,6 +616,7 @@ fn a_run_signal_of_the_samples_run_is_recorded() -> Result<(), Box<dyn std::erro
 
 /// A run signal that holds none of the sample's traces is another run's:
 /// the command fails without output.
+// SRS-API-014
 #[test]
 fn refuses_another_runs_signal() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;

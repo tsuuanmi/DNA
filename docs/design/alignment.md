@@ -1,6 +1,18 @@
+---
+implements: [SRS-ALN]
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072]
+covers:
+  - crates/dna-align/src/
+  - crates/dna-align/src/canonical.rs
+  - crates/dna-align/src/model/alignment.rs
+  - crates/dna-call/src/model/called_read.rs
+  - crates/dna-sanger/src/model/locus_evidence.rs
+  - src/model/read_observation.rs
+---
+
 # Alignment Method
 
-Part of the canonical [DNA pipeline](pipeline.md).
+Part of the canonical [[design/pipeline|DNA pipeline]].
 
 Aligns the retained basecall-independent evidence-profile sequence to the reference with affine-gap Gotoh dynamic programming. The retained primary sequence stays attached to traceback coordinates for admission metrics and downstream primary-sequence variant extraction. Alignment is semi-global: the retained query is fully consumed while unaligned reference flanks are allowed.
 
@@ -28,14 +40,14 @@ boundary and requires separate scientific-equivalence validation.
 ### Substep 6.1 — Orientation candidates
 
 Alignment takes the read as `ReadEvidence`
-([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
+([[ADR-0069]]).
 The query is its informative interval (the trim interval for Sanger), aligned
 in both orientations. A call whose mask is *unresolved* enters the query as `N`
 without an evidence profile, so it scores `ambiguous_score` and is never
 callable. A call whose mask is *anchoring* keeps its base and profile, because
 it still anchors the alignment. The Sanger adapter makes `dephased` calls
 anchoring and every other masked call unresolved
-([callability](callability.md)).
+([[design/callability|callability]]).
 
 - **forward:** retained profile order and retained primary sequence as-is;
 - **reverse:** reverse profile order with A↔T/C↔G profile complementation, plus the reverse-complemented retained primary sequence for traceback character/provenance mapping.

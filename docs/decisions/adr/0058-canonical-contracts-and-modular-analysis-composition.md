@@ -1,8 +1,22 @@
+---
+id: ADR-0058
+status: superseded-in-part
+date: 2026-10-03
+family: [modular-api]
+related: [PROP-0001]
+---
+
 # ADR-0058: Canonical contracts and modular analysis composition
 
-- **Status:** Superseded in part by [ADR-0069](0069-plugin-first-modality-core-post-calling.md) (§4) and [ADR-0070](0070-workspace-split-by-plugin-family.md) (§9)
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0069](0069-plugin-first-modality-core-post-calling.md) (§4), [ADR-0070](0070-workspace-split-by-plugin-family.md) (§9)
 - **Date:** 2026-10-03
-- **Related proposal:** [PROP-0001](../../proposals/0001-modular-dna-analysis-platform.md)
+- **Related:** [PROP-0001](../../proposals/0001-modular-dna-analysis-platform.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/interfaces](../../architecture/interfaces.md), [architecture/overview](../../architecture/overview.md), [proposals/roadmap](../../proposals/roadmap.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -79,7 +93,7 @@ A module is not automatically a plugin. Traits, separate crates, runtime
 selection, and provider abstractions are introduced only when they remove a real
 coupling, dependency, testing, ownership, or configuration problem.
 
-> **Superseded in part (2026-10-09):** [ADR-0069](0069-plugin-first-modality-core-post-calling.md)
+> **Superseded in part (2026-10-09):** [[ADR-0069]]
 > declares the modality, core-caller, and post-calling families and their data
 > contracts as variation seams. Stages inside a plugin remain ordinary modules.
 
@@ -139,7 +153,7 @@ workspace ADR may supersede ADR-0002 only after identifying concrete crate
 consumers and a cycle-free dependency graph with a justified dependency,
 ownership, reuse, build, or release boundary.
 
-> **Superseded (2026-10-09):** [ADR-0070](0070-workspace-split-by-plugin-family.md)
+> **Superseded (2026-10-09):** [[ADR-0070]]
 > splits the workspace by plugin family.
 
 ## Alternatives considered

@@ -495,6 +495,7 @@ mod tests {
         Ok(output)
     }
 
+    // SRS-NOM-005 SRS-NOM-013
     #[test]
     fn hv2_duplicated_anchor_is_311t_315_1c() -> TestResult {
         let rcrs = rcrs()?;
@@ -505,6 +506,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-005 SRS-NOM-013
     #[test]
     fn hv2_anchor_deletion_is_310c_315del() -> TestResult {
         let rcrs = rcrs()?;
@@ -515,6 +517,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-013
     #[test]
     fn hv2_terminal_gain_keeps_empop_315_1c() -> TestResult {
         let rcrs = rcrs()?;
@@ -528,6 +531,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-013
     #[test]
     fn hv2_substitution_without_length_gain_does_not_add_315_1c() -> TestResult {
         let rcrs = rcrs()?;
@@ -538,6 +542,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-014
     #[test]
     fn hv3_flank_loss_is_513a_523del_524del() -> TestResult {
         let rcrs = rcrs()?;
@@ -548,6 +553,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-014
     #[test]
     fn hv3_motif_loss_keeps_an_independent_substitution() -> TestResult {
         let rcrs = rcrs()?;
@@ -558,6 +564,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-015
     #[test]
     fn hv1_jumping_alignment_converges_on_16183c_16184a_16189c() -> TestResult {
         let rcrs = rcrs()?;
@@ -579,6 +586,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-010 SRS-NOM-015
     #[test]
     fn the_phylogenetic_form_needs_the_whole_window_read() -> TestResult {
         let rcrs = rcrs()?;
@@ -596,6 +604,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-015
     #[test]
     fn hv1_anchor_deletion_is_16189c_16193del() -> TestResult {
         let rcrs = rcrs()?;
@@ -606,6 +615,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-007
     #[test]
     fn edits_outside_every_window_are_unchanged() -> TestResult {
         let rcrs = rcrs()?;
@@ -614,6 +624,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-004
     #[test]
     fn rejects_a_reference_without_the_validated_window_motif() -> TestResult {
         let mut reference = rcrs()?;
@@ -627,6 +638,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-004 SRS-NOM-008
     #[test]
     fn applies_rules_from_any_target_profile() -> TestResult {
         // A poly-G window around one A anchor, unrelated to mtDNA.
@@ -658,6 +670,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-007
     #[test]
     fn a_window_an_edit_crosses_keeps_its_form_and_the_others_are_represented() -> TestResult {
         let rcrs = rcrs()?;
@@ -701,6 +714,7 @@ mod tests {
         calls.into_iter().map(|(_, call)| call).collect()
     }
 
+    // SRS-NOM-005 SRS-NOM-013 SRS-NOM-014 SRS-NOM-015
     #[test]
     fn writes_the_corpus_sequences_in_the_lab_convention() -> TestResult {
         let profile = human_mtdna()?;

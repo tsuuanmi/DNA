@@ -108,6 +108,7 @@ pub(crate) mod tests {
         }
     }
 
+    // SRS-CFG-009
     #[test]
     fn validates_the_site_costs_and_counts() {
         assert!(raw().validate().is_ok());

@@ -1,14 +1,22 @@
+---
+id: ADR-0082
+status: accepted
+date: 2026-10-19
+family: [callability]
+related: [ADR-0069, ADR-0071, ADR-0074, ADR-0076, ADR-0080, PROP-0010]
+---
+
 # ADR-0082: A modality may assert a phase mixture, and the core compares its components
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-19
-- **Related decisions:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md),
-  [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md),
-  [ADR-0074](0074-run-structure-consensus.md),
-  [ADR-0076](0076-bounded-run-read-end-exemption.md),
-  [ADR-0080](0080-reference-only-calls.md)
-- **Proposal:** [PROP-0010](../../proposals/0010-length-mixture-decomposition.md),
-  increment 1
+- **Related:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0071](0071-run-length-edits-need-resolved-run-ends.md), [ADR-0074](0074-run-structure-consensus.md), [ADR-0076](0076-bounded-run-read-end-exemption.md), [ADR-0080](0080-reference-only-calls.md), [PROP-0010](../../proposals/0010-length-mixture-decomposition.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/length-mixture](../../design/length-mixture.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

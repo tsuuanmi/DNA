@@ -11,5 +11,5 @@ Children of `../score.rs`, the scoring of the draft triage.
   `triage.md`.
 
 The measures are specified in the
-[evaluation harness](../../../../../docs/validation/evaluation-harness.md#draft-triage)
+[evaluation harness](../../../../../docs/validation/evaluation-triage.md#draft-triage)
 document. Tests use synthetic evidence only.

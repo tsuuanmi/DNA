@@ -1,8 +1,12 @@
+---
+implements: [SRS-API, SRS-CALL]
+---
+
 # DNA Run Signal JSON
 
 `dna signal <run-id> <trace>...` writes one deterministic document,
 `results/<run-id>.signal.json`, identified as `dna.signal/v1` (SRS-API-016,
-SRS-CALL-019, [PROP-0009](../proposals/0009-run-signal.md)). It records
+SRS-CALL-019, [[PROP-0009]]). It records
 the second-channel signal a run's reads share, so a later change can judge a
 call against its own run rather than a fixed share. It reads the traces and
 the configuration only: no reference, alignment, or truth.
@@ -55,4 +59,4 @@ signal measures. A read's first and last `flank` calls have no context. The same
 selection takes a read's own contributions out of a run signal, so a sample
 can be judged without itself.
 
-`dna review --signal` reads a run signal ([review](review.md)).
+`dna review --signal` reads a run signal ([[reference/review|review]]).

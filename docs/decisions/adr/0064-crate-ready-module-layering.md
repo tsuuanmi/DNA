@@ -1,10 +1,22 @@
+---
+id: ADR-0064
+status: superseded-in-part
+date: 2026-10-08
+family: [crates]
+related: [ADR-0002, ADR-0058, ADR-0063]
+---
+
 # ADR-0064: Crate-ready module layering
 
+<!-- docs:begin lifecycle -->
 - **Status:** Superseded in part by [ADR-0070](0070-workspace-split-by-plugin-family.md)
 - **Date:** 2026-10-08
-- **Related decisions:** [ADR-0002](0002-single-crate-layering.md),
-  [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md),
-  [ADR-0063](0063-target-profiles.md)
+- **Related:** [ADR-0002](../../governance/retired.md), [ADR-0058](0058-canonical-contracts-and-modular-analysis-composition.md), [ADR-0063](0063-target-profiles.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [engineering/development](../../engineering/development.md)
+<!-- docs:end backlinks -->
 
 ## Context
 
@@ -69,7 +81,7 @@ A split into crates follows when one of these holds:
 
 ## Revision 2026-10-09
 
-[ADR-0069](0069-plugin-first-modality-core-post-calling.md) adds the layer-0
+[[ADR-0069]] adds the layer-0
 modules `read_evidence` (the modality → core contract) and `plugin` (the static
 plugin registry), and a neutrality rule that
 the validator enforces next to the layer rule. Modality-neutral modules
@@ -79,7 +91,7 @@ not depend on Sanger modules or on the Sanger children of `model`.
 
 ## Revision 2026-10-09 (workspace split)
 
-[ADR-0070](0070-workspace-split-by-plugin-family.md) performs the split this
+[[ADR-0070]] performs the split this
 record prepared, along plugin families rather than the layer table:
 `dna-kernel`, `dna-core`, `dna-sanger`, `dna-post`, and the `dna` facade. The
 crate graph replaces the layer table and the neutral-module rule. The

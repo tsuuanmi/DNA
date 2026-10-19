@@ -425,6 +425,7 @@ fn least_squares(design: &[Vec<f64>], observed: &[f64], passive: &[bool]) -> Vec
     solution
 }
 
+// SRS-CALL-023
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -237,6 +237,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-NOM-017
     #[test]
     fn labels_a_length_call_of_a_long_enough_run() -> Result<(), RepresentationError> {
         // C10 plus one inserted C at 24 is C11; the substitution is content.
@@ -254,6 +255,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-017
     #[test]
     fn counts_a_deleted_base_in_the_run_it_shortens() -> Result<(), RepresentationError> {
         // C10 less its last C leaves C9: the call changes a C10.
@@ -262,6 +264,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-017
     #[test]
     fn leaves_a_length_call_of_a_short_run_unlabelled() -> Result<(), RepresentationError> {
         // With the anchor T, the runs stay C5 and C4: lengths reads resolve.
@@ -272,6 +275,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-NOM-017
     #[test]
     fn covers_only_calls_inside_the_window() -> Result<(), RepresentationError> {
         // An insertion anchored after the window is not covered.

@@ -51,10 +51,12 @@ jobs:
         run: cargo fmt --all --check
       - name: Check
         run: cargo check --workspace --locked --all-targets --all-features
+      # SRS-NFR-001
       - name: Clippy
         run: cargo clippy --workspace --locked --all-targets --all-features -- -D warnings
       - name: Test
         run: cargo test --workspace --locked --all-targets --all-features
+      # SRS-COMPAT-003
       - name: Plugin crates build and test alone
         shell: bash
         run: |
@@ -136,6 +138,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
@@ -150,18 +153,34 @@ jobs:
             printf 'Only Rust source and source-local README.md documentation are allowed under src/ and crates/*/src/:\n%s\n' "$unexpected" >&2
             exit 1
           fi
+      # SRS-NFR-005
       - name: Validate Rust source policy
         working-directory: tools/python
         run: uv run python scripts/validate_rust_source_policy.py
+      # SRS-COMPAT-003
       - name: Validate Rust module layering
         working-directory: tools/python
         run: uv run python scripts/validate_module_layers.py
       - name: Validate GitHub Actions policy
         working-directory: tools/python
         run: uv run python scripts/validate_workflow_policy.py
+      # SRS-NFR-004
       - name: Validate documentation structure
         working-directory: tools/python
         run: uv run python scripts/validate_docs_structure.py
+      - name: Validate documentation graph
+        working-directory: tools/python
+        run: uv run python scripts/docs_graph.py check --strict
+      - name: Check generated documentation is current
+        working-directory: tools/python
+        run: uv run python scripts/docs_graph.py sync --check
+      - name: Check documentation impact
+        if: github.event_name == 'pull_request'
+        working-directory: tools/python
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          DOCS_WAIVERS: ${{ github.event.pull_request.body }}
+        run: uv run python scripts/docs_graph.py impact "$BASE_REF"
       - name: Ruff format
         working-directory: tools/python
         run: uv run ruff format --check scripts tests
@@ -174,6 +193,7 @@ jobs:
       - name: Python tests
         working-directory: tools/python
         run: uv run python -m unittest discover -s tests -p 'test_*.py'
+      # SRS-OUT-002
       - name: Validate result schemas
         working-directory: tools/python
         run: uv run python scripts/validate_result_schemas.py

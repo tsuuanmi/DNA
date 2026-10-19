@@ -1,11 +1,22 @@
+---
+id: ADR-0068
+status: accepted
+date: 2026-10-09
+family: [sample-topology]
+related: [ADR-0009, ADR-0033, ADR-0065, ADR-0067]
+---
+
 # ADR-0068: Variant opposition evidence
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-09
-- **Related decisions:** [ADR-0009](0009-biological-semantics.md),
-  [ADR-0033](0033-variant-support-topology.md),
-  [ADR-0065](0065-result-comparison-downstream.md),
-  [ADR-0067](0067-signal-derived-read-callability.md)
+- **Related:** [ADR-0009](0009-biological-semantics.md), [ADR-0033](0033-variant-support-topology.md), [ADR-0065](0065-result-comparison-downstream.md), [ADR-0067](0067-signal-derived-read-callability.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/sample-evidence](../../design/sample-evidence/README.md), [design/sample-evidence/coverage-overlap](../../design/sample-evidence/coverage-overlap.md), [design/sample-evidence/variants](../../design/sample-evidence/variants.md), [reference/sample-evidence](../../reference/sample-evidence/README.md), [reference/sample-evidence/variants-signal](../../reference/sample-evidence/variants-signal.md), [requirements/sample-evidence/callability](../../requirements/sample-evidence/callability.md), [requirements/sample-evidence/core](../../requirements/sample-evidence/core.md), [requirements/sample-evidence/overlap-topology](../../requirements/sample-evidence/overlap-topology.md), [requirements/sample-evidence/profile-aggregation](../../requirements/sample-evidence/profile-aggregation.md), [requirements/sample-evidence/signal-evidence](../../requirements/sample-evidence/signal-evidence.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

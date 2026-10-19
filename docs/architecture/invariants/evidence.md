@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0013, ADR-0028, ADR-0031, ADR-0046, ADR-0067, ADR-0076]
+---
+
 # Evidence Invariants
 
 These invariants are part of the canonical [system invariant set](README.md).

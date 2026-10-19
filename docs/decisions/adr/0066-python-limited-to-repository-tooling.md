@@ -1,9 +1,21 @@
+---
+id: ADR-0066
+status: accepted
+date: 2026-10-08
+related: [ADR-0021, ADR-0065]
+---
+
 # ADR-0066: Python in DNA is limited to repository tooling
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-10-08
-- **Related decisions:** [ADR-0021](0021-scientific-core-confidence-floor.md),
-  [ADR-0065](0065-result-comparison-downstream.md)
+- **Related:** [ADR-0021](0021-scientific-core-confidence-floor.md), [ADR-0065](0065-result-comparison-downstream.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/context](../../architecture/context.md), [engineering/development](../../engineering/development.md), [governance/data](../../governance/data.md), [requirements/SRS](../../requirements/SRS.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

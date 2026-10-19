@@ -1,7 +1,19 @@
+---
+id: ADR-0034
+status: superseded-in-part
+date: 2026-09-19
+---
+
 # ADR-0034: Preserve reference-oriented evidence profiles in sample evidence
 
-- **Status:** Superseded in part by ADR-0037
+<!-- docs:begin lifecycle -->
+- **Status:** Superseded in part by [ADR-0037](0037-sample-call-signal-evidence.md)
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- _Not yet referenced by a current document._
+<!-- docs:end backlinks -->
 
 ## Context
 

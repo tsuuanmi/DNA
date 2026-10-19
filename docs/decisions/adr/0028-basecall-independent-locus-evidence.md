@@ -1,7 +1,20 @@
+---
+id: ADR-0028
+status: accepted
+date: 2026-09-19
+family: [signal-evidence]
+---
+
 # ADR-0028: Locus evidence and evidence profiles are basecall-independent
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/evidence](../../architecture/invariants/evidence.md), [design/signal-processing](../../design/signal-processing/README.md), [requirements/signal-processing](../../requirements/signal-processing.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

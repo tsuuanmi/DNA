@@ -1,3 +1,8 @@
+---
+decided-by: [ADR-0015, ADR-0069]
+covers: [config/dna.toml]
+---
+
 # DNA Reference-Free Basecall Output
 
 `dna basecall <trace.ab1>` reads the strict configuration selected by
@@ -19,7 +24,7 @@ at the input boundary and scientific stages use locus terminology.
 ## Fields
 
 - `provenance`: input AB1 SHA-256, complete strict configuration SHA-256, and
-  `plugins`: the plugins that produced the document ([ADR-0069](../decisions/adr/0069-plugin-first-modality-core-post-calling.md)), in execution order, each with its `id`, `family` (`modality`, `core`, or `post_calling`), and method `version` ([versioning](../governance/versioning.md#plugins)). `basecall` runs only the `sanger` plugin.
+  `plugins`: the plugins that produced the document ([[ADR-0069]]), in execution order, each with its `id`, `family` (`modality`, `core`, or `post_calling`), and method `version` ([[governance/versioning#plugins|versioning]]). `basecall` runs only the `sanger` plugin.
   Software/build identity, the trace filename, local paths, timestamps, and host
   data are omitted; software/build provenance is deferred until a stable
   versioning strategy is defined.
@@ -29,7 +34,7 @@ at the input boundary and scientific stages use locus terminology.
 - `read.retained`: the primary sequence inside `read.trim`.
 - `read.trim`: 0-based half-open call interval `[start, end)`: the callable span
   plus at most `variant_calling.read_end_margin` adjacent dephased calls per side.
-- `read.callability`: the `dna.read_callability/v1` view ([method](../design/callability.md)): `callable_span` (0-based half-open calls from the first to the last unmasked call, empty when everything is masked), `segments` (ordered 0-based half-open call intervals partitioning the read, each with `state` `in_phase`/`dephased`/`mixed`/`weak`/`irregular`, `after_repeat`, and `shadow_offsets` on dephased segments), and `masked_calls`. It sets `trim` and therefore `retained`.
+- `read.callability`: the `dna.read_callability/v1` view ([[design/callability|method]]): `callable_span` (0-based half-open calls from the first to the last unmasked call, empty when everything is masked), `segments` (ordered 0-based half-open call intervals partitioning the read, each with `state` `in_phase`/`dephased`/`mixed`/`weak`/`irregular`, `after_repeat`, and `shadow_offsets` on dephased segments), and `masked_calls`. It sets `trim` and therefore `retained`.
 - `signal_quality.integrity`: ABIF-origin locus/vendor-series cardinality evidence, merged repeated-position count, adjacent
   locus-spacing summary, exact signed-16-bit clipping count, and optional
   maximum-to-median corrected event-signal ratio. These observations do not

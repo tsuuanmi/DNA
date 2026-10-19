@@ -1,7 +1,20 @@
+---
+id: ADR-0029
+status: accepted
+date: 2026-09-19
+family: [placement]
+---
+
 # ADR-0029: Align reference placement from basecall-independent evidence profiles
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-19
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [architecture/invariants/alignment](../../architecture/invariants/alignment.md), [design/alignment](../../design/alignment.md), [design/signal-processing](../../design/signal-processing/README.md), [design/signal-processing/locus-evidence](../../design/signal-processing/locus-evidence.md), [requirements/alignment](../../requirements/alignment.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

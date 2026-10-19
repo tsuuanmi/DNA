@@ -1,3 +1,14 @@
+---
+implements: [SRS-SAMPLE]
+decided-by: [ADR-0023, ADR-0025, ADR-0030, ADR-0053, ADR-0068]
+covers:
+  - crates/dna-sample/src/
+  - crates/dna-sample/src/model/sample_evidence.rs
+  - src/model/sample_result.rs
+  - src/pipeline/sample.rs
+  - src/report/sample.rs
+---
+
 # Sample Evidence Aggregation Method
 
 This is the canonical method entry point for sample aggregation after every trace has independently completed the one-read observation path.

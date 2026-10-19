@@ -1,3 +1,8 @@
+---
+implements: [SRS-ALN, SRS-VAR]
+decided-by: [ADR-0037, ADR-0062, ADR-0067, ADR-0068, ADR-0071, ADR-0076]
+---
+
 # Variants and Differential-locus Signal Evidence
 
 Part of the canonical [sample evidence contract](README.md).

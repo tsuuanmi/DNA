@@ -294,6 +294,7 @@ const fn gap_kind(column: &RawColumn) -> Option<GapKind> {
     }
 }
 
+// SRS-ALN-012
 #[cfg(test)]
 mod tests {
     use super::*;

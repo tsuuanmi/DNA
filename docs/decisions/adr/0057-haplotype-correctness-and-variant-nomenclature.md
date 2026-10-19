@@ -1,8 +1,22 @@
+---
+id: ADR-0057
+status: accepted
+date: 2026-09-20
+family: [variant-nomenclature]
+related: [ADR-0009, ADR-0019, ADR-0047]
+---
+
 # ADR-0057: Separate haplotype correctness from variant nomenclature
 
+<!-- docs:begin lifecycle -->
 - **Status:** Accepted
 - **Date:** 2026-09-20
-- **Related:** ADR-0009, ADR-0019, ADR-0047
+- **Related:** [ADR-0009](0009-biological-semantics.md), [ADR-0019](0019-scientific-evidence-hierarchy.md), [ADR-0047](0047-canonical-right-aligned-mtdna-gaps.md)
+<!-- docs:end lifecycle -->
+
+<!-- docs:begin backlinks -->
+- **Governs:** [design/variant-calling](../../design/variant-calling.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [design/variant-normalization](../../design/variant-normalization.md), [requirements/variant-nomenclature](../../requirements/variant-nomenclature.md), [requirements/variants](../../requirements/variants.md)
+<!-- docs:end backlinks -->
 
 ## Context
 

@@ -293,6 +293,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-ALN-001
     #[test]
     fn permits_free_reference_flanks() -> Result<()> {
         let query = "ACGT";
@@ -303,6 +304,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-004
     #[test]
     fn accepts_one_full_circular_reference_span() -> Result<()> {
         let reference = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -323,6 +325,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-002
     #[test]
     fn scores_one_base_gap_as_open_plus_extension() -> Result<()> {
         let query = "ACGTT";
@@ -348,6 +351,7 @@ mod tests {
         assert!(align("AC", &[None], "AC", &config(), None).is_err());
     }
 
+    // SRS-ALN-012
     #[test]
     fn canonicalizes_homopolymer_deletion_to_rightmost_reference_base() -> TestResult {
         let query = "GCCAAAGTT";
@@ -363,6 +367,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-012
     #[test]
     fn canonicalizes_homopolymer_insertion_to_rightmost_boundary() -> TestResult {
         let query = "CAAAAAG";
@@ -384,6 +389,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-006
     #[test]
     fn preserves_distinct_repeat_placement_ambiguity_without_an_indel() -> Result<()> {
         let query = "AAA";

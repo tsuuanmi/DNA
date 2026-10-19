@@ -1,3 +1,7 @@
+---
+implements: [SRS-NFR]
+---
+
 # System Invariants
 
 This is the canonical index for cross-cutting DNA invariants. Invariant IDs remain stable even when their physical document changes.

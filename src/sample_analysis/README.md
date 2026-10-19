@@ -36,6 +36,6 @@ pipeline.
 
 It does not open logs, derive output paths, serialize JSON, or publish files.
 
-See [Rust API contract](../../docs/reference/rust-api.md#sample-analysis),
+See [Rust API contract](../../docs/reference/rust-api-sample.md#sample-analysis),
 [pipeline method](../../docs/design/pipeline.md#sample-placement-pass), and
 [sample evidence requirements](../../docs/requirements/sample-evidence/README.md).

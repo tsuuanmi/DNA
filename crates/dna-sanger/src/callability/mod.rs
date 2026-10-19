@@ -170,6 +170,7 @@ mod tests {
             .collect()
     }
 
+    // SRS-CALL-003, SRS-CALL-005
     #[test]
     fn keeps_a_clean_read_entirely_in_phase() -> Result<()> {
         let evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGA", usize::MAX, &[]);
@@ -188,6 +189,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-003, SRS-CALL-004, SRS-CALL-005
     #[test]
     fn masks_a_shadow_ladder_after_a_long_homopolymer_as_dephased() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
@@ -216,6 +218,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-003, SRS-CALL-005
     #[test]
     fn masks_a_two_sided_shadow_ladder_after_a_long_homopolymer_as_dephased() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
@@ -235,6 +238,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-003
     #[test]
     fn relabels_without_moving_segment_boundaries() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
@@ -266,6 +270,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-003, SRS-CALL-005
     #[test]
     fn masks_scattered_double_peaks_as_mixed_without_a_repeat() -> Result<()> {
         let mut evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGATCGATCGTAGCT", usize::MAX, &[]);
@@ -288,6 +293,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CALL-003, SRS-CALL-005
     #[test]
     fn masks_a_weak_tail() -> Result<()> {
         let mut evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGATCGA", usize::MAX, &[]);

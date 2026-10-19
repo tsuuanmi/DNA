@@ -224,6 +224,7 @@ mod tests {
         }]
     }
 
+    // SRS-VAR-004, SRS-VAR-007
     #[test]
     fn preserves_canonical_homopolymer_insertion_anchor() -> Result<()> {
         let variant = insertion(
@@ -239,6 +240,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-007
     #[test]
     fn normalization_preserves_observed_call_positions() -> Result<()> {
         let calls = vec![
@@ -268,6 +270,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-004, SRS-VAR-007
     #[test]
     fn circular_representation_preserves_origin_seam_anchor() -> Result<()> {
         let variant = deletion(
@@ -284,6 +287,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-004, SRS-VAR-007
     #[test]
     fn circular_insertion_preserves_observed_seam_anchor() -> Result<()> {
         let reference = reference("AACAA", ReferenceTopology::Circular);
@@ -294,6 +298,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-005
     #[test]
     fn rejects_reference_alleles_that_disagree_with_the_reference() {
         let result = deletion(
@@ -312,6 +317,7 @@ mod tests {
         ));
     }
 
+    // SRS-VAR-004
     #[test]
     fn derives_internal_linear_predecessor_without_an_aligned_left_flank() -> Result<()> {
         let reference = reference("TTCG", ReferenceTopology::Linear);
@@ -322,6 +328,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-VAR-004
     #[test]
     fn derives_non_origin_circular_predecessor_without_an_aligned_left_flank() -> Result<()> {
         let reference = reference("ACGT", ReferenceTopology::Circular);

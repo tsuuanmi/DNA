@@ -194,6 +194,7 @@ mod tests {
         }
     }
 
+    // SRS-SAMPLE-011
     #[test]
     fn run_length_encodes_total_and_orientation_depth() -> Result<()> {
         let reads = vec![
@@ -238,6 +239,7 @@ mod tests {
         Ok(())
     }
 
+    // SRS-SAMPLE-011
     #[test]
     fn merges_adjacent_runs_with_identical_depth() -> Result<()> {
         let reads = vec![

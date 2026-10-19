@@ -1,12 +1,19 @@
 ---
 id: PROP-0003
-type: proposal
 status: implemented
-owners: []
 created: 2026-10-10
-related-requirements: [SRS-SAMPLE-027, SRS-VAR-009, SRS-VAR-015]
-related-decisions: [ADR-0023, ADR-0033, ADR-0035, ADR-0041, ADR-0065, ADR-0068, ADR-0069, ADR-0071, ADR-0072]
-implementation: []
+summary: "`dna consensus` adjudicates between a sample's reads into a consensus sequence that `dna call` calls (ADR-0073). Run-length refinement and IUPAC heteroplasmy are deferred."
+implements: [SRS-SAMPLE-027, SRS-VAR-009, SRS-VAR-015]
+decided-by:
+  - ADR-0023
+  - ADR-0033
+  - ADR-0035
+  - ADR-0041
+  - ADR-0065
+  - ADR-0068
+  - ADR-0069
+  - ADR-0071
+  - ADR-0072
 ---
 
 # Proposal: Sample consensus
@@ -263,4 +270,4 @@ Increment 0 needs no such ADR. It extends SRS-SAMPLE-027.
     - restricting that change to runs with both ends visible gained 2.
   - **IUPAC point heteroplasmy** stays future work under ADR-0009
     ([research](../research/point-heteroplasmy/README.md)).
-  - Both are listed in the [roadmap](roadmap.md).
+  - Both are listed in the [[proposals/roadmap|roadmap]].

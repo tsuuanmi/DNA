@@ -1,3 +1,7 @@
+---
+decided-by: [ADR-0064, ADR-0066, ADR-0070, ADR-0075]
+---
+
 # Development
 
 ## Environment
@@ -33,10 +37,10 @@ downstream pipelines, not by tooling in this repository (ADR-0066).
 
 ## Required checks
 
-Before finalizing a repository change, run the required gates defined in [CI/CD](ci-cd.md). During iteration, run the narrowest checks that exercise the changed failure modes first.
+Before finalizing a repository change, run the required gates defined in [[engineering/ci-cd|CI/CD]]. During iteration, run the narrowest checks that exercise the changed failure modes first.
 
 ## Documentation with code
 
 When behavior, ownership, public contracts, architecture, or validation expectations change, update the affected canonical documentation in the same change. Source-directory responsibility changes also update the nearest `src/**/README.md`.
 
-See [documentation governance](../governance/documentation.md).
+See [[governance/documentation|documentation governance]].
