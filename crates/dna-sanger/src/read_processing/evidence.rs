@@ -505,9 +505,12 @@ fn leading_identity(
 /// Only calls within `edge_identity_margin` of an informative end qualify,
 /// with every call between them and that end and every call within that
 /// margin on their inner side scored, and no call within it beyond that end
-/// masked where the
-/// read loses phase (`dephased_signal`, `post_homopolymer`). The rule judges
-/// each call against its own read only, never a position.
+/// masked where the read loses phase (`dephased_signal`, `post_homopolymer`),
+/// unless the informative interval ends with a run of one base, at least two
+/// calls, that starts after the call, and the first call beyond that end is
+/// masked `post_homopolymer`: the read loses phase after that run, and
+/// before it every molecule shows the same sequence. The rule judges each
+/// call against its own read only, never a position.
 fn edge_identity(
     calls: &BaseCalls,
     loci: &[crate::model::locus_evidence::LocusEvidence],
@@ -572,6 +575,38 @@ fn edge_identity(
             )
         })
     };
+    // The read loses phase right after a repeat run that the call precedes:
+    // the informative interval ends with a run of one base, at least two
+    // calls, starting after the call, and the first call beyond its end is
+    // masked where the read loses phase after a repeat run. Every molecule
+    // shows the same sequence before the run, so the call's signal is in
+    // phase.
+    let run_start = {
+        let end = informative.end;
+        let base = end
+            .checked_sub(1)
+            .and_then(|last| calls.calls.get(last))
+            .map(|call| call.primary);
+        let mut first = end;
+        while first > informative.start
+            && base.is_some_and(|base| {
+                calls
+                    .calls
+                    .get(first - 1)
+                    .is_some_and(|call| call.primary == base)
+            })
+        {
+            first -= 1;
+        }
+        first
+    };
+    let before_phase_loss = |index: usize| {
+        evidence
+            .get(informative.end)
+            .is_some_and(|beyond| beyond.placement.reason() == Some(POST_HOMOPOLYMER))
+            && index < run_start
+            && informative.end - run_start >= 2
+    };
     let spaced = |index: usize, other: usize| {
         let (Some(left), Some(right)) = (loci.get(index.min(other)), loci.get(index.max(other)))
         else {
@@ -593,7 +628,8 @@ fn edge_identity(
                 && (!trailing
                     || (scored(index + 1..informative.end)
                         && scored(index.saturating_sub(margin)..index)
-                        && !phase_loss(informative.end..informative.end + margin)));
+                        && (!phase_loss(informative.end..informative.end + margin)
+                            || before_phase_loss(index))));
             // A call reading the base of its neighbour towards the read's
             // end may be that neighbour's signal one position off.
             let outer_same = |outer: Option<usize>| {
@@ -1304,6 +1340,64 @@ mod tests {
         // Only the verdict on the base is lifted: the call still counts as it
         // did, and supports no indel at the edge.
         assert!(first.indel.edge && first.bound != Bound::Withheld && !first.base_only());
+        Ok(())
+    }
+
+    // SRS-CALL-017
+    #[test]
+    fn vouches_for_a_call_before_a_run_where_the_read_loses_phase() -> Result<()> {
+        // Twelve single-channel calls; the informative interval 0..10 ends with
+        // the run of three G at 7-9, and the read loses phase after it (10-11).
+        // With a margin of 4, calls 6-9 sit at the trailing edge.
+        let (mut calls, mut signal, mut callability, mut quality) = products(&[200; 12], &[40; 12]);
+        let bases = ['A', 'C', 'G', 'T', 'A', 'C', 'A', 'G', 'G', 'G', 'T', 'T'];
+        for (call, base) in calls.calls.iter_mut().zip(bases) {
+            let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
+            call.primary = base;
+            call.ambiguity = base;
+            call.qualifying_channels = vec![Nucleotide::ALL[channel]];
+            for (index, peak) in call.peaks.iter_mut().enumerate() {
+                peak.height = if index == channel { 200 } else { 0 };
+            }
+        }
+        for (locus, base) in signal.loci.iter_mut().zip(bases) {
+            let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
+            locus.channel_widths =
+                std::array::from_fn(|index| if index == channel { 4 } else { 0 });
+        }
+        quality.trim_end_0based_exclusive = 10;
+        quality.retained_sequence = "A".repeat(10);
+        let lifted = |callability: &ReadCallability| -> Result<Vec<bool>> {
+            let evidence =
+                read_evidence(&calls, &signal, callability, &quality, &[], &[], &config(4))?;
+            Ok(evidence.calls()[6..10]
+                .iter()
+                .map(|call| !call.identity.edge)
+                .collect())
+        };
+        callability.segments = vec![
+            PhaseSegment {
+                call_start_0based: 0,
+                call_end_0based_exclusive: 10,
+                state: PhaseState::InPhase,
+                after_repeat: false,
+                shadow: None,
+            },
+            PhaseSegment {
+                call_start_0based: 10,
+                call_end_0based_exclusive: 12,
+                state: PhaseState::Dephased,
+                after_repeat: true,
+                shadow: None,
+            },
+        ];
+        callability.mask[10..].fill(Some(PhaseState::Dephased));
+        // After a repeat run: the call before the run is in phase; the run's
+        // own calls stay at the edge.
+        assert_eq!(lifted(&callability)?, [true, false, false, false]);
+        // A phase loss that is not after a repeat run lifts nothing.
+        callability.segments[1].after_repeat = false;
+        assert_eq!(lifted(&callability)?, [false, false, false, false]);
         Ok(())
     }
 
