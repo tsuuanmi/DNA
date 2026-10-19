@@ -218,4 +218,27 @@ Pending.
 
 ## Implementation
 
-None yet.
+Increment 1 is implemented ([ADR-0082](../decisions/adr/0082-phase-mixtures.md),
+SRS-CALL-023, SRS-VAR-022), with these refinements of the design above:
+
+- The fit covers every `dephased` segment that a repeat run opens, not only
+  `after_repeat` ones, whose longer repeat missed the HVS-II C-tract. The
+  opening run is the longest run near the segment's start, and the stretch
+  ends where a run as long starts.
+- A mixture is `explained` only when its residual is at most the read's own
+  in-phase residual at `decompose_unexplained_quantile`. Only an explained
+  mixture's components are compared with the reference; an unexplained one
+  keeps its offsets and fractions.
+- A component is the whole read with its run changed, so it places like the
+  read. Its span covers the tract (the runs of the opening run's base one
+  call apart before it in read order) and the stretch, may cross the origin,
+  and its edits include the bases either side of it.
+- The opening run starts at or after the trim interval's start.
+- The review fields are a separate change on top of this one.
+
+On panel v5, current slice, an explained component's entered run at 303–315
+is the truth's in 95.6 % of HV2F reads (1,857 of 1,943), against the spike's
+98.8 %, and in 99.3 % of HV3R reads (1,345 of 1,355). The gap is the dominant sequence being the read's primary calls,
+which a heavily lagging copy can mislead; decoding it from the mixture is a
+measured follow-up. HVS-I has no truth for its 16189C run length
+(`hvs1_c_length`).

@@ -60,6 +60,7 @@ pub(crate) fn observe(
         callability,
         quality,
         second,
+        mixtures,
         warnings: read_warnings,
     } = processed;
 
@@ -70,6 +71,7 @@ pub(crate) fn observe(
         &callability,
         &quality,
         &second,
+        &mixtures,
         &config.sanger.sanger_evidence,
     )?;
     tracing::info!(

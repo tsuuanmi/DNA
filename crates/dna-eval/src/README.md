@@ -56,6 +56,10 @@ by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contrac
   lists, and the Wilson bound of `windows.tsv`.
 - `unrecorded.rs` — the run-length alleles a profile convention leaves
   unrecorded, left out of every comparison on both sides.
+- `components.rs` — `components.tsv`: every phase-mixture component
+  (ADR-0082) with the reference run clusters it covers, measured as
+  haplotypes against the truth, and an unexplained mixture's offsets and
+  fractions.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior) and the zones a
   check item touches.

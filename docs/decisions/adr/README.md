@@ -118,3 +118,4 @@ The production authority column describes **current truth**. ADRs explain why th
 | [0078](0078-call-the-consensus-decisions.md) | Call the consensus's decided edits without placing it again | Accepted |
 | [0079](0079-core-crates-by-step.md) | One crate per core step | Accepted |
 | [0080](0080-reference-only-calls.md) | A modality may assert a call confirms only the reference | Accepted |
+| [0082](0082-phase-mixtures.md) | A modality may assert a phase mixture, and the core compares its components | Accepted |

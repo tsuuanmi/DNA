@@ -25,6 +25,9 @@ use dna_kernel::variant::ReferenceIdentity;
 use dna_sample::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 
 pub use crate::model::read_observation::{RejectedRead, RejectionCause};
+use dna_align::model::alignment::Orientation;
+use dna_call::components::component_calls;
+pub use dna_call::components::{ComponentCall, MixtureCalls};
 pub use dna_call::model::trust::{CallTrust, TrustScope, Withholder};
 pub use dna_consensus::model::consensus::Consensus;
 pub use dna_empop::export::{Cut, CutReason, Export as EmpopExport};
@@ -119,6 +122,31 @@ impl SampleAnalysis {
             .map(|read| read_trust(&read.evidence, &self.loaded.config.core.variant_calling))
     }
 
+    /// Every admitted read's phase mixtures (ADR-0082) with each component
+    /// placed on the reference and called on its own, by read: its name, its
+    /// content SHA-256, whether it reads the reference strand, and its
+    /// mixtures. Evidence for review and evaluation; no call changes, and a
+    /// component that cannot be placed is left out, never failing the sample.
+    #[must_use]
+    pub fn components(&self) -> Vec<ReadMixtures> {
+        let config = &self.loaded.config.core;
+        self.called
+            .iter()
+            .map(|read| ReadMixtures {
+                read: read.input_name.clone(),
+                sha256: read.input_sha256.clone(),
+                forward: read.alignment.orientation() == Orientation::Forward,
+                mixtures: component_calls(
+                    read,
+                    &self.loaded.reference,
+                    &config.alignment,
+                    &config.variant_calling,
+                    &self.loaded.profile.regions,
+                ),
+            })
+            .collect()
+    }
+
     /// The reportable regions of the target profile the analysis ran with:
     /// inclusive 1-based reference intervals, as the profile declares them.
     #[must_use]
@@ -160,6 +188,21 @@ pub(crate) struct Loaded {
     pub(crate) config: Config,
     pub(crate) profile: Profile,
     pub(crate) reference: Reference,
+}
+
+/// One admitted read's phase mixtures, each component compared with the
+/// reference (ADR-0082).
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct ReadMixtures {
+    /// The read's name.
+    pub read: String,
+    /// Its content SHA-256.
+    pub sha256: String,
+    /// It reads the reference strand.
+    pub forward: bool,
+    /// Its mixtures.
+    pub mixtures: Vec<MixtureCalls>,
 }
 
 /// One item of a sample's review list that a reviewer must look at: a

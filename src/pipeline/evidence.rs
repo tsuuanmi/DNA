@@ -47,6 +47,7 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         callability,
         quality,
         second,
+        mixtures,
         ..
     } = read_processing::process(&inputs.trace, &inputs.config.sanger)?;
     let stage = tracing::info_span!("read_evidence").entered();
@@ -56,6 +57,7 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         &callability,
         &quality,
         &second,
+        &mixtures,
         &inputs.config.sanger.sanger_evidence,
     )?;
     drop(stage);

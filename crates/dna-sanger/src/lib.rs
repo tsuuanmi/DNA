@@ -7,6 +7,7 @@
 pub mod abif;
 pub mod basecalling;
 pub mod callability;
+pub mod decompose;
 pub mod error;
 pub mod locus;
 pub mod model;

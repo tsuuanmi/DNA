@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 16
+schema_version = 17
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -41,6 +41,11 @@ second_cause_noise_ratio = 3.0
 second_cause_tail_offset = 0.4
 second_cause_blob_width = 1.8
 second_cause_width_calls = 6
+# A dephased segment after a repeat run is fitted as the read's own sequence
+# mixed with copies offset by whole calls (SRS-CALL-023). A call of it is
+# unexplained when its residual exceeds this nearest-rank quantile of the
+# residuals of the read's own in-phase calls.
+decompose_unexplained_quantile = 0.99
 
 [callability]
 # Signal-derived read callability (ADR-0067): rolling window of calls, the
