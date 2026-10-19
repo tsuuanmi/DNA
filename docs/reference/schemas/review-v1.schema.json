@@ -717,6 +717,7 @@
                       "in_phase",
                       "anchored_end",
                       "confirmed_end",
+                      "dominant_component",
                       "phase_loss",
                       "reference_frame",
                       null

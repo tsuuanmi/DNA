@@ -47,6 +47,12 @@ pub enum RunEvidence {
     /// number of calls: each read's count stands for the end the other read
     /// cannot show.
     ConfirmedEnd,
+    /// No read shows both ends and no two reads confirm them, but reads that
+    /// enter the run in phase lose phase at its other end on a masked call
+    /// that an explained phase mixture of the read shows as another base
+    /// (ADR-0084), and they agree on its length: each read's count stands
+    /// for the end its mixture's dominant component shows.
+    DominantComponent,
     /// No read shows both ends, but reads locate each end on the reference
     /// and read every base between them cleanly: the length is the number of
     /// reference positions between those ends. It assumes no length change
@@ -63,6 +69,7 @@ impl RunEvidence {
             Self::AnchoredEnd => "anchored_end",
             Self::PhaseLoss => "phase_loss",
             Self::ConfirmedEnd => "confirmed_end",
+            Self::DominantComponent => "dominant_component",
             Self::ReferenceFrame => "reference_frame",
         }
     }

@@ -167,6 +167,16 @@ fn component_sequence(
     Some((sequence, stretch))
 }
 
+/// The calls of `mixture`'s tract and stretch in `read` (ADR-0082): from the
+/// first call of the tract its opening run closes (see the span of
+/// [`ComponentCall`]) to the stretch's end. The components show these calls'
+/// sequence.
+#[must_use]
+pub fn mixture_calls(read: &ReadEvidence, mixture: &PhaseMixture) -> Range<usize> {
+    let start = read.informative().start.min(mixture.call_start);
+    tract_start(read, mixture.call_start, start)..mixture.call_end
+}
+
 /// The first call of the tract the run at `run_start` closes: that run and
 /// the runs of its base, two calls or more, one other call apart before it
 /// in read order (`C6 T` before `C9` read from the 3' end), no earlier than

@@ -67,6 +67,10 @@ pub(super) struct Char {
     /// The modality vouches for the call's base only: it neither counts
     /// towards a run nor shows a run's end.
     pub(super) base_only: bool,
+    /// The call lies in the tract or stretch of an explained phase mixture
+    /// of its read (ADR-0082): the mixture's dominant component shows its
+    /// base even where the call is masked.
+    pub(super) dominant: bool,
 }
 
 impl Char {
@@ -188,6 +192,15 @@ pub(super) fn observe(
         trusted_call(index) && calls.get(index).is_some_and(|call| !call.base_only())
     };
     let interval = read.evidence.informative();
+    // Calls an explained phase mixture's dominant component shows.
+    let dominant = read
+        .evidence
+        .mixtures()
+        .iter()
+        .filter(|mixture| mixture.explained)
+        .map(|mixture| dna_call::components::mixture_calls(&read.evidence, mixture))
+        .collect::<Vec<_>>();
+    let shown = |call: usize| dominant.iter().any(|calls| calls.contains(&call));
     // A base aligned to `position`, or inserted when it is `None`.
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
@@ -205,6 +218,7 @@ pub(super) fn observe(
         position,
         beside_unresolved: false,
         base_only: calls.get(call).is_some_and(CallEvidence::base_only),
+        dominant: canonical(base) && shown(call),
     };
     let columns = read.alignment.columns();
     // A call vouched for by its base only that may sit one position off.
@@ -518,6 +532,7 @@ impl ReadObservations {
                     position: Some(position),
                     beside_unresolved: false,
                     base_only: false,
+                    dominant: false,
                 });
             }
             chars.extend(observation.chars.iter().copied());

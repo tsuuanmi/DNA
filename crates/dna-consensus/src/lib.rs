@@ -627,6 +627,10 @@ struct RunView {
     /// Bases of the calls just before and after the run, masked or not.
     left_base: Option<char>,
     right_base: Option<char>,
+    /// The calls just before and after the run lie in an explained phase
+    /// mixture of the read, whose dominant component shows their bases.
+    left_dominant: bool,
+    right_dominant: bool,
     /// Reference positions of the run's clean calls.
     clean_at: Vec<usize>,
 }
@@ -773,6 +777,8 @@ fn read_runs<'a>(
                 right_at: after.and_then(|char| char.position),
                 left_base: before.map(|char| char.base),
                 right_base: after.map(|char| char.base),
+                left_dominant: before.is_some_and(|char| char.dominant),
+                right_dominant: after.is_some_and(|char| char.dominant),
                 clean_at: group
                     .iter()
                     .filter(|char| char.clean())
@@ -1208,6 +1214,38 @@ fn decide_stretch(
             })
             .collect::<Vec<_>>();
         let bound = bounds.iter().map(|(_, length)| *length).max();
+        // Otherwise the length that reads entering the run in phase count up
+        // to an exit their explained phase mixture shows as another base
+        // (ADR-0084), when they agree and no read reads a longer run in phase.
+        let dominant = mapped
+            .iter()
+            .filter_map(|(name, views)| {
+                let view = &views.iter().find(|(mapped, _)| *mapped == index)?.1;
+                let other = |beyond: Option<char>| beyond.is_some_and(|beyond| beyond != view.base);
+                let from_left = view.left == End::InPhase
+                    && view.right == End::PhaseLoss
+                    && view.right_dominant
+                    && other(view.right_base);
+                let from_right = view.right == End::InPhase
+                    && view.left == End::PhaseLoss
+                    && view.left_dominant
+                    && other(view.left_base);
+                (view.counted && (from_left || from_right)).then_some((*name, view.length))
+            })
+            .collect::<Vec<_>>();
+        let shown = dominant
+            .iter()
+            .map(|(_, length)| *length)
+            .collect::<BTreeSet<_>>();
+        if let [length] = shown.into_iter().collect::<Vec<_>>()[..]
+            && bound.is_none_or(|bound| bound <= length)
+        {
+            decision.value = Some(base.to_string().repeat(length));
+            decision.state = SiteState::Called;
+            decision.supporting = dominant.iter().map(|(name, _)| (*name).to_owned()).collect();
+            *evidence = RunEvidence::DominantComponent;
+            continue;
+        }
         let (length, source) = match (reference_frame(&mapped, index), bound) {
             (Some(frame), _) => (frame, RunEvidence::ReferenceFrame),
             (None, Some(bound)) => (bound, RunEvidence::PhaseLoss),
@@ -1672,7 +1710,10 @@ fn assemble(
             match run.evidence {
                 RunEvidence::ReferenceFrame => summary.reference_frame_runs += 1,
                 RunEvidence::PhaseLoss => summary.phase_loss_runs += 1,
-                RunEvidence::InPhase | RunEvidence::AnchoredEnd | RunEvidence::ConfirmedEnd => {}
+                RunEvidence::InPhase
+                | RunEvidence::AnchoredEnd
+                | RunEvidence::ConfirmedEnd
+                | RunEvidence::DominantComponent => {}
             }
         }
         match decision.state {
@@ -2446,6 +2487,7 @@ mod tests {
                 position,
                 beside_unresolved: false,
                 base_only: false,
+                dominant: false,
             }
         };
         let mut positions = BTreeMap::new();

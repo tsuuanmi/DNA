@@ -109,6 +109,7 @@ fn evidence(label: &str) -> Option<RunEvidence> {
         RunEvidence::AnchoredEnd,
         RunEvidence::PhaseLoss,
         RunEvidence::ConfirmedEnd,
+        RunEvidence::DominantComponent,
         RunEvidence::ReferenceFrame,
     ]
     .into_iter()
