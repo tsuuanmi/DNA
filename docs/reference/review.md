@@ -141,7 +141,16 @@ them). It has:
   - `quality`: the call's relative quality score (`null` for a deletion);
   - `second`: the call's second base on the reference strand and its peak
     `share` (SRS-CALL-015), rounded to three decimals; `null` without a second
-    peak or for an unresolved base.
+    peak or for an unresolved base. When the share passes
+    `signal_processing.second_floor`, or the call is masked as mixed, it also
+    carries `cause` (rules version 12): why the call shows a second peak,
+    read from the signal (SRS-CALL-021): `noise` (near the noise floor),
+    `neighbour_tail` (the tail of a neighbouring peak of that base),
+    `off_centre`, `dye_blob` (a broad single-dye peak), `phase_shift` (the
+    base of the previous or next call, centred), `second_template` (none of
+    these), or `mixed_stretch` (masked mixed with a small own second). With
+    `--signal`, a `second_template` whose share its key's run level holds is
+    `context`: the run's reads show it there too (SRS-CALL-020).
 
 Items come from three sources:
 
@@ -173,7 +182,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
 
-## Labels (rules version 11)
+## Labels (rules version 12)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's

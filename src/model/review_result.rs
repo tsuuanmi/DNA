@@ -290,6 +290,10 @@ pub(crate) enum ScopeResult {
 pub(crate) struct SecondResult {
     pub(crate) base: char,
     pub(crate) share: f64,
+    /// Why the call shows a second peak, from its signal: the modality's
+    /// cause, refined by the run signal when one is given.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cause: Option<&'static str>,
 }
 
 /// Counts over the items.
