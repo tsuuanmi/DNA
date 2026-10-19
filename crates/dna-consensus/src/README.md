@@ -43,7 +43,8 @@ behind every non-trivial decision.
   Each stretch is decided by its run structure (ADR-0074): composition, then
   lengths with their evidence (`in_phase`, `anchored_end`, `confirmed_end`,
   `phase_loss`, `reference_frame`), or position by position. Reference
-  confirmations are withdrawn where a second sequence may hide or beside a
+  confirmations are withdrawn where a second sequence may hide (an
+  unexplained second on the other strand alone hides none) or beside a
   differing site, and dissent from a reference decision that a clean read of
   the other strand contradicts is set aside, with the positions decided
   again (SRS-CONS-010, SRS-CONS-011).

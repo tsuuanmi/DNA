@@ -447,6 +447,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- An unexplained second peak on one strand alone no longer withdraws a
+  reference confirmation made by a read of the other strand (SRS-CONS-010,
+  ADR-0080): it still does on the confirming strand, where the read's second
+  base does not stand out, or where a read of the confirming strand shows
+  that second base standing out too. On panel v5, unreviewed and non-het are
+  unchanged in every period, no status changes, and 156 samples become clear
+  (current 71.00 -> 71.39 %, 2025-08..11 48.59 -> 52.15 %, older 69.41 ->
+  70.01 %). Plugin `consensus` 14.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's

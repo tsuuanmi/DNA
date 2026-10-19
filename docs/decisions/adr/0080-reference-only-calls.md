@@ -109,6 +109,35 @@ period; clear samples 68.7 → 70.2 % on current data, 47.4 → 47.7 % in
 2025-08..11, and 67.2 → 68.5 % older; no strict or `haplotype_lod` changes.
 Plugins `sanger` 12 and `consensus` 12.
 
+### One-strand unexplained seconds
+
+Amended 2026-10-19. Rule 2 withdrew a confirmation wherever any read showed
+an unexplained second peak. It now applies to a read of the confirming
+call's strand as before. A read of the other strand withdraws it only when
+its second base does not stand out, or when a read of the confirming strand
+shows that second base standing out too. The other-strand guard on the
+confirming call's own second base is unchanged. This narrows rule 2 and
+the last of the consequences below.
+
+An unexplained second on one strand alone is not the two-strand signature
+of heteroplasmy the guard exists for. The strand that confirms reads its
+base cleanly, apart from an explained artefact. A second on the confirming
+strand still hides the confirmation: at 2563003 152 (a `Y` heteroplasmy) the
+HV1F tail confirms C while HV2F, of the same strand, shows an unexplained C,
+and the position stays undecided.
+
+Measured on development panel v5 against `main` 20fc7ca:
+
+| Period | Unreviewed | Non-het | Clear |
+|---|---|---|---|
+| current | 440 → 440 | 94 → 94 | 71.00 → 71.39 % (+42) |
+| 2025-08..11 | 151 → 151 | 51 → 51 | 48.59 → 52.15 % (+96) |
+| older | 174 → 174 | 84 → 84 | 69.41 → 70.01 % (+18) |
+
+No status changes; 761 positions decided more, none fewer. One sample whose
+only check was the undecided position becomes clear with its existing
+unreviewed `309` length difference. Plugin `consensus` 14.
+
 ## Alternatives
 
 - **Lift the veto by cause in the modality.** This gave the largest gain and
