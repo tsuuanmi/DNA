@@ -309,9 +309,15 @@ impl ReadRuns<'_> {
             }
             run
         };
+        // A clean start or end that holds every run of the composition while
+        // the read reads further runs over the stretch places a run end of
+        // the composition inside the stretch: it does not show this
+        // composition, and maps nothing.
+        let covers = |edge: usize| edge == bases.len() && self.runs.len() > edge;
         let mut mapped = Vec::new();
         let prefix = &self.runs[..self.prefix];
         if prefix.len() <= bases.len()
+            && !covers(prefix.len())
             && prefix
                 .iter()
                 .zip(&bases)
@@ -321,6 +327,7 @@ impl ReadRuns<'_> {
         }
         let suffix = &self.runs[self.runs.len() - self.suffix..];
         if let Some(offset) = bases.len().checked_sub(suffix.len())
+            && !covers(suffix.len())
             && suffix
                 .iter()
                 .zip(&bases[offset..])
@@ -1325,7 +1332,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 9,
+    version: 10,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -1929,6 +1936,30 @@ mod tests {
         );
         let decision = decide_stretch(&[going_on, reverse], 7, 16, TRACT.as_bytes());
         assert_eq!(decision.runs, [run('C', 10, RunEvidence::ReferenceFrame)]);
+    }
+
+    #[test]
+    fn a_clean_end_holding_every_run_does_not_stand_for_a_read_with_more_runs() {
+        // The tract CCCCC T CCCC (7-16). One read shows its run structure
+        // with its C run masked. Another reads C at 7 and T at 11 unclean,
+        // a C inserted after 11, then T and CCCC cleanly: its clean end, C T
+        // CCCC, has the composition's runs, but the read reads two more runs
+        // before them, so it shows neither where the first C run starts nor
+        // its length.
+        let structured = rows("s", 0, TRACT, TRACT, "cccccccmmmmmcccccccc");
+        let longer = rows(
+            "l",
+            0,
+            "GTCAAAACCCCC-TCCCCATG",
+            "GTCAAAACCCCTCTCCCCATG",
+            "cccccccvcccvccccccccc",
+        );
+        let decision = decide_stretch(&[structured, longer], 7, 16, TRACT.as_bytes());
+        assert_ne!(decision.value.as_deref(), Some("CTCCCC"));
+        assert!(
+            decision.runs.first().is_none_or(|run| run.length != 1),
+            "{decision:?}"
+        );
     }
 
     #[test]
