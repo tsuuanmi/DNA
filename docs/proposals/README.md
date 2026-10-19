@@ -24,6 +24,7 @@ Accepted/Implemented -> Superseded
 - [PROP-0008 — One responsibility per pipeline step](0008-pipeline-responsibilities.md) — **Accepted**; the modality decides trust as per-call verdicts, the core asserts only what a placed read shows whole, the consensus votes stretch sequences on bounded reads, and the core splits into align, call, sample, and consensus crates.
 - [PROP-0009 — Run signal for second-channel judgement](0009-run-signal.md) — **Draft**; the Sanger mixed verdict and `possible_heteroplasmy` judge a second channel against the level its own run shows, keyed by the read's own 5-mer context, given as a recorded `dna.signal/v1` input from the Sanger signal processing; fixed thresholds stay the fallback.
 - [PROP-0010 — Decompose a length mixture into its sequences](0010-length-mixture-decomposition.md) — **Draft**; after a repeat run with length heteroplasmy, the Sanger plugin decomposes the dephased stretch into the read's own sequence at offsets with fractions, each component is compared with the reference, and the consensus decides a run's dominant length where both strands agree.
+- [PROP-0011 — A contract at every step](0011-step-contracts.md) — **Accepted**; every crate's output is a versioned, schema-validated contract producible on its own (`dna.read_evidence/v1` for the modality → core boundary, `dna.analysis/v10` with per-call trust and component calls, schemas for the evaluation outputs), with a crate → contract → command map, so a wrong result is traced to the step that produced it.
 
 ## Implemented proposals
 
