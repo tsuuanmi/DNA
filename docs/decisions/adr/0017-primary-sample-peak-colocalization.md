@@ -12,7 +12,7 @@ date: 2026-09-07
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- _Not yet referenced by a current document._
+- **Governs:** [design/basecalling](../../design/basecalling.md), [requirements/basecalling](../../requirements/basecalling.md)
 <!-- docs:end backlinks -->
 
 ## Context

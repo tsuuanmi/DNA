@@ -1,5 +1,6 @@
 ---
 implements: [SRS-CALL]
+decided-by: [ADR-0017]
 ---
 
 # DNA-derived Base Re-calling Requirements

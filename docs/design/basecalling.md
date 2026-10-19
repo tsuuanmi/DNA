@@ -1,7 +1,7 @@
 ---
 implements: [SRS-BC]
 covers: [crates/dna-sanger/src/basecalling/, crates/dna-sanger/src/model/basecalls.rs]
-decided-by: [ADR-0015]
+decided-by: [ADR-0015, ADR-0017]
 ---
 
 # Basecalling Method
