@@ -136,6 +136,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
@@ -162,6 +163,19 @@ jobs:
       - name: Validate documentation structure
         working-directory: tools/python
         run: uv run python scripts/validate_docs_structure.py
+      - name: Validate documentation graph
+        working-directory: tools/python
+        run: uv run python scripts/docs_graph.py check
+      - name: Check generated documentation is current
+        working-directory: tools/python
+        run: uv run python scripts/docs_graph.py sync --check
+      - name: Check documentation impact
+        if: github.event_name == 'pull_request'
+        working-directory: tools/python
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          DOCS_WAIVERS: ${{ github.event.pull_request.body }}
+        run: uv run python scripts/docs_graph.py impact "$BASE_REF"
       - name: Ruff format
         working-directory: tools/python
         run: uv run ruff format --check scripts tests

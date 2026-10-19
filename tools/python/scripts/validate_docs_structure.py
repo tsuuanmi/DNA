@@ -1,20 +1,17 @@
 import re
 from pathlib import Path
 
+from docs_graph import load_profile
+
 ROOT = Path(__file__).resolve().parents[3]
 DOCS = ROOT / "docs"
-# Source trees: the facade crate at the root and every workspace member crate.
-SOURCES = [ROOT / "src", *sorted(ROOT.glob("crates/*/src"))]
-FORBIDDEN_NAMES = {
-    "archive",
-    "archives",
-    "deprecated",
-    "history",
-    "legacy",
-    "old",
-    "temp",
-    "temporary",
-}
+PROFILE = load_profile(ROOT)
+# Source trees and forbidden names come from the repository profile
+# (docs/governance/documentation.md); this script enforces DOC-STR-* and DOC-LNK-001.
+SOURCES = [
+    path for pattern in PROFILE.source_roots for path in sorted(ROOT.glob(pattern))
+]
+FORBIDDEN_NAMES = set(PROFILE.forbidden_names)
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 

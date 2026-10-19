@@ -245,6 +245,8 @@ uv run python -m unittest discover -s tests -p 'test_*.py'
 uv run python scripts/validate_result_schemas.py
 uv run python scripts/validate_rust_source_policy.py
 uv run python scripts/validate_docs_structure.py
+uv run python scripts/docs_graph.py check
+uv run python scripts/docs_graph.py sync --check
 uv run python scripts/validate_module_layers.py
 uv run python scripts/validate_workflow_policy.py
 ```
