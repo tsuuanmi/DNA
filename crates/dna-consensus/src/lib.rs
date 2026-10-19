@@ -1724,6 +1724,54 @@ mod tests {
     }
 
     #[test]
+    fn no_masked_call_places_a_substitution_or_an_indel()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // A substitution (A14T), an insertion (a G after 14), and a deletion
+        // (of 14), each read only through masked calls, anchoring or
+        // unresolved: a masked call shows at most a run's end (ADR-0071), so
+        // none is decided, beside a reference read or alone.
+        let substituted = "TTGACGTCAGTACGTTCGTACCTGAGTACGAGGACT";
+        let inserted = "TTGACGTCAGTACGAGTCGTACCTGAGTACGAGGACT";
+        let deleted = "TTGACGTCAGTACGTCGTACCTGAGTACGAGGACT";
+        let cases: [(&str, &[usize]); 3] = [
+            (substituted, &[14]),
+            (inserted, &[15]),
+            (deleted, &[13, 14]),
+        ];
+        let plain = placed("p", REFERENCE, &[])?;
+        for (sequence, masked) in cases {
+            for read in [
+                placed("v", sequence, masked)?,
+                placed_with("v", sequence, &[], masked)?,
+            ] {
+                let both = build(
+                    &[&read, &plain],
+                    &reference(),
+                    &config()?,
+                    &config::tests::config(),
+                );
+                assert_eq!(both.segments[0].sequence, REFERENCE);
+                let alone = build(&[&read], &reference(), &config()?, &config::tests::config());
+                // Every segment reads its reference interval, or `N`.
+                for segment in &alone.segments {
+                    let expected = &REFERENCE[segment.start_0based..=segment.end_0based];
+                    assert_eq!(segment.sequence.len(), expected.len(), "{sequence}");
+                    assert!(
+                        segment
+                            .sequence
+                            .chars()
+                            .zip(expected.chars())
+                            .all(|(call, reference)| call == reference || call == 'N'),
+                        "{sequence} gave {}",
+                        segment.sequence
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn an_insertion_into_a_run_the_read_does_not_bound_never_decides()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         // A C inserted into the CC run at 20-21; the A before the run is call 19.

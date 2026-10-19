@@ -157,7 +157,10 @@ The core caller does not read callability directly. The Sanger adapter
   vouched for by its base only (SRS-CALL-014). A read's start is noisy, and
   its masked stretch only ends where a whole window is clean, so such calls
   are masked with their noisy neighbours; on development panel v5 they read
-  the reviewers' base at 1,650 of 1,650 truth variants;
+  the reviewers' base at 1,650 of 1,650 truth variants. A call masked after a
+  repeat run (`post_homopolymer`) is a dephased tail, not start noise, and
+  stays masked: no base comes from a dephased tail (on development panel v5
+  that changed no output);
 - at an end of the informative interval, a scored call at a signal edge whose
   own signal is unambiguous has its verdict on its base taken off the edge
   (SRS-CALL-017), within `edge_identity_margin` calls of that end: one

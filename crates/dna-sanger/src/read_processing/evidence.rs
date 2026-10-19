@@ -315,7 +315,8 @@ fn primary_height(call: &crate::model::basecalls::BaseCall) -> Option<i32> {
 /// noise its masked stretch only leaves where a whole window is clean, so
 /// strong, unambiguous calls inside that stretch are masked with it; the
 /// rule judges each call against the read itself, never a position. Such a
-/// call shows its base only, not a run's length or end.
+/// call shows its base only, not a run's length or end. A call masked after a
+/// repeat run is the read's dephased tail, not start noise, and stays masked.
 fn leading_identity(
     calls: &BaseCalls,
     callability: &ReadCallability,
@@ -334,7 +335,10 @@ fn leading_identity(
     (0..start)
         .filter(|&index| {
             let call = &calls.calls[index];
-            callability.mask.get(index).copied().flatten().is_some()
+            // A masked call, never one where the read loses phase after a
+            // repeat run: that is the dephased tail, not start noise.
+            placement(callability, index)
+                .is_some_and(|placement| placement.reason() != Some(POST_HOMOPOLYMER))
                 && call.qualifying_channels.len() == 1
                 && primary_height(call).is_some_and(|height| {
                     f64::from(height) >= config.leading_height_fraction * f64::from(median)
@@ -930,6 +934,13 @@ mod tests {
         // Every other call keeps the edge it had before: call 4 sits next to
         // the trim start.
         assert!(evidence.calls()[4].identity.edge && !evidence.calls()[5].identity.edge);
+        // Masked after a repeat run, the stretch is a dephased tail, not start
+        // noise: no call of it is vouched for.
+        callability.segments[0].after_repeat = true;
+        let evidence = read_evidence(&calls, &signal, &callability, &quality, &config(1))?;
+        assert!(evidence.calls()[..4].iter().all(|call| {
+            call.placement == Placement::Unresolved(POST_HOMOPOLYMER) && !call.base_only()
+        }));
         Ok(())
     }
 
