@@ -63,9 +63,18 @@ pub fn build(
     withdraw_beside_observed_differences(&mut observed, bases);
     withdraw_unobserved_run_junctions(&mut observed, bases, consensus_config.seeded_run);
     let mut decided = decide_positions(&observed, bases, consensus_config.seeded_run);
-    // Deciding again can move a differing site beside another confirmation:
-    // each pass withdraws at least one, so this ends.
-    while withdraw_near_differences(&mut observed, &decided, bases) {
+    // Deciding again can move a differing site beside another confirmation,
+    // or leave a reference decision with dissent to set aside: each pass
+    // withdraws at least one clean observation, so this ends.
+    while withdraw_near_differences(&mut observed, &decided, bases)
+        | set_aside_dissent(
+            &mut observed,
+            &decided,
+            bases,
+            config.variant_calling.read_end_margin,
+            consensus_config.dissent_edge,
+        )
+    {
         decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     }
     let reference_only = confirmed_only(&observed);
@@ -313,6 +322,151 @@ fn withdraw_near_differences(
             if observation.confirms && differing.iter().any(|near| near.contains(position)) {
                 withdraw(observation);
                 withdrawn = true;
+            }
+        }
+    }
+    withdrawn
+}
+
+/// Sets aside the dissent from a reference decision that a read of the other
+/// strand contradicts (SRS-CONS-011). At a site or stretch decided as the
+/// reference, the reads opposing it are set aside, their observations there
+/// withdrawn, when every one of them is on a strand other than a supporting
+/// read's that observes every position cleanly, shows no second base
+/// standing out there, and lies far enough from its own ends, and either:
+///
+/// - every opposing read shows a second base standing out there and no
+///   second peak its modality leaves unexplained, and the supporting read
+///   lies at least `margin` calls from its ends; or
+/// - every opposing read differs only by an insertion or deletion within
+///   `dissent_edge` calls of its own ends, and the supporting read lies at
+///   least `dissent_edge` calls from its ends.
+///
+/// A set-aside read shows nothing there and no longer opposes the decision,
+/// which keeps its value. Whether any was set aside.
+fn set_aside_dissent(
+    observed: &mut [ReadObservations],
+    decided: &BTreeMap<usize, (usize, Decision)>,
+    bases: &[u8],
+    margin: usize,
+    dissent_edge: usize,
+) -> bool {
+    let length = bases.len();
+    let mut aside = Vec::new();
+    for (&first, (last, decision)) in decided {
+        let last = *last;
+        if decision.opposing.is_empty() || first > last {
+            continue;
+        }
+        let reference = bases[first..=last]
+            .iter()
+            .map(|&base| char::from(base))
+            .collect::<String>();
+        if decision.value.as_deref() != Some(reference.as_str()) {
+            continue;
+        }
+        let index = |name: &String| observed.iter().position(|read| &read.name == name);
+        let opposing = decision
+            .opposing
+            .iter()
+            .filter_map(index)
+            .collect::<Vec<_>>();
+        let supporting = decision
+            .supporting
+            .iter()
+            .filter_map(index)
+            .collect::<Vec<_>>();
+        if opposing.len() != decision.opposing.len() {
+            continue;
+        }
+        let positions = || first..=last;
+        // The junctions inside the site and at its two edges.
+        let junctions = || std::iter::once((first + length - 1) % length).chain(positions());
+        let anchored = |needed: usize| {
+            supporting.iter().any(|&read| {
+                let read = &observed[read];
+                opposing
+                    .iter()
+                    .all(|&other| observed[other].forward != read.forward)
+                    && positions().all(|position| {
+                        read.positions
+                            .get(&position)
+                            .is_some_and(|observation| observation.clean && !observation.confirms)
+                            && !read.seconds.contains_key(&position)
+                            && read
+                                .edges
+                                .get(&position)
+                                .is_some_and(|&edge| edge >= needed)
+                    })
+            })
+        };
+        let explained = |read: &ReadObservations| {
+            positions().any(|position| read.seconds.contains_key(&position))
+                && !positions().any(|position| read.unexplained.contains(&position))
+        };
+        let indel_near_end = |read: &ReadObservations| {
+            let mut indels = Vec::new();
+            for position in positions() {
+                match read
+                    .positions
+                    .get(&position)
+                    .map(|observation| &observation.value)
+                {
+                    Some(SiteValue::Deletion) => indels.push(position),
+                    Some(SiteValue::Base(base)) if *base != char::from(bases[position]) => {
+                        return false;
+                    }
+                    _ => {}
+                }
+            }
+            for junction in junctions() {
+                if read.junctions.get(&junction).is_some_and(|observation| {
+                    matches!(&observation.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
+                }) {
+                    indels.push(junction);
+                }
+            }
+            !indels.is_empty()
+                && indels.iter().all(|position| {
+                    read.edges
+                        .get(position)
+                        .is_some_and(|&edge| edge < dissent_edge)
+                })
+        };
+        let artefact = opposing.iter().all(|&read| explained(&observed[read])) && anchored(margin);
+        let edge_indel =
+            opposing.iter().all(|&read| indel_near_end(&observed[read])) && anchored(dissent_edge);
+        if artefact || edge_indel {
+            aside.extend(opposing.into_iter().map(|read| (read, first, last)));
+        }
+    }
+    // A set-aside read shows nothing at the site: neither a base nor, inside
+    // a stretch, a run's length or end.
+    let mut withdrawn = false;
+    let mut set_aside = |observation: &mut Observation| {
+        if observation.clean
+            || observation
+                .chars
+                .iter()
+                .any(|char| char.trust > Trust::Nothing)
+        {
+            withdraw(observation);
+            for char in &mut observation.chars {
+                char.trust = Trust::Nothing;
+            }
+            withdrawn = true;
+        }
+    };
+    for (read, first, last) in aside {
+        let read = &mut observed[read];
+        for position in first..=last {
+            if let Some(observation) = read.positions.get_mut(&position) {
+                set_aside(observation);
+            }
+        }
+        for junction in std::iter::once((first + length - 1) % length).chain(first..=last) {
+            if let Some(observation) = read.junctions.get_mut(&junction) {
+                set_aside(observation);
             }
         }
     }
@@ -1577,7 +1731,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 12,
+    version: 13,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2341,10 +2495,130 @@ mod tests {
             forward: true,
             seconds: BTreeMap::new(),
             unexplained: BTreeSet::new(),
+            edges: BTreeMap::new(),
             name: name.into(),
             positions,
             junctions,
         }
+    }
+
+    /// A forward read of the reference and a reverse read that differs at 4,
+    /// both `edge` calls from their ends everywhere.
+    fn dissent(reverse: &str, kinds: &str, edge: usize) -> Vec<ReadObservations> {
+        const SHORT: &str = "ACGTACGTAC";
+        let mut forward = rows("f", 0, SHORT, SHORT, "cccccccccc");
+        let mut opposing = rows("r", 0, SHORT, reverse, kinds);
+        opposing.forward = false;
+        for read in [&mut forward, &mut opposing] {
+            read.edges = (0..SHORT.len()).map(|position| (position, edge)).collect();
+        }
+        vec![forward, opposing]
+    }
+
+    /// The decision of the site or stretch holding `position`.
+    fn decided_at(observed: &[ReadObservations], position: usize) -> Decision {
+        let decided = decide_positions(observed, b"ACGTACGTAC", 4);
+        decided
+            .range(..=position)
+            .next_back()
+            .map_or_else(|| decide(&[], "A"), |(_, (_, decision))| decision.clone())
+    }
+
+    // SRS-CONS-011
+    #[test]
+    fn an_explained_second_on_the_other_strand_is_set_aside() {
+        let mut observed = dissent("ACGTTCGTAC", "cccccccccc", 50);
+        assert_eq!(decided_at(&observed, 4).opposing, ["r"]);
+        // Its second base stands out, and the modality explains its peak.
+        observed[1].seconds.insert(4, 'A');
+        let decided = decide_positions(&observed, b"ACGTACGTAC", 4);
+        let mut unexplained = observed.clone();
+        unexplained[1].unexplained.insert(4);
+        assert!(!set_aside_dissent(
+            &mut unexplained,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        let mut same_strand = observed.clone();
+        same_strand[1].forward = true;
+        assert!(!set_aside_dissent(
+            &mut same_strand,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        let mut near_end = observed.clone();
+        near_end[0].edges.insert(4, 11);
+        assert!(!set_aside_dissent(
+            &mut near_end,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        assert!(set_aside_dissent(
+            &mut observed,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        // Set aside, the read shows nothing at the stretch its substitution
+        // made, and the position is decided alone.
+        let after = decided_at(&observed, 4);
+        assert_eq!(after.value.as_deref(), Some("A"));
+        assert_eq!(after.state, SiteState::Called);
+        assert!(after.opposing.is_empty());
+    }
+
+    // SRS-CONS-011
+    #[test]
+    fn an_indel_near_its_read_end_is_set_aside() {
+        let near = dissent("ACGT-CGTAC", "cccccccccc", 50);
+        let decided = decide_positions(&near, b"ACGTACGTAC", 4);
+        assert_eq!(decided_at(&near, 4).opposing, ["r"]);
+        // Far from its ends, the deletion stands.
+        assert!(!set_aside_dissent(
+            &mut near.clone(),
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        let mut close = near.clone();
+        close[1].edges.insert(4, 5);
+        // The supporting read must itself lie that far from its ends.
+        let mut short = close.clone();
+        short[0].edges.insert(4, 39);
+        assert!(!set_aside_dissent(
+            &mut short,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        assert!(set_aside_dissent(
+            &mut close,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
+        assert!(decided_at(&close, 4).opposing.is_empty());
+        // A substitution near the end is no indel.
+        let mut substituted = dissent("ACGTTCGTAC", "cccccccccc", 50);
+        substituted[1].edges.insert(4, 5);
+        let decided = decide_positions(&substituted, b"ACGTACGTAC", 4);
+        assert!(!set_aside_dissent(
+            &mut substituted,
+            &decided,
+            b"ACGTACGTAC",
+            12,
+            40
+        ));
     }
 
     fn run(base: char, length: usize, evidence: RunEvidence) -> ConsensusRun {
