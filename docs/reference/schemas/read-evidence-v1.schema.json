@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:read_evidence:v1",
+  "title": "DNA read evidence v1",
+  "description": "One read's evidence exactly as the modality hands it to the core (ADR-0069, PROP-0011): per-call verdicts of the kernel contract, with the Sanger signal each rests on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provenance",
+    "read",
+    "calls"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.read_evidence/v1"
+    },
+    "provenance": {
+      "$ref": "urn:signal:schema:basecalls:v3#/$defs/provenance"
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_count",
+        "informative",
+        "ends",
+        "reasons",
+        "callability"
+      ],
+      "properties": {
+        "call_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "informative": {
+          "description": "The calls the modality retains, 0-based half-open call indices.",
+          "$ref": "urn:signal:schema:basecalls:v3#/$defs/interval"
+        },
+        "ends": {
+          "enum": [
+            "unvouched",
+            "vouched"
+          ]
+        },
+        "reasons": {
+          "description": "The modality's reason labels in the order the core reports them.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reason"
+          }
+        },
+        "callability": {
+          "$ref": "urn:signal:schema:basecalls:v3#/$defs/callability"
+        }
+      }
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/call"
+      }
+    }
+  },
+  "$defs": {
+    "reason": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge",
+        "withheld"
+      ],
+      "properties": {
+        "edge": {
+          "type": "boolean"
+        },
+        "withheld": {
+          "description": "The modality's reasons against this use, verbatim, in the order raised; every one is listed in read.reasons.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reason"
+          }
+        }
+      }
+    },
+    "call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "base",
+        "placement",
+        "identity",
+        "indel",
+        "bound",
+        "post_repeat",
+        "second_unexplained",
+        "reference_only",
+        "signal"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "base": {
+          "type": "string",
+          "enum": [
+            "A",
+            "C",
+            "G",
+            "T",
+            "N"
+          ]
+        },
+        "profile": {
+          "description": "Basecall-independent A/C/G/T weights summing to one, when the call has signal.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "placement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "scored",
+                "anchoring",
+                "unresolved"
+              ]
+            },
+            "reason": {
+              "$ref": "#/$defs/reason"
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "scored"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "reason"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        "identity": {
+          "$ref": "#/$defs/verdict"
+        },
+        "indel": {
+          "$ref": "#/$defs/verdict"
+        },
+        "bound": {
+          "enum": [
+            "in_phase",
+            "anchored",
+            "withheld"
+          ]
+        },
+        "post_repeat": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "call",
+            "bound"
+          ],
+          "properties": {
+            "call": {
+              "type": "boolean"
+            },
+            "bound": {
+              "type": "boolean"
+            }
+          }
+        },
+        "second": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "base",
+            "share",
+            "stands_out"
+          ],
+          "properties": {
+            "base": {
+              "enum": [
+                "A",
+                "C",
+                "G",
+                "T"
+              ]
+            },
+            "share": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "stands_out": {
+              "type": "boolean"
+            }
+          }
+        },
+        "second_unexplained": {
+          "type": "boolean"
+        },
+        "reference_only": {
+          "type": "boolean"
+        },
+        "signal": {
+          "description": "The Sanger signal the verdicts rest on: the trace sample of the call's locus, its strongest channel peak, its relative quality, and the cause of its second peak (SRS-CALL-021).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scan",
+            "height",
+            "relative_quality"
+          ],
+          "properties": {
+            "scan": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "relative_quality": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "cause": {
+              "enum": [
+                "noise",
+                "neighbour_tail",
+                "off_centre",
+                "dye_blob",
+                "phase_shift",
+                "second_template",
+                "mixed_stretch"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

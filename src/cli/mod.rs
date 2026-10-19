@@ -35,6 +35,8 @@ pub enum Command {
     Analyze(AnalyzeArgs),
     /// Re-call and quality-trim one AB1 trace without a reference.
     Basecall(BasecallArgs),
+    /// Write one AB1 trace's per-call evidence as the core receives it, without a reference.
+    Evidence(BasecallArgs),
     /// Aggregate independently analyzed AB1 traces into sample evidence.
     Sample(SampleArgs),
     /// Adjudicate a sample's AB1 traces into a consensus sequence.

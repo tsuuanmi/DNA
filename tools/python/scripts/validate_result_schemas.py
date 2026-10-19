@@ -30,6 +30,8 @@ REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
 SIGNAL_SCHEMA = CONTRACTS / "schemas" / "signal-v1.schema.json"
 SIGNAL_EXAMPLE = CONTRACTS / "examples" / "signal-v1.example.json"
+EVIDENCE_SCHEMA = CONTRACTS / "schemas" / "read-evidence-v1.schema.json"
+EVIDENCE_EXAMPLE = CONTRACTS / "examples" / "read-evidence-v1.example.json"
 # Review labels that leave an item unassured, so that it is a check.
 REVIEW_UNASSURED = frozenset(
     {
@@ -1282,7 +1284,61 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="RESULT",
         help="run signal result to validate; may be repeated",
     )
+    parser.add_argument(
+        "--evidence",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="read evidence result to validate; may be repeated",
+    )
     return parser.parse_args(argv)
+
+
+def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
+    """Check a read evidence's call order, interval, and listed reasons."""
+    if not isinstance(document, dict):
+        return
+    read = document.get("read", {})
+    calls = document.get("calls", [])
+    if read.get("call_count") != len(calls):
+        errors.append(f"{label}: read call_count disagrees with the calls")
+    if [call.get("index") for call in calls] != list(range(len(calls))):
+        errors.append(f"{label}: calls are not in call order")
+    informative = read.get("informative", {})
+    if not 0 <= informative.get("start", 0) <= informative.get("end", 0) <= len(calls):
+        errors.append(f"{label}: informative interval exceeds the calls")
+    listed = set(read.get("reasons", []))
+    for call in calls:
+        held = set(call.get("identity", {}).get("withheld", [])) | set(
+            call.get("indel", {}).get("withheld", [])
+        )
+        if not held <= listed:
+            errors.append(
+                f"{label}: call {call.get('index')} holds a reason read.reasons does not list"
+            )
+
+
+def rejected_evidence_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    scored_with_reason = copy.deepcopy(example)
+    scored_with_reason["calls"][0]["placement"]["reason"] = "weak_signal"
+    masked_without_reason = copy.deepcopy(example)
+    masked_without_reason["calls"][5]["placement"].pop("reason")
+    unknown_cause = copy.deepcopy(example)
+    unknown_cause["calls"][4]["signal"]["cause"] = "context"
+    wide_share = copy.deepcopy(example)
+    wide_share["calls"][0]["second"]["share"] = 0.6
+    no_signal = copy.deepcopy(example)
+    no_signal["calls"][0].pop("signal")
+    return [
+        ("evidence scored call with a placement reason", scored_with_reason),
+        ("evidence masked call without its reason", masked_without_reason),
+        ("evidence second-peak cause the modality does not give", unknown_cause),
+        ("evidence second share above one half", wide_share),
+        ("evidence call without its signal", no_signal),
+    ]
 
 
 def validate_signal(document: Any, label: str, errors: list[str]) -> None:
@@ -1325,6 +1381,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_validator = validator(CONSENSUS_SCHEMA, errors)
     review_validator = validator(REVIEW_SCHEMA, errors)
     signal_validator = validator(SIGNAL_SCHEMA, errors)
+    evidence_validator = validator(EVIDENCE_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
@@ -1333,6 +1390,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
     review_paths = args.review or [REVIEW_EXAMPLE]
     signal_paths = args.signal or [SIGNAL_EXAMPLE]
+    evidence_paths = args.evidence or [EVIDENCE_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
     validate_documents(sample_validator, sample_paths, errors)
@@ -1341,6 +1399,9 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(consensus_validator, consensus_paths, errors)
     validate_documents(review_validator, review_paths, errors)
     validate_documents(signal_validator, signal_paths, errors)
+    validate_documents(evidence_validator, evidence_paths, errors)
+    for path in evidence_paths:
+        validate_evidence(load_json(path), str(path), errors)
     for path in signal_paths:
         validate_signal(load_json(path), str(path), errors)
     for path in review_paths:
@@ -1556,6 +1617,15 @@ def main(argv: list[str] | None = None) -> int:
     review_example = load_json(REVIEW_EXAMPLE)
     rejected_review = rejected_review_shapes(review_example)
     assert_rejected(review_validator, rejected_review, errors)
+    evidence_example = load_json(EVIDENCE_EXAMPLE)
+    rejected_evidence = rejected_evidence_shapes(evidence_example)
+    assert_rejected(evidence_validator, rejected_evidence, errors)
+    unlisted_reason = copy.deepcopy(evidence_example)
+    unlisted_reason["calls"][3]["identity"]["withheld"].append("unlisted_reason")
+    evidence_errors: list[str] = []
+    validate_evidence(unlisted_reason, "synthetic unlisted reason", evidence_errors)
+    if not evidence_errors:
+        errors.append("expected a reason read.reasons does not list to be rejected")
     unordered_review = copy.deepcopy(review_example)
     unordered_review["items"].reverse()
     review_errors: list[str] = []
@@ -1584,10 +1654,11 @@ def main(argv: list[str] | None = None) -> int:
         f"OK: validated {len(analysis_paths)} analysis, {len(basecall_paths)} basecall, "
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
         f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, "
-        f"{len(review_paths)} review, and {len(signal_paths)} run signal document(s), "
+        f"{len(review_paths)} review, {len(signal_paths)} run signal, and "
+        f"{len(evidence_paths)} read evidence document(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review)} "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review) + len(rejected_evidence)} "
         "invalid shape(s)"
     )
     return 0
