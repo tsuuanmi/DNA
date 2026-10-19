@@ -262,7 +262,8 @@
             "sha256",
             "strand",
             "admitted",
-            "masked"
+            "masked",
+            "mixtures"
           ],
           "properties": {
             "name": {
@@ -311,6 +312,13 @@
                     "type": "boolean"
                   }
                 }
+              }
+            },
+            "mixtures": {
+              "description": "The read's phase mixtures (ADR-0082): stretches after a run whose signal the modality asserts is the read's own sequence superposed with copies offset by whole calls, each component compared with the reference on its own. Display only.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/mixture"
               }
             }
           }
@@ -1276,6 +1284,127 @@
             "name"
           ]
         }
+      }
+    },
+    "mixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "explained",
+        "components",
+        "unexplained"
+      ],
+      "properties": {
+        "explained": {
+          "description": "Whether the components explain the stretch at the read's own noise level (ADR-0082). Only then is each component compared with the reference; otherwise components carry offset and fraction alone.",
+          "type": "boolean"
+        },
+        "components": {
+          "description": "Every component the modality asserts, the dominant sequence (offset 0) first; in an explained mixture a component placed on the reference also gives its interval, sequence, and calls.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "unexplained": {
+          "description": "Reference positions (1-based, increasing) of the calls the components do not explain.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "explained": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "components": {
+                "items": {
+                  "properties": {
+                    "first": false,
+                    "last": false,
+                    "sequence": false,
+                    "calls": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offset",
+        "fraction"
+      ],
+      "properties": {
+        "offset": {
+          "description": "Calls by which the sequence's run is longer (positive) or shorter (negative) than the dominant one's.",
+          "type": "integer"
+        },
+        "fraction": {
+          "description": "Its share of the fitted signal.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "first": {
+          "description": "First reference position the component covers; after last when it crosses the origin.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "last": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sequence": {
+          "description": "Its bases over first..last on the reference strand.",
+          "type": "string",
+          "pattern": "^[ACGTN]*$"
+        },
+        "calls": {
+          "description": "Its eligible edits in the profile notation, in reference order; empty under a profile without notation.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "dependentRequired": {
+        "first": [
+          "last",
+          "sequence",
+          "calls"
+        ],
+        "last": [
+          "first",
+          "sequence",
+          "calls"
+        ],
+        "sequence": [
+          "first",
+          "last",
+          "calls"
+        ],
+        "calls": [
+          "first",
+          "last",
+          "sequence"
+        ]
       }
     }
   }

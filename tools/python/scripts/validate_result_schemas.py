@@ -1155,6 +1155,32 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
                 f"{label}: summary reference_only count disagrees with the positions"
             )
     validate_zones(document, items, positions, summary, label, errors)
+    validate_mixtures(document, label, errors)
+
+
+def validate_mixtures(document: dict[str, Any], label: str, errors: list[str]) -> None:
+    """Check that each read's mixtures lead with the dominant sequence."""
+    for read in document.get("reads", []):
+        for index, mixture in enumerate(read.get("mixtures", [])):
+            components = mixture.get("components", [])
+            offsets = [component.get("offset") for component in components]
+            if not offsets or offsets[0] != 0 or len(set(offsets)) != len(offsets):
+                errors.append(
+                    f"{label}: mixture {index} of {read.get('name')} does not lead "
+                    "with one dominant sequence"
+                )
+            total = sum(component.get("fraction", 0) for component in components)
+            if total > 1.0 + 1e-6:
+                errors.append(
+                    f"{label}: mixture {index} of {read.get('name')} has fractions "
+                    "above one"
+                )
+            unexplained = mixture.get("unexplained", [])
+            if unexplained != sorted(set(unexplained)):
+                errors.append(
+                    f"{label}: mixture {index} of {read.get('name')} lists unexplained "
+                    "positions out of order"
+                )
 
 
 def validate_zones(
@@ -1223,6 +1249,19 @@ def rejected_review_shapes(
             break
     missing_count = copy.deepcopy(example)
     missing_count["summary"]["labels"].pop("read_edge")
+    compared_unexplained = copy.deepcopy(example)
+    for read in compared_unexplained["reads"]:
+        for mixture in read.get("mixtures", []):
+            mixture["explained"] = False
+    uncompared_explained = copy.deepcopy(example)
+    for read in uncompared_explained["reads"]:
+        for mixture in read.get("mixtures", []):
+            mixture["components"][0].pop("calls")  # partly compared
+    no_mixtures = copy.deepcopy(example)
+    for read in no_mixtures["reads"]:
+        if read.get("admitted"):
+            read.pop("mixtures")
+            break
     unnamed_repeat = copy.deepcopy(example)
     for zone in unnamed_repeat["zones"]:
         if zone["kind"] == "repeat":
@@ -1256,6 +1295,9 @@ def rejected_review_shapes(
         ("review summary without a label count", missing_count),
         ("review repeat zone without its window name", unnamed_repeat),
         ("review clean zone with a window name", named_clean),
+        ("admitted review read without mixtures", no_mixtures),
+        ("unexplained mixture with compared components", compared_unexplained),
+        ("mixture component compared without its calls", uncompared_explained),
         ("review evidence at an inserted column", inserted_evidence),
         ("possible heteroplasmy without its threshold", no_threshold),
         ("estimated length that a read shows", observed_length),
@@ -1353,6 +1395,24 @@ def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
     informative = read.get("informative", {})
     if not 0 <= informative.get("start", 0) <= informative.get("end", 0) <= len(calls):
         errors.append(f"{label}: informative interval exceeds the calls")
+    for index, mixture in enumerate(read.get("mixtures", [])):
+        span = mixture.get("calls", {})
+        offsets = [
+            component.get("offset") for component in mixture.get("components", [])
+        ]
+        if not 0 <= span.get("start", 0) < span.get("end", 0) <= len(calls):
+            errors.append(f"{label}: mixture {index} stretch exceeds the calls")
+        if not offsets or offsets[0] != 0 or len(set(offsets)) != len(offsets):
+            errors.append(
+                f"{label}: mixture {index} does not lead with one dominant sequence"
+            )
+        if any(
+            not span.get("start", 0) <= call < span.get("end", 0)
+            for call in mixture.get("unexplained", [])
+        ):
+            errors.append(
+                f"{label}: mixture {index} lists an unexplained call outside it"
+            )
     listed = set(read.get("reasons", []))
     for call in calls:
         held = set(call.get("identity", {}).get("withheld", [])) | set(
@@ -1697,6 +1757,14 @@ def main(argv: list[str] | None = None) -> int:
     validate_review(miscounted, "synthetic miscounted reference_only", count_errors)
     if not count_errors:
         errors.append("expected a miscounted reference_only to be rejected")
+    minor_first = copy.deepcopy(review_example)
+    for read in minor_first["reads"]:
+        for mixture in read.get("mixtures", []):
+            mixture["components"].reverse()
+    mixture_errors: list[str] = []
+    validate_review(minor_first, "synthetic minor-first mixture", mixture_errors)
+    if not mixture_errors:
+        errors.append("expected a mixture led by a minor sequence to be rejected")
     gapped_zones = copy.deepcopy(review_example)
     gapped_zones["zones"].pop()
     zone_errors: list[str] = []

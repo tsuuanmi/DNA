@@ -1,17 +1,23 @@
 //! Sample review orchestration and publication (PROP-0004).
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::error::Result;
 use crate::input::sanger;
 use crate::input::signal as input_signal;
-use crate::model::review_result::{ItemKind, LabelResult};
+use crate::model::review_result::{
+    ComparedResult, ComponentResult, ItemKind, LabelResult, MixtureResult,
+};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
+use crate::pipeline::represent;
 use crate::report::{self, CompletedReview, Reviewed};
 use crate::sample_analysis::{self, ConsensusCall, ReviewCheck, SampleAnalysis, SampleOutcome};
+use dna_call::components::ComponentCall;
+use dna_kernel::variant::Variant;
 use dna_sanger::run_signal::RunSignal;
 
 use super::Operation;
@@ -87,9 +93,11 @@ fn review(
 
     let stage = tracing::info_span!("review").entered();
     let stage_started = Instant::now();
+    let mut read_mixtures = BTreeMap::new();
     let outcome = match outcome {
         SampleOutcome::Rejected(rejected) => Reviewed::Rejected(rejected),
         SampleOutcome::Analyzed(analysis) => {
+            read_mixtures = mixtures(&analysis)?;
             let call = analysis.call(sample_id);
             if let Err(error) = &call {
                 tracing::warn!(event = "review_call_failed", error = ?error.to_string());
@@ -106,6 +114,7 @@ fn review(
         outcome,
         plugins,
         signal,
+        mixtures: read_mixtures,
     })?;
     let judged = result
         .items
@@ -146,6 +155,122 @@ fn review(
     );
     log.sync()?;
     report::publish(&output, &bytes)
+}
+
+/// Each admitted read's phase mixtures (ADR-0082), by content SHA-256: every
+/// component placed and called as a read of its own, its eligible edits
+/// written in the profile notation over the reference interval it covers,
+/// and the reference positions of the calls the components do not explain.
+fn mixtures(analysis: &SampleAnalysis) -> Result<BTreeMap<String, Vec<MixtureResult>>> {
+    let mut found = BTreeMap::new();
+    for read in analysis.components() {
+        let positions = analysis
+            .called
+            .iter()
+            .find(|called| called.input_sha256 == read.sha256)
+            .map(|called| {
+                called
+                    .alignment
+                    .columns()
+                    .iter()
+                    .filter_map(|column| {
+                        Some((
+                            column.original_call_index_0based()?,
+                            column.reference_index_0based()? + 1,
+                        ))
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            })
+            .unwrap_or_default();
+        let mixtures = read
+            .mixtures
+            .iter()
+            .map(|mixture| {
+                // Every component the modality asserts, by offset and
+                // fraction; an explained mixture's placed ones also compared
+                // with the reference.
+                let components = mixture
+                    .mixture
+                    .components
+                    .iter()
+                    .map(|component| {
+                        let compared = mixture
+                            .components
+                            .iter()
+                            .find(|placed| placed.offset == component.offset)
+                            .filter(|_| mixture.mixture.explained)
+                            .map(|placed| {
+                                Ok::<_, crate::error::Error>(ComparedResult {
+                                    first: placed.span[0],
+                                    last: placed.span[1],
+                                    sequence: placed.sequence.clone(),
+                                    calls: notation_texts(analysis, placed)?,
+                                })
+                            })
+                            .transpose()?;
+                        Ok(ComponentResult {
+                            offset: component.offset,
+                            fraction: round(component.fraction),
+                            compared,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(MixtureResult {
+                    explained: mixture.mixture.explained,
+                    components,
+                    unexplained: mixture
+                        .mixture
+                        .unexplained
+                        .iter()
+                        .filter_map(|call| positions.get(call).copied())
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .into_iter()
+                        .collect(),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        found.insert(read.sha256, mixtures);
+    }
+    Ok(found)
+}
+
+/// A fraction to three decimals, as every DNA document writes it.
+fn round(value: f64) -> f64 {
+    (value * 1000.0).round() / 1000.0
+}
+
+/// A component's eligible edits in the profile notation, as the read
+/// representation writes a read's (ADR-0060); none under a profile without
+/// notation.
+fn notation_texts(analysis: &SampleAnalysis, component: &ComponentCall) -> Result<Vec<String>> {
+    let loaded = &analysis.loaded;
+    let variants = component
+        .variants
+        .iter()
+        .filter(|observed| observed.exclusion_reasons.is_empty())
+        .map(|observed| Variant::from(&observed.variant))
+        .collect();
+    // A span whose first position follows its last crosses the origin of a
+    // circular reference.
+    let [first, last] = component.span;
+    let mut covered = Vec::with_capacity(2);
+    if first <= last {
+        covered.push(first - 1..last);
+    } else {
+        covered.extend([first - 1..loaded.reference.sequence.len(), 0..last]);
+    }
+    let Some(notation) = represent::represent_variants(
+        std::iter::once((String::new(), variants, covered)),
+        &loaded.reference,
+        &loaded.profile,
+    )?
+    else {
+        return Ok(Vec::new());
+    };
+    Ok(report::notation_calls(&loaded.reference, &notation)?
+        .into_keys()
+        .map(|call| call.text)
+        .collect())
 }
 
 impl SampleAnalysis {

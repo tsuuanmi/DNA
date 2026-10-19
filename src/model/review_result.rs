@@ -90,6 +90,45 @@ pub(crate) struct ReviewReadResult {
     /// An admitted read's masked stretches over the reportable regions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) masked: Option<Vec<MaskedSpanResult>>,
+    /// An admitted read's phase mixtures, each component compared with the
+    /// reference on its own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) mixtures: Option<Vec<MixtureResult>>,
+}
+
+/// A stretch after a repeat run whose signal the modality asserts is the
+/// read's own sequence superposed with copies offset by whole calls
+/// (ADR-0082): its components, and the reference positions of the calls the
+/// components do not explain.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct MixtureResult {
+    /// The components explain the stretch at the read's own noise level;
+    /// otherwise they are listed by offset and fraction alone.
+    pub(crate) explained: bool,
+    pub(crate) components: Vec<ComponentResult>,
+    pub(crate) unexplained: Vec<usize>,
+}
+
+/// One sequence of a phase mixture, compared with the reference on its own:
+/// the calls by which it lags the dominant sequence (`0` for the dominant
+/// one), its share of the fitted signal, the reference interval it covers,
+/// its bases there on the reference strand, and its calls in the profile
+/// notation.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct ComponentResult {
+    pub(crate) offset: i32,
+    pub(crate) fraction: f64,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub(crate) compared: Option<ComparedResult>,
+}
+
+/// A component of an explained mixture, compared with the reference.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct ComparedResult {
+    pub(crate) first: usize,
+    pub(crate) last: usize,
+    pub(crate) sequence: String,
+    pub(crate) calls: Vec<String>,
 }
 
 /// A stretch of reference positions an admitted read's calls cover while its

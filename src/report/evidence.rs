@@ -6,7 +6,8 @@ use crate::config::Config;
 use crate::error::{ReportError, Result};
 use crate::model::evidence_result::{
     BoundResult, CallEvidenceResult, CallSignalResult, Ends, EvidenceProvenanceResult,
-    EvidenceReadResult, EvidenceResult, PostRepeatResult, SecondBaseResult, VerdictResult,
+    EvidenceReadResult, EvidenceResult, MixtureComponentResult, MixtureEvidenceResult,
+    PostRepeatResult, SecondBaseResult, VerdictResult,
 };
 use crate::model::result::{InputResult, IntervalResult, PlacementKind, PlacementResult};
 use crate::report::callability;
@@ -127,6 +128,28 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
                 .map(EvidenceReason::label)
                 .collect(),
             callability: callability::project(&read_callability),
+            mixtures: evidence
+                .mixtures()
+                .iter()
+                .map(|mixture| MixtureEvidenceResult {
+                    calls: IntervalResult {
+                        start: mixture.call_start,
+                        end: mixture.call_end,
+                    },
+                    run_calls: mixture.run_calls,
+                    explained: mixture.explained,
+                    residual: round(mixture.residual),
+                    components: mixture
+                        .components
+                        .iter()
+                        .map(|component| MixtureComponentResult {
+                            offset: component.offset,
+                            fraction: round(component.fraction),
+                        })
+                        .collect(),
+                    unexplained: mixture.unexplained.clone(),
+                })
+                .collect(),
         },
         calls: results,
     })
