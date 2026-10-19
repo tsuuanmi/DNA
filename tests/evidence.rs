@@ -67,7 +67,7 @@ fn writes_deterministic_evidence_that_matches_the_basecalls()
     assert_eq!(value["schema_version"], "dna.read_evidence/v1");
     assert_eq!(
         value["provenance"]["plugins"],
-        serde_json::json!([{"id": "sanger", "family": "modality", "version": 13}])
+        serde_json::json!([{"id": "sanger", "family": "modality", "version": 14}])
     );
     let calls = value["calls"].as_array().ok_or("calls must be an array")?;
     assert_eq!(

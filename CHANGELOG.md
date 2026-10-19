@@ -478,6 +478,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A Sanger call before a run that the read loses phase after
+  (`post_homopolymer`) is no longer at a signal edge when its own signal is
+  unambiguous (SRS-CALL-017): before the run every molecule shows the same
+  sequence. The reverse read now reads 16194-16205 before the HVS-I C-tract;
+  on panel v5, 33 more samples are clear, with unreviewed and non-het
+  unchanged. Plugin `sanger` 14.
+
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's
