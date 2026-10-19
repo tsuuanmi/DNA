@@ -59,6 +59,7 @@ pub(crate) fn observe(
         signal,
         callability,
         quality,
+        second,
         warnings: read_warnings,
     } = processed;
 
@@ -154,6 +155,7 @@ pub(crate) fn observe(
                 signal,
                 callability,
                 quality,
+                second,
             },
         },
         warning_total,

@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 15
+schema_version = 16
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -30,6 +30,17 @@ run_signal_minimum_reads = 40
 run_signal_minimum_calls = 40
 run_signal_margin = 0.05
 run_signal_mad_factor = 4.0
+# Labels for why a call shows a second peak above second_floor (SRS-CALL-021),
+# from the peak's shape; they decide nothing. A second peak below
+# second_cause_noise_ratio times the call's lowest channel is noise; one at
+# least second_cause_tail_offset call spacings off the call's centre is a
+# neighbour's tail or off centre; a centred one at least
+# second_cause_blob_width times as wide as the median primary peak of the
+# second_cause_width_calls calls on each side is a dye blob.
+second_cause_noise_ratio = 3.0
+second_cause_tail_offset = 0.4
+second_cause_blob_width = 1.8
+second_cause_width_calls = 6
 
 [callability]
 # Signal-derived read callability (ADR-0067): rolling window of calls, the

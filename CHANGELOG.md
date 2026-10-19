@@ -17,6 +17,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- Each Sanger call with a second peak above `signal_processing.second_floor`,
+  or masked as mixed, is labelled with the peak's cause from its shape
+  against the call's neighbours (SRS-CALL-021): `noise`, `neighbour_tail`,
+  `off_centre`, `dye_blob`, `phase_shift`, `second_template`, or
+  `mixed_stretch`. With a run signal, a `second_template` within its key's
+  run level is `context`. The labels sit beside the core's records on the
+  read's Sanger attachment and decide nothing. New keys
+  `second_cause_noise_ratio` (3.0), `second_cause_tail_offset` (0.4),
+  `second_cause_blob_width` (1.8), and `second_cause_width_calls` (6) in
+  `[signal_processing]`; configuration schema 16. No output changes.
+
 - `dna-eval run` counts the review workload in zones, the functional parts
   of a region a reviewer opens as a whole: repeat window, after a window,
   amplicon start and end, and interior, from the configuration's target

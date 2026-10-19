@@ -6,4 +6,5 @@ pub mod callability;
 pub mod locus_evidence;
 pub mod quality;
 pub mod sanger;
+pub mod second_cause;
 pub mod signal;

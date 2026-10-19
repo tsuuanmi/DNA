@@ -53,6 +53,7 @@ fn basecall(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         callability,
         quality,
         warnings,
+        ..
     } = read_processing::process(&inputs.trace, &inputs.config.sanger)?;
     let warning_total = warnings.unresolved_primary_calls
         + warnings.multi_channel_unresolved_calls

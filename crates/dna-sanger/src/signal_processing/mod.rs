@@ -2,7 +2,9 @@
 
 mod config;
 
-pub use config::{RawSignalProcessingConfig, RunSignalParameters, SignalProcessingConfig};
+pub use config::{
+    RawSignalProcessingConfig, RunSignalParameters, SecondCauseParameters, SignalProcessingConfig,
+};
 
 mod features;
 mod integrity;
@@ -82,6 +84,16 @@ mod tests {
                 minimum_calls: 40,
                 margin: 0.05,
                 mad_factor: 4.0,
+            },
+
+            second_cause: SecondCauseParameters {
+                noise_ratio: 3.0,
+
+                tail_offset: 0.4,
+
+                blob_width: 1.8,
+
+                width_calls: 6,
             },
         }
     }

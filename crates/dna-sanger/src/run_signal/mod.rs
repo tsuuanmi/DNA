@@ -31,6 +31,7 @@ use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use crate::error::{Result, RunSignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
+use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::model::signal::ShortRead;
 use crate::read_processing::evidence::{PEAK_BELOW_MINIMUM, RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD};
 use crate::read_processing::{self, SangerConfig};
@@ -105,6 +106,29 @@ pub fn threshold(
             share: floor,
             calls: None,
         })
+}
+
+/// The cause of a call's second `peak` with the run signal (SRS-CALL-021): a
+/// `second_template` peak whose share does not exceed the call's threshold
+/// (SRS-CALL-020) at a usable run level of its `key` is a shadow the run's
+/// reads share, `context`. Any other cause stands, and without a run signal
+/// or a usable run level the shape alone decides.
+#[must_use]
+pub fn refine(
+    peak: &SecondPeak,
+    key: Option<&Key>,
+    signal: Option<&RunSignal>,
+    config: &SignalProcessingConfig,
+) -> SecondCause {
+    let threshold = threshold(key, signal, config);
+    if peak.cause == SecondCause::SecondTemplate
+        && threshold.calls.is_some()
+        && peak.share <= threshold.share
+    {
+        SecondCause::Context
+    } else {
+        peak.cause
+    }
 }
 
 /// Counts of calls by a channel's share in `resolution` steps (0 to
@@ -601,6 +625,12 @@ mod tests {
             minimum_noise_sigma: 1.0,
             second_floor: 0.21,
             run_signal: PARAMETERS,
+            second_cause: crate::signal_processing::SecondCauseParameters {
+                noise_ratio: 3.0,
+                tail_offset: 0.4,
+                blob_width: 1.8,
+                width_calls: 6,
+            },
         };
         let floor = Threshold {
             share: 0.21,
@@ -652,5 +682,62 @@ mod tests {
                 Err(RunSignalError::Parameters { .. })
             ));
         }
+    }
+
+    #[test]
+    fn a_second_template_within_its_run_level_is_context() {
+        let key = Key {
+            context: "ACGTA".into(),
+            base: 'G',
+            second: 'C',
+        };
+        // 40 calls at 300 thousandths: run level 0.35.
+        let signal = RunSignal::build("run".into(), BTreeSet::new(), [], &PARAMETERS);
+        let signal = RunSignal {
+            reads: 50,
+            calls: 40,
+            keys: BTreeMap::from([(key.clone(), Histogram::from([(300, 40)]))]),
+            ..signal
+        };
+        let config = SignalProcessingConfig {
+            window_size_bases: 10,
+            minimum_primary_snr: 3.0,
+            minimum_noisy_windows: 2,
+            minimum_noise_sigma: 1.0,
+            second_floor: 0.20,
+            run_signal: PARAMETERS,
+            second_cause: crate::signal_processing::SecondCauseParameters {
+                noise_ratio: 3.0,
+                tail_offset: 0.4,
+                blob_width: 1.8,
+                width_calls: 6,
+            },
+        };
+        let peak = |share, cause| SecondPeak {
+            base: 'C',
+            share,
+            cause,
+        };
+        let template = peak(0.30, SecondCause::SecondTemplate);
+        assert_eq!(
+            refine(&template, Some(&key), Some(&signal), &config),
+            SecondCause::Context
+        );
+        // Above the run level, or without a run signal, it stays.
+        let above = peak(0.40, SecondCause::SecondTemplate);
+        assert_eq!(
+            refine(&above, Some(&key), Some(&signal), &config),
+            SecondCause::SecondTemplate
+        );
+        assert_eq!(
+            refine(&template, Some(&key), None, &config),
+            SecondCause::SecondTemplate
+        );
+        // A cause the shape gives stands.
+        let tail = peak(0.30, SecondCause::NeighbourTail);
+        assert_eq!(
+            refine(&tail, Some(&key), Some(&signal), &config),
+            SecondCause::NeighbourTail
+        );
     }
 }

@@ -5,6 +5,7 @@ use crate::model::basecalls::BaseCalls;
 use crate::model::callability::ReadCallability;
 use crate::model::locus_evidence::LocusEvidence;
 use crate::model::quality::QualityControlResult;
+use crate::model::second_cause::SecondPeak;
 use crate::model::signal::{SangerIntegrity, SignalAnalysis};
 
 /// Sanger products of one read that the core never reads; reports join them
@@ -19,6 +20,8 @@ pub struct SangerAttachment {
     pub callability: ReadCallability,
     /// Relative quality and the trim interval.
     pub quality: QualityControlResult,
+    /// Each call's second peak and its cause (SRS-CALL-021), by call index.
+    pub second: Vec<Option<SecondPeak>>,
 }
 
 impl SangerAttachment {

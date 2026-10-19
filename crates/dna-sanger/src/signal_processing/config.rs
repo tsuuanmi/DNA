@@ -26,6 +26,24 @@ pub struct SignalProcessingConfig {
     pub second_floor: f64,
     /// How a key's run level is taken from its run's signal (PROP-0009).
     pub run_signal: RunSignalParameters,
+    /// How a call's second peak is labelled with its cause (SRS-CALL-021).
+    pub second_cause: SecondCauseParameters,
+}
+
+/// How a call's second peak is labelled with its cause (SRS-CALL-021).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SecondCauseParameters {
+    /// Below this multiple of the call's lowest channel a second peak is
+    /// noise.
+    pub noise_ratio: f64,
+    /// Offset from the call's centre, in call spacings, from which a second
+    /// peak is shifted.
+    pub tail_offset: f64,
+    /// Multiple of the neighbouring calls' median primary width from which a
+    /// centred second peak is a dye blob.
+    pub blob_width: f64,
+    /// Calls on each side whose primary widths give that median.
+    pub width_calls: usize,
 }
 
 /// How a run signal is made and how a key's run level is taken from it
@@ -64,6 +82,10 @@ pub struct RawSignalProcessingConfig {
     pub(crate) run_signal_minimum_calls: u64,
     pub(crate) run_signal_margin: f64,
     pub(crate) run_signal_mad_factor: f64,
+    pub(crate) second_cause_noise_ratio: f64,
+    pub(crate) second_cause_tail_offset: f64,
+    pub(crate) second_cause_blob_width: f64,
+    pub(crate) second_cause_width_calls: usize,
 }
 
 impl RawSignalProcessingConfig {
@@ -116,6 +138,28 @@ impl RawSignalProcessingConfig {
             "signal_processing.run_signal_mad_factor",
             self.run_signal_mad_factor,
         )?;
+        for (key, value) in [
+            (
+                "signal_processing.second_cause_noise_ratio",
+                self.second_cause_noise_ratio,
+            ),
+            (
+                "signal_processing.second_cause_tail_offset",
+                self.second_cause_tail_offset,
+            ),
+            (
+                "signal_processing.second_cause_blob_width",
+                self.second_cause_blob_width,
+            ),
+        ] {
+            bounds::positive_finite(key, value)?;
+        }
+        if self.second_cause_width_calls == 0 {
+            return Err(ConfigError::Constraint(
+                "signal_processing.second_cause_width_calls must be positive",
+            )
+            .into());
+        }
         Ok(SignalProcessingConfig {
             window_size_bases: self.window_size_bases,
             minimum_primary_snr: self.minimum_primary_snr,
@@ -129,6 +173,12 @@ impl RawSignalProcessingConfig {
                 minimum_calls: self.run_signal_minimum_calls,
                 margin: self.run_signal_margin,
                 mad_factor: self.run_signal_mad_factor,
+            },
+            second_cause: SecondCauseParameters {
+                noise_ratio: self.second_cause_noise_ratio,
+                tail_offset: self.second_cause_tail_offset,
+                blob_width: self.second_cause_blob_width,
+                width_calls: self.second_cause_width_calls,
             },
         })
     }
