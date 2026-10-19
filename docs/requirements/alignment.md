@@ -1,6 +1,10 @@
 ---
 implements: [SRS-CALL, SRS-VAR]
 decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0069, ADR-0072]
+verified-by:
+  - crates/dna-align/src
+  - crates/dna-call/src/model/called_read.rs
+  - crates/dna-sanger/src/model/locus_evidence.rs
 ---
 
 # Alignment Requirements

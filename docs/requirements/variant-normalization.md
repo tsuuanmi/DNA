@@ -1,5 +1,6 @@
 ---
 decided-by: [ADR-0060]
+verified-by: [crates/dna-normalize/src/variant_normalization]
 ---
 
 # Variant Normalization Requirements

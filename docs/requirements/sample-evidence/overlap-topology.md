@@ -1,5 +1,6 @@
 ---
 decided-by: [ADR-0023, ADR-0030, ADR-0032, ADR-0033, ADR-0035, ADR-0053, ADR-0068]
+verified-by: [crates/dna-sample/src]
 ---
 
 # Overlap and Topology Requirements

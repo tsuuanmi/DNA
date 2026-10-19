@@ -1,5 +1,6 @@
 ---
 implements: [SRS-CALL, SRS-PRF]
+verified-by: [src/config]
 ---
 
 # Configuration Requirements

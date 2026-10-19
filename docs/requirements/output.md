@@ -1,6 +1,7 @@
 ---
 implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-CONS, SRS-NOM, SRS-PRF, SRS-SAMPLE]
 decided-by: [ADR-0007, ADR-0061]
+verified-by: [src/operation_log.rs, src/pipeline, src/report]
 ---
 
 # Output Requirements

@@ -10,6 +10,7 @@ decided-by:
   - ADR-0043
   - ADR-0053
   - ADR-0068
+verified-by: [crates/dna-sample/src]
 ---
 
 # Profile Aggregation Requirements

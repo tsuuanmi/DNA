@@ -1,6 +1,11 @@
 ---
 implements: [SRS-PRF, SRS-VAR]
 decided-by: [ADR-0047, ADR-0057, ADR-0060]
+verified-by:
+  - crates/dna-empop/src/conformance.rs
+  - crates/dna-normalize/src/variant_nomenclature
+  - src/pipeline/represent.rs
+  - src/report/notation.rs
 ---
 
 # Variant Nomenclature Requirements

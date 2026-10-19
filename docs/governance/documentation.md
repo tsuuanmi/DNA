@@ -83,7 +83,8 @@ All commands run from `tools/python`.
 | `uv run python scripts/docs_graph.py candidates` | retirement candidates |
 | `uv run python scripts/docs_graph.py retire <doc> --outcome "…"` | move a document into the [ledger](retired.md) |
 
-CI runs `validate_docs_structure.py`, `docs_graph.py check`, `docs_graph.py sync
+CI runs `validate_docs_structure.py`, `docs_graph.py check --strict` (warnings fail,
+so the traceability and size backlog cannot grow), `docs_graph.py sync
 --check`, and, on pull requests, `docs_graph.py impact`. To waive an impact finding,
 write `docs-unchanged: <document> — <reason>` in the pull-request description.
 

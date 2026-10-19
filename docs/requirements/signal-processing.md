@@ -1,6 +1,10 @@
 ---
 implements: [SRS-SAMPLE]
 decided-by: [ADR-0013, ADR-0028, ADR-0031, ADR-0046]
+verified-by:
+  - crates/dna-sanger/src/locus.rs
+  - crates/dna-sanger/src/model/locus_evidence.rs
+  - crates/dna-sanger/src/signal_processing
 ---
 
 # Observational Signal Processing Requirements

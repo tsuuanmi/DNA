@@ -1,6 +1,7 @@
 ---
 implements: [SRS-CALL]
 decided-by: [ADR-0017]
+verified-by: [crates/dna-sanger/src/basecalling]
 ---
 
 # DNA-derived Base Re-calling Requirements

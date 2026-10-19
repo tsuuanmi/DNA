@@ -165,7 +165,7 @@ jobs:
         run: uv run python scripts/validate_docs_structure.py
       - name: Validate documentation graph
         working-directory: tools/python
-        run: uv run python scripts/docs_graph.py check
+        run: uv run python scripts/docs_graph.py check --strict
       - name: Check generated documentation is current
         working-directory: tools/python
         run: uv run python scripts/docs_graph.py sync --check

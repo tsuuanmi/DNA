@@ -1,5 +1,6 @@
 ---
 decided-by: [ADR-0059]
+verified-by: [.github/workflows/ci.yml, fuzz]
 ---
 
 # Quality Attributes

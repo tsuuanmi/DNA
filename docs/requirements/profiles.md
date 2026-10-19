@@ -1,6 +1,7 @@
 ---
 implements: [SRS-NOM, SRS-VAR]
 decided-by: [ADR-0063]
+verified-by: [crates/dna-kernel/src/profile]
 ---
 
 # Target Profile Requirements

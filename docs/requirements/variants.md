@@ -10,6 +10,11 @@ decided-by:
   - ADR-0071
   - ADR-0076
   - ADR-0078
+verified-by:
+  - crates/dna-call/src
+  - crates/dna-kernel/src/read_evidence.rs
+  - crates/dna-sanger/src/read_processing/evidence.rs
+  - src/input/sequence.rs
 ---
 
 # Primary-sequence Difference Requirements
