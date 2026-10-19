@@ -14,9 +14,9 @@ use crate::model::read_observation::RejectedRead;
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::review_result::{
     ColumnResult, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
-    ItemResult, LabelCounts, LabelResult, PositionCounts, ReviewCallResult, ReviewProvenanceResult,
-    ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult, ScopeResult, SecondResult,
-    ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
+    ItemResult, LabelCounts, LabelResult, MaskedSpanResult, PositionCounts, ReviewCallResult,
+    ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
+    ScopeResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::report::json::{project_plugins, project_profile};
@@ -32,6 +32,7 @@ use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, Profile};
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
 use dna_sanger::model::attachment::SangerAttachment;
+use dna_sanger::model::callability::{PhaseSegment, PhaseState};
 use dna_sanger::run_signal::{self, Key, RunSignal, Threshold};
 use dna_sanger::signal_processing::SignalProcessingConfig;
 
@@ -40,7 +41,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 9,
+    version: 10,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -119,6 +120,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     strand: None,
                     admitted: false,
                     rejection: Some(project_rejection(&read.cause)),
+                    masked: None,
                 })
                 .collect();
             return Ok(ReviewResult {
@@ -144,14 +146,28 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         .reads
         .iter()
         .zip(&names)
-        .map(|(read, name)| ReviewReadResult {
-            name: name.clone(),
-            sha256: read.input_sha256.clone(),
-            strand: Some(read.alignment.orientation),
-            admitted: true,
-            rejection: None,
+        .map(|(read, name)| {
+            let missing = || ReportError::Inconsistent("review read lacks its evidence");
+            let called = analysis
+                .called
+                .iter()
+                .find(|called| called.input_sha256 == read.input_sha256)
+                .ok_or_else(missing)?;
+            let sanger = analysis.reads.get(&read.input_sha256).ok_or_else(missing)?;
+            Ok(ReviewReadResult {
+                name: name.clone(),
+                sha256: read.input_sha256.clone(),
+                strand: Some(read.alignment.orientation),
+                admitted: true,
+                rejection: None,
+                masked: Some(masked_spans(
+                    called.alignment.columns(),
+                    &sanger.callability.segments,
+                    &regions,
+                )),
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>>>()?;
     for (read, name) in analysis.evidence.rejected_reads.iter().zip(rejected_names) {
         let rejected =
             analysis
@@ -166,6 +182,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             strand: None,
             admitted: false,
             rejection: Some(project_rejection(&rejected.cause)),
+            masked: None,
         });
     }
 
@@ -594,6 +611,19 @@ impl<'a> Sample<'a> {
             .collect::<Vec<_>>();
         if !runs.is_empty() {
             labels.push(LabelResult::EstimatedLength { runs });
+        }
+        let anchored = site
+            .runs
+            .iter()
+            .filter(|run| run.evidence == RunEvidence::AnchoredEnd)
+            .map(|run| RunResult {
+                base: run.base,
+                length: run.length,
+                length_evidence: run.evidence.label(),
+            })
+            .collect::<Vec<_>>();
+        if !anchored.is_empty() {
+            labels.push(LabelResult::DephasedEnd { runs: anchored });
         }
         if !undecided(site) {
             let growth = long_runs(site, self.config.run_growth);
@@ -1400,6 +1430,7 @@ const fn rank(label: &LabelResult) -> u8 {
         LabelResult::NoisySignal { .. }
         | LabelResult::NotCovered
         | LabelResult::PhaseShift { .. }
+        | LabelResult::DephasedEnd { .. }
         | LabelResult::ReadEdge { .. } => 4,
     }
 }
@@ -1420,8 +1451,58 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::NoisySignal { .. } => "noisy_signal",
         LabelResult::NotCovered => "not_covered",
         LabelResult::PhaseShift { .. } => "phase_shift",
+        LabelResult::DephasedEnd { .. } => "dephased_end",
         LabelResult::ReadEdge { .. } => "read_edge",
     }
+}
+
+/// The reference positions, within `regions`, that a read's aligned calls
+/// cover while the modality masks its signal, as maximal stretches of one
+/// phase state: where the read does not show its bases (it reads past a
+/// repeat out of phase, its signal is mixed, weak, or irregularly spaced).
+/// Recorded so that what the read did not show can be located and read later.
+fn masked_spans(
+    columns: &[AlignmentColumn],
+    segments: &[PhaseSegment],
+    regions: &[[usize; 2]],
+) -> Vec<MaskedSpanResult> {
+    let mut spans: Vec<MaskedSpanResult> = Vec::new();
+    for column in columns {
+        let (Some(reference), Some(call)) = (
+            column.reference_index_0based(),
+            column.original_call_index_0based(),
+        ) else {
+            continue;
+        };
+        let position = reference + 1;
+        if !inside(regions, position) {
+            continue;
+        }
+        let Some(segment) = segments.iter().find(|segment| {
+            segment.call_start_0based <= call && call < segment.call_end_0based_exclusive
+        }) else {
+            continue;
+        };
+        if segment.state == PhaseState::InPhase {
+            continue;
+        }
+        match spans.last_mut() {
+            Some(span)
+                if span.last + 1 == position
+                    && span.state == segment.state
+                    && span.after_repeat == segment.after_repeat =>
+            {
+                span.last = position;
+            }
+            _ => spans.push(MaskedSpanResult {
+                first: position,
+                last: position,
+                state: segment.state,
+                after_repeat: segment.after_repeat,
+            }),
+        }
+    }
+    spans
 }
 
 /// Label order within an item: rank, name, then the position or read.
@@ -1466,6 +1547,7 @@ fn summarize(items: &[ItemResult], status: ReviewStatus, regions: &[[usize; 2]])
                 "noisy_signal" => &mut labels.noisy_signal,
                 "not_covered" => &mut labels.not_covered,
                 "phase_shift" => &mut labels.phase_shift,
+                "dephased_end" => &mut labels.dephased_end,
                 _ => &mut labels.read_edge,
             };
             *count += 1;

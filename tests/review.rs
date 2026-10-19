@@ -144,7 +144,7 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 14] = [
+const RANKS: [(&str, u64); 15] = [
     ("strands_disagree", 0),
     ("read_disagrees", 0),
     ("possible_heteroplasmy", 1),
@@ -158,6 +158,7 @@ const RANKS: [(&str, u64); 14] = [
     ("noisy_signal", 4),
     ("not_covered", 4),
     ("phase_shift", 4),
+    ("dephased_end", 4),
     ("read_edge", 4),
 ];
 
@@ -165,7 +166,21 @@ const RANKS: [(&str, u64); 14] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 9);
+    assert_eq!(value["provenance"]["rules"], 10);
+    // An admitted read's masked stretches are ordered, disjoint, and well formed.
+    for read in value["reads"].as_array().ok_or("reads must be an array")? {
+        if read["admitted"] != true {
+            assert!(read.get("masked").is_none());
+            continue;
+        }
+        let mut end = 0;
+        for span in read["masked"].as_array().ok_or("masked must be an array")? {
+            let first = span["first"].as_u64().ok_or("masked first")?;
+            let last = span["last"].as_u64().ok_or("masked last")?;
+            assert!(end < first && first <= last, "{span}");
+            end = last;
+        }
+    }
     let items = items(value)?;
     let mut previous = None;
     let mut counts = std::collections::BTreeMap::<&str, u64>::new();
@@ -276,8 +291,8 @@ fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>
     assert_eq!(
         value["reads"],
         serde_json::json!([
-            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true},
-            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true},
+            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": []},
+            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": []},
         ])
     );
     assert_eq!(value["calls"][0]["call"], "15A");

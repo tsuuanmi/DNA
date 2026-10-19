@@ -7,6 +7,7 @@ use crate::model::result::{IntervalResult, PluginResult, ProfileResult, Referenc
 use crate::model::sample_result::{ConventionResult, ReadRejectionResult};
 use dna_align::model::alignment::Orientation;
 use dna_sample::model::sample_evidence::LocusState;
+use dna_sanger::model::callability::PhaseState;
 
 /// One sample's review document.
 #[derive(Debug, Serialize)]
@@ -75,6 +76,20 @@ pub(crate) struct ReviewReadResult {
     pub(crate) admitted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) rejection: Option<ReadRejectionResult>,
+    /// An admitted read's masked stretches over the reportable regions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) masked: Option<Vec<MaskedSpanResult>>,
+}
+
+/// A stretch of reference positions an admitted read's calls cover while its
+/// signal is masked, from the modality's callability segments: the read does
+/// not show its bases there.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct MaskedSpanResult {
+    pub(crate) first: usize,
+    pub(crate) last: usize,
+    pub(crate) state: PhaseState,
+    pub(crate) after_repeat: bool,
 }
 
 /// One call of the sample in the profile notation.
@@ -176,6 +191,9 @@ pub(crate) enum LabelResult {
     PhaseShift {
         read: String,
         from: usize,
+    },
+    DephasedEnd {
+        runs: Vec<RunResult>,
     },
     ReadEdge {
         read: String,
@@ -311,5 +329,6 @@ pub(crate) struct LabelCounts {
     pub(crate) noisy_signal: usize,
     pub(crate) not_covered: usize,
     pub(crate) phase_shift: usize,
+    pub(crate) dephased_end: usize,
     pub(crate) read_edge: usize,
 }

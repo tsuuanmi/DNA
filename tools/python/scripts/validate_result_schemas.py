@@ -59,6 +59,7 @@ REVIEW_LABELS = {
     "noisy_signal": 4,
     "not_covered": 4,
     "phase_shift": 4,
+    "dephased_end": 4,
     "read_edge": 4,
 }
 # Priority of a variant item without a label.

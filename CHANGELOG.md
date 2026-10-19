@@ -386,6 +386,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review records where each read does not show its bases, and which
+  run lengths lean on a dephased tail (`review` plugin 10, rules version 10;
+  `dna.review/v1` revised in place):
+  - every admitted read lists `masked`, its stretches of reference positions
+    inside the reportable regions covered while its signal is masked, with the
+    callability phase state and whether the stretch follows a repeat run,
+    taken from the read's own signal, never from fixed positions;
+  - a context label `dephased_end` marks a site whose run length rests on an
+    anchored end, the first masked call after the run. Reading the dephased
+    tail itself is later work; the 2,119 such auto-passed lengths on current
+    development data were 98.4 % right, so they stay decided.
 - A start call may read the base of the call before it when that call is
   vouched for its base (SRS-CALL-018), judged in read order, so the runs of a
   read's start (`TT` at 16024-16025, `TTT` at 16027-16029, `GGG` at
