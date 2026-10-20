@@ -402,6 +402,11 @@
     "review_window": 10,
     "current_since": "2026-01",
     "run_signal": "batch",
+    "recheck": {
+      "path": "/data/recheck-blocks.tsv",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "rows": 1
+    },
     "zones": {
       "after": 20,
       "edge": 40,
@@ -471,7 +476,9 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
-            "het_only": 0
+            "het_only": 0,
+            "truth_n_only": 0,
+            "recheck_only": 0
           }
         },
         "regions": {
@@ -480,7 +487,9 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
-            "het_only": 0
+            "het_only": 0,
+            "truth_n_only": 0,
+            "recheck_only": 0
           },
           "by_region": [
             {
@@ -490,7 +499,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -500,7 +511,9 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -510,7 +523,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             }
           ]
@@ -521,7 +536,9 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
-            "het_only": 0
+            "het_only": 0,
+            "truth_n_only": 0,
+            "recheck_only": 0
           },
           "by_zone": [
             {
@@ -531,7 +548,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -541,7 +560,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -551,7 +572,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -561,7 +584,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -571,7 +596,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -581,7 +608,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -591,7 +620,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -601,7 +632,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -611,7 +644,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -621,7 +656,9 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -631,7 +668,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -641,7 +680,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -651,7 +692,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -661,7 +704,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -671,7 +716,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             }
           ]
@@ -684,7 +731,9 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
-            "het_only": 0
+            "het_only": 0,
+            "truth_n_only": 0,
+            "recheck_only": 0
           }
         },
         "regions": {
@@ -693,7 +742,9 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
-            "het_only": 0
+            "het_only": 0,
+            "truth_n_only": 0,
+            "recheck_only": 0
           },
           "by_region": [
             {
@@ -703,7 +754,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -713,7 +766,9 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -723,7 +778,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             }
           ]
@@ -734,7 +791,9 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
-            "het_only": 0
+            "het_only": 0,
+            "truth_n_only": 0,
+            "recheck_only": 0
           },
           "by_zone": [
             {
@@ -744,7 +803,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -754,7 +815,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -764,7 +827,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -774,7 +839,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -784,7 +851,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -794,7 +863,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -804,7 +875,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -814,7 +887,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -824,7 +899,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -834,7 +911,9 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -844,7 +923,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -854,7 +935,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -864,7 +947,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -874,7 +959,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             },
             {
@@ -884,7 +971,9 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
-                "het_only": 0
+                "het_only": 0,
+                "truth_n_only": 0,
+                "recheck_only": 0
               }
             }
           ]

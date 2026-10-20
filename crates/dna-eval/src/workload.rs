@@ -12,7 +12,8 @@
 //!
 //! A sample, a region of the zones, or a zone that no check item touches
 //! passes without review; [`passes`] counts them over a set of samples, with
-//! the passed ones that carry an unreviewed block, het or not.
+//! the passed ones that carry an unreviewed block by the [`Class`] of its
+//! blocks.
 
 use std::collections::BTreeSet;
 
@@ -20,6 +21,7 @@ use serde::Serialize;
 
 use crate::compare::{self, HV_REGIONS};
 use crate::haplotype::Block;
+use crate::recheck;
 use crate::zones::{Instance, Zones};
 
 /// One window of an HV region, 1-based and inclusive.
@@ -82,7 +84,7 @@ pub(crate) struct Workload {
     pub(crate) zones: BTreeSet<Instance>,
     /// Check items that touch more than one zone instance.
     pub(crate) spanning: usize,
-    /// Each unreviewed block's zone instance and whether it is het.
+    /// Each unreviewed block's zone instance and class.
     pub(crate) escapes: Vec<Escape>,
 }
 
@@ -91,8 +93,38 @@ pub(crate) struct Workload {
 pub(crate) struct Escape {
     /// The zone instance that holds the block's first anchor, when one does.
     pub(crate) zone: Option<Instance>,
-    /// Whether the truth writes a heteroplasmy in the block ([`het`]).
-    pub(crate) het: bool,
+    /// What the block is, as the pass measures split it.
+    pub(crate) class: Class,
+}
+
+/// What an unreviewed difference block is, as the pass measures split it,
+/// from the least to the most severe. A block is `Recheck` when the re-check
+/// list names it, else `TruthN` when the truth writes `N` in it, else `Het`
+/// when the truth writes a heteroplasmy in it ([`het`]), else `NonHet`: a
+/// DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list
+/// explains. A passed unit counts under its most severe block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Class {
+    Recheck,
+    Het,
+    TruthN,
+    NonHet,
+}
+
+impl Class {
+    /// The class of `block`, listed when it overlaps one of `listed`, its
+    /// sample's spans on the re-check list.
+    pub(crate) fn of(block: &Block, listed: &[(i64, i64)]) -> Self {
+        if recheck::listed(block, listed) {
+            Self::Recheck
+        } else if block.truth.contains('N') {
+            Self::TruthN
+        } else if het(block) {
+            Self::Het
+        } else {
+            Self::NonHet
+        }
+    }
 }
 
 /// Whether the truth writes a heteroplasmy in `block`: an IUPAC code of two
@@ -108,13 +140,15 @@ pub(crate) fn het(block: &Block) -> bool {
 }
 
 /// The workload of one sample from its check items (`first..=last`,
-/// 1-based) and its `haplotype_lod` difference blocks.
+/// 1-based), its `haplotype_lod` difference blocks, and its spans on the
+/// re-check list.
 pub(crate) fn of(
     checks: &[(i64, i64)],
     blocks: &[Block],
     windows: &[Window],
     forced: &[(i64, i64)],
     zones: Option<&Zones>,
+    listed: &[(i64, i64)],
 ) -> Workload {
     let touched = |window: &Window| {
         checks
@@ -189,7 +223,7 @@ pub(crate) fn of(
             .iter()
             .map(|block| Escape {
                 zone: zones.and_then(|zones| zones.instance(block.start)),
-                het: het(block),
+                class: Class::of(block, listed),
             })
             .collect(),
         checks: checks.len(),
@@ -204,25 +238,30 @@ pub(crate) fn of(
 }
 
 /// Passed samples, regions, or zones that carry an unreviewed block: in all,
-/// with a block that is not het, and with het blocks only.
+/// and by the most severe [`Class`] of their blocks: with a `NonHet` block,
+/// else with a truth `N`, else het only, else on the re-check list only.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub(crate) struct Escaped {
     pub(crate) total: usize,
     pub(crate) non_het: usize,
     pub(crate) het_only: usize,
+    pub(crate) truth_n_only: usize,
+    pub(crate) recheck_only: usize,
 }
 
 impl Escaped {
     /// Counts one passed unit with its unreviewed `escapes`.
     fn add<'e>(&mut self, escapes: impl IntoIterator<Item = &'e Escape>) {
-        let (mut any, mut non_het) = (false, false);
-        for escape in escapes {
-            any = true;
-            non_het |= !escape.het;
-        }
-        self.total += usize::from(any);
-        self.non_het += usize::from(non_het);
-        self.het_only += usize::from(any && !non_het);
+        let Some(class) = escapes.into_iter().map(|escape| escape.class).max() else {
+            return;
+        };
+        self.total += 1;
+        *match class {
+            Class::NonHet => &mut self.non_het,
+            Class::TruthN => &mut self.truth_n_only,
+            Class::Het => &mut self.het_only,
+            Class::Recheck => &mut self.recheck_only,
+        } += 1;
     }
 
     /// The sum of `counts`.
@@ -231,6 +270,8 @@ impl Escaped {
             total: sum.total + count.total,
             non_het: sum.non_het + count.non_het,
             het_only: sum.het_only + count.het_only,
+            truth_n_only: sum.truth_n_only + count.truth_n_only,
+            recheck_only: sum.recheck_only + count.recheck_only,
         })
     }
 }
@@ -460,6 +501,7 @@ mod tests {
             &windows,
             &[],
             Some(&zones),
+            &[],
         );
         assert_eq!(workload.checks, 1);
         assert_eq!(workload.zones, BTreeSet::from([(0, Kind::Start)]));
@@ -468,7 +510,7 @@ mod tests {
             workload.escapes,
             [Escape {
                 zone: Some((0, Kind::Start)),
-                het: false
+                class: Class::NonHet
             }]
         );
         assert_eq!(workload.positions, 10);
@@ -487,6 +529,7 @@ mod tests {
             &windows,
             &[(16184, 16193)],
             None,
+            &[],
         );
         assert!(workload.zones.is_empty());
         assert_eq!(workload.escapes[0].zone, None);
@@ -522,7 +565,7 @@ mod tests {
             },
         );
         let of = |checks: &[(i64, i64)], blocks: &[Block]| {
-            of(checks, blocks, &windows, &[], Some(&zones))
+            of(checks, blocks, &windows, &[], Some(&zones), &[])
         };
         let workloads = [
             // Auto-pass with a non-het block in HV1 and a het one in HV2.
@@ -538,8 +581,8 @@ mod tests {
             // Auto-pass without a difference.
             of(&[], &[]),
             // HV1 checked, its block reviewed; HV2 and HV3 pass with a het
-            // and an `N` block, and a block outside every region counts for
-            // none.
+            // and a truth `N` block, and a block outside every region counts
+            // for none.
             of(
                 &[(16030, 16030)],
                 &[
@@ -561,17 +604,19 @@ mod tests {
             ),
         ];
         let passes = passes(&workloads, Some(&zones));
-        let escaped = |total, non_het, het_only| Escaped {
-            total,
+        let escaped = |non_het, het_only, truth_n_only| Escaped {
+            total: non_het + het_only + truth_n_only,
             non_het,
             het_only,
+            truth_n_only,
+            recheck_only: 0,
         };
         assert_eq!(passes.samples, 5);
         assert_eq!(
             passes.auto_pass,
             AutoPass {
                 samples: 3,
-                unreviewed: escaped(2, 1, 1)
+                unreviewed: escaped(1, 1, 0)
             }
         );
         let unit = |name: &str, checked, unreviewed| Unit {
@@ -585,11 +630,11 @@ mod tests {
             Regions {
                 total: 15,
                 checked: 2,
-                unreviewed: escaped(5, 2, 3),
+                unreviewed: escaped(1, 3, 1),
                 by_region: vec![
-                    unit("HV1", 1, escaped(1, 1, 0)),
-                    unit("HV2", 1, escaped(3, 0, 3)),
-                    unit("HV3", 0, escaped(1, 1, 0)),
+                    unit("HV1", 1, escaped(1, 0, 0)),
+                    unit("HV2", 1, escaped(0, 3, 0)),
+                    unit("HV3", 0, escaped(0, 0, 1)),
                 ],
             }
         );
@@ -599,27 +644,71 @@ mod tests {
             ZonePasses {
                 total: 5 * 13,
                 checked: 2,
-                unreviewed: escaped(6, 3, 3),
+                unreviewed: escaped(2, 3, 1),
                 by_zone: vec![
                     unit("window@HV1", 0, none),
                     unit("after@HV1", 0, none),
                     unit("start@HV1", 1, none),
                     unit("end@HV1", 0, none),
-                    unit("interior@HV1", 0, escaped(1, 1, 0)),
+                    unit("interior@HV1", 0, escaped(1, 0, 0)),
                     unit("window@HV2", 1, none),
                     unit("after@HV2", 0, none),
-                    unit("start@HV2", 0, escaped(1, 0, 1)),
+                    unit("start@HV2", 0, escaped(0, 1, 0)),
                     unit("end@HV2", 0, none),
-                    unit("interior@HV2", 0, escaped(3, 1, 2)),
+                    unit("interior@HV2", 0, escaped(1, 2, 0)),
                     unit("start@HV3", 0, none),
                     unit("end@HV3", 0, none),
-                    unit("interior@HV3", 0, escaped(1, 1, 0)),
+                    unit("interior@HV3", 0, escaped(0, 0, 1)),
                 ],
             }
         );
         let bare = super::passes(&workloads, None);
         assert_eq!((bare.regions.total, bare.zones.total), (0, 0));
         assert_eq!(bare.auto_pass, passes.auto_pass);
+    }
+
+    #[test]
+    fn a_block_takes_one_class_and_a_unit_its_most_severe() {
+        use Class::{Het, NonHet, Recheck, TruthN};
+        let class = |truth: &str, listed: &[(i64, i64)]| {
+            Class::of(&Block::fixture(100, 101, "AC", truth), listed)
+        };
+        // The re-check list comes first, then a truth `N`, then het.
+        assert_eq!(class("AC", &[(101, 105)]), Recheck);
+        assert_eq!(class("NY", &[(90, 100)]), Recheck);
+        assert_eq!(class("NY", &[(102, 105)]), TruthN);
+        assert_eq!(class("AY", &[]), Het);
+        assert_eq!(class("GG", &[]), NonHet);
+        // A passed unit counts once, under its most severe block.
+        let escape = |class| Escape { zone: None, class };
+        let count = |classes: &[Class]| {
+            let mut escaped = Escaped::default();
+            escaped.add(&classes.iter().copied().map(escape).collect::<Vec<_>>());
+            escaped
+        };
+        let only = |non_het, het_only, truth_n_only, recheck_only| Escaped {
+            total: 1,
+            non_het,
+            het_only,
+            truth_n_only,
+            recheck_only,
+        };
+        assert_eq!(count(&[Recheck, Het, TruthN, NonHet]), only(1, 0, 0, 0));
+        assert_eq!(count(&[Recheck, Het, TruthN]), only(0, 0, 1, 0));
+        assert_eq!(count(&[Recheck, Het]), only(0, 1, 0, 0));
+        assert_eq!(count(&[Recheck, Recheck]), only(0, 0, 0, 1));
+        assert_eq!(count(&[]), Escaped::default());
+        // A listed block passes as re-check only; unlisted it is non-het.
+        let windows = windows(10);
+        let block = [Block::fixture(573, 573, "CCCCCCCA", "CCCCCCA")];
+        let listed = of(&[], &block, &windows, &[], None, &[(573, 573)]);
+        let unlisted = of(&[], &block, &windows, &[], None, &[(16057, 16057)]);
+        assert_eq!(listed.escapes[0].class, Recheck);
+        assert_eq!(unlisted.escapes[0].class, NonHet);
+        assert_eq!(listed.unreviewed, unlisted.unreviewed);
+        let auto_pass = |workload: &Workload| passes([workload], None).auto_pass.unreviewed;
+        assert_eq!(auto_pass(&listed), only(0, 0, 0, 1));
+        assert_eq!(auto_pass(&unlisted), only(1, 0, 0, 0));
     }
 
     #[test]

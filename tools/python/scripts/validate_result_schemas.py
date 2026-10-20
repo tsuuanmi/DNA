@@ -1680,7 +1680,9 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
         "changed_samples"
     ):
         errors.append(f"{label}: truth_changes.tsv disagrees with changed_samples")
-    validate_eval_passes(header.get("workload", {}), scores, label, errors)
+    validate_eval_passes(
+        header.get("workload", {}), "recheck" in header, scores, label, errors
+    )
     triage = header.get("triage")
     if isinstance(triage, dict):
         policies = triage.get("policies")
@@ -1699,13 +1701,25 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
             )
 
 
+# The classes that split the passed units with an unreviewed block.
+EVAL_ESCAPED_SPLIT = ("non_het", "truth_n_only", "het_only", "recheck_only")
+
+
 def validate_eval_passes(
-    workload: Any, scores: list[dict[str, Any]], label: str, errors: list[str]
+    workload: Any,
+    recheck: bool,
+    scores: list[dict[str, Any]],
+    label: str,
+    errors: list[str],
 ) -> None:
-    """Check that `run.json` `workload` counts what `scores.tsv`'s review columns hold."""
+    """Check that `run.json` `workload` counts what `scores.tsv`'s review columns hold.
+
+    Units split into `EVAL_ESCAPED_SPLIT`, which sum to `total`; without a
+    re-check list (`recheck` false) no unit is re-check only.
+    """
     if not isinstance(workload, dict):
         return
-    escaped_keys = ("total", "non_het", "het_only")
+    escaped_keys = ("total", *EVAL_ESCAPED_SPLIT)
     for name, passes in workload.items():
         escaped = [passes.get("auto_pass", {}).get("unreviewed", {})]
         for key, units_key in (("regions", "by_region"), ("zones", "by_zone")):
@@ -1730,11 +1744,15 @@ def validate_eval_passes(
                     f"{label}: run.json workload.{name} {key} disagree with {units_key}"
                 )
         if any(
-            item.get("non_het", 0) + item.get("het_only", 0) != item.get("total", 0)
+            sum(item.get(key, 0) for key in EVAL_ESCAPED_SPLIT) != item.get("total", 0)
             for item in escaped
         ):
             errors.append(
                 f"{label}: run.json workload.{name} splits unreviewed units inconsistently"
+            )
+        if not recheck and any(item.get("recheck_only", 0) for item in escaped):
+            errors.append(
+                f"{label}: run.json workload.{name} counts re-check units without a list"
             )
     passes = workload.get("all")
     if not isinstance(passes, dict):
@@ -1814,6 +1832,14 @@ def rejected_eval_run_shapes(
     zone_without_unreviewed["run.json"]["workload"]["all"]["zones"]["by_zone"][0].pop(
         "unreviewed"
     )
+    split_without_truth_n = copy.deepcopy(example)
+    split_without_truth_n["run.json"]["workload"]["all"]["auto_pass"]["unreviewed"].pop(
+        "truth_n_only"
+    )
+    recheck_without_sha256 = copy.deepcopy(example)
+    recheck_without_sha256["run.json"]["recheck"].pop("sha256")
+    recheck_with_bad_rows = copy.deepcopy(example)
+    recheck_with_bad_rows["run.json"]["recheck"]["rows"] = -1
     forms_without_database = copy.deepcopy(example)
     forms_without_database["forms.tsv"]["comments"] = []
     commented_scores = copy.deepcopy(example)
@@ -1838,6 +1864,9 @@ def rejected_eval_run_shapes(
         ("eval current data without its passes", current_without_passes),
         ("eval zone passes without their zones", zones_without_rows),
         ("eval zone row without its unreviewed counts", zone_without_unreviewed),
+        ("eval unreviewed split without truth_n_only", split_without_truth_n),
+        ("eval re-check list without its sha256", recheck_without_sha256),
+        ("eval re-check list with negative rows", recheck_with_bad_rows),
         ("eval forms.tsv without its database line", forms_without_database),
         ("eval scores.tsv with a comment line", commented_scores),
         ("eval policy table with an unknown class", unknown_policy_class),
@@ -2183,13 +2212,43 @@ def main(argv: list[str] | None = None) -> int:
         )
     miscounted_zone = copy.deepcopy(eval_run_example)
     zone = miscounted_zone["run.json"]["workload"]["all"]["zones"]["by_zone"][0]
-    zone["unreviewed"] = {"total": 1, "non_het": 1, "het_only": 0}
+    zone["unreviewed"] = {
+        "total": 1,
+        "non_het": 1,
+        "het_only": 0,
+        "truth_n_only": 0,
+        "recheck_only": 0,
+    }
     run_errors = []
     validate_eval_run(miscounted_zone, "synthetic miscounted zone", run_errors)
     if not run_errors:
         errors.append(
             "expected zone rows that disagree with their totals to be rejected"
         )
+    for item, description in [
+        ({"total": 1, "non_het": 1, "het_only": 1}, "a split that exceeds its total"),
+        (
+            {"total": 1, "truth_n_only": 0, "recheck_only": 0},
+            "a split short of its total",
+        ),
+    ]:
+        missplit = copy.deepcopy(eval_run_example)
+        missplit["run.json"]["workload"]["all"]["auto_pass"]["unreviewed"] = item
+        run_errors = []
+        validate_eval_run(missplit, f"synthetic {description}", run_errors)
+        if not any("splits unreviewed units" in error for error in run_errors):
+            errors.append(f"expected passes with {description} to be rejected")
+    unlisted_recheck = copy.deepcopy(eval_run_example)
+    unlisted_recheck["run.json"].pop("recheck")
+    for passes in unlisted_recheck["run.json"]["workload"].values():
+        unreviewed = passes["auto_pass"]["unreviewed"]
+        if unreviewed["non_het"]:
+            unreviewed["non_het"] -= 1
+            unreviewed["recheck_only"] += 1
+    run_errors = []
+    validate_eval_run(unlisted_recheck, "synthetic unlisted re-check", run_errors)
+    if not any("re-check units without a list" in error for error in run_errors):
+        errors.append("expected re-check units without a re-check list to be rejected")
     unsorted_run = copy.deepcopy(eval_run_example)
     unsorted_run["scores.tsv"]["rows"].reverse()
     run_errors = []

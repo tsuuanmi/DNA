@@ -20,10 +20,11 @@ use crate::estimate::{self, Estimate, Observation};
 use crate::haplotype;
 use crate::lod;
 use crate::manifest::Sample;
+use crate::recheck::Recheck;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::unrecorded;
-use crate::workload::{self, Escaped, Passes, Unit, Window, Workload};
+use crate::workload::{self, Class as BlockClass, Escaped, Passes, Unit, Window, Workload};
 use crate::zones::{Kind, Zones};
 use dna_kernel::profile::Convention;
 
@@ -358,13 +359,14 @@ pub(crate) struct Report<'a> {
 /// Default window of the review workload, in positions.
 pub(crate) const REVIEW_WINDOW: i64 = 10;
 
-/// The review workload of a run: its windows, its forced windows, and each
-/// row's workload when the row was compared.
+/// The review workload of a run: its windows, its forced windows, its
+/// re-check list, and each row's workload when the row was compared.
 struct Review {
     window: i64,
     windows: Vec<Window>,
     forced: Option<Vec<(i64, i64)>>,
     zones: Option<Zones>,
+    recheck: Option<Recheck>,
     workloads: Vec<Option<Workload>>,
 }
 
@@ -374,6 +376,7 @@ impl Review {
         window: i64,
         forced: Option<Vec<(i64, i64)>>,
         zones: Option<Zones>,
+        recheck: Option<Recheck>,
     ) -> Self {
         let windows = workload::windows(window);
         let workloads = rows
@@ -387,6 +390,9 @@ impl Review {
                     &windows,
                     forced.as_deref().unwrap_or_default(),
                     zones.as_ref(),
+                    recheck
+                        .as_ref()
+                        .map_or(&[], |recheck| recheck.spans(&row.sample.id)),
                 ))
             })
             .collect();
@@ -395,6 +401,7 @@ impl Review {
             windows,
             forced,
             zones,
+            recheck,
             workloads,
         }
     }
@@ -450,7 +457,7 @@ impl<'a> Report<'a> {
             check,
             estimates,
             causes,
-            review: Review::of(rows, REVIEW_WINDOW, None, None),
+            review: Review::of(rows, REVIEW_WINDOW, None, None, None),
             current_since: None,
         }
     }
@@ -484,15 +491,17 @@ impl<'a> Report<'a> {
     }
 
     /// The same report with the review workload over windows of `window`
-    /// positions, `forced` windows counted as reviewed when given, and the
-    /// check items placed in `zones` when given.
+    /// positions, `forced` windows counted as reviewed when given, the check
+    /// items placed in `zones` when given, and the blocks of the `recheck`
+    /// list in their own class when given.
     pub(crate) fn with_review(
         mut self,
         window: i64,
         forced: Option<Vec<(i64, i64)>>,
         zones: Option<Zones>,
+        recheck: Option<Recheck>,
     ) -> Self {
-        self.review = Review::of(self.rows, window, forced, zones);
+        self.review = Review::of(self.rows, window, forced, zones, recheck);
         self
     }
 
@@ -962,6 +971,30 @@ impl<'a> Report<'a> {
                 before.len()
             );
         }
+        if let Some(recheck) = &self.review.recheck {
+            let matched = counted
+                .iter()
+                .filter_map(|(row, _)| {
+                    let blocks = &row.comparison(Measure::HaplotypeLod).ok()?.blocks;
+                    Some(
+                        recheck
+                            .spans(&row.sample.id)
+                            .iter()
+                            .filter(|&&(first, last)| {
+                                blocks.iter().any(|block| block.overlaps(first, last))
+                            })
+                            .count(),
+                    )
+                })
+                .sum::<usize>();
+            let _ = writeln!(
+                text,
+                "| Re-check list rows overlapping no difference block of these samples | {} \
+                 of {} |",
+                recheck.rows() - matched,
+                recheck.rows()
+            );
+        }
         self.pass_section(text, &counted);
         self.zone_section(text, &counted);
         text.push_str("\nSamples with an unreviewed difference, by region:\n\n| Region | Samples |\n|---|---:|\n");
@@ -1047,7 +1080,8 @@ impl<'a> Report<'a> {
     /// What passes without review of `samples`: the samples without a check
     /// item, the regions and zones no check item touches, overall, per
     /// region, per zone, and per zone kind, and the passed samples, regions,
-    /// and zones that carry an unreviewed difference, het or not.
+    /// and zones that carry an unreviewed difference, by the class of their
+    /// blocks; with a re-check list, the unreviewed blocks on it.
     fn pass_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
         let Some(geometry) = &self.review.zones else {
             return;
@@ -1066,77 +1100,95 @@ impl<'a> Report<'a> {
                 0.0
             }
         };
+        let split = |escaped: &Escaped| {
+            format!(
+                "non-het {}, truth N only {}, het only {}, re-check only {}",
+                escaped.non_het, escaped.truth_n_only, escaped.het_only, escaped.recheck_only
+            )
+        };
         let (auto_pass, regions, zones) = (&passes.auto_pass, &passes.regions, &passes.zones);
         let unchecked = regions.total - regions.checked;
         let open = zones.total - zones.checked;
         let _ = write!(
             text,
             "\nPasses (a sample, region, or zone that no check item touches passes unreviewed; \
-             a difference block counts for the region of its first position, and is het when \
-             the truth writes an IUPAC code of two or three bases in it):\n\n\
+             a difference block counts for the region of its first position. A block is \
+             re-check when the re-check list names it, else truth N when the truth writes `N` \
+             in it, else het when the truth writes an IUPAC code of two or three bases in it, \
+             else non-het; a passed unit counts under its most severe block, in the order \
+             non-het, truth N, het, re-check):\n\n\
              | Measure | Value |\n|---|---:|\n\
              | Auto-pass samples (no check item) | {} of {} ({:.2} %) |\n\
-             | Auto-pass samples with an unreviewed difference | {} ({:.2} % of them): \
-             non-het {}, het only {} |\n\
+             | Auto-pass samples with an unreviewed difference | {} ({:.2} % of them): {} |\n\
              | Regions needing a check | {} of {} ({:.2} %) |\n\
              | Passed regions | {unchecked} ({:.2} %) |\n\
-             | Passed regions with an unreviewed difference | {} ({:.2} % of them): \
-             non-het {}, het only {} |\n\
+             | Passed regions with an unreviewed difference | {} ({:.2} % of them): {} |\n\
              | Zones needing a check | {} of {} ({:.2} %) |\n\
              | Passed zones | {open} ({:.2} %) |\n\
-             | Passed zones with an unreviewed difference | {} ({:.2} % of them): \
-             non-het {}, het only {} |\n",
+             | Passed zones with an unreviewed difference | {} ({:.2} % of them): {} |\n",
             auto_pass.samples,
             passes.samples,
             percent(auto_pass.samples, passes.samples),
             auto_pass.unreviewed.total,
             percent(auto_pass.unreviewed.total, auto_pass.samples),
-            auto_pass.unreviewed.non_het,
-            auto_pass.unreviewed.het_only,
+            split(&auto_pass.unreviewed),
             regions.checked,
             regions.total,
             percent(regions.checked, regions.total),
             percent(unchecked, regions.total),
             regions.unreviewed.total,
             percent(regions.unreviewed.total, unchecked),
-            regions.unreviewed.non_het,
-            regions.unreviewed.het_only,
+            split(&regions.unreviewed),
             zones.checked,
             zones.total,
             percent(zones.checked, zones.total),
             percent(open, zones.total),
             zones.unreviewed.total,
             percent(zones.unreviewed.total, open),
-            zones.unreviewed.non_het,
-            zones.unreviewed.het_only,
+            split(&zones.unreviewed),
         );
+        if self.review.recheck.is_some() {
+            let listed = samples
+                .iter()
+                .flat_map(|(_, workload)| &workload.escapes)
+                .filter(|escape| escape.class == BlockClass::Recheck)
+                .count();
+            let _ = writeln!(
+                text,
+                "| Unreviewed blocks on the re-check list | {listed} |"
+            );
+        }
         text.push_str(
             "\n| Region | Needing a check | Passed | Passed with an unreviewed difference \
-             | Non-het | Het only |\n|---|---:|---:|---:|---:|---:|\n",
+             | Non-het | Truth N only | Het only | Re-check only |\n\
+             |---|---:|---:|---:|---:|---:|---:|---:|\n",
         );
         for region in &regions.by_region {
             let _ = writeln!(
                 text,
-                "| {} | {} ({:.2} %) | {:.2} % | {} | {} | {} |",
+                "| {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} |",
                 region.name,
                 region.checked,
                 percent(region.checked, region.total),
                 percent(region.total - region.checked, region.total),
                 region.unreviewed.total,
                 region.unreviewed.non_het,
+                region.unreviewed.truth_n_only,
                 region.unreviewed.het_only,
+                region.unreviewed.recheck_only,
             );
         }
         let table = |text: &mut String, label: &str, units: &[Unit]| {
             let _ = write!(
                 text,
                 "\n| {label} | Zones | Needing a check | Passed | Passed with an unreviewed \
-                 difference | Non-het | Het only |\n|---|---:|---:|---:|---:|---:|---:|\n"
+                 difference | Non-het | Truth N only | Het only | Re-check only |\n\
+                 |---|---:|---:|---:|---:|---:|---:|---:|---:|\n"
             );
             for unit in units {
                 let _ = writeln!(
                     text,
-                    "| {} | {} | {} ({:.2} %) | {:.2} % | {} | {} | {} |",
+                    "| {} | {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} |",
                     unit.name,
                     unit.total,
                     unit.checked,
@@ -1144,7 +1196,9 @@ impl<'a> Report<'a> {
                     percent(unit.total - unit.checked, unit.total),
                     unit.unreviewed.total,
                     unit.unreviewed.non_het,
+                    unit.unreviewed.truth_n_only,
                     unit.unreviewed.het_only,
+                    unit.unreviewed.recheck_only,
                 );
             }
         };

@@ -66,6 +66,25 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   3,496 of 32,085 (10.90 %), 360 passed regions with an unreviewed
   difference (65 non-het); zones needing a check 4,455 of 160,425 (2.78 %),
   and 423 passed zones with an unreviewed difference (74 non-het).
+- `dna-eval run --recheck <file.tsv>` reads a list of difference blocks
+  whose truth is under re-check (`sample_id`, `first`, `last`, `reason`,
+  `source`; a malformed list stops the run), so that the pass measures no
+  longer count them as DNA errors. Each unreviewed block now has one class:
+  re-check when it overlaps a listed span of its sample, else truth N when
+  the truth writes `N` in it, else het, else non-het; a passed sample,
+  region, or zone counts under its most severe block (non-het, truth N,
+  het, re-check). `run.json` `workload` splits every count into `non_het`,
+  `truth_n_only`, `het_only`, and `recheck_only`, and records the list's
+  path, SHA-256, and rows (`recheck`); the "Passes" tables gain the same
+  columns, the unreviewed blocks on the list, and the list's rows that
+  overlap no difference block. `dna.eval_run/v1` changes in place
+  (pre-release) and `validate_result_schemas.py --eval-run` checks the split.
+  Every table is byte-identical. Without `--recheck`, the non-het counts
+  fall: a block with a truth `N` used to count as non-het and is now its
+  own class. On development panel v5, current data, the passed zones with
+  an unreviewed non-het difference fall from 74 to 43 (31 truth N only), and
+  with the 186-row re-check list of 2026-10-20 to 20 (5 truth N only, 49
+  re-check only); `window@HV2` keeps 17 of its 19.
 - The Sanger plugin asserts a read's poor start as an unreliable span
   (SRS-CALL-024, PROP-0012 increment 5): from its first call to its first
   run of `start_identity_margin` consecutive sound calls. `ReadEvidence`
