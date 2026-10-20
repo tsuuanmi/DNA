@@ -319,7 +319,7 @@ or to which files a run writes, is a new contract version
 |---|---|---|
 | `scores.tsv` | always | per sample: the comparison under each [measure](evaluation-measures.md#measures), the [discrepancy class](evaluation-measures.md#discrepancy-classes) and [cause](evaluation-measures.md#discrepancy-causes), the [EMPOP query](#empop-queries), the callable yield per HV region, the traces, the failure, and the [review workload](evaluation-triage.md#review-workload); read back as a later run's `--baseline` |
 | `components.tsv` | always | per phase-mixture component (ADR-0082) and reference run cluster it covers: the run it enters in phase against the truth's |
-| `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
+| `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |

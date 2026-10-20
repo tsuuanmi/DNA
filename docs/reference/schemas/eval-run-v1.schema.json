@@ -2128,6 +2128,8 @@
             "read",
             "strand",
             "onset",
+            "onset_reason",
+            "to_end",
             "start",
             "reference",
             "run",
@@ -2160,6 +2162,8 @@
               "read",
               "strand",
               "onset",
+              "onset_reason",
+              "to_end",
               "start",
               "reference",
               "run",
@@ -2200,6 +2204,15 @@
               "onset": {
                 "description": "The call where the read leaves phase, after the tract (0-based).",
                 "$ref": "#/$defs/count"
+              },
+              "onset_reason": {
+                "description": "The read's reason for masking the onset call, why it left phase there (`post_homopolymer`, `dephased_signal`, `mixed_signal`, `weak_signal`, `irregular_spacing`); `.` when the call is not masked.",
+                "type": "string",
+                "pattern": "^([a-z][a-z0-9_]*|\\.)$"
+              },
+              "to_end": {
+                "description": "Whether the read stays out of phase from the onset to its end: no later call is scored.",
+                "$ref": "#/$defs/yes_no"
               },
               "start": {
                 "description": "The tract's first call (0-based).",

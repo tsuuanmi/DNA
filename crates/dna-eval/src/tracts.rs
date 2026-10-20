@@ -13,6 +13,8 @@ pub(crate) struct Row {
     pub(crate) read: String,
     pub(crate) forward: bool,
     pub(crate) onset: usize,
+    pub(crate) onset_reason: Option<&'static str>,
+    pub(crate) to_end: bool,
     pub(crate) start: usize,
     pub(crate) reference: Option<usize>,
     pub(crate) run: char,
@@ -68,6 +70,8 @@ pub(crate) fn rows(analysis: &SampleAnalysis) -> Vec<Row> {
                 read: read.read.clone(),
                 forward: read.forward,
                 onset: tract.onset,
+                onset_reason: placed.onset_reason,
+                to_end: placed.to_end,
                 start: tract.call_start,
                 reference: placed.reference,
                 run: tract.run,
@@ -88,7 +92,7 @@ pub(crate) fn rows(analysis: &SampleAnalysis) -> Vec<Row> {
 }
 
 /// The table's header.
-pub(crate) const HEADER: &str = "sample_id\tbatch_date\tread\tstrand\tonset\tstart\treference\trun\tmark\textent\twindow\tresidual\tfirst\tfirst_share\tfirst_next\tfirst_z\tfirst_margin\ttotal\ttotal_share\ttotal_next\ttotal_z\ttotal_margin\tcleaned_first\tcleaned_first_share\n";
+pub(crate) const HEADER: &str = "sample_id\tbatch_date\tread\tstrand\tonset\tonset_reason\tto_end\tstart\treference\trun\tmark\textent\twindow\tresidual\tfirst\tfirst_share\tfirst_next\tfirst_z\tfirst_margin\ttotal\ttotal_share\ttotal_next\ttotal_z\ttotal_margin\tcleaned_first\tcleaned_first_share\n";
 
 /// Appends `sample`'s rows.
 pub(crate) fn append(table: &mut String, sample: (&str, &str), rows: &[Row]) {
@@ -102,12 +106,14 @@ pub(crate) fn append(table: &mut String, sample: (&str, &str), rows: &[Row]) {
     for row in rows {
         let _ = writeln!(
             table,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.4}\t{}\t{:.3}\t{}\t{}\t{}\t{}\t{:.3}\t{}\t{}\t{}\t{}\t{}",
             sample.0,
             sample.1,
             row.read,
             if row.forward { "forward" } else { "reverse" },
             row.onset,
+            row.onset_reason.unwrap_or("."),
+            if row.to_end { "yes" } else { "no" },
             row.start,
             length(row.reference),
             row.run,
@@ -154,6 +160,8 @@ mod tests {
             read: "r".into(),
             forward: true,
             onset: 220,
+            onset_reason: Some("post_homopolymer"),
+            to_end: false,
             start: 200,
             reference: Some(303),
             run: 'C',
@@ -167,6 +175,8 @@ mod tests {
         };
         let single = Row {
             forward: false,
+            onset_reason: Some("weak_signal"),
+            to_end: true,
             reference: None,
             mark: None,
             cleaned: None,
@@ -182,8 +192,8 @@ mod tests {
         assert_eq!(
             table.lines().skip(1).collect::<Vec<_>>(),
             [
-                "S1\t2026-01-12\tr\tforward\t220\t200\t303\tC\tT\t13\t76\t0.0123\t7\t0.625\t8\t51.60\tclear\t13\t0.625\t14\t1.50\tnear_equal\t7\t0.625",
-                "S1\t2026-01-12\tr\treverse\t220\t200\t.\tC\t.\t13\t76\t0.0123\t6\t0.625\t.\t.\tclear\t6\t0.625\t7\t.\tundefined\t.\t.",
+                "S1\t2026-01-12\tr\tforward\t220\tpost_homopolymer\tno\t200\t303\tC\tT\t13\t76\t0.0123\t7\t0.625\t8\t51.60\tclear\t13\t0.625\t14\t1.50\tnear_equal\t7\t0.625",
+                "S1\t2026-01-12\tr\treverse\t220\tweak_signal\tyes\t200\t.\tC\t.\t13\t76\t0.0123\t6\t0.625\t.\t.\tclear\t6\t0.625\t7\t.\tundefined\t.\t.",
             ]
         );
         crate::contract::check_table("tracts.tsv", &table)

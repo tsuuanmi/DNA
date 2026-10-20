@@ -94,6 +94,8 @@ pub struct ReadTracts {
 
 pub struct PlacedTract {
     pub reference: Option<usize>,
+    pub onset_reason: Option<&'static str>,
+    pub to_end: bool,
     pub tract: TractLengths,
 }
 
@@ -163,7 +165,9 @@ impl RejectionCause {
 - `tracts()` returns, per admitted read in placement order, its tract
   decodes (`TractLengths` and `LengthMarginal`, `dna_kernel::read_evidence`,
   re-exported here; SRS-CALL-025), each with the reference position (1-based)
-  its first call is aligned to, or `None`. It is computed on demand, changes
+  its first call is aligned to, or `None`; the read's reason for masking the
+  onset call, its own assertion of why it left phase there; and whether no
+  later call is scored (`to_end`). It is computed on demand, changes
   nothing, and is evidence for evaluation, not a calling contract.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the

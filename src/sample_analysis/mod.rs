@@ -23,6 +23,7 @@ use dna_call::read_trust;
 use dna_kernel::model::reference::Reference;
 pub use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel};
 use dna_kernel::profile::{Profile, ProfileIdentity};
+use dna_kernel::read_evidence::{EvidenceReason, Placement};
 pub use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
 use dna_kernel::variant::ReferenceIdentity;
 use dna_sample::model::sample_evidence::{LocusObservations, RejectedSampleRead};
@@ -162,7 +163,8 @@ impl SampleAnalysis {
     /// Every read placed on the reference and called on its own, by read,
     /// with its tract decodes (PROP-0012): its name, its content SHA-256,
     /// whether it reads the reference strand, and each tract with the
-    /// reference position of its first call. Evidence for evaluation; the
+    /// reference position of its first call, the read's reason for masking
+    /// its onset call, and whether the read stays out of phase to its end. Evidence for evaluation; the
     /// core reads none of it.
     #[must_use]
     pub fn tracts(&self) -> Vec<ReadTracts> {
@@ -180,6 +182,7 @@ impl SampleAnalysis {
                         ))
                     })
                     .collect::<BTreeMap<_, _>>();
+                let calls = read.evidence.calls();
                 ReadTracts {
                     read: read.input_name.clone(),
                     sha256: read.input_sha256.clone(),
@@ -190,6 +193,14 @@ impl SampleAnalysis {
                         .iter()
                         .map(|tract| PlacedTract {
                             reference: positions.get(&tract.call_start).copied(),
+                            onset_reason: calls
+                                .get(tract.onset)
+                                .and_then(|call| call.placement.reason())
+                                .map(EvidenceReason::label),
+                            to_end: calls
+                                .iter()
+                                .skip(tract.onset)
+                                .all(|call| call.placement != Placement::Scored),
                             tract: tract.clone(),
                         })
                         .collect(),
@@ -275,6 +286,14 @@ pub struct PlacedTract {
     /// The reference position (1-based) the tract's first call is aligned
     /// to; `None` when the call is not aligned to a reference base.
     pub reference: Option<usize>,
+    /// The modality's reason for masking the onset call, the read's own
+    /// assertion of why it left phase there (`post_homopolymer`,
+    /// `dephased_signal`, `weak_signal`, ...); `None` when the call is not
+    /// masked.
+    pub onset_reason: Option<&'static str>,
+    /// The read does not regain phase after the onset: no later call is
+    /// scored.
+    pub to_end: bool,
     /// The modality's assertion.
     pub tract: TractLengths,
 }
