@@ -1,6 +1,16 @@
 ---
-implements: [SRS-COMPAT, SRS-IN]
-decided-by: [ADR-0058, ADR-0059, ADR-0069, ADR-0070, ADR-0073, ADR-0075, ADR-0077, ADR-0079]
+implements: [SRS-CALL, SRS-COMPAT, SRS-IN, SRS-VAR]
+decided-by:
+  - ADR-0058
+  - ADR-0059
+  - ADR-0069
+  - ADR-0070
+  - ADR-0073
+  - ADR-0075
+  - ADR-0077
+  - ADR-0078
+  - ADR-0079
+  - ADR-0082
 covers:
   - crates/dna-kernel/src/reference/
   - src/cli/
@@ -55,13 +65,18 @@ covers:
 | `signal_processing` | sanger | observation-only Sanger signal evidence | reference interpretation |
 | `callability` | sanger | signal-derived per-read phase state, typed mask, callable span; modality-generic core plus one Sanger adapter | channel/call mutation, basecall rescue, reference or profile knowledge, variant decisions |
 | `quality_control` | sanger | relative quality; trim interval from the callable span | deciding callability, variant filtering |
+| `run_signal` | sanger | the second-channel signal a run's reads share, recorded as `dna.signal/v1` (PROP-0009) | per-read decisions |
+| `decompose` | sanger | the phase mixtures of a dephased stretch after a repeat run (SRS-CALL-023, ADR-0082); evidence only | deciding a call, reference knowledge |
+| `second_cause` | sanger | labels why a call shows a second peak (SRS-CALL-021); labels only | any verdict, mask, call, or review item |
 | `alignment` | align | current profile-aware pairwise placement/orientation of `ReadEvidence` | variant extraction, input-format parsing, modality types |
 | `variant_calling` | call | evidence-backed differences, mapping, allele anchoring, the one trust rule (`Eligibility`), reporting modality vetoes and mask reasons | target nomenclature, genotype/clinical interpretation, modality types |
+| `components` | call | compares each component of a read's phase mixtures with the reference on its own (SRS-VAR-022) | deciding a call, modality types |
 | `variant_analysis` | dna | Sanger one-read composition (modality plus core) and the public Variant Analysis capability | CLI logging/JSON publication |
 | `sample_analysis` | dna | the sample placement pass (each trace placed once, reads run concurrently), its aggregation and consensus, and the public Sample Analysis capability, whose consensus call (`SampleAnalysis::call`, implemented in `pipeline`) completes the `consensus` then `call` workflow in process | CLI logging/JSON publication, comparison with truth |
 | `read_call` | call | the core's one-read path from `ReadEvidence` to a `CalledRead`, the sections a called read needs (`CallConfig`), and the `core` plugin descriptor | modality types |
 | `sample` | sample | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
 | `consensus` | consensus | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |
+| `decided` | consensus | calls the consensus's decided edits without placing the consensus again (ADR-0078) | placement, modality types |
 | `variant_representation` | post | haplotype-preserving edit conversion, application, rendering | policy choices |
 | `variant_normalization` | post | optional sequence-equivalent normalization policies | nomenclature windows |
 | `variant_nomenclature` | post | profile-driven window representation engine | target knowledge, notation rendering |
@@ -89,6 +104,37 @@ DNA is a Cargo workspace of plugin-family crates, with the core split by step
   the facade's library and compares the calls with reviewer truth
   ([[ADR-0075]]). It is
   not part of the `dna` binary or the release.
+
+```mermaid
+flowchart BT
+    kernel["dna-kernel<br/>shared contracts"]
+    align["dna-align<br/>placement"]
+    callstep["dna-call<br/>read assertion"]
+    sample["dna-sample<br/>sample evidence"]
+    consensus["dna-consensus<br/>consensus"]
+    sanger["dna-sanger<br/>Sanger modality"]
+    normalize["dna-normalize<br/>representation, normalization,<br/>nomenclature"]
+    empop["dna-empop<br/>conformance, EMPOP query"]
+    facade["dna (facade)<br/>CLI, pipelines, config envelope,<br/>plugin registry, reports"]
+    eval["dna-eval<br/>evaluation harness<br/>(not in the release)"]
+
+    align --> kernel
+    callstep --> align & kernel
+    sample --> callstep & align & kernel
+    consensus --> callstep & align & kernel
+    sanger --> kernel
+    normalize --> kernel
+    empop --> kernel
+    facade --> align & callstep & sample & consensus & sanger & normalize & empop & kernel
+    eval --> facade
+    eval --> align & sample & consensus & sanger & normalize & kernel
+```
+
+
+An arrow reads "depends on" and shows each direct dependency of the manifests.
+The core steps form a chain (align, then call, then sample and consensus), no
+plugin crate depends on another, and nothing depends on the harness.
+`validate_module_layers.py` enforces the graph from sources and manifests.
 
 The Crate column above uses the short names. Each core crate depends only on
 `dna-kernel` and the steps before it; the other plugin crates depend only on

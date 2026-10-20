@@ -7,81 +7,100 @@ decided-by: [ADR-0060, ADR-0069, ADR-0078]
 
 ## Current Sanger production path
 
-```text
-Sanger ABIF
-    |
-    v
-dna_sanger::abif
-    |
-    v
-model::sanger::Chromatogram
-    |
-    v
-read_processing
-    |
-    +--> basecalling
-    +--> signal_processing
-    +--> callability
-    +--> quality_control
-              |
-              v
-      variant_analysis::observation
-              |
-              v
-   read_processing::evidence (Sanger adapter)
-              |
-              v
-         ReadEvidence
-              |
-FASTA ------> alignment
-              |
-              v
-        variant_calling <-- ReadEvidence
-              |
-              v
-        ReadObservation = CalledRead + SangerAttachment
-           /                 \
-          v                   v
-   analysis result     sample aggregation (CalledRead only)
-                              |
-                              v
-                       sample evidence --> report joins SangerAttachment
+One read, from ABIF bytes to a called read. The diagram is the whole path of
+`dna analyze`; `dna basecall` stops after read processing and `dna evidence`
+after the Sanger adapter.
+
+```mermaid
+flowchart TD
+    abif["Sanger ABIF (.ab1)"] --> decode["dna_sanger::abif<br/>bounds-checked decoding"]
+    decode --> chromatogram["Chromatogram"]
+    chromatogram --> rp
+
+    subgraph rp["dna-sanger: read_processing (reference-free)"]
+        direction TB
+        bc["basecalling<br/>signal-derived calls"]
+        sp["signal_processing<br/>observation-only evidence"]
+        cb["callability<br/>phase state, typed mask, callable span"]
+        qc["quality_control<br/>relative quality, trim"]
+        dc["decompose + second_cause<br/>phase mixtures, second-peak labels<br/>(evidence and labels only)"]
+        bc --> sp --> cb --> qc
+        cb --> dc
+    end
+
+    rp --> adapter["Sanger adapter<br/>read_processing::evidence"]
+    adapter --> re["ReadEvidence<br/>bases, profiles, labelled masks,<br/>support vetoes, informative interval"]
+    rp -. "attachment: calls, signal,<br/>callability, quality" .-> att["SangerAttachment"]
+
+    fasta["reference FASTA + target profile"] --> align
+    re --> align["dna-align<br/>placement and orientation"]
+    align --> callstep["dna-call<br/>variants, trust, callable positions"]
+    re --> callstep
+    callstep --> cr["CalledRead"]
+    cr --> analysis["dna.analysis/v10<br/>(report joins the attachment)"]
+    att --> analysis
+    cr --> sample["sample placement pass<br/>(see the sample path)"]
 ```
 
-A sample's consensus document is called from its decided edits, without
-placing a segment again (ADR-0078):
+A sample places every trace once; the sample evidence, the consensus, and the
+review all start from that pass.
 
-```text
-dna.consensus/v1 --> input::consensus --> dna_consensus::decided --> CalledRead --> called variants
+```mermaid
+flowchart TD
+    traces["a sample's AB1 traces"] --> pass["sample placement pass<br/>sample_analysis::reads<br/>each trace placed once, reads run concurrently"]
+    pass --> admitted["admitted reads<br/>CalledRead + SangerAttachment"]
+    pass --> rejected["rejected reads<br/>too short, too few callable calls, unplaceable"]
+
+    admitted --> agg["dna-sample::aggregate<br/>CalledRead only"]
+    agg --> se["dna.sample_evidence/v10"]
+
+    admitted --> cons["dna-consensus::build"]
+    cons --> cj["dna.consensus/v1 + FASTA"]
+    cj --> decided["dna-consensus::decided<br/>calls the decided edits<br/>without placing again"]
+    decided --> vars["dna.variants/v1"]
+
+    vars --> post["post-calling plugins<br/>(when the profile declares notation)"]
+    post --> notation["notation view in the document,<br/>or dna.notation/v1 from dna notation"]
+
+    se --> review["review list<br/>report::review"]
+    vars --> review
+    rejected --> review
+    signal["dna.signal/v1 (optional)"] --> review
+    review --> rj["dna.review/v1"]
 ```
 
-Reviewed consensus sequences take a shorter path into the same core:
+Other entries reach the same core without the traces:
 
-```text
-consensus FASTA --> input::sequence --> ReadEvidence (vouched ends)
-                                             |
-FASTA ---------------------------------> dna_call::read_call
-                                             |
-                                         CalledRead --> called variants
+```mermaid
+flowchart LR
+    cfasta["reviewed consensus FASTA"] --> seq["input::sequence<br/>ReadEvidence with vouched ends"]
+    seq --> rc["dna_call::read_call"]
+    ref["reference FASTA"] --> rc
+    rc --> cr1["CalledRead"] --> v1["dna.variants/v1"]
+
+    evdoc["dna.read_evidence/v1"] --> inev["input::evidence<br/>ReadEvidence + Sanger evidence"]
+    inev --> rc2["dna_call::read_call"]
+    ref --> rc2
+    rc2 --> cr2["CalledRead"] --> an["dna.analysis/v10"]
+
+    consdoc["dna.consensus/v1"] --> incons["input::consensus"]
+    incons --> dec["dna_consensus::decided"]
+    dec --> cr3["CalledRead"] --> v3["dna.variants/v1"]
 ```
 
-A read's evidence document replays its placement and per-read calling
-without the trace (SRS-API-018):
+A variants document reaches the post-calling plugins in another process
+(`dna notation`):
 
-```text
-dna.read_evidence/v1 --> input::evidence --> ReadEvidence + Sanger evidence (SangerRead)
-                                                  |
-FASTA -----------------------------------> dna_call::read_call
-                                                  |
-                                              CalledRead --> analysis result
-```
-
-A variants document reaches the post-calling plugins in another process:
-
-```text
-variants document --> input::variants --> normalization --> nomenclature
-                                                                 |
-                                                   conformance --+--> notation document
+```mermaid
+flowchart LR
+    vdoc["dna.variants/v1"] --> iv["input::variants"]
+    iv --> norm["dna-normalize<br/>normalization"]
+    norm --> nom["dna-normalize<br/>nomenclature"]
+    nom --> conf["dna-empop<br/>conformance"]
+    nom --> empop["dna-empop<br/>EMPOP query"]
+    nom --> ndoc["dna.notation/v1"]
+    conf --> ndoc
+    empop --> ndoc
 ```
 
 `variant_analysis::observation` owns the authoritative reference-guided
@@ -111,6 +130,22 @@ Each step's output is a versioned contract that can be checked on its own
 contract; the crate computes what it holds. Each crate's source README names
 its output contract, and `validate_docs_structure.py` checks that the named
 schema exists.
+
+```mermaid
+flowchart LR
+    trace["ABIF trace"] -->|"dna basecall"| bc["dna.basecalls/v3"]
+    trace -->|"dna evidence"| ev["dna.read_evidence/v1"]
+    trace -->|"dna signal (a run)"| sig["dna.signal/v1"]
+    trace -->|"dna analyze"| an["dna.analysis/v10"]
+    ev -->|"dna analyze --evidence"| an
+    trace -->|"dna sample"| se["dna.sample_evidence/v10"]
+    trace -->|"dna consensus"| cj["dna.consensus/v1 + FASTA"]
+    cj -->|"dna call"| vj["dna.variants/v1"]
+    fasta["consensus FASTA"] -->|"dna call"| vj
+    vj -->|"dna notation"| nt["dna.notation/v1"]
+    trace -->|"dna review"| rv["dna.review/v1"]
+    sig -.->|"--signal"| rv
+```
 
 | Step (crate) | Input contract(s) | Output contract | Command | Schema |
 |---|---|---|---|---|
@@ -145,17 +180,18 @@ Future modalities keep source-specific evidence until a biological difference
 has actually been called or imported. The common convergence point is
 `CalledVariantSet`, not a universal raw-alignment object.
 
-```text
-Sanger evidence --> ReadEvidence --> core caller -----+
-consensus FASTA --> ReadEvidence --> core caller -----+
-                                                      |
-NGS evidence ----> NGS caller ------------------------+--> CalledVariantSet
-                                                      |       /     |      \
-VCF/BCF --------> validated importer -----------------+      v      v       v
-                                                         direct  optional  optional
-                                                          use   normalize  nomenclature
-                                                                   |
-                                                                   +--> optional nomenclature
+```mermaid
+flowchart LR
+    sanger["Sanger evidence"] --> re1["ReadEvidence"] --> core["core caller"]
+    cons["consensus FASTA"] --> re2["ReadEvidence"] --> core
+    ngs["NGS evidence"] --> ngsc["NGS caller"]
+    vcf["VCF/BCF"] --> imp["validated importer"]
+    core --> cvs
+    ngsc --> cvs
+    imp --> cvs["CalledVariantSet"]
+    cvs --> direct["direct use"]
+    cvs --> norm["optional normalization"]
+    cvs --> nom["optional nomenclature"]
 ```
 
 The source-specific paths are intentionally different:
