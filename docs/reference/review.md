@@ -95,6 +95,11 @@ target still fails the command without output.
   stretches come from the read's own signal, never from fixed positions, so
   they locate what each read left unread for a later reading of the
   dephased tail, also where no item lists it.
+  Since rules version 18, an admitted read also has `unreliable`: the maximal
+  stretches `{first, last, reason}` of reportable positions that its aligned
+  calls cover inside a span its modality asserts unreliable
+  (`poor_start_signal`, the read's start before its signal settles,
+  SRS-CALL-024).
   Since rules version 17, an admitted read also has `mixtures`: the stretches
   after a run whose signal the modality asserts is the read's own sequence
   superposed with copies offset by whole calls (ADR-0082). Each says whether
@@ -171,7 +176,9 @@ the clipped columns, what most of its supporting reads show there). It has:
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference. The read labels `one_read`, `one_strand`, `noisy_signal`,
-  `read_edge`, and `phase_shift` are context and do not make a check.
+  `read_edge`, and `phase_shift` are context and do not make a check;
+  `poor_signal` makes a check of an item with a difference only (rules
+  version 18).
 - `decision`: `called` (decided, and every position callable),
   `partly_callable`, or `not_callable` (no position callable).
 - `sequence`: the decided sequence: a site's call (`N` where undecided, empty
@@ -238,7 +245,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 1 | `possible_heteroplasmy` |
 | 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
-| 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `read_edge` |
+| 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge` |
 
 ## Labels (rules version 13)
 
@@ -349,6 +356,13 @@ exemption lifts the margin (ADR-0076).
   - `read_edge` `{read}`: the call is unmasked but neither trusted nor exempt:
     it lies inside the read-end margin of a read end, an untrimmed call, or a
     masked call.
+- `poor_signal` `{read}` (rules version 18): a read's call covering a position
+  of the item lies inside the read's unreliable span (`poor_start_signal`,
+  SRS-CALL-024), and no other read shows that position soundly (a scored,
+  trusted call withheld for nothing, outside its own unreliable span). Inside
+  a read's poor start, its differences are often wrong (one-position shifts
+  at its first calls), so an item with a difference there is a check; an
+  item without one keeps it as context.
 - `dephased_end` `{runs: [{base, length, length_evidence}]}`: the site's runs
   whose length rests on an anchored end (`length_evidence` `anchored_end`):
   a read loses phase after the run and its first masked call reading another

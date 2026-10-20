@@ -15,6 +15,7 @@ fuzzing = []
 
 [dependencies]
 dna-kernel.workspace = true
+dna-trace.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

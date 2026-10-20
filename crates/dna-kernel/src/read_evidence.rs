@@ -306,6 +306,19 @@ pub struct ReadEvidence {
     reason_order: Vec<EvidenceReason>,
     ends: ReadEnds,
     mixtures: Vec<PhaseMixture>,
+    unreliable: Vec<UnreliableSpan>,
+}
+
+/// The modality's assertion that, over a span of calls, the read's signal is
+/// too poor for a difference it shows to stand unchecked (PROP-0012): the
+/// calls keep their verdicts, and nothing in the core decides from it. A
+/// report shows it with its reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnreliableSpan {
+    /// The calls of the span (0-based, end exclusive).
+    pub calls: Range<usize>,
+    /// The modality's reason, a `snake_case` label.
+    pub reason: EvidenceReason,
 }
 
 /// One sequence a phase mixture holds: the read's dominant sequence offset by
@@ -405,6 +418,7 @@ impl ReadEvidence {
             reason_order,
             ends: ReadEnds::Unvouched,
             mixtures: Vec::new(),
+            unreliable: Vec::new(),
         })
     }
 
@@ -449,6 +463,31 @@ impl ReadEvidence {
     #[must_use]
     pub fn mixtures(&self) -> &[PhaseMixture] {
         &self.mixtures
+    }
+
+    /// The same evidence with the modality's unreliable spans.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EvidenceError::InvalidUnreliable` when a span is empty or
+    /// exceeds the read's calls, or its reason label is invalid.
+    pub fn with_unreliable(mut self, unreliable: Vec<UnreliableSpan>) -> Result<Self> {
+        for (index, span) in unreliable.iter().enumerate() {
+            if span.calls.is_empty()
+                || span.calls.end > self.calls.len()
+                || !valid_label(span.reason.label())
+            {
+                return Err(EvidenceError::InvalidUnreliable { index }.into());
+            }
+        }
+        self.unreliable = unreliable;
+        Ok(self)
+    }
+
+    /// The modality's unreliable spans, in call order.
+    #[must_use]
+    pub fn unreliable(&self) -> &[UnreliableSpan] {
+        &self.unreliable
     }
 
     /// The same evidence with every call within `margin` calls of an
@@ -548,6 +587,7 @@ impl ReadEvidence {
             reason_order: Vec::new(),
             ends: ReadEnds::Unvouched,
             mixtures: Vec::new(),
+            unreliable: Vec::new(),
         }
     }
 
@@ -655,5 +695,26 @@ mod tests {
             })
         );
         assert_eq!(evidence.calls()[2].profile, None);
+    }
+
+    #[test]
+    fn validates_unreliable_spans() -> Result<()> {
+        let span = |calls: Range<usize>, reason: &'static str| UnreliableSpan {
+            calls,
+            reason: EvidenceReason::new(reason),
+        };
+        let read = ReadEvidence::clean("ACGTACGT");
+        let kept = read
+            .clone()
+            .with_unreliable(vec![span(0..3, "poor_start_signal")])?;
+        assert_eq!(kept.unreliable().len(), 1);
+        for invalid in [
+            span(3..3, "poor_start_signal"),
+            span(0..9, "poor_start_signal"),
+            span(0..3, "Poor start"),
+        ] {
+            assert!(read.clone().with_unreliable(vec![invalid]).is_err());
+        }
+        Ok(())
     }
 }

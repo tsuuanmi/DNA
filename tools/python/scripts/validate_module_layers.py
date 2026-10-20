@@ -9,14 +9,16 @@ member crate per plugin family or core step under ``crates/``:
   before it (``dna-align`` <- ``dna-call`` <- ``dna-sample``,
   ``dna-consensus``);
 - ``dna-sanger``: the Sanger modality;
+- ``dna-trace``: trace signal engineering, a library only ``dna-sanger``
+  depends on (ADR-0084);
 - ``dna-normalize``: post-calling representation, normalization, and
   nomenclature;
 - ``dna-empop``: post-calling notation conformance;
 
 and the evaluation harness ``dna-eval``.
 
-The modality and post-calling crates depend only on the kernel, and only the
-facade composes the plugins. The harness may depend on the facade and the
+The modality and post-calling crates depend only on the kernel, the Sanger
+modality on ``dna-trace`` as well, and only the facade composes the plugins. The harness may depend on the facade and the
 crates whose records it reads, and no crate may depend on the harness. Both
 source paths (``dna::…``, ``dna_<crate>::…``) and manifest dependencies must
 follow that graph. Within each crate the module graph must be acyclic.
@@ -40,7 +42,8 @@ ALLOWED: dict[str, frozenset[str]] = {
     "call": frozenset({"kernel", "align"}),
     "sample": frozenset({"kernel", "align", "call"}),
     "consensus": frozenset({"kernel", "align", "call"}),
-    "sanger": frozenset({"kernel"}),
+    "trace": frozenset({"kernel"}),
+    "sanger": frozenset({"kernel", "trace"}),
     "normalize": frozenset({"kernel"}),
     "empop": frozenset({"kernel"}),
     "dna": frozenset(
