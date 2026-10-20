@@ -79,6 +79,8 @@ impl Severity {
 struct Sample {
     /// Counted by the pass measures: compared under `haplotype_lod`.
     counted: bool,
+    /// The harness could not score it (`status` `failed`).
+    failed: bool,
     clear: bool,
     positions: i64,
     zones: BTreeSet<String>,
@@ -139,6 +141,7 @@ impl Run {
             let lod = cell("haplotype_lod_status");
             let sample = Sample {
                 counted: lod == "concordant" || lod == "discordant",
+                failed: cell("status") == "failed",
                 clear: cell("review_clear") == "Y",
                 positions: cell("review_positions").parse().unwrap_or(0),
                 zones: cell("review_zones")
@@ -179,6 +182,15 @@ impl Run {
             header,
             samples,
         })
+    }
+
+    /// The samples the harness could not score.
+    fn failed(&self) -> BTreeSet<&str> {
+        self.samples
+            .iter()
+            .filter(|(_, sample)| sample.failed)
+            .map(|(id, _)| id.as_str())
+            .collect()
     }
 
     fn field(&self, pointer: &str) -> &Value {
@@ -445,6 +457,20 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         let _ = writeln!(report, "**WARNING, not comparable:** {mismatch}.\n");
     }
     let mut failures = Vec::new();
+    // A sample that failed on one side only is compared against nothing: the
+    // two runs no longer cover the same samples, whether the failure is the
+    // change's or a transient read error.
+    let (failed_before, failed_after) = (base.failed(), run.failed());
+    if failed_before != failed_after {
+        let message = format!(
+            "failed samples differ: {} in the base, {} in the run, {} in one only; rerun a side that failed transiently, or see the run's failures",
+            failed_before.len(),
+            failed_after.len(),
+            failed_before.symmetric_difference(&failed_after).count()
+        );
+        let _ = writeln!(report, "**WARNING:** {message}.\n");
+        failures.push(message);
+    }
 
     let _ = writeln!(
         report,
@@ -789,6 +815,29 @@ mod tests {
             compare(&base, &miscounted, false),
             Err(DiffError::Inconsistent(..))
         ));
+        Ok(())
+    }
+    #[test]
+    fn gates_samples_that_failed_on_one_side_only() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let scored = [
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+            "S2\tconcordant\tconcordant\tY\t0\t\t",
+        ];
+        let base = run(root.path(), "base", false, &scored, &[], (2, 0, 0))?;
+        let lost = [
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+            "S2\tfailed\tfailed\tN\t0\t\t",
+        ];
+        let flaky = run(root.path(), "flaky", false, &lost, &[], (1, 0, 0))?;
+        let comparison = compare(&base, &flaky, false)?;
+        assert!(comparison.gate_failed);
+        assert!(
+            comparison
+                .report
+                .contains("failed samples differ: 0 in the base, 1 in the run")
+        );
+        assert!(!compare(&flaky, &flaky, false)?.gate_failed);
         Ok(())
     }
 }

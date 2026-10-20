@@ -97,8 +97,10 @@ The report (`diff.md`) shows, before and after:
 
 The verdict is `GATE FAIL`, with exit status 2, when in any group more
 passed samples carry a non-het block, more samples carry a non-het or het
-unreviewed block, or more passed units of any zone carry a non-het block.
-Re-check and truth-`N` blocks never count. Otherwise it is `GATE PASS`.
+unreviewed block, or more passed units of any zone carry a non-het block. It also fails when
+the samples that failed to score differ between the runs, whatever the cause
+(the change, or a transient read error): the groups then hold different
+samples. Re-check and truth-`N` blocks never count. Otherwise it is `GATE PASS`.
 
 ## Approval
 

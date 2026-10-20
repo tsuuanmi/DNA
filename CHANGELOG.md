@@ -29,7 +29,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     per measure; and the changed samples, in `samples.tsv` and
     `statuses.tsv`.
   - **Verdict:** it exits 2 with `GATE FAIL` when non-het escapes or
-    unreviewed samples rise anywhere.
+    unreviewed samples rise anywhere, or when the samples the harness could
+    not score differ between the runs: the runs then compare different
+    samples (2026-10-21: transient trace-read failures under load cost one
+    run 47 samples and went unnoticed).
   - **New table:** `dna-eval run` writes `unreviewed.tsv`, one row per
     unreviewed block with its class, zone, and whether a check touches the
     zone (`dna.eval_run/v1`, in place, pre-release).
