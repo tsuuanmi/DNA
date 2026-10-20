@@ -105,11 +105,20 @@ from its own ends:
   from its ends. A substitution is never set aside this way: near a read end
   it can be a run mix-up between reads.
 
+The first kind also applies at a site or stretch called by a strict majority
+as a value other than the reference, to an opposing read that differs only
+in a run's length: every call it shows there is resolved, and it shows the
+decided runs in the same order. Such a read is typically a late call that
+counts one base too many in a run and shows the run's tail beside it (the
+G run 66-71 in HV1F, whose own `73G` agrees). The second kind stays at
+reference decisions, and a substitution against a called variant is never
+set aside.
+
 A set-aside read shows nothing at the site, not even a run's length inside a
 stretch, and the positions are decided again with the confirmations' loop.
-The decided value never changes: only reads against the reference are set
-aside, so a contested site becomes called and a called one loses its
-dissent.
+The decided value never changes: a reference decision loses only reads
+against the reference, a contested site becomes called and a called one
+loses its dissent, and a called variant keeps the majority that called it.
 
 ## Step 2 — Stretches
 
