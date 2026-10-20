@@ -115,9 +115,15 @@ pub struct SangerEvidenceConfig {
     /// Calls from an informative end within which an edge call may be
     /// vouched for by its own signal (SRS-CALL-017).
     pub edge_identity_margin: usize,
-    /// Smallest primary peak of such a call, as a fraction of the read's
-    /// median (SRS-CALL-017).
+    /// Smallest primary peak of such a call at the informative start, as a
+    /// fraction of the read's median (SRS-CALL-017).
     pub edge_height_fraction: f64,
+    /// Last scored single-channel calls of the informative interval whose
+    /// medians are the end's norms (SRS-CALL-017).
+    pub end_norm_calls: usize,
+    /// Smallest primary peak of such a call at the informative end, as a
+    /// fraction of the end's median (SRS-CALL-017).
+    pub end_height_fraction: f64,
     /// Second-channel share below which such a call's signal is clean
     /// (SRS-CALL-017, SRS-CALL-018).
     pub edge_second_share: f64,
@@ -157,6 +163,8 @@ pub struct RawSangerEvidenceConfig {
     pub(crate) post_repeat_minimum_calls: usize,
     pub(crate) edge_identity_margin: usize,
     pub(crate) edge_height_fraction: f64,
+    pub(crate) end_norm_calls: usize,
+    pub(crate) end_height_fraction: f64,
     pub(crate) edge_second_share: f64,
     pub(crate) edge_width_factor: f64,
     pub(crate) edge_spacing_minimum: f64,
@@ -184,6 +192,10 @@ impl RawSangerEvidenceConfig {
             (
                 "sanger_evidence.edge_height_fraction",
                 self.edge_height_fraction,
+            ),
+            (
+                "sanger_evidence.end_height_fraction",
+                self.end_height_fraction,
             ),
             ("sanger_evidence.edge_width_factor", self.edge_width_factor),
             (
@@ -222,9 +234,12 @@ impl RawSangerEvidenceConfig {
             )
             .into());
         }
-        if self.post_repeat_minimum_calls == 0 || self.start_norm_calls == 0 {
+        if self.post_repeat_minimum_calls == 0
+            || self.start_norm_calls == 0
+            || self.end_norm_calls == 0
+        {
             return Err(ConfigError::Constraint(
-                "sanger_evidence.post_repeat_minimum_calls and start_norm_calls must be positive",
+                "sanger_evidence.post_repeat_minimum_calls, start_norm_calls, and end_norm_calls must be positive",
             )
             .into());
         }
@@ -239,6 +254,8 @@ impl RawSangerEvidenceConfig {
             post_repeat_minimum_calls: self.post_repeat_minimum_calls,
             edge_identity_margin: self.edge_identity_margin,
             edge_height_fraction: self.edge_height_fraction,
+            end_norm_calls: self.end_norm_calls,
+            end_height_fraction: self.end_height_fraction,
             edge_second_share: self.edge_second_share,
             edge_width_factor: self.edge_width_factor,
             edge_spacing_minimum: self.edge_spacing_minimum,

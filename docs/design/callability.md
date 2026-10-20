@@ -198,9 +198,31 @@ The core caller does not read callability directly. The Sanger adapter
   forward read dephased after the tract nobody read 16194-16205 cleanly; on
   development panel v5 against `main` 20fc7ca this cleared 33 more samples
   (77 of 1,107 such check items), with samples with an unreviewed or non-het
-  difference unchanged and no status change under any measure. A read that
-  physically ends inside the tract (a weak mask, not a phase loss) keeps its
-  edge. Its indel verdict keeps the edge and its bound is
+  difference unchanged and no status change under any measure. A call
+  before a run that closes a stop of the in-phase signal (the informative
+  end, or a call masked `post_homopolymer` right after a run of two calls or
+  more inside the interval) is judged against the medians of the last
+  `end_norm_calls` (30) scored single-channel calls before that stop and
+  needs `end_height_fraction` (0.3) of their peak. A read's signal decays
+  over its last calls and its peaks vary with their dye context: a `G`
+  after an `A` stands near half its neighbours, and of 581,243 clean
+  in-phase calls off the edge in 2,195 development-panel reads, 36 stand
+  below 0.3 of the median of their 30 preceding calls and 8,486 below 0.5.
+  So a reverse read that physically ends a few calls past the HVS-I
+  C-tract (a weak mask beyond the run, not a phase loss), or that regains
+  phase after the tract's phase loss, reads 16194-16205 again. A call
+  reading its outer neighbour's base qualifies there only inside a run that
+  a vouched call of another base closes before the stop (`TT` at
+  16198-16199 in the reverse read, closed by 16197): a run the stop closes
+  may hold one call too many. On development panel v5 against `main`
+  85cab63 the diff gate passes: unreviewed samples 618 → 617, passed
+  samples with a non-het block unchanged in every period and source,
+  current `after@HV1` checks 254 → 88 (578 → 188 overall), and 133 more
+  samples clear (current 71.49 → 72.15 %). Nine samples gain a false call
+  inside an existing check item: the forward HVS-II read now reads 560-566,
+  and the consensus then takes `567C` (5), `573.1C`-`573.3C` (2) from the
+  reverse HVS-III read's start, or `310C`/`309DEL` from HVS-II (2). Its
+  indel verdict keeps the edge and its bound is
   unchanged, so it still counts towards runs: as a base-only call it would
   stop counting, and run lengths the consensus estimated from it (`315.1C`)
   were lost. On development panel v5 against the rule's absence: `315.1C`

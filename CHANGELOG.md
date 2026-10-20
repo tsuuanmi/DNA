@@ -602,6 +602,26 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A Sanger call before a run that closes a stop of the read's in-phase
+  signal (the informative end, or a phase loss after a repeat run inside the
+  interval) is judged against the medians of the last `end_norm_calls` (30)
+  scored single-channel calls before that stop, with a peak of at least
+  `end_height_fraction` (0.3) of theirs, when SRS-CALL-017 decides whether
+  its own signal takes its base off the signal edge. A read's signal decays
+  over its last calls and its peaks vary with their dye context, so the
+  read's own median (`edge_height_fraction` 1.0, kept at the informative
+  ends) held back clean calls. Such a call reads its outer neighbour's base
+  only inside a run that a vouched call of another base closes. The reverse
+  read that ends a few calls past the HVS-I C-tract, or regains phase after
+  it, now reads 16194-16205. On development panel v5 against `main` 85cab63
+  the diff gate passes: unreviewed samples 618 → 617, passed samples with a
+  non-het block unchanged in every period and source, current `after@HV1`
+  checks 254 → 88, 133 more samples clear (current 71.49 → 72.15 %), and
+  positions to review 164,199 → 158,608. Nine samples gain a false call
+  inside an existing check item (`567C`, `573.1C`-`573.3C`, `310C`,
+  `309DEL`). **Breaking:** configuration schema 20, revised in place, requires
+  `sanger_evidence.end_norm_calls` and `end_height_fraction`;
+  plugin `sanger` 20.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than

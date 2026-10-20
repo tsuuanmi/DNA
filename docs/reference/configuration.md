@@ -72,8 +72,10 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `leading_height_fraction` | `1.0` | finite and positive: smallest primary peak of a leading call, against the read's median (SRS-CALL-014) |
 | | `post_repeat_margin` | `12` | non-negative integer (SRS-CALL-016) |
 | | `post_repeat_minimum_calls` | `2` | positive (SRS-CALL-016) |
-| | `edge_identity_margin` | `12` | non-negative integer: reach of the edge identity rule from an informative end (SRS-CALL-017) |
-| | `edge_height_fraction` | `1.0` | finite and positive (SRS-CALL-017) |
+| | `edge_identity_margin` | `12` | non-negative integer: reach of the edge identity rule from a stop of the read's in-phase signal (SRS-CALL-017) |
+| | `edge_height_fraction` | `1.0` | finite and positive: smallest primary peak at an informative end, against the read's median (SRS-CALL-017) |
+| | `end_norm_calls` | `30` | positive: last scored single-channel calls before a stop (the informative end, or a post-repeat phase loss inside it) whose medians judge the calls before the run that closes it (SRS-CALL-017) |
+| | `end_height_fraction` | `0.3` | finite and positive: smallest primary peak of such a call, against those medians (SRS-CALL-017) |
 | | `start_identity_margin` | `12` | non-negative integer: reach of the start identity rule past the callable span's start (SRS-CALL-018) |
 | | `start_norm_calls` | `30` | positive (SRS-CALL-018) |
 | | `start_height_fraction` | `0.5` | finite and positive (SRS-CALL-018) |
