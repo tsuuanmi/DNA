@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 19
+schema_version = 20
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -210,12 +210,14 @@ dissent_edge = 40
 # is a check when its length rests on an anchored end or a single read: both
 # strands must show it in phase to assure it.
 run_growth = 3
-# A deletion that rests on a single read within `edge_zone` positions of a
-# reportable region's first or last position is a check: the read's own edge
-# is where a lost or doubled base looks like a deletion. When the region's end
-# is not analysed (SRS-CONS-012), any difference within the same positions is
-# a check: its reads there sit right after their poor start.
+# When a reportable region's end is not analysed (SRS-CONS-012), any
+# difference within `edge_zone` positions of it is a check: its reads there
+# sit right after their poor start.
 edge_zone = 40
+# A deletion that rests on a single read within `deletion_zone` positions of a
+# reportable region's first or last position is a check: the read's own edge
+# is where a lost or doubled base looks like a deletion.
+deletion_zone = 20
 # A read reads the end of an item that its strand reaches first in phase, up to
 # where it has read `phase_run` equal bases in a row; a clean base there that
 # differs from the decision makes the item a check. The far end of the run is

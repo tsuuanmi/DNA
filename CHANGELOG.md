@@ -602,6 +602,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review's `edge_deletion` label reads its own zone,
+  `review.deletion_zone` (default 20, its width before ADR-0085), instead of
+  `review.edge_zone`, which keeps 40 for `beside_not_analysed` (ADR-0085,
+  amended). The wider zone had flagged the common true `106-111DEL`, read by
+  one HVS-II forward read. On development panel v5 against `feat/eval-diff`
+  ae98063 the diff gate passes: unreviewed and non-het passed zones
+  unchanged everywhere, current `start@HV2` checks 285 → 245 and
+  `interior@HV2` 257 → 221, clear 75.99 → 76.06 % on current data and 12
+  samples overall. Configuration schema 20; plugin `review` 21.
 - The review's `possible_heteroplasmy` is `explained` context, not a check,
   when every qualifying read of one strand shows a second peak the Sanger
   evidence explains by its shape (a neighbour's tail or a dye blob, not

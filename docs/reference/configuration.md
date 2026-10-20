@@ -19,7 +19,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `19` | exactly 19 |
+| root | `schema_version` | `20` | exactly 20 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
@@ -100,7 +100,8 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `read_end_margin` | `12` | non-negative integer; `0` disables |
 | `consensus` | `seeded_run` | `4` | integer at least `2`: shortest disputed, unbounded homopolymer grown as one stretch (SRS-CONS-004) |
 | `review` | `run_growth` | `3` | positive: a decided run at least this many bases longer than its reference run is a check when its length rests on an anchored end or a single read |
-| `review` | `edge_zone` | `40` | positions from a reportable region's first or last position within which a deletion resting on a single read is a check, and, when that end is not analysed (SRS-CONS-012), any difference (`beside_not_analysed`) |
+| `review` | `edge_zone` | `40` | positions from a reportable region's end that the call does not analyse (SRS-CONS-012) within which any difference is a check (`beside_not_analysed`) |
+| `review` | `deletion_zone` | `20` | positions from a reportable region's first or last position within which a deletion resting on a single read is a check (`edge_deletion`) |
 | `review` | `phase_run` | `4` | at least 2: equal bases in a row after which a read's in-phase end of an item is no longer compared with the decision for `read_disagrees` |
 | | `maximum_undecided_gap` | `20` | non-negative integer: undecided positions kept inside a segment as `N` (SRS-CONS-006) |
 | | `minimum_resolved_bases` | `20` | positive: fewest resolved bases of a segment (SRS-CONS-006) |
