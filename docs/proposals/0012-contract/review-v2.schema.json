@@ -1,0 +1,2162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:review:v2",
+  "title": "DNA review v2",
+  "description": "One sample's review list (PROP-0012). Labels come from one registry (review-v2.labels.json); the policy that sorts them is printed in provenance.policy. Shapes shared with dna.notation/v1 and dna.consensus/v1 are referenced by $id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sample_id",
+    "status",
+    "provenance",
+    "reads",
+    "items",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.review/v2"
+    },
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "status": {
+      "enum": [
+        "called",
+        "rejected",
+        "call_failed"
+      ]
+    },
+    "error": {
+      "description": "Why the call failed; present exactly for call_failed.",
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "reads": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/read"
+      }
+    },
+    "calls": {
+      "description": "The sample's calls in the profile notation; for called under a profile that declares notation.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/call"
+      }
+    },
+    "callable": {
+      "description": "The call's callable reference segments, merged, 1-based inclusive; for called.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/range"
+      }
+    },
+    "reference_only": {
+      "description": "Reportable positions (1-based, increasing) the consensus decided as the reference by reference confirmations alone (ADR-0080); for called.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "empop": {
+      "$ref": "urn:signal:schema:notation:v1#/$defs/empop"
+    },
+    "windows": {
+      "description": "The target profile's nomenclature repeat windows over the reportable regions; for called.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/window"
+      }
+    },
+    "annotations": {
+      "description": "Data-detected annotations in id order; for called and call_failed.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/annotation"
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "called"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "callable",
+          "windows",
+          "annotations",
+          "reference_only"
+        ],
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "call_failed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "error",
+          "annotations"
+        ],
+        "properties": {
+          "calls": false,
+          "callable": false,
+          "reference_only": false,
+          "empop": false,
+          "windows": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "rejected"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "error": false,
+          "calls": false,
+          "callable": false,
+          "reference_only": false,
+          "empop": false,
+          "items": {
+            "maxItems": 0
+          },
+          "reads": {
+            "items": {
+              "properties": {
+                "admitted": {
+                  "const": false
+                }
+              }
+            }
+          },
+          "windows": false,
+          "annotations": false
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "strand": {
+      "enum": [
+        "forward",
+        "reverse"
+      ]
+    },
+    "base": {
+      "enum": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ]
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call",
+        "position",
+        "ordinal",
+        "reference",
+        "alternate"
+      ],
+      "properties": {
+        "call": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/notationCall/properties/call"
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reference": {
+          "description": "The reference base; null for an inserted base.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/base"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alternate": {
+          "description": "The called base; null for a deleted base.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/base"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "convention": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/notationCall/properties/convention"
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "ordinal"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "mixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "explained",
+        "components",
+        "unexplained"
+      ],
+      "properties": {
+        "explained": {
+          "description": "Whether the components explain the stretch at the read's own noise level (ADR-0082). Only then is each component compared with the reference; otherwise components carry offset and fraction alone.",
+          "type": "boolean"
+        },
+        "components": {
+          "description": "Every component the modality asserts, the dominant sequence (offset 0) first; in an explained mixture a component placed on the reference also gives its interval, sequence, and calls.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "unexplained": {
+          "description": "Reference positions (1-based, increasing) of the calls the components do not explain.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "explained": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "components": {
+                "items": {
+                  "properties": {
+                    "first": false,
+                    "last": false,
+                    "sequence": false,
+                    "calls": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offset",
+        "fraction"
+      ],
+      "properties": {
+        "offset": {
+          "description": "Calls by which the sequence's run is longer (positive) or shorter (negative) than the dominant one's.",
+          "type": "integer"
+        },
+        "fraction": {
+          "description": "Its share of the fitted signal.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "first": {
+          "description": "First reference position the component covers; after last when it crosses the origin.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "last": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sequence": {
+          "description": "Its bases over first..last on the reference strand.",
+          "type": "string",
+          "pattern": "^[ACGTN]*$"
+        },
+        "calls": {
+          "description": "Its eligible edits in the profile notation, in reference order; empty under a profile without notation.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "dependentRequired": {
+        "first": [
+          "last",
+          "sequence",
+          "calls"
+        ],
+        "last": [
+          "first",
+          "sequence",
+          "calls"
+        ],
+        "sequence": [
+          "first",
+          "last",
+          "calls"
+        ],
+        "calls": [
+          "first",
+          "last",
+          "sequence"
+        ]
+      }
+    },
+    "labelId": {
+      "description": "A label ID from the registry (review-v2.labels.json).",
+      "enum": [
+        "conflict.strands",
+        "conflict.read",
+        "mixture.second_base_both_strands",
+        "mixture.second_base_one_strand",
+        "length.run_longer_unconfirmed",
+        "indel.deletion_single_read_at_edge",
+        "indel.deletion_single_read_in_run",
+        "decision.contested",
+        "call.excluded",
+        "length.run_end_unread",
+        "coverage.not_callable",
+        "coverage.no_reads",
+        "support.single_read",
+        "support.single_strand",
+        "length.run_end_from_dephased_tail",
+        "signal.read_end_margin",
+        "signal.masked_anchor",
+        "signal.masked",
+        "signal.dephased",
+        "mixture.length",
+        "coverage.single_strand"
+      ]
+    },
+    "labelRead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "strand",
+        "role"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strand": {
+          "$ref": "#/$defs/strand"
+        },
+        "role": {
+          "description": "How the read bears on the label: supporting or opposing a decision, or the read the label is about (subject).",
+          "enum": [
+            "supporting",
+            "opposing",
+            "subject"
+          ]
+        }
+      }
+    },
+    "itemLabel": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The site has supporting and opposing reads, and a supporting read lies on another strand than an opposing one.",
+          "properties": {
+            "id": {
+              "const": "conflict.strands"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "supporting",
+                          "opposing"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "At a decided site, a supporting or uninformative read that bounds the item shows it whole, or through the end its strand reaches first, as another sequence than the decision.",
+          "properties": {
+            "id": {
+              "const": "conflict.read"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sequence"
+              ],
+              "properties": {
+                "sequence": {
+                  "type": "string",
+                  "pattern": "^[ACGT]*$"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "A decided run at least review.run_growth bases longer than its reference run, whose length rests on an anchored end or on a single supporting read.",
+          "properties": {
+            "id": {
+              "const": "length.run_longer_unconfirmed"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "runs"
+              ],
+              "properties": {
+                "runs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "base",
+                      "length",
+                      "reference_length",
+                      "length_evidence"
+                    ],
+                    "properties": {
+                      "base": {
+                        "enum": [
+                          "A",
+                          "C",
+                          "G",
+                          "T"
+                        ]
+                      },
+                      "length": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "reference_length": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "length_evidence": {
+                        "enum": [
+                          "in_phase",
+                          "anchored_end",
+                          "confirmed_end",
+                          "phase_loss",
+                          "reference_frame",
+                          null
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "A decided deletion that rests on a single read within review.edge_zone positions of a reportable region's first or last position.",
+          "properties": {
+            "id": {
+              "const": "indel.deletion_single_read_at_edge"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "supporting"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "A decided site resting on a single read whose call is at least review.run_growth bases shorter than a reference run of at least review.phase_run bases.",
+          "properties": {
+            "id": {
+              "const": "indel.deletion_single_read_in_run"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "supporting"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The consensus site is contested (a tie) or unresolved (no clean observation), or its call holds an N.",
+          "properties": {
+            "id": {
+              "const": "decision.contested"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "state"
+              ],
+              "properties": {
+                "state": {
+                  "enum": [
+                    "contested",
+                    "unresolved",
+                    "undecided_call"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The consensus decided another sequence than the reference, and the call step excluded it: no call lies within one position.",
+          "properties": {
+            "id": {
+              "const": "call.excluded"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The site holds a run whose length is phase_loss or reference_frame, so its 3' end is not callable; runs whose length the profile leaves unrecorded are not listed.",
+          "properties": {
+            "id": {
+              "const": "length.run_end_unread"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "runs"
+              ],
+              "properties": {
+                "runs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "allOf": [
+                      {
+                        "$ref": "urn:signal:schema:consensus:v1#/$defs/run"
+                      },
+                      {
+                        "properties": {
+                          "length_evidence": {
+                            "enum": [
+                              "phase_loss",
+                              "reference_frame"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "Positions outside every site that admitted reads cover but none makes callable.",
+          "properties": {
+            "id": {
+              "const": "coverage.not_callable"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "Positions no admitted read covers.",
+          "properties": {
+            "id": {
+              "const": "coverage.no_reads"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "A variant site with exactly one supporting read.",
+          "properties": {
+            "id": {
+              "const": "support.single_read"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "supporting"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "Every supporting read of a variant site lies on one strand.",
+          "properties": {
+            "id": {
+              "const": "support.single_strand"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "supporting"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "strand"
+              ],
+              "properties": {
+                "strand": {
+                  "$ref": "#/$defs/strand"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "A run's length rests on an anchored end: the first masked call reading another base after the run marks its end (ADR-0071).",
+          "properties": {
+            "id": {
+              "const": "length.run_end_from_dephased_tail"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "$ref": "#/$defs/labelRead"
+              },
+              "maxItems": 0
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "runs"
+              ],
+              "properties": {
+                "runs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "allOf": [
+                      {
+                        "$ref": "urn:signal:schema:consensus:v1#/$defs/run"
+                      },
+                      {
+                        "properties": {
+                          "length_evidence": {
+                            "const": "anchored_end"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "positionLabel": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "Both strands read the position cleanly, and a read on each strand shows the same second base above its threshold, not a neighbour's base. Per-read shares and thresholds are in the position's reads.",
+          "properties": {
+            "id": {
+              "const": "mixture.second_base_both_strands"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "base"
+              ],
+              "properties": {
+                "base": {
+                  "$ref": "#/$defs/base"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "One strand alone reads the position cleanly; its call's second peak has cause second_template, exceeds the run-signal threshold of its key, and is not a neighbour's base.",
+          "properties": {
+            "id": {
+              "const": "mixture.second_base_one_strand"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "base"
+              ],
+              "properties": {
+                "base": {
+                  "$ref": "#/$defs/base"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The call is unmasked but neither trusted nor exempt: inside the read-end margin, untrimmed, or next to a masked call.",
+          "properties": {
+            "id": {
+              "const": "signal.read_end_margin"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The call is masked but still anchors the alignment; from is the first position of the read's masked stretch that reaches the item.",
+          "properties": {
+            "id": {
+              "const": "signal.masked_anchor"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "from": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The call is masked for a reason other than an anchoring phase shift; reason is the modality's mask reason, verbatim.",
+          "properties": {
+            "id": {
+              "const": "signal.masked"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A maximal run of reference columns where the sample's reads show one characteristic of their own (one label, equal detail), detected in the data: never a fixed width, a profile window, or a whole region. Annotations may overlap; mixture.length annotations are one per read.",
+      "required": [
+        "id",
+        "label",
+        "first",
+        "last",
+        "reads",
+        "strands",
+        "detail"
+      ],
+      "properties": {
+        "id": {
+          "description": "A1, A2, ... in order of first, then label, then the first read.",
+          "type": "string",
+          "pattern": "^A[1-9][0-9]*$"
+        },
+        "label": {
+          "enum": [
+            "coverage.not_callable",
+            "coverage.no_reads",
+            "signal.read_end_margin",
+            "signal.masked_anchor",
+            "signal.masked",
+            "signal.dephased",
+            "mixture.length",
+            "coverage.single_strand"
+          ]
+        },
+        "first": {
+          "$ref": "#/$defs/column"
+        },
+        "last": {
+          "$ref": "#/$defs/column"
+        },
+        "reads": {
+          "description": "Every read whose own signal makes the annotation, with its own bounds.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "read",
+              "strand",
+              "first",
+              "last"
+            ],
+            "properties": {
+              "read": {
+                "type": "string",
+                "minLength": 1
+              },
+              "strand": {
+                "$ref": "#/$defs/strand"
+              },
+              "first": {
+                "$ref": "#/$defs/column"
+              },
+              "last": {
+                "$ref": "#/$defs/column"
+              }
+            }
+          }
+        },
+        "strands": {
+          "description": "Per strand over the annotation: affected (a read on that strand makes it), clean (a read on that strand covers it callable and unmasked), absent (no read on that strand covers it).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "forward",
+            "reverse"
+          ],
+          "properties": {
+            "forward": {
+              "$ref": "#/$defs/strandState"
+            },
+            "reverse": {
+              "$ref": "#/$defs/strandState"
+            }
+          }
+        },
+        "detail": {}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "label": {
+              "const": "coverage.not_callable"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "coverage.no_reads"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "signal.read_end_margin"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "signal.masked_anchor"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "from": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "signal.masked"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "signal.dephased"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "after_repeat"
+              ],
+              "properties": {
+                "after_repeat": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "mixture.length"
+            },
+            "detail": {
+              "$ref": "#/$defs/mixture"
+            }
+          }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "coverage.single_strand"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "strand"
+              ],
+              "properties": {
+                "strand": {
+                  "$ref": "#/$defs/strand"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "strandState": {
+      "enum": [
+        "affected",
+        "clean",
+        "absent"
+      ]
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "first",
+        "last"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "first": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "last": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "description": "A nomenclature repeat window of the target profile: profile knowledge, not data."
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "strand",
+        "base",
+        "state",
+        "call",
+        "scope",
+        "scan",
+        "quality",
+        "second",
+        "mask"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strand": {
+          "$ref": "#/$defs/strand"
+        },
+        "base": {
+          "enum": [
+            "A",
+            "C",
+            "G",
+            "T",
+            "N",
+            "-"
+          ]
+        },
+        "state": {
+          "enum": [
+            "reference",
+            "alternate",
+            "unresolved",
+            "deletion",
+            "masked"
+          ]
+        },
+        "call": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "enum": [
+                "full",
+                "base"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scan": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quality": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "second": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "base",
+                "share",
+                "threshold"
+              ],
+              "properties": {
+                "base": {
+                  "$ref": "#/$defs/base"
+                },
+                "share": {
+                  "description": "The call's second peak share (SRS-CALL-015).",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 0.5
+                },
+                "cause": {
+                  "description": "Why the call shows a second peak, from its signal (SRS-CALL-021): the modality's cause, refined by the run signal to `context` when one is given; absent when the share does not reach signal_processing.second_floor.",
+                  "enum": [
+                    "noise",
+                    "neighbour_tail",
+                    "off_centre",
+                    "dye_blob",
+                    "phase_shift",
+                    "context",
+                    "second_template",
+                    "mixed_stretch"
+                  ]
+                },
+                "threshold": {
+                  "description": "The share the second base had to exceed at this call (SRS-CALL-020): signal_processing.second_floor, or its key's run level with --signal.",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "run_calls": {
+                  "description": "With --signal, the key's calls in the run signal, the sample's own taken out.",
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mask": {
+          "description": "The modality's mask reason when state is masked, verbatim; null otherwise.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "ordinal",
+        "at",
+        "within",
+        "reads"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "at": {
+          "description": "Labels of this position itself.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/positionLabel"
+          }
+        },
+        "within": {
+          "description": "IDs of the annotations this position lies in.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^A[1-9][0-9]*$"
+          }
+        },
+        "reads": {
+          "description": "Every admitted read covering the position, in read order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "region",
+        "first",
+        "last",
+        "kind",
+        "decision",
+        "sequence",
+        "calls",
+        "labels",
+        "positions"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable for the same sample, columns, and rules version: I- and the first 12 hex digits of SHA-256 over sample_id, first, last, and rules.",
+          "type": "string",
+          "pattern": "^I-[0-9a-f]{12}$"
+        },
+        "region": {
+          "description": "The profile region the item lies in.",
+          "type": "string",
+          "minLength": 1
+        },
+        "first": {
+          "$ref": "#/$defs/column"
+        },
+        "last": {
+          "$ref": "#/$defs/column"
+        },
+        "kind": {
+          "description": "doubt when a label of policy class doubt is present; else abstain when one of class abstain is; else variant when the item holds a call or a decided non-reference sequence; else context (only context labels, for example a one-strand second base outside every site). Only doubt and abstain affect clear.",
+          "enum": [
+            "doubt",
+            "abstain",
+            "variant",
+            "context"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "called",
+            "partly_callable",
+            "not_callable"
+          ]
+        },
+        "sequence": {
+          "description": "The decided sequence over the item: a site's call (N where undecided, empty when every position is deleted) or the reference base of a position outside every site; null when nothing was decided.",
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[ACGTN]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calls": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "urn:signal:schema:notation:v1#/$defs/notationCall/properties/call"
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/itemLabel"
+          }
+        },
+        "positions": {
+          "description": "Reference positions of the item, position-major, each with its own labels, the annotations it lies in, and every covering read's observation.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/position"
+          }
+        }
+      }
+    },
+    "read": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256",
+            "strand",
+            "admitted"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "admitted": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "sha256",
+            "admitted",
+            "rejection"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "admitted": {
+              "const": false
+            },
+            "rejection": {
+              "$ref": "urn:signal:schema:consensus:v1#/$defs/readRejection"
+            }
+          }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "configuration_sha256",
+        "profile",
+        "plugins",
+        "rules",
+        "policy"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/reference"
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/profile"
+        },
+        "plugins": {
+          "$ref": "urn:signal:schema:notation:v1#/$defs/plugins"
+        },
+        "rules": {
+          "description": "Version of the label predicates, equal to the review plugin version.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "signal": {
+          "description": "The run signal (dna.signal/v1) the second-channel thresholds were judged against, when one was given.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_id",
+            "sha256",
+            "selection"
+          ],
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "selection": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "policy": {
+          "description": "The review plugin's policy: the class and rank of every label, and its version. A policy change bumps only this version.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "labels"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "class",
+                  "rank"
+                ],
+                "properties": {
+                  "id": {
+                    "$ref": "#/$defs/labelId"
+                  },
+                  "class": {
+                    "enum": [
+                      "doubt",
+                      "abstain",
+                      "context"
+                    ]
+                  },
+                  "rank": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "doubts",
+        "abstains",
+        "variants",
+        "contexts",
+        "labels",
+        "positions",
+        "annotations",
+        "regions",
+        "clear"
+      ],
+      "properties": {
+        "items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "doubts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "abstains": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "variants": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "labels": {
+          "description": "For every label ID, the number of occurrences, zeros included.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "conflict.strands",
+            "conflict.read",
+            "mixture.second_base_both_strands",
+            "mixture.second_base_one_strand",
+            "length.run_longer_unconfirmed",
+            "indel.deletion_single_read_at_edge",
+            "indel.deletion_single_read_in_run",
+            "decision.contested",
+            "call.excluded",
+            "length.run_end_unread",
+            "coverage.not_callable",
+            "coverage.no_reads",
+            "support.single_read",
+            "support.single_strand",
+            "length.run_end_from_dephased_tail",
+            "signal.read_end_margin",
+            "signal.masked_anchor",
+            "signal.masked",
+            "signal.dephased",
+            "mixture.length",
+            "coverage.single_strand"
+          ],
+          "properties": {
+            "conflict.strands": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "conflict.read": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mixture.second_base_both_strands": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mixture.second_base_one_strand": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "length.run_longer_unconfirmed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "indel.deletion_single_read_at_edge": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "indel.deletion_single_read_in_run": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "decision.contested": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "call.excluded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "length.run_end_unread": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "coverage.not_callable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "coverage.no_reads": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "support.single_read": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "support.single_strand": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "length.run_end_from_dephased_tail": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "signal.read_end_margin": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "signal.masked_anchor": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "signal.masked": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "signal.dephased": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mixture.length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "coverage.single_strand": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "positions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reportable",
+            "review",
+            "reference_only"
+          ],
+          "properties": {
+            "reportable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "review": {
+              "description": "Positions a doubt or abstain item holds.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "reference_only": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "annotations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "regions": {
+          "description": "One per profile region, in profile order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "first",
+              "last",
+              "clear",
+              "doubts",
+              "abstains"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "first": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "last": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "clear": {
+                "description": "status is called and no doubt or abstain item lies in the region.",
+                "type": "boolean"
+              },
+              "doubts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "abstains": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "clear": {
+          "description": "Every region is clear.",
+          "type": "boolean"
+        },
+        "contexts": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

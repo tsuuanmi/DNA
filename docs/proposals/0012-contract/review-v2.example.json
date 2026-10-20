@@ -1,0 +1,2275 @@
+{
+  "schema_version": "dna.review/v2",
+  "sample_id": "sample-1",
+  "status": "called",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "b7328a9ac3e4302012d3206311f8c777af63e68d1ee9fc69126c7deae7f05de0",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "a2933c9570798ef2ec1ffab49219201dd09d10681ccda91359a55af1ee9fdf90"
+    },
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 8
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 10
+      },
+      {
+        "id": "consensus",
+        "family": "core",
+        "version": 6
+      },
+      {
+        "id": "decided",
+        "family": "core",
+        "version": 2
+      },
+      {
+        "id": "normalization",
+        "family": "post_calling",
+        "version": 3
+      },
+      {
+        "id": "nomenclature",
+        "family": "post_calling",
+        "version": 3
+      },
+      {
+        "id": "empop",
+        "family": "post_calling",
+        "version": 1
+      },
+      {
+        "id": "review",
+        "family": "post_calling",
+        "version": 18
+      }
+    ],
+    "rules": 18,
+    "policy": {
+      "version": 1,
+      "labels": [
+        {
+          "id": "conflict.strands",
+          "class": "doubt",
+          "rank": 0
+        },
+        {
+          "id": "conflict.read",
+          "class": "doubt",
+          "rank": 0
+        },
+        {
+          "id": "mixture.second_base_both_strands",
+          "class": "doubt",
+          "rank": 1
+        },
+        {
+          "id": "mixture.second_base_one_strand",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "length.run_longer_unconfirmed",
+          "class": "doubt",
+          "rank": 2
+        },
+        {
+          "id": "indel.deletion_single_read_at_edge",
+          "class": "doubt",
+          "rank": 2
+        },
+        {
+          "id": "indel.deletion_single_read_in_run",
+          "class": "doubt",
+          "rank": 2
+        },
+        {
+          "id": "decision.contested",
+          "class": "abstain",
+          "rank": 2
+        },
+        {
+          "id": "call.excluded",
+          "class": "abstain",
+          "rank": 2
+        },
+        {
+          "id": "length.run_end_unread",
+          "class": "abstain",
+          "rank": 2
+        },
+        {
+          "id": "coverage.not_callable",
+          "class": "abstain",
+          "rank": 2
+        },
+        {
+          "id": "coverage.no_reads",
+          "class": "abstain",
+          "rank": 4
+        },
+        {
+          "id": "support.single_read",
+          "class": "context",
+          "rank": 3
+        },
+        {
+          "id": "support.single_strand",
+          "class": "context",
+          "rank": 3
+        },
+        {
+          "id": "length.run_end_from_dephased_tail",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "signal.read_end_margin",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "signal.masked_anchor",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "signal.masked",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "signal.dephased",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "mixture.length",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "coverage.single_strand",
+          "class": "context",
+          "rank": 4
+        }
+      ]
+    }
+  },
+  "reads": [
+    {
+      "name": "A12_HV1F_03",
+      "sha256": "09cf6d52e58d28df5bc54a842ff3600fbe26bb6c87ef8fdc7ec3f4d0daaba202",
+      "strand": "forward",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV2F_03",
+      "sha256": "a50aa43f979ace1ff9924a05eeee6b847870770acf9c6bdd4c2801d44b082a51",
+      "strand": "forward",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV3R_03",
+      "sha256": "a6c0b613f1fe0bf2798d4fa2d6b0772993f3c3484fd5e8a1799a47757a64536f",
+      "strand": "reverse",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV1R_03",
+      "sha256": "ed28f3f20c098586c9c7ac5385ff69a5c6b8f3dfb34b10f45902763790ece584",
+      "strand": "reverse",
+      "admitted": true
+    },
+    {
+      "name": "A12_HV2R_03",
+      "sha256": "e2a43e08af3addfafb7e509b579a189d5839155b5b93ed49305da750ec99a7a7",
+      "admitted": false,
+      "rejection": {
+        "reason": "callable_calls_below_minimum",
+        "callable_calls": 61,
+        "minimum_callable_calls": 100
+      }
+    }
+  ],
+  "calls": [
+    {
+      "call": "73G",
+      "position": 73,
+      "ordinal": 0,
+      "reference": "A",
+      "alternate": "G"
+    },
+    {
+      "call": "263G",
+      "position": 263,
+      "ordinal": 0,
+      "reference": "A",
+      "alternate": "G"
+    },
+    {
+      "call": "309.1C",
+      "position": 309,
+      "ordinal": 1,
+      "reference": null,
+      "alternate": "C"
+    },
+    {
+      "call": "315.1C",
+      "position": 315,
+      "ordinal": 1,
+      "reference": null,
+      "alternate": "C"
+    },
+    {
+      "call": "16129A",
+      "position": 16129,
+      "ordinal": 0,
+      "reference": "G",
+      "alternate": "A"
+    },
+    {
+      "call": "16189C",
+      "position": 16189,
+      "ordinal": 0,
+      "reference": "T",
+      "alternate": "C"
+    }
+  ],
+  "callable": [
+    {
+      "start": 40,
+      "end": 600
+    },
+    {
+      "start": 16031,
+      "end": 16125
+    },
+    {
+      "start": 16127,
+      "end": 16192
+    },
+    {
+      "start": 16194,
+      "end": 16420
+    }
+  ],
+  "reference_only": [
+    16031
+  ],
+  "empop": {
+    "ranges": [
+      [
+        16031,
+        16125
+      ],
+      [
+        16127,
+        16192
+      ],
+      [
+        16194,
+        16365
+      ],
+      [
+        73,
+        340
+      ],
+      [
+        438,
+        576
+      ]
+    ],
+    "ranges_text": "16031-16125 16127-16192 16194-16365 73-340 438-576",
+    "mitotype": "73G 263G 309.1C 315.1C 16129A 16189C",
+    "cut": [
+      {
+        "start": 16126,
+        "end": 16126,
+        "reason": "unresolved"
+      },
+      {
+        "start": 16193,
+        "end": 16193,
+        "reason": "unresolved"
+      }
+    ]
+  },
+  "windows": [
+    {
+      "name": "HVS-II",
+      "first": 303,
+      "last": 315
+    },
+    {
+      "name": "HVS-III",
+      "first": 512,
+      "last": 524
+    },
+    {
+      "name": "HVS-I",
+      "first": 16180,
+      "last": 16193
+    }
+  ],
+  "annotations": [
+    {
+      "id": "A1",
+      "label": "signal.dephased",
+      "first": {
+        "position": 278,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 315,
+        "ordinal": 0
+      },
+      "reads": [
+        {
+          "read": "A12_HV3R_03",
+          "strand": "reverse",
+          "first": {
+            "position": 278,
+            "ordinal": 0
+          },
+          "last": {
+            "position": 315,
+            "ordinal": 0
+          }
+        }
+      ],
+      "strands": {
+        "forward": "clean",
+        "reverse": "affected"
+      },
+      "detail": {
+        "after_repeat": true
+      }
+    },
+    {
+      "id": "A2",
+      "label": "mixture.length",
+      "first": {
+        "position": 303,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 320,
+        "ordinal": 0
+      },
+      "reads": [
+        {
+          "read": "A12_HV3R_03",
+          "strand": "reverse",
+          "first": {
+            "position": 303,
+            "ordinal": 0
+          },
+          "last": {
+            "position": 320,
+            "ordinal": 0
+          }
+        }
+      ],
+      "strands": {
+        "forward": "absent",
+        "reverse": "affected"
+      },
+      "detail": {
+        "explained": true,
+        "components": [
+          {
+            "offset": 0,
+            "fraction": 0.82,
+            "first": 303,
+            "last": 320,
+            "sequence": "CCCCCCCCTCCCCCCGCTTC",
+            "calls": [
+              "309.1C",
+              "315.1C"
+            ]
+          },
+          {
+            "offset": 1,
+            "fraction": 0.18,
+            "first": 303,
+            "last": 320,
+            "sequence": "CCCCCCCCTCCCCCCCGCTTC",
+            "calls": [
+              "309.1C",
+              "315.1C",
+              "315.2C"
+            ]
+          }
+        ],
+        "unexplained": []
+      }
+    },
+    {
+      "id": "A3",
+      "label": "coverage.no_reads",
+      "first": {
+        "position": 16024,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16030,
+        "ordinal": 0
+      },
+      "reads": [],
+      "strands": {
+        "forward": "absent",
+        "reverse": "absent"
+      },
+      "detail": {}
+    },
+    {
+      "id": "A4",
+      "label": "signal.dephased",
+      "first": {
+        "position": 16184,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16205,
+        "ordinal": 0
+      },
+      "reads": [
+        {
+          "read": "A12_HV1F_03",
+          "strand": "forward",
+          "first": {
+            "position": 16184,
+            "ordinal": 0
+          },
+          "last": {
+            "position": 16205,
+            "ordinal": 0
+          }
+        }
+      ],
+      "strands": {
+        "forward": "affected",
+        "reverse": "absent"
+      },
+      "detail": {
+        "after_repeat": true
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "I-8edb00495417",
+      "region": "HVS-I",
+      "first": {
+        "position": 16126,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16126,
+        "ordinal": 0
+      },
+      "kind": "doubt",
+      "decision": "not_callable",
+      "sequence": "T",
+      "calls": [],
+      "labels": [
+        {
+          "id": "conflict.strands",
+          "reads": [
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "role": "supporting"
+            },
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "role": "opposing"
+            }
+          ],
+          "detail": {}
+        }
+      ],
+      "positions": [
+        {
+          "position": 16126,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "alternate",
+              "call": 97,
+              "scope": "full",
+              "scan": 1188,
+              "quality": 31,
+              "second": {
+                "base": "T",
+                "share": 0.08,
+                "threshold": 0.2
+              },
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "T",
+              "state": "reference",
+              "call": 294,
+              "scope": "full",
+              "scan": 3552,
+              "quality": 52,
+              "second": {
+                "base": "T",
+                "share": 0.04,
+                "threshold": 0.2
+              },
+              "mask": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I-b7bf4c0e92fc",
+      "region": "HVS-I",
+      "first": {
+        "position": 16180,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16194,
+        "ordinal": 0
+      },
+      "kind": "abstain",
+      "decision": "partly_callable",
+      "sequence": "AAAACCCCCCCCCCA",
+      "calls": [
+        "16189C"
+      ],
+      "labels": [
+        {
+          "id": "length.run_end_unread",
+          "reads": [],
+          "detail": {
+            "runs": [
+              {
+                "base": "C",
+                "length": 10,
+                "length_evidence": "phase_loss"
+              }
+            ]
+          }
+        },
+        {
+          "id": "support.single_read",
+          "reads": [
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "role": "supporting"
+            }
+          ],
+          "detail": {}
+        },
+        {
+          "id": "support.single_strand",
+          "reads": [
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "role": "supporting"
+            }
+          ],
+          "detail": {
+            "strand": "reverse"
+          }
+        }
+      ],
+      "positions": [
+        {
+          "position": 16180,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "A",
+              "state": "reference",
+              "call": 151,
+              "scope": "full",
+              "scan": 1836,
+              "quality": 40,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "A",
+              "state": "reference",
+              "call": 240,
+              "scope": "full",
+              "scan": 2904,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16181,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "A",
+              "state": "reference",
+              "call": 152,
+              "scope": "full",
+              "scan": 1848,
+              "quality": 40,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "A",
+              "state": "reference",
+              "call": 239,
+              "scope": "full",
+              "scan": 2892,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16182,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "A",
+              "state": "reference",
+              "call": 153,
+              "scope": "full",
+              "scan": 1860,
+              "quality": 40,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "A",
+              "state": "reference",
+              "call": 238,
+              "scope": "full",
+              "scan": 2880,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16183,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "A",
+              "state": "reference",
+              "call": 154,
+              "scope": "full",
+              "scan": 1872,
+              "quality": 40,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "A",
+              "state": "reference",
+              "call": 237,
+              "scope": "full",
+              "scan": 2868,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16184,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 155,
+              "scope": "full",
+              "scan": 1884,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 236,
+              "scope": "full",
+              "scan": 2856,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16185,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 156,
+              "scope": "full",
+              "scan": 1896,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 235,
+              "scope": "full",
+              "scan": 2844,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16186,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 157,
+              "scope": "full",
+              "scan": 1908,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 234,
+              "scope": "full",
+              "scan": 2832,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16187,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 158,
+              "scope": "full",
+              "scan": 1920,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 233,
+              "scope": "full",
+              "scan": 2820,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16188,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 159,
+              "scope": "full",
+              "scan": 1932,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 232,
+              "scope": "full",
+              "scan": 2808,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16189,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 160,
+              "scope": "full",
+              "scan": 1944,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "alternate",
+              "call": 231,
+              "scope": "full",
+              "scan": 2796,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16190,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 161,
+              "scope": "full",
+              "scan": 1956,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 230,
+              "scope": "full",
+              "scan": 2784,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16191,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 162,
+              "scope": "full",
+              "scan": 1968,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 229,
+              "scope": "full",
+              "scan": 2772,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16192,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 163,
+              "scope": "full",
+              "scan": 1980,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 228,
+              "scope": "full",
+              "scan": 2760,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16193,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "masked",
+              "call": 164,
+              "scope": "full",
+              "scan": 1992,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "reference",
+              "call": 227,
+              "scope": "full",
+              "scan": 2748,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16194,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV1F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 16184
+              }
+            }
+          ],
+          "within": [
+            "A4"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "A",
+              "state": "masked",
+              "call": 165,
+              "scope": "full",
+              "scan": 2004,
+              "quality": 12,
+              "second": null,
+              "mask": "dephased"
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "A",
+              "state": "reference",
+              "call": 226,
+              "scope": "full",
+              "scan": 2736,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I-73f5368c6ffc",
+      "region": "HVS-II",
+      "first": {
+        "position": 73,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 73,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "G",
+      "calls": [
+        "73G"
+      ],
+      "labels": [
+        {
+          "id": "support.single_read",
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "role": "supporting"
+            }
+          ],
+          "detail": {}
+        },
+        {
+          "id": "support.single_strand",
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "role": "supporting"
+            }
+          ],
+          "detail": {
+            "strand": "forward"
+          }
+        }
+      ],
+      "positions": [
+        {
+          "position": 73,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "G",
+              "state": "alternate",
+              "call": 33,
+              "scope": "base",
+              "scan": 420,
+              "quality": 48,
+              "second": {
+                "base": "A",
+                "share": 0.031,
+                "threshold": 0.2
+              },
+              "mask": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I-e6eecfdc15d8",
+      "region": "HVS-II",
+      "first": {
+        "position": 152,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 152,
+        "ordinal": 0
+      },
+      "kind": "context",
+      "decision": "called",
+      "sequence": "T",
+      "calls": [],
+      "labels": [],
+      "positions": [
+        {
+          "position": 152,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "mixture.second_base_one_strand",
+              "reads": [
+                {
+                  "read": "A12_HV2F_03",
+                  "strand": "forward",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "base": "C"
+              }
+            }
+          ],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "T",
+              "state": "reference",
+              "call": 112,
+              "scope": "full",
+              "scan": 1368,
+              "quality": 44,
+              "second": {
+                "base": "C",
+                "share": 0.214,
+                "threshold": 0.2
+              },
+              "mask": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I-a43f0394e5ff",
+      "region": "HVS-II",
+      "first": {
+        "position": 303,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 315,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "CCCCCCCCTCCCCCC",
+      "calls": [
+        "309.1C",
+        "315.1C"
+      ],
+      "labels": [],
+      "positions": [
+        {
+          "position": 303,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 263,
+              "scope": "full",
+              "scan": 3180,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 299,
+              "scope": "full",
+              "scan": 3612,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 304,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 264,
+              "scope": "full",
+              "scan": 3192,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 298,
+              "scope": "full",
+              "scan": 3600,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 305,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 265,
+              "scope": "full",
+              "scan": 3204,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 297,
+              "scope": "full",
+              "scan": 3588,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 306,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 266,
+              "scope": "full",
+              "scan": 3216,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 296,
+              "scope": "full",
+              "scan": 3576,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 307,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 267,
+              "scope": "full",
+              "scan": 3228,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 295,
+              "scope": "full",
+              "scan": 3564,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 308,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 268,
+              "scope": "full",
+              "scan": 3240,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 294,
+              "scope": "full",
+              "scan": 3552,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 309,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 269,
+              "scope": "full",
+              "scan": 3252,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 293,
+              "scope": "full",
+              "scan": 3540,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 310,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "T",
+              "state": "reference",
+              "call": 271,
+              "scope": "full",
+              "scan": 3276,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "T",
+              "state": "masked",
+              "call": 291,
+              "scope": "full",
+              "scan": 3516,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 311,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 272,
+              "scope": "full",
+              "scan": 3288,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 290,
+              "scope": "full",
+              "scan": 3504,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 312,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 273,
+              "scope": "full",
+              "scan": 3300,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 289,
+              "scope": "full",
+              "scan": 3492,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 313,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 274,
+              "scope": "full",
+              "scan": 3312,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 288,
+              "scope": "full",
+              "scan": 3480,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 314,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 275,
+              "scope": "full",
+              "scan": 3324,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 287,
+              "scope": "full",
+              "scan": 3468,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        },
+        {
+          "position": 315,
+          "ordinal": 0,
+          "at": [
+            {
+              "id": "signal.masked_anchor",
+              "reads": [
+                {
+                  "read": "A12_HV3R_03",
+                  "strand": "reverse",
+                  "role": "subject"
+                }
+              ],
+              "detail": {
+                "from": 315
+              }
+            }
+          ],
+          "within": [
+            "A1",
+            "A2"
+          ],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "C",
+              "state": "reference",
+              "call": 276,
+              "scope": "full",
+              "scan": 3336,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "C",
+              "state": "masked",
+              "call": 286,
+              "scope": "full",
+              "scan": 3456,
+              "quality": 9,
+              "second": null,
+              "mask": "dephased"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I-0c52fd60847e",
+      "region": "HVS-I",
+      "first": {
+        "position": 16024,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16030,
+        "ordinal": 0
+      },
+      "kind": "abstain",
+      "decision": "not_callable",
+      "sequence": null,
+      "calls": [],
+      "labels": [
+        {
+          "id": "coverage.no_reads",
+          "reads": [],
+          "detail": {}
+        }
+      ],
+      "positions": []
+    },
+    {
+      "id": "I-8cf56d904220",
+      "region": "HVS-II",
+      "first": {
+        "position": 263,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 263,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "G",
+      "calls": [
+        "263G"
+      ],
+      "labels": [],
+      "positions": [
+        {
+          "position": 263,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV2F_03",
+              "strand": "forward",
+              "base": "G",
+              "state": "alternate",
+              "call": 223,
+              "scope": "full",
+              "scan": 2700,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV3R_03",
+              "strand": "reverse",
+              "base": "G",
+              "state": "alternate",
+              "call": 339,
+              "scope": "full",
+              "scan": 4092,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I-c7160860176a",
+      "region": "HVS-I",
+      "first": {
+        "position": 16129,
+        "ordinal": 0
+      },
+      "last": {
+        "position": 16130,
+        "ordinal": 0
+      },
+      "kind": "variant",
+      "decision": "called",
+      "sequence": "AG",
+      "calls": [
+        "16129A"
+      ],
+      "labels": [],
+      "positions": [
+        {
+          "position": 16129,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "A",
+              "state": "alternate",
+              "call": 100,
+              "scope": "full",
+              "scan": 1224,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "A",
+              "state": "alternate",
+              "call": 291,
+              "scope": "full",
+              "scan": 3516,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        },
+        {
+          "position": 16130,
+          "ordinal": 0,
+          "at": [],
+          "within": [],
+          "reads": [
+            {
+              "read": "A12_HV1F_03",
+              "strand": "forward",
+              "base": "G",
+              "state": "reference",
+              "call": 101,
+              "scope": "full",
+              "scan": 1236,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            },
+            {
+              "read": "A12_HV1R_03",
+              "strand": "reverse",
+              "base": "G",
+              "state": "reference",
+              "call": 290,
+              "scope": "full",
+              "scan": 3504,
+              "quality": 48,
+              "second": null,
+              "mask": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "items": 8,
+    "doubts": 1,
+    "abstains": 2,
+    "variants": 4,
+    "contexts": 1,
+    "labels": {
+      "conflict.strands": 1,
+      "conflict.read": 0,
+      "mixture.second_base_both_strands": 0,
+      "mixture.second_base_one_strand": 1,
+      "length.run_longer_unconfirmed": 0,
+      "indel.deletion_single_read_at_edge": 0,
+      "indel.deletion_single_read_in_run": 0,
+      "decision.contested": 0,
+      "call.excluded": 0,
+      "length.run_end_unread": 1,
+      "coverage.not_callable": 0,
+      "coverage.no_reads": 1,
+      "support.single_read": 2,
+      "support.single_strand": 2,
+      "length.run_end_from_dephased_tail": 0,
+      "signal.read_end_margin": 0,
+      "signal.masked_anchor": 24,
+      "signal.masked": 0,
+      "signal.dephased": 2,
+      "mixture.length": 1,
+      "coverage.single_strand": 0
+    },
+    "positions": {
+      "reportable": 749,
+      "review": 23,
+      "reference_only": 1
+    },
+    "annotations": 4,
+    "regions": [
+      {
+        "name": "HVS-I",
+        "first": 16024,
+        "last": 16365,
+        "clear": false,
+        "doubts": 1,
+        "abstains": 2
+      },
+      {
+        "name": "HVS-II",
+        "first": 73,
+        "last": 340,
+        "clear": true,
+        "doubts": 0,
+        "abstains": 0
+      },
+      {
+        "name": "HVS-III",
+        "first": 438,
+        "last": 576,
+        "clear": true,
+        "doubts": 0,
+        "abstains": 0
+      }
+    ],
+    "clear": false
+  }
+}
