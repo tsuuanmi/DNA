@@ -307,6 +307,7 @@ pub struct ReadEvidence {
     ends: ReadEnds,
     mixtures: Vec<PhaseMixture>,
     unreliable: Vec<UnreliableSpan>,
+    tracts: Vec<TractLengths>,
 }
 
 /// The modality's assertion that, over a span of calls, the read's signal is
@@ -319,6 +320,214 @@ pub struct UnreliableSpan {
     pub calls: Range<usize>,
     /// The modality's reason, a `snake_case` label.
     pub reason: EvidenceReason,
+}
+
+/// One length marginal of a tract decode: each length's share of the
+/// fitted signal, with its standard error, and the margin of the dominant
+/// length over the next (PROP-0012).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LengthMarginal {
+    /// The lengths, strictly ascending.
+    pub lengths: Vec<usize>,
+    /// Each length's share of the fitted signal, in `[0, 1]`; they sum to
+    /// one. Signal shares, never heteroplasmy levels.
+    pub shares: Vec<f64>,
+    /// Each share's standard error from the fit.
+    pub errors: Vec<f64>,
+    /// The length with the largest share.
+    pub dominant: Option<usize>,
+    /// The length with the next largest positive share.
+    pub next: Option<usize>,
+    /// The dominant share's margin over the next, in standard errors of
+    /// their difference; `None` when a single length shows or the margin is
+    /// not finite.
+    pub z: Option<f64>,
+    /// `z` deflated by the read's residual autocorrelation.
+    pub z_adjusted: Option<f64>,
+    /// How the dominant length stands against the next.
+    pub margin: Margin,
+}
+
+/// How a marginal's dominant length stands against the next, as the
+/// modality asserts it. Only a clear margin may ever decide a length.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Margin {
+    /// A single length shows, or the deflated margin reaches the modality's
+    /// level.
+    Clear,
+    /// The deflated margin is below the modality's level.
+    NearEqual,
+    /// Two lengths show but the deflated margin is not finite: never clear.
+    Undefined,
+}
+
+/// One structure the decode fitted, with its residual over the shared
+/// window.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StructureFit {
+    /// The mark between the tract's two runs, on the read strand; `None`
+    /// for a single run.
+    pub mark: Option<char>,
+    /// Root mean square of the fit's residual per channel row.
+    pub residual: f64,
+}
+
+/// One leakage offset's share of a call's signal: a neighbour's peak tail.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LeakageShare {
+    /// The neighbour, in calls from the call.
+    pub offset: i32,
+    /// Its share, non-negative.
+    pub share: f64,
+}
+
+/// The decode refitted with the read's own base signatures and leakage.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CleanedLengths {
+    /// The leakage shares; `None` when too few calls measure them.
+    pub leakage: Option<Vec<LeakageShare>>,
+    /// The refit's residual.
+    pub residual: f64,
+    /// The refit's first-run marginal: the minor lengths with the leakage
+    /// taken out.
+    pub first: LengthMarginal,
+}
+
+/// The modality's assertion of a homopolymer tract's length mixture, decoded
+/// from the read's own signal (PROP-0012). Over `window` calls from
+/// `call_start`, the read is a mixture of molecules `run^a mark run^b D` (or
+/// `run^L D` without a mark) sharing one downstream sequence `D`. Only the
+/// first run's and the total's marginals are identifiable. It decides
+/// nothing: the core reads none of it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TractLengths {
+    /// The call where the modality sees the read leave phase, after the
+    /// tract.
+    pub onset: usize,
+    /// The tract's first call (0-based).
+    pub call_start: usize,
+    /// Calls from `call_start` that read the run or the chosen mark.
+    pub extent: usize,
+    /// Calls the decode fits from `call_start`.
+    pub window: usize,
+    /// The run base on the read strand.
+    pub run: char,
+    /// The chosen structure's mark; `None` for a single run.
+    pub mark: Option<char>,
+    /// Every structure fitted, single run first, then the other bases in
+    /// A, C, G, T order; the chosen one has the lowest residual.
+    pub candidates: Vec<StructureFit>,
+    /// The chosen decode's residual, as its candidate's.
+    pub residual: f64,
+    /// The residual scaled to the fit's degrees of freedom.
+    pub sigma: f64,
+    /// Lag-1 autocorrelation of the residual along the calls: the lagged
+    /// products over the squares of all calls but the last, so it can exceed
+    /// one slightly.
+    pub autocorrelation: f64,
+    /// The first run's lengths.
+    pub first: LengthMarginal,
+    /// The total lengths: run, mark, and run.
+    pub total: LengthMarginal,
+    /// The refit with the read's signatures and leakage, when it fits.
+    pub cleaned: Option<CleanedLengths>,
+}
+
+impl LengthMarginal {
+    /// Whether the marginal is well formed: lengths strictly ascending, one
+    /// share and error each, shares in `[0, 1]` summing to one, errors and
+    /// margins finite and non-negative, the dominant and next lengths among
+    /// the lengths, the lengths at most `longest`, and the margin undefined
+    /// exactly when two lengths show without a finite deflated margin.
+    fn valid(&self, longest: usize) -> bool {
+        let sum = self.shares.iter().sum::<f64>();
+        !self.lengths.is_empty()
+            && self.lengths.windows(2).all(|pair| pair[0] < pair[1])
+            && self.lengths.last().is_some_and(|&last| last <= longest)
+            && self.shares.len() == self.lengths.len()
+            && self.errors.len() == self.lengths.len()
+            && self
+                .shares
+                .iter()
+                .all(|share| share.is_finite() && (0.0..=1.0).contains(share))
+            && (sum - 1.0).abs() <= 1e-6
+            && self
+                .errors
+                .iter()
+                .all(|error| error.is_finite() && *error >= 0.0)
+            && [self.z, self.z_adjusted]
+                .iter()
+                .flatten()
+                .all(|z| z.is_finite())
+            && (self.margin == Margin::Undefined)
+                == (self.next.is_some() && self.z_adjusted.is_none())
+            && self
+                .dominant
+                .is_some_and(|length| self.lengths.contains(&length))
+            && self.next.is_none_or(|length| {
+                self.lengths.contains(&length) && Some(length) != self.dominant
+            })
+    }
+}
+
+impl TractLengths {
+    /// Whether the tract is well formed within a read of `calls` calls, as
+    /// [`ReadEvidence::with_tracts`] requires it.
+    #[must_use]
+    pub fn valid(&self, calls: usize) -> bool {
+        let base = |base: char| "ACGT".contains(base);
+        let longest = self.total.lengths.last().copied().unwrap_or(0);
+        let chosen = self
+            .candidates
+            .iter()
+            .find(|candidate| candidate.mark == self.mark);
+        self.call_start < self.onset
+            && self.onset < calls
+            && self.extent > 0
+            && self.window >= self.extent
+            && self.call_start + self.window <= calls
+            && base(self.run)
+            && self.mark.is_none_or(|mark| base(mark) && mark != self.run)
+            && self
+                .candidates
+                .first()
+                .is_some_and(|first| first.mark.is_none())
+            && self.candidates.iter().all(|candidate| {
+                candidate.residual.is_finite()
+                    && candidate.residual >= 0.0
+                    && candidate
+                        .mark
+                        .is_none_or(|mark| base(mark) && mark != self.run)
+            })
+            && chosen.is_some_and(|chosen| {
+                chosen.residual == self.residual
+                    && self
+                        .candidates
+                        .iter()
+                        .all(|candidate| candidate.residual >= chosen.residual)
+            })
+            && [self.residual, self.sigma]
+                .iter()
+                .all(|value| value.is_finite() && *value >= 0.0)
+            && self.autocorrelation.is_finite()
+            && self
+                .total
+                .lengths
+                .windows(2)
+                .all(|pair| pair[1] == pair[0] + 1)
+            && self.total.valid(longest)
+            && self.first.valid(longest)
+            && self.cleaned.as_ref().is_none_or(|cleaned| {
+                cleaned.residual.is_finite()
+                    && cleaned.residual >= 0.0
+                    && cleaned.first.valid(longest)
+                    && cleaned
+                        .leakage
+                        .iter()
+                        .flatten()
+                        .all(|leak| leak.offset != 0 && leak.share.is_finite() && leak.share >= 0.0)
+            })
+    }
 }
 
 /// One sequence a phase mixture holds: the read's dominant sequence offset by
@@ -419,6 +628,7 @@ impl ReadEvidence {
             ends: ReadEnds::Unvouched,
             mixtures: Vec::new(),
             unreliable: Vec::new(),
+            tracts: Vec::new(),
         })
     }
 
@@ -488,6 +698,31 @@ impl ReadEvidence {
     #[must_use]
     pub fn unreliable(&self) -> &[UnreliableSpan] {
         &self.unreliable
+    }
+
+    /// The same evidence with the modality's tract decodes (PROP-0012).
+    ///
+    /// # Errors
+    ///
+    /// Returns `EvidenceError::InvalidTract` when a tract does not fit the
+    /// read's calls (its window shorter than its extent, its onset not after
+    /// its start), a base is not A, C, G, or T, its candidates do not open
+    /// with the single run or the chosen one is not the best, or a marginal
+    /// is malformed (see [`LengthMarginal`]).
+    pub fn with_tracts(mut self, tracts: Vec<TractLengths>) -> Result<Self> {
+        for (index, tract) in tracts.iter().enumerate() {
+            if !tract.valid(self.calls.len()) {
+                return Err(EvidenceError::InvalidTract { index }.into());
+            }
+        }
+        self.tracts = tracts;
+        Ok(self)
+    }
+
+    /// The modality's tract decodes, in onset order (PROP-0012).
+    #[must_use]
+    pub fn tracts(&self) -> &[TractLengths] {
+        &self.tracts
     }
 
     /// The same evidence with every call within `margin` calls of an
@@ -588,6 +823,7 @@ impl ReadEvidence {
             ends: ReadEnds::Unvouched,
             mixtures: Vec::new(),
             unreliable: Vec::new(),
+            tracts: Vec::new(),
         }
     }
 
@@ -695,6 +931,97 @@ mod tests {
             })
         );
         assert_eq!(evidence.calls()[2].profile, None);
+    }
+
+    // SRS-CALL-025
+    #[test]
+    fn validates_tracts() -> Result<()> {
+        let marginal = |lengths: Vec<usize>, shares: Vec<f64>| LengthMarginal {
+            errors: vec![0.01; lengths.len()],
+            dominant: Some(5),
+            next: Some(6),
+            z: Some(9.0),
+            z_adjusted: Some(7.5),
+            margin: Margin::Clear,
+            lengths,
+            shares,
+        };
+        let tract = TractLengths {
+            onset: 10,
+            call_start: 2,
+            extent: 6,
+            window: 12,
+            run: 'C',
+            mark: Some('T'),
+            candidates: vec![
+                StructureFit {
+                    mark: None,
+                    residual: 0.09,
+                },
+                StructureFit {
+                    mark: Some('T'),
+                    residual: 0.05,
+                },
+            ],
+            residual: 0.05,
+            sigma: 0.06,
+            autocorrelation: 0.3,
+            first: marginal(vec![1, 2, 3, 4, 5, 6], vec![0.0, 0.0, 0.1, 0.1, 0.6, 0.2]),
+            total: marginal(vec![4, 5, 6, 7], vec![0.1, 0.6, 0.2, 0.1]),
+            cleaned: Some(CleanedLengths {
+                leakage: Some(vec![LeakageShare {
+                    offset: 1,
+                    share: 0.01,
+                }]),
+                residual: 0.04,
+                first: marginal(vec![1, 2, 3, 4, 5, 6], vec![0.0, 0.0, 0.0, 0.1, 0.7, 0.2]),
+            }),
+        };
+        let read = ReadEvidence::clean("ACCCCCCTCCGTACGTAAAC");
+        assert_eq!(
+            read.clone()
+                .with_tracts(vec![tract.clone()])?
+                .tracts()
+                .len(),
+            1
+        );
+        let mut invalid = Vec::new();
+        let mut edit = |change: &dyn Fn(&mut TractLengths)| {
+            let mut copy = tract.clone();
+            change(&mut copy);
+            invalid.push(copy);
+        };
+        edit(&|t| t.window = 5);
+        edit(&|t| t.window = 19);
+        edit(&|t| t.onset = 2);
+        edit(&|t| t.mark = Some('C'));
+        edit(&|t| t.run = 'N');
+        edit(&|t| t.candidates.reverse());
+        edit(&|t| t.residual = 0.09);
+        edit(&|t| t.autocorrelation = f64::NAN);
+        edit(&|t| t.first.shares[4] = 0.5);
+        edit(&|t| t.total.lengths = vec![4, 5, 7, 8]);
+        edit(&|t| t.first.lengths[5] = 9);
+        edit(&|t| t.total.dominant = Some(3));
+        edit(&|t| t.total.next = t.total.dominant);
+        edit(&|t| t.first.z = Some(f64::INFINITY));
+        edit(&|t| t.first.z_adjusted = None);
+        edit(&|t| {
+            t.total.next = None;
+            t.total.margin = Margin::Undefined;
+        });
+        edit(&|t| {
+            if let Some(cleaned) = t.cleaned.as_mut() {
+                cleaned.leakage = Some(vec![LeakageShare {
+                    offset: 0,
+                    share: 0.01,
+                }]);
+            }
+        });
+        for tract in invalid {
+            assert!(read.clone().with_tracts(vec![tract]).is_err());
+        }
+        Ok(())
     }
 
     #[test]

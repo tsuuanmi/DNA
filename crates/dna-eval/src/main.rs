@@ -29,6 +29,7 @@ mod panel;
 mod recheck;
 mod report;
 mod runner;
+mod tracts;
 mod triage;
 mod truth;
 mod unrecorded;
@@ -552,6 +553,17 @@ fn run(cli: &RunArgs) -> Result<String> {
         }
     }
     write(&cli.output, "components.tsv", &table)?;
+    let mut table = String::from(tracts::HEADER);
+    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
+        if let Ok(called) = &outcome.result {
+            tracts::append(
+                &mut table,
+                (&sample.id, sample.batch_date.as_deref().unwrap_or("")),
+                &called.tracts,
+            );
+        }
+    }
+    write(&cli.output, "tracts.tsv", &table)?;
     write(&cli.output, "forms.tsv", &forms.table(&truth.sha256))?;
     let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
     json.push('\n');

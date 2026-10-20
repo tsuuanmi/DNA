@@ -16,8 +16,8 @@ use crate::model::sample_result::ReadRejectionResult;
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub(crate) enum EvidenceDocument {
-    Read(EvidenceResult),
-    Rejected(RejectedEvidenceResult),
+    Read(Box<EvidenceResult>),
+    Rejected(Box<RejectedEvidenceResult>),
 }
 
 impl EvidenceDocument {
@@ -92,6 +92,66 @@ pub(crate) struct EvidenceReadResult {
     /// The spans of calls whose differences the modality asserts are not to
     /// stand unchecked, with its reason (SRS-CALL-024).
     pub(crate) unreliable: Vec<UnreliableEvidenceResult>,
+    /// The homopolymer tracts the modality decodes from the read's own
+    /// signal, with their length marginals (PROP-0012).
+    pub(crate) tracts: Vec<TractEvidenceResult>,
+}
+
+/// One tract decode as the modality asserts it, over call indices.
+#[derive(Debug, Serialize)]
+pub(crate) struct TractEvidenceResult {
+    /// The call where the read leaves phase, after the tract.
+    pub(crate) onset: usize,
+    /// The calls the decode fits, from the tract's first call.
+    pub(crate) calls: IntervalResult,
+    /// Calls from the tract's first one that read the run or the mark.
+    pub(crate) extent: usize,
+    pub(crate) run: char,
+    pub(crate) mark: Option<char>,
+    /// Every structure fitted, single run first, then A, C, G, T.
+    pub(crate) candidates: Vec<StructureFitResult>,
+    pub(crate) residual: f64,
+    pub(crate) sigma: f64,
+    pub(crate) autocorrelation: f64,
+    pub(crate) first: LengthMarginalResult,
+    pub(crate) total: LengthMarginalResult,
+    pub(crate) cleaned: Option<CleanedLengthsResult>,
+}
+
+/// One structure the decode fitted.
+#[derive(Debug, Serialize)]
+pub(crate) struct StructureFitResult {
+    pub(crate) mark: Option<char>,
+    pub(crate) residual: f64,
+}
+
+/// One length marginal: lengths ascending with their shares and standard
+/// errors, the dominant and next lengths, and the margin between them.
+#[derive(Debug, Serialize)]
+pub(crate) struct LengthMarginalResult {
+    pub(crate) lengths: Vec<usize>,
+    pub(crate) shares: Vec<f64>,
+    pub(crate) errors: Vec<f64>,
+    pub(crate) dominant: Option<usize>,
+    pub(crate) next: Option<usize>,
+    pub(crate) z: Option<f64>,
+    pub(crate) z_adjusted: Option<f64>,
+    pub(crate) margin: &'static str,
+}
+
+/// The refit with the read's own signatures and leakage.
+#[derive(Debug, Serialize)]
+pub(crate) struct CleanedLengthsResult {
+    pub(crate) leakage: Option<Vec<LeakageShareResult>>,
+    pub(crate) residual: f64,
+    pub(crate) first: LengthMarginalResult,
+}
+
+/// One leakage offset's share.
+#[derive(Debug, Serialize)]
+pub(crate) struct LeakageShareResult {
+    pub(crate) offset: i32,
+    pub(crate) share: f64,
 }
 
 /// One unreliable span as the modality asserts it, over call indices.

@@ -96,9 +96,60 @@ component. Decoding the dominant sequence from the mixture, subtracting the
 copies at each call, could restore a base but never a call count; it is a
 measured follow-up, not part of this design.
 
+## Tract decode
+
+The offset model above reads each dephased stretch as the read's own calls
+shifted, so it inherits the read's primary calls where they are wrong. The
+tract decode (SRS-CALL-025, [[PROP-0012]] increment 2) instead fits the
+molecules themselves. It reads the analysed channels at each call's locus
+sample, divided by the row sum, and no reference.
+
+- **Where.** Before each call where callability sees the read leave phase
+  (any segment not `in_phase`), the tract is the latest run of at least
+  `trace.locate_min_run` equal primaries starting before it, extended back
+  over a single-call mark when at least `trace.locate_min_before` run-base
+  calls precede that mark (`CCCCCTCCCC` is one tract). There is no fallback:
+  an onset without such a run yields no tract.
+- **Model.** Over a window of calls from the tract's first, each molecule is
+  `run^a mark run^b D`, or `run^L D` without a mark, with `D` the downstream
+  sequence every molecule shares and the decode does not know. The fractions
+  of all molecules over the candidate lengths, from `trace.span_below` under
+  the run extent to `trace.span_above` over it, are fitted by NNLS. Given
+  them, `D` is decoded exactly by dynamic programming over at most
+  `trace.joint_lengths` consecutive lengths holding the most signal. The two
+  steps alternate from a start per candidate length, at most
+  `trace.iterations` rounds each, and the start with the lowest residual is
+  kept. A molecule's column is its total length's run plus its mark's row,
+  so only two marginals are identifiable, the first run's and the total's,
+  and only they are published.
+- **Structure.** A single run and a mark of each other base are all fitted
+  over the same calls: the longest candidate extent's window. The lowest
+  residual wins, the earlier candidate on a tie, and every candidate's
+  residual is published. On the research spike, no two came within a
+  relative 2e-5.
+- **Margins.** Each marginal gives its lengths' shares with standard errors
+  from the fit. The margin of the dominant length over the next is
+  deflated by the residual's lag-1 autocorrelation ρ, by
+  √((1+ρ)/(1−ρ)), and below `trace.near_equal_z` the two lengths are
+  near-equal. When two lengths show and the deflated margin is not finite
+  (ρ ≥ 1, or a zero standard error), the margin is `undefined`, which is
+  never clear: only a clear margin on both strands may later decide.
+- **Cleaning.** The read's own base signatures (each base's mean profile
+  over its in-phase calls before the tract) and a leakage null (the share a
+  neighbour one or two calls away adds, measured away from runs) refit the
+  chosen structure. That cleans the minor shares and does not change the
+  dominant length.
+
+The decode is evidence only, a second assertion beside `PhaseMixture`
+([[ADR-0084]]). The steps are memoised by downstream sequence, and the NNLS
+reuses its QR prefix, so the results equal a plain implementation's. The
+research reference's vectors check every output.
+
 ## Evaluation
 
 `dna-eval run` writes `components.tsv`: per component, the run clusters of the
 reference it covers, measured as haplotypes against the truth (the run a read
-enters in phase, and whether the whole cluster agrees). See the
+enters in phase, and whether the whole cluster agrees), and `tracts.tsv`:
+per tract decode, the reference position of its first call, its structure,
+and its marginals' dominant lengths, margins, and margin states. See the
 [evaluation harness](../validation/evaluation-harness.md#outputs).

@@ -10,7 +10,7 @@
       {
         "id": "sanger",
         "family": "modality",
-        "version": 16
+        "version": 17
       }
     ]
   },
@@ -94,6 +94,126 @@
           "end": 2
         },
         "reason": "poor_start_signal"
+      }
+    ],
+    "tracts": [
+      {
+        "onset": 4,
+        "calls": {
+          "start": 1,
+          "end": 6
+        },
+        "extent": 2,
+        "run": "C",
+        "mark": null,
+        "candidates": [
+          {
+            "mark": null,
+            "residual": 0.08
+          },
+          {
+            "mark": "A",
+            "residual": 0.09
+          },
+          {
+            "mark": "G",
+            "residual": 0.11
+          },
+          {
+            "mark": "T",
+            "residual": 0.1
+          }
+        ],
+        "residual": 0.08,
+        "sigma": 0.09,
+        "autocorrelation": 0.21,
+        "first": {
+          "lengths": [
+            1,
+            2,
+            3
+          ],
+          "shares": [
+            0.1,
+            0.7,
+            0.2
+          ],
+          "errors": [
+            0.02,
+            0.03,
+            0.02
+          ],
+          "dominant": 2,
+          "next": 3,
+          "z": 12.5,
+          "z_adjusted": 10.1,
+          "margin": "clear"
+        },
+        "total": {
+          "lengths": [
+            1,
+            2,
+            3
+          ],
+          "shares": [
+            0.1,
+            0.7,
+            0.2
+          ],
+          "errors": [
+            0.02,
+            0.03,
+            0.02
+          ],
+          "dominant": 2,
+          "next": 3,
+          "z": 12.5,
+          "z_adjusted": 10.1,
+          "margin": "clear"
+        },
+        "cleaned": {
+          "leakage": [
+            {
+              "offset": -2,
+              "share": 0.0
+            },
+            {
+              "offset": -1,
+              "share": 0.01
+            },
+            {
+              "offset": 1,
+              "share": 0.02
+            },
+            {
+              "offset": 2,
+              "share": 0.0
+            }
+          ],
+          "residual": 0.07,
+          "first": {
+            "lengths": [
+              1,
+              2,
+              3
+            ],
+            "shares": [
+              0.05,
+              0.75,
+              0.2
+            ],
+            "errors": [
+              0.02,
+              0.03,
+              0.02
+            ],
+            "dominant": 2,
+            "next": 3,
+            "z": 13.0,
+            "z_adjusted": 10.6,
+            "margin": "clear"
+          }
+        }
       }
     ]
   },

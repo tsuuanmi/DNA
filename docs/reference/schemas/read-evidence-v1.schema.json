@@ -27,7 +27,8 @@
         "reasons",
         "callability",
         "mixtures",
-        "unreliable"
+        "unreliable",
+        "tracts"
       ],
       "properties": {
         "call_count": {
@@ -87,6 +88,13 @@
                 ]
               }
             }
+          }
+        },
+        "tracts": {
+          "description": "The homopolymer tracts the modality decodes from the read's own signal (PROP-0012), in onset order: evidence only, which the core does not read.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tract"
           }
         }
       }
@@ -475,6 +483,245 @@
             "type": "integer",
             "minimum": 0
           }
+        }
+      }
+    },
+    "tract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "onset",
+        "calls",
+        "extent",
+        "run",
+        "mark",
+        "candidates",
+        "residual",
+        "sigma",
+        "autocorrelation",
+        "first",
+        "total",
+        "cleaned"
+      ],
+      "properties": {
+        "onset": {
+          "description": "The call where the read leaves phase (the start of a callability segment not in phase), after the tract.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "calls": {
+          "description": "The calls the decode fits, 0-based half-open, from the tract's first call.",
+          "$ref": "urn:signal:schema:basecalls:v3#/$defs/interval"
+        },
+        "extent": {
+          "description": "Calls from the tract's first one that read the run or the chosen mark; at most the calls fitted.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "run": {
+          "enum": [
+            "A",
+            "C",
+            "G",
+            "T"
+          ],
+          "description": "The run base on the read strand."
+        },
+        "mark": {
+          "description": "The chosen structure's mark between the tract's two runs, on the read strand; null for a single run.",
+          "enum": [
+            "A",
+            "C",
+            "G",
+            "T",
+            null
+          ]
+        },
+        "candidates": {
+          "description": "Every structure fitted over the same calls: the single run first, then each other base in A, C, G, T order. The chosen one has the lowest residual, the earlier one on a tie.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mark",
+              "residual"
+            ],
+            "properties": {
+              "mark": {
+                "enum": [
+                  "A",
+                  "C",
+                  "G",
+                  "T",
+                  null
+                ]
+              },
+              "residual": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "residual": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The chosen decode's root mean square residual per channel row, as its candidate's."
+        },
+        "sigma": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The residual scaled to the fit's degrees of freedom."
+        },
+        "autocorrelation": {
+          "description": "Lag-1 autocorrelation of the residual along the calls: the lagged products over the squares of all calls but the last, so it can exceed one slightly.",
+          "type": "number"
+        },
+        "first": {
+          "description": "The first run's length marginal.",
+          "$ref": "#/$defs/length_marginal"
+        },
+        "total": {
+          "description": "The total length marginal: run, mark, and run.",
+          "$ref": "#/$defs/length_marginal"
+        },
+        "cleaned": {
+          "description": "The chosen structure refitted with the read's own base signatures and leakage over the signature decode's downstream sequence; null when the refit does not fit.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "leakage",
+                "residual",
+                "first"
+              ],
+              "properties": {
+                "leakage": {
+                  "description": "Each neighbour offset's share of a call's signal, from the read's calls before the tract; null when too few calls measure it.",
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "offset",
+                          "share"
+                        ],
+                        "properties": {
+                          "offset": {
+                            "type": "integer",
+                            "not": {
+                              "const": 0
+                            }
+                          },
+                          "share": {
+                            "type": "number",
+                            "minimum": 0
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "residual": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "The refit's residual."
+                },
+                "first": {
+                  "description": "The refit's first-run marginal.",
+                  "$ref": "#/$defs/length_marginal"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "length_marginal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lengths",
+        "shares",
+        "errors",
+        "dominant",
+        "next",
+        "z",
+        "z_adjusted",
+        "margin"
+      ],
+      "properties": {
+        "lengths": {
+          "description": "The lengths, strictly ascending.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "shares": {
+          "description": "Each length's share of the fitted signal, summing to one: signal shares, never heteroplasmy levels.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "errors": {
+          "description": "Each share's standard error from the fit.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "dominant": {
+          "description": "The length with the largest share.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "next": {
+          "description": "The length with the next largest positive share; null when a single length shows.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "z": {
+          "description": "The dominant share's margin over the next, in standard errors of their difference; null when a single length shows or the margin is not finite.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "z_adjusted": {
+          "description": "z deflated by the read's residual autocorrelation.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "margin": {
+          "description": "How the dominant length stands against the next: clear when a single length shows or z_adjusted reaches the configured level (trace.near_equal_z), near_equal below it, and undefined, never clear, when two lengths show without a finite z_adjusted.",
+          "enum": [
+            "clear",
+            "near_equal",
+            "undefined"
+          ]
         }
       }
     },

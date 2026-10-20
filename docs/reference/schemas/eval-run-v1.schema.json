@@ -14,6 +14,7 @@
     "summary.md",
     "checks.tsv",
     "components.tsv",
+    "tracts.tsv",
     "forms.tsv"
   ],
   "properties": {
@@ -49,6 +50,9 @@
     },
     "components.tsv": {
       "$ref": "#/$defs/components"
+    },
+    "tracts.tsv": {
+      "$ref": "#/$defs/tracts"
     },
     "forms.tsv": {
       "$ref": "#/$defs/forms"
@@ -2098,6 +2102,208 @@
                   "no",
                   "."
                 ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "tracts": {
+      "description": "One row per sample, read, and tract decode (PROP-0012 increment 2), in panel order and the read's onset order: the tract located before each call where the read leaves phase, its chosen structure, and its first-run and total length marginals. Evidence only; nothing in it is compared with the truth.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comments",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "comments": {
+          "$ref": "#/$defs/no_comments"
+        },
+        "columns": {
+          "const": [
+            "sample_id",
+            "batch_date",
+            "read",
+            "strand",
+            "onset",
+            "start",
+            "reference",
+            "run",
+            "mark",
+            "extent",
+            "window",
+            "residual",
+            "first",
+            "first_share",
+            "first_next",
+            "first_z",
+            "first_margin",
+            "total",
+            "total_share",
+            "total_next",
+            "total_z",
+            "total_margin",
+            "cleaned_first",
+            "cleaned_first_share"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sample_id",
+              "batch_date",
+              "read",
+              "strand",
+              "onset",
+              "start",
+              "reference",
+              "run",
+              "mark",
+              "extent",
+              "window",
+              "residual",
+              "first",
+              "first_share",
+              "first_next",
+              "first_z",
+              "first_margin",
+              "total",
+              "total_share",
+              "total_next",
+              "total_z",
+              "total_margin",
+              "cleaned_first",
+              "cleaned_first_share"
+            ],
+            "properties": {
+              "sample_id": {
+                "description": "The panel sample identifier.",
+                "$ref": "#/$defs/text"
+              },
+              "batch_date": {
+                "description": "The manifest `batch_date`; empty without the column.",
+                "$ref": "#/$defs/text"
+              },
+              "read": {
+                "description": "The read's name.",
+                "$ref": "#/$defs/nonempty"
+              },
+              "strand": {
+                "description": "The read's strand.",
+                "$ref": "#/$defs/strand"
+              },
+              "onset": {
+                "description": "The call where the read leaves phase, after the tract (0-based).",
+                "$ref": "#/$defs/count"
+              },
+              "start": {
+                "description": "The tract's first call (0-based).",
+                "$ref": "#/$defs/count"
+              },
+              "reference": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*|\\.)$",
+                "description": "The reference position (1-based) the tract's first call is aligned to; `.` when it is not aligned to a reference base."
+              },
+              "run": {
+                "description": "The run base on the read strand.",
+                "enum": [
+                  "A",
+                  "C",
+                  "G",
+                  "T"
+                ]
+              },
+              "mark": {
+                "description": "The chosen structure's mark on the read strand; `.` for a single run.",
+                "enum": [
+                  "A",
+                  "C",
+                  "G",
+                  "T",
+                  "."
+                ]
+              },
+              "extent": {
+                "description": "Calls from the tract's first one that read the run or the mark.",
+                "$ref": "#/$defs/count"
+              },
+              "window": {
+                "description": "Calls the decode fits.",
+                "$ref": "#/$defs/count"
+              },
+              "residual": {
+                "description": "The chosen decode's residual.",
+                "$ref": "#/$defs/decimal_4"
+              },
+              "first": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*|\\.)$",
+                "description": "The first run's dominant length."
+              },
+              "first_share": {
+                "description": "Its share of the fitted signal.",
+                "$ref": "#/$defs/decimal_3"
+              },
+              "first_next": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*|\\.)$",
+                "description": "The first run's next length with a positive share; `.` when a single length shows."
+              },
+              "first_z": {
+                "type": "string",
+                "pattern": "^(-?[0-9]+\\.[0-9]{2}|\\.)$",
+                "description": "The dominant share's margin over the next, in standard errors deflated by the read's residual autocorrelation; `.` when a single length shows."
+              },
+              "first_margin": {
+                "description": "How the first run's dominant length stands against the next: `clear`, `near_equal`, or `undefined` (two lengths without a finite margin; never clear).",
+                "enum": [
+                  "clear",
+                  "near_equal",
+                  "undefined"
+                ]
+              },
+              "total": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*|\\.)$",
+                "description": "The total's dominant length: run, mark, and run."
+              },
+              "total_share": {
+                "description": "Its share of the fitted signal.",
+                "$ref": "#/$defs/decimal_3"
+              },
+              "total_next": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*|\\.)$",
+                "description": "The total's next length with a positive share; `.` when a single length shows."
+              },
+              "total_z": {
+                "type": "string",
+                "pattern": "^(-?[0-9]+\\.[0-9]{2}|\\.)$",
+                "description": "As `first_z`, for the total."
+              },
+              "total_margin": {
+                "description": "How the total's dominant length stands against the next: `clear`, `near_equal`, or `undefined` (two lengths without a finite margin; never clear).",
+                "enum": [
+                  "clear",
+                  "near_equal",
+                  "undefined"
+                ]
+              },
+              "cleaned_first": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*|\\.)$",
+                "description": "The first run's dominant length refitted with the read's own signatures and leakage; `.` without a refit."
+              },
+              "cleaned_first_share": {
+                "description": "Its share; `.` without a refit.",
+                "type": "string",
+                "pattern": "^(-?[0-9]+\\.[0-9]{3}|\\.)$"
               }
             }
           }
