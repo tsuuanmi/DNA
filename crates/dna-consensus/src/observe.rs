@@ -116,6 +116,10 @@ pub(super) struct ReadObservations {
     /// Positions whose call shows a second peak its modality does not explain
     /// (ADR-0080).
     pub(super) unexplained: BTreeSet<usize>,
+    /// Per covered position, the calls between it and the nearer end of the
+    /// read's informative interval, through the nearer of the calls on both
+    /// sides of a deleted position or a junction after it (SRS-CONS-011).
+    pub(super) edges: BTreeMap<usize, usize>,
 }
 
 /// Walks the read's alignment columns in reference order.
@@ -277,6 +281,15 @@ pub(super) fn observe(
             .next()
             .unwrap_or('N'),
     };
+    let mut edges = BTreeMap::new();
+    // Calls between `call` and the nearer end of the informative interval.
+    let edge = |call: usize| {
+        if interval.contains(&call) {
+            (call - interval.start).min(interval.end - 1 - call)
+        } else {
+            0
+        }
+    };
     let mut previous: Option<(usize, usize)> = None; // (reference position, column)
     let mut inserted: Vec<(char, usize)> = Vec::new();
     // Per deleted position: the nearest calls on both sides, and the base.
@@ -394,6 +407,13 @@ pub(super) fn observe(
             }
         };
         positions.insert(position, observation);
+        let nearest = [before[offset], after[offset]]
+            .into_iter()
+            .flatten()
+            .map(edge)
+            .min()
+            .unwrap_or(0);
+        edges.insert(position, nearest);
         previous = Some((position, offset));
         inserted.clear();
     }
@@ -442,6 +462,7 @@ pub(super) fn observe(
         junctions,
         seconds,
         unexplained,
+        edges,
     }
 }
 

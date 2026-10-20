@@ -9,16 +9,16 @@ use crate::model::evidence_result::{
     EvidenceReadResult, EvidenceResult, MixtureComponentResult, MixtureEvidenceResult,
     PostRepeatResult, SecondBaseResult, VerdictResult,
 };
-use crate::model::result::{InputResult, IntervalResult, PlacementKind, PlacementResult};
-use crate::report::callability;
+use crate::model::result::{
+    InputResult, IntervalResult, PeakHeightsResult, PlacementKind, PlacementResult,
+};
+use crate::model::sanger_read::SangerRead;
 use crate::report::json::project_plugins;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::read_evidence::{
     Bound, EvidenceReason, Placement, ReadEnds, ReadEvidence, Verdict,
 };
 use dna_sanger::model::basecalls::BaseCalls;
-use dna_sanger::model::callability::ReadCallability;
-use dna_sanger::model::quality::QualityControlResult;
 use dna_sanger::model::sanger::Chromatogram;
 use dna_sanger::model::second_cause::SecondPeak;
 
@@ -27,8 +27,8 @@ pub(crate) struct CompletedEvidence {
     pub(crate) config: Config,
     pub(crate) trace: Chromatogram,
     pub(crate) calls: BaseCalls,
-    pub(crate) callability: ReadCallability,
-    pub(crate) quality: QualityControlResult,
+    /// The read's Sanger evidence, as the analysis document reports it.
+    pub(crate) sanger: SangerRead,
     pub(crate) second: Vec<Option<SecondPeak>>,
     pub(crate) evidence: ReadEvidence,
     /// Plugins of the workflow, in execution order.
@@ -41,14 +41,13 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
         config,
         trace,
         calls,
-        callability: read_callability,
-        quality,
+        sanger,
         second,
         evidence,
         plugins,
     } = completed;
     let count = evidence.calls().len();
-    if calls.calls.len() != count || quality.per_call.len() != count {
+    if calls.calls.len() != count || sanger.calls.len() != count {
         return Err(
             ReportError::Inconsistent("evidence and basecalls differ in call count").into(),
         );
@@ -60,6 +59,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
         .enumerate()
         .map(|(index, call)| {
             let basecall = &calls.calls[index];
+            let signal = sanger.calls[index];
             let height = basecall
                 .peaks
                 .iter()
@@ -69,7 +69,10 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
             CallEvidenceResult {
                 index,
                 base: call.base,
-                profile: call.profile.map(|profile| profile.weights.map(round)),
+                // At full precision: alignment scores quantize the weights
+                // finer than three decimals, so a rounded profile could
+                // place or call the read differently when read back.
+                profile: call.profile.map(|profile| profile.weights),
                 placement: placement(call.placement),
                 identity: verdict(call.identity),
                 indel: verdict(call.indel),
@@ -92,7 +95,8 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
                 signal: CallSignalResult {
                     scan: basecall.locus_position_0based,
                     height: u32::try_from(height).unwrap_or(0),
-                    relative_quality: quality.per_call[index].relative_quality_score,
+                    peaks: signal.peaks.map(PeakHeightsResult::from),
+                    relative_quality: signal.quality,
                     cause: second
                         .get(index)
                         .copied()
@@ -113,6 +117,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
         },
         read: EvidenceReadResult {
             call_count: count,
+            trim: sanger.trim,
             informative: IntervalResult {
                 start: informative.start,
                 end: informative.end,
@@ -127,7 +132,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
                 .copied()
                 .map(EvidenceReason::label)
                 .collect(),
-            callability: callability::project(&read_callability),
+            callability: sanger.callability,
             mixtures: evidence
                 .mixtures()
                 .iter()
@@ -151,6 +156,8 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceResult> {
                 })
                 .collect(),
         },
+        signal_quality: sanger.signal_quality,
+        warnings: sanger.warnings,
         calls: results,
     })
 }
@@ -176,7 +183,7 @@ fn verdict(verdict: Verdict) -> VerdictResult {
     }
 }
 
-/// A share or weight to three decimals, as every DNA document writes them.
+/// A share or fraction to three decimals, as every DNA document writes them.
 fn round(value: f64) -> f64 {
     (value * 1000.0).round() / 1000.0
 }

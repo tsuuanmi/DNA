@@ -1,6 +1,7 @@
 //! Command-line argument definitions for focused DNA operations.
 //!
-//! Single-read commands accept exactly one AB1 path. The sample command accepts
+//! Single-read commands accept exactly one AB1 path; analyze accepts the
+//! read's evidence document (`--evidence`) in its place. The sample command accepts
 //! one user-supplied sample identifier plus one or more AB1 paths and derives one
 //! sample-evidence result. The call command accepts one sample identifier plus
 //! one or more consensus-sequence FASTA files and runs the core caller alone.
@@ -12,7 +13,7 @@
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 
 /// DNA command-line interface.
 #[derive(Debug, Parser)]
@@ -31,7 +32,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 #[non_exhaustive]
 pub enum Command {
-    /// Analyze one AB1 trace against a reference FASTA.
+    /// Analyze one AB1 trace, or one read's recorded evidence, against a reference FASTA.
     Analyze(AnalyzeArgs),
     /// Re-call and quality-trim one AB1 trace without a reference.
     Basecall(BasecallArgs),
@@ -51,11 +52,18 @@ pub enum Command {
     Notation(NotationArgs),
 }
 
-/// Arguments for the end-to-end reference analysis pipeline.
+/// Arguments for the end-to-end reference analysis pipeline: a trace, or the
+/// read's `dna.read_evidence/v1` document, never both.
 #[derive(Debug, Args)]
+#[command(group(ArgGroup::new("read").required(true).args(["trace", "evidence"])))]
 pub struct AnalyzeArgs {
     /// Input ABIF/AB1 trace.
-    pub trace: PathBuf,
+    pub trace: Option<PathBuf>,
+
+    /// The read's evidence (`dna.read_evidence/v1`, written by `evidence`), in
+    /// place of its trace (PROP-0011).
+    #[arg(long)]
+    pub evidence: Option<PathBuf>,
 
     /// Single-contig reference FASTA.
     #[arg(long)]

@@ -9,6 +9,7 @@ use dna_kernel::profile::Profile;
 use dna_kernel::reference;
 
 pub(crate) mod consensus;
+pub(crate) mod evidence;
 pub(crate) mod sanger;
 pub(crate) mod sequence;
 pub(crate) mod signal;

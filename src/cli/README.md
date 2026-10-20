@@ -3,6 +3,9 @@
 Owns command-line syntax and typed arguments for `analyze`, `basecall`, `evidence`, `signal`,
 `sample`, `consensus`, `review`, `call`, and `notation`.
 
+`analyze` takes a trace or, with `--evidence`, the read's evidence document,
+exactly one of them (a `clap` argument group).
+
 The CLI is an outer adapter. It parses arguments only; `lib.rs` translates the
 parsed values into operation inputs before calling the pipeline. Pipeline and
 scientific modules must not depend on `clap` argument structs.

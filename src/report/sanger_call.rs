@@ -1,6 +1,7 @@
 //! Sanger evidence joined to core call records by call index.
 
 use crate::error::CallEvidenceError;
+use crate::model::sanger_read::SangerCallSignal;
 use dna_align::model::alignment::Orientation;
 use dna_sanger::model::basecalls::BaseCalls;
 use dna_sanger::model::quality::QualityControlResult;
@@ -21,6 +22,16 @@ pub(super) fn evidence(
     orientation: Orientation,
     index: usize,
 ) -> Result<SangerCallEvidence, CallEvidenceError> {
+    on_reference(signal(calls, quality, index)?, orientation, index)
+}
+
+/// The signal of call `index` from its call and quality records, on the read
+/// strand.
+pub(super) fn signal(
+    calls: &BaseCalls,
+    quality: &QualityControlResult,
+    index: usize,
+) -> Result<SangerCallSignal, CallEvidenceError> {
     let call = calls
         .calls
         .get(index)
@@ -32,13 +43,28 @@ pub(super) fn evidence(
     if call.index_0based != index || score.index_0based != index {
         return Err(CallEvidenceError::IndexMismatch { index });
     }
-    let primary = call
-        .primary_peak_evidence
-        .as_ref()
+    Ok(SangerCallSignal {
+        peaks: call
+            .primary_peak_evidence
+            .as_ref()
+            .map(|primary| primary.channel_heights),
+        quality: score.relative_quality_score,
+    })
+}
+
+/// The signal of call `index` with its primary-event peak heights projected
+/// onto the reference strand.
+pub(super) fn on_reference(
+    signal: SangerCallSignal,
+    orientation: Orientation,
+    index: usize,
+) -> Result<SangerCallEvidence, CallEvidenceError> {
+    let peaks = signal
+        .peaks
         .ok_or(CallEvidenceError::MissingPeakEvidence { index })?;
     Ok(SangerCallEvidence {
-        peak_heights: reference_peak_heights(orientation, primary.channel_heights),
-        quality: score.relative_quality_score,
+        peak_heights: reference_peak_heights(orientation, peaks),
+        quality: signal.quality,
     })
 }
 

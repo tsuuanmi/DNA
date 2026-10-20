@@ -1383,7 +1383,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 
 def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
-    """Check a read evidence's call order, interval, and listed reasons."""
+    """Check a read evidence's call order, intervals, warnings, and listed reasons."""
     if not isinstance(document, dict):
         return
     read = document.get("read", {})
@@ -1392,9 +1392,19 @@ def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: read call_count disagrees with the calls")
     if [call.get("index") for call in calls] != list(range(len(calls))):
         errors.append(f"{label}: calls are not in call order")
-    informative = read.get("informative", {})
-    if not 0 <= informative.get("start", 0) <= informative.get("end", 0) <= len(calls):
-        errors.append(f"{label}: informative interval exceeds the calls")
+    for name in ("informative", "trim"):
+        interval = read.get(name, {})
+        if not 0 <= interval.get("start", 0) <= interval.get("end", 0) <= len(calls):
+            errors.append(f"{label}: {name} interval exceeds the calls")
+    warnings = document.get("warnings", {})
+    integrity = document.get("signal_quality", {}).get("integrity", {})
+    unresolved = sum(1 for call in calls if call.get("base") == "N")
+    if warnings.get("unresolved_primary_calls") != unresolved:
+        errors.append(f"{label}: unresolved_primary_calls disagrees with the calls")
+    if warnings.get("clipped_channel_samples") != integrity.get(
+        "clipped_channel_samples"
+    ):
+        errors.append(f"{label}: clipped_channel_samples disagrees with the integrity")
     for index, mixture in enumerate(read.get("mixtures", [])):
         span = mixture.get("calls", {})
         offsets = [
@@ -1437,12 +1447,24 @@ def rejected_evidence_shapes(
     wide_share["calls"][0]["second"]["share"] = 0.6
     no_signal = copy.deepcopy(example)
     no_signal["calls"][0].pop("signal")
+    no_trim = copy.deepcopy(example)
+    no_trim["read"].pop("trim")
+    no_signal_quality = copy.deepcopy(example)
+    no_signal_quality.pop("signal_quality")
+    no_warnings = copy.deepcopy(example)
+    no_warnings.pop("warnings")
+    three_peaks = copy.deepcopy(example)
+    three_peaks["calls"][0]["signal"]["peaks"].pop("T")
     return [
         ("evidence scored call with a placement reason", scored_with_reason),
         ("evidence masked call without its reason", masked_without_reason),
         ("evidence second-peak cause the modality does not give", unknown_cause),
         ("evidence second share above one half", wide_share),
         ("evidence call without its signal", no_signal),
+        ("evidence without the trim", no_trim),
+        ("evidence without its signal quality", no_signal_quality),
+        ("evidence without its warnings", no_warnings),
+        ("evidence peaks without one channel", three_peaks),
     ]
 
 
@@ -1746,6 +1768,16 @@ def main(argv: list[str] | None = None) -> int:
     validate_evidence(unlisted_reason, "synthetic unlisted reason", evidence_errors)
     if not evidence_errors:
         errors.append("expected a reason read.reasons does not list to be rejected")
+    miscounted_warnings = copy.deepcopy(evidence_example)
+    miscounted_warnings["warnings"]["unresolved_primary_calls"] += 1
+    warning_errors: list[str] = []
+    validate_evidence(
+        miscounted_warnings, "synthetic miscounted warnings", warning_errors
+    )
+    if not warning_errors:
+        errors.append(
+            "expected evidence warnings that disagree with the calls to be rejected"
+        )
     unordered_review = copy.deepcopy(review_example)
     unordered_review["items"].reverse()
     review_errors: list[str] = []

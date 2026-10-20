@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 17
+schema_version = 18
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -169,6 +169,10 @@ minimum_resolved_bases = 20
 site_mismatch_cost = 2
 site_gap_open_cost = 3
 site_gap_extension_cost = 2
+# An insertion or deletion within `dissent_edge` calls of its read's ends,
+# against a reference decision, is set aside when a read of the other strand
+# reads the site cleanly at least this far from its own ends (SRS-CONS-011).
+dissent_edge = 40
 
 [review]
 # A decided run longer than its reference run by at least `run_growth` bases

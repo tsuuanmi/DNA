@@ -26,7 +26,10 @@ and call (rules version 1, the `review` plugin it declares) and projects
 `dna.review/v1`,
 and `notation.rs` renders the per-read notation once (`calls`, with each call's
 reference and called base and the reads containing it) and projects it for sample,
-call, and notation documents and builds `dna.notation/v1`. `sanger_call.rs` joins a call's reference-strand peaks and
+call, and notation documents and builds `dna.notation/v1`. `sanger_read.rs` projects a read's Sanger products into the `SangerRead`
+that the analysis and read evidence documents report (the read evidence
+document carries it, so `analyze --evidence` reports the same values), and
+`sanger_call.rs` joins a call's reference-strand peaks and
 relative quality, and
 `sample.rs` joins each read's Sanger attachment (integrity, callability,
 quality, noisy regions) by read identity and call index.

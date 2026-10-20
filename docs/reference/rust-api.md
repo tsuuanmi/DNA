@@ -367,6 +367,8 @@ that stage's own `#[non_exhaustive]` failure enum, re-exported from
 | `SangerError::Signal` | `SignalError` | `signal processing failed:` |
 | `SangerError::Callability` | `CallabilityError` | `read callability failed:` |
 | `SangerError::QualityControl` | `QualityControlError` | `quality control failed:` |
+| `SangerError::RunSignal` | `RunSignalError` | `invalid run signal:` |
+| `SangerError::ReadEvidence` | `ReadEvidenceError` | `invalid read evidence:` |
 | `SangerError::Products` | `ProductsError` | `alignment failed:` or `variant calling failed:` |
 
 `ProductsError` reports one read's Sanger products disagreeing while its core

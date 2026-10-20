@@ -50,7 +50,8 @@ pub mod fuzzing {
 }
 
 use cli::{Cli, Command};
-use error::Result;
+use error::{KernelError, Result};
+use std::path::PathBuf;
 
 /// Dispatches a parsed command through the application boundary.
 ///
@@ -61,7 +62,19 @@ use error::Result;
 pub fn run(cli: Cli) -> Result<()> {
     let config_path = config::resolve_path();
     match cli.command {
-        Command::Analyze(args) => pipeline::analyze(&args.trace, &args.reference, &config_path),
+        Command::Analyze(args) => match (&args.trace, &args.evidence) {
+            (Some(trace), None) => pipeline::analyze(trace, &args.reference, &config_path),
+            (None, Some(evidence)) => {
+                pipeline::analyze_evidence(evidence, &args.reference, &config_path)
+            }
+            // The command line enforces this; a `Cli` built in code may not.
+            _ => Err(KernelError::Path {
+                kind: "analysis input",
+                path: PathBuf::new(),
+                reason: "analyze takes exactly one of a trace and --evidence",
+            }
+            .into()),
+        },
         Command::Basecall(args) => pipeline::basecall(&args.trace, &config_path),
         Command::Evidence(args) => pipeline::evidence(&args.trace, &config_path),
         Command::Sample(args) => {

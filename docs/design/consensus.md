@@ -1,6 +1,6 @@
 ---
 implements: [SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083]
 covers:
   - crates/dna-consensus/src/
   - crates/dna-consensus/src/model/consensus.rs
@@ -77,6 +77,29 @@ never changes what a variant's neighbours were. The positions only
 confirmations observe cleanly are published as `reference_only`. Calling the
 decisions treats the call there as showing its base only, so it bounds no
 neighbouring run: a change that needed a run end there stays `run_boundary`.
+
+**Dissent set aside** (ADR-0083, SRS-CONS-011). A site decided as the
+reference keeps the reads that oppose it, and the review lists it as a check
+where they are on the other strand. Two kinds of dissent are artefacts that a
+read of the other strand contradicts, and are set aside. In both, a
+supporting read on a strand no opposing read is on must observe every
+position of the site cleanly, without a second base standing out, and far
+from its own ends:
+- every opposing read shows a second base standing out there, and its
+  modality explains every second peak there (no `second_unexplained`): the
+  signal's own shape, not a second sequence. The supporting read lies at
+  least `variant_calling.read_end_margin` calls from its ends.
+- every opposing read differs there only by insertions or deletions within
+  `consensus.dissent_edge` calls (40) of its own ends, where a read's indels
+  are mostly its own artefacts. The supporting read lies at least that far
+  from its ends. A substitution is never set aside this way: near a read end
+  it can be a run mix-up between reads.
+
+A set-aside read shows nothing at the site, not even a run's length inside a
+stretch, and the positions are decided again with the confirmations' loop.
+The decided value never changes: only reads against the reference are set
+aside, so a contested site becomes called and a called one loses its
+dissent.
 
 ## Step 2 — Stretches
 

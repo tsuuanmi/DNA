@@ -101,6 +101,21 @@ A read then shows the whole chain sanger → align → call in one document.
 workload tables) get documented, versioned schemas. Evaluation outputs are then checked the
 same way as production outputs. The 2026-10-19 lag was a measurement fault.
 
+### Increment 4: contracts the next step reads
+
+A contract that is only written can be checked but not replayed. Increment 4 makes each
+step able to start from the previous step's file, so a later step can be rerun, compared,
+or fed an edited input without the traces:
+
+- 4a. `dna analyze --evidence <read_evidence.json> --reference <fasta>` places and calls a
+  read from its `dna.read_evidence/v1` alone. The contract then carries everything the core
+  needs: bases, profiles, verdicts, bounds, flags, informative interval, ends, and mixtures.
+- 4b. `dna sample`, `dna consensus` and `dna review` start from a sample's read-evidence and
+  analysis documents in place of its traces.
+- The acceptance test for every step: running through the files is byte-identical to
+  running in process, on the synthetic tests and on real traces. A field missing from a
+  contract then shows as a difference, not as a silent default.
+
 ### Data-flow map and enforcement
 
 - `docs/architecture/data-flow.md` gains a table: crate → input contract(s) → output
@@ -162,3 +177,9 @@ output of that step can be checked and the flow is clear".
 - Increment 2, `dna.analysis/v10`: each aligned call's reference column and
   the core's trust in it; component calls follow PROP-0010.
 - Increment 3 (evaluation contracts): pending.
+- Increment 4 (contracts the next step reads): accepted by the user on 2026-10-19.
+  4a, `dna analyze --evidence` (SRS-API-018), is byte-identical to `dna analyze <trace>`
+  on 999 of 1,000 real traces; the remaining read is rejected by the Sanger plugin both
+  ways. Its evidence now carries full-precision profile weights: rounding them to three
+  decimals changed 2 of 1,000 analyses. 4b (sample, consensus and review from documents)
+  is pending.
