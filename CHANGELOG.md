@@ -609,7 +609,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   (rules version 23, plugin `review` 23). No new configuration. On
   development panel v5 such bases were mostly dye blobs over the
   reference's peak at reverse read starts (`527A`, `530G`, `16326G`,
-  `16328G`).
+  `16328G`). Against 85cab63 the diff gate passes: samples passed with a
+  non-het difference 18 → 15 (`after@HV3` 2 → 0, `end@HV1` 2 → 1, all
+  earlier data), het-only 340 → 338, unreviewed samples 618 → 581, no status
+  or coverage changes; 25 more zones need a check (13 current) and 6 samples
+  lose their clear state (2 current), one of them for a correct call.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than
