@@ -12,6 +12,7 @@
 
 mod approve;
 mod baseline;
+mod cache;
 mod cause;
 mod classes;
 mod compare;
@@ -92,6 +93,8 @@ struct Cli {
     command: Command,
 }
 
+// Parsed once per process; boxing the run's arguments would buy nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Runs DNA over a panel and compares it with the truth.
@@ -107,6 +110,28 @@ enum Command {
     /// Runs every truth sample's written calls through DNA's notation chain
     /// and reports the conventions DNA writes differently.
     Convention(ConventionArgs),
+    /// Manages a read evidence cache (`run --evidence-cache`).
+    Cache(CacheArgs),
+}
+
+/// Arguments of `dna-eval cache`.
+#[derive(Debug, Args)]
+struct CacheArgs {
+    #[command(subcommand)]
+    action: CacheAction,
+}
+
+#[derive(Debug, Subcommand)]
+enum CacheAction {
+    /// Removes every generation of the cache but the most recently used.
+    Prune {
+        /// The cache directory.
+        #[arg(long)]
+        dir: PathBuf,
+        /// Generations to keep.
+        #[arg(long)]
+        keep: usize,
+    },
 }
 
 /// Arguments of `dna-eval convention`.
@@ -246,6 +271,14 @@ struct RunArgs {
     /// Fewest reads of a batch for `--run-signal batch` to use it.
     #[arg(long, default_value_t = 40)]
     run_signal_batch_reads: usize,
+    /// A read evidence cache: every read is analysed from its
+    /// `dna.read_evidence/v1` document, read from the directory or made and
+    /// stored there, so a run whose read stage is unchanged skips it. It
+    /// needs a harness built from committed read-stage sources; `run.json`
+    /// records its key and hits. Not with `--triage`, which reads the
+    /// traces' own Sanger products.
+    #[arg(long, conflicts_with = "triage")]
+    evidence_cache: Option<PathBuf>,
     /// Review zones: positions on each side of a repeat window that follow
     /// it.
     #[arg(long, default_value_t = 20)]
@@ -267,6 +300,17 @@ fn main() -> ExitCode {
         Command::Approve(args) => approve::approve(&args.prereg, &args.output, args.threads),
         Command::Power(args) => power(&args),
         Command::Convention(args) => convention(&args),
+        Command::Cache(CacheArgs {
+            action: CacheAction::Prune { dir, keep },
+        }) => cache::prune(&dir, keep)
+            .map_err(Error::from)
+            .map(|removed| {
+                let bytes = removed.iter().map(|(_, bytes)| bytes).sum::<u64>();
+                format!(
+                    "dna-eval: removed {} cache generation(s), {bytes} bytes",
+                    removed.len()
+                )
+            }),
     };
     match result {
         Ok(summary) => {
@@ -421,6 +465,11 @@ fn run(cli: &RunArgs) -> Result<String> {
     let profile = target_profile(&cli.config)?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
+    let cache = cli
+        .evidence_cache
+        .as_deref()
+        .map(|directory| cache::EvidenceCache::open(directory, &cli.config))
+        .transpose()?;
     let mut signal_groups = Vec::new();
     let outcomes = runner::run(
         &manifest.samples,
@@ -434,6 +483,7 @@ fn run(cli: &RunArgs) -> Result<String> {
                 batch_reads: cli.run_signal_batch_reads,
             },
         }),
+        cache.as_ref(),
         &mut signal_groups,
     )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
@@ -504,6 +554,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         },
     );
     header.recheck = recheck_header;
+    header.evidence_cache = cache.as_ref().map(cache::EvidenceCache::usage);
     header.triage = triage.as_ref().map(|triage| TriageHeader {
         policy: triage
             .policy()
@@ -825,6 +876,9 @@ struct Header {
     /// The re-check list the pass measures read.
     #[serde(skip_serializing_if = "Option::is_none")]
     recheck: Option<RecheckHeader>,
+    /// The read evidence cache the run read and filled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evidence_cache: Option<cache::Usage>,
     /// The widths that place the review zones, in positions.
     zones: ZoneHeader,
     /// The harness's own measurement constants.
@@ -1047,6 +1101,7 @@ fn header(
         current_since: cli.current_since.clone(),
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         recheck: None,
+        evidence_cache: None,
         constants: Constants::current(),
         zones: ZoneHeader {
             after: cli.zone_after,
@@ -1244,6 +1299,18 @@ mod tests {
                 path: PathBuf::from("/recheck.tsv"),
                 sha256: "b".repeat(64),
                 rows: 2,
+            }),
+            evidence_cache: Some(cache::Usage {
+                directory: "/cache/evidence".into(),
+                key: cache::Key {
+                    sanger: 17,
+                    configuration_sha256: "a".repeat(64),
+                    code_sha256: "b".repeat(64),
+                },
+                hits: 5,
+                misses: 1,
+                replaced: 0,
+                bytes: 270_000,
             }),
             zones: ZoneHeader {
                 after: 20,

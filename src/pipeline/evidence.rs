@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
-use crate::input::sanger;
+use crate::input::sanger::{self, BasecallInputs};
 use crate::model::read_observation::{RejectedRead, RejectionCause};
 use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::operation_log::OperationLog;
@@ -44,52 +44,7 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
     );
     drop(stage);
 
-    // The read is set aside as a sample command sets it aside: too short for
-    // one signal window, or with too few callable calls.
-    let rejected = |cause| {
-        let read = RejectedRead {
-            input_name: inputs.trace.source_name.clone(),
-            input_sha256: inputs.trace.source_sha256.clone(),
-            cause,
-        };
-        tracing::warn!(
-            event = "evidence_read_rejected",
-            trace_sha256 = %read.input_sha256,
-        );
-        Evidenced::Rejected(Box::new(Rejection::of(&read)))
-    };
-    let outcome = match read_processing::admit(&inputs.trace, &inputs.config.sanger)? {
-        Admission::TooShort(short) => rejected(RejectionCause::TooShort(short)),
-        Admission::TooFewCallable { sanger, rejection } => rejected(RejectionCause::Callability {
-            sanger: *sanger,
-            rejection,
-        }),
-        Admission::Processed(processed) => {
-            let stage = tracing::info_span!("read_evidence").entered();
-            let evidence = read_processing::read_evidence(
-                &processed.calls,
-                &processed.signal,
-                &processed.callability,
-                &processed.quality,
-                &processed.second,
-                &processed.mixtures,
-                &processed.tracts,
-                &inputs.config.sanger.sanger_evidence,
-            )?;
-            drop(stage);
-            let sanger = SangerRead::project(
-                &processed.calls,
-                &processed.signal,
-                &processed.callability,
-                &processed.quality,
-                &processed.second,
-            )?;
-            Evidenced::Read {
-                sanger: Box::new(sanger),
-                evidence: Box::new(evidence),
-            }
-        }
-    };
+    let outcome = outcome(&inputs)?;
 
     let _stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
@@ -115,4 +70,78 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
     );
     log.sync()?;
     report::publish(&output, &bytes)
+}
+
+/// What the Sanger plugin makes of one loaded trace: the read with its
+/// evidence, or the read set aside as a sample command sets it aside (too
+/// short for one signal window, or with too few callable calls).
+fn outcome(inputs: &BasecallInputs) -> Result<Evidenced> {
+    let rejected = |cause| {
+        let read = RejectedRead {
+            input_name: inputs.trace.source_name.clone(),
+            input_sha256: inputs.trace.source_sha256.clone(),
+            cause,
+        };
+        tracing::warn!(
+            event = "evidence_read_rejected",
+            trace_sha256 = %read.input_sha256,
+        );
+        Evidenced::Rejected(Box::new(Rejection::of(&read)))
+    };
+    Ok(
+        match read_processing::admit(&inputs.trace, &inputs.config.sanger)? {
+            Admission::TooShort(short) => rejected(RejectionCause::TooShort(short)),
+            Admission::TooFewCallable { sanger, rejection } => {
+                rejected(RejectionCause::Callability {
+                    sanger: *sanger,
+                    rejection,
+                })
+            }
+            Admission::Processed(processed) => {
+                let stage = tracing::info_span!("read_evidence").entered();
+                let evidence = read_processing::read_evidence(
+                    &processed.calls,
+                    &processed.signal,
+                    &processed.callability,
+                    &processed.quality,
+                    &processed.second,
+                    &processed.mixtures,
+                    &processed.tracts,
+                    &inputs.config.sanger.sanger_evidence,
+                )?;
+                drop(stage);
+                let sanger = SangerRead::project(
+                    &processed.calls,
+                    &processed.signal,
+                    &processed.callability,
+                    &processed.quality,
+                    &processed.second,
+                )?;
+                Evidenced::Read {
+                    sanger: Box::new(sanger),
+                    evidence: Box::new(evidence),
+                }
+            }
+        },
+    )
+}
+
+/// The read evidence document of `trace` under the configuration at
+/// `config_path`, as `dna evidence` writes it, in memory (PROP-0011): what
+/// an evaluation reads back in place of the trace.
+///
+/// # Errors
+///
+/// As `dna evidence`: an unreadable or invalid trace or configuration, or a
+/// failure of the Sanger plugin other than setting the read aside.
+pub(crate) fn document(trace: &Path, config_path: &Path) -> Result<Vec<u8>> {
+    let inputs = sanger::load_basecall(sanger::prepare_basecall(trace, config_path)?)?;
+    let outcome = outcome(&inputs)?;
+    let result = report::build_evidence(CompletedEvidence {
+        input: (inputs.trace.source_name, inputs.trace.source_sha256),
+        config: inputs.config,
+        outcome,
+        plugins: plugin::EVIDENCE,
+    })?;
+    report::serialize(&result)
 }

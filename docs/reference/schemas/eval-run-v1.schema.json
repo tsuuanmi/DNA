@@ -508,6 +508,70 @@
             }
           }
         },
+        "evidence_cache": {
+          "description": "With `--evidence-cache`: the read evidence cache the run read and filled. Every read was analysed from its `dna.read_evidence/v1` document; the key names the generation, which holds documents made under this configuration by this `sanger` version and read-stage code.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directory",
+            "key",
+            "hits",
+            "misses",
+            "replaced",
+            "bytes"
+          ],
+          "properties": {
+            "directory": {
+              "description": "The cache directory, absolute.",
+              "type": "string",
+              "minLength": 1
+            },
+            "key": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sanger",
+                "configuration_sha256",
+                "code_sha256"
+              ],
+              "properties": {
+                "sanger": {
+                  "description": "The `sanger` plugin version.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "configuration_sha256": {
+                  "description": "The configuration file's SHA-256.",
+                  "$ref": "#/$defs/sha256"
+                },
+                "code_sha256": {
+                  "description": "The SHA-256 of the read stage's code identity: the git object ids of every source on the path from a trace to its document, at the harness's commit.",
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "hits": {
+              "description": "Traces read from the cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "misses": {
+              "description": "Traces processed and stored: absent or unreadable entries.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "replaced": {
+              "description": "Of the misses, entries present but unreadable, replaced.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "description": "Bytes of the generation's entries after the run.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
         "zones": {
           "description": "The widths that place the review zones, in positions.",
           "type": "object",

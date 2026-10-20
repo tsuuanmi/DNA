@@ -12,6 +12,7 @@ mod input;
 mod model;
 mod operation_log;
 mod pipeline;
+pub mod recorded;
 mod report;
 pub mod sample_analysis;
 pub mod variant_analysis;

@@ -552,13 +552,13 @@ fn rejected_by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, Rejecte
 /// Sends each read's instrumentation to the dispatcher and span that were
 /// current on the caller's thread, so a read's spans have the same parent on
 /// every worker.
-struct CallerScope {
+pub(crate) struct CallerScope {
     dispatch: Dispatch,
     span: Span,
 }
 
 impl CallerScope {
-    fn current() -> Self {
+    pub(crate) fn current() -> Self {
         Self {
             dispatch: tracing::dispatcher::get_default(Dispatch::clone),
             span: Span::current(),

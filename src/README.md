@@ -18,10 +18,11 @@ This is the `dna` facade crate. The plugin crates live in
 - [pipeline](pipeline/README.md) — operation orchestration, the plugin registry, and workflow compositions.
 - [report](report/README.md) — contract projection, serialization, publication.
 - [sample_analysis](sample_analysis/README.md) — the sample placement pass and the public typed Sanger sample capability (sample evidence and consensus from one pass).
+- `recorded.rs` — a trace's `dna.read_evidence/v1` document in memory, and a sample analysed from such documents (PROP-0011); `dna-eval`'s evidence cache reads and writes through it. It depends on `pipeline` and `sample_analysis`, and nothing in the crate depends on it.
 - [variant_analysis](variant_analysis/README.md) — public typed Sanger raw-to-variant capability.
 - `operation_log.rs` — append-only operational records rendered from `tracing` events, including records captured on worker threads and appended in read order.
 - `error.rs` — the application `Error`: a kernel failure or a Sanger failure, plus a failed operation whose error log could not be persisted; re-exports both crates' failure vocabularies.
-- `lib.rs` — the public API: `cli`, `run`, `error`, `sample_analysis`, `variant_analysis`, and re-exports of `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
+- `lib.rs` — the public API: `cli`, `run`, `error`, `recorded`, `sample_analysis`, `variant_analysis`, and re-exports of `variant`, `profile`, `variant_normalization`, and `variant_nomenclature` from the plugin crates.
 
 File-only modules use rustdoc/source comments. Do not create directories solely
 to attach README files.

@@ -9,6 +9,7 @@ covers:
   - src/pipeline/review.rs
   - src/pipeline/sample_call.rs
   - src/report/review.rs
+  - src/recorded.rs
   - src/sample_analysis/
   - src/variant_analysis/
 ---
@@ -22,8 +23,9 @@ Sample-level analysis (`SampleAnalysis`) is in [[reference/rust-api-sample]].
 
 ## Crate surface
 
-The public modules are `cli`, `error`, `profile`, `sample_analysis`, `variant`,
-`variant_analysis`, `variant_normalization`, and `variant_nomenclature`, plus
+The public modules are `cli`, `error`, `profile`, `recorded`,
+`sample_analysis`, `variant`, `variant_analysis`, `variant_normalization`, and
+`variant_nomenclature`, plus
 the CLI dispatcher `dna::run(cli::Cli) -> dna::error::Result<()>`. All other
 modules, including configuration, internal models, scientific stages, and
 reporting, are private implementation detail.
@@ -41,6 +43,9 @@ facade re-exports exactly these public items from them:
   own [`Error`](#errors);
 - `variant` is `dna_kernel::variant`;
 - `profile` exposes `Profile` and `ProfileIdentity`;
+- `recorded` makes a trace's `dna.read_evidence/v1` document in memory and
+  analyses a sample from such documents, returning `EvidenceOutcome`
+  ([[reference/rust-api-sample|sample analysis]]);
 - `sample_analysis` exposes `SampleEvidence` (`dna-sample`) and `Consensus` (`dna-consensus`) and
   `SangerAttachment` and `SangerRejection` (`dna-sanger`), the records of a
   [sample analysis](#sample-analysis);

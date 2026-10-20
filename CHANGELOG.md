@@ -17,6 +17,26 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval run --evidence-cache <dir>` analyses every read from its
+  `dna.read_evidence/v1` document instead of its trace, read from the cache
+  or made and stored, and `dna-eval cache prune --keep <n>` removes old
+  generations (PROP-0011).
+  - **Key:** the trace's SHA-256, the configuration's SHA-256, the `sanger`
+    version, and the read stage's code identity, which `dna-eval`'s build
+    script records as git object ids. A build from modified read-stage
+    sources refuses the cache.
+  - **Storage:** entries are gzip-compressed and written atomically; a
+    corrupt entry is remade.
+  - **Record:** `run.json` gains `evidence_cache` (`dna.eval_run/v1`, in
+    place, pre-release).
+  - **Facade:** gains `read_evidence_document` and
+    `analyze_evidence_outcome`. A sample's rejected-read count now comes from
+    its sample evidence, so it does not depend on the path.
+  - **Measured:** on 410 samples of panel v5 every table is byte-identical
+    from the traces, a cold cache, and a warm one; a warm run takes a fifth
+    of the CPU. The read stage is about 90 % of a run's CPU since the tract
+    decoder.
+
 - The Sanger plugin decodes a read's homopolymer tracts from its own signal
   (SRS-CALL-025, PROP-0012 increment 2, ADR-0084), as `ReadEvidence::tracts`,
   evidence only. Before each call where callability sees the read leave
