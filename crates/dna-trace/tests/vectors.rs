@@ -369,3 +369,45 @@ fn locates_the_reference_tracts() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+/// A read that ends within the candidate lengths: the decode fits only the
+/// lengths its window holds, never reading past the read's end, and finds
+/// nothing when the window holds no candidate.
+// SRS-CALL-025
+#[test]
+fn fits_only_the_lengths_a_short_window_holds() -> Result<(), Box<dyn std::error::Error>> {
+    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/01_easy_F_clean.json");
+    let vector: Value = serde_json::from_str(&std::fs::read_to_string(file)?)?;
+    let input = &vector["input"];
+    let tract = tract_params(&vector["params"]);
+    let start = index(&input["e"]).unwrap_or_default();
+    let run = base(&input["run"]);
+    let full = profiles(input);
+    for tail in [9, 5] {
+        let short = &full[..start + tail];
+        let decoded = decode(
+            short,
+            start,
+            run,
+            Some(base(&input["mark"])),
+            None,
+            &ONE_HOT,
+            &tract,
+        )
+        .ok_or("no decode")?;
+        assert_eq!(decoded.window, tail);
+        assert!(decoded.total.lengths.iter().all(|&length| length <= tail));
+        let chosen = choose(short, start, run, &ONE_HOT, &tract).ok_or("no choice")?;
+        assert!(
+            chosen
+                .decode
+                .total
+                .lengths
+                .iter()
+                .all(|&length| length <= tail)
+        );
+    }
+    let shortest = &full[..start + 2];
+    assert!(decode(shortest, start, run, None, None, &ONE_HOT, &tract).is_none());
+    Ok(())
+}

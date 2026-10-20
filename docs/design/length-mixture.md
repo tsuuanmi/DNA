@@ -119,7 +119,9 @@ sample, divided by the row sum, and no reference.
   `trace.joint_lengths` consecutive lengths holding the most signal. The two
   steps alternate from a start per candidate length, at most
   `trace.iterations` rounds each, and the start with the lowest residual is
-  kept. A molecule's column is its total length's run plus its mark's row,
+  kept. A read that ends within the candidates fits only the lengths its
+  window holds: a longer molecule would show its run alone, like every other
+  one past the read's end. A molecule's column is its total length's run plus its mark's row,
   so only two marginals are identifiable, the first run's and the total's,
   and only they are published.
 - **Structure.** A single run and a mark of each other base are all fitted

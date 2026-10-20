@@ -135,13 +135,17 @@ impl Setup {
         let lowest = extent
             .saturating_sub(params.span_below)
             .max(params.min_length);
-        let lengths = (lowest..=extent + params.span_above).collect::<Vec<_>>();
+        let mut lengths = (lowest..=extent + params.span_above).collect::<Vec<_>>();
         let longest = *lengths.last()?;
         let window = profiles
             .len()
             .checked_sub(start)?
             .min(window.unwrap_or(longest + params.downstream));
-        if window == 0 {
+        // A read that ends within the candidates fits only the lengths its
+        // window holds: a longer molecule's column would be its run alone,
+        // the same as every other one past the read's end.
+        lengths.retain(|&length| length <= window);
+        if lengths.is_empty() {
             return None;
         }
         let observed = profiles[start..start + window]
