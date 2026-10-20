@@ -214,14 +214,21 @@ The core caller does not read callability directly. The Sanger adapter
   reading its outer neighbour's base qualifies there only inside a run that
   a vouched call of another base closes before the stop (`TT` at
   16198-16199 in the reverse read, closed by 16197): a run the stop closes
-  may hold one call too many. On development panel v5 against `main`
-  85cab63 the diff gate passes: unreviewed samples 618 → 617, passed
-  samples with a non-het block unchanged in every period and source,
-  current `after@HV1` checks 254 → 88 (578 → 188 overall), and 133 more
-  samples clear (current 71.49 → 72.15 %). Nine samples gain a false call
-  inside an existing check item: the forward HVS-II read now reads 560-566,
-  and the consensus then takes `567C` (5), `573.1C`-`573.3C` (2) from the
-  reverse HVS-III read's start, or `310C`/`309DEL` from HVS-II (2). Its
+  may hold one call too many. A call further in than the run's bound
+  (the call right before the run) qualifies only behind a vouched bound:
+  without it, the forward HVS-II read had its 560-566 vouched behind an
+  ambiguous `567` (a second `C` at 0.12 of the peak, the run's leak), the
+  consensus then completed the site `566-573` from the reverse HVS-III
+  read's start, which reads the run some calls too long, and called `567C`
+  in five samples, each inside a check item. On development panel v5
+  against `main` 85cab63 the diff gate passes: unreviewed samples (618) and
+  passed samples with a non-het block unchanged in every period and source,
+  current `after@HV1` checks 254 → 88 (578 → 189 overall), and 131 more
+  samples clear (current 71.49 → 72.13 %). Three samples gain a call the
+  truth lacks, each inside a check item: `573.1C`-`573.3C` (2), where the
+  forward HVS-II read and the reverse HVS-III read both show the longer run
+  and the truth's HVS-III interval stops at `573`, and `309DEL` (1); `310C`
+  in one more sample changes only the primary measure. Its
   indel verdict keeps the edge and its bound is
   unchanged, so it still counts towards runs: as a base-only call it would
   stop counting, and run lengths the consensus estimated from it (`315.1C`)

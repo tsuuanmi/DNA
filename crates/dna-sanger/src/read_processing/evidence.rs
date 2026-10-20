@@ -594,7 +594,10 @@ struct Norms {
 ///   The stops are the informative end and every call masked
 ///   `post_homopolymer` right after such a run inside the interval: every
 ///   molecule shows the same sequence before a run the read loses phase
-///   after. Judged from the stop inwards, a call reading the base of its
+///   after. The call right before the run (its bound) must be vouched for
+///   itself before any call further in qualifies: an ambiguous bound leaves
+///   the read's phase at the run in doubt. Judged from the stop inwards, a
+///   call reading the base of its
 ///   neighbour towards the stop qualifies only inside a run that a vouched
 ///   call of another base closes before the stop, behind a vouched
 ///   neighbour: a run that the stop or an unvouched call closes may hold
@@ -830,7 +833,9 @@ fn edge_identity(
                 };
             // At the informative end against the read's norms, never
             // reading the outer neighbour's base; before a run that closes
-            // the stop, against the stop's own norms.
+            // the stop, behind the run's vouched bound (the call right
+            // before it: an ambiguous bound leaves the read's phase at the
+            // run in doubt), against the stop's own norms.
             let qualifies = placed
                 && ((!interior
                     && !same_base(index, Some(index + 1))
@@ -838,6 +843,7 @@ fn edge_identity(
                         unambiguous(index, norms, config.edge_height_fraction)
                     }))
                     || (before_run(index)
+                        && (index + 1 == first || vouched[first - 1])
                         && (!same_base(index, Some(index + 1))
                             || bounded_run(index, stop, &vouched))
                         && norms.is_some_and(|norms| {
@@ -1906,8 +1912,11 @@ mod tests {
         // 10-19 stand at half the read's median.
         let mut heights = [400; 20];
         heights[10..].fill(200);
-        let lifted = |bases: &[char], fraction: f64| -> Result<Vec<bool>> {
-            let (calls, signal, callability, mut quality) = based_products(bases, &heights);
+        let lifted = |bases: &[char], fraction: f64, broad: Option<usize>| -> Result<Vec<bool>> {
+            let (calls, mut signal, callability, mut quality) = based_products(bases, &heights);
+            if let Some(broad) = broad {
+                signal.loci[broad].channel_widths = [10; 4];
+            }
             quality.trim_end_0based_exclusive = 16;
             quality.retained_sequence = "A".repeat(16);
             let config = SangerEvidenceConfig {
@@ -1939,18 +1948,26 @@ mod tests {
             'G', 'T', 'A',
         ];
         assert_eq!(
-            lifted(&closed, 0.5)?,
+            lifted(&closed, 0.5, None)?,
             [true, true, true, true, false, false]
         );
         // Below the end's height fraction, nothing is lifted.
-        assert_eq!(lifted(&closed, 1.5)?, [false; 6]);
+        assert_eq!(lifted(&closed, 1.5, None)?, [false; 6]);
+        // A run's bound (13) as broad as a dye blob holds back every call
+        // before it; a broad call further in (11) holds back only itself
+        // and the run behind it.
+        assert_eq!(lifted(&closed, 0.5, Some(13))?, [false; 6]);
+        assert_eq!(
+            lifted(&closed, 0.5, Some(11))?,
+            [false, false, true, true, false, false]
+        );
         // An interval that no run closes keeps the read's norms, which these
         // decayed calls do not reach.
         let open = [
             'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'T', 'G', 'A', 'C', 'G', 'T', 'G',
             'G', 'T', 'A',
         ];
-        assert_eq!(lifted(&open, 0.5)?, [false; 6]);
+        assert_eq!(lifted(&open, 0.5, None)?, [false; 6]);
         Ok(())
     }
 

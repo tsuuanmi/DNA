@@ -613,13 +613,19 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   ends) held back clean calls. Such a call reads its outer neighbour's base
   only inside a run that a vouched call of another base closes. The reverse
   read that ends a few calls past the HVS-I C-tract, or regains phase after
-  it, now reads 16194-16205. On development panel v5 against `main` 85cab63
-  the diff gate passes: unreviewed samples 618 → 617, passed samples with a
+  it, now reads 16194-16205. A call further in than the run's bound (the
+  call right before the run) qualifies only behind a vouched bound: an
+  ambiguous bound leaves the read's phase at the run in doubt, and without
+  it the consensus completed `566-573` from the reverse HVS-III read's start
+  (`567C` in five samples). On development panel v5 against `main` 85cab63
+  the diff gate passes: unreviewed samples (618) and passed samples with a
   non-het block unchanged in every period and source, current `after@HV1`
-  checks 254 → 88, 133 more samples clear (current 71.49 → 72.15 %), and
-  positions to review 164,199 → 158,608. Nine samples gain a false call
-  inside an existing check item (`567C`, `573.1C`-`573.3C`, `310C`,
-  `309DEL`). **Breaking:** configuration schema 20, revised in place, requires
+  checks 254 → 88, 131 more samples clear (current 71.49 → 72.13 %), and
+  positions to review 164,199 → 158,668. Under the haplotype
+  IUPAC-compatible measure 3 samples turn discordant and 2 concordant; the
+  three new calls (`573.1C`-`573.3C` twice, where both strands show the
+  longer run past the truth's HVS-III interval end at `573`, and `309DEL`)
+  lie inside check items. **Breaking:** configuration schema 20, revised in place, requires
   `sanger_evidence.end_norm_calls` and `end_height_fraction`;
   plugin `sanger` 20.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
