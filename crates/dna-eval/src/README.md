@@ -87,6 +87,9 @@ have no schema; the evaluation harness document describes them.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, the
   unreviewed blocks (`unreviewed.tsv`), and the Markdown summary.
+- `subset.rs` — `dna-eval subset`: a deterministic stratified quick subset
+  of a panel as a manifest of its own, every stratum kept, for a first-pass
+  `diff`; a pre-filter, never the gate.
 - `rundiff.rs` — `dna-eval diff`: a run against a base run of the same
   panel, from their directories alone. It refuses runs that measure
   different things or whose files disagree with their `run.json`, counts the

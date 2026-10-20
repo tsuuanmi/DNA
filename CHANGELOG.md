@@ -17,6 +17,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval subset --manifest <panel> --rows <n> --minimum <n> --salt <s>
+  --output <file>` writes a deterministic stratified quick subset of a
+  panel, every stratum kept, as a manifest of its own, for a first-pass
+  `dna-eval diff` before the full panel. Its verdict is a pre-filter, never
+  the gate. Development panel v5's 2,111-row subset (`--rows 2000 --minimum
+  30`) runs in about 29 s on a warm cache against about 75 s for the panel
+  on the same loaded machine.
 - `dna-eval diff --base <run> --run <run>` compares a run with a base run of
   the same panel from their directories alone, and gates it.
   - **Comparability:** it refuses runs with another manifest, truth, re-check

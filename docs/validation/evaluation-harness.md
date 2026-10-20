@@ -35,6 +35,10 @@ cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
   --version <v2> --created <YYYY-MM-DD> --output <new-panel.tsv>
 
+cargo run --release -p dna-eval -- subset \
+  --manifest <panel.tsv> --rows <n> --minimum <n> --salt <text> \
+  --output <new-subset.tsv>
+
 cargo run --release -p dna-eval -- power \
   --dev-run <development-or-readiness-run-directory> --manifest <hold-out-panel.tsv> \
   [--base <sweep-policy> --candidate <sweep-policy> \
@@ -99,6 +103,21 @@ The verdict is `GATE FAIL`, with exit status 2, when in any group more
 passed samples carry a non-het block, more samples carry a non-het or het
 unreviewed block, or more passed units of any zone carry a non-het block.
 Re-check and truth-`N` blocks never count. Otherwise it is `GATE PASS`.
+
+### Quick subset (pre-filter)
+
+`subset` writes a deterministic stratified sample of a panel's staying rows
+as a manifest of its own: each stratum keeps its share of `--rows`, at least
+`--minimum` rows (all of them when it has fewer, so the rare strata are
+always present), chosen by the smallest SHA-256 of `--salt`, a tab, and the
+sample identifier, and written verbatim in the parent's order. Its header
+keeps the parent's panel fields, records `subset_rows`, `subset_minimum`,
+`subset_salt`, and the parent's body hash, and recomputes the row count, the
+body hash, and the truth digest, so a run records them in `run.json`. Run
+the base and the candidate on the same subset and compare them with `diff`.
+**A subset verdict is a pre-filter, never the gate: a candidate that passes
+it must still pass `diff` on the full development panel before a pull
+request.**
 
 ## Approval
 

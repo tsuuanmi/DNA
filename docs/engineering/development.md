@@ -69,6 +69,9 @@ zones carry a non-het unreviewed block. Keep one cache
 directory per machine, and remove old generations with
 `dna-eval cache prune --dir <dir> --keep <n>` (about 3 GB per generation for
 panel v5).
+For a first pass, run the base and the probe on a quick subset
+(`dna-eval subset`, [[validation/evaluation-harness]]); a subset verdict is a
+pre-filter only, and a candidate must still pass `diff` on the full panel.
 
 ## Required checks
 
