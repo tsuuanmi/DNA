@@ -71,9 +71,10 @@ have no schema; the evaluation harness document describes them.
   haplotypes against the truth, and an unexplained mixture's offsets and
   fractions.
 - `tracts.rs` — `tracts.tsv`: every read's tract decodes (SRS-CALL-025,
-  PROP-0012 increment 2), with the reference position of each tract's first
-  call, its chosen structure, and its first-run and total marginals; not
-  compared with the truth.
+  PROP-0012 increment 2), with the read's reason for masking the onset call,
+  whether the read stays out of phase to its end, the reference position of
+  each tract's first call, its chosen structure, and its first-run and
+  total marginals; not compared with the truth.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior), the zones a
   check item touches, and the zone instance that holds a position.
