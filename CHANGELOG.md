@@ -622,7 +622,35 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   ae98063 the diff gate passes: unreviewed and non-het passed zones
   unchanged everywhere, current `start@HV2` checks 285 → 245 and
   `interior@HV2` 257 → 221, clear 75.99 → 76.06 % on current data and 12
-  samples overall. Configuration schema 20; plugin `review` 21.
+  samples overall. Configuration schema 20; plugin `review` 22.
+- The review flags the runs of an anchored repeat window that the reads'
+  tract decodes do not confirm (SRS-API-020, PROP-0012 increment 3). This is
+  flag-only: no decision changes.
+  - **Credit.** Each read's decode is credited to the run its first call is
+    aligned to. A read gives the length of the run it enters first; with
+    the anchor as its mark and clear margins, it also gives the next run's
+    length, from its total. A read the consensus reads in phase through a
+    run gives that length too (ADR-0074, `dna_consensus::read_runs_over`).
+  - **Confirmation.** A run is confirmed when both strands give it one
+    clear, equal length that is DNA's call.
+  - **`length_unconfirmed`** (check, rank 2): every other run that a decode
+    reaches. It lists the runs with each read's length, source, share,
+    margin, and the agreement.
+  - **`length_not_recorded`** (context, rank 4): in HVS-I, whose run
+    lengths the profile's convention leaves unrecorded.
+  - **Scope.** HVS-III's 568-573 run has no profile window and is not
+    flagged.
+  - **Measured.** On development panel v5 against the same build without
+    it (`dna-eval diff`, GATE PASS):
+    - passed window@HV2 zones with a non-het unreviewed difference fall from
+      50 to 8 (19 → 1 on current data);
+    - passed samples with a non-het difference fall from 69 to 30;
+    - window@HV2 checks rise from 1,664 to 3,073;
+    - clear samples on current data fall from 76.0 % to 71.1 %;
+    - 1,363 of the 1,409 newly checked window@HV2 units hold no truth
+      difference.
+  - Review rules 21.
+
 - The review's `possible_heteroplasmy` is `explained` context, not a check,
   when every qualifying read of one strand shows a second peak the Sanger
   evidence explains by its shape (a neighbour's tail or a dye blob, not

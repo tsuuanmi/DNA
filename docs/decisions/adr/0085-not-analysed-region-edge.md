@@ -142,7 +142,7 @@ ae98063 (`dna-eval diff`, GATE PASS):
   fall 67,698 → 66,878 on current data. Twelve samples become clear.
 - **Het.** One of them, 2526880 (2025), has an unreviewed `16086Y` in an
   `interior@HVS-I` zone that no check touched before either.
-- **Configuration.** The configuration schema is 20. Plugin `review` 21.
+- **Configuration.** The configuration schema is 20. Plugin `review` 22.
 
 ## Consequences
 
