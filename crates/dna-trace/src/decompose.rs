@@ -3,10 +3,10 @@
 //! A run that carries length heteroplasmy is a population of molecules whose
 //! runs differ in length. After it, a read shows their sum: its own dominant
 //! sequence `S` (its primary calls) superposed with copies of itself offset by
-//! whole calls. [`mixtures`] fits that model to every segment callability marks
-//! dephased, over the segment and the run that opens it: the longest
+//! whole calls. [`mixtures`] fits that model to every segment the modality
+//! marks dephased, over the segment and the run that opens it: the longest
 //! homopolymer of the read's own primary calls, of two calls or more, whose
-//! end lies within `callability.repeat_window_calls` calls of the segment's
+//! end lies within `onset_window` calls of the segment's
 //! start and which starts at or after the trim interval's start; a stretch in
 //! the trimmed start is start noise, too short to place. The
 //! stretch ends at the segment's end, or where a run of the read's primary
@@ -15,56 +15,57 @@
 //!
 //! `y_i = Σ_d f_d · onehot(S[i − d])`, `f_d ≥ 0`,
 //!
-//! where `y_i` is call `i`'s normalised A/C/G/T profile from signal
-//! processing. The offsets are bounded by the run's own length. The fit starts
+//! where `y_i` is call `i`'s normalised A/C/G/T profile. The offsets are bounded by the run's own length. The fit starts
 //! from offset 0 alone and adds, one at a time, the offset that lowers the
 //! residual most, while it lowers it by more than the read's own noise level:
 //! the root mean square of `profile − onehot(primary)` over the read's in-phase
 //! single-channel calls. A call of the segment whose own residual exceeds the
-//! `signal_processing.decompose_unexplained_quantile` nearest-rank quantile of
+//! `unexplained_quantile` nearest-rank quantile of
 //! those calls' residuals is unexplained. The mixture is explained when its
 //! own residual is at most that quantile: the components fit the stretch as
 //! well as the read's in-phase calls fit their own bases. Otherwise they are
 //! only the fit's best, and no sequence is read from them. A read with fewer
-//! such calls than `callability.minimum_callable_calls` asserts no mixture.
+//! such calls than `minimum_calls` asserts no mixture.
 //!
 //! The dominant component is the read's own primary calls over the masked
 //! segment; the fit asserts that they are the dominant sequence of a
 //! self-shifted mixture and gives the minor offsets and fractions. Nothing
 //! reads a reference.
 
+use std::ops::Range;
+
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::read_evidence::{MixtureComponent, PhaseMixture};
 
-use crate::model::basecalls::BaseCalls;
-use crate::model::callability::{PhaseState, ReadCallability};
-use crate::model::signal::SignalAnalysis;
+/// One call of a read, as the decomposition reads it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TraceCall {
+    /// The primary base call.
+    pub primary: char,
+    /// One channel qualifies at the call.
+    pub single: bool,
+    /// The normalised A/C/G/T profile at the call's locus, if measured.
+    pub profile: Option<[f64; 4]>,
+    /// The modality keeps the call in phase: no mask.
+    pub in_phase: bool,
+}
 
-/// The phase mixtures of one read, one per dephased segment that a repeat
-/// run starting at or after `trim_start` opens, in call order. `None` when the read has too
+/// The phase mixtures of one read of `calls`, one per `dephased` call range
+/// that a repeat run starting at or after `trim_start` opens, in call order. `None` when the read has too
 /// few in-phase single-channel calls to measure its own noise.
 #[must_use]
 pub fn mixtures(
-    calls: &BaseCalls,
-    signal: &SignalAnalysis,
-    callability: &ReadCallability,
+    calls: &[TraceCall],
+    dephased: &[Range<usize>],
     trim_start: usize,
     unexplained_quantile: f64,
     minimum_calls: usize,
     onset_window: usize,
 ) -> Option<Vec<PhaseMixture>> {
-    let profile = |index: usize| {
-        signal
-            .loci
-            .get(index)
-            .filter(|locus| locus.call_index_0based == index)
-            .and_then(|locus| locus.profile)
-            .map(|profile| profile.weights)
-    };
+    let profile = |index: usize| calls.get(index).and_then(|call| call.profile);
     let onehot = |index: usize| -> [f64; 4] {
         let mut vector = [0.0; 4];
         if let Some(base) = calls
-            .calls
             .get(index)
             .and_then(|call| Nucleotide::from_char(call.primary))
         {
@@ -73,11 +74,8 @@ pub fn mixtures(
         vector
     };
     // The read's own residuals where it has no mixture.
-    let mut in_phase = (0..calls.calls.len())
-        .filter(|&index| {
-            callability.mask.get(index).is_some_and(Option::is_none)
-                && calls.calls[index].qualifying_channels.len() == 1
-        })
+    let mut in_phase = (0..calls.len())
+        .filter(|&index| calls[index].in_phase && calls[index].single)
         .filter_map(|index| Some(distance(&profile(index)?, &onehot(index))))
         .collect::<Vec<_>>();
     if in_phase.len() < minimum_calls.max(1) {
@@ -98,12 +96,8 @@ pub fn mixtures(
     let unexplained_level = in_phase[rank - 1];
 
     let mut found = Vec::new();
-    for segment in &callability.segments {
-        if segment.state != PhaseState::Dephased {
-            continue;
-        }
-        let Some((start, run_end)) = opening_run(calls, segment.call_start_0based, onset_window)
-        else {
+    for segment in dephased {
+        let Some((start, run_end)) = opening_run(calls, segment.start, onset_window) else {
             continue;
         };
         if start < trim_start {
@@ -114,8 +108,8 @@ pub fn mixtures(
         // long as the opening one starts: a new source of mixture.
         let end = next_run(calls, run_end, run_calls)
             .unwrap_or(usize::MAX)
-            .min(segment.call_end_0based_exclusive)
-            .min(calls.calls.len());
+            .min(segment.end)
+            .min(calls.len());
         if end <= run_end {
             continue;
         }
@@ -130,7 +124,7 @@ pub fn mixtures(
         let column = |offset: i32, index: usize| {
             index
                 .checked_add_signed(-(offset as isize))
-                .filter(|&source| source < calls.calls.len())
+                .filter(|&source| source < calls.len())
                 .map_or([0.0; 4], &onehot)
         };
         let fit = |offsets: &[i32]| -> (Vec<f64>, f64) {
@@ -214,7 +208,7 @@ pub fn mixtures(
         let components = std::iter::once(dominant).chain(minors).collect::<Vec<_>>();
         let unexplained = rows
             .iter()
-            .filter(|&&(index, _)| index >= segment.call_start_0based)
+            .filter(|&&(index, _)| index >= segment.start)
             .filter(|&&(index, profile)| {
                 let mut fitted = [0.0; 4];
                 for component in &components {
@@ -244,10 +238,9 @@ pub fn mixtures(
 /// run of two or more equal canonical primary calls whose end lies within
 /// `window` calls of `start`, the nearer on a tie, as `(first, end)`. The
 /// longest run there is the one whose length varies most.
-fn opening_run(calls: &BaseCalls, start: usize, window: usize) -> Option<(usize, usize)> {
+fn opening_run(calls: &[TraceCall], start: usize, window: usize) -> Option<(usize, usize)> {
     let primary = |index: usize| {
         calls
-            .calls
             .get(index)
             .map(|call| call.primary)
             .filter(|&base| Nucleotide::from_char(base).is_some())
@@ -258,7 +251,7 @@ fn opening_run(calls: &BaseCalls, start: usize, window: usize) -> Option<(usize,
     while index > 0 && primary(index).is_some() && primary(index - 1) == primary(index) {
         index -= 1;
     }
-    let limit = (start + window).min(calls.calls.len());
+    let limit = (start + window).min(calls.len());
     while index < limit {
         let Some(base) = primary(index) else {
             index += 1;
@@ -279,16 +272,15 @@ fn opening_run(calls: &BaseCalls, start: usize, window: usize) -> Option<(usize,
 
 /// The first call, at or after `from`, of a run of equal canonical primary
 /// calls at least `length` long.
-fn next_run(calls: &BaseCalls, from: usize, length: usize) -> Option<usize> {
+fn next_run(calls: &[TraceCall], from: usize, length: usize) -> Option<usize> {
     let primary = |index: usize| {
         calls
-            .calls
             .get(index)
             .map(|call| call.primary)
             .filter(|&base| Nucleotide::from_char(base).is_some())
     };
     let mut index = from;
-    while index < calls.calls.len() {
+    while index < calls.len() {
         let Some(base) = primary(index) else {
             index += 1;
             continue;
@@ -429,11 +421,6 @@ fn least_squares(design: &[Vec<f64>], observed: &[f64], passive: &[bool]) -> Vec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
-    use crate::model::callability::PhaseSegment;
-    use crate::model::locus_evidence::LocusEvidence;
-    use crate::model::signal::SangerIntegrity;
-    use dna_kernel::read_evidence::EvidenceProfile;
 
     /// In-phase calls before the run, the run, and the tail after it.
     const PREFIX: &str = "ACGTTGCAAGCTTGACATGCAGTCAGTACGATGCATCAGT";
@@ -453,11 +440,12 @@ mod tests {
     }
 
     /// A read of `sequence()` whose calls from the run on carry `profile`,
-    /// and in-phase calls before it carry a little of the next channel.
+    /// in-phase calls before it a little of the next channel, and its
+    /// dephased call ranges: the tail after the run when `dephased`.
     fn read(
         profile: impl Fn(usize, &[char]) -> [f64; 4],
         dephased: bool,
-    ) -> (BaseCalls, SignalAnalysis, ReadCallability) {
+    ) -> (Vec<TraceCall>, Vec<Range<usize>>) {
         let bases = sequence().chars().collect::<Vec<_>>();
         let count = bases.len();
         let run_start = PREFIX.len();
@@ -465,110 +453,29 @@ mod tests {
         let calls = bases
             .iter()
             .enumerate()
-            .map(|(index, &base)| BaseCall {
-                index_0based: index,
-                locus_position_0based: index * 10,
-                window_start_0based: index * 10,
-                window_end_0based_exclusive: index * 10 + 10,
-                peaks: std::array::from_fn(|channel| ChannelPeak {
-                    base: Nucleotide::ALL[channel],
-                    height: 100,
-                    position_0based: index * 10,
-                    source: PeakSource::LocalMaximum,
-                }),
-                primary_peak_evidence: None,
-                primary: base,
-                ambiguity: base,
-                qualifying_channels: vec![Nucleotide::from_char(base).unwrap_or(Nucleotide::A)],
-                vendor_agrees: None,
-            })
-            .collect::<Vec<_>>();
-        let loci = (0..count)
-            .map(|index| {
+            .map(|(index, &base)| {
                 let weights = if index < run_start {
                     // In phase: 0.96 on the call's base, 0.04 on the next.
-                    let mut weights = onehot(bases[index]).map(|value| value * 0.96);
-                    let next = (Nucleotide::from_char(bases[index])
-                        .map_or(0, Nucleotide::channel_index)
-                        + 1)
-                        % 4;
+                    let mut weights = onehot(base).map(|value| value * 0.96);
+                    let next =
+                        (Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index) + 1) % 4;
                     weights[next] += 0.04;
                     weights
                 } else {
                     profile(index, &bases)
                 };
-                LocusEvidence {
-                    call_index_0based: index,
-                    locus_position_0based: index * 10,
-                    window_start_0based: index * 10,
-                    window_end_0based_exclusive: index * 10 + 10,
-                    context_call_start_0based: index,
-                    context_call_end_0based_exclusive: index + 1,
-                    context_sample_start_0based: index * 10,
-                    context_sample_end_0based_exclusive: index * 10 + 10,
-                    event_position_0based: index * 10,
-                    channel_heights: [0; 4],
-                    channel_baselines: [0.0; 4],
-                    channel_noise_sigmas: [1.0; 4],
-                    corrected_amplitudes: [0.0; 4],
-                    snrs: [0.0; 4],
-                    profile: Some(EvidenceProfile { weights }),
-                    channel_widths: [4; 4],
+                TraceCall {
+                    primary: base,
+                    single: true,
+                    profile: Some(weights),
+                    in_phase: !(dephased && index >= run_end),
                 }
             })
             .collect();
-        let state = if dephased {
-            PhaseState::Dephased
-        } else {
-            PhaseState::InPhase
-        };
-        let callability = ReadCallability {
-            repeats: Vec::new(),
-            segments: vec![
-                PhaseSegment {
-                    call_start_0based: 0,
-                    call_end_0based_exclusive: run_end,
-                    state: PhaseState::InPhase,
-                    after_repeat: false,
-                    shadow: None,
-                },
-                PhaseSegment {
-                    call_start_0based: run_end,
-                    call_end_0based_exclusive: count,
-                    state,
-                    after_repeat: false,
-                    shadow: None,
-                },
-            ],
-            mask: (0..count)
-                .map(|index| (dephased && index >= run_end).then_some(state))
-                .collect(),
-            callable_start_0based: 0,
-            callable_end_0based_exclusive: if dephased { run_end } else { count },
-        };
-        (
-            BaseCalls {
-                primary_sequence: sequence(),
-                calls,
-            },
-            SignalAnalysis {
-                integrity: SangerIntegrity {
-                    locus_count: count,
-                    duplicate_locus_count: 0,
-                    vendor_primary_count: None,
-                    vendor_quality_count: None,
-                    minimum_locus_spacing: None,
-                    median_locus_spacing: None,
-                    maximum_locus_spacing: None,
-                    clipped_channel_samples: 0,
-                    maximum_to_median_event_signal_ratio: None,
-                },
-                loci,
-                windows: Vec::new(),
-                noisy_regions: Vec::new(),
-            },
-            callability,
-        )
+        let ranges = std::iter::once(run_end..count)
+            .filter(|_| dephased)
+            .collect();
+        (calls, ranges)
     }
 
     /// The profile of a mixture of `components` (offset, fraction) at call
@@ -595,8 +502,8 @@ mod tests {
         profile: impl Fn(usize, &[char]) -> [f64; 4],
         dephased: bool,
     ) -> Option<Vec<PhaseMixture>> {
-        let (calls, signal, callability) = read(profile, dephased);
-        mixtures(&calls, &signal, &callability, 0, 0.99, 20, 16)
+        let (calls, dephased) = read(profile, dephased);
+        mixtures(&calls, &dephased, 0, 0.99, 20, 16)
     }
 
     fn offsets(mixture: &PhaseMixture) -> Vec<(i32, f64)> {
@@ -678,17 +585,9 @@ mod tests {
 
     #[test]
     fn a_run_in_the_trimmed_start_opens_no_mixture() {
-        let (calls, signal, callability) = read(mixed(&[(0, 0.8), (1, 0.2)]), true);
+        let (calls, dephased) = read(mixed(&[(0, 0.8), (1, 0.2)]), true);
         assert_eq!(
-            mixtures(
-                &calls,
-                &signal,
-                &callability,
-                PREFIX.len() + 1,
-                0.99,
-                20,
-                16
-            ),
+            mixtures(&calls, &dephased, PREFIX.len() + 1, 0.99, 20, 16),
             Some(Vec::new())
         );
     }
@@ -700,16 +599,13 @@ mod tests {
 
     #[test]
     fn a_read_too_short_to_measure_its_noise_asserts_none() {
-        let (calls, signal, callability) = read(mixed(&[(0, 0.8), (1, 0.2)]), true);
-        assert_eq!(
-            mixtures(&calls, &signal, &callability, 0, 0.99, 1000, 16),
-            None
-        );
+        let (calls, dephased) = read(mixed(&[(0, 0.8), (1, 0.2)]), true);
+        assert_eq!(mixtures(&calls, &dephased, 0, 0.99, 1000, 16), None);
     }
 
     #[test]
     fn a_mixture_ends_where_a_run_as_long_as_the_opening_one_starts() {
-        let (calls, _, _) = read(mixed(&[(0, 1.0)]), true);
+        let (calls, _) = read(mixed(&[(0, 1.0)]), true);
         // The run of seven C opens at the prefix's end; none as long follows.
         assert_eq!(next_run(&calls, 0, RUN.len()), Some(PREFIX.len()));
         assert_eq!(next_run(&calls, PREFIX.len() + RUN.len(), RUN.len()), None);

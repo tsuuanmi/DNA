@@ -545,6 +545,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   non-het are unchanged in every period, no status changes, and 48 samples
   held only by HVS-I read-start checks become clear (current 72.80 ->
   73.16 %, older 71.63 -> 71.96 %). Plugin `consensus` 15.
+- Phase-mixture decomposition moves from `dna-sanger` into the new library
+  crate `dna-trace` (PROP-0012 increment 1, ADR-0084), which reads plain
+  per-call data and depends on `dna-kernel` only; `dna-sanger` calls it. No
+  output changes, so no plugin version changes.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's

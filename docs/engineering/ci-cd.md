@@ -1,5 +1,5 @@
 ---
-decided-by: [ADR-0018, ADR-0065, ADR-0070, ADR-0075, ADR-0079]
+decided-by: [ADR-0018, ADR-0065, ADR-0070, ADR-0075, ADR-0079, ADR-0084]
 covers:
   - .github/workflows/ci.yml
   - .github/workflows/release.yml
@@ -45,9 +45,10 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --locked --no-deps --all-featur
 ```
 
 The rust-quality job also tests `dna-kernel`, the core crates (`dna-align`,
-`dna-call`, `dna-sample`, `dna-consensus`), `dna-sanger`, `dna-normalize`,
-and `dna-empop` each on its own, and checks with `cargo tree` that the kernel,
-core, and post-calling crates never reach `dna-sanger` (ADR-0070, ADR-0079) and that neither
+`dna-call`, `dna-sample`, `dna-consensus`), `dna-sanger`, `dna-trace`,
+`dna-normalize`, and `dna-empop` each on its own, and checks with `cargo tree`
+that the kernel, core, post-calling crates, and `dna-trace` never reach
+`dna-sanger` (ADR-0070, ADR-0079, ADR-0084) and that neither
 the `dna` facade nor a plugin crate reaches the evaluation harness `dna-eval`
 (ADR-0075). The harness
 is checked, linted, tested, and documented with the workspace; its tests use
