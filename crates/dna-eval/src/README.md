@@ -68,7 +68,7 @@ have no schema; the evaluation harness document describes them.
   fractions.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior), the zones a
-  check item touches, and the region that holds a position.
+  check item touches, and the zone instance that holds a position.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.

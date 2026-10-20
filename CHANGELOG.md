@@ -52,8 +52,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   on every sample its review workload counts: the auto-pass samples (no check
   item) and those with an unreviewed difference; the regions (sample ×
   profile region) and zones (sample × zone) needing a check, overall and per
-  region; and the passed regions holding an unreviewed difference by its
-  first position. Unreviewed samples and regions are split into non-het and
+  region, per zone, and per zone kind; and the passed regions and zones
+  holding an unreviewed difference by its first position. Unreviewed
+  samples, regions, and zones are split into non-het and
   het only (the truth writes an IUPAC code of two or three bases in every
   such block). `summary.md` gains a "Passes" table in both review workload
   sections, and `run.json` a `workload` object (`all`, and `current` with
@@ -63,7 +64,8 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   current data (10,695 samples): 7,786 auto-pass (72.80 %), 281 of them
   with an unreviewed difference (46 non-het); regions needing a check
   3,496 of 32,085 (10.90 %), 360 passed regions with an unreviewed
-  difference (65 non-het); zones needing a check 4,455 of 160,425 (2.78 %).
+  difference (65 non-het); zones needing a check 4,455 of 160,425 (2.78 %),
+  and 423 passed zones with an unreviewed difference (74 non-het).
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis

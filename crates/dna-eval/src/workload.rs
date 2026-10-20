@@ -20,7 +20,7 @@ use serde::Serialize;
 
 use crate::compare::{self, HV_REGIONS};
 use crate::haplotype::Block;
-use crate::zones::{Instance, Kind, Zones};
+use crate::zones::{Instance, Zones};
 
 /// One window of an HV region, 1-based and inclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,17 +82,15 @@ pub(crate) struct Workload {
     pub(crate) zones: BTreeSet<Instance>,
     /// Check items that touch more than one zone instance.
     pub(crate) spanning: usize,
-    /// Zone kind of each unreviewed block, by its first anchor.
-    pub(crate) zone_kinds: Vec<Kind>,
-    /// Each unreviewed block's zone region and whether it is het.
+    /// Each unreviewed block's zone instance and whether it is het.
     pub(crate) escapes: Vec<Escape>,
 }
 
-/// One unreviewed difference block, as the pass measures count it.
+/// One unreviewed difference block, as the zone and pass measures count it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Escape {
-    /// The zone region that holds the block's first anchor, when one does.
-    pub(crate) region: Option<usize>,
+    /// The zone instance that holds the block's first anchor, when one does.
+    pub(crate) zone: Option<Instance>,
     /// Whether the truth writes a heteroplasmy in the block ([`het`]).
     pub(crate) het: bool,
 }
@@ -184,18 +182,13 @@ pub(crate) fn of(
                 .unwrap_or_default()
         })
         .collect::<Vec<_>>();
-    let zone_kinds = unreviewed
-        .iter()
-        .filter_map(|block| zones?.kind(block.start))
-        .collect();
     Workload {
         zones: touched_zones.iter().flatten().copied().collect(),
         spanning: touched_zones.iter().filter(|zones| zones.len() > 1).count(),
-        zone_kinds,
         escapes: unreviewed
             .iter()
             .map(|block| Escape {
-                region: zones.and_then(|zones| zones.region(block.start)),
+                zone: zones.and_then(|zones| zones.instance(block.start)),
                 het: het(block),
             })
             .collect(),
@@ -210,8 +203,8 @@ pub(crate) fn of(
     }
 }
 
-/// Passed samples or regions that carry an unreviewed block: in all, with a
-/// block that is not het, and with het blocks only.
+/// Passed samples, regions, or zones that carry an unreviewed block: in all,
+/// with a block that is not het, and with het blocks only.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub(crate) struct Escaped {
     pub(crate) total: usize,
@@ -220,7 +213,7 @@ pub(crate) struct Escaped {
 }
 
 impl Escaped {
-    /// Counts one passed sample or region with its unreviewed `escapes`.
+    /// Counts one passed unit with its unreviewed `escapes`.
     fn add<'e>(&mut self, escapes: impl IntoIterator<Item = &'e Escape>) {
         let (mut any, mut non_het) = (false, false);
         for escape in escapes {
@@ -231,10 +224,19 @@ impl Escaped {
         self.non_het += usize::from(non_het);
         self.het_only += usize::from(any && !non_het);
     }
+
+    /// The sum of `counts`.
+    pub(crate) fn sum<'e>(counts: impl IntoIterator<Item = &'e Self>) -> Self {
+        counts.into_iter().fold(Self::default(), |sum, count| Self {
+            total: sum.total + count.total,
+            non_het: sum.non_het + count.non_het,
+            het_only: sum.het_only + count.het_only,
+        })
+    }
 }
 
 /// What passes without review over a set of samples: the samples, the
-/// regions of the zones, and the zones that no check item touches.
+/// regions of the zones, and the zone instances that no check item touches.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct Passes {
     /// The samples counted.
@@ -244,7 +246,7 @@ pub(crate) struct Passes {
     /// One region per sample and region of the zones.
     pub(crate) regions: Regions,
     /// One zone per sample and zone instance.
-    pub(crate) zones: Checked,
+    pub(crate) zones: ZonePasses,
 }
 
 /// The samples without a check item, and those of them with an unreviewed
@@ -255,13 +257,6 @@ pub(crate) struct AutoPass {
     pub(crate) unreviewed: Escaped,
 }
 
-/// Units in all, and those a check item touches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub(crate) struct Checked {
-    pub(crate) total: usize,
-    pub(crate) checked: usize,
-}
-
 /// Regions in all, those with a check item in one of their zones, and the
 /// others (passed) that hold an unreviewed block's first anchor; overall and
 /// per region.
@@ -270,16 +265,49 @@ pub(crate) struct Regions {
     pub(crate) total: usize,
     pub(crate) checked: usize,
     pub(crate) unreviewed: Escaped,
-    pub(crate) by_region: Vec<Region>,
+    pub(crate) by_region: Vec<Unit>,
 }
 
-/// One region of the zones over the samples counted.
+/// Zone instances in all, those a check item touches, and the others
+/// (passed) that hold an unreviewed block's first anchor; overall and per
+/// instance, in the order of [`Zones::instances`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct Region {
+pub(crate) struct ZonePasses {
+    pub(crate) total: usize,
+    pub(crate) checked: usize,
+    pub(crate) unreviewed: Escaped,
+    pub(crate) by_zone: Vec<Unit>,
+}
+
+/// One region or zone instance over the samples counted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct Unit {
     pub(crate) name: String,
     pub(crate) total: usize,
     pub(crate) checked: usize,
     pub(crate) unreviewed: Escaped,
+}
+
+impl Unit {
+    fn new(name: String) -> Self {
+        Self {
+            name,
+            total: 0,
+            checked: 0,
+            unreviewed: Escaped::default(),
+        }
+    }
+
+    /// Counts one sample: checked when `checked`, else passed with the
+    /// unreviewed `escapes` that start in the unit.
+    fn count<'e>(&mut self, checked: bool, escapes: impl IntoIterator<Item = &'e Escape>) {
+        self.total += 1;
+        if checked {
+            self.checked += 1;
+        } else {
+            self.unreviewed.add(escapes);
+        }
+    }
 }
 
 /// What passes without review over `workloads`, in the regions and zone
@@ -288,66 +316,61 @@ pub(crate) fn passes<'w>(
     workloads: impl IntoIterator<Item = &'w Workload>,
     zones: Option<&Zones>,
 ) -> Passes {
+    let instances = zones.map(Zones::instances).unwrap_or_default();
     let mut by_region = zones
         .into_iter()
         .flat_map(Zones::names)
-        .map(|region| Region {
-            name: region.to_owned(),
-            total: 0,
-            checked: 0,
-            unreviewed: Escaped::default(),
-        })
+        .map(|name| Unit::new(name.to_owned()))
+        .collect::<Vec<_>>();
+    let mut by_zone = zones
+        .into_iter()
+        .flat_map(|zones| instances.iter().map(|&instance| zones.label(instance)))
+        .map(Unit::new)
         .collect::<Vec<_>>();
     let mut samples = 0;
     let mut auto_pass = AutoPass {
         samples: 0,
         unreviewed: Escaped::default(),
     };
-    let mut zones_checked = 0;
     for workload in workloads {
         samples += 1;
-        zones_checked += workload.zones.len();
         if workload.checks == 0 {
             auto_pass.samples += 1;
             auto_pass.unreviewed.add(&workload.escapes);
         }
         for (index, region) in by_region.iter_mut().enumerate() {
-            region.total += 1;
-            if workload.zones.iter().any(|&(found, _)| found == index) {
-                region.checked += 1;
-            } else {
-                region.unreviewed.add(
-                    workload
-                        .escapes
-                        .iter()
-                        .filter(|escape| escape.region == Some(index)),
-                );
-            }
+            region.count(
+                workload.zones.iter().any(|&(found, _)| found == index),
+                workload
+                    .escapes
+                    .iter()
+                    .filter(|escape| escape.zone.is_some_and(|(found, _)| found == index)),
+            );
+        }
+        for (&instance, zone) in instances.iter().zip(&mut by_zone) {
+            zone.count(
+                workload.zones.contains(&instance),
+                workload
+                    .escapes
+                    .iter()
+                    .filter(|escape| escape.zone == Some(instance)),
+            );
         }
     }
-    let unreviewed = Escaped {
-        total: by_region.iter().map(|region| region.unreviewed.total).sum(),
-        non_het: by_region
-            .iter()
-            .map(|region| region.unreviewed.non_het)
-            .sum(),
-        het_only: by_region
-            .iter()
-            .map(|region| region.unreviewed.het_only)
-            .sum(),
-    };
     Passes {
         samples,
         auto_pass,
         regions: Regions {
             total: by_region.iter().map(|region| region.total).sum(),
             checked: by_region.iter().map(|region| region.checked).sum(),
-            unreviewed,
+            unreviewed: Escaped::sum(by_region.iter().map(|region| &region.unreviewed)),
             by_region,
         },
-        zones: Checked {
-            total: samples * zones.map_or(0, |zones| zones.instances().len()),
-            checked: zones_checked,
+        zones: ZonePasses {
+            total: by_zone.iter().map(|zone| zone.total).sum(),
+            checked: by_zone.iter().map(|zone| zone.checked).sum(),
+            unreviewed: Escaped::sum(by_zone.iter().map(|zone| &zone.unreviewed)),
+            by_zone,
         },
     }
 }
@@ -390,6 +413,7 @@ pub(crate) fn wilson_upper(events: usize, trials: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::zones::Kind;
 
     fn block(start: i64, end: i64) -> Block {
         Block::fixture(start, end, "A", "C")
@@ -440,7 +464,13 @@ mod tests {
         assert_eq!(workload.checks, 1);
         assert_eq!(workload.zones, BTreeSet::from([(0, Kind::Start)]));
         assert_eq!(workload.spanning, 0);
-        assert_eq!(workload.zone_kinds, [Kind::Start]);
+        assert_eq!(
+            workload.escapes,
+            [Escape {
+                zone: Some((0, Kind::Start)),
+                het: false
+            }]
+        );
         assert_eq!(workload.positions, 10);
         assert_eq!(workload.unreviewed, ["16040-16041:A/C"]);
         assert_eq!(workload.regions, ["HV1"]);
@@ -458,7 +488,8 @@ mod tests {
             &[(16184, 16193)],
             None,
         );
-        assert!(workload.zones.is_empty() && workload.zone_kinds.is_empty());
+        assert!(workload.zones.is_empty());
+        assert_eq!(workload.escapes[0].zone, None);
         assert_eq!(workload.positions, 0);
         assert_eq!(workload.positions_forced, 10);
         assert_eq!(workload.unreviewed.len(), 1);
@@ -518,8 +549,16 @@ mod tests {
                     Block::fixture(600, 600, "A", "C"),
                 ],
             ),
-            // HV2 checked: its unreviewed block is in a checked region.
-            of(&[(310, 310)], &[Block::fixture(120, 120, "A", "C")]),
+            // HV2 checked at its window: an unreviewed block in the window
+            // is in a checked zone, one in the interior passes its zone but
+            // not its region.
+            of(
+                &[(310, 310)],
+                &[
+                    Block::fixture(120, 120, "A", "C"),
+                    Block::fixture(305, 305, "A", "C"),
+                ],
+            ),
         ];
         let passes = passes(&workloads, Some(&zones));
         let escaped = |total, non_het, het_only| Escaped {
@@ -535,8 +574,8 @@ mod tests {
                 unreviewed: escaped(2, 1, 1)
             }
         );
-        let region = |region: &str, checked, unreviewed| Region {
-            name: region.to_owned(),
+        let unit = |name: &str, checked, unreviewed| Unit {
+            name: name.to_owned(),
             total: 5,
             checked,
             unreviewed,
@@ -548,17 +587,34 @@ mod tests {
                 checked: 2,
                 unreviewed: escaped(5, 2, 3),
                 by_region: vec![
-                    region("HV1", 1, escaped(1, 1, 0)),
-                    region("HV2", 1, escaped(3, 0, 3)),
-                    region("HV3", 0, escaped(1, 1, 0)),
+                    unit("HV1", 1, escaped(1, 1, 0)),
+                    unit("HV2", 1, escaped(3, 0, 3)),
+                    unit("HV3", 0, escaped(1, 1, 0)),
                 ],
             }
         );
+        let none = escaped(0, 0, 0);
         assert_eq!(
             passes.zones,
-            Checked {
+            ZonePasses {
                 total: 5 * 13,
-                checked: 2
+                checked: 2,
+                unreviewed: escaped(6, 3, 3),
+                by_zone: vec![
+                    unit("window@HV1", 0, none),
+                    unit("after@HV1", 0, none),
+                    unit("start@HV1", 1, none),
+                    unit("end@HV1", 0, none),
+                    unit("interior@HV1", 0, escaped(1, 1, 0)),
+                    unit("window@HV2", 1, none),
+                    unit("after@HV2", 0, none),
+                    unit("start@HV2", 0, escaped(1, 0, 1)),
+                    unit("end@HV2", 0, none),
+                    unit("interior@HV2", 0, escaped(3, 1, 2)),
+                    unit("start@HV3", 0, none),
+                    unit("end@HV3", 0, none),
+                    unit("interior@HV3", 0, escaped(1, 1, 0)),
+                ],
             }
         );
         let bare = super::passes(&workloads, None);
