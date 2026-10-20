@@ -376,18 +376,27 @@ pub(super) fn observe(
             let clean = canonical(column.query_base())
                 && !shifted
                 && column.original_call_index_0based().is_some_and(clean_call);
-            // A reference-only call confirms the reference at its position.
+            // A call reading the reference's base confirms the reference at
+            // its position (ADR-0080): a reference-only call, whose modality's
+            // own edge verdict does not stand against it while the read's
+            // unvouched ends still do; or a call within the margin of an
+            // unvouched end that its modality vouches for its base, clear of
+            // its edges and withheld for nothing, with no second peak standing
+            // out or left unexplained. The margin keeps an indel or a run's
+            // end from resting there; a confirmation shows neither.
             let confirms = !clean
                 && canonical(column.query_base())
                 && !shifted
                 && reference_at(position) == Some(column.query_base())
                 && call.is_some_and(|(call, evidence)| {
-                    evidence.reference_only
-                        && evidence.placement == Placement::Scored
-                        // The modality's own edge verdict does not stand
-                        // against a call it asserts reference-only; the
-                        // read's unvouched ends still do.
-                        && (trusted_call(call) || eligibility.clear_of_ends(call))
+                    evidence.placement == Placement::Scored
+                        && ((evidence.reference_only
+                            && (trusted_call(call) || eligibility.clear_of_ends(call)))
+                            || (!eligibility.clear_of_ends(call)
+                                && !evidence.identity.edge
+                                && evidence.identity.withheld.is_empty()
+                                && !evidence.second_unexplained
+                                && !evidence.second.is_some_and(|second| second.stands_out)))
                 });
             Observation {
                 value: SiteValue::Base(column.query_base()),

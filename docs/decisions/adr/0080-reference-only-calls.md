@@ -159,6 +159,42 @@ No status changes; 761 positions decided more, none fewer. One sample whose
 only check was the undecided position becomes clear with its existing
 unreviewed `309` length difference. Plugin `consensus` 14.
 
+### Vouched calls within the end margin
+
+Amended 2026-10-20. The core trusts no call within
+`variant_calling.read_end_margin` calls of a read end the modality does not
+vouch for (SRS-VAR-013), and Sanger never vouches. At the start of HVS-I the
+first read calls fall inside that margin. The Sanger read-start rule
+(SRS-CALL-018) already clears many of them of the modality's own edge from
+the read's own signal, but the core margin kept them from deciding, so
+16024-16035 stayed undecided wherever no read of the other strand reached
+it.
+
+A call within that margin now confirms the reference at its position, as a
+reference-only call does, when all of these hold:
+- the modality vouches for its base: scored, clear of its edges, and
+  withheld for nothing;
+- it shows no second base standing out and no second peak left
+  unexplained;
+- it reads the reference's base, and its alignment column is not shifted.
+
+Every guard of a confirmation applies to it unchanged. The margin exists so
+that no indel or run end rests on a read end's calls, and a confirmation
+shows neither: its run role stays its call's, and stretches do not count it.
+A reference-only call keeps the margin, since its base is withheld.
+
+Measured on development panel v5 against the stack of #169, #171, #170, #173,
+and #172 (integration 3498c4e):
+
+| Period | Unreviewed | Non-het | Clear |
+|---|---|---|---|
+| current | 440 → 440 | 94 → 94 | 72.80 → 73.16 % (+38) |
+| 2025-08..11 | 151 → 151 | 51 → 51 | 53.38 → 53.38 % |
+| older | 174 → 174 | 84 → 84 | 71.63 → 71.96 % (+10) |
+
+No status of any measure changes. All 48 samples were held only by
+read-start checks at 16024-16045. Plugin `consensus` 15.
+
 ## Alternatives
 
 - **Lift the veto by cause in the modality.** This gave the largest gain and
@@ -168,6 +204,9 @@ unreviewed `309` length difference. Plugin `consensus` 14.
   decided.
 - **Unresolve every differing site beside a confirmed position.** This held
   the gate, but turned about 100 correct calls into `N`.
+- **Let a modality-vouched call within the end margin also bound runs or
+  support variants.** The margin guards exactly those uses, and the
+  read-start residue needs only the reference confirmed.
 - **Let the core read the modality's reason labels.** This was rejected:
   reasons are reported verbatim, and the core interprets none of them
   (ADR-0069).
