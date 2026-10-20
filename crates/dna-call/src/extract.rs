@@ -425,4 +425,97 @@ mod tests {
         );
         Ok(())
     }
+
+    // SRS-VAR-001
+    #[test]
+    fn variants_derive_only_from_the_selected_alignment_columns() -> Result<()> {
+        // The read's call 5 carries a profile favouring another base, but the
+        // selected alignment pairs it with the reference base: no variant.
+        let mut evidence = ReadEvidence::clean(&"ACGT".repeat(4));
+        let mut call = evidence.calls()[5];
+        call.profile = Some(dna_kernel::read_evidence::EvidenceProfile {
+            weights: [0.0, 0.0, 0.0, 1.0],
+        });
+        evidence = evidence.with_call(5, call);
+        let matching = alignment(vec![
+            AlignmentColumn::new('T', 'T', Some(4), Some(0)),
+            AlignmentColumn::new('C', 'C', Some(5), Some(2)),
+        ]);
+        let result = extract_masked(&matching, &reference(ReferenceTopology::Linear), &evidence)?;
+        assert!(result.reported.is_empty());
+        assert_eq!(result.excluded_count(), 0);
+        // A column difference is the only source of a variant.
+        let differing = alignment(vec![AlignmentColumn::new('A', 'C', Some(5), Some(2))]);
+        let result = extract_masked(&differing, &reference(ReferenceTopology::Linear), &evidence)?;
+        assert_eq!(result.reported.len(), 1);
+        assert_eq!(result.reported[0].position_1based, 3);
+        assert_eq!(result.reported[0].alternate, "A");
+        Ok(())
+    }
+
+    // SRS-VAR-003
+    #[test]
+    fn indel_length_limit_excludes_the_anchor_and_labels_over_limit() -> Result<()> {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "TACGTACG".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let limited = VariantCallingConfig {
+            max_indel_length: 2,
+            read_end_margin: 0,
+        };
+        let run = |columns| -> Result<VariantCallingResult> {
+            let evidence = ReadEvidence::clean(&"ACGT".repeat(4));
+            let eligibility = Eligibility::new(&evidence, &limited);
+            call(&alignment(columns), &reference, &eligibility, &limited)
+        };
+        let deletion = |length: usize| {
+            let mut columns = vec![AlignmentColumn::new('T', 'T', Some(4), Some(0))];
+            columns.extend((1..=length).map(|offset| {
+                AlignmentColumn::new(
+                    '-',
+                    reference.sequence.as_bytes()[offset] as char,
+                    None,
+                    Some(offset),
+                )
+            }));
+            columns.push(AlignmentColumn::new('G', 'G', Some(5), Some(length + 1)));
+            columns
+        };
+        // Two deleted bases with the anchor: the reference allele is three
+        // long, yet the change is within the limit.
+        let at_limit = run(deletion(2))?;
+        assert_eq!(at_limit.reported.len(), 1);
+        assert_eq!(at_limit.reported[0].reference.len(), 3);
+        // Three deleted bases exceed it: labelled, not reported.
+        let over = run(deletion(3))?;
+        assert!(over.reported.is_empty());
+        assert_eq!(over.excluded.len(), 1);
+        assert_eq!(over.excluded[0].kind, VariantKind::Del);
+        assert_eq!(
+            over.excluded[0].reasons,
+            vec![VariantExclusionReason::IndelLengthExceeded]
+        );
+        let insertion = |length: usize| {
+            let mut columns = vec![AlignmentColumn::new('T', 'T', Some(4), Some(0))];
+            columns.extend(
+                (0..length).map(|offset| AlignmentColumn::new('A', '-', Some(5 + offset), None)),
+            );
+            columns.push(AlignmentColumn::new('A', 'A', Some(5 + length), Some(1)));
+            columns
+        };
+        let at_limit = run(insertion(2))?;
+        assert_eq!(at_limit.reported.len(), 1);
+        assert_eq!(at_limit.reported[0].alternate.len(), 3);
+        let over = run(insertion(3))?;
+        assert!(over.reported.is_empty());
+        assert_eq!(over.excluded[0].kind, VariantKind::Ins);
+        assert_eq!(
+            over.excluded[0].reasons,
+            vec![VariantExclusionReason::IndelLengthExceeded]
+        );
+        Ok(())
+    }
 }

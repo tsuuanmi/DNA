@@ -2,7 +2,6 @@
 implements: [SRS-SAMPLE]
 decided-by: [ADR-0023, ADR-0030, ADR-0053, ADR-0068]
 verified-by: [crates/dna-sample/src]
-unverified: [SRS-SAMPLE-002, SRS-SAMPLE-003]
 ---
 
 # Core Sample Evidence Requirements

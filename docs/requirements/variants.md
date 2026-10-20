@@ -15,7 +15,6 @@ verified-by:
   - crates/dna-kernel/src/read_evidence.rs
   - crates/dna-sanger/src/read_processing/evidence.rs
   - src/input/sequence.rs
-unverified: [SRS-VAR-001, SRS-VAR-003]
 ---
 
 # Primary-sequence Difference Requirements

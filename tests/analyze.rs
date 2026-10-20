@@ -855,6 +855,104 @@ fn reports_deletion_with_flanks_only() -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
+// SRS-ALN-005
+#[test]
+fn alignment_reports_only_the_selected_summary_fields() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let mut mutated = QUERY.to_owned();
+    mutated.replace_range(12..13, "A");
+    write_abif(&trace, &reverse_complement(&mutated))?;
+    write_reference(&reference, QUERY)?;
+    write_config(&config, "linear")?;
+
+    run(&trace, &reference, &config, directory.path()).success();
+    let value = read_result(directory.path(), &trace)?;
+    let alignment = &value["alignment"];
+    // Both orientations are evaluated; only the selected one is reported.
+    assert_eq!(alignment["orientation"], "reverse");
+    assert_eq!(alignment["callable_bases"], 28);
+    assert!(alignment["identity"].is_number());
+    assert_eq!(alignment["unresolved_bases"], 0);
+    assert_eq!(alignment["gap_opens"], 0);
+    assert!(alignment["reference_segments"].is_array());
+    assert_eq!(alignment["wraps_origin"], false);
+    for omitted in [
+        "score",
+        "forward",
+        "reverse",
+        "orientations",
+        "query",
+        "reference",
+        "rows",
+        "columns",
+        "operations",
+        "runs",
+        "matches",
+        "mismatches",
+        "exact_matches",
+    ] {
+        assert!(
+            alignment.get(omitted).is_none(),
+            "{omitted} must be omitted"
+        );
+    }
+    Ok(())
+}
+
+// SRS-ALN-007
+#[test]
+fn covered_reference_region_comes_from_traceback() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+
+    // No amplicon, HV, or expected-region input exists, yet the segment is
+    // exactly the traceback's span.
+    run(&trace, &reference, &config, directory.path()).success();
+    let value = read_result(directory.path(), &trace)?;
+    assert_eq!(
+        value["alignment"]["reference_segments"],
+        serde_json::json!([{"start": 4, "end": 32}])
+    );
+    Ok(())
+}
+
+// SRS-ALN-008
+#[test]
+fn filename_metadata_does_not_change_placement() -> Result<(), Box<dyn std::error::Error>> {
+    let mut placements = Vec::new();
+    for stem in [
+        "E01_20260504_2544522_HV1F_13",
+        "E01_20260504_2544522_HV2R_13",
+        "unlabelled",
+    ] {
+        let directory = tempdir()?;
+        let trace = directory.path().join(format!("{stem}.ab1"));
+        let reference = directory.path().join("reference.fa");
+        let config = directory.path().join("dna.toml");
+        let mut mutated = QUERY.to_owned();
+        mutated.replace_range(12..13, "A");
+        write_abif(&trace, &mutated)?;
+        write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+        write_config(&config, "linear")?;
+        run(&trace, &reference, &config, directory.path()).success();
+        let value = read_result(directory.path(), &trace)?;
+        placements.push((value["alignment"].clone(), value["variants"].clone()));
+    }
+    assert_eq!(placements[0], placements[1]);
+    assert_eq!(placements[0], placements[2]);
+    assert_eq!(placements[0].0["orientation"], "forward");
+    assert_eq!(placements[0].1[0]["position"], 17);
+    Ok(())
+}
+
 // SRS-ALN-004
 #[test]
 fn represents_circular_origin_wrap() -> Result<(), Box<dyn std::error::Error>> {
@@ -931,6 +1029,55 @@ fn accepts_iupac_vendor_calls_and_char_pcon() -> Result<(), Box<dyn std::error::
     assert_call_evidence(call);
     assert!(call["quality"].is_number());
     assert!(call.get("relative_quality").is_none());
+    Ok(())
+}
+
+// SRS-CALL-001
+#[test]
+fn read_callability_is_independent_of_the_file_name() -> Result<(), Box<dyn std::error::Error>> {
+    let mut callabilities = Vec::new();
+    for name in ["first_read.ab1", "E09_20260101_9999999_HV2R_77.ab1"] {
+        let directory = tempdir()?;
+        let trace = directory.path().join(name);
+        let reference = directory.path().join("reference.fa");
+        let config = directory.path().join("dna.toml");
+        write_abif(&trace, QUERY)?;
+        write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+        write_config(&config, "linear")?;
+        run(&trace, &reference, &config, directory.path()).success();
+        let value = read_result(directory.path(), &trace)?;
+        callabilities.push(value["read"]["callability"].clone());
+    }
+    assert_eq!(callabilities[0], callabilities[1]);
+    assert!(callabilities[0]["segments"].is_array());
+    Ok(())
+}
+
+// SRS-QC-002
+#[test]
+fn compact_json_omits_the_calibration_flag_and_vendor_evidence()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let trace = directory.path().join("trace.ab1");
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let mut vendor = QUERY.to_owned();
+    vendor.replace_range(5..6, "K");
+    write_abif_with_vendor(&trace, QUERY, &vendor, 2)?;
+    let mut reference_query = QUERY.to_owned();
+    reference_query.replace_range(5..6, if &QUERY[5..6] == "A" { "C" } else { "A" });
+    write_reference(&reference, &format!("TTTT{reference_query}CCCC"))?;
+    write_config(&config, "linear")?;
+    run(&trace, &reference, &config, directory.path()).success();
+    let text = fs::read_to_string(analysis_output_path(directory.path(), &trace))?;
+    assert!(!text.contains("calibrat"));
+    let value: Value = serde_json::from_str(&text)?;
+    let calls = value["variants"][0]["calls"]
+        .as_array()
+        .ok_or("variant calls must be an array")?;
+    for call in calls {
+        assert_call_evidence(call);
+    }
     Ok(())
 }
 
