@@ -15,7 +15,7 @@ related: [ADR-0009, ADR-0021, ADR-0065, ADR-0067, ADR-0071, ADR-0073]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/consensus](../../design/consensus.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/consensus](../../reference/consensus.md), [requirements/consensus](../../requirements/consensus.md), [validation/known-limitations](../../validation/known-limitations.md)
+- **Governs:** [design/consensus](../../design/consensus.md), [design/length-mixture](../../design/length-mixture.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/consensus](../../reference/consensus.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/consensus](../../requirements/consensus.md), [validation/known-limitations](../../validation/known-limitations.md)
 <!-- docs:end backlinks -->
 
 ## Context

@@ -46,6 +46,7 @@ REVIEW_UNASSURED = frozenset(
         "read_disagrees",
         "possible_heteroplasmy",
         "estimated_length",
+        "length_unconfirmed",
         "undecided",
         "not_called",
         "long_run",
@@ -61,6 +62,7 @@ REVIEW_LABELS = {
     "read_disagrees": 0,
     "possible_heteroplasmy": 1,
     "estimated_length": 2,
+    "length_unconfirmed": 2,
     "undecided": 2,
     "not_called": 2,
     "long_run": 2,
@@ -75,6 +77,7 @@ REVIEW_LABELS = {
     "dephased_end": 4,
     "read_edge": 4,
     "poor_signal": 4,
+    "length_not_recorded": 4,
 }
 # Priority of a variant item without a label.
 UNLABELLED = 5

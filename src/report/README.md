@@ -22,8 +22,11 @@ Core records carry no Sanger evidence
 projects a sample consensus into `dna.consensus/v1` and its FASTA (also
 rendered from the consensus alone, with the same record names),
 `review.rs` derives a sample's review items and labels from its analysis
-and call (rules version 1, the `review` plugin it declares) and projects
-`dna.review/v1`,
+and call (the `review` plugin it declares, whose version is the labelling
+rules') and projects `dna.review/v1`; `length.rs` judges the runs of the
+profile's anchored repeat windows from the reads' tract decodes and in-phase
+readings for its `length_unconfirmed` and `length_not_recorded` labels
+(SRS-API-020),
 and `notation.rs` renders the per-read notation once (`calls`, with each call's
 reference and called base and the reads containing it) and projects it for sample,
 call, and notation documents and builds `dna.notation/v1`. Every document reads a read's Sanger evidence through `model::sanger_read`
