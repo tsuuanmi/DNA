@@ -42,6 +42,7 @@ pub(super) fn build(
         mask,
         callable_start_0based,
         callable_end_0based_exclusive,
+        gaps: Vec::new(),
     })
 }
 

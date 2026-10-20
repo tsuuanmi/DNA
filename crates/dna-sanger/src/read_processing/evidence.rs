@@ -274,6 +274,14 @@ pub fn read_evidence(
                     .is_some_and(|segment| segment.after_repeat)
         })
         .collect::<Vec<_>>();
+    // A junction whose spacing marks a missing peak (SRS-CALL-026): a read
+    // that lost a peak there shows a deletion that is not in the template, so
+    // neither call beside it places an indel or shows a run's end.
+    for &junction in &callability.gaps {
+        for call in evidence.iter_mut().skip(junction).take(2) {
+            call.bound = Bound::Withheld;
+        }
+    }
     mark_post_repeat_runs(&mut evidence, &informative, &after_repeat, config);
     reference_only_calls(
         &mut evidence,
@@ -1305,6 +1313,36 @@ mod tests {
         quality.retained_sequence = "A".repeat(3);
         let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
         assert!(!call.reference_only);
+        Ok(())
+    }
+
+    // SRS-CALL-026
+    #[test]
+    fn the_calls_beside_a_gap_show_their_base_only() -> Result<()> {
+        let (calls, signal, mut callability, quality) = products(&[300; 8], &[40; 8]);
+        callability.gaps = vec![3];
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &[],
+            &config(0),
+        )?;
+        let base_only = evidence
+            .calls()
+            .iter()
+            .map(CallEvidence::base_only)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            base_only,
+            [false, false, false, true, true, false, false, false]
+        );
+        // Their bases stay theirs.
+        assert!(evidence.calls()[3].identity.trusted());
+        assert!(evidence.calls()[4].identity.trusted());
         Ok(())
     }
 
