@@ -72,7 +72,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   gains `unreliable`, published in `dna.read_evidence/v1` (`read.unreliable`)
   and in `dna review` (`reads[].unreliable`). The review labels an item
   covered by such a span with no other read sound there `poor_signal`, and a
-  difference there is a check. Plugins `sanger` 16 and `review` 18.
+  difference there is a check. Plugins `sanger` 16 and `review` 18. On
+  development panel v5 against `main` 69e1471, passed zones with a non-het
+  unreviewed difference fall 74 -> 72 on current data and 177 -> 175 in all
+  (`end@HV3`; no zone rises), and 4 current samples (5 in all) lose their
+  auto-pass (73.16 -> 73.12 %).
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis
