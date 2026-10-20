@@ -24,10 +24,14 @@ use crate::model::review_result::{
 use crate::model::sample_result::ConventionResult;
 use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::report::json::{project_plugins, project_profile};
+use crate::report::length;
 use crate::report::notation::project_empop;
 use crate::report::sample::{reviewer_names, reviewer_read_names};
 use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
+use dna_call::model::called_read::CalledRead;
+use dna_call::read_call::CallConfig;
+use dna_consensus::ConsensusConfig;
 use dna_consensus::decided::not_analysed;
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
 use dna_kernel::model::nucleotide::Nucleotide;
@@ -45,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 21,
+    version: 22,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -464,6 +468,14 @@ struct Sample<'a> {
     signal: Option<RunSignal>,
     /// The second-channel threshold's floor and run-level parameters.
     second: &'a SignalProcessingConfig,
+    /// The profile's anchored repeat windows, whose run lengths the reads'
+    /// tract decodes judge (SRS-API-020).
+    length_windows: Vec<length::LengthWindow>,
+    /// The reference and the core's and the consensus's configuration, for
+    /// the consensus's reading of each read's runs (ADR-0074).
+    reference: &'a Reference,
+    call_config: &'a CallConfig,
+    consensus_config: &'a ConsensusConfig,
 }
 
 struct Read<'a> {
@@ -476,6 +488,8 @@ struct Read<'a> {
     sanger: &'a SangerRead,
     /// The read's calls as its evidence gives them, in read order.
     evidence: &'a ReadEvidence,
+    /// The read as the core called it.
+    called: &'a CalledRead,
 }
 
 /// An item before its labels are complete.
@@ -518,6 +532,7 @@ impl<'a> Sample<'a> {
                     name,
                     columns: called.alignment.columns(),
                     evidence: &called.evidence,
+                    called,
                     sha256: &read.input_sha256,
                     strand: read.alignment.orientation,
                     trust: analysis.trust(&read.input_sha256).ok_or_else(missing)?,
@@ -580,6 +595,10 @@ impl<'a> Sample<'a> {
             loci,
             signal,
             second: &analysis.loaded.config.sanger.signal_processing,
+            length_windows: length::windows(&analysis.loaded.profile),
+            reference,
+            call_config: &analysis.loaded.config.core,
+            consensus_config: &analysis.loaded.config.consensus,
         })
     }
 
@@ -674,6 +693,7 @@ impl<'a> Sample<'a> {
             });
         }
 
+        self.length_labels(&mut drafts);
         let mut items = drafts
             .into_iter()
             .map(|draft| self.finish(draft))
@@ -681,6 +701,117 @@ impl<'a> Sample<'a> {
             .collect::<Result<Vec<_>>>()?;
         items.sort_by_key(|item| (priority(&item.labels), item.first, item.last));
         Ok(items)
+    }
+
+    /// Labels the runs of each anchored repeat window that the reads' tract
+    /// decodes do not confirm (`length_unconfirmed`, a check), or, in a
+    /// window whose run lengths the profile does not record, every decoded
+    /// run (`length_not_recorded`, context). The label joins the first item
+    /// that overlaps the window, or a new item over the window. A window no
+    /// read decodes, outside the analysed regions, gets none.
+    fn length_labels(&self, drafts: &mut Vec<Draft<'a>>) {
+        for window in &self.length_windows {
+            let Some([first, last]) = within(self.regions, window.first, window.last) else {
+                continue;
+            };
+            let decodes = self
+                .reads
+                .iter()
+                .flat_map(|read| {
+                    read.evidence.tracts().iter().map(|tract| length::Decode {
+                        read: read.name,
+                        strand: read.strand,
+                        reference: start_reference(read, tract.call_start),
+                        tract,
+                    })
+                })
+                .collect::<Vec<_>>();
+            if decodes.is_empty() {
+                continue;
+            }
+            let haplotype = self.decided_over(window.first, window.last);
+            let called = haplotype
+                .as_deref()
+                .and_then(|haplotype| length::called_runs(haplotype, window));
+            let called_reads = self
+                .reads
+                .iter()
+                .map(|read| read.called)
+                .collect::<Vec<_>>();
+            let views = dna_consensus::read_runs_over(
+                &called_reads,
+                self.reference,
+                self.call_config,
+                self.consensus_config,
+                window.first - 1,
+                window.last - 1,
+            );
+            let in_phase = self
+                .reads
+                .iter()
+                .zip(&views)
+                .filter_map(|(read, runs)| {
+                    Some(length::InPhase {
+                        read: read.name,
+                        strand: read.strand,
+                        runs: runs.as_deref()?,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let mut runs = length::judge(window, called.as_deref(), &decodes, &in_phase);
+            let label = if window.recorded {
+                runs.retain(|run| run.agreement != "confirmed");
+                LabelResult::LengthUnconfirmed { runs }
+            } else {
+                LabelResult::LengthNotRecorded { runs }
+            };
+            if matches!(
+                &label,
+                LabelResult::LengthUnconfirmed { runs } | LabelResult::LengthNotRecorded { runs }
+                    if runs.is_empty()
+            ) {
+                continue;
+            }
+            match drafts
+                .iter_mut()
+                .find(|draft| draft.first <= last && first <= draft.last)
+            {
+                Some(draft) => draft.labels.push(label),
+                None => drafts.push(Draft {
+                    first,
+                    last,
+                    site: None,
+                    decided: haplotype.as_deref().is_some_and(|text| !text.contains('N')),
+                    sequence: haplotype,
+                    labels: vec![label],
+                }),
+            }
+        }
+    }
+
+    /// DNA's decided sequence over `first..=last` (1-based), widened to the
+    /// consensus sites it cuts, with each site's call in place of its
+    /// reference; `None` when a site there has no call.
+    fn decided_over(&self, first: usize, last: usize) -> Option<String> {
+        let (mut start, mut end) = (first - 1, last);
+        for site in self.sites {
+            if site.first_0based < end && start <= site.last_0based {
+                start = start.min(site.first_0based);
+                end = end.max(site.last_0based + 1);
+            }
+        }
+        let mut text = String::new();
+        let mut position = start;
+        while position < end {
+            if let Some(site) = self.sites.iter().find(|site| site.first_0based == position) {
+                text.push_str(site.call.as_deref()?);
+                position = site.last_0based + 1;
+            } else {
+                text.push(char::from(*self.sequence.get(position)?));
+                position += 1;
+            }
+        }
+        Some(text)
     }
 
     /// A run of positions outside every site that are not callable.
@@ -1584,8 +1715,24 @@ fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
         && runs_of(reference).iter().any(|(_, length)| *length >= run)
 }
 
+/// The reference position (1-based) a read's call `call` is aligned to, or,
+/// on an inserted column, that of the nearest aligned call before it in the
+/// read's order.
+fn start_reference(read: &Read<'_>, call: usize) -> Option<usize> {
+    let index = read
+        .columns
+        .iter()
+        .position(|column| column.original_call_index_0based() == Some(call))?;
+    let aligned = |column: &AlignmentColumn| column.reference_index_0based();
+    let found = match read.strand {
+        Orientation::Forward => read.columns[..=index].iter().rev().find_map(aligned),
+        Orientation::Reverse => read.columns[index..].iter().find_map(aligned),
+    };
+    found.map(|position| position + 1)
+}
+
 /// A sequence's runs of one base, in order, with their lengths.
-fn runs_of(sequence: &str) -> Vec<(char, usize)> {
+pub(super) fn runs_of(sequence: &str) -> Vec<(char, usize)> {
     let mut runs: Vec<(char, usize)> = Vec::new();
     for base in sequence.chars() {
         match runs.last_mut() {
@@ -1734,6 +1881,7 @@ const fn unassured(label: &LabelResult) -> bool {
                 ..
             }
             | LabelResult::EstimatedLength { .. }
+            | LabelResult::LengthUnconfirmed { .. }
             | LabelResult::Undecided
             | LabelResult::NotCalled
             | LabelResult::LongRun { .. }
@@ -1752,6 +1900,7 @@ const fn rank(label: &LabelResult) -> u8 {
             explained: false, ..
         } => 1,
         LabelResult::EstimatedLength { .. }
+        | LabelResult::LengthUnconfirmed { .. }
         | LabelResult::Undecided
         | LabelResult::NotCalled
         | LabelResult::LongRun { .. }
@@ -1767,7 +1916,8 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::PhaseShift { .. }
         | LabelResult::DephasedEnd { .. }
         | LabelResult::ReadEdge { .. }
-        | LabelResult::PoorSignal { .. } => 4,
+        | LabelResult::PoorSignal { .. }
+        | LabelResult::LengthNotRecorded { .. } => 4,
     }
 }
 
@@ -1782,6 +1932,8 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::RunDeletion { .. } => "run_deletion",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
         LabelResult::EstimatedLength { .. } => "estimated_length",
+        LabelResult::LengthUnconfirmed { .. } => "length_unconfirmed",
+        LabelResult::LengthNotRecorded { .. } => "length_not_recorded",
         LabelResult::Undecided => "undecided",
         LabelResult::OneRead { .. } => "one_read",
         LabelResult::OneStrand { .. } => "one_strand",
@@ -2008,6 +2160,8 @@ fn summarize(
                 "beside_not_analysed" => &mut labels.beside_not_analysed,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "estimated_length" => &mut labels.estimated_length,
+                "length_unconfirmed" => &mut labels.length_unconfirmed,
+                "length_not_recorded" => &mut labels.length_not_recorded,
                 "undecided" => &mut labels.undecided,
                 "one_read" => &mut labels.one_read,
                 "one_strand" => &mut labels.one_strand,
@@ -2111,7 +2265,7 @@ fn within(regions: &[[usize; 2]], first: usize, last: usize) -> Option<[usize; 2
 }
 
 /// A share rounded to three decimals.
-fn round(share: f64) -> f64 {
+pub(super) fn round(share: f64) -> f64 {
     (share * 1000.0).round() / 1000.0
 }
 
