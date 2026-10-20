@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::config::ReviewConfig;
 use crate::error::{ReportError, Result, RunSignalError};
+use crate::model::consensus_result::StretchResult;
 use crate::model::result::{
     CallabilitySegmentResult, ColumnResult, IntervalResult, ReferenceResult, ScopeResult,
 };
@@ -27,12 +28,13 @@ use crate::report::notation::project_empop;
 use crate::report::sample::{reviewer_names, reviewer_read_names};
 use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
+use dna_consensus::decided::not_analysed;
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, Profile};
-use dna_kernel::read_evidence::{Placement, ReadEvidence};
+use dna_kernel::read_evidence::{EvidenceReason, Placement, ReadEvidence};
 use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
 use dna_sanger::model::callability::PhaseState;
 use dna_sanger::run_signal::{self, Key, RunSignal, Threshold};
@@ -43,7 +45,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 19,
+    version: 20,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -140,9 +142,10 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 calls: None,
                 callable: None,
                 reference_only: None,
+                not_analysed: None,
                 empop: None,
                 zones: None,
-                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[], &[]),
+                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[], &[], 0),
                 items: Vec::new(),
             });
         }
@@ -239,11 +242,18 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         ),
     });
     let notation = call.as_ref().and_then(|call| call.notation.as_deref());
+    // The called sample's analysed regions: the reportable regions without
+    // the stretches at their edges the call does not analyse.
+    let (analysed, not_analysed) = if call.is_some() {
+        analysed_regions(&analysis, &regions)
+    } else {
+        (regions.clone(), Vec::new())
+    };
     let items = Sample::new(
         &analysis,
         &names,
         &reference,
-        &regions,
+        &analysed,
         &callable,
         notation,
         signal.as_ref().map(|(signal, _)| signal),
@@ -274,7 +284,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         .collect::<Vec<_>>();
     let zones = call
         .as_ref()
-        .map(|_| zones(&regions, &windows, &callable, &reads, &items));
+        .map(|_| zones(&analysed, &windows, &callable, &reads, &items));
     Ok(ReviewResult {
         schema_version: "dna.review/v1",
         sample_id,
@@ -295,8 +305,13 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             &regions,
             zones.as_deref().unwrap_or_default(),
             if call.is_some() { &reference_only } else { &[] },
+            not_analysed
+                .iter()
+                .map(|stretch| stretch.last - stretch.first + 1)
+                .sum(),
         ),
         reference_only: call.as_ref().map(|_| reference_only.clone()),
+        not_analysed: call.as_ref().map(|_| not_analysed.clone()),
         empop: call.and_then(|call| call.empop).map(project_empop),
         zones,
         items,
@@ -318,11 +333,12 @@ pub(crate) fn checks(
         merge(segments(call.callable_segments.iter().map(|segment| {
             (segment.start_0based, segment.end_0based_exclusive)
         })));
+    let (analysed, _) = analysed_regions(analysis, &regions);
     let items = Sample::new(
         analysis,
         &names,
         reference,
-        &regions,
+        &analysed,
         &callable,
         call.notation.as_deref(),
         signal,
@@ -340,6 +356,39 @@ pub(crate) fn checks(
             )
         })
         .collect())
+}
+
+/// The reportable `regions` (1-based, inclusive) without the stretches at
+/// their ends the call does not analyse (SRS-CONS-012), and those
+/// stretches. A region left out whole is dropped.
+fn analysed_regions(
+    analysis: &SampleAnalysis,
+    regions: &[[usize; 2]],
+) -> (Vec<[usize; 2]>, Vec<StretchResult>) {
+    let stretches = not_analysed(&analysis.consensus, regions);
+    let left_out = |position: usize| {
+        stretches
+            .iter()
+            .any(|stretch| stretch.first_0based < position && position <= stretch.last_0based + 1)
+    };
+    let mut analysed: Vec<[usize; 2]> = Vec::new();
+    for &[start, end] in regions {
+        for position in (start..=end).filter(|&position| !left_out(position)) {
+            match analysed.last_mut() {
+                Some(last) if last[1] + 1 == position && last[0] >= start => last[1] = position,
+                _ => analysed.push([position, position]),
+            }
+        }
+    }
+    let stretches = stretches
+        .iter()
+        .map(|stretch| StretchResult {
+            first: stretch.first_0based + 1,
+            last: stretch.last_0based + 1,
+            reason: stretch.reason.label(),
+        })
+        .collect();
+    (analysed, stretches)
 }
 
 /// The run signal without the sample's own admitted reads, so the sample is
@@ -384,7 +433,14 @@ struct Sample<'a> {
     /// recorded, so its estimate leaves nothing to assure.
     conventions: &'a [Convention],
     sequence: &'a [u8],
+    /// The analysed regions: the reportable regions without the stretches
+    /// the call does not analyse (SRS-CONS-012).
     regions: &'a [[usize; 2]],
+    /// The profile's reportable regions, whose ends are the amplicons'.
+    reportable: Vec<[usize; 2]>,
+    /// The stretches at the reportable regions' ends the call does not
+    /// analyse (SRS-CONS-012), 1-based and inclusive.
+    not_analysed: Vec<[usize; 2]>,
     callable: &'a [[usize; 2]],
     /// Reference segments of the admitted reads, merged, 1-based inclusive.
     covered: Vec<[usize; 2]>,
@@ -393,6 +449,9 @@ struct Sample<'a> {
     /// difference is the consensus's decision.
     notation: bool,
     sites: &'a [ConsensusSite],
+    /// The positions (0-based) reads observe only inside their unreliable
+    /// spans (SRS-CONS-012).
+    unreliable_only: &'a BTreeMap<usize, EvidenceReason>,
     /// Per read, in evidence order: name, content SHA-256, strand, the core's
     /// trust in each call, and the Sanger evidence.
     reads: Vec<Read<'a>>,
@@ -484,6 +543,20 @@ impl<'a> Sample<'a> {
                 .flat_map(|read| &read.alignment.reference_segments)
                 .map(span),
         ));
+        // The reportable positions outside the analysed `regions`: the
+        // stretches the call does not analyse.
+        let reportable = clip(&analysis.loaded.profile.regions, reference.len());
+        let mut not_analysed: Vec<[usize; 2]> = Vec::new();
+        for position in reportable
+            .iter()
+            .flat_map(|&[start, end]| start..=end)
+            .filter(|&position| !inside(regions, position))
+        {
+            match not_analysed.last_mut() {
+                Some(last) if last[1] + 1 == position => last[1] = position,
+                _ => not_analysed.push([position, position]),
+            }
+        }
         let loci = analysis
             .observations(1, reference.len())?
             .into_iter()
@@ -494,11 +567,14 @@ impl<'a> Sample<'a> {
             conventions: &analysis.loaded.profile.conventions,
             sequence: reference.sequence.as_bytes(),
             regions,
+            reportable,
+            not_analysed,
             callable,
             covered,
             calls: notation.unwrap_or_default(),
             notation: notation.is_some(),
             sites: &analysis.consensus.sites,
+            unreliable_only: &analysis.consensus.unreliable_only,
             reads,
             by_input,
             loci,
@@ -735,7 +811,7 @@ impl<'a> Sample<'a> {
             return None;
         }
         let near = near_edge(
-            self.regions,
+            &self.reportable,
             site.first_0based + 1,
             site.last_0based + 1,
             self.config.edge_zone,
@@ -802,6 +878,17 @@ impl<'a> Sample<'a> {
                     reads: supporting.iter().map(|read| read.name.to_owned()).collect(),
                 });
             }
+        }
+        if differs
+            && beside_not_analysed(
+                &self.reportable,
+                &self.not_analysed,
+                first,
+                last,
+                self.config.edge_zone,
+            )
+        {
+            labels.push(LabelResult::BesideNotAnalysed);
         }
         labels.extend((first..=last).filter_map(|position| self.heteroplasmy(position)));
         let (read_labels, evidence) = self.reads_over(first, last)?;
@@ -901,14 +988,14 @@ impl<'a> Sample<'a> {
                             .entry((rank(&label), name(&label), index))
                             .or_insert(label);
                     }
-                    // Inside the read's unreliable span, where no other read
-                    // shows the position soundly.
+                    // Inside the read's unreliable span, where no read shows
+                    // the position soundly outside its own (SRS-CONS-012).
                     if read
                         .evidence
                         .unreliable()
                         .iter()
                         .any(|span| span.calls.contains(&call))
-                        && !self.sound_elsewhere(&locus.observations, index)?
+                        && self.unreliable_only.contains_key(&(position - 1))
                     {
                         let label = LabelResult::PoorSignal {
                             read: read.name.to_owned(),
@@ -1277,36 +1364,6 @@ impl<'a> Sample<'a> {
             .find(|observation| observation.read_index == index)
     }
 
-    /// Whether a read other than read `index` shows the position of
-    /// `observations` soundly: a scored, trusted call the modality withholds
-    /// for nothing, outside the read's own unreliable spans.
-    fn sound_elsewhere(
-        &self,
-        observations: &[SampleLocusObservation],
-        index: usize,
-    ) -> Result<bool> {
-        for observation in observations {
-            if observation.read_index == index {
-                continue;
-            }
-            let Some(call) = observation.call_index_0based else {
-                continue;
-            };
-            let read = self.read(observation.read_index)?;
-            let sound = read.trust.get(call).is_some_and(|trust| {
-                trust.placement == Placement::Scored && trust.trusted && trust.vetoes.is_empty()
-            }) && !read
-                .evidence
-                .unreliable()
-                .iter()
-                .any(|span| span.calls.contains(&call));
-            if sound {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
     fn read(&self, index: usize) -> Result<&Read<'a>> {
         Ok(self
             .reads
@@ -1493,6 +1550,27 @@ fn long_runs(site: &ConsensusSite, growth: usize) -> Vec<GrowthResult> {
 
 /// Whether `first..=last` (1-based) lies in a region and within `zone`
 /// positions of its first or last position.
+/// Whether an item over `first..=last` lies within `zone` positions of a
+/// reportable region's end that the call leaves out as not analysed
+/// (SRS-CONS-012): the reads there sit right after their poor start, where
+/// indels are often wrong.
+fn beside_not_analysed(
+    regions: &[[usize; 2]],
+    not_analysed: &[[usize; 2]],
+    first: usize,
+    last: usize,
+    zone: usize,
+) -> bool {
+    regions.iter().any(|&[start, end]| {
+        start <= first
+            && last <= end
+            && not_analysed.iter().any(|&[cut_first, cut_last]| {
+                (cut_first == start && first < start + zone)
+                    || (cut_last == end && last + zone > end)
+            })
+    })
+}
+
 fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> bool {
     regions.iter().any(|&[start, end]| {
         start <= first && last <= end && (first - start < zone || end - last < zone)
@@ -1662,6 +1740,7 @@ const fn unassured(label: &LabelResult) -> bool {
             | LabelResult::EdgeDeletion { .. }
             | LabelResult::RunDeletion { .. }
             | LabelResult::NotCovered
+            | LabelResult::BesideNotAnalysed
     )
 }
 
@@ -1677,7 +1756,8 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::NotCalled
         | LabelResult::LongRun { .. }
         | LabelResult::EdgeDeletion { .. }
-        | LabelResult::RunDeletion { .. } => 2,
+        | LabelResult::RunDeletion { .. }
+        | LabelResult::BesideNotAnalysed => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
         LabelResult::PossibleHeteroplasmy {
             explained: true, ..
@@ -1711,6 +1791,7 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::DephasedEnd { .. } => "dephased_end",
         LabelResult::ReadEdge { .. } => "read_edge",
         LabelResult::PoorSignal { .. } => "poor_signal",
+        LabelResult::BesideNotAnalysed => "beside_not_analysed",
     }
 }
 
@@ -1911,6 +1992,7 @@ fn summarize(
     regions: &[[usize; 2]],
     zones: &[ZoneResult],
     reference_only: &[usize],
+    not_analysed: usize,
 ) -> SummaryResult {
     let mut labels = LabelCounts::default();
     for item in items {
@@ -1923,6 +2005,7 @@ fn summarize(
                 "long_run" => &mut labels.long_run,
                 "edge_deletion" => &mut labels.edge_deletion,
                 "run_deletion" => &mut labels.run_deletion,
+                "beside_not_analysed" => &mut labels.beside_not_analysed,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "estimated_length" => &mut labels.estimated_length,
                 "undecided" => &mut labels.undecided,
@@ -1961,6 +2044,7 @@ fn summarize(
             reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
             check,
             reference_only: reference_only.len(),
+            not_analysed,
         },
         zones: ZoneCounts {
             total: zones.len(),
@@ -2421,6 +2505,23 @@ mod tests {
         read.to_owned()
     }
 
+    // SRS-CONS-012
+    #[test]
+    fn a_difference_beside_a_region_end_not_analysed_is_flagged() {
+        let regions = [[73, 340], [438, 576]];
+        // 73-78 is not analysed: the region's start zone runs to 112.
+        let cut = [[73, 78]];
+        assert!(beside_not_analysed(&regions, &cut, 111, 111, 40));
+        assert!(!beside_not_analysed(&regions, &cut, 113, 113, 40));
+        // Another region's ends are not beside the cut.
+        assert!(!beside_not_analysed(&regions, &cut, 440, 440, 40));
+        // A region end cut at 570-576 flags the end zone.
+        assert!(beside_not_analysed(&regions, &[[570, 576]], 540, 540, 40));
+        assert!(!beside_not_analysed(&regions, &[[570, 576]], 536, 536, 40));
+        // Without a cut, nothing is flagged.
+        assert!(!beside_not_analysed(&regions, &[], 80, 80, 40));
+    }
+
     // SRS-API-014
     #[test]
     fn labels_and_items_sort_by_priority() {
@@ -2537,6 +2638,7 @@ mod tests {
             &[[1, 10]],
             &[],
             &[],
+            0,
         );
         assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
         assert_eq!(summary.labels.one_strand, 1);
@@ -2546,13 +2648,14 @@ mod tests {
             PositionCounts {
                 reportable: 10,
                 check: 0,
-                reference_only: 0
+                reference_only: 0,
+                not_analysed: 0
             }
         );
         assert!(summary.clear);
 
         let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
-        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[]);
+        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], 0);
         assert_eq!((summary.checks, summary.labels.not_covered), (1, 1));
         // The check item holds position 1 of the ten reportable positions.
         assert_eq!(
@@ -2560,16 +2663,21 @@ mod tests {
             PositionCounts {
                 reportable: 10,
                 check: 1,
-                reference_only: 0
+                reference_only: 0,
+                not_analysed: 0
             }
         );
         assert!(!summary.clear);
-        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[], &[]).clear);
-        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[], &[]).clear);
-        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[]).clear);
+        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[], &[], 0).clear);
+        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[], &[], 0).clear);
+        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 0).clear);
         // Reference-only positions are counted, and never make a check.
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4]);
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4], 0);
         assert_eq!((summary.positions.reference_only, summary.clear), (2, true));
+        // Positions not analysed are counted, and never make a check
+        // (SRS-CONS-012).
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 6);
+        assert_eq!((summary.positions.not_analysed, summary.clear), (6, true));
     }
 
     // SRS-API-014
@@ -2624,7 +2732,7 @@ mod tests {
                 zone(ZoneKind::Clean, 11, 13, None, 0),
             ]
         );
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones, &[]);
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones, &[], 0);
         assert_eq!(summary.zones, ZoneCounts { total: 7, check: 1 });
     }
 

@@ -585,6 +585,7 @@ pub(crate) mod tests {
             sites,
             summary: ConsensusSummary::default(),
             reference_only: std::collections::BTreeSet::new(),
+            unreliable_only: BTreeMap::new(),
         }
     }
 

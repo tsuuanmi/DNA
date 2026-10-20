@@ -604,6 +604,7 @@ mod tests {
             ],
             summary: ConsensusSummary::default(),
             reference_only: BTreeSet::new(),
+            unreliable_only: BTreeMap::new(),
         };
         let export = EmpopExport {
             ranges: vec![[11, 30], [32, 41], [50, 50]],

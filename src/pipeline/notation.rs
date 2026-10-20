@@ -119,7 +119,12 @@ fn notation(
                 text: &call.text,
             })
             .collect::<Vec<_>>();
-        let exported = export::export(&inputs.profile.regions, &records, &calls);
+        let exported = export::export(
+            &inputs.profile.regions,
+            &records,
+            &calls,
+            &inputs.document.not_analysed,
+        );
         tracing::info!(
             event = "empop_completed",
             ranges = exported.ranges.len(),

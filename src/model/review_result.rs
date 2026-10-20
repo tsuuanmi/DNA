@@ -2,6 +2,8 @@
 
 use serde::Serialize;
 
+use crate::model::consensus_result::StretchResult;
+
 use crate::model::notation_result::EmpopResult;
 use crate::model::result::{
     ColumnResult, IntervalResult, PluginResult, ProfileResult, ReferenceResult, ScopeResult,
@@ -33,6 +35,11 @@ pub(crate) struct ReviewResult {
     /// `called`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) reference_only: Option<Vec<usize>>,
+    /// The stretches at the reportable regions' edges the call does not
+    /// analyse, with their reason (SRS-CONS-012): no item and no zone holds
+    /// them; only for `called`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) not_analysed: Option<Vec<StretchResult>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) empop: Option<EmpopResult>,
     /// The reportable positions as zones a reviewer opens whole, in
@@ -297,6 +304,7 @@ pub(crate) enum LabelResult {
     PoorSignal {
         read: String,
     },
+    BesideNotAnalysed,
 }
 
 /// A read on one side of a site's disagreement.
@@ -408,6 +416,8 @@ pub(crate) struct PositionCounts {
     pub(crate) check: usize,
     /// Reportable positions decided by reference confirmations alone.
     pub(crate) reference_only: usize,
+    /// Reportable positions the call does not analyse (SRS-CONS-012).
+    pub(crate) not_analysed: usize,
 }
 
 /// The sample's zones, and those a `check` item touches: what a reviewer
@@ -430,6 +440,7 @@ pub(crate) struct LabelCounts {
     pub(crate) long_run: usize,
     pub(crate) edge_deletion: usize,
     pub(crate) run_deletion: usize,
+    pub(crate) beside_not_analysed: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,
     pub(crate) noisy_signal: usize,

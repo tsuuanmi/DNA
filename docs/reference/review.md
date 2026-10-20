@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CALL, SRS-VAR]
+implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
 decided-by: [ADR-0071, ADR-0076, ADR-0080, ADR-0082]
 covers:
   - crates/dna-kernel/src/variant.rs
@@ -130,6 +130,13 @@ target still fails the command without output.
   `reference_only` in [`dna.consensus/v1`](consensus.md)). No item lists
   them; they are DNA's own decision on weaker evidence than a clean call,
   and are listed so a reviewer can find where DNA decided that way.
+- `not_analysed` (`called`, rules version 20): the stretches `{first, last,
+  reason}` at the reportable regions' ends that the call does not analyse
+  (SRS-CONS-012): positions only reads' unreliable spans observe
+  (`poor_start_signal`), up to the last one the consensus does not settle
+  as the reference. They are poor data, not a decision: no item, zone, or
+  check holds them, the call reports nothing there, and the analysed range
+  (`callable`, the EMPOP ranges) starts or ends after them.
 - `zones` (`called`, rules version 14): the reportable positions as the
   zones a reviewer opens whole, in reference order, tiling every reportable
   region. Each position takes the first kind that holds: `repeat`, inside a
@@ -151,7 +158,8 @@ target still fails the command without output.
   - `positions`: `reportable`, the positions of the profile's reportable
     regions; `check`, those a `check` item holds, which a reviewer looks at
     (rules version 5); `reference_only`, the `reference_only` positions
-    (rules version 15; `0` without them). Every other reportable position is DNA's own decision
+    (rules version 15; `0` without them); `not_analysed`, the positions of
+    `not_analysed` (rules version 20). Every other reportable position is DNA's own decision
     or outside every read, as its items say;
   - `zones`: `total`, the number of `zones`; `check`, those with a `check`
     item, which a reviewer opens (rules version 14; both `0` without
@@ -172,7 +180,7 @@ the clipped columns, what most of its supporting reads show there). It has:
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
   `explained`, `estimated_length`, `undecided`, `not_called`, `long_run`,
-  `edge_deletion`, `run_deletion`,
+  `edge_deletion`, `run_deletion`, `beside_not_analysed`,
   `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
@@ -246,7 +254,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy` |
-| 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `run_deletion`, `undecided` |
+| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
@@ -345,6 +353,13 @@ exemption lifts the margin (ADR-0076).
   or last position, where a read's own edge loses or doubles a base (rules
   version 7). On current development data such deletions were 88 % wrong,
   against 0.2 % inside the regions and 0.8 % with both strands.
+- `beside_not_analysed` (rules version 20): an item with a difference lies
+  within `review.edge_zone` positions of a reportable region's end that the
+  call does not analyse (`not_analysed`, SRS-CONS-012). The reads there sit
+  right after their poor start, where an indel is often wrong: on
+  development panel v5, three such differences (an insertion at 111 in two
+  samples, a shift at 102 in one) were DNA errors that a check at the cut
+  edge had covered before.
 - `run_deletion` `{read}`: a decided site that rests on a single read whose
   call is at least `review.run_growth` bases shorter than its reference,
   where the reference holds a run of at least `review.phase_run` equal bases
@@ -369,8 +384,9 @@ exemption lifts the margin (ADR-0076).
     masked call.
 - `poor_signal` `{read}` (rules version 18): a read's call covering a position
   of the item lies inside the read's unreliable span (`poor_start_signal`,
-  SRS-CALL-024), and no other read shows that position soundly (a scored,
-  trusted call withheld for nothing, outside its own unreliable span). Inside
+  SRS-CALL-024), and no read shows that position soundly outside its own
+  unreliable span (a scored, trusted call withheld for nothing): the
+  position is `unreliable_only` in the consensus (SRS-CONS-012). Inside
   a read's poor start, its differences are often wrong (one-position shifts
   at its first calls), so an item with a difference there is a check; an
   item without one keeps it as context.

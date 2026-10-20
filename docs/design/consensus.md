@@ -1,6 +1,6 @@
 ---
-implements: [SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083]
+implements: [SRS-CALL, SRS-CONS, SRS-VAR]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083, ADR-0085]
 covers:
   - crates/dna-consensus/src/
   - crates/dna-consensus/src/model/consensus.rs
@@ -87,6 +87,16 @@ never changes what a variant's neighbours were. The positions only
 confirmations observe cleanly are published as `reference_only`. Calling the
 decisions treats the call there as showing its base only, so it bounds no
 neighbouring run: a change that needed a run end there stays `run_boundary`.
+
+**Poor read starts** ([[ADR-0085]], SRS-CONS-012). A position that some
+read's call covers inside its unreliable span (the modality's poor start,
+SRS-CALL-024), and that no read shows soundly outside its own span, is
+published as `unreliable_only`; a deleted position counts when the calls on
+both sides of it do. It decides nothing here. Calling the decisions walks each
+reportable region inwards from its first and last position over these
+positions and leaves out those up to the last one not settled as the
+reference: they are not analysed, not callable, and a change there is
+excluded.
 
 **Dissent set aside** (ADR-0083, SRS-CONS-011). A site decided as the
 reference keeps the reads that oppose it, and the review lists it as a check

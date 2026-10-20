@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use crate::error::{ReportError, Result};
 use crate::model::consensus_result::{
     ConsensusReadResult, ConsensusRejectedReadResult, ConsensusResult, ConsensusRunResult,
-    ConsensusSegmentResult, ConsensusSiteResult, ConsensusSummaryResult,
+    ConsensusSegmentResult, ConsensusSiteResult, ConsensusSummaryResult, StretchResult,
 };
 use crate::model::result::{IntervalResult, ReferenceResult};
 use crate::model::sample_result::SampleProvenanceResult;
@@ -147,6 +147,12 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
             .iter()
             .map(|position| position + 1)
             .collect(),
+        unreliable_only: stretches(
+            consensus
+                .unreliable_only
+                .iter()
+                .map(|(&position, reason)| (position + 1, reason.label())),
+        ),
         summary: ConsensusSummaryResult {
             called_positions: consensus.summary.called_positions,
             contested_sites: consensus.summary.contested_sites,
@@ -155,6 +161,26 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
             reference_frame_runs: consensus.summary.reference_frame_runs,
         },
     })
+}
+
+/// Maximal stretches of consecutive 1-based positions of one reason.
+pub(crate) fn stretches(
+    positions: impl IntoIterator<Item = (usize, &'static str)>,
+) -> Vec<StretchResult> {
+    let mut stretches: Vec<StretchResult> = Vec::new();
+    for (position, reason) in positions {
+        match stretches.last_mut() {
+            Some(last) if last.last + 1 == position && last.reason == reason => {
+                last.last = position;
+            }
+            _ => stretches.push(StretchResult {
+                first: position,
+                last: position,
+                reason,
+            }),
+        }
+    }
+    stretches
 }
 
 /// The consensus segments as FASTA, one record per segment, usable as

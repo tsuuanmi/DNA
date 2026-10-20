@@ -243,7 +243,11 @@ turns it into development data.
    modality asserts the read's poor start as an unreliable span from its own
    data (SRS-CALL-024): to its first run of `start_identity_margin` sound
    calls. The review labels an item covered only by such spans `poor_signal`,
-   and a difference there is a check.
+   and a difference there is a check. The user then decided (2026-10-20)
+   that a region's poor start is reported as poor data and not analysed
+   (SRS-CONS-012): the consensus publishes the positions only unreliable
+   spans observe, and the call leaves out, at each end of a region, those up
+   to the last one it does not settle as the reference ([[ADR-0085]]).
 
 ## Alternatives considered
 

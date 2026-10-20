@@ -29,11 +29,11 @@
 
 use dna_align::model::alignment::{Alignment, AlignmentColumn, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use crate::config::ConsensusConfig;
-use crate::model::consensus::{Consensus, ConsensusSegment, RunEvidence};
+use crate::model::consensus::{Consensus, ConsensusSegment, RunEvidence, SiteState};
 use dna_call::model::variant::{Variant, VariantExclusionReason, VariantKind};
 use dna_call::read_call::{CoreRun, ReadIdentity};
 use dna_kernel::error::{Result, VariantError};
@@ -41,7 +41,7 @@ use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::placement;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
-use dna_kernel::read_evidence::{Bound, ReadEnds, ReadEvidence};
+use dna_kernel::read_evidence::{Bound, EvidenceReason, ReadEnds, ReadEvidence};
 
 /// Calls the consensus segment at `index` from the consensus's decisions.
 /// `evidence` is the segment sequence's evidence, as a record of it reads,
@@ -71,12 +71,26 @@ pub fn call_segment(
         .iter()
         .filter_map(|range| run_end(&columns, range))
         .collect::<BTreeSet<_>>();
+    // The segment's positions at a region's edge that only unreliable spans
+    // observe: not analysed (SRS-CONS-012).
+    let unanalysed = not_analysed(consensus, run.regions)
+        .iter()
+        .flat_map(|stretch| {
+            (stretch.first_0based..=stretch.last_0based).map(|position| (position, stretch.reason))
+        })
+        .filter(|(position, _)| (segment.start_0based..=segment.end_0based).contains(position))
+        .collect::<BTreeMap<_, _>>();
+    let left_out = cut
+        .iter()
+        .chain(unanalysed.keys())
+        .copied()
+        .collect::<BTreeSet<_>>();
     let callable_segments = callable(&columns)
         .into_iter()
         .flat_map(|segment| {
             let mut pieces = Vec::new();
             let mut start = segment.start_0based;
-            for &position in cut.range(segment.start_0based..segment.end_0based_exclusive) {
+            for &position in left_out.range(segment.start_0based..segment.end_0based_exclusive) {
                 if position > start {
                     pieces.push(ReferenceSegment {
                         start_0based: start,
@@ -131,6 +145,16 @@ pub fn call_segment(
                 .exclusion_reasons
                 .push(VariantExclusionReason::RunBoundary);
         }
+        // A change at a position not analysed is not reported.
+        if let Some(&reason) = changed(&observed.variant)
+            .iter()
+            .find_map(|position| unanalysed.get(position))
+        {
+            let reason = VariantExclusionReason::Evidence(reason);
+            if !observed.exclusion_reasons.contains(&reason) {
+                observed.exclusion_reasons.push(reason);
+            }
+        }
     }
     variants.reported = variants
         .observed
@@ -147,6 +171,84 @@ pub fn call_segment(
         alignment,
         variants,
     })
+}
+
+/// A stretch at a reportable region's edge that the call does not analyse
+/// (SRS-CONS-012), 0-based and inclusive, with its reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotAnalysed {
+    /// First reference position, 0-based.
+    pub first_0based: usize,
+    /// Last reference position, 0-based and inclusive.
+    pub last_0based: usize,
+    /// The modality's reason for the unreliable spans that alone observe it.
+    pub reason: EvidenceReason,
+}
+
+/// The stretches of the consensus's reportable `regions` (1-based,
+/// inclusive) that are not analysed (SRS-CONS-012). From each end of a
+/// region inwards, take the contiguous positions that reads observe only
+/// inside their unreliable spans (`Consensus::unreliable_only`), and leave
+/// out those up to the last one the consensus does not settle as the
+/// reference: one in a site that differs from the reference, is undecided,
+/// or is contested, or one no segment holds. The positions after it that it
+/// settles as the reference stay analysed, so a region whose unreliable
+/// end reads the reference throughout loses nothing. Only a region's own
+/// ends count: a stretch starts at its first or last position, so an
+/// interior position is never left out this way. In region order, then
+/// position order.
+#[must_use]
+pub fn not_analysed(consensus: &Consensus, regions: &[[usize; 2]]) -> Vec<NotAnalysed> {
+    let settled = |position: usize| {
+        let held = consensus
+            .segments
+            .iter()
+            .any(|segment| segment.start_0based <= position && position <= segment.end_0based);
+        let site = consensus
+            .sites
+            .iter()
+            .find(|site| site.first_0based <= position && position <= site.last_0based);
+        held && site.is_none_or(|site| {
+            site.state == SiteState::Called && site.call.as_deref() == Some(site.reference.as_str())
+        })
+    };
+    let edge = |positions: &mut dyn Iterator<Item = usize>| {
+        let mut run = positions
+            .map_while(|position| {
+                consensus
+                    .unreliable_only
+                    .get(&position)
+                    .map(|&reason| (position, reason))
+            })
+            .collect::<Vec<_>>();
+        let kept = run
+            .iter()
+            .rposition(|&(position, _)| !settled(position))
+            .map_or(0, |last| last + 1);
+        run.truncate(kept);
+        run.into_iter().collect::<BTreeMap<_, _>>()
+    };
+    let mut stretches: Vec<NotAnalysed> = Vec::new();
+    for &[start, end] in regions {
+        if start == 0 || end < start {
+            continue;
+        }
+        let mut positions = edge(&mut (start - 1..end));
+        positions.extend(edge(&mut (start - 1..end).rev()));
+        for (position, reason) in positions {
+            match stretches.last_mut() {
+                Some(last) if last.last_0based + 1 == position && last.reason == reason => {
+                    last.last_0based = position;
+                }
+                _ => stretches.push(NotAnalysed {
+                    first_0based: position,
+                    last_0based: position,
+                    reason,
+                }),
+            }
+        }
+    }
+    stretches
 }
 
 /// `evidence` with the calls at the consensus's reference-only positions
@@ -570,7 +672,7 @@ fn callable(columns: &[AlignmentColumn]) -> Vec<ReferenceSegment> {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "decided",
     family: PluginFamily::Core,
-    version: 3,
+    version: 4,
     provides: &[Contract::CalledVariants],
     requires: &[Contract::Consensus],
     config_sections: &[],
@@ -658,7 +760,27 @@ mod tests {
         sites: Vec<ConsensusSite>,
         reference_only: BTreeSet<usize>,
     ) -> Result<CalledRead> {
-        let consensus = Consensus {
+        call(&segment_consensus(
+            first,
+            last,
+            sequence,
+            sites,
+            reference_only,
+            BTreeMap::new(),
+        ))
+    }
+
+    /// One segment over 1-based `first..=last` with `sequence`, its sites,
+    /// and its reference-only and unreliable-only positions (0-based).
+    fn segment_consensus(
+        first: usize,
+        last: usize,
+        sequence: &str,
+        sites: Vec<ConsensusSite>,
+        reference_only: BTreeSet<usize>,
+        unreliable_only: BTreeMap<usize, EvidenceReason>,
+    ) -> Consensus {
+        Consensus {
             segments: vec![ConsensusSegment {
                 start_0based: first - 1,
                 end_0based: last - 1,
@@ -667,17 +789,22 @@ mod tests {
             sites,
             summary: ConsensusSummary::default(),
             reference_only,
-        };
+            unreliable_only,
+        }
+    }
+
+    /// Calls the first segment of `consensus` over the region 1..=22.
+    fn call(consensus: &Consensus) -> Result<CalledRead> {
         let config = config()?;
         call_segment(
-            &consensus,
+            consensus,
             0,
             ReadIdentity {
                 input_name: "segment".into(),
                 input_sha256: "0".into(),
                 declared: None,
             },
-            ReadEvidence::clean(sequence),
+            ReadEvidence::clean(&consensus.segments[0].sequence),
             &reference(),
             &CoreRun {
                 config: &config,
@@ -686,6 +813,86 @@ mod tests {
             },
             &crate::config::tests::config(),
         )
+    }
+
+    const POOR: EvidenceReason = EvidenceReason::new("poor_start_signal");
+
+    fn poor(positions: &[usize]) -> BTreeMap<usize, EvidenceReason> {
+        positions.iter().map(|&position| (position, POOR)).collect()
+    }
+
+    fn stretches(stretches: &[NotAnalysed]) -> Vec<(usize, usize)> {
+        stretches
+            .iter()
+            .map(|stretch| (stretch.first_0based, stretch.last_0based))
+            .collect()
+    }
+
+    // SRS-CONS-012
+    #[test]
+    fn only_a_regions_unsettled_edges_observed_only_unreliably_are_not_analysed() {
+        let undecided =
+            |position: usize| site(position, position, None, SiteState::Unresolved, Vec::new());
+        // Unreliable only at 1..=3 (the start), 11 (interior), 21..=22 (the
+        // end), 1-based; undecided at 2, 11, and 21.
+        let consensus = segment_consensus(
+            1,
+            22,
+            "ANGATTTTTCNGGCTAGCATNG",
+            vec![undecided(2), undecided(11), undecided(21)],
+            BTreeSet::new(),
+            poor(&[0, 1, 2, 10, 20, 21]),
+        );
+        let not = not_analysed(&consensus, &[[1, 22]]);
+        // To the last unsettled position from each end: 1..=2 and 21..=22;
+        // 3 reads the reference after it, and 11 is interior.
+        assert_eq!(stretches(&not), [(0, 1), (20, 21)]);
+        assert!(not.iter().all(|stretch| stretch.reason == POOR));
+        // A region that starts after an unreliable edge keeps its own edge.
+        assert_eq!(stretches(&not_analysed(&consensus, &[[5, 20]])), []);
+        // An unreliable end that reads the reference throughout loses nothing.
+        let settled = segment_consensus(
+            1,
+            22,
+            REFERENCE,
+            Vec::new(),
+            BTreeSet::new(),
+            poor(&[0, 1, 2]),
+        );
+        assert_eq!(stretches(&not_analysed(&settled, &[[1, 22]])), []);
+        // A region whose first positions no read covers keeps its later
+        // unreliable positions: they are not at its edge.
+        let late = segment_consensus(
+            4,
+            22,
+            "ANTTTTTCAGGCTAGCATCG",
+            vec![undecided(5)],
+            BTreeSet::new(),
+            poor(&[3, 4]),
+        );
+        assert_eq!(stretches(&not_analysed(&late, &[[1, 22]])), []);
+        assert_eq!(stretches(&not_analysed(&late, &[[4, 22]])), [(3, 4)]);
+    }
+
+    // SRS-CONS-012
+    #[test]
+    fn a_change_not_analysed_is_excluded_and_not_callable() -> Result<()> {
+        // 2T decided where only a read's poor start observes 1..=3: 1..=2
+        // are not analysed, and 3, which reads the reference, is.
+        let read = call(&segment_consensus(
+            1,
+            22,
+            "ATGATTTTTCAGGCTAGCATCG",
+            vec![site(2, 2, Some("T"), SiteState::Called, Vec::new())],
+            BTreeSet::new(),
+            poor(&[0, 1, 2]),
+        ))?;
+        assert_eq!(
+            edits(&read),
+            [(2, "C".into(), "T".into(), vec!["poor_start_signal"])]
+        );
+        assert_eq!(callable(&read), [(2, 22)]);
+        Ok(())
     }
 
     fn edits(read: &CalledRead) -> Vec<(usize, String, String, Vec<&'static str>)> {

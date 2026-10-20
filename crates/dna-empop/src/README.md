@@ -13,7 +13,8 @@ Output contract: the `conformance` and `empop` of
 - `conformance.rs` — reports represented calls that break the profile's notation conventions.
 - `export.rs` — the EMPOP query of a sample (SRS-NOM-018): interpretation
   ranges over the positions exactly one record calls, the rendered calls
-  inside them (an insertion by its anchor), and why a record position is cut.
+  inside them (an insertion by its anchor), and why a record position is cut
+  (`not_analysed` for a region end the call leaves out, SRS-CONS-012).
   It keeps no network client and no corpus index.
 
 See [crates](../../README.md).

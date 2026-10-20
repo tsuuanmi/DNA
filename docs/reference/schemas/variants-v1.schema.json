@@ -8,7 +8,8 @@
     "schema_version",
     "sample_id",
     "provenance",
-    "reads"
+    "reads",
+    "not_analysed"
   ],
   "properties": {
     "schema_version": {
@@ -26,6 +27,13 @@
       "minItems": 1,
       "items": {
         "$ref": "#/$defs/read"
+      }
+    },
+    "not_analysed": {
+      "description": "Reference intervals the call does not analyse: the ends of reportable regions that only reads' unreliable spans observe (SRS-CONS-012); empty unless the call is of a consensus.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/interval"
       }
     },
     "notation": {

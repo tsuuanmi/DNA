@@ -1,5 +1,5 @@
 ---
-implements: [SRS-CALL, SRS-VAR]
+implements: [SRS-CALL, SRS-CONS, SRS-VAR]
 decided-by: [ADR-0069, ADR-0078]
 ---
 
@@ -57,6 +57,12 @@ It carries no modality evidence: no peaks, quality, signal, or callability.
     name declares a reference interval (`<id>_<first>-<last>`, 1-based, as
     consensus segments are named) that its placement does not overlap, and
     such a record has no callable reference segments.
+- `not_analysed`: the reference intervals (0-based, half-open, as the
+  segments) the call does not analyse: a reportable region's end that only
+  reads' unreliable spans observe, up to the last position the consensus
+  does not settle as the reference (SRS-CONS-012). Empty unless the
+  document calls a consensus. `notation` lists these positions in the EMPOP
+  query's `cut` as `not_analysed`.
 - `notation` (only when the profile declares notation): the same per-read view
   as in [[reference/sample-evidence/notation|sample evidence]]. Each rendered call
   lists the reads whose represented eligible calls contain it.

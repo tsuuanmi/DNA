@@ -56,6 +56,7 @@ pub fn build(
             )
         })
         .collect::<Vec<_>>();
+    let unreliable_only = observe::unreliable_only(reads, &config.variant_calling);
     // Reference confirmations (ADR-0080): none where a second sequence may
     // hide, none within or beside a site that differs from the reference, and
     // the positions they alone decide bound no neighbour's run when called.
@@ -84,6 +85,7 @@ pub fn build(
         sites: Vec::new(),
         summary: ConsensusSummary::default(),
         reference_only,
+        unreliable_only,
     };
     for piece in pieces(&decided, consensus_config.maximum_undecided_gap) {
         assemble(
@@ -1779,7 +1781,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 16,
+    version: 17,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2451,6 +2453,41 @@ mod tests {
         assert!(!observations(None, None));
     }
 
+    // SRS-CONS-012
+    #[test]
+    fn positions_only_unreliable_spans_observe_are_unreliable_only()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let reason = EvidenceReason::new("poor_start_signal");
+        let mut poor = placed("p", REFERENCE, &[])?;
+        poor.evidence =
+            poor.evidence
+                .with_unreliable(vec![dna_kernel::read_evidence::UnreliableSpan {
+                    calls: 0..5,
+                    reason,
+                }])?;
+        // Alone, the read observes its span's positions only unreliably.
+        let alone = build(&[&poor], &reference(), &config()?, &config::tests::config());
+        assert_eq!(
+            alone.unreliable_only.into_iter().collect::<Vec<_>>(),
+            (0..5)
+                .map(|position| (position, reason))
+                .collect::<Vec<_>>()
+        );
+        // A read that observes 3 and 4 cleanly leaves 0..=2.
+        let late = placed("l", &REFERENCE[3..], &[])?;
+        let both = build(
+            &[&poor, &late],
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
+        assert_eq!(
+            both.unreliable_only.keys().copied().collect::<Vec<_>>(),
+            [0, 1, 2]
+        );
+        Ok(())
+    }
+
     // SRS-CONS-003, SRS-CONS-006
     #[test]
     fn masked_calls_never_decide() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -3024,6 +3061,7 @@ mod tests {
                 sites: Vec::new(),
                 summary: ConsensusSummary::default(),
                 reference_only: BTreeSet::new(),
+                unreliable_only: BTreeMap::new(),
             };
             assemble(&[7], &decided, TRACT.as_bytes(), 1, &mut consensus);
             consensus.sites.len()

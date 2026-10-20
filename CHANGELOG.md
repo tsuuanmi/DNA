@@ -17,6 +17,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- A reportable region's poor start is not analysed (SRS-CONS-012,
+  ADR-0085, user decision 2026-10-20). `dna.consensus/v1` publishes
+  `unreliable_only`, the positions only reads' unreliable spans observe. The
+  call leaves out, at each end of a region, those up to the last one the
+  consensus does not settle as the reference, and excludes changes there as
+  `poor_start_signal`. `dna.variants/v1` lists the intervals as
+  `not_analysed`, and the EMPOP query cuts them as `not_analysed`.
+  `dna.review/v1` lists them as `not_analysed` with no item or zone
+  (`summary.positions.not_analysed`), makes a check of any difference within
+  `review.edge_zone` of such an end (`beside_not_analysed`), and its
+  `poor_signal` label reads the consensus's `unreliable_only`.
+  `review.edge_zone` defaults to 40 (was 20). On development panel v5's
+  current slice, clear samples rise from 73.28 to 75.99 %, and non-het passed
+  zones are unchanged in every zone and period. 73G is no longer analysed in
+  117 current samples, where it becomes a coverage item. Plugins `consensus`
+  17, `decided` 4, `review` 20, `empop` 2.
 - `dna-eval run --evidence-cache <dir>` analyses every read from its
   `dna.read_evidence/v1` document instead of its trace, read from the cache
   or made and stored, and `dna-eval cache prune --keep <n>` removes old

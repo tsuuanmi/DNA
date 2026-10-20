@@ -1,5 +1,5 @@
 ---
-implements: [SRS-NOM, SRS-VAR]
+implements: [SRS-CONS, SRS-NOM, SRS-VAR]
 decided-by: [ADR-0069]
 ---
 
@@ -65,6 +65,9 @@ positions that DNA decided:
   covers, as `start`, `end`, and `reason`:
   - `unresolved`: the record does not call it (`N`);
   - `excluded_variant`: a position of a variant excluded from reporting;
+  - `not_analysed`: a reportable region's end the call does not analyse,
+    observed only inside reads' unreliable spans (SRS-CONS-012, empop
+    version 2);
   - `overlap`: two records call it.
 
 A tie the consensus resolved is DNA's decision and is exported as such. The

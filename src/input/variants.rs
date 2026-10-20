@@ -49,6 +49,9 @@ pub(crate) struct VariantsDocument {
     /// SHA-256 of the document bytes.
     pub(crate) sha256: String,
     pub(crate) reads: Vec<DocumentRead>,
+    /// Reference intervals (0-based half-open) the call does not analyse
+    /// (SRS-CONS-012).
+    pub(crate) not_analysed: Vec<std::ops::Range<usize>>,
 }
 
 /// Scientific inputs for deriving notation from a variants document.
@@ -65,6 +68,8 @@ struct RawDocument {
     sample_id: String,
     provenance: RawProvenance,
     reads: Vec<RawRead>,
+    #[serde(default)]
+    not_analysed: Vec<RawSegment>,
 }
 
 #[derive(Deserialize)]
@@ -211,6 +216,11 @@ fn parse(
     Ok(VariantsDocument {
         sha256: hex_sha256(bytes),
         reads,
+        not_analysed: raw
+            .not_analysed
+            .iter()
+            .map(|segment| segment.start..segment.end)
+            .collect(),
     })
 }
 
