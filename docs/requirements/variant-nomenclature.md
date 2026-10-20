@@ -6,7 +6,7 @@ verified-by:
   - crates/dna-normalize/src/variant_nomenclature
   - src/pipeline/represent.rs
   - src/report/notation.rs
-unverified: [SRS-NOM-001, SRS-NOM-002, SRS-NOM-009, SRS-NOM-012]
+unverified: [SRS-NOM-001 scope rule, SRS-NOM-009 negative scope rule]
 ---
 
 # Variant Nomenclature Requirements

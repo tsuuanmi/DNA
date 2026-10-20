@@ -389,6 +389,44 @@ mod tests {
         Ok(())
     }
 
+    /// Columns of the first placement as `query reference` pairs.
+    fn column_pairs(alignment: &RawAlignment) -> Vec<String> {
+        alignment
+            .columns
+            .iter()
+            .map(|column| format!("{}{}", column.query_base, column.reference_base))
+            .collect()
+    }
+
+    // SRS-ALN-003
+    #[test]
+    fn equal_scores_prefer_match_over_deletion_state() -> Result<()> {
+        let mut scoring = config();
+        scoring.mismatch_score = -4;
+        scoring.gap_open_score = -1;
+        scoring.gap_extension_score = -3;
+        let query = "GTCGA";
+        let alignments = align(query, &profiles(query), "CTC", &scoring, None)?;
+        assert_eq!(column_pairs(&alignments[0]), ["GC", "TT", "CC", "G-", "A-"]);
+        Ok(())
+    }
+
+    // SRS-ALN-003
+    #[test]
+    fn equal_scores_prefer_deletion_over_insertion_state() -> Result<()> {
+        let mut scoring = config();
+        scoring.mismatch_score = -4;
+        scoring.gap_open_score = 0;
+        scoring.gap_extension_score = -1;
+        let query = "GCTAG";
+        let alignments = align(query, &profiles(query), "GTCAT", &scoring, None)?;
+        assert_eq!(
+            column_pairs(&alignments[0]),
+            ["GG", "C-", "TT", "-C", "AA", "G-"]
+        );
+        Ok(())
+    }
+
     // SRS-ALN-006
     #[test]
     fn preserves_distinct_repeat_placement_ambiguity_without_an_indel() -> Result<()> {

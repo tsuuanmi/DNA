@@ -5,7 +5,7 @@ verified-by:
   - crates/dna-align/src
   - crates/dna-call/src/model/called_read.rs
   - crates/dna-sanger/src/model/locus_evidence.rs
-unverified: [SRS-ALN-003, SRS-ALN-005, SRS-ALN-007, SRS-ALN-008, SRS-ALN-009, SRS-ALN-011]
+unverified: [SRS-ALN-009 type-level guarantee (ReadObservation is a compile-time type)]
 ---
 
 # Alignment Requirements
@@ -18,7 +18,7 @@ These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 - **SRS-ALN-002:** Canonical reference substitution scoring MUST use the retained `EvidenceProfile` mass for that reference base as a fixed-point expected match/mismatch score. A missing profile or non-canonical reference base MUST use the configured ambiguous score. A gap of length `k` MUST retain `open + k × extension` semantics in the same fixed-point score scale.
 - **SRS-ALN-003:** Traceback MUST use the documented deterministic state and gap-extension tie order. On equal scores the state preference is Match > Deletion > Insertion.
 - **SRS-ALN-004:** Circular references MUST align against a doubled sequence, consume at most one reference length, canonicalize modulo coordinates, and expose two segments when crossing origin.
-- **SRS-ALN-005:** Both orientations MUST be evaluated internally. JSON MUST report only the selected orientation, callable-base count, callable identity, unresolved-base count, gap-open count, reference segments, and origin-wrap flag. Score, gapped rows, operation runs, traceback columns, and redundant match/mismatch counts MUST be omitted; original-call mapping is exposed through each variant's direct `calls` array.
+- **SRS-ALN-005:** Both orientations MUST be evaluated internally. JSON MUST report only the selected orientation, callable-base count, callable identity, unresolved-base count, masked-base count, gap-open count, reference segments, callable reference segments (SRS-ALN-015), and origin-wrap flag. Score, gapped rows, operation runs, traceback columns, and redundant match/mismatch counts MUST be omitted; original-call mapping is exposed through each variant's direct `calls` array.
 - **SRS-ALN-006:** An exact best profile-score orientation tie, a genuinely distinct equally scoring placement after canonicalization, insufficient callable columns, low identity, over-limit matrix, or invalid traceback MUST fail explicitly. Repeat-equivalent optimal indel placements MUST be canonicalized under `SRS-ALN-012` rather than treated as distinct placement failures. Primary-sequence exact-match/mismatch counts MUST NOT break a profile-score orientation tie.
 - **SRS-ALN-007:** The selected alignment MUST determine the read's covered reference region from traceback. The default short-reference analysis MUST NOT require or consume an HV/amplicon/expected-region classifier to constrain placement.
 - **SRS-ALN-008:** Filename, amplicon/HV label, primer label, declared forward/reverse direction, or other assay metadata MUST NOT change scientific placement for identical AB1, reference, configuration, and method inputs. Such metadata MAY be introduced only as provenance or post-mapping QC unless a separately versioned method explicitly defines otherwise.

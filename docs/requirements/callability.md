@@ -2,7 +2,9 @@
 implements: [SRS-ALN, SRS-CFG, SRS-QC, SRS-SAMPLE, SRS-VAR]
 decided-by: [ADR-0067, ADR-0076, ADR-0080, ADR-0082]
 verified-by: [crates/dna-sanger/src/callability]
-unverified: [SRS-CALL-001, SRS-CALL-007, SRS-CALL-008]
+unverified:
+  - SRS-CALL-007 wording rule for published labels
+  - "SRS-CALL-008 layering rule, partly enforced by validate_module_layers"
 ---
 
 # Signal-derived Read Callability Requirements

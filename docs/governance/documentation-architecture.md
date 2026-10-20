@@ -212,7 +212,7 @@ links within a bounded depth (profile; default 3).
 `DOC-GRF-004` (warning) A requirement item is implemented by at least one
 document and verified item by item: cited by a test, code, or enforcing
 workflow (`SRS-X-001` in a comment), or listed in `verified-by`, or waived with
-`unverified:` (item or namespace). A `verified-by` path on a document is context
+`unverified:` (item or namespace) with a stated reason (`SRS-X-001 process rule`). A `verified-by` path on a document is context
 for readers and the trace closure; it does not verify its items.
 `DOC-GRF-005` (warning) An accepted decision is governing at least one current
 document; otherwise it is a retirement candidate.

@@ -182,4 +182,42 @@ mod tests {
         );
         Ok(())
     }
+
+    // SRS-SIG-001
+    #[test]
+    fn signal_analysis_leaves_channels_and_selected_peaks_unchanged() -> Result<()> {
+        let (trace, calls) = evidence(12);
+        let channels_before = trace.channels.clone();
+        let loci_before = trace.locus_positions.clone();
+        let calls_before = format!("{calls:?}");
+        let config = SignalProcessingConfig {
+            window_size_bases: 5,
+            minimum_primary_snr: 3.0,
+            minimum_noisy_windows: 2,
+            minimum_noise_sigma: 1.0,
+            second_floor: 0.21,
+            run_signal: crate::signal_processing::RunSignalParameters {
+                flank: 2,
+                resolution: 1000,
+                minimum_reads: 40,
+                minimum_calls: 40,
+                margin: 0.05,
+                mad_factor: 4.0,
+            },
+            second_cause: crate::signal_processing::SecondCauseParameters {
+                noise_ratio: 3.0,
+                tail_offset: 0.4,
+                blob_width: 1.8,
+                width_calls: 6,
+            },
+            decompose_unexplained_quantile: 0.99,
+        };
+        let first = crate::signal_processing::analyze(&trace, &calls, &config)?;
+        let second = crate::signal_processing::analyze(&trace, &calls, &config)?;
+        assert_eq!(trace.channels, channels_before);
+        assert_eq!(trace.locus_positions, loci_before);
+        assert_eq!(format!("{calls:?}"), calls_before);
+        assert_eq!(format!("{first:?}"), format!("{second:?}"));
+        Ok(())
+    }
 }

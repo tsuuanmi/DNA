@@ -181,4 +181,89 @@ mod tests {
         }));
         Ok(())
     }
+    fn one_call_fixture(
+        vendor_agrees: Option<bool>,
+        qualities: Option<Vec<u8>>,
+    ) -> (Chromatogram, BaseCalls) {
+        let calls = BaseCalls {
+            calls: vec![BaseCall {
+                index_0based: 0,
+                locus_position_0based: 2,
+                window_start_0based: 1,
+                window_end_0based_exclusive: 4,
+                peaks: std::array::from_fn(|channel| ChannelPeak {
+                    base: Nucleotide::ALL[channel],
+                    height: 1,
+                    position_0based: 2,
+                    source: PeakSource::LocusFallback,
+                }),
+                primary_peak_evidence: None,
+                primary: 'A',
+                ambiguity: 'A',
+                qualifying_channels: vec![Nucleotide::A],
+                vendor_agrees,
+            }],
+            primary_sequence: "A".into(),
+        };
+        let trace = Chromatogram {
+            source_name: "synthetic.ab1".into(),
+            source_sha256: String::new(),
+            channels: std::array::from_fn(|_| vec![0; 8]),
+            locus_positions: vec![2],
+            duplicate_loci: 0,
+            vendor: VendorEvidence {
+                primary: Some("T".into()),
+                qualities,
+            },
+        };
+        (trace, calls)
+    }
+
+    fn one_call_config() -> QualityControlConfig {
+        QualityControlConfig {
+            penalty_window_size: 1,
+            max_relative_quality_score: 60,
+            trim_context_margin: 0,
+        }
+    }
+
+    // SRS-QC-002
+    #[test]
+    fn vendor_quality_applies_only_when_the_vendor_call_agrees() -> Result<()> {
+        let callability = ReadCallability::in_phase(1);
+        for (agrees, qualities, applies) in [
+            (Some(true), Some(vec![40]), true),
+            (Some(false), Some(vec![40]), false),
+            (None, Some(vec![40]), false),
+            (Some(true), None, false),
+        ] {
+            let (trace, calls) = one_call_fixture(agrees, qualities);
+            let result = analyze(&trace, &calls, &callability, &one_call_config(), 0)?;
+            assert_eq!(result.per_call[0].vendor_quality_applies, applies);
+            // The relative score never depends on the vendor quality.
+            assert_eq!(result.per_call[0].relative_quality_score, 60);
+        }
+        Ok(())
+    }
+
+    // SRS-QC-005
+    #[test]
+    fn rejects_a_callable_span_that_does_not_fit_the_calls() {
+        let (trace, calls) = one_call_fixture(Some(true), None);
+        for (start, end) in [(0, 2), (1, 1), (1, 0)] {
+            let mut callability = ReadCallability::in_phase(1);
+            callability.callable_start_0based = start;
+            callability.callable_end_0based_exclusive = end;
+            let error = analyze(&trace, &calls, &callability, &one_call_config(), 0).err();
+            assert!(
+                matches!(
+                    error,
+                    Some(crate::error::SangerError::QualityControl(
+                        QualityControlError::InvalidCallableSpan { calls: 1, .. }
+                    ))
+                ),
+                "{error:?}"
+            );
+        }
+    }
 }

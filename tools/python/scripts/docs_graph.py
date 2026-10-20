@@ -939,10 +939,21 @@ class Graph:
         for doc in self.docs:
             implemented |= {strip_wiki(e) for e in doc.fm.get("implements", [])}
             verified |= {strip_wiki(e) for e in doc.fm.get("verified-by", [])}
-            waived |= {strip_wiki(e) for e in doc.fm.get("unverified", [])}
+            waived |= {
+                split_qualified(strip_wiki(e))[0] for e in doc.fm.get("unverified", [])
+            }
         for doc in self.docs:
             if not doc.items or doc.type != "requirement":
                 continue
+            for entry in doc.fm.get("unverified", []):
+                if not split_qualified(strip_wiki(entry))[1]:
+                    self.add(
+                        "DOC-GRF-004",
+                        "warning",
+                        doc,
+                        1,
+                        f"unverified {entry} states no reason (write 'ID reason')",
+                    )
             unimplemented = [
                 i
                 for i in doc.items
@@ -1233,7 +1244,9 @@ class Graph:
             )
             cites = len([i for i in items if i in cited])
             waived = {
-                strip_wiki(e) for d in definers for e in d.fm.get("unverified", [])
+                split_qualified(strip_wiki(e))[0]
+                for d in definers
+                for e in d.fm.get("unverified", [])
             }
             unverified = len([i for i in items if i in waived and i not in cited])
 

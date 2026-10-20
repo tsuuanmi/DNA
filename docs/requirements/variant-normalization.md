@@ -1,7 +1,7 @@
 ---
 decided-by: [ADR-0060]
 verified-by: [crates/dna-normalize/src/variant_normalization]
-unverified: [SRS-VN-001, SRS-VN-003, SRS-VN-004, SRS-VN-009, SRS-VN-010]
+unverified: [SRS-VN-001 scope rule (optional capability), SRS-VN-010 negative scope rule]
 ---
 
 # Variant Normalization Requirements
