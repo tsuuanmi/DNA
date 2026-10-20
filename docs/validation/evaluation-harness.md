@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
-decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082]
+decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082, ADR-0087]
 ---
 
 # Evaluation harness
@@ -340,6 +340,18 @@ one.
 - **Record.** `run.json` records the directory, the key, the hits, misses,
   and replaced entries, and the generation's size. `cache prune --keep <n>`
   removes every generation but the `n` most recently used.
+- **Placement cache** ([[ADR-0087]], proposed). The same directory holds
+  each evidence document's `dna.placed_read/v1` document, written by
+  `dna-align`. Entries are keyed by the evidence document's SHA-256, in a
+  generation named for the configuration, the placement stage's code
+  identity, and the reference. The code identity is the git object ids of
+  `Cargo.lock`, the kernel, `dna-align`, and the facade's configuration,
+  evidence reading, and writer. Every read is then placed from its document,
+  which `dna-align` re-checks against the read's evidence and the reference.
+  A change to the placement stage is a new generation. `run.json` records it
+  as `placement_cache`. On development panel v5 the tables are
+  byte-identical with a cold placement cache, a warm one, and none. A
+  consensus-only probe takes 29-36 % less CPU.
 - **Limits.** Not with `--triage`, which reads the traces' own Sanger
   products. `approve` always runs from the traces.
 

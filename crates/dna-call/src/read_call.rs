@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::model::called_read::CalledRead;
 use crate::model::variant::{VariantExclusionReason, VariantKind};
 use crate::{RawVariantCallingConfig, VariantCallingConfig};
-use dna_align::model::alignment::ReferenceSegment;
+use dna_align::model::alignment::{Alignment, ReferenceSegment};
 use dna_align::{AlignmentConfig, RawAlignmentConfig};
 use dna_kernel::error::{AlignmentError, Error, Result};
 use dna_kernel::model::reference::Reference;
@@ -141,13 +141,35 @@ pub fn call_read(
     reference: &Reference,
     run: &CoreRun<'_>,
 ) -> Result<CalledRead> {
+    call_read_placed(identity, evidence, None, reference, run)
+}
+
+/// As [`call_read`], with the read's placement given when an earlier run of
+/// this placement wrote it (`dna.placed_read/v1`, PROP-0011): the read is not
+/// searched again, and everything after placement is the same.
+///
+/// # Errors
+///
+/// As [`call_read`].
+pub fn call_read_placed(
+    identity: ReadIdentity,
+    evidence: ReadEvidence,
+    placed: Option<Alignment>,
+    reference: &Reference,
+    run: &CoreRun<'_>,
+) -> Result<CalledRead> {
     let config = run.config;
     let stage = tracing::info_span!("alignment").entered();
     let stage_started = Instant::now();
-    let alignment = dna_align::align_best(&evidence, reference, &config.alignment)?;
+    let reused = placed.is_some();
+    let alignment = match placed {
+        Some(alignment) => alignment,
+        None => dna_align::align_best(&evidence, reference, &config.alignment)?,
+    };
     tracing::info!(
         event = "alignment_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
+        reused,
         orientation = ?alignment.orientation(),
         profile_score_units = alignment.score(),
         exact_matches = alignment.metrics().exact_matches(),

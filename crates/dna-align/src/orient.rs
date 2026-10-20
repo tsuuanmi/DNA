@@ -365,7 +365,7 @@ fn finish_alignment(
 /// column when the call columns on both sides are; runs of consecutive
 /// reference indexes form one segment. An unresolved call (`N`, or an IUPAC
 /// code a modality presents as `N`) observes no base, masked or not.
-fn callable_segments(
+pub(crate) fn callable_segments(
     columns: &[AlignmentColumn],
     callable: impl Fn(&AlignmentColumn) -> bool,
 ) -> Vec<ReferenceSegment> {

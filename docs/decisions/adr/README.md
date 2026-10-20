@@ -162,4 +162,5 @@ current documents it governs. It is not a second specification.
 | [ADR-0083](0083-set-aside-dissent.md) | Set aside dissent from a reference decision that the other strand contradicts | Accepted |
 | [ADR-0084](0084-trace-crate.md) | Trace signal engineering is a library crate the modality calls | Proposed |
 | [ADR-0085](0085-not-analysed-region-edge.md) | The core decides the analysed range at a region edge from the reads' unreliable spans | Accepted |
+| [ADR-0087](0087-placed-read-contract.md) | Placed reads as a step contract that dna-align writes and reads | Proposed |
 <!-- docs:end index:decision -->

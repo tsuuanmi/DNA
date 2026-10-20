@@ -527,7 +527,16 @@ fn run(cli: &RunArgs) -> Result<String> {
     let cache = cli
         .evidence_cache
         .as_deref()
-        .map(|directory| cache::EvidenceCache::open(directory, &cli.config))
+        .map(|directory| {
+            Ok::<_, cache::CacheError>(cache::Caches {
+                evidence: cache::EvidenceCache::open(directory, &cli.config)?,
+                placed: cache::EvidenceCache::open_placed(
+                    directory,
+                    &cli.config,
+                    &reference.sequence_sha256,
+                )?,
+            })
+        })
         .transpose()?;
     let mut signal_groups = Vec::new();
     let outcomes = runner::run(
@@ -613,7 +622,8 @@ fn run(cli: &RunArgs) -> Result<String> {
         },
     );
     header.recheck = recheck_header;
-    header.evidence_cache = cache.as_ref().map(cache::EvidenceCache::usage);
+    header.evidence_cache = cache.as_ref().map(|cache| cache.evidence.usage());
+    header.placement_cache = cache.as_ref().map(|cache| cache.placed.usage());
     header.triage = triage.as_ref().map(|triage| TriageHeader {
         policy: triage
             .policy()
@@ -938,6 +948,10 @@ struct Header {
     /// The read evidence cache the run read and filled.
     #[serde(skip_serializing_if = "Option::is_none")]
     evidence_cache: Option<cache::Usage>,
+    /// The placement cache the run read and filled, beside the evidence
+    /// cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    placement_cache: Option<cache::Usage>,
     /// The widths that place the review zones, in positions.
     zones: ZoneHeader,
     /// The harness's own measurement constants.
@@ -1161,6 +1175,7 @@ fn header(
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         recheck: None,
         evidence_cache: None,
+        placement_cache: None,
         constants: Constants::current(),
         zones: ZoneHeader {
             after: cli.zone_after,
@@ -1370,6 +1385,18 @@ mod tests {
                 misses: 1,
                 replaced: 0,
                 bytes: 270_000,
+            }),
+            placement_cache: Some(cache::Usage {
+                directory: "/cache/evidence".into(),
+                key: cache::Key {
+                    sanger: 17,
+                    configuration_sha256: "a".repeat(64),
+                    code_sha256: "c".repeat(64),
+                },
+                hits: 4,
+                misses: 2,
+                replaced: 0,
+                bytes: 90_000,
             }),
             zones: ZoneHeader {
                 after: 20,

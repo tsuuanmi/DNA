@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN]
-decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072]
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072, ADR-0087]
 covers:
   - crates/dna-align/src/
   - crates/dna-align/src/canonical.rs
@@ -183,3 +183,18 @@ position outside them is covered by a masked or an unresolved (`N`) call. An
 unmasked `N` (a Sanger call without a resolved primary base, or a consensus
 position no read observes cleanly) therefore splits the segments, as it already
 counts in neither `callable_bases` nor `identity`.
+
+### Placed reads
+
+A selected placement can be written and read back as `dna.placed_read/v1`
+([[ADR-0087]], proposed). `placed::write` records it as selected.
+`placed::read` re-checks it against the read's evidence and the reference
+before the core starts from it, so a placed read equals the search it
+records:
+- each column against the call and the reference;
+- the columns' order for the orientation, and the origin wrap;
+- the segments against the columns;
+- the callable segments and masked bases, recomputed from the masks.
+
+The score is not searched again; whoever stores the document keys it by
+this crate's code.
