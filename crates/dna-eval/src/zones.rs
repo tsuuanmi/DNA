@@ -167,6 +167,18 @@ impl Zones {
         })
     }
 
+    /// The index of the region that holds `position`, when one does.
+    pub(crate) fn region(&self, position: i64) -> Option<usize> {
+        self.regions.iter().position(|region| {
+            usize::try_from(position - region.start).is_ok_and(|index| index < region.kinds.len())
+        })
+    }
+
+    /// The regions' names, in region order.
+    pub(crate) fn names(&self) -> impl Iterator<Item = &str> {
+        self.regions.iter().map(|region| region.name.as_str())
+    }
+
     /// `kind@region`, as `scores.tsv` writes an instance.
     pub(crate) fn label(&self, (region, kind): Instance) -> String {
         format!(
@@ -221,6 +233,9 @@ mod tests {
         assert_eq!(zones.kind(340), Some(Kind::End));
         assert_eq!(zones.kind(341), None);
         assert_eq!(zones.label((0, Kind::After)), "after@HV2");
+        assert_eq!((zones.region(72), zones.region(73)), (None, Some(0)));
+        assert_eq!((zones.region(340), zones.region(341)), (Some(0), None));
+        assert_eq!(zones.names().collect::<Vec<_>>(), ["HV2"]);
         assert_eq!(
             zones.instances(),
             [

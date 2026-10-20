@@ -54,6 +54,7 @@ use crate::manifest::Manifest;
 use crate::report::{Report, Row, Status};
 use crate::runner::{Identity, Outcome, Threads};
 use crate::truth::TruthCheck;
+use crate::workload::Passes;
 
 /// The panels `run` reads: the development panel the rules are tuned on, and
 /// the readiness panel that checks them before a pre-registration. A hold-out
@@ -464,8 +465,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         cli,
         &manifest,
         &truth,
-        &check,
-        &rows,
+        &report,
         &outcomes,
         Times {
             started,
@@ -785,6 +785,8 @@ struct Header {
     constants: Constants,
     /// Outcome counts per measure.
     samples: BTreeMap<&'static str, Counts>,
+    /// What passes without review.
+    workload: WorkloadHeader,
     seconds: Seconds,
     /// The draft triage, when the run asked for it.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -843,6 +845,15 @@ impl Constants {
             triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
         }
     }
+}
+
+/// What passes without review over the samples the review workload counts,
+/// and over the current data when the run names it.
+#[derive(Debug, Serialize)]
+struct WorkloadHeader {
+    all: Passes,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    current: Option<Passes>,
 }
 
 /// The widths that place the review zones, from the run's options.
@@ -924,11 +935,12 @@ fn header(
     cli: &RunArgs,
     manifest: &Manifest,
     truth: &Truth,
-    check: &TruthCheck,
-    rows: &[Row<'_>],
+    report: &Report<'_>,
     outcomes: &[Outcome],
     times: Times,
 ) -> Header {
+    let (rows, check) = (report.rows(), report.check());
+    let (all, current) = report.passes();
     let counts = |measure: Measure| Counts {
         total: rows.len(),
         concordant: count(rows, measure, Status::Concordant),
@@ -990,6 +1002,7 @@ fn header(
             .into_iter()
             .map(|measure| (measure.label(), counts(measure)))
             .collect(),
+        workload: WorkloadHeader { all, current },
         seconds: Seconds {
             total: times.started.elapsed().as_secs_f64(),
             truth: truth.seconds,
@@ -1116,6 +1129,16 @@ mod tests {
             not_applicable: 0,
             failed: 1,
         };
+        let zones = zones::Zones::new(
+            &[(16024, 16365), (73, 340)],
+            &[(16184, 16193)],
+            zones::Widths {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+        );
+        let passes = || workload::passes(std::iter::empty(), Some(&zones));
         let header = Header {
             harness: env!("CARGO_PKG_NAME"),
             harness_version: env!("CARGO_PKG_VERSION"),
@@ -1164,6 +1187,10 @@ mod tests {
                 .into_iter()
                 .map(|measure| (measure.label(), counts()))
                 .collect(),
+            workload: WorkloadHeader {
+                all: passes(),
+                current: Some(passes()),
+            },
             seconds: Seconds {
                 total: 2.5,
                 truth: 0.5,
@@ -1191,6 +1218,10 @@ mod tests {
             run_signal: None,
             forced_windows: None,
             triage: None,
+            workload: WorkloadHeader {
+                all: header.workload.all,
+                current: None,
+            },
             ..header
         };
         contract::check_document("run.json", &serde_json::to_value(&bare)?)?;

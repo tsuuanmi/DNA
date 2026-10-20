@@ -48,6 +48,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `validate_result_schemas.py --eval-run <directory>` checks a run, and
   dna-eval's tests check the headers it writes. Contracts only: every output
   is byte-identical.
+- `dna-eval run` reports what passes without review, on the current data and
+  on every sample its review workload counts: the auto-pass samples (no check
+  item) and those with an unreviewed difference; the regions (sample ×
+  profile region) and zones (sample × zone) needing a check, overall and per
+  region; and the passed regions holding an unreviewed difference by its
+  first position. Unreviewed samples and regions are split into non-het and
+  het only (the truth writes an IUPAC code of two or three bases in every
+  such block). `summary.md` gains a "Passes" table in both review workload
+  sections, and `run.json` a `workload` object (`all`, and `current` with
+  `--current-since`); `dna.eval_run/v1` changes in place (pre-release), and
+  `validate_result_schemas.py --eval-run` checks `workload` against
+  `scores.tsv`. Every table is byte-identical. On development panel v5,
+  current data (10,695 samples): 7,786 auto-pass (72.80 %), 281 of them
+  with an unreviewed difference (46 non-het); regions needing a check
+  3,496 of 32,085 (10.90 %), 360 passed regions with an unreviewed
+  difference (65 non-het); zones needing a check 4,455 of 160,425 (2.78 %).
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis

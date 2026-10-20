@@ -1676,6 +1676,7 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
         "changed_samples"
     ):
         errors.append(f"{label}: truth_changes.tsv disagrees with changed_samples")
+    validate_eval_passes(header.get("workload", {}), scores, label, errors)
     triage = header.get("triage")
     if isinstance(triage, dict):
         policies = triage.get("policies")
@@ -1692,6 +1693,75 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
             errors.append(
                 f"{label}: the sweep's policies are not the policy table's, reported first"
             )
+
+
+def validate_eval_passes(
+    workload: Any, scores: list[dict[str, Any]], label: str, errors: list[str]
+) -> None:
+    """Check that `run.json` `workload` counts what `scores.tsv`'s review columns hold."""
+    if not isinstance(workload, dict):
+        return
+    for name, passes in workload.items():
+        regions = passes.get("regions", {})
+        escaped = [passes.get("auto_pass", {}).get("unreviewed", {})]
+        escaped += [regions.get("unreviewed", {})]
+        escaped += [
+            region.get("unreviewed", {}) for region in regions.get("by_region", [])
+        ]
+        if any(
+            item.get("non_het", 0) + item.get("het_only", 0) != item.get("total", 0)
+            for item in escaped
+        ):
+            errors.append(
+                f"{label}: run.json workload.{name} splits unreviewed units inconsistently"
+            )
+        by_region = regions.get("by_region", [])
+        if sum(region.get("checked", 0) for region in by_region) != regions.get(
+            "checked"
+        ) or sum(region.get("total", 0) for region in by_region) != regions.get(
+            "total"
+        ):
+            errors.append(
+                f"{label}: run.json workload.{name} regions disagree with by_region"
+            )
+    passes = workload.get("all")
+    if not isinstance(passes, dict):
+        return
+    counted = [
+        row
+        for row in scores
+        if row.get("haplotype_lod_status") in ("concordant", "discordant")
+        and row.get("review_clear")
+    ]
+    clear = [row for row in counted if row.get("review_clear") == "Y"]
+    checked = [
+        {zone.split("@", 1)[1] for zone in row.get("review_zones", "").split()}
+        for row in counted
+    ]
+    expected = (
+        len(counted),
+        len(clear),
+        sum(1 for row in clear if row.get("unreviewed")),
+        sum(len(regions) for regions in checked),
+        sum(int(row.get("review_zone_count") or 0) for row in counted),
+        [
+            sum(1 for regions in checked if region.get("name") in regions)
+            for region in passes.get("regions", {}).get("by_region", [])
+        ],
+    )
+    found = (
+        passes.get("samples"),
+        passes.get("auto_pass", {}).get("samples"),
+        passes.get("auto_pass", {}).get("unreviewed", {}).get("total"),
+        passes.get("regions", {}).get("checked"),
+        passes.get("zones", {}).get("checked"),
+        [
+            region.get("checked")
+            for region in passes.get("regions", {}).get("by_region", [])
+        ],
+    )
+    if expected != found:
+        errors.append(f"{label}: run.json workload.all disagrees with scores.tsv")
 
 
 def rejected_eval_run_shapes(
@@ -1723,6 +1793,10 @@ def rejected_eval_run_shapes(
     signals_without_run_signal["run.json"].pop("run_signal")
     run_without_constants = copy.deepcopy(example)
     run_without_constants["run.json"].pop("constants")
+    run_without_workload = copy.deepcopy(example)
+    run_without_workload["run.json"].pop("workload")
+    current_without_passes = copy.deepcopy(example)
+    current_without_passes["run.json"]["workload"].pop("current")
     forms_without_database = copy.deepcopy(example)
     forms_without_database["forms.tsv"]["comments"] = []
     commented_scores = copy.deepcopy(example)
@@ -1743,6 +1817,8 @@ def rejected_eval_run_shapes(
         ("eval triage files without the triage header", triage_files_without_triage),
         ("eval signals.tsv without the run signal", signals_without_run_signal),
         ("eval run.json without its constants", run_without_constants),
+        ("eval run.json without its workload", run_without_workload),
+        ("eval current data without its passes", current_without_passes),
         ("eval forms.tsv without its database line", forms_without_database),
         ("eval scores.tsv with a comment line", commented_scores),
         ("eval policy table with an unknown class", unknown_policy_class),
@@ -2077,6 +2153,14 @@ def main(argv: list[str] | None = None) -> int:
     if not run_errors:
         errors.append(
             "expected run.json counts that disagree with scores.tsv to be rejected"
+        )
+    miscounted_passes = copy.deepcopy(eval_run_example)
+    miscounted_passes["run.json"]["workload"]["all"]["auto_pass"]["samples"] += 1
+    run_errors = []
+    validate_eval_run(miscounted_passes, "synthetic miscounted passes", run_errors)
+    if not run_errors:
+        errors.append(
+            "expected run.json workload counts that disagree with scores.tsv to be rejected"
         )
     unsorted_run = copy.deepcopy(eval_run_example)
     unsorted_run["scores.tsv"]["rows"].reverse()

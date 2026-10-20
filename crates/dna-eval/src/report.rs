@@ -23,7 +23,7 @@ use crate::manifest::Sample;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::unrecorded;
-use crate::workload::{self, Window, Workload};
+use crate::workload::{self, Passes, Window, Workload};
 use crate::zones::{Kind, Zones};
 use dna_kernel::profile::Convention;
 
@@ -455,6 +455,16 @@ impl<'a> Report<'a> {
         }
     }
 
+    /// The compared rows, sorted by sample identifier.
+    pub(crate) const fn rows(&self) -> &'a [Row<'a>] {
+        self.rows
+    }
+
+    /// The check of the panel against the truth.
+    pub(crate) const fn check(&self) -> &'a TruthCheck {
+        self.check
+    }
+
     /// The same report with the samples whose batch date is in or after
     /// `since` (`YYYY-MM`) reported first as the current data.
     pub(crate) fn with_current_since(mut self, since: Option<String>) -> Self {
@@ -878,7 +888,9 @@ impl<'a> Report<'a> {
                     share(unreviewed as f64, current.len() as f64),
                     share(clear as f64, current.len() as f64),
                 );
-                self.zone_section(text, &current.into_iter().copied().collect::<Vec<_>>());
+                let current = current.into_iter().copied().collect::<Vec<_>>();
+                self.pass_section(text, &current);
+                self.zone_section(text, &current);
             }
         }
         let samples = counted.len();
@@ -950,6 +962,7 @@ impl<'a> Report<'a> {
                 before.len()
             );
         }
+        self.pass_section(text, &counted);
         self.zone_section(text, &counted);
         text.push_str("\nSamples with an unreviewed difference, by region:\n\n| Region | Samples |\n|---|---:|\n");
         let mut regions = BTreeMap::<&str, usize>::new();
@@ -1008,6 +1021,98 @@ impl<'a> Report<'a> {
                 window.start,
                 window.end,
                 percent(escaped as f64, open as f64),
+            );
+        }
+    }
+
+    /// What passes without review over every counted sample and, with a
+    /// current slice, over the current data: the measures `run.json`
+    /// records.
+    pub(crate) fn passes(&self) -> (Passes, Option<Passes>) {
+        let counted = self.review.counted(self.rows);
+        let zones = self.review.zones.as_ref();
+        let all = workload::passes(counted.iter().map(|(_, workload)| *workload), zones);
+        let current = self.current_since.as_ref().map(|_| {
+            workload::passes(
+                counted
+                    .iter()
+                    .filter(|(row, _)| self.current(row))
+                    .map(|(_, workload)| *workload),
+                zones,
+            )
+        });
+        (all, current)
+    }
+
+    /// What passes without review of `samples`: the samples without a check
+    /// item, the regions and zones no check item touches, overall and per
+    /// region, and the passed samples and regions that carry an unreviewed
+    /// difference, het or not.
+    fn pass_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
+        let Some(zones) = &self.review.zones else {
+            return;
+        };
+        if samples.is_empty() {
+            return;
+        }
+        let passes = workload::passes(samples.iter().map(|(_, workload)| *workload), Some(zones));
+        let percent = |part: usize, whole: usize| {
+            if whole > 0 {
+                100.0 * part as f64 / whole as f64
+            } else {
+                0.0
+            }
+        };
+        let (auto_pass, regions, zones) = (&passes.auto_pass, &passes.regions, &passes.zones);
+        let unchecked = regions.total - regions.checked;
+        let _ = write!(
+            text,
+            "\nPasses (a sample, region, or zone that no check item touches passes unreviewed; \
+             a difference block counts for the region of its first position, and is het when \
+             the truth writes an IUPAC code of two or three bases in it):\n\n\
+             | Measure | Value |\n|---|---:|\n\
+             | Auto-pass samples (no check item) | {} of {} ({:.2} %) |\n\
+             | Auto-pass samples with an unreviewed difference | {} ({:.2} % of them): \
+             non-het {}, het only {} |\n\
+             | Regions needing a check | {} of {} ({:.2} %) |\n\
+             | Passed regions | {unchecked} ({:.2} %) |\n\
+             | Passed regions with an unreviewed difference | {} ({:.2} % of them): \
+             non-het {}, het only {} |\n\
+             | Zones needing a check | {} of {} ({:.2} %) |\n",
+            auto_pass.samples,
+            passes.samples,
+            percent(auto_pass.samples, passes.samples),
+            auto_pass.unreviewed.total,
+            percent(auto_pass.unreviewed.total, auto_pass.samples),
+            auto_pass.unreviewed.non_het,
+            auto_pass.unreviewed.het_only,
+            regions.checked,
+            regions.total,
+            percent(regions.checked, regions.total),
+            percent(unchecked, regions.total),
+            regions.unreviewed.total,
+            percent(regions.unreviewed.total, unchecked),
+            regions.unreviewed.non_het,
+            regions.unreviewed.het_only,
+            zones.checked,
+            zones.total,
+            percent(zones.checked, zones.total),
+        );
+        text.push_str(
+            "\n| Region | Needing a check | Passed | Passed with an unreviewed difference \
+             | Non-het | Het only |\n|---|---:|---:|---:|---:|---:|\n",
+        );
+        for region in &regions.by_region {
+            let _ = writeln!(
+                text,
+                "| {} | {} ({:.2} %) | {:.2} % | {} | {} | {} |",
+                region.name,
+                region.checked,
+                percent(region.checked, region.total),
+                percent(region.total - region.checked, region.total),
+                region.unreviewed.total,
+                region.unreviewed.non_het,
+                region.unreviewed.het_only,
             );
         }
     }

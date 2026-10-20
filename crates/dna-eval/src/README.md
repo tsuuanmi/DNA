@@ -57,7 +57,9 @@ have no schema; the evaluation harness document describes them.
 - `workload.rs` — the review workload: windows over the HV regions, each
   sample's positions to review and unreviewed difference blocks from `dna
   review`'s check items (`SampleAnalysis::review_checks`), forced-window
-  lists, and the Wilson bound of `windows.tsv`.
+  lists, the Wilson bound of `windows.tsv`, and what passes without review
+  (samples, regions, and zones no check item touches, and the passed ones
+  with an unreviewed block, het or not) for the summary and `run.json`.
 - `unrecorded.rs` — the run-length alleles a profile convention leaves
   unrecorded, left out of every comparison on both sides.
 - `components.rs` — `components.tsv`: every phase-mixture component
@@ -65,8 +67,8 @@ have no schema; the evaluation harness document describes them.
   haplotypes against the truth, and an unexplained mixture's offsets and
   fractions.
 - `zones.rs` — the review zones of the target profile's regions (repeat
-  window, after a window, amplicon start and end, interior) and the zones a
-  check item touches.
+  window, after a window, amplicon start and end, interior), the zones a
+  check item touches, and the region that holds a position.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.
