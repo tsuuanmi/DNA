@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 18
+        "version": 20
       }
     ],
-    "rules": 18,
+    "rules": 20,
     "policy": {
       "version": 1,
       "labels": [
@@ -162,6 +162,21 @@
         {
           "id": "coverage.single_strand",
           "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "mixture.second_base_explained",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "signal.poor_start",
+          "class": "context",
+          "rank": 4
+        },
+        {
+          "id": "support.difference_in_poor_start",
+          "class": "doubt",
           "rank": 4
         }
       ]
@@ -523,7 +538,8 @@
                 "share": 0.08,
                 "threshold": 0.2
               },
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -539,7 +555,8 @@
                 "share": 0.04,
                 "threshold": 0.2
               },
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         }
@@ -618,7 +635,8 @@
               "scan": 1836,
               "quality": 40,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -630,7 +648,8 @@
               "scan": 2904,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -650,7 +669,8 @@
               "scan": 1848,
               "quality": 40,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -662,7 +682,8 @@
               "scan": 2892,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -682,7 +703,8 @@
               "scan": 1860,
               "quality": 40,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -694,7 +716,8 @@
               "scan": 2880,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -714,7 +737,8 @@
               "scan": 1872,
               "quality": 40,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -726,7 +750,8 @@
               "scan": 2868,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -762,7 +787,8 @@
               "scan": 1884,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -774,7 +800,8 @@
               "scan": 2856,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -810,7 +837,8 @@
               "scan": 1896,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -822,7 +850,8 @@
               "scan": 2844,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -858,7 +887,8 @@
               "scan": 1908,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -870,7 +900,8 @@
               "scan": 2832,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -906,7 +937,8 @@
               "scan": 1920,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -918,7 +950,8 @@
               "scan": 2820,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -954,7 +987,8 @@
               "scan": 1932,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -966,7 +1000,8 @@
               "scan": 2808,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -1002,7 +1037,8 @@
               "scan": 1944,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -1014,7 +1050,8 @@
               "scan": 2796,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -1050,7 +1087,8 @@
               "scan": 1956,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -1062,7 +1100,8 @@
               "scan": 2784,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -1098,7 +1137,8 @@
               "scan": 1968,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -1110,7 +1150,8 @@
               "scan": 2772,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -1146,7 +1187,8 @@
               "scan": 1980,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -1158,7 +1200,8 @@
               "scan": 2760,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -1194,7 +1237,8 @@
               "scan": 1992,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -1206,7 +1250,8 @@
               "scan": 2748,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -1242,7 +1287,8 @@
               "scan": 2004,
               "quality": 12,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -1254,7 +1300,8 @@
               "scan": 2736,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         }
@@ -1324,7 +1371,8 @@
                 "share": 0.031,
                 "threshold": 0.2
               },
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         }
@@ -1381,7 +1429,8 @@
                 "share": 0.214,
                 "threshold": 0.2
               },
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         }
@@ -1440,7 +1489,8 @@
               "scan": 3180,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1452,7 +1502,8 @@
               "scan": 3612,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1489,7 +1540,8 @@
               "scan": 3192,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1501,7 +1553,8 @@
               "scan": 3600,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1538,7 +1591,8 @@
               "scan": 3204,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1550,7 +1604,8 @@
               "scan": 3588,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1587,7 +1642,8 @@
               "scan": 3216,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1599,7 +1655,8 @@
               "scan": 3576,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1636,7 +1693,8 @@
               "scan": 3228,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1648,7 +1706,8 @@
               "scan": 3564,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1685,7 +1744,8 @@
               "scan": 3240,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1697,7 +1757,8 @@
               "scan": 3552,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1734,7 +1795,8 @@
               "scan": 3252,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1746,7 +1808,8 @@
               "scan": 3540,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1783,7 +1846,8 @@
               "scan": 3276,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1795,7 +1859,8 @@
               "scan": 3516,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1832,7 +1897,8 @@
               "scan": 3288,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1844,7 +1910,8 @@
               "scan": 3504,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1881,7 +1948,8 @@
               "scan": 3300,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1893,7 +1961,8 @@
               "scan": 3492,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1930,7 +1999,8 @@
               "scan": 3312,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1942,7 +2012,8 @@
               "scan": 3480,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -1979,7 +2050,8 @@
               "scan": 3324,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -1991,7 +2063,8 @@
               "scan": 3468,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         },
@@ -2028,7 +2101,8 @@
               "scan": 3336,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -2040,7 +2114,8 @@
               "scan": 3456,
               "quality": 9,
               "second": null,
-              "mask": "dephased"
+              "mask": "dephased",
+              "unreliable": null
             }
           ]
         }
@@ -2105,7 +2180,8 @@
               "scan": 2700,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV3R_03",
@@ -2117,7 +2193,8 @@
               "scan": 4092,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         }
@@ -2158,7 +2235,8 @@
               "scan": 1224,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -2170,7 +2248,8 @@
               "scan": 3516,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         },
@@ -2190,7 +2269,8 @@
               "scan": 1236,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             },
             {
               "read": "A12_HV1R_03",
@@ -2202,7 +2282,8 @@
               "scan": 3504,
               "quality": 48,
               "second": null,
-              "mask": null
+              "mask": null,
+              "unreliable": null
             }
           ]
         }
@@ -2236,7 +2317,10 @@
       "signal.masked": 0,
       "signal.dephased": 2,
       "mixture.length": 1,
-      "coverage.single_strand": 0
+      "coverage.single_strand": 0,
+      "mixture.second_base_explained": 0,
+      "signal.poor_start": 0,
+      "support.difference_in_poor_start": 0
     },
     "positions": {
       "reportable": 749,

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:signal:schema:review:v2",
   "title": "DNA review v2",
-  "description": "One sample's review list (PROP-0012). Labels come from one registry (review-v2.labels.json); the policy that sorts them is printed in provenance.policy. Shapes shared with dna.notation/v1 and dna.consensus/v1 are referenced by $id.",
+  "description": "One sample's review list (PROP-0013). Labels come from one registry (review-v2.labels.json); the policy that sorts them is printed in provenance.policy. Shapes shared with dna.notation/v1 and dna.consensus/v1 are referenced by $id.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -420,7 +420,10 @@
         "signal.masked",
         "signal.dephased",
         "mixture.length",
-        "coverage.single_strand"
+        "coverage.single_strand",
+        "mixture.second_base_explained",
+        "signal.poor_start",
+        "support.difference_in_poor_start"
       ]
     },
     "labelRead": {
@@ -1017,6 +1020,48 @@
               }
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "An item with a difference has a covering read inside its unreliable span (SRS-CALL-024), and no other read shows that position soundly (a scored, trusted call withheld for nothing, outside its own unreliable span).",
+          "properties": {
+            "id": {
+              "const": "support.difference_in_poor_start"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {}
+            }
+          }
         }
       ]
     },
@@ -1030,7 +1075,7 @@
             "reads",
             "detail"
           ],
-          "description": "Both strands read the position cleanly, and a read on each strand shows the same second base above its threshold, not a neighbour's base. Per-read shares and thresholds are in the position's reads.",
+          "description": "Both strands read the position cleanly, a read on each strand shows the same second base above its threshold, not a neighbour's base, and on neither strand do all qualifying reads show a peak the modality explains. Per-read shares and thresholds are in the position's reads.",
           "properties": {
             "id": {
               "const": "mixture.second_base_both_strands"
@@ -1077,7 +1122,7 @@
             "reads",
             "detail"
           ],
-          "description": "One strand alone reads the position cleanly; its call's second peak has cause second_template, exceeds the run-signal threshold of its key, and is not a neighbour's base.",
+          "description": "One strand alone reads the position cleanly; its call's second base stands out with a peak the modality does not explain (second_unexplained, SRS-CALL-022) above the run-signal threshold of its key, and is not a neighbour's base. It reads the generic assertion only, never the second-peak cause label (SRS-CALL-021).",
           "properties": {
             "id": {
               "const": "mixture.second_base_one_strand"
@@ -1254,6 +1299,103 @@
               }
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "As mixture.second_base_both_strands, but every qualifying read of one strand shows a second peak the modality explains (not second_unexplained, SRS-CALL-022): that strand shows no possible second sequence.",
+          "properties": {
+            "id": {
+              "const": "mixture.second_base_explained"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "base"
+              ],
+              "properties": {
+                "base": {
+                  "$ref": "#/$defs/base"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "reads",
+            "detail"
+          ],
+          "description": "The read's call lies inside a span its modality asserts unreliable (SRS-CALL-024); reason is the modality's, verbatim.",
+          "properties": {
+            "id": {
+              "const": "signal.poor_start"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/labelRead"
+                  },
+                  {
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "subject"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 1
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "poor_start_signal"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1285,7 +1427,8 @@
             "signal.masked",
             "signal.dephased",
             "mixture.length",
-            "coverage.single_strand"
+            "coverage.single_strand",
+            "signal.poor_start"
           ]
         },
         "first": {
@@ -1467,6 +1610,27 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "label": {
+              "const": "signal.poor_start"
+            },
+            "detail": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason"
+              ],
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "poor_start_signal"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1514,7 +1678,8 @@
         "scan",
         "quality",
         "second",
-        "mask"
+        "mask",
+        "unreliable"
       ],
       "properties": {
         "read": {
@@ -1651,6 +1816,19 @@
               "type": "null"
             }
           ]
+        },
+        "unreliable": {
+          "description": "The modality's reason when the call lies inside the read's unreliable span (SRS-CALL-024), verbatim; null otherwise.",
+          "oneOf": [
+            {
+              "enum": [
+                "poor_start_signal"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -1731,7 +1909,7 @@
           "$ref": "#/$defs/column"
         },
         "kind": {
-          "description": "doubt when a label of policy class doubt is present; else abstain when one of class abstain is; else variant when the item holds a call or a decided non-reference sequence; else context (only context labels, for example a one-strand second base outside every site). Only doubt and abstain affect clear.",
+          "description": "doubt when a label of policy class doubt is present (in labels or any position's at); else abstain for class abstain; else variant when the item holds a call; else context (only context labels, v1's note). Only doubt and abstain affect clear. A label's class depends on its ID only.",
           "enum": [
             "doubt",
             "abstain",
@@ -1772,7 +1950,7 @@
           }
         },
         "positions": {
-          "description": "Reference positions of the item, position-major, each with its own labels, the annotations it lies in, and every covering read's observation.",
+          "description": "Reference positions of the item, position-major, each with its own labels, the annotations it lies in, and every covering read's observation. One-position coverage.not_callable gaps are merged: a gap touching an item joins it, and gaps inside the same annotation form one item.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/position"
@@ -1859,7 +2037,7 @@
           "$ref": "urn:signal:schema:notation:v1#/$defs/plugins"
         },
         "rules": {
-          "description": "Version of the label predicates, equal to the review plugin version.",
+          "description": "Version of the label predicates, equal to the review plugin version (20 for the first v2).",
           "type": "integer",
           "minimum": 1
         },
@@ -1989,7 +2167,10 @@
             "signal.masked",
             "signal.dephased",
             "mixture.length",
-            "coverage.single_strand"
+            "coverage.single_strand",
+            "mixture.second_base_explained",
+            "signal.poor_start",
+            "support.difference_in_poor_start"
           ],
           "properties": {
             "conflict.strands": {
@@ -2073,6 +2254,18 @@
               "minimum": 0
             },
             "coverage.single_strand": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mixture.second_base_explained": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "signal.poor_start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "support.difference_in_poor_start": {
               "type": "integer",
               "minimum": 0
             }

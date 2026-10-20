@@ -1,6 +1,6 @@
 {
   "schema": "urn:signal:schema:review:v2",
-  "rules": 18,
+  "rules": 20,
   "policy": 1,
   "labels": [
     {
@@ -34,8 +34,8 @@
         "position"
       ],
       "title": "Possible point heteroplasmy",
-      "description": "Both strands read the position cleanly, and a read on each strand shows the same second base above its threshold, not a neighbour's base. Per-read shares and thresholds are in the position's reads.",
-      "v1": "possible_heteroplasmy",
+      "description": "Both strands read the position cleanly, a read on each strand shows the same second base above its threshold, not a neighbour's base, and on neither strand do all qualifying reads show a peak the modality explains. Per-read shares and thresholds are in the position's reads.",
+      "v1": "possible_heteroplasmy (not explained)",
       "policy_class": "doubt",
       "policy_rank": 1
     },
@@ -46,7 +46,7 @@
         "position"
       ],
       "title": "Second base on one strand",
-      "description": "One strand alone reads the position cleanly; its call's second peak has cause second_template, exceeds the run-signal threshold of its key, and is not a neighbour's base.",
+      "description": "One strand alone reads the position cleanly; its call's second base stands out with a peak the modality does not explain (second_unexplained, SRS-CALL-022) above the run-signal threshold of its key, and is not a neighbour's base. It reads the generic assertion only, never the second-peak cause label (SRS-CALL-021).",
       "v1": null,
       "policy_class": "context",
       "policy_rank": 4
@@ -258,6 +258,43 @@
       "description": "Positions that reads of one strand alone make callable.",
       "v1": null,
       "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "mixture.second_base_explained",
+      "category": "mixture",
+      "scopes": [
+        "position"
+      ],
+      "title": "Second base explained by the signal",
+      "description": "As mixture.second_base_both_strands, but every qualifying read of one strand shows a second peak the modality explains (not second_unexplained, SRS-CALL-022): that strand shows no possible second sequence.",
+      "v1": "possible_heteroplasmy (explained)",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "signal.poor_start",
+      "category": "signal",
+      "scopes": [
+        "position",
+        "annotation"
+      ],
+      "title": "Poor start signal",
+      "description": "The read's call lies inside a span its modality asserts unreliable (SRS-CALL-024); reason is the modality's, verbatim.",
+      "v1": "poor_signal (item without a difference); reads' unreliable",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "support.difference_in_poor_start",
+      "category": "support",
+      "scopes": [
+        "item"
+      ],
+      "title": "Difference shown only inside a poor start",
+      "description": "An item with a difference has a covering read inside its unreliable span (SRS-CALL-024), and no other read shows that position soundly (a scored, trusted call withheld for nothing, outside its own unreliable span).",
+      "v1": "poor_signal (item with a difference)",
+      "policy_class": "doubt",
       "policy_rank": 4
     }
   ]

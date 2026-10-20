@@ -1,5 +1,5 @@
 ---
-id: PROP-0012
+id: PROP-0013
 status: draft
 created: 2026-10-20
 summary: "`dna.review/v2`: labels with namespaced evidence IDs from one registry, a versioned policy that sorts them into doubt, abstain, and context, clear per region, and every reviewed position shown with its own labels and the data-detected annotations it lies in."
@@ -16,11 +16,12 @@ build on:
 
 1. **Three things share one version.** A label's predicate, whether it makes
    an item a check, and its rank all move with `provenance.rules` (the
-   `review` plugin version, 17). The document does not say which labels make a
+   `review` plugin version, 19 on main at 69ee8be). The document does not say which labels make a
    check; only code and prose do. Moving `not_called` to context means a new
    rules version though no predicate changes.
 2. **v1 changed in place.** `zones` (rules 14), `reference_only` (15),
-   `mixtures` (17), and `run_deletion` (13) entered the closed v1 schema
+   `mixtures` (17), `unreliable` (18), the `note` kind (19), and
+   `run_deletion` (13) entered the closed v1 schema
    without a schema version.
 3. **"DNA did not decide" and "DNA decided but doubts it" are one kind.** Both
    are `kind: check`, but they ask the reviewer different things and measure
@@ -52,7 +53,7 @@ build on:
 
 ## Evidence and research
 
-Development panel v5, HEAD 69e1471, harness run `results/rebase-2026-10-20/69e1471/r`
+Development panel v5, HEAD 69e1471 (rules 17), harness run `results/rebase-2026-10-20/69e1471/r`
 (16,413 samples). The hit rate is the share of a label's check items that lie within one
 position of a block where DNA differs from the truth under `haplotype_lod`.
 It is an approximation computed from `checks.tsv` and `scores.tsv`, not a
@@ -81,6 +82,9 @@ harness measure.
   difference.
 - Rules 6 dropped one-strand heteroplasmy flags at 3 % precision, before the
   second-peak cause (SRS-CALL-021) and the run signal (SRS-CALL-020) existed.
+- Since 69e1471, main added `poor_signal` (rules 18) and the `explained`
+  `possible_heteroplasmy` as a `note` (rules 19); the hit rates above predate
+  both and are re-measured with increment 1.
 
 ## Goals
 
@@ -106,15 +110,15 @@ harness measure.
 
 ## Proposed design
 
-The draft contract is three files in [0012-contract](0012-contract/README.md); they are
+The draft contract is three files in [0013-contract](0013-contract/README.md); they are
 non-normative until increment 1 moves them to `docs/reference/`:
 
-- [`review-v2.schema.json`](0012-contract/review-v2.schema.json):
+- [`review-v2.schema.json`](0013-contract/review-v2.schema.json):
   the JSON Schema of `dna.review/v2` (`$id` `urn:signal:schema:review:v2`);
-- [`review-v2.labels.json`](0012-contract/review-v2.labels.json):
+- [`review-v2.labels.json`](0013-contract/review-v2.labels.json):
   the label registry, with each label's ID, category, scopes, title,
   description, v1 name, and policy 1 class and rank;
-- [`review-v2.example.json`](0012-contract/review-v2.example.json):
+- [`review-v2.example.json`](0013-contract/review-v2.example.json):
   the v1 synthetic example rewritten as v2; it validates against the schema.
 
 ### Three layers, three versions
@@ -149,7 +153,8 @@ whole table, so a document describes itself.
 |---|---|---|---|---:|
 | `strands_disagree` | `conflict.strands` | item | doubt | 0 |
 | `read_disagrees` | `conflict.read` | item | doubt | 0 |
-| `possible_heteroplasmy` | `mixture.second_base_both_strands` | position | doubt | 1 |
+| `possible_heteroplasmy` (not `explained`) | `mixture.second_base_both_strands` | position | doubt | 1 |
+| `possible_heteroplasmy` (`explained`) | `mixture.second_base_explained` | position | context | 4 |
 | — | `mixture.second_base_one_strand` | position | context | 4 |
 | `long_run` | `length.run_longer_unconfirmed` | item | doubt | 2 |
 | `edge_deletion` | `indel.deletion_single_read_at_edge` | item | doubt | 2 |
@@ -165,11 +170,16 @@ whole table, so a document describes itself.
 | `read_edge` | `signal.read_end_margin` | position, annotation | context | 4 |
 | `phase_shift` | `signal.masked_anchor` | position, annotation | context | 4 |
 | `noisy_signal` | `signal.masked` (`reason` verbatim) | position, annotation | context | 4 |
+| `poor_signal` (item without a difference); reads' `unreliable` | `signal.poor_start` | position, annotation | context | 4 |
+| `poor_signal` (item with a difference) | `support.difference_in_poor_start` | item | doubt | 4 |
 | — | `signal.dephased` | annotation | context | 4 |
 | — | `mixture.length` | annotation | context | 4 |
 | — | `coverage.single_strand` | annotation | context | 4 |
 
-Ranks are v1's, so item order does not move. The title of
+Ranks are v1's, so item order does not move. **A label's class depends on its
+ID only:** where v1 lets one label make a check or not by its payload or its
+item (`explained`, `poor_signal`), v2 has two IDs, so the policy stays a plain
+table. The title of
 `mixture.second_base_both_strands` is "Possible point heteroplasmy" (the ISFG
 term); the ID names what the reads show.
 
@@ -233,9 +243,11 @@ share, threshold, cause, run_calls}`, and `mask`).
   "reads": [
     {"read": "HV1F", "strand": "forward", "base": "T", "state": "reference", "call": 212,
      "scope": "full", "scan": 5120, "quality": 41, "mask": null,
+     "unreliable": null,
      "second": {"base": "C", "share": 0.312, "threshold": 0.2, "cause": "second_template"}},
     {"read": "HV1R", "strand": "reverse", "base": "T", "state": "masked", "call": 388,
-     "scope": null, "scan": 7741, "quality": 12, "mask": "weak", "second": null}
+     "scope": null, "scan": 7741, "quality": 12, "mask": "weak", "unreliable": null,
+     "second": null}
   ]
 }
 ```
@@ -250,7 +262,7 @@ the reverse one, so the reviewer checks it or asks for a rerun.
 
 - `kind` is `doubt` when a label of class doubt is present (in `labels` or any
   position's `at`); else `abstain` for class abstain; else `variant` when the
-  item holds a call; else `context`. A `context` item holds only context
+  item holds a call; else `context` (v1's `note`). A `context` item holds only context
   labels, for example a one-strand second base outside every site, so it can
   be seen and measured without making work.
 - `summary.regions[]`, one per profile region in profile order: `name`,
@@ -259,12 +271,29 @@ the reverse one, so the reviewer checks it or asks for a rerun.
 - `summary.clear` is true when every region is clear. In the example, HVS-I
   holds a doubt and two abstains while HVS-II and HVS-III are clear.
 
+### Gap items
+
+A gap item (`coverage.not_callable`) of one position is 92 % of v1's
+`undecided` items. Gaps are merged before items are ordered:
+
+- a gap that touches an item (adjacent column) joins that item, whose
+  `decision` becomes `partly_callable`;
+- gaps that lie inside the same annotation, with only positions of that
+  annotation between them, form one item spanning them, so a reviewer opens
+  one item per data-detected interval;
+- a gap in no annotation stays its own item.
+
+Merging changes item counts, never `clear`: an item merged from abstain gaps is
+abstain, and the positions it holds were abstain before.
+
 ### New label
 
 `mixture.second_base_one_strand` fires when one strand alone reads the
-position cleanly, that call's second peak has cause `second_template` (not
-`context`), its share exceeds the run-signal threshold of its key (with
-`--signal`), and the neighbour test passes. It is context in policy 1;
+position cleanly, that call's second base stands out with a peak the modality
+does not explain (`second_unexplained`, SRS-CALL-022) above the run-signal
+threshold of its key (with `--signal`), and the neighbour test passes. It
+reads that generic assertion only, never the second-peak cause label, which
+may decide nothing (SRS-CALL-021). It is context in policy 1;
 promoting it to doubt is a policy change made only when the pre-registered
 measurement shows it helps.
 
@@ -314,9 +343,11 @@ Each increment is measured on development panel v5 against the main revision
 before it:
 
 1. **Equivalence.** v1 and v2 documents for the same inputs hold the same
-   items, positions, and label occurrences under the name map. `undecided`
-   equals `decision.contested` plus `coverage.not_callable`. Every v1 check is
-   a v2 doubt or abstain, and every v1 `clear` sample is v2 `clear`.
+   label occurrences under the name map, and before gap merging the same
+   items: `undecided` equals `decision.contested` plus
+   `coverage.not_callable`, every v1 check is a v2 doubt or abstain, every v1
+   `note` a v2 `context`, and every v1 `clear` sample is v2 `clear`. Gap
+   merging then reports its item counts per region; `clear` must not move.
 2. **Region clear.** v2 `summary.regions` agrees with the harness's passed
    regions (89.26 % on current data at 69e1471).
 3. **Annotations.** Every v1 `masked` stretch and mixture appears as an
@@ -335,7 +366,7 @@ Four pull requests, each its own plugin and schema version:
    `zones` removed. `dna.review/v1` → `v2`. No predicate changes.
 2. `annotations[]` and item `positions[]` with `at` and `within`, replacing
    `evidence` and the reads' `masked` and `mixtures`.
-3. `mixture.second_base_one_strand` (rules 18), as context.
+3. `mixture.second_base_one_strand`, as context.
 4. `dna-eval` reads v2 and records per-label measures.
 
 Rollback is a revert of the pull request. DNA is pre-release, so no stored v1
@@ -362,18 +393,19 @@ check items and change to doubt plus abstain.
 ## Decision
 
 Draft. Agreed with the user on 2026-10-20: policy owned by the review plugin
-with its own version, kinds `variant | doubt | abstain`, `clear` per region,
-the renaming above, position and annotation labels, and the name
-`annotations` (2026-10-20). Added since and to confirm: kind `context` for an
-item with context labels only. Open:
+with its own version; kinds `doubt | abstain | variant | context`; `clear` per
+region; the renaming above; position and annotation labels; the name
+`annotations`; and merging one-position gaps (Gap items). Rebased on main at
+69ee8be (rules 19): `explained` and `poor_signal` map to their own IDs, and
+v2's first rules version is 20. Open:
 
-- merging one-position `coverage.not_callable` items into their
-  neighbouring items (it changes item counts; decide before increment 1);
 - `call.excluded` at 315.1C, where the exclusion matches the reviewers'
   convention: a policy exception or a predicate change;
 - the doubt threshold, which needs the pre-registration directory;
 - watched positions ([[PROP-0004]]), and whether `mixture.length` ever
-  decides anything.
+  decides anything;
+- how this contract consumes the components of [[PROP-0012]] (`dna-trace`),
+  which today reach the document as `mixture.length` annotations.
 
 ## Implementation
 
