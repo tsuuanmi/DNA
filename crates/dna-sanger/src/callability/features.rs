@@ -132,15 +132,19 @@ fn local_median(index: usize, spacings: &[f64], half_window: usize) -> f64 {
     }
 }
 
-/// The junctions whose spacing marks a missing peak, each by the position
-/// before it (SRS-CALL-026). With `M` the median spacing of that position's
-/// window, the junction's spacing exceeds `M`, and its span together with
-/// either neighbouring junction exceeds `2M`, each by at least
-/// `spacing_defect` of `M`: the measure and level of a spacing defect
-/// (SRS-CALL-002), in the wide direction only. A peak the basecaller missed
-/// leaves a gap about twice the read's spacing, and the ladder stays a call
-/// behind; a peak merely placed late is followed by a short spacing that
-/// makes up for it.
+/// The junctions whose spacing marks a missing or an extra peak, each by the
+/// position before it (SRS-CALL-026). With `M` the median spacing of that
+/// position's window, a junction marks a missing peak when its spacing
+/// exceeds `M`, and its span together with either neighbouring junction
+/// exceeds `2M`, each by at least `spacing_defect` of `M`: the measure and
+/// level of a spacing defect (SRS-CALL-002). It marks an extra peak in the
+/// mirror case: its spacing falls short of `M`, and its span together with
+/// either neighbouring junction falls short of `2M`, each by at least
+/// `spacing_defect` of `M`. A peak the basecaller missed leaves a gap about
+/// twice the read's spacing, and the ladder stays a call behind; a peak it
+/// called twice leaves two calls a fraction of the spacing apart, and the
+/// ladder a call ahead. A peak merely placed late or early is followed by a
+/// spacing that makes up for it.
 pub(super) fn gaps(
     evidence: &[PositionEvidence],
     half_window: usize,
@@ -150,17 +154,27 @@ pub(super) fn gaps(
     (0..spacings.len())
         .filter(|&index| {
             let median = local_median(index, &spacings, half_window);
-            let wide = |span: f64, expected: f64| {
-                round_metric((span - expected * median) / median) >= spacing_defect
-            };
+            if median <= 0.0 {
+                return false;
+            }
             let spacing = spacings[index];
-            median > 0.0
-                && wide(spacing, 1.0)
-                && [index.checked_sub(1), index.checked_add(1)]
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|neighbour| spacings.get(neighbour))
-                    .all(|&neighbour| wide(spacing + neighbour, 2.0))
+            let neighbours = [index.checked_sub(1), index.checked_add(1)]
+                .into_iter()
+                .flatten()
+                .filter_map(|neighbour| spacings.get(neighbour))
+                .copied()
+                .collect::<Vec<_>>();
+            // `sign` 1 asks for a span wider than expected, -1 for narrower.
+            let defect = |sign: f64| {
+                let off = |span: f64, expected: f64| {
+                    round_metric(sign * (span - expected * median) / median) >= spacing_defect
+                };
+                off(spacing, 1.0)
+                    && neighbours
+                        .iter()
+                        .all(|&neighbour| off(spacing + neighbour, 2.0))
+            };
+            defect(1.0) || defect(-1.0)
         })
         .collect()
 }
@@ -248,23 +262,32 @@ mod tests {
 
     // SRS-CALL-026
     #[test]
-    fn a_gap_is_a_spacing_at_least_the_defect_wider_than_the_local_median() {
+    fn a_gap_is_a_spacing_at_least_the_defect_off_the_local_median() {
         let evidence = |coordinates: &[usize]| {
             coordinates
                 .iter()
                 .map(|&coordinate| position([1_000.0, 0.0, 0.0, 0.0], coordinate))
                 .collect::<Vec<_>>()
         };
-        // Spacings 12, 12, 6, 12, 12, 24, 12, 12, 12: the narrow junction is
-        // no gap, the junction after position 5 is twice the median.
-        let missing = evidence(&[0, 12, 24, 30, 42, 54, 78, 90, 102, 114]);
+        // Spacings 12, 12, 12, 12, 12, 24, 12, 12, 12: the junction after
+        // position 5 is twice the median, a missing peak.
+        let missing = evidence(&[0, 12, 24, 36, 48, 60, 84, 96, 108, 120]);
         assert_eq!(gaps(&missing, 8, 0.5), [5]);
         assert_eq!(gaps(&missing, 8, 1.0), [5]);
         assert!(gaps(&missing, 8, 1.5).is_empty());
+        // Spacings 12, 12, 4, 12, 12, 12, 12, 12, 12: two calls 4 scans apart
+        // on one peak, an extra peak, the ladder a call ahead after it.
+        let extra = evidence(&[0, 12, 24, 28, 40, 52, 64, 76, 88, 100]);
+        assert_eq!(gaps(&extra, 8, 0.5), [2]);
+        assert!(gaps(&extra, 8, 1.0).is_empty());
         // Spacings 12, 12, 12, 12, 12, 18, 6, 12, 12: a peak placed late,
-        // whose next spacing makes up for it, is no gap.
+        // whose next spacing makes up for it, marks neither.
         let late = evidence(&[0, 12, 24, 36, 48, 60, 78, 84, 96, 108]);
         assert!(gaps(&late, 8, 0.5).is_empty());
+        // Spacings 12, 12, 12, 12, 12, 6, 18, 12, 12: nor does a peak placed
+        // early.
+        let early = evidence(&[0, 12, 24, 36, 48, 60, 66, 84, 96, 108]);
+        assert!(gaps(&early, 8, 0.5).is_empty());
         // A constant spacing has none.
         let even = (0..10)
             .map(|index| position([1_000.0, 0.0, 0.0, 0.0], index * 12))

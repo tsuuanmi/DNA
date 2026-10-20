@@ -6,8 +6,8 @@ segments, the typed mask, and the callable span (`dna.read_callability/v1`).
 Key children:
 
 - `features.rs` — dominance, secondary ratio, spacing deviation, and weakness
-  per position, and the junctions whose spacing marks a missing peak (`gaps`,
-  SRS-CALL-026: the spacing defect's measure and level, wide side only);
+  per position, and the junctions whose spacing marks a missing or an extra
+  peak (`gaps`, SRS-CALL-026: the spacing defect's measure and level);
 - `runs.rs` — homopolymer and dinucleotide repeat runs in the read's own
   primary calls, used only as priors for the window after each run;
 - `phase.rs` — rolling defect fractions, repeat priors, and the hysteresis
