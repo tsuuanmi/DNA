@@ -43,8 +43,8 @@ the same document, with or without `--signal` (SRS-API-019).
 
 `--signal` names the sample's run signal ([[reference/signal|`dna.signal/v1`]]).
 The sample's own admitted reads are taken out of it, so the sample is never
-judged against itself, and `possible_heteroplasmy` judges each call against
-its key's run level (SRS-CALL-020). A run signal that holds none of the
+judged against itself, and `possible_heteroplasmy` and `reference_second`
+judge each call against its key's run level (SRS-CALL-020). A run signal that holds none of the
 sample's admitted traces is another run's and fails the command without
 output, as does one made with another `flank` or `resolution` than the
 configuration's. Without it, the configured floor alone sets the threshold.
@@ -179,7 +179,7 @@ the clipped columns, what most of its supporting reads show there). It has:
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
-  `explained`, `estimated_length`, `length_unconfirmed`, `undecided`,
+  `explained`, `reference_second`, `estimated_length`, `length_unconfirmed`, `undecided`,
   `not_called`, `long_run`, `edge_deletion`, `run_deletion`,
   `beside_not_analysed`, `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
@@ -253,12 +253,12 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | Rank | Labels |
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
-| 1 | `possible_heteroplasmy` |
+| 1 | `possible_heteroplasmy`, `reference_second` |
 | 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 22)
+## Labels (rules version 23)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -321,6 +321,21 @@ exemption lifts the margin (ADR-0076).
   none of the 23 such flags was a heteroplasmy in the truth, and none hid
   a difference from the decision, against 92 % heteroplasmies among the
   flags whose qualifying reads all show a `second_template` peak.
+- `reference_second` `{position, read, strand, share, threshold, calls?}`
+  (rules version 23): at a difference that rests on one read (`one_read`), a
+  position where that read reads another base than the reference while its
+  call shows the reference base as its second peak, with a share above the
+  call's second-channel threshold (SRS-CALL-020, as for
+  `possible_heteroplasmy`). One label per such position. Neither a
+  neighbour's base nor the peak's cause (SRS-CALL-021) exempts it: a dye
+  blob is wider than one call, and its own shape labels the real peak, not
+  the blob. One read cannot tell a base from a broad peak of another dye
+  over the reference's, nor from a mixture, so the item is a check. On
+  development panel v5, 28 such positions outside checks were truth
+  reference (most at a reverse read's start, `527A`, `530G`, `16326G`,
+  `16328G`, under a dye blob over the reference's peak), 17 a truth
+  heteroplasmy, and 6 the truth's base; every truth-base share was below
+  0.25 and every truth-reference share but two above 0.33.
 - `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
   runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
   not callable. A run whose length a profile report convention leaves

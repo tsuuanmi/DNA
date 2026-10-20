@@ -602,6 +602,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review labels `reference_second` a position where a difference rests
+  on one read whose call there reads another base than the reference while
+  showing the reference base as its second peak above the call's
+  second-channel threshold (SRS-CALL-020): a check, decision unchanged
+  (rules version 23, plugin `review` 23). No new configuration. On
+  development panel v5 such bases were mostly dye blobs over the
+  reference's peak at reverse read starts (`527A`, `530G`, `16326G`,
+  `16328G`).
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than
