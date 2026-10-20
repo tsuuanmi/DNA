@@ -1,6 +1,6 @@
 ---
 implements: [SRS-CALL, SRS-VAR]
-decided-by: [ADR-0082]
+decided-by: [ADR-0082, ADR-0084]
 ---
 
 # Length mixtures
@@ -9,7 +9,8 @@ A homopolymer that carries length heteroplasmy is a population of molecules
 whose runs differ in length. After it, a Sanger read shows their sum: the
 same downstream sequence several times, each copy offset by a difference in
 run length. Callability marks that stretch `dephased` and masks its calls
-(SRS-CALL-004). `dna-sanger`'s `decompose` module asserts what the stretch
+(SRS-CALL-004). `dna-trace`'s `decompose` module ([[ADR-0084]]), which the
+Sanger plugin calls, asserts what the stretch
 holds as a phase mixture (SRS-CALL-023, ADR-0082), and `dna-call`'s
 `components` module compares each of its sequences with the reference on its
 own (SRS-VAR-022). Neither decides a call.

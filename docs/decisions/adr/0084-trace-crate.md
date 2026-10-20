@@ -15,7 +15,7 @@ related: [ADR-0069, ADR-0070, ADR-0079, ADR-0082, PROP-0012]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- _Not yet referenced by a current document._
+- **Governs:** [design/length-mixture](../../design/length-mixture.md)
 <!-- docs:end backlinks -->
 
 ## Context

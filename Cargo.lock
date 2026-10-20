@@ -377,8 +377,17 @@ name = "dna-sanger"
 version = "0.1.0"
 dependencies = [
  "dna-kernel",
+ "dna-trace",
  "serde",
  "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "dna-trace"
+version = "0.1.0"
+dependencies = [
+ "dna-kernel",
  "tracing",
 ]
 
