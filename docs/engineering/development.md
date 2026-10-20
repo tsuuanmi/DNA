@@ -35,6 +35,25 @@ For repeated local experiments, build once with `cargo build --profile local`
 and run `target/local/dna` directly. Running DNA over a corpus is orchestrated by
 downstream pipelines, not by tooling in this repository (ADR-0066).
 
+## Evaluation probes
+
+A probe runs `dna-eval` over a panel to measure a candidate change. Build it with
+the `probe` profile, which inherits `release` without link-time optimisation and
+with incremental compilation:
+
+```bash
+cargo build --profile probe -p dna-eval
+target/probe/dna-eval run --manifest … --output …
+```
+
+Its outputs equal the release build's: on development panel v5 every table
+`dna-eval run` writes was byte-identical, and the run took the same time with
+about a quarter more CPU. After a first build, rebuilding for an edit to one
+crate takes seconds instead of minutes (3 s against 124 s for an edit to
+`dna-consensus`), so keep one probe worktree and its target directory and switch
+branches in it rather than building a fresh checkout per probe. Approvals,
+readiness uses, and releases use `--release`.
+
 ## Required checks
 
 Before finalizing a repository change, run the required gates defined in [[engineering/ci-cd|CI/CD]]. During iteration, run the narrowest checks that exercise the changed failure modes first.

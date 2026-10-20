@@ -107,6 +107,14 @@ codegen-units = 1
 lto = "thin"
 strip = "debuginfo"
 
+# Release semantics without the link-time optimisation that rebuilds every
+# crate on any edit: for evaluation probes, whose outputs equal release's.
+[profile.probe]
+inherits = "release"
+codegen-units = 16
+lto = false
+incremental = true
+
 [profile.local]
 inherits = "dev"
 opt-level = 2
