@@ -4,3 +4,5 @@
 //! results into kernel assertions.
 
 pub mod decompose;
+pub mod locate;
+pub mod tract;
