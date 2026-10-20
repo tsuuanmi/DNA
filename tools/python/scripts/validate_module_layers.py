@@ -266,6 +266,7 @@ def relative(root: Path, path: Path) -> Path:
 
 
 # SRS-COMPAT-003
+# SRS-CONS-002: the consensus crate may not depend on a modality crate.
 def validate(root: Path = ROOT) -> list[str]:
     failures: list[str] = []
     members, unknown = crates(root)

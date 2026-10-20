@@ -7,7 +7,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
-use dna::error::{KernelError, ProfileError};
+use dna::error::{KernelError, NomenclatureError, ProfileError};
 use dna::profile::Profile;
 use dna::variant::{CalledVariantSet, ReferenceIdentity, Variant, VariantKind};
 use dna::variant_nomenclature;
@@ -271,5 +271,37 @@ fn a_profile_fails_closed_on_another_reference() -> Result<(), Box<dyn std::erro
         Err(KernelError::Profile(ProfileError::ReferenceMismatch { profile }))
             if profile == "human-mtdna-rcrs"
     ));
+    Ok(())
+}
+
+// SRS-NOM-002
+#[test]
+fn nomenclature_rejects_a_normalization_result_of_another_reference()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = hv2_reference();
+    write_reference(&reference_path, &sequence)?;
+    let called = called(&sequence, vec![variant(200, "A", "G", VariantKind::Snv)]);
+    let profile = hv2_profile(directory.path())?;
+
+    let mut wrong_sequence = normalize(&reference_path, &called)?;
+    wrong_sequence.reference.sha256 = "wrong".into();
+    let mut wrong_name = normalize(&reference_path, &called)?;
+    wrong_name.reference.name = "other".into();
+
+    for normalized in [&wrong_sequence, &wrong_name] {
+        let result = variant_nomenclature::apply(
+            &reference_path,
+            &profile,
+            variant_nomenclature::from_normalization(normalized),
+        );
+        assert!(matches!(
+            result,
+            Err(KernelError::VariantNomenclature(
+                NomenclatureError::ReferenceIdentityMismatch
+            ))
+        ));
+    }
     Ok(())
 }

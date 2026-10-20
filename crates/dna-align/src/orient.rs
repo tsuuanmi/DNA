@@ -890,6 +890,45 @@ mod tests {
         Ok(())
     }
 
+    // SRS-ALN-011
+    #[test]
+    fn metrics_derive_from_the_retained_primary_sequence() -> Result<()> {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "TTGACGTACGGATCCATGCAGTCA".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        // One substitution (T>A at 6) and one unresolved base (N at 14).
+        let alignment = align_best(
+            &ReadEvidence::clean("TTGACGAACGGATCNATGCAGTCA"),
+            &reference,
+            &config(),
+        )?;
+        let metrics = alignment.metrics();
+        assert_eq!(metrics.callable_columns, 23);
+        assert_eq!(metrics.exact_matches(), 22);
+        assert_eq!(metrics.mismatches(), 1);
+        assert_eq!(metrics.unresolved_query_bases, 1);
+        assert!((metrics.callable_identity - 22.0 / 23.0).abs() < 1e-12);
+        // The same counts follow from the selected traceback's columns.
+        let canonical = |base: char| "ACGT".contains(base);
+        let callable = alignment
+            .columns
+            .iter()
+            .filter(|column| canonical(column.query_base) && canonical(column.reference_base))
+            .collect::<Vec<_>>();
+        assert_eq!(callable.len(), metrics.callable_columns);
+        assert_eq!(
+            callable
+                .iter()
+                .filter(|column| column.query_base == column.reference_base)
+                .count(),
+            metrics.exact_matches()
+        );
+        Ok(())
+    }
+
     // SRS-ALN-006
     #[test]
     fn orientation_comparison_uses_profile_score_only() {

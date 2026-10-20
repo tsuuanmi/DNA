@@ -281,4 +281,31 @@ mod tests {
         );
         Ok(())
     }
+
+    // SRS-VN-004
+    #[test]
+    fn every_accepted_movement_reconstructs_the_source_haplotype() -> RepresentationResult<()> {
+        let source = [edit(3, 4, ""), edit(7, 8, "C"), edit(8, 9, "C")];
+        let alternate = apply_edits(REFERENCE, &source)?;
+        for bounds in [
+            TradeBounds::default(),
+            TradeBounds {
+                windows: &[0..4, 4..11],
+                readable: None,
+            },
+        ] {
+            let normalized = trade(bounds)?;
+            assert_eq!(apply_edits(REFERENCE, &normalized)?, alternate);
+        }
+        // A deletion that would run onto a substituted base is rejected as a
+        // plain shift: its result would delete the substituted base instead.
+        let reference = "CCCTTA";
+        let source = [edit(3, 4, ""), edit(4, 5, "C")];
+        let alternate = apply_edits(reference, &source)?;
+        let plain = [edit(4, 5, ""), edit(4, 5, "C")];
+        assert!(apply_edits(reference, &plain).map_or(true, |sequence| sequence != alternate));
+        let normalized = right_align(reference, &alternate, &source, TradeBounds::default(), 20)?;
+        assert_eq!(apply_edits(reference, &normalized)?, alternate);
+        Ok(())
+    }
 }

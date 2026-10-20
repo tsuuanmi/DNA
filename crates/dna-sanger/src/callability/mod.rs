@@ -308,4 +308,20 @@ mod tests {
         assert_eq!(callability.callable_end_0based_exclusive, 24);
         Ok(())
     }
+
+    // SRS-CALL-001
+    #[test]
+    fn derives_one_record_per_position_from_the_evidence_alone() -> Result<()> {
+        let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
+        let evidence = ladder(&sequence, 23, &[(-1, 0.4)]);
+        let before = evidence.clone();
+        let first = derive(&evidence, &SETTINGS)?;
+        let second = derive(&evidence, &SETTINGS)?;
+        // The derivation takes only the evidence records: no reference,
+        // profile, primer, or file name can reach it, and it never writes them.
+        assert_eq!(evidence, before);
+        assert_eq!(first.mask.len(), evidence.len());
+        assert_eq!(format!("{first:?}"), format!("{second:?}"));
+        Ok(())
+    }
 }
