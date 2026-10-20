@@ -12,7 +12,8 @@ modality-neutral core.
   each call's second-peak label among them ([second_cause](../second_cause/README.md))
   and its phase mixtures, decomposed by
   [dna-trace](../../../dna-trace/src/README.md) (ADR-0084) from the read's
-  calls, locus profiles, callability, and trim start.
+  calls, locus profiles, callability, and trim start, and its tract decodes
+  ([tract](../tract/README.md), SRS-CALL-025).
   Basecall and Variant Analysis both reuse it.
 - `evidence.rs` is the Sanger modality adapter
   ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
@@ -34,7 +35,8 @@ modality-neutral core.
     repeat runs; never the read's physical end). `reference_only_calls`
     holds the one benign-edge test both use;
   - the read's phase mixtures (SRS-CALL-023, ADR-0082), as `dna-trace`
-    asserted them;
+    asserted them, and its tract decodes (SRS-CALL-025), as
+    [tract](../tract/README.md) turned them into `TractLengths`;
   - the Sanger mask labels: `post_homopolymer`, or else the phase-state label.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.

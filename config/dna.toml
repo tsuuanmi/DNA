@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 18
+schema_version = 19
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -146,6 +146,37 @@ edge_second_share = 0.10
 edge_width_factor = 1.5
 edge_spacing_minimum = 0.5
 edge_spacing_maximum = 1.5
+
+
+[trace]
+# A read's homopolymer tracts, decoded from its own signal (PROP-0012
+# increment 2): evidence only, nothing decides on it yet. Before each call
+# where the read leaves phase, the tract is the latest run of at least
+# locate_min_run equal primaries, extended back over a single-call mark that
+# at least locate_min_before run-base calls precede. Its candidate total
+# lengths run from span_below calls under the run extent (at least
+# min_length) to span_above over it; the fit reads downstream_calls more.
+# joint_lengths (at most 8) and iterations are computation caps, logged when
+# they bind. The read's signature and leakage null read at most
+# signature_calls calls before the tract, leaving signature_gap out, and away
+# from runs of leak_min_run (padded by leak_pad), with at least
+# leak_min_calls calls. A marginal's top two lengths are near-equal when
+# their margin, deflated by the read's residual autocorrelation, is below
+# near_equal_z standard errors.
+locate_min_run = 4
+locate_min_before = 2
+span_below = 10
+span_above = 3
+min_length = 3
+downstream_calls = 60
+joint_lengths = 6
+iterations = 6
+signature_calls = 200
+signature_gap = 3
+leak_min_run = 3
+leak_pad = 2
+leak_min_calls = 10
+near_equal_z = 2.0
 
 [variant_calling]
 # Anchor bases do not count toward this changed-length limit.

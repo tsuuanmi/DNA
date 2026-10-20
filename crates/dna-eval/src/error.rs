@@ -85,6 +85,8 @@ pub(crate) enum Error {
         source: io::Error,
     },
     /// The run header could not be serialized.
+    #[error("{0}")]
+    Cache(#[from] crate::cache::CacheError),
     #[error("cannot serialize the run header: {0}")]
     Serialize(#[source] serde_json::Error),
     /// A harness thread panicked outside the per-sample guard.

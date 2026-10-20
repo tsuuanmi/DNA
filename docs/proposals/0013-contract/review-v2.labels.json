@@ -1,0 +1,301 @@
+{
+  "schema": "urn:signal:schema:review:v2",
+  "rules": 20,
+  "policy": 1,
+  "labels": [
+    {
+      "id": "conflict.strands",
+      "category": "conflict",
+      "scopes": [
+        "item"
+      ],
+      "title": "Strands disagree",
+      "description": "The site has supporting and opposing reads, and a supporting read lies on another strand than an opposing one.",
+      "v1": "strands_disagree",
+      "policy_class": "doubt",
+      "policy_rank": 0
+    },
+    {
+      "id": "conflict.read",
+      "category": "conflict",
+      "scopes": [
+        "item"
+      ],
+      "title": "A read disagrees",
+      "description": "At a decided site, a supporting or uninformative read that bounds the item shows it whole, or through the end its strand reaches first, as another sequence than the decision.",
+      "v1": "read_disagrees",
+      "policy_class": "doubt",
+      "policy_rank": 0
+    },
+    {
+      "id": "mixture.second_base_both_strands",
+      "category": "mixture",
+      "scopes": [
+        "position"
+      ],
+      "title": "Possible point heteroplasmy",
+      "description": "Both strands read the position cleanly, a read on each strand shows the same second base above its threshold, not a neighbour's base, and on neither strand do all qualifying reads show a peak the modality explains. Per-read shares and thresholds are in the position's reads.",
+      "v1": "possible_heteroplasmy (not explained)",
+      "policy_class": "doubt",
+      "policy_rank": 1
+    },
+    {
+      "id": "mixture.second_base_one_strand",
+      "category": "mixture",
+      "scopes": [
+        "position"
+      ],
+      "title": "Second base on one strand",
+      "description": "One strand alone reads the position cleanly; its call's second base stands out with a peak the modality does not explain (second_unexplained, SRS-CALL-022) above the run-signal threshold of its key, and is not a neighbour's base. It reads the generic assertion only, never the second-peak cause label (SRS-CALL-021).",
+      "v1": null,
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "length.run_longer_unconfirmed",
+      "category": "length",
+      "scopes": [
+        "item"
+      ],
+      "title": "Long run, length unconfirmed",
+      "description": "A decided run at least review.run_growth bases longer than its reference run, whose length rests on an anchored end or on a single supporting read.",
+      "v1": "long_run",
+      "policy_class": "doubt",
+      "policy_rank": 2
+    },
+    {
+      "id": "indel.deletion_single_read_at_edge",
+      "category": "indel",
+      "scopes": [
+        "item"
+      ],
+      "title": "Single-read deletion at a region edge",
+      "description": "A decided deletion that rests on a single read within review.edge_zone positions of a reportable region's first or last position.",
+      "v1": "edge_deletion",
+      "policy_class": "doubt",
+      "policy_rank": 2
+    },
+    {
+      "id": "indel.deletion_single_read_in_run",
+      "category": "indel",
+      "scopes": [
+        "item"
+      ],
+      "title": "Single-read deletion in a run",
+      "description": "A decided site resting on a single read whose call is at least review.run_growth bases shorter than a reference run of at least review.phase_run bases.",
+      "v1": "run_deletion",
+      "policy_class": "doubt",
+      "policy_rank": 2
+    },
+    {
+      "id": "decision.contested",
+      "category": "decision",
+      "scopes": [
+        "item"
+      ],
+      "title": "Site not decided",
+      "description": "The consensus site is contested (a tie) or unresolved (no clean observation), or its call holds an N.",
+      "v1": "undecided",
+      "policy_class": "abstain",
+      "policy_rank": 2
+    },
+    {
+      "id": "call.excluded",
+      "category": "call",
+      "scopes": [
+        "item"
+      ],
+      "title": "Difference excluded from the call",
+      "description": "The consensus decided another sequence than the reference, and the call step excluded it: no call lies within one position.",
+      "v1": "not_called",
+      "policy_class": "abstain",
+      "policy_rank": 2
+    },
+    {
+      "id": "length.run_end_unread",
+      "category": "length",
+      "scopes": [
+        "item"
+      ],
+      "title": "Run end not read",
+      "description": "The site holds a run whose length is phase_loss or reference_frame, so its 3' end is not callable; runs whose length the profile leaves unrecorded are not listed.",
+      "v1": "estimated_length",
+      "policy_class": "abstain",
+      "policy_rank": 2
+    },
+    {
+      "id": "coverage.not_callable",
+      "category": "coverage",
+      "scopes": [
+        "item",
+        "annotation"
+      ],
+      "title": "Covered, not callable",
+      "description": "Positions outside every site that admitted reads cover but none makes callable.",
+      "v1": "undecided",
+      "policy_class": "abstain",
+      "policy_rank": 2
+    },
+    {
+      "id": "coverage.no_reads",
+      "category": "coverage",
+      "scopes": [
+        "item",
+        "annotation"
+      ],
+      "title": "No reads",
+      "description": "Positions no admitted read covers.",
+      "v1": "not_covered",
+      "policy_class": "abstain",
+      "policy_rank": 4
+    },
+    {
+      "id": "support.single_read",
+      "category": "support",
+      "scopes": [
+        "item"
+      ],
+      "title": "Single supporting read",
+      "description": "A variant site with exactly one supporting read.",
+      "v1": "one_read",
+      "policy_class": "context",
+      "policy_rank": 3
+    },
+    {
+      "id": "support.single_strand",
+      "category": "support",
+      "scopes": [
+        "item"
+      ],
+      "title": "Support on one strand",
+      "description": "Every supporting read of a variant site lies on one strand.",
+      "v1": "one_strand",
+      "policy_class": "context",
+      "policy_rank": 3
+    },
+    {
+      "id": "length.run_end_from_dephased_tail",
+      "category": "length",
+      "scopes": [
+        "item"
+      ],
+      "title": "Run end from a dephased tail",
+      "description": "A run's length rests on an anchored end: the first masked call reading another base after the run marks its end (ADR-0071).",
+      "v1": "dephased_end",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "signal.read_end_margin",
+      "category": "signal",
+      "scopes": [
+        "position",
+        "annotation"
+      ],
+      "title": "Read-end margin",
+      "description": "The call is unmasked but neither trusted nor exempt: inside the read-end margin, untrimmed, or next to a masked call.",
+      "v1": "read_edge",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "signal.masked_anchor",
+      "category": "signal",
+      "scopes": [
+        "position",
+        "annotation"
+      ],
+      "title": "Masked, still anchors",
+      "description": "The call is masked but still anchors the alignment; from is the first position of the read's masked stretch that reaches the item.",
+      "v1": "phase_shift",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "signal.masked",
+      "category": "signal",
+      "scopes": [
+        "position",
+        "annotation"
+      ],
+      "title": "Masked signal",
+      "description": "The call is masked for a reason other than an anchoring phase shift; reason is the modality's mask reason, verbatim.",
+      "v1": "noisy_signal",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "signal.dephased",
+      "category": "signal",
+      "scopes": [
+        "annotation"
+      ],
+      "title": "Dephased",
+      "description": "Superimposed ladders offset by slippage: the read's callability segment is dephased.",
+      "v1": null,
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "mixture.length",
+      "category": "mixture",
+      "scopes": [
+        "annotation"
+      ],
+      "title": "Phase mixture",
+      "description": "A stretch after a run whose signal the modality asserts is the read's own sequence superposed with copies offset by whole calls (ADR-0082). Display only.",
+      "v1": null,
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "coverage.single_strand",
+      "category": "coverage",
+      "scopes": [
+        "annotation"
+      ],
+      "title": "One strand only",
+      "description": "Positions that reads of one strand alone make callable.",
+      "v1": null,
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "mixture.second_base_explained",
+      "category": "mixture",
+      "scopes": [
+        "position"
+      ],
+      "title": "Second base explained by the signal",
+      "description": "As mixture.second_base_both_strands, but every qualifying read of one strand shows a second peak the modality explains (not second_unexplained, SRS-CALL-022): that strand shows no possible second sequence.",
+      "v1": "possible_heteroplasmy (explained)",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "signal.poor_start",
+      "category": "signal",
+      "scopes": [
+        "position",
+        "annotation"
+      ],
+      "title": "Poor start signal",
+      "description": "The read's call lies inside a span its modality asserts unreliable (SRS-CALL-024); reason is the modality's, verbatim.",
+      "v1": "poor_signal (item without a difference); reads' unreliable",
+      "policy_class": "context",
+      "policy_rank": 4
+    },
+    {
+      "id": "support.difference_in_poor_start",
+      "category": "support",
+      "scopes": [
+        "item"
+      ],
+      "title": "Difference shown only inside a poor start",
+      "description": "An item with a difference has a covering read inside its unreliable span (SRS-CALL-024), and no other read shows that position soundly (a scored, trusted call withheld for nothing, outside its own unreliable span).",
+      "v1": "poor_signal (item with a difference)",
+      "policy_class": "doubt",
+      "policy_rank": 4
+    }
+  ]
+}

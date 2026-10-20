@@ -27,6 +27,9 @@ use dna_kernel::read_evidence::{
     Bound, CallEvidence, EvidenceProfile, MixtureComponent, PhaseMixture, Placement, PostRepeatRun,
     ReadEvidence, Reasons, SecondBase, UnreliableSpan, Verdict,
 };
+use dna_kernel::read_evidence::{
+    CleanedLengths, LeakageShare, LengthMarginal, Margin, StructureFit, TractLengths,
+};
 use dna_sanger::model::callability::PhaseState;
 use dna_sanger::model::second_cause::{SecondCause, SecondPeak};
 use dna_sanger::read_processing;
@@ -158,6 +161,67 @@ struct RawRead {
     callability: RawCallability,
     mixtures: Vec<RawMixture>,
     unreliable: Vec<RawUnreliable>,
+    tracts: Vec<RawTract>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawTract {
+    onset: usize,
+    calls: RawInterval,
+    extent: usize,
+    run: char,
+    mark: Option<char>,
+    candidates: Vec<RawStructureFit>,
+    residual: f64,
+    sigma: f64,
+    autocorrelation: f64,
+    first: RawMarginal,
+    total: RawMarginal,
+    cleaned: Option<RawCleaned>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawStructureFit {
+    mark: Option<char>,
+    residual: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawMarginal {
+    lengths: Vec<usize>,
+    shares: Vec<f64>,
+    errors: Vec<f64>,
+    dominant: Option<usize>,
+    next: Option<usize>,
+    z: Option<f64>,
+    z_adjusted: Option<f64>,
+    margin: RawMargin,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RawMargin {
+    Clear,
+    NearEqual,
+    Undefined,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawCleaned {
+    leakage: Option<Vec<RawLeakage>>,
+    residual: f64,
+    first: RawMarginal,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLeakage {
+    offset: i32,
+    share: f64,
 }
 
 #[derive(Deserialize)]
@@ -419,6 +483,47 @@ pub(crate) fn load_sample(
         documents
             .iter()
             .map(|document| read_document(document, &expected))
+            .collect::<Result<Vec<_>>>()?
+    };
+    let reference = load_reference(reference_path, &profile)?;
+    Ok(SampleInputs {
+        config,
+        profile,
+        reference,
+        reads,
+    })
+}
+
+/// Loads configuration, profile, and reference, and reads one sample's read
+/// evidence `documents` from memory, each named for its errors, each of
+/// which `plugins` must have written under the loaded configuration.
+pub(crate) fn load_sample_documents(
+    documents: &[(String, Vec<u8>)],
+    reference_path: &Path,
+    config_path: &Path,
+    plugins: &[&PluginDescriptor],
+) -> Result<SampleInputs> {
+    if documents.is_empty() {
+        return Err(SampleError::NoTraces.into());
+    }
+    require_regular_file(reference_path, "reference")?;
+    let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
+    let reads = {
+        let expected = Expected::of(&config, plugins);
+        documents
+            .iter()
+            .map(|(name, bytes)| {
+                let length = bytes.len() as u64;
+                if length == 0 || length > MAX_EVIDENCE_BYTES {
+                    return Err(ReadEvidenceError::FileSize {
+                        bytes: length,
+                        maximum: MAX_EVIDENCE_BYTES,
+                    }
+                    .into());
+                }
+                parse(bytes, Path::new(name), &expected)
+            })
             .collect::<Result<Vec<_>>>()?
     };
     let reference = load_reference(reference_path, &profile)?;
@@ -703,6 +808,7 @@ fn recorded_read(
         })
         .collect::<Result<Vec<_>>>()?;
     let evidence = evidence.with_unreliable(unreliable)?;
+    let evidence = evidence.with_tracts(read.tracts.iter().map(tract).collect())?;
     Ok((evidence, sanger))
 }
 
@@ -980,6 +1086,60 @@ fn mixture(raw: &RawMixture) -> PhaseMixture {
         residual: raw.residual,
         unexplained: raw.unexplained.clone(),
         explained: raw.explained,
+    }
+}
+
+fn tract(raw: &RawTract) -> TractLengths {
+    TractLengths {
+        onset: raw.onset,
+        call_start: raw.calls.start,
+        extent: raw.extent,
+        window: raw.calls.end.saturating_sub(raw.calls.start),
+        run: raw.run,
+        mark: raw.mark,
+        candidates: raw
+            .candidates
+            .iter()
+            .map(|candidate| StructureFit {
+                mark: candidate.mark,
+                residual: candidate.residual,
+            })
+            .collect(),
+        residual: raw.residual,
+        sigma: raw.sigma,
+        autocorrelation: raw.autocorrelation,
+        first: marginal(&raw.first),
+        total: marginal(&raw.total),
+        cleaned: raw.cleaned.as_ref().map(|cleaned| CleanedLengths {
+            leakage: cleaned.leakage.as_ref().map(|shares| {
+                shares
+                    .iter()
+                    .map(|leak| LeakageShare {
+                        offset: leak.offset,
+                        share: leak.share,
+                    })
+                    .collect()
+            }),
+            residual: cleaned.residual,
+            first: marginal(&cleaned.first),
+        }),
+    }
+}
+
+fn marginal(raw: &RawMarginal) -> LengthMarginal {
+    LengthMarginal {
+        lengths: raw.lengths.clone(),
+        shares: raw.shares.clone(),
+        errors: raw.errors.clone(),
+        dominant: raw.dominant,
+        next: raw.next,
+        z: raw.z,
+        z_adjusted: raw.z_adjusted,
+        margin: match raw.margin {
+            RawMargin::Clear => Margin::Clear,
+            RawMargin::NearEqual => Margin::NearEqual,
+            RawMargin::Undefined => Margin::Undefined,
+        },
     }
 }
 

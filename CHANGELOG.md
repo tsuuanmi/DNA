@@ -33,6 +33,48 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   zones are unchanged in every zone and period. 73G is no longer analysed in
   117 current samples, where it becomes a coverage item. Plugins `consensus`
   17, `decided` 4, `review` 20, `empop` 2.
+- `dna-eval run --evidence-cache <dir>` analyses every read from its
+  `dna.read_evidence/v1` document instead of its trace, read from the cache
+  or made and stored, and `dna-eval cache prune --keep <n>` removes old
+  generations (PROP-0011).
+  - **Key:** the trace's SHA-256, the configuration's SHA-256, the `sanger`
+    version, and the read stage's code identity, which `dna-eval`'s build
+    script records as git object ids. A build from modified read-stage
+    sources refuses the cache.
+  - **Storage:** entries are gzip-compressed and written atomically; a
+    corrupt entry is remade.
+  - **Record:** `run.json` gains `evidence_cache` (`dna.eval_run/v1`, in
+    place, pre-release).
+  - **Facade:** gains `read_evidence_document` and
+    `analyze_evidence_outcome`. A sample's rejected-read count now comes from
+    its sample evidence, so it does not depend on the path.
+  - **Measured:** on 410 samples of panel v5 every table is byte-identical
+    from the traces, a cold cache, and a warm one; a warm run takes a fifth
+    of the CPU. The read stage is about 90 % of a run's CPU since the tract
+    decoder.
+
+- The Sanger plugin decodes a read's homopolymer tracts from its own signal
+  (SRS-CALL-025, PROP-0012 increment 2, ADR-0084), as `ReadEvidence::tracts`,
+  evidence only. Before each call where callability sees the read leave
+  phase, `dna-trace` locates the tract from the read's primaries and chooses
+  its structure: a single run, or two runs around a mark of another base.
+  It decodes the tract as a mixture of molecules that share one downstream
+  sequence, from the analysed channels at each call's locus sample. It
+  reports the first run's and the total's length marginals, each with
+  standard errors, an autocorrelation-deflated margin, and its state
+  (`clear`, `near_equal`, or `undefined`, which is never clear), and refits them with the read's own base signatures and leakage.
+  - The decode matches the research reference on 13 vectors.
+  - It is published as `read.tracts` in `dna.read_evidence/v1` (changed in
+    place, pre-release) and as `tracts.tsv` in `dna.eval_run/v1`.
+  - The facade gains `SampleAnalysis::tracts`.
+  - The constants are the new `[trace]` section: configuration schema 19,
+    plugin `sanger` 17.
+  - On development panel v5, every scores, checks, windows, estimates,
+    anchors, components, and forms table is byte-identical: no decision
+    changes. 67,567 tracts are decoded. At 303-315, HV2F reads choose the
+    `T` mark on 95 % of their tracts and HV3R reads the `A` mark on 95 %.
+  - A panel run takes about 4.6 times as long (50.6 s to 234 s on the same
+    loaded machine).
 
 - `dna sample`, `dna consensus`, and `dna review` take `--evidence
   <read_evidence.json>...` in place of a sample's traces (SRS-API-019,

@@ -22,7 +22,7 @@ use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
     Bound, CallEvidence, EvidenceReason, PhaseMixture, Placement, ReadEvidence, Reasons,
-    SecondBase, UnreliableSpan, Verdict,
+    SecondBase, TractLengths, UnreliableSpan, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -90,6 +90,7 @@ pub fn reason(label: &str) -> Option<EvidenceReason> {
 /// Returns `ProductsError` when the Sanger products disagree
 /// on call count, trim, or call identity, and `EvidenceError` when the evidence
 /// is invalid.
+#[allow(clippy::too_many_arguments)]
 pub fn read_evidence(
     calls: &BaseCalls,
     signal: &SignalAnalysis,
@@ -97,6 +98,7 @@ pub fn read_evidence(
     quality: &QualityControlResult,
     second: &[Option<SecondPeak>],
     mixtures: &[PhaseMixture],
+    tracts: &[TractLengths],
     config: &SangerEvidenceConfig,
 ) -> Result<ReadEvidence> {
     let count = quality.per_call.len();
@@ -284,7 +286,8 @@ pub fn read_evidence(
     Ok(
         ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())?
             .with_mixtures(mixtures.to_vec())?
-            .with_unreliable(poor)?,
+            .with_unreliable(poor)?
+            .with_tracts(tracts.to_vec())?,
     )
 }
 
@@ -1098,6 +1101,7 @@ mod tests {
                 &quality,
                 second,
                 &[],
+                &[],
                 &config(0),
             )
         };
@@ -1158,6 +1162,7 @@ mod tests {
                 &callability,
                 &quality,
                 &stand_out(7, 3, cause),
+                &[],
                 &[],
                 &config(0),
             )
@@ -1257,6 +1262,7 @@ mod tests {
                 quality,
                 &stand_out(5, 2, cause),
                 &[],
+                &[],
                 &config(0),
             )
         };
@@ -1312,6 +1318,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(0),
         )?;
         let vetoes = evidence
@@ -1355,6 +1362,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(0),
         )?;
         let withheld = evidence
@@ -1380,6 +1388,7 @@ mod tests {
             &signal,
             &callability,
             &quality,
+            &[],
             &[],
             &[],
             &config(0),
@@ -1419,6 +1428,7 @@ mod tests {
             &signal,
             &callability,
             &quality,
+            &[],
             &[],
             &[],
             &config(0),
@@ -1478,6 +1488,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(1),
         )?;
         let vouched = evidence
@@ -1510,6 +1521,7 @@ mod tests {
             &signal,
             &callability,
             &quality,
+            &[],
             &[],
             &[],
             &config(1),
@@ -1575,6 +1587,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(2),
         )?;
         let lifted = evidence
@@ -1620,8 +1633,16 @@ mod tests {
         quality.trim_end_0based_exclusive = 10;
         quality.retained_sequence = "A".repeat(10);
         let lifted = |callability: &ReadCallability| -> Result<Vec<bool>> {
-            let evidence =
-                read_evidence(&calls, &signal, callability, &quality, &[], &[], &config(4))?;
+            let evidence = read_evidence(
+                &calls,
+                &signal,
+                callability,
+                &quality,
+                &[],
+                &[],
+                &[],
+                &config(4),
+            )?;
             Ok(evidence.calls()[6..10]
                 .iter()
                 .map(|call| !call.identity.edge)
@@ -1723,6 +1744,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(2),
         )?;
         let lifted = (4..8)
@@ -1764,6 +1786,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(3),
         )?;
         assert_eq!(lifted(&evidence), [false, false, false]);
@@ -1778,6 +1801,7 @@ mod tests {
             &quality,
             &[],
             &[],
+            &[],
             &config(3),
         )?;
         assert_eq!(lifted(&evidence), [true, true, true]);
@@ -1790,6 +1814,7 @@ mod tests {
             &signal,
             &callability,
             &quality,
+            &[],
             &[],
             &[],
             &config(3),
@@ -1810,6 +1835,7 @@ mod tests {
             &signal,
             &callability,
             &quality,
+            &[],
             &[],
             &[],
             &config(0),

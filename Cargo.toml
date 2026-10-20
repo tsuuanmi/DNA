@@ -69,6 +69,7 @@ dna-trace = { path = "crates/dna-trace", version = "0.1.0" }
 assert_cmd = "2"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
+flate2 = "1"
 memchr = "2.8.3"
 noodles-fasta = "0.60"
 predicates = "3"

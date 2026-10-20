@@ -74,6 +74,7 @@ impl SampleAnalysis {
     ) -> dna::error::Result<Vec<LocusObservations>>;
     pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>>;
     pub fn components(&self) -> Vec<ReadMixtures>;
+    pub fn tracts(&self) -> Vec<ReadTracts>;
 }
 
 #[non_exhaustive]
@@ -82,6 +83,20 @@ pub struct ReadMixtures {
     pub sha256: String,
     pub forward: bool,
     pub mixtures: Vec<MixtureCalls>,
+}
+
+pub struct ReadTracts {
+    pub read: String,
+    pub sha256: String,
+    pub forward: bool,
+    pub tracts: Vec<PlacedTract>,
+}
+
+pub struct PlacedTract {
+    pub reference: Option<usize>,
+    pub onset_reason: Option<&'static str>,
+    pub to_end: bool,
+    pub tract: TractLengths,
 }
 
 #[non_exhaustive]
@@ -147,6 +162,22 @@ impl RejectionCause {
   last across the origin), its bases there, and its observed variants
   (SRS-VAR-022). It is computed on demand, changes nothing, and is evidence
   for evaluation and review, not a calling contract.
+- `read_evidence_document(trace, config)` returns a trace's
+  `dna.read_evidence/v1` document in memory, as `dna evidence` writes it;
+  `analyze_evidence_outcome(documents, reference, config, workers)` analyses
+  a sample from such documents in memory, as `dna sample --evidence` does from
+  files (SRS-API-019), and returns `EvidenceOutcome`: the analysis, or how
+  many distinct reads were set aside. Reads from recorded evidence carry no
+  Sanger products, so that analysis's `reads` and `rejected` are empty; its
+  sample evidence lists the rejected reads. `dna-eval run --evidence-cache`
+  uses both.
+- `tracts()` returns, per admitted read in placement order, its tract
+  decodes (`TractLengths` and `LengthMarginal`, `dna_kernel::read_evidence`,
+  re-exported here; SRS-CALL-025), each with the reference position (1-based)
+  its first call is aligned to, or `None`; the read's reason for masking the
+  onset call, its own assertion of why it left phase there; and whether no
+  later call is scored (`to_end`). It is computed on demand, changes
+  nothing, and is evidence for evaluation, not a calling contract.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the
   core rejected. The last two carry the read's integrity and callability
@@ -176,6 +207,20 @@ pub fn analyze_sanger_outcome(
 pub enum SampleOutcome {
     Analyzed(Box<SampleAnalysis>),
     Rejected(BTreeMap<String, RejectedRead>),
+}
+
+pub fn read_evidence_document(trace: &Path, config: &Path) -> dna::error::Result<Vec<u8>>
+
+pub fn analyze_evidence_outcome(
+    documents: &[(String, Vec<u8>)],
+    reference: &Path,
+    config: &Path,
+    workers: NonZeroUsize,
+) -> dna::error::Result<EvidenceOutcome>
+
+pub enum EvidenceOutcome {
+    Analyzed(Box<SampleAnalysis>),
+    Rejected { reads: usize },
 }
 ```
 

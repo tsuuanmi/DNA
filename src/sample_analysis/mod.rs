@@ -23,6 +23,8 @@ use dna_call::read_trust;
 use dna_kernel::model::reference::Reference;
 pub use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel};
 use dna_kernel::profile::{Profile, ProfileIdentity};
+use dna_kernel::read_evidence::{EvidenceReason, Placement};
+pub use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
 use dna_kernel::variant::ReferenceIdentity;
 use dna_sample::model::sample_evidence::{LocusObservations, RejectedSampleRead};
 
@@ -158,6 +160,55 @@ impl SampleAnalysis {
             .collect()
     }
 
+    /// Every read placed on the reference and called on its own, by read,
+    /// with its tract decodes (PROP-0012): its name, its content SHA-256,
+    /// whether it reads the reference strand, and each tract with the
+    /// reference position of its first call, the read's reason for masking
+    /// its onset call, and whether the read stays out of phase to its end. Evidence for evaluation; the
+    /// core reads none of it.
+    #[must_use]
+    pub fn tracts(&self) -> Vec<ReadTracts> {
+        self.called
+            .iter()
+            .map(|read| {
+                let positions = read
+                    .alignment
+                    .columns()
+                    .iter()
+                    .filter_map(|column| {
+                        Some((
+                            column.original_call_index_0based()?,
+                            column.reference_index_0based()? + 1,
+                        ))
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                let calls = read.evidence.calls();
+                ReadTracts {
+                    read: read.input_name.clone(),
+                    sha256: read.input_sha256.clone(),
+                    forward: read.alignment.orientation() == Orientation::Forward,
+                    tracts: read
+                        .evidence
+                        .tracts()
+                        .iter()
+                        .map(|tract| PlacedTract {
+                            reference: positions.get(&tract.call_start).copied(),
+                            onset_reason: calls
+                                .get(tract.onset)
+                                .and_then(|call| call.placement.reason())
+                                .map(EvidenceReason::label),
+                            to_end: calls
+                                .iter()
+                                .skip(tract.onset)
+                                .all(|call| call.placement != Placement::Scored),
+                            tract: tract.clone(),
+                        })
+                        .collect(),
+                }
+            })
+            .collect()
+    }
+
     /// The reportable regions of the target profile the analysis ran with:
     /// inclusive 1-based reference intervals, as the profile declares them.
     #[must_use]
@@ -214,6 +265,37 @@ pub struct ReadMixtures {
     pub forward: bool,
     /// Its mixtures.
     pub mixtures: Vec<MixtureCalls>,
+}
+
+/// One read's tract decodes (PROP-0012).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadTracts {
+    /// The read's name.
+    pub read: String,
+    /// Its content SHA-256.
+    pub sha256: String,
+    /// It reads the reference strand.
+    pub forward: bool,
+    /// Its tracts, in onset order.
+    pub tracts: Vec<PlacedTract>,
+}
+
+/// One tract decode, with where its first call lies on the reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacedTract {
+    /// The reference position (1-based) the tract's first call is aligned
+    /// to; `None` when the call is not aligned to a reference base.
+    pub reference: Option<usize>,
+    /// The modality's reason for masking the onset call, the read's own
+    /// assertion of why it left phase there (`post_homopolymer`,
+    /// `dephased_signal`, `weak_signal`, ...); `None` when the call is not
+    /// masked.
+    pub onset_reason: Option<&'static str>,
+    /// The read does not regain phase after the onset: no later call is
+    /// scored.
+    pub to_end: bool,
+    /// The modality's assertion.
+    pub tract: TractLengths,
 }
 
 /// One item of a sample's review list that a reviewer must look at: a
@@ -470,13 +552,13 @@ fn rejected_by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, Rejecte
 /// Sends each read's instrumentation to the dispatcher and span that were
 /// current on the caller's thread, so a read's spans have the same parent on
 /// every worker.
-struct CallerScope {
+pub(crate) struct CallerScope {
     dispatch: Dispatch,
     span: Span,
 }
 
 impl CallerScope {
-    fn current() -> Self {
+    pub(crate) fn current() -> Self {
         Self {
             dispatch: tracing::dispatcher::get_default(Dispatch::clone),
             span: Span::current(),

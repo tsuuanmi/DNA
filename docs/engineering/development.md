@@ -54,6 +54,19 @@ crate takes seconds instead of minutes (3 s against 124 s for an edit to
 branches in it rather than building a fresh checkout per probe. Approvals,
 readiness uses, and releases use `--release`.
 
+A probe that changes nothing of the read stage (the Sanger plugin, `dna-trace`,
+the kernel, or the facade's evidence writer) can skip it with
+`dna-eval run --evidence-cache <dir>`. Every read is then analysed from its
+`dna.read_evidence/v1` document, read from the cache or made and stored there,
+so the outputs equal a run from the traces. On a 410-sample subset of panel v5
+every table was byte-identical from the traces, a cold cache, and a warm one,
+and a warm run took a fifth of the CPU. The cache needs a harness built from
+committed read-stage sources, since a plugin version does not move on a
+work-in-progress commit; `run.json` records its key and hits. Keep one cache
+directory per machine, and remove old generations with
+`dna-eval cache prune --dir <dir> --keep <n>` (about 3 GB per generation for
+panel v5).
+
 ## Required checks
 
 Before finalizing a repository change, run the required gates defined in [[engineering/ci-cd|CI/CD]]. During iteration, run the narrowest checks that exercise the changed failure modes first.

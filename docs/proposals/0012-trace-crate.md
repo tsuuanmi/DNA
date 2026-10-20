@@ -199,11 +199,24 @@ turns it into development data.
 1. **Move.** `dna-sanger/src/decompose` moves into `dna-trace`, unchanged.
    The panel must be byte-identical. An optional debug dump of the window's
    channels and fit serves research; it is not a contract.
-2. **Model.** Empirical per-read base signatures and a leakage null replace
-   the one-hot model in the fit (E1). The number of components is chosen by
-   BIC (E2), so the explained gate's quantile is the only key left. Each
-   read's per-run lengths, fractions, margin, and near-equal mark go on
-   `PhaseMixture`. Evidence only.
+2. **Model.** The tract decode (decoder v2, SRS-CALL-025), a second
+   assertion beside `PhaseMixture` (`ReadEvidence::tracts`, [[ADR-0084]]):
+   - located before every call where the read leaves phase, from the read's
+     own primaries;
+   - its structure chosen among a single run and a mark of each other base,
+     by the lowest residual over one shared window;
+   - decoded as a mixture of molecules sharing one downstream sequence;
+   - reported as the first run's and the total's length marginals, the only
+     identifiable ones, each with standard errors, an
+     autocorrelation-deflated margin, and its state (`clear`, `near_equal`,
+     or `undefined`, which is never clear);
+   - refitted with the read's own base signatures and leakage null (E1),
+     which cleans the minor shares.
+
+   This replaces the earlier plan of signatures plus a BIC choice of
+   components: on the research spike, the identifiable marginals carry the
+   length, and BIC chose no better. Evidence only. `dna-eval` reports every
+   decode in `tracts.tsv`.
 3. **Flag.** The review shows the per-run components and strand agreement
    for every mixture run. It is also the first increment that reduces
    unflagged errors: a run that passes with no check today becomes a check

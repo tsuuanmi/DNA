@@ -10,6 +10,7 @@ use crate::basecalling::{BasecallingConfig, RawBasecallingConfig};
 use crate::callability::{CallabilityConfig, RawCallabilityConfig};
 use crate::quality_control::{QualityControlConfig, RawQualityControlConfig};
 use crate::signal_processing::{RawSignalProcessingConfig, SignalProcessingConfig};
+use crate::tract::{RawTraceConfig, TraceConfig};
 
 /// Largest peak height representable by an ABIF signed short.
 pub(crate) const MAX_PEAK_HEIGHT: i32 = i16::MAX as i32;
@@ -24,6 +25,8 @@ pub struct SangerConfig {
     pub(crate) quality_control: QualityControlConfig,
     /// The `[sanger_evidence]` section.
     pub sanger_evidence: SangerEvidenceConfig,
+    /// The `[trace]` section.
+    pub(crate) trace: TraceConfig,
 }
 
 impl SangerConfig {
@@ -47,6 +50,8 @@ pub struct RawSangerConfig {
     pub quality_control: RawQualityControlConfig,
     /// The `[sanger_evidence]` section as written.
     pub sanger_evidence: RawSangerEvidenceConfig,
+    /// The `[trace]` section as written.
+    pub trace: RawTraceConfig,
 }
 
 impl RawSangerConfig {
@@ -62,6 +67,7 @@ impl RawSangerConfig {
         let callability = self.callability.validate()?;
         let quality_control = self.quality_control.validate()?;
         let sanger_evidence = self.sanger_evidence.validate()?;
+        let trace = self.trace.validate()?;
         if sanger_evidence.relative_quality_threshold >= quality_control.max_relative_quality_score
         {
             return Err(ConfigError::Constraint(
@@ -75,6 +81,7 @@ impl RawSangerConfig {
             callability,
             quality_control,
             sanger_evidence,
+            trace,
         })
     }
 }

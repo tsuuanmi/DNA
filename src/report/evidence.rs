@@ -10,12 +10,17 @@ use crate::model::evidence_result::{
     MixtureEvidenceResult, PostRepeatResult, RejectedEvidenceResult, SecondBaseResult,
     UnreliableEvidenceResult, VerdictResult,
 };
+use crate::model::evidence_result::{
+    CleanedLengthsResult, LeakageShareResult, LengthMarginalResult, StructureFitResult,
+    TractEvidenceResult,
+};
 use crate::model::result::{IntervalResult, PeakHeightsResult, PlacementKind, PlacementResult};
 use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::report::json::project_plugins;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::read_evidence::{
-    Bound, EvidenceReason, Placement, ReadEnds, ReadEvidence, Verdict,
+    Bound, EvidenceReason, LengthMarginal, Margin, Placement, ReadEnds, ReadEvidence, TractLengths,
+    Verdict,
 };
 
 /// The schema every read evidence document names.
@@ -63,13 +68,15 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceDocument> {
             let (integrity, callability) = sanger
                 .map(|sanger| (sanger.integrity, sanger.callability))
                 .unzip();
-            return Ok(EvidenceDocument::Rejected(RejectedEvidenceResult {
-                schema_version: SCHEMA_VERSION,
-                provenance,
-                rejection: cause,
-                integrity,
-                callability,
-            }));
+            return Ok(EvidenceDocument::Rejected(Box::new(
+                RejectedEvidenceResult {
+                    schema_version: SCHEMA_VERSION,
+                    provenance,
+                    rejection: cause,
+                    integrity,
+                    callability,
+                },
+            )));
         }
     };
     let count = evidence.calls().len();
@@ -123,7 +130,7 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceDocument> {
             }
         })
         .collect();
-    Ok(EvidenceDocument::Read(EvidenceResult {
+    Ok(EvidenceDocument::Read(Box::new(EvidenceResult {
         schema_version: SCHEMA_VERSION,
         provenance,
         read: EvidenceReadResult {
@@ -177,11 +184,12 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceDocument> {
                     reason: span.reason.label(),
                 })
                 .collect(),
+            tracts: evidence.tracts().iter().map(tract).collect(),
         },
         signal_quality: sanger.signal_quality,
         warnings: sanger.warnings,
         calls: results,
-    }))
+    })))
 }
 
 /// The kernel placement as its kind and the modality's reason.
@@ -202,5 +210,62 @@ fn verdict(verdict: Verdict) -> VerdictResult {
     VerdictResult {
         edge: verdict.edge,
         withheld: verdict.withheld.iter().map(EvidenceReason::label).collect(),
+    }
+}
+
+/// One tract decode as `dna.read_evidence/v1` writes it.
+fn tract(tract: &TractLengths) -> TractEvidenceResult {
+    TractEvidenceResult {
+        onset: tract.onset,
+        calls: IntervalResult {
+            start: tract.call_start,
+            end: tract.call_start + tract.window,
+        },
+        extent: tract.extent,
+        run: tract.run,
+        mark: tract.mark,
+        candidates: tract
+            .candidates
+            .iter()
+            .map(|candidate| StructureFitResult {
+                mark: candidate.mark,
+                residual: candidate.residual,
+            })
+            .collect(),
+        residual: tract.residual,
+        sigma: tract.sigma,
+        autocorrelation: tract.autocorrelation,
+        first: marginal(&tract.first),
+        total: marginal(&tract.total),
+        cleaned: tract.cleaned.as_ref().map(|cleaned| CleanedLengthsResult {
+            leakage: cleaned.leakage.as_ref().map(|shares| {
+                shares
+                    .iter()
+                    .map(|leak| LeakageShareResult {
+                        offset: leak.offset,
+                        share: leak.share,
+                    })
+                    .collect()
+            }),
+            residual: cleaned.residual,
+            first: marginal(&cleaned.first),
+        }),
+    }
+}
+
+fn marginal(marginal: &LengthMarginal) -> LengthMarginalResult {
+    LengthMarginalResult {
+        lengths: marginal.lengths.clone(),
+        shares: marginal.shares.clone(),
+        errors: marginal.errors.clone(),
+        dominant: marginal.dominant,
+        next: marginal.next,
+        z: marginal.z,
+        z_adjusted: marginal.z_adjusted,
+        margin: match marginal.margin {
+            Margin::Clear => "clear",
+            Margin::NearEqual => "near_equal",
+            Margin::Undefined => "undefined",
+        },
     }
 }

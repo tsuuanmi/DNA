@@ -40,6 +40,12 @@ pub enum EvidenceError {
         /// Offending span index (0-based).
         index: usize,
     },
+    /// A tract decode does not fit the read's calls or is malformed.
+    #[error("tract {index} does not fit the read's calls or is malformed")]
+    InvalidTract {
+        /// Offending tract index (0-based).
+        index: usize,
+    },
     /// A modality reason label is malformed, repeated, or reserved by the core.
     #[error("invalid modality reason label {0:?}")]
     InvalidReason(&'static str),

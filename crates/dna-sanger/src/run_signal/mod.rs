@@ -233,6 +233,7 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
         &processed.quality,
         &processed.second,
         &processed.mixtures,
+        &processed.tracts,
         &config.sanger_evidence,
     )?;
     Ok(Some(contributions(

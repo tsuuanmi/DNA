@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
-decided-by: [ADR-0065, ADR-0075, ADR-0076, ADR-0077, ADR-0082]
+decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082]
 ---
 
 # Evaluation harness
@@ -26,7 +26,10 @@ cargo run --release -p dna-eval -- run \
   [--review-window <bp>] [--forced-windows <file>] [--recheck <file.tsv>] \
   [--current-since <YYYY-MM>] \
   [--run-signal batch|month [--run-signal-batch-reads <n>]] \
-  [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>]
+  [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
+  [--evidence-cache <dir>]
+
+cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n>
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -268,6 +271,37 @@ sequence gets a failure row (kind `reference`).
 and runs the [draft triage](#draft-triage); without it the run and its
 outputs are unchanged.
 
+`--evidence-cache <dir>` analyses every read from its `dna.read_evidence/v1`
+document instead of its trace, with
+`dna::recorded::analyze_evidence_outcome`, as `dna sample --evidence`
+does ([[PROP-0011]]). Each document is read from the cache or made with
+`read_evidence_document` and stored. A hit and a miss therefore analyse
+alike, and the outputs equal a run from the traces: on 410 samples of panel
+v5, every table was byte-identical from the traces, a cold cache, and a warm
+one.
+
+- **Key.** The read stage reads no profile and no reference ([[ADR-0069]]),
+  and nothing of the core, so a document depends on the trace, the
+  configuration, and the read-stage code alone. An entry is the trace's
+  content SHA-256 in a generation named for the configuration file's SHA-256
+  (which the document's provenance records and the reader checks), the
+  `sanger` version, and the read-stage code identity.
+- **Code identity.** The identity is the git object ids of every source from
+  a trace to its document: `Cargo.lock`, `dna-kernel`, `dna-sanger`,
+  `dna-trace`, and the facade's configuration, trace loading, evidence
+  models, and writer, recorded by `dna-eval`'s build script. A harness built
+  with any of those sources differing from its commit has no identity, and
+  the option fails. A plugin version does not move on a work-in-progress
+  commit, so it alone would serve stale documents.
+- **Storage.** Entries are gzip-compressed and renamed into place. An entry
+  that does not decompress, is not JSON, or names another trace is a miss,
+  remade and replaced.
+- **Record.** `run.json` records the directory, the key, the hits, misses,
+  and replaced entries, and the generation's size. `cache prune --keep <n>`
+  removes every generation but the `n` most recently used.
+- **Limits.** Not with `--triage`, which reads the traces' own Sanger
+  products. `approve` always runs from the traces.
+
 `--run-signal` judges each sample's review against a run signal
 ([[PROP-0009]], SRS-CALL-020) built in
 process, the way `dna review --signal` would with a per-run file. A first
@@ -319,6 +353,7 @@ or to which files a run writes, is a new contract version
 |---|---|---|
 | `scores.tsv` | always | per sample: the comparison under each [measure](evaluation-measures.md#measures), the [discrepancy class](evaluation-measures.md#discrepancy-classes) and [cause](evaluation-measures.md#discrepancy-causes), the [EMPOP query](#empop-queries), the callable yield per HV region, the traces, the failure, and the [review workload](evaluation-triage.md#review-workload); read back as a later run's `--baseline` |
 | `components.tsv` | always | per phase-mixture component (ADR-0082) and reference run cluster it covers: the run it enters in phase against the truth's |
+| `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
