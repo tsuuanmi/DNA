@@ -469,7 +469,8 @@
         "kind": {
           "enum": [
             "variant",
-            "check"
+            "check",
+            "note"
           ]
         },
         "decision": {
@@ -600,6 +601,10 @@
             },
             "base": {
               "$ref": "#/$defs/base"
+            },
+            "explained": {
+              "description": "Present and true when every qualifying read of one strand shows a second peak the modality explains (not second_unexplained, SRS-CALL-022): the label is context, not a check (rules version 19).",
+              "const": true
             },
             "reads": {
               "type": "array",

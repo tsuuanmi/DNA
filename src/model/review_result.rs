@@ -220,6 +220,9 @@ pub(crate) enum ItemKind {
     Variant,
     /// DNA could not assure the item.
     Check,
+    /// No call and no label that leaves it unassured, listed for a context
+    /// label a reviewer may still want: an explained possible heteroplasmy.
+    Note,
 }
 
 /// What DNA decided over the item.
@@ -259,6 +262,10 @@ pub(crate) enum LabelResult {
     PossibleHeteroplasmy {
         position: usize,
         base: char,
+        /// A strand's qualifying reads all show a second peak whose shape
+        /// explains it: the label is context, not a check.
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        explained: bool,
         reads: Vec<ShareResult>,
     },
     EstimatedLength {

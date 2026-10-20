@@ -144,7 +144,8 @@ target still fails the command without output.
   zone. A zone without checks is DNA's own decision.
 - `items`: the review items, in priority order (below).
 - `summary`:
-  - `items`, `checks`, `variants`: item counts;
+  - `items`, `checks`, `variants`: item counts (`items` includes the
+    `note` items);
   - `labels`: for every label, the number of items carrying it, zeros
     included, in the label order below;
   - `positions`: `reportable`, the positions of the profile's reportable
@@ -169,16 +170,17 @@ the clipped columns, what most of its supporting reads show there). It has:
   ordinals are `0`, and an item holds the insertions after its last position
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
-  (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy`,
-  `estimated_length`, `undecided`, `not_called`, `long_run`, `edge_deletion`,
-  `run_deletion`,
+  (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
+  `explained`, `estimated_length`, `undecided`, `not_called`, `long_run`,
+  `edge_deletion`, `run_deletion`,
   `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
-  reference. The read labels `one_read`, `one_strand`, `noisy_signal`,
-  `read_edge`, and `phase_shift` are context and do not make a check;
-  `poor_signal` makes a check of an item with a difference only (rules
-  version 18).
+  reference; otherwise `note` (rules version 19): it holds an `explained`
+  `possible_heteroplasmy`, listed for the reviewer's information only. The
+  read labels `one_read`, `one_strand`, `noisy_signal`, `read_edge`, and
+  `phase_shift` are context and do not make a check; `poor_signal` makes a
+  check of an item with a difference only (rules version 18).
 - `decision`: `called` (decided, and every position callable),
   `partly_callable`, or `not_callable` (no position callable).
 - `sequence`: the decided sequence: a site's call (`N` where undecided, empty
@@ -223,7 +225,8 @@ Items come from three sources:
    call and no label that leaves it unassured is DNA's own decision and is not
    an item.
 2. **Second bases.** Every callable position outside every site where
-   `possible_heteroplasmy` fires: a one-position item.
+   `possible_heteroplasmy` fires: a one-position item (a `note` when the
+   label is `explained`).
 3. **Gaps.** Every maximal run of positions outside every site that is not
    callable: `not_covered` when no admitted read's reference segments cover
    any of it, otherwise `undecided` plus the labels of its covering reads.
@@ -245,7 +248,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 1 | `possible_heteroplasmy` |
 | 2 | `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
-| 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge` |
+| 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
 ## Labels (rules version 13)
 
@@ -302,6 +305,14 @@ exemption lifts the margin (ADR-0076).
   90 % for two-strand ones, so they cost reviewers far more than they found).
   The base most qualifying reads show is reported (then A/C/G/T order), with
   each of them, its share, and its threshold.
+  The label is `explained` (rules version 19) when every qualifying read of
+  one strand shows a second peak the modality explains by the signal's own
+  shape, a neighbour's tail or a dye blob (not `second_unexplained`,
+  SRS-CALL-022): that strand shows no possible second sequence. An
+  `explained` label is context and makes no check. On the development panel
+  none of the 23 such flags was a heteroplasmy in the truth, and none hid
+  a difference from the decision, against 92 % heteroplasmies among the
+  flags whose qualifying reads all show a `second_template` peak.
 - `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
   runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
   not callable. A run whose length a profile report convention leaves

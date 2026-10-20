@@ -43,7 +43,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 18,
+    version: 19,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -815,13 +815,20 @@ impl<'a> Sample<'a> {
             .iter()
             .any(|label| matches!(label, LabelResult::PoorSignal { .. }));
         let assured = !(labels.iter().any(unassured) || (differs && poor));
-        if !differs && assured {
-            return Ok(None);
-        }
-        let kind = if assured {
-            ItemKind::Variant
-        } else {
-            ItemKind::Check
+        let noted = labels.iter().any(|label| {
+            matches!(
+                label,
+                LabelResult::PossibleHeteroplasmy {
+                    explained: true,
+                    ..
+                }
+            )
+        });
+        let kind = match (assured, differs, noted) {
+            (false, _, _) => ItemKind::Check,
+            (true, true, _) => ItemKind::Variant,
+            (true, false, true) => ItemKind::Note,
+            (true, false, false) => return Ok(None),
         };
         labels.sort_by(|left, right| key(left).cmp(&key(right)));
         labels.dedup();
@@ -1189,6 +1196,11 @@ impl<'a> Sample<'a> {
                 neighbour(position.checked_sub(1)),
                 neighbour(position.checked_add(1)),
             ],
+            explained: read
+                .evidence
+                .calls()
+                .get(call)
+                .is_some_and(|evidence| !evidence.second_unexplained),
         })
     }
 
@@ -1222,6 +1234,7 @@ impl<'a> Sample<'a> {
         Some(LabelResult::PossibleHeteroplasmy {
             position,
             base,
+            explained: explained(&reads),
             reads: reads
                 .into_iter()
                 .map(|clean| ShareResult {
@@ -1360,6 +1373,25 @@ struct Clean {
     /// The bases the same read shows at the previous and the next reference
     /// position, when it shows one.
     neighbours: [Option<char>; 2],
+    /// Whether the modality explains the call's second peak by the signal's
+    /// own shape (SRS-CALL-022: not `second_unexplained`).
+    explained: bool,
+}
+
+/// Whether a `possible_heteroplasmy`'s qualifying reads leave one strand
+/// without a second peak the modality leaves unexplained: every qualifying
+/// read of that strand shows a neighbour's tail or a dye blob, not a possible
+/// second sequence. The label is then context, not a check (on the
+/// development panel, none of 23 such flags was a heteroplasmy).
+fn explained(qualifying: &[Clean]) -> bool {
+    [Orientation::Forward, Orientation::Reverse]
+        .into_iter()
+        .any(|strand| {
+            qualifying
+                .iter()
+                .filter(|read| read.strand == strand)
+                .all(|read| read.explained)
+        })
 }
 
 /// `possible_heteroplasmy` over the clean reads of one position: a read
@@ -1619,7 +1651,10 @@ const fn unassured(label: &LabelResult) -> bool {
         label,
         LabelResult::StrandsDisagree { .. }
             | LabelResult::ReadDisagrees { .. }
-            | LabelResult::PossibleHeteroplasmy { .. }
+            | LabelResult::PossibleHeteroplasmy {
+                explained: false,
+                ..
+            }
             | LabelResult::EstimatedLength { .. }
             | LabelResult::Undecided
             | LabelResult::NotCalled
@@ -1634,7 +1669,9 @@ const fn unassured(label: &LabelResult) -> bool {
 const fn rank(label: &LabelResult) -> u8 {
     match label {
         LabelResult::StrandsDisagree { .. } | LabelResult::ReadDisagrees { .. } => 0,
-        LabelResult::PossibleHeteroplasmy { .. } => 1,
+        LabelResult::PossibleHeteroplasmy {
+            explained: false, ..
+        } => 1,
         LabelResult::EstimatedLength { .. }
         | LabelResult::Undecided
         | LabelResult::NotCalled
@@ -1642,7 +1679,10 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::EdgeDeletion { .. }
         | LabelResult::RunDeletion { .. } => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
-        LabelResult::NoisySignal { .. }
+        LabelResult::PossibleHeteroplasmy {
+            explained: true, ..
+        }
+        | LabelResult::NoisySignal { .. }
         | LabelResult::NotCovered
         | LabelResult::PhaseShift { .. }
         | LabelResult::DephasedEnd { .. }
@@ -1912,7 +1952,10 @@ fn summarize(
     SummaryResult {
         items: items.len(),
         checks,
-        variants: items.len() - checks,
+        variants: items
+            .iter()
+            .filter(|item| item.kind == ItemKind::Variant)
+            .count(),
         labels,
         positions: PositionCounts {
             reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
@@ -2007,6 +2050,7 @@ mod tests {
                 calls: None,
             },
             neighbours: [None, None],
+            explained: false,
         }
     }
 
@@ -2081,6 +2125,35 @@ mod tests {
         assert_eq!(heteroplasmy(&pair), None);
         pair[0].neighbours = [Some('A'), Some('C')];
         assert!(heteroplasmy(&pair).is_some());
+    }
+
+    #[test]
+    fn a_strand_whose_second_peaks_the_modality_explains_makes_heteroplasmy_context() {
+        let shaped = |mut read: Clean| {
+            read.explained = true;
+            read
+        };
+        // Centred, unexplained second peaks on both strands: a check.
+        assert!(!explained(&[clean(0, F, 'G', 0.3), clean(1, R, 'G', 0.3)]));
+        // One strand's only qualifying read is a neighbour's tail or a blob.
+        assert!(explained(&[
+            clean(0, F, 'G', 0.3),
+            shaped(clean(1, R, 'G', 0.3))
+        ]));
+        // Another read on that strand still shows an unexplained one.
+        assert!(!explained(&[
+            clean(0, F, 'G', 0.3),
+            shaped(clean(1, R, 'G', 0.3)),
+            clean(2, R, 'G', 0.25),
+        ]));
+        let label = |explained| LabelResult::PossibleHeteroplasmy {
+            position: 1,
+            base: 'G',
+            explained,
+            reads: Vec::new(),
+        };
+        assert!(unassured(&label(false)) && !unassured(&label(true)));
+        assert_eq!((rank(&label(false)), rank(&label(true))), (1, 4));
     }
 
     fn site(
