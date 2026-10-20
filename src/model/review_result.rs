@@ -90,6 +90,10 @@ pub(crate) struct ReviewReadResult {
     /// An admitted read's masked stretches over the reportable regions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) masked: Option<Vec<MaskedSpanResult>>,
+    /// An admitted read's unreliable stretches over the reportable regions,
+    /// with the modality's reason (SRS-CALL-024).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) unreliable: Option<Vec<UnreliableSpanResult>>,
     /// An admitted read's phase mixtures, each component compared with the
     /// reference on its own.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -140,6 +144,15 @@ pub(crate) struct MaskedSpanResult {
     pub(crate) last: usize,
     pub(crate) state: PhaseState,
     pub(crate) after_repeat: bool,
+}
+
+/// A maximal stretch of reportable positions that a read's calls cover inside
+/// one of its unreliable spans.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct UnreliableSpanResult {
+    pub(crate) first: usize,
+    pub(crate) last: usize,
+    pub(crate) reason: &'static str,
 }
 
 /// A maximal stretch of reportable positions within one region of one zone
@@ -272,6 +285,9 @@ pub(crate) enum LabelResult {
         runs: Vec<RunResult>,
     },
     ReadEdge {
+        read: String,
+    },
+    PoorSignal {
         read: String,
     },
 }
@@ -414,4 +430,5 @@ pub(crate) struct LabelCounts {
     pub(crate) phase_shift: usize,
     pub(crate) dephased_end: usize,
     pub(crate) read_edge: usize,
+    pub(crate) poor_signal: usize,
 }

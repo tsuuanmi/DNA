@@ -72,6 +72,7 @@ REVIEW_LABELS = {
     "phase_shift": 4,
     "dephased_end": 4,
     "read_edge": 4,
+    "poor_signal": 4,
 }
 # Priority of a variant item without a label.
 UNLABELLED = 5
@@ -1110,9 +1111,12 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
         if previous is not None and order < previous:
             errors.append(f"{label}: item {index} is out of priority order")
         previous = order
-        unassured = bool(names & REVIEW_UNASSURED)
         # Without notation calls, a difference is the consensus's decision.
         differs = bool(item.get("calls")) or "calls" not in document
+        # A difference inside a read's poor signal is a check too (SRS-CALL-024).
+        unassured = bool(names & REVIEW_UNASSURED) or (
+            differs and "poor_signal" in names
+        )
         kind = "variant" if differs and not unassured else "check"
         if item.get("kind") != kind:
             errors.append(

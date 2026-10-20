@@ -8,7 +8,7 @@ use crate::model::evidence_result::{
     BoundResult, CallEvidenceResult, CallSignalResult, Ends, EvidenceDocument, EvidenceInputResult,
     EvidenceProvenanceResult, EvidenceReadResult, EvidenceResult, MixtureComponentResult,
     MixtureEvidenceResult, PostRepeatResult, RejectedEvidenceResult, SecondBaseResult,
-    VerdictResult,
+    UnreliableEvidenceResult, VerdictResult,
 };
 use crate::model::result::{IntervalResult, PeakHeightsResult, PlacementKind, PlacementResult};
 use crate::model::sanger_read::{Rejection, SangerRead};
@@ -164,6 +164,17 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceDocument> {
                         })
                         .collect(),
                     unexplained: mixture.unexplained.clone(),
+                })
+                .collect(),
+            unreliable: evidence
+                .unreliable()
+                .iter()
+                .map(|span| UnreliableEvidenceResult {
+                    calls: IntervalResult {
+                        start: span.calls.start,
+                        end: span.calls.end,
+                    },
+                    reason: span.reason.label(),
                 })
                 .collect(),
         },

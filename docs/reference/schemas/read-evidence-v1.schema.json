@@ -26,7 +26,8 @@
         "ends",
         "reasons",
         "callability",
-        "mixtures"
+        "mixtures",
+        "unreliable"
       ],
       "properties": {
         "call_count": {
@@ -63,6 +64,29 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/mixture"
+          }
+        },
+        "unreliable": {
+          "description": "The spans of calls whose differences the modality asserts are not to stand unchecked, with its reason (SRS-CALL-024), in call order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "calls",
+              "reason"
+            ],
+            "properties": {
+              "calls": {
+                "description": "The span, 0-based half-open call indices.",
+                "$ref": "urn:signal:schema:basecalls:v3#/$defs/interval"
+              },
+              "reason": {
+                "enum": [
+                  "poor_start_signal"
+                ]
+              }
+            }
           }
         }
       }

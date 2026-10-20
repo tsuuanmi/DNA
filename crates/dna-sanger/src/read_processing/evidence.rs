@@ -22,7 +22,7 @@ use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
     Bound, CallEvidence, EvidenceReason, PhaseMixture, Placement, ReadEvidence, Reasons,
-    SecondBase, Verdict,
+    SecondBase, UnreliableSpan, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -42,6 +42,8 @@ pub(crate) const MIXED_SIGNAL: EvidenceReason = EvidenceReason::new("mixed_signa
 pub(crate) const WEAK_SIGNAL: EvidenceReason = EvidenceReason::new("weak_signal");
 /// A masked call in an irregular-spacing segment.
 pub(crate) const IRREGULAR_SPACING: EvidenceReason = EvidenceReason::new("irregular_spacing");
+/// The read's start, before its signal settles (SRS-CALL-024).
+pub(crate) const POOR_START_SIGNAL: EvidenceReason = EvidenceReason::new("poor_start_signal");
 
 /// The Sanger verdict reasons, in reporting order.
 const REASON_ORDER: [EvidenceReason; 3] = [
@@ -52,7 +54,7 @@ const REASON_ORDER: [EvidenceReason; 3] = [
 
 /// Every reason label the Sanger modality raises: the verdict reasons, then
 /// the mask labels.
-const REASONS: [EvidenceReason; 8] = [
+const REASONS: [EvidenceReason; 9] = [
     PEAK_BELOW_MINIMUM,
     RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
     MIXED_SUPPORTING_DNA,
@@ -61,6 +63,7 @@ const REASONS: [EvidenceReason; 8] = [
     MIXED_SIGNAL,
     WEAK_SIGNAL,
     IRREGULAR_SPACING,
+    POOR_START_SIGNAL,
 ];
 
 /// The Sanger reason a published `label` names, or `None` when the modality
@@ -277,9 +280,11 @@ pub fn read_evidence(
         (start, end),
         config.signal_edge_margin,
     );
+    let poor = poor_start(&evidence, config.start_identity_margin);
     Ok(
         ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())?
-            .with_mixtures(mixtures.to_vec())?,
+            .with_mixtures(mixtures.to_vec())?
+            .with_unreliable(poor)?,
     )
 }
 
@@ -289,6 +294,37 @@ fn quality_vetoes_only(withheld: &Reasons) -> bool {
     withheld.iter().all(|reason| {
         reason == PEAK_BELOW_MINIMUM || reason == RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD
     })
+}
+
+/// The read's poor start (SRS-CALL-024): from its first call to the first run
+/// of `margin` consecutive sound calls, a sound call being scored, clear of a
+/// signal edge for its base, and withheld for nothing. The vouching rules
+/// have already judged each call against the read's own heights, widths, and
+/// spacing, so the span needs no level of its own. None when the read's first
+/// `margin` calls are sound; the whole read when no such run exists.
+fn poor_start(evidence: &[CallEvidence], margin: usize) -> Vec<UnreliableSpan> {
+    let sound = |call: &CallEvidence| {
+        call.placement == Placement::Scored
+            && !call.identity.edge
+            && call.identity.withheld.is_empty()
+    };
+    let mut run = 0;
+    let mut settled = None;
+    for (index, call) in evidence.iter().enumerate() {
+        run = if sound(call) { run + 1 } else { 0 };
+        if run >= margin.max(1) {
+            settled = Some(index + 1 - run);
+            break;
+        }
+    }
+    let end = settled.unwrap_or(evidence.len());
+    if end == 0 {
+        return Vec::new();
+    }
+    vec![UnreliableSpan {
+        calls: 0..end,
+        reason: POOR_START_SIGNAL,
+    }]
 }
 
 /// Marks the read's other reference-only calls (SRS-CALL-022, ADR-0080), once
@@ -1482,6 +1518,27 @@ mod tests {
             call.placement == Placement::Unresolved(POST_HOMOPOLYMER) && !call.base_only()
         }));
         Ok(())
+    }
+
+    // SRS-CALL-024
+    #[test]
+    fn a_poor_start_runs_to_the_first_run_of_sound_calls() {
+        let sound = CallEvidence::scored('A', None);
+        let mut edge = sound;
+        edge.identity.edge = true;
+        let masked = sound.masked(Placement::Unresolved(WEAK_SIGNAL));
+        // Two masked calls, three sound, one at an edge, then four sound.
+        let calls = [
+            masked, masked, sound, sound, sound, edge, sound, sound, sound, sound,
+        ];
+        let poor = poor_start(&calls, 4);
+        assert_eq!(poor.len(), 1);
+        assert_eq!(poor[0].calls, 0..6);
+        assert_eq!(poor[0].reason, POOR_START_SIGNAL);
+        // A read whose first calls settle at once has no poor start.
+        assert!(poor_start(&calls[6..], 4).is_empty());
+        // No run long enough: the whole read.
+        assert_eq!(poor_start(&calls[..6], 4)[0].calls, 0..6);
     }
 
     // SRS-CALL-013, SRS-CALL-017

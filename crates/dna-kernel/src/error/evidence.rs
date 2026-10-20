@@ -33,6 +33,13 @@ pub enum EvidenceError {
         /// Offending mixture index (0-based).
         index: usize,
     },
+    /// An unreliable span does not fit the read's calls, or its reason label
+    /// is malformed.
+    #[error("unreliable span {index} does not fit the read's calls")]
+    InvalidUnreliable {
+        /// Offending span index (0-based).
+        index: usize,
+    },
     /// A modality reason label is malformed, repeated, or reserved by the core.
     #[error("invalid modality reason label {0:?}")]
     InvalidReason(&'static str),

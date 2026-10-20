@@ -223,11 +223,14 @@ turns it into development data.
    (results/review-recheck-2026-10-19). Before this increment extends to
    16184–16193 (HVS-I) or 568–573 (HVS-III), research measures the decode
    there.
-5. **Read start (open, pending research).** If re-processing the read-start
-   noise rescues calls with no added error, the same machinery applies.
-   Otherwise the read-start span gets the `poor_signal` label, a first-class
-   outcome: the modality asserts an unreliable span, from the read's own
-   data, and the review labels any item inside it.
+5. **Read start.** Research on current data (2026-10-20) found no rule that
+   decides more at a read's start without error: non-reference calls inside
+   a poor start are right far less often than outside, and even clean-looking
+   ones there are often one-position shifts. So the outcome is the label. The
+   modality asserts the read's poor start as an unreliable span from its own
+   data (SRS-CALL-024): to its first run of `start_identity_margin` sound
+   calls. The review labels an item covered only by such spans `poor_signal`,
+   and a difference there is a check.
 
 ## Alternatives considered
 
