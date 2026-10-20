@@ -222,7 +222,10 @@ turns it into development data.
    unflagged errors: a run that passes with no check today becomes a check
    whenever its decode is not "clear, and both strands agree with DNA's
    call", that is, when the strands disagree, the top two are near-equal,
-   or only one strand decodes it. Expect more checks. The gate wants
+   or only one strand decodes it. A read of that one strand that shows the
+   run in phase ([[ADR-0074]]) shows its length directly, so it confirms
+   without the other strand (review rules 23, measured 2026-10-21); decodes
+   alone on one strand never do. Expect more checks. The gate wants
    unflagged non-het blocks in the HVS-II polyC window to fall from 30, with
    precision unchanged. Reported: runs newly flagged, and
    how many of them hold a truth difference. No decision changes yet.

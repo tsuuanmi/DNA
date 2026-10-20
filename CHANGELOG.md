@@ -602,6 +602,25 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review confirms an anchored window run that only one strand gives a
+  length when that strand gives one clear length, DNA's call, and at least
+  one of its reads shows the run in phase (SRS-API-020, ADR-0074): an
+  in-phase read shows the length directly, and the other strand having no
+  view is absence of evidence, not a contradiction. A run that only decodes
+  give still needs both strands, and a read whose structure differs from
+  DNA's still never confirms. Plugin `review` 23 (rules version 23).
+  - **Measured.** On development panel v5 against main 85cab63
+    (`dna-eval diff`): window@HV2 checks 1,976 → 1,665 on current data,
+    702 → 600 in 2025-08..12 and 397 → 335 before, as the replay of the
+    review's own records predicted; non-het blocks in an unchecked
+    window@HV2 unchanged in every period and batch half (0, 1, 6); clear
+    samples 71.48 → 72.38 % on current data.
+  - **Gate.** The diff gate fails on two earlier samples (2522550,
+    LN_25_AA3983) that now pass with an unflagged 573 length difference
+    (`573.1C 573.2C` read by one HVS-III reverse read, truth none). Their
+    window@HV2 check, now confirmed, was their only check; the 573 block was
+    already unreviewed in an unchecked `end@HV3` zone.
+
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than
