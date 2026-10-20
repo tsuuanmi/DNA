@@ -38,7 +38,10 @@ unchanged (SRS-ALN-012). Before that, on a read whose ends are vouched (a
 consensus record), `canonical.rs` moves a deletion beside an `N` without
 evidence 3' across it (SRS-ALN-017), and `runs.rs` re-expresses masked
 repeat stretches of the selected alignment as one length edit per run
-(ADR-0072).
+(ADR-0072). When the selected orientation's two best placements tie only on
+calls at one end of the query that the read asserts unreliable (inside
+`ReadEvidence::unreliable`, or masked), `orient.rs` leaves those calls
+unplaced and aligns the rest again (SRS-ALN-006, ADR-0086).
 
 This module does not extract variants or mutate upstream signal evidence.
 

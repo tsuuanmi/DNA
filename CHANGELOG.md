@@ -602,6 +602,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A read whose two best placements tie only on calls at one end that the
+  read itself asserts unreliable (inside an unreliable span, or masked) is
+  no longer rejected as `ambiguous_placement`: those calls are left unplaced
+  and the rest of the read is aligned again (SRS-ALN-006, ADR-0086, plugin
+  `core` 12). A tie that disputes any other call is still rejected. On
+  development panel v5 all 31 such reads are placed (23 current: HV1R and
+  HV3R poor starts, two dephased C-run ends). Against `main` 85cab63 the
+  diff gate passes: non-het passed zones and unreviewed samples unchanged in
+  every period, 11 more samples clear (current 7,646 → 7,654), positions to
+  review 164,199 → 162,335, and 20 truth alleles newly covered, 19 called
+  as the truth holds; `16192Y` in one sample is called `16192T`, inside a
+  check.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than

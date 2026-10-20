@@ -52,5 +52,5 @@ Design: [[design/consensus|consensus method]]. Contract:
 ## Implemented in
 
 <!-- docs:begin backlinks -->
-- **Implemented in:** [design/consensus](../design/consensus.md), [design/variant-nomenclature](../design/variant-nomenclature.md), [reference/configuration](../reference/configuration.md), [reference/consensus](../reference/consensus.md), [reference/notation](../reference/notation.md), [reference/review](../reference/review.md), [reference/variants](../reference/variants.md), [requirements/callability](callability.md), [requirements/output](output.md), [requirements/variant-nomenclature](variant-nomenclature.md), [requirements/variants](variants.md)
+- **Implemented in:** [design/consensus](../design/consensus.md), [design/variant-nomenclature](../design/variant-nomenclature.md), [reference/configuration](../reference/configuration.md), [reference/consensus](../reference/consensus.md), [reference/notation](../reference/notation.md), [reference/read-evidence](../reference/read-evidence.md), [reference/review](../reference/review.md), [reference/variants](../reference/variants.md), [requirements/callability](callability.md), [requirements/output](output.md), [requirements/variant-nomenclature](variant-nomenclature.md), [requirements/variants](variants.md)
 <!-- docs:end backlinks -->
