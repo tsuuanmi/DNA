@@ -602,6 +602,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review's `length_unconfirmed` runs carry `convention` (null in
+  `length_not_recorded`): when both strands read a run as a near-equal adjacent pair
+  `n`, `n + 1`, the lab's reading `n` (the shorter member, the run ending at
+  the reverse read's first mixed call), as a suggestion beside DNA's call,
+  never applied (SRS-API-020, user decision 2026-10-20). No decision, label,
+  or kind changes. `dna.review/v1` gains the field in place (pre-release);
+  plugin `review` 24.
 - The consensus decides a run it would leave as an estimate
   (`anchored_end`, `phase_loss`, or `reference_frame`) when the reads' tract
   decodes on both strands put one length on top beyond the strands' spread

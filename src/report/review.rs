@@ -49,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 23,
+    version: 24,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -772,6 +772,10 @@ impl<'a> Sample<'a> {
                 runs.retain(|run| run.agreement != "confirmed");
                 LabelResult::LengthUnconfirmed { runs }
             } else {
+                // The lab records no length here, so no reading of it.
+                for run in &mut runs {
+                    run.convention = None;
+                }
                 LabelResult::LengthNotRecorded { runs }
             };
             if matches!(
