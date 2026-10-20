@@ -10,6 +10,41 @@ The current production capability processes Sanger sequencing traces stored as
 ABIF. The platform architecture is intentionally broader than that implementation
 and is not restricted to mitochondrial DNA.
 
+## Context diagram
+
+```mermaid
+flowchart LR
+    subgraph inputs["inputs (untrusted)"]
+        ab1["AB1 traces"]
+        ref["reference FASTA"]
+        cfg["strict TOML + target profile"]
+        docs["JSON documents:<br/>read evidence, consensus, variants, run signal"]
+        cf["reviewed consensus FASTA"]
+    end
+
+    dna["DNA<br/>library and CLI (dna)<br/>deterministic, local, no network"]
+
+    subgraph outputs["outputs"]
+        json["one versioned JSON result per command<br/>(+ consensus FASTA)"]
+        logs["append-only operation logs"]
+        api["typed Rust results<br/>(public capabilities)"]
+    end
+
+    ab1 --> dna
+    ref --> dna
+    cfg --> dna
+    docs --> dna
+    cf --> dna
+    dna --> json
+    dna --> logs
+    dna --> api
+
+    json --> review["laboratory review tool"]
+    json --> pipelines["downstream pipelines<br/>orchestrate, convert, compare"]
+    eval["dna-eval<br/>runs DNA over a panel,<br/>compares with reviewer truth"] --> dna
+    truth["reviewer truth"] --> eval
+```
+
 ## Platform scope
 
 DNA separates four orthogonal concerns:
@@ -29,6 +64,9 @@ modality.
 
 - Sanger sequencing traces encoded as ABIF (commonly named `.ab1`);
 - reviewed consensus sequences in FASTA, one record per read (`call`);
+- recorded contract documents that replay a later step without the traces:
+  `dna.read_evidence/v1` (`analyze --evidence`), `dna.consensus/v1` (`call`), and
+  `dna.signal/v1` (`review --signal`);
 - `dna.variants/v1` documents for post-calling notation (`notation`);
 - one short FASTA reference for reference-guided operations;
 - strict TOML configuration and the target profile it names;

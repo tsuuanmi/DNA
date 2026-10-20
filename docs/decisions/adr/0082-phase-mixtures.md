@@ -15,7 +15,7 @@ related: [ADR-0069, ADR-0071, ADR-0074, ADR-0076, ADR-0080, PROP-0010]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/length-mixture](../../design/length-mixture.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
+- **Governs:** [architecture/overview](../../architecture/overview.md), [design/length-mixture](../../design/length-mixture.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
 <!-- docs:end backlinks -->
 
 ## Context
