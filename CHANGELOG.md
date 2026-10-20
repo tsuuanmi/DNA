@@ -602,6 +602,24 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A Sanger call inside an electrophoretic spike shows no base (SRS-SIG-012,
+  SRS-CALL-027, ADR-0088, plugin `sanger` 20). A spike is a narrow event in
+  all four analysed channels at once, each far above the read's signal and
+  staggered by the dyes' mobility offsets; the call whose primary peak lies
+  in it reads the spike's channel. Signal processing finds the spikes from
+  the read's own channels and calls; the Sanger evidence withholds their
+  calls for the base and for indels (`signal_spike`), with no run's end and
+  no reference confirmation. New keys `spike_height` (3.0), `spike_span`
+  (1.5), and `spike_level_calls` (6) in `[signal_processing]`.
+  **Breaking:** configuration schema 21; `signal_spike` joins the
+  `dna.sample_evidence/v10` exclusion reasons (in place, pre-release). On
+  development panel v5 against `main` 85cab63 the diff gate passes: the one
+  unflagged non-het error it targets (`186T` in 2538054, `interior@HV2`)
+  becomes an undecided check, samples with an unreviewed block 618 → 617,
+  passed non-het units unchanged in every other zone and period, five more
+  samples clear (current 7,646 → 7,651), positions to review 164,199 →
+  164,139, no coverage change, and one sample concordant under every
+  measure.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than

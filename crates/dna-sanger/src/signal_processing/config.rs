@@ -31,6 +31,22 @@ pub struct SignalProcessingConfig {
     /// Nearest-rank quantile of a read's in-phase residuals above which a
     /// call of a phase mixture is unexplained (SRS-CALL-023).
     pub decompose_unexplained_quantile: f64,
+    /// How an electrophoretic spike is found (SRS-SIG-012).
+    pub spike: SpikeParameters,
+}
+
+/// How an electrophoretic spike is found (SRS-SIG-012): every channel peaks
+/// within `span` median call spacings, each at least `height` times the
+/// local level, the median primary height of the `level_calls` calls on each
+/// side.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SpikeParameters {
+    /// Multiple of the local level every channel's apex reaches.
+    pub height: f64,
+    /// Median call spacings within which the four apexes lie.
+    pub span: f64,
+    /// Calls on each side whose primary heights give the local level.
+    pub level_calls: usize,
 }
 
 /// How a call's second peak is labelled with its cause (SRS-CALL-021).
@@ -90,6 +106,9 @@ pub struct RawSignalProcessingConfig {
     pub(crate) second_cause_blob_width: f64,
     pub(crate) second_cause_width_calls: usize,
     pub(crate) decompose_unexplained_quantile: f64,
+    pub(crate) spike_height: f64,
+    pub(crate) spike_span: f64,
+    pub(crate) spike_level_calls: usize,
 }
 
 impl RawSignalProcessingConfig {
@@ -171,6 +190,19 @@ impl RawSignalProcessingConfig {
             )
             .into());
         }
+        if !(self.spike_height.is_finite() && self.spike_height >= 1.0) {
+            return Err(ConfigError::Constraint(
+                "signal_processing.spike_height must be finite and at least 1",
+            )
+            .into());
+        }
+        bounds::positive_finite("signal_processing.spike_span", self.spike_span)?;
+        if self.spike_level_calls == 0 {
+            return Err(ConfigError::Constraint(
+                "signal_processing.spike_level_calls must be positive",
+            )
+            .into());
+        }
         Ok(SignalProcessingConfig {
             window_size_bases: self.window_size_bases,
             minimum_primary_snr: self.minimum_primary_snr,
@@ -192,6 +224,11 @@ impl RawSignalProcessingConfig {
                 width_calls: self.second_cause_width_calls,
             },
             decompose_unexplained_quantile: self.decompose_unexplained_quantile,
+            spike: SpikeParameters {
+                height: self.spike_height,
+                span: self.spike_span,
+                level_calls: self.spike_level_calls,
+            },
         })
     }
 }

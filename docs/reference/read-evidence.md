@@ -86,11 +86,13 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
   - `placement`: `kind` (`scored`, `anchoring`, `unresolved`) and, for a masked
     call, the modality's `reason`;
   - `identity` and `indel`: the modality's verdict on each use, `edge` and the
-    `withheld` reasons, verbatim;
+    `withheld` reasons, verbatim. A Sanger call inside an electrophoretic
+    spike is withheld for both with `signal_spike` (SRS-CALL-027);
   - `bound`: whether the call shows where a run of another base ends
     (`in_phase`, `anchored`, `withheld`), and `post_repeat` (ADR-0076). A
     Sanger call beside a junction whose spacing marks a missing peak is
-    `withheld` (SRS-CALL-026);
+    `withheld` (SRS-CALL-026), and so is a call inside a spike
+    (SRS-CALL-027);
   - `second`: the second base of the call's signal, its share in `[0, 0.5]`,
     and `stands_out` (the share exceeds `signal_processing.second_floor`);
   - `second_unexplained` and `reference_only` (ADR-0080).

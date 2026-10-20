@@ -19,7 +19,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `20` | exactly 20 |
+| root | `schema_version` | `21` | exactly 21 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
@@ -38,6 +38,9 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `second_cause_blob_width` | `1.8` | finite and positive: multiple of the neighbouring calls' median primary width from which a centred second peak is a `dye_blob` |
 | | `decompose_unexplained_quantile` | `0.99` | finite, in `(0, 1)`: nearest-rank quantile of a read's own in-phase residuals above which a call of a phase mixture is unexplained (SRS-CALL-023) |
 | | `second_cause_width_calls` | `6` | integer at least `1`: calls on each side whose primary widths give that median |
+| | `spike_height` | `3.0` | finite, at least `1`: multiple of the local level, the median primary peak of the neighbouring calls, that every channel's apex of an electrophoretic spike reaches (SRS-SIG-012) |
+| | `spike_span` | `1.5` | finite and positive: median call spacings within which a spike's four apexes lie |
+| | `spike_level_calls` | `6` | integer at least `1`: calls on each side whose primary peaks give the local level |
 | `callability` | `window_calls` | `16` | integer `8..=64` |
 | | `onset_defect_fraction` | `0.375` | finite `(0,1]` |
 | | `exit_defect_fraction` | `0.125` | finite `[0,1]`, below `onset_defect_fraction` |

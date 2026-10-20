@@ -44,20 +44,24 @@ pub(crate) const WEAK_SIGNAL: EvidenceReason = EvidenceReason::new("weak_signal"
 pub(crate) const IRREGULAR_SPACING: EvidenceReason = EvidenceReason::new("irregular_spacing");
 /// The read's start, before its signal settles (SRS-CALL-024).
 pub(crate) const POOR_START_SIGNAL: EvidenceReason = EvidenceReason::new("poor_start_signal");
+/// A call inside an electrophoretic spike (SRS-CALL-027).
+pub(crate) const SIGNAL_SPIKE: EvidenceReason = EvidenceReason::new("signal_spike");
 
 /// The Sanger verdict reasons, in reporting order.
-const REASON_ORDER: [EvidenceReason; 3] = [
+const REASON_ORDER: [EvidenceReason; 4] = [
     PEAK_BELOW_MINIMUM,
     RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
     MIXED_SUPPORTING_DNA,
+    SIGNAL_SPIKE,
 ];
 
 /// Every reason label the Sanger modality raises: the verdict reasons, then
 /// the mask labels.
-const REASONS: [EvidenceReason; 9] = [
+const REASONS: [EvidenceReason; 10] = [
     PEAK_BELOW_MINIMUM,
     RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
     MIXED_SUPPORTING_DNA,
+    SIGNAL_SPIKE,
     POST_HOMOPOLYMER,
     DEPHASED_SIGNAL,
     MIXED_SIGNAL,
@@ -274,6 +278,21 @@ pub fn read_evidence(
             edge: false,
             withheld,
         };
+    }
+    // A call inside an electrophoretic spike reads the spike's channel, not
+    // the template's base (SRS-CALL-027): it shows no base, places no indel,
+    // shows no run's end, and confirms nothing. No earlier rule lifts this.
+    for spike in &signal.spikes {
+        for call in evidence
+            .iter_mut()
+            .take(spike.calls.end)
+            .skip(spike.calls.start)
+        {
+            call.identity.withheld.insert(SIGNAL_SPIKE)?;
+            call.indel.withheld.insert(SIGNAL_SPIKE)?;
+            call.bound = Bound::Withheld;
+            call.reference_only = false;
+        }
     }
     let after_repeat = (0..count)
         .map(|index| {
@@ -1013,6 +1032,7 @@ mod tests {
                 loci,
                 windows: Vec::new(),
                 noisy_regions: Vec::new(),
+                spikes: Vec::new(),
             },
             ReadCallability::in_phase(count),
             quality,
@@ -1346,6 +1366,36 @@ mod tests {
         quality.retained_sequence = "A".repeat(3);
         let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
         assert!(!call.reference_only);
+        Ok(())
+    }
+
+    // SRS-CALL-027
+    /// The calls inside a spike show no base, place no indel, show no run's
+    /// end, and confirm nothing; the calls beside it keep their verdicts.
+    #[test]
+    fn the_calls_inside_a_spike_show_nothing() -> Result<()> {
+        let (calls, mut signal, callability, quality) = products(&[300; 8], &[40; 8]);
+        signal.spikes = vec![crate::model::signal::SignalSpike {
+            samples: 0..1,
+            calls: 3..5,
+        }];
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &[],
+            &config(0),
+        )?;
+        for (index, call) in evidence.calls().iter().enumerate() {
+            let inside = (3..5).contains(&index);
+            assert_eq!(call.identity.withheld.contains(SIGNAL_SPIKE), inside);
+            assert_eq!(call.indel.withheld.contains(SIGNAL_SPIKE), inside);
+            assert_eq!(call.bound == Bound::Withheld, inside);
+            assert!(!call.reference_only);
+        }
         Ok(())
     }
 
@@ -1986,6 +2036,7 @@ mod tests {
             PEAK_BELOW_MINIMUM,
             RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
             MIXED_SUPPORTING_DNA,
+            SIGNAL_SPIKE,
             POST_HOMOPOLYMER,
             DEPHASED_SIGNAL,
             MIXED_SIGNAL,
@@ -1999,6 +2050,7 @@ mod tests {
                 "peak_below_minimum",
                 "relative_quality_not_above_threshold",
                 "mixed_supporting_dna",
+                "signal_spike",
                 "post_homopolymer",
                 "dephased_signal",
                 "mixed_signal",
