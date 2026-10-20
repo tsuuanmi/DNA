@@ -52,7 +52,7 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 17
+        "version": 18
       }
     ],
     "rules": 17
@@ -71,6 +71,7 @@
           "after_repeat": true
         }
       ],
+      "unreliable": [],
       "mixtures": []
     },
     {
@@ -79,6 +80,7 @@
       "strand": "forward",
       "admitted": true,
       "masked": [],
+      "unreliable": [],
       "mixtures": []
     },
     {
@@ -94,6 +96,7 @@
           "after_repeat": true
         }
       ],
+      "unreliable": [],
       "mixtures": [
         {
           "explained": true,
@@ -132,6 +135,7 @@
       "strand": "reverse",
       "admitted": true,
       "masked": [],
+      "unreliable": [],
       "mixtures": []
     },
     {
@@ -1406,7 +1410,8 @@
       "not_covered": 1,
       "phase_shift": 2,
       "dephased_end": 0,
-      "read_edge": 0
+      "read_edge": 0,
+      "poor_signal": 0
     },
     "positions": {
       "reportable": 749,

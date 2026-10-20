@@ -218,7 +218,15 @@ The core caller does not read callability directly. The Sanger adapter
   to 48.22 % on batches from 2026), samples with an unreviewed difference
   unchanged, `73G` in 29 more samples, HVS-I start window `16024-16033`
   checked in 17 % fewer samples, `haplotype_lod` none better or worse;
-- every call carries its second base and its share (SRS-CALL-015).
+- every call carries its second base and its share (SRS-CALL-015);
+- the read's poor start is asserted as an unreliable span (SRS-CALL-024):
+  from its first call to its first run of `start_identity_margin` (12)
+  consecutive sound calls, the vouching rules above having judged each call
+  against the read's own heights, widths, and spacing. On development panel
+  v5's current data, a non-reference call inside it is right far less often
+  than outside (1.5 % of HV1F's, 59 % of HV2F's), so the review makes a
+  difference there a check (`poor_signal`), and leaves the region as context
+  otherwise.
 
 - **Quality control** trims to the callable span plus up to
   `quality_control.trim_context_margin` calls of an adjacent dephased segment

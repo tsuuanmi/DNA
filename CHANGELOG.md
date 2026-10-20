@@ -66,6 +66,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   3,496 of 32,085 (10.90 %), 360 passed regions with an unreviewed
   difference (65 non-het); zones needing a check 4,455 of 160,425 (2.78 %),
   and 423 passed zones with an unreviewed difference (74 non-het).
+- The Sanger plugin asserts a read's poor start as an unreliable span
+  (SRS-CALL-024, PROP-0012 increment 5): from its first call to its first
+  run of `start_identity_margin` consecutive sound calls. `ReadEvidence`
+  gains `unreliable`, published in `dna.read_evidence/v1` (`read.unreliable`)
+  and in `dna review` (`reads[].unreliable`). The review labels an item
+  covered by such a span with no other read sound there `poor_signal`, and a
+  difference there is a check. Plugins `sanger` 16 and `review` 18.
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis

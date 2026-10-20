@@ -263,6 +263,7 @@
             "strand",
             "admitted",
             "masked",
+            "unreliable",
             "mixtures"
           ],
           "properties": {
@@ -310,6 +311,34 @@
                   },
                   "after_repeat": {
                     "type": "boolean"
+                  }
+                }
+              }
+            },
+            "unreliable": {
+              "description": "The read's unreliable stretches over the reportable regions (SRS-CALL-024): reference positions its aligned calls cover inside a span its modality asserts too poor for a difference it shows to stand unchecked, with the modality's reason.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "first",
+                  "last",
+                  "reason"
+                ],
+                "properties": {
+                  "first": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "last": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "reason": {
+                    "enum": [
+                      "poor_start_signal"
+                    ]
                   }
                 }
               }
@@ -907,6 +936,23 @@
               "minLength": 1
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
+              "const": "poor_signal"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
       ]
     },
@@ -1111,7 +1157,8 @@
             "not_covered",
             "phase_shift",
             "dephased_end",
-            "read_edge"
+            "read_edge",
+            "poor_signal"
           ],
           "properties": {
             "strands_disagree": {
@@ -1175,6 +1222,10 @@
               "minimum": 0
             },
             "read_edge": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "poor_signal": {
               "type": "integer",
               "minimum": 0
             }

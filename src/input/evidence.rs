@@ -25,7 +25,7 @@ use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::Profile;
 use dna_kernel::read_evidence::{
     Bound, CallEvidence, EvidenceProfile, MixtureComponent, PhaseMixture, Placement, PostRepeatRun,
-    ReadEvidence, Reasons, SecondBase, Verdict,
+    ReadEvidence, Reasons, SecondBase, UnreliableSpan, Verdict,
 };
 use dna_sanger::model::callability::PhaseState;
 use dna_sanger::model::second_cause::{SecondCause, SecondPeak};
@@ -157,6 +157,14 @@ struct RawRead {
     reasons: Vec<String>,
     callability: RawCallability,
     mixtures: Vec<RawMixture>,
+    unreliable: Vec<RawUnreliable>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawUnreliable {
+    calls: RawInterval,
+    reason: String,
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -684,6 +692,17 @@ fn recorded_read(
         RawEnds::Vouched => evidence.with_vouched_ends(),
     };
     let evidence = evidence.with_mixtures(read.mixtures.iter().map(mixture).collect())?;
+    let unreliable = read
+        .unreliable
+        .iter()
+        .map(|span| {
+            Ok(UnreliableSpan {
+                calls: span.calls.start..span.calls.end,
+                reason: reason(&span.reason)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let evidence = evidence.with_unreliable(unreliable)?;
     Ok((evidence, sanger))
 }
 
