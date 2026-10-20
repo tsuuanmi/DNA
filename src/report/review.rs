@@ -10,8 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::config::ReviewConfig;
 use crate::error::{ReportError, Result, RunSignalError};
-use crate::model::read_observation::RejectedRead;
-use crate::model::result::{ColumnResult, IntervalResult, ReferenceResult, ScopeResult};
+use crate::model::result::{
+    CallabilitySegmentResult, ColumnResult, IntervalResult, ReferenceResult, ScopeResult,
+};
 use crate::model::review_result::{
     Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
     LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
@@ -20,9 +21,10 @@ use crate::model::review_result::{
     ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
+use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::report::json::{project_plugins, project_profile};
 use crate::report::notation::project_empop;
-use crate::report::sample::{project_rejection, reviewer_names, reviewer_read_names};
+use crate::report::sample::{reviewer_names, reviewer_read_names};
 use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
@@ -32,8 +34,7 @@ use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, Profile};
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
-use dna_sanger::model::attachment::SangerAttachment;
-use dna_sanger::model::callability::{PhaseSegment, PhaseState};
+use dna_sanger::model::callability::PhaseState;
 use dna_sanger::run_signal::{self, Key, RunSignal, Threshold};
 use dna_sanger::signal_processing::SignalProcessingConfig;
 
@@ -73,7 +74,7 @@ pub(crate) struct CompletedReview {
 /// What the sample analysis and its call gave.
 pub(crate) enum Reviewed {
     /// Every read was rejected; each with its cause, by content SHA-256.
-    Rejected(BTreeMap<String, RejectedRead>),
+    Rejected(BTreeMap<String, Rejection>),
     /// At least one read was admitted; the call, or why it failed.
     Analyzed {
         analysis: Box<SampleAnalysis>,
@@ -123,7 +124,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     sha256: read.input_sha256.clone(),
                     strand: None,
                     admitted: false,
-                    rejection: Some(project_rejection(&read.cause)),
+                    rejection: Some(read.cause),
                     masked: None,
                     mixtures: None,
                 })
@@ -167,7 +168,10 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 .iter()
                 .find(|called| called.input_sha256 == read.input_sha256)
                 .ok_or_else(missing)?;
-            let sanger = analysis.reads.get(&read.input_sha256).ok_or_else(missing)?;
+            let sanger = analysis
+                .sanger
+                .get(&read.input_sha256)
+                .ok_or_else(missing)?;
             Ok(ReviewReadResult {
                 name: name.clone(),
                 sha256: read.input_sha256.clone(),
@@ -192,7 +196,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
     for (read, name) in analysis.evidence.rejected_reads.iter().zip(rejected_names) {
         let rejected =
             analysis
-                .rejected
+                .rejections
                 .get(&read.input_sha256)
                 .ok_or(ReportError::Inconsistent(
                     "rejected review read lacks its rejection cause",
@@ -202,7 +206,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             sha256: read.input_sha256.clone(),
             strand: None,
             admitted: false,
-            rejection: Some(project_rejection(&rejected.cause)),
+            rejection: Some(rejected.cause),
             masked: None,
             mixtures: None,
         });
@@ -352,13 +356,12 @@ fn own(analysis: &SampleAnalysis, signal: &RunSignal) -> Result<RunSignal> {
         if !signal.traces.contains(&read.input_sha256) {
             continue;
         }
-        let calls = &analysis
-            .reads
+        let sanger = analysis
+            .sanger
             .get(&read.input_sha256)
-            .ok_or(ReportError::Inconsistent("review read lacks its evidence"))?
-            .calls;
+            .ok_or(ReportError::Inconsistent("review read lacks its evidence"))?;
         own = own.without(&run_signal::contributions(
-            calls,
+            &sanger.heights(),
             &read.evidence,
             parameters,
         ));
@@ -404,7 +407,7 @@ struct Read<'a> {
     sha256: &'a str,
     strand: Orientation,
     trust: Vec<CallTrust>,
-    sanger: &'a SangerAttachment,
+    sanger: &'a SangerRead,
     /// The read's calls as its evidence gives them, in read order.
     evidence: &'a ReadEvidence,
 }
@@ -452,7 +455,10 @@ impl<'a> Sample<'a> {
                     sha256: &read.input_sha256,
                     strand: read.alignment.orientation,
                     trust: analysis.trust(&read.input_sha256).ok_or_else(missing)?,
-                    sanger: analysis.reads.get(&read.input_sha256).ok_or_else(missing)?,
+                    sanger: analysis
+                        .sanger
+                        .get(&read.input_sha256)
+                        .ok_or_else(missing)?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -1111,12 +1117,12 @@ impl<'a> Sample<'a> {
     }
 
     /// Why call `call` of `read` shows a second peak: the modality's cause
-    /// (`SangerAttachment::second`), refined with the review's run signal,
+    /// (`SangerCallSignal::second`), refined with the review's run signal,
     /// the sample's own reads taken out, so that a share its key's run level
     /// holds reads `context`. `None` when the call's second share does not
     /// reach `signal_processing.second_floor` and it is not masked as mixed.
     fn second_cause(&self, read: &Read<'_>, call: usize) -> Option<&'static str> {
-        let peak = read.sanger.second.get(call)?.as_ref()?;
+        let peak = read.sanger.calls.get(call)?.second.as_ref()?;
         let key = Key::of(read.evidence, call, peak.base, self.second.run_signal.flank);
         Some(run_signal::refine(peak, key.as_ref(), self.signal.as_ref(), self.second).label())
     }
@@ -1247,7 +1253,7 @@ impl<'a> Sample<'a> {
 fn evidence(
     position: usize,
     observation: &SampleLocusObservation,
-    sanger: &SangerAttachment,
+    sanger: &SangerRead,
     scope: Option<ScopeResult>,
     second: Option<SecondResult>,
 ) -> Result<EvidencePositionResult> {
@@ -1258,26 +1264,13 @@ fn evidence(
     };
     let (scan, quality) = match observation.call_index_0based {
         Some(index) => {
-            let call = sanger
-                .calls
-                .calls
-                .get(index)
-                .filter(|call| call.index_0based == index);
-            let quality = sanger
-                .quality
-                .per_call
-                .get(index)
-                .filter(|quality| quality.index_0based == index);
-            let (Some(call), Some(quality)) = (call, quality) else {
+            let Some(call) = sanger.calls.get(index) else {
                 return Err(ReportError::Inconsistent(
                     "review evidence call lacks its Sanger record",
                 )
                 .into());
             };
-            (
-                Some(call.locus_position_0based),
-                Some(quality.relative_quality_score),
-            )
+            (Some(call.scan), Some(call.quality))
         }
         None => (None, None),
     };
@@ -1629,7 +1622,7 @@ const fn name(label: &LabelResult) -> &'static str {
 /// Recorded so that what the read did not show can be located and read later.
 fn masked_spans(
     columns: &[AlignmentColumn],
-    segments: &[PhaseSegment],
+    segments: &[CallabilitySegmentResult],
     trust: &[CallTrust],
     regions: &[[usize; 2]],
 ) -> Vec<MaskedSpanResult> {
@@ -1645,9 +1638,10 @@ fn masked_spans(
         if !inside(regions, position) {
             continue;
         }
-        let Some(segment) = segments.iter().find(|segment| {
-            segment.call_start_0based <= call && call < segment.call_end_0based_exclusive
-        }) else {
+        let Some(segment) = segments
+            .iter()
+            .find(|segment| segment.calls.start <= call && call < segment.calls.end)
+        else {
             continue;
         };
         // A call the modality vouched for despite its segment (a leading

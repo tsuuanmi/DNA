@@ -17,6 +17,55 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna sample`, `dna consensus`, and `dna review` take `--evidence
+  <read_evidence.json>...` in place of a sample's traces (SRS-API-019,
+  PROP-0011 increment 4b): the core places every read from its
+  `dna.read_evidence/v1` document in process, and the commands write their
+  documents byte-identical to the trace-based commands for the same traces
+  and configuration, `dna review --signal` included. Traces and `--evidence`
+  exclude each other. On 1,120 real samples (30 picked with every rejection
+  kind, the 90 samples of one run reviewed with `--signal`, and 1,000
+  random) every sample, consensus, FASTA, and review document is
+  byte-identical. `dna.read_evidence/v1` changes in place (pre-release) to
+  carry everything the sample documents read: the trace's file name in
+  `provenance.input.name`, from which the documents name the read; each
+  call's selected window peaks `signal.channels` in place of `height`, which
+  the run signal counts; second shares, mixture fractions, and residuals at
+  full precision; and the second-peak `cause` read back with the call's
+  second base. `dna evidence` now writes a document for a read the sample
+  commands set aside before the core, instead of failing: its `rejection`
+  (`too_short`, or `callable_calls_below_minimum` with its integrity and
+  callability) as the sample documents report it; `dna analyze --evidence`
+  fails on it as on its trace. The read evidence reader accepts at most
+  16 MiB, as documented (it accepted 64 MiB). The `sample` log's channel
+  counts now count positive profile weights (`*_positive_profile_channels`)
+  in place of positive corrected amplitudes and SNRs, which the documents do
+  not carry. No plugin version changes: no plugin's output changes.
+- The evaluation harness's output contract `dna.eval_run/v1`
+  (`docs/reference/schemas/eval-run-v1.schema.json`, PROP-0011 increment 3):
+  which files `dna-eval run` writes, `run.json`, and every table's columns,
+  formats, and meaning, with a synthetic example.
+  `validate_result_schemas.py --eval-run <directory>` checks a run, and
+  dna-eval's tests check the headers it writes. Contracts only: every output
+  is byte-identical.
+- `dna-eval run` reports what passes without review, on the current data and
+  on every sample its review workload counts: the auto-pass samples (no check
+  item) and those with an unreviewed difference; the regions (sample ×
+  profile region) and zones (sample × zone) needing a check, overall and per
+  region, per zone, and per zone kind; and the passed regions and zones
+  holding an unreviewed difference by its first position. Unreviewed
+  samples, regions, and zones are split into non-het and
+  het only (the truth writes an IUPAC code of two or three bases in every
+  such block). `summary.md` gains a "Passes" table in both review workload
+  sections, and `run.json` a `workload` object (`all`, and `current` with
+  `--current-since`); `dna.eval_run/v1` changes in place (pre-release), and
+  `validate_result_schemas.py --eval-run` checks `workload` against
+  `scores.tsv`. Every table is byte-identical. On development panel v5,
+  current data (10,695 samples): 7,786 auto-pass (72.80 %), 281 of them
+  with an unreviewed difference (46 non-het); regions needing a check
+  3,496 of 32,085 (10.90 %), 360 passed regions with an unreviewed
+  difference (65 non-het); zones needing a check 4,455 of 160,425 (2.78 %),
+  and 423 passed zones with an unreviewed difference (74 non-het).
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis
@@ -447,6 +496,44 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A Sanger call before a run that the read loses phase after
+  (`post_homopolymer`) is no longer at a signal edge when its own signal is
+  unambiguous (SRS-CALL-017): before the run every molecule shows the same
+  sequence. The reverse read now reads 16194-16205 before the HVS-I C-tract;
+  on panel v5, 33 more samples are clear, with unreviewed and non-het
+  unchanged. Plugin `sanger` 14.
+
+- More Sanger calls may confirm the reference (ADR-0080, SRS-CALL-022;
+  plugin `sanger` 15, after the previous entry's 14). A single-channel call withheld only for its quality,
+  or at a benign signal edge, may show a second base standing out when its
+  cause is a neighbour's tail or a dye blob. An isolated mixed tail or blob
+  call keeps its confirmation at a benign signal edge (the same test), may
+  also be withheld for the peak floor or its relative quality, and may have a
+  neighbour masked as weak before the trim interval. An off-centre,
+  second-template, or phase-shift second never qualifies, a read's physical
+  end is never benign, and every core guard is unchanged. On panel v5
+  against `main` 20fc7ca, samples with an unreviewed or non-het unreviewed
+  difference are unchanged in every period and no status changes; clear
+  samples rise 71.00 → 72.05 % on current data (+113), 48.59 → 49.29 % in
+  2025-08..11 (+19), and 69.41 → 70.84 % older (+43); the current
+  `start@HV1` zone falls from 7.09 to 4.76 % of samples.
+- An unexplained second peak on one strand alone no longer withdraws a
+  reference confirmation made by a read of the other strand (SRS-CONS-010,
+  ADR-0080): it still does on the confirming strand, where the read's second
+  base does not stand out, or where a read of the confirming strand shows
+  that second base standing out too. On panel v5, unreviewed and non-het are
+  unchanged in every period, no status changes, and 156 samples become clear
+  (current 71.00 -> 71.39 %, 2025-08..11 48.59 -> 52.15 %, older 69.41 ->
+  70.01 %). Plugin `consensus` 14.
+- A call within `variant_calling.read_end_margin` of an unvouched read end
+  confirms the reference when its modality vouches for its base (scored,
+  off its edges, withheld for nothing) and it shows no second base standing
+  out and no unexplained second peak (SRS-CONS-010, ADR-0080). Every guard of
+  a confirmation applies; such a call still bounds no run and supports no
+  variant. On panel v5 against the stack of #169-#173, unreviewed and
+  non-het are unchanged in every period, no status changes, and 48 samples
+  held only by HVS-I read-start checks become clear (current 72.80 ->
+  73.16 %, older 71.63 -> 71.96 %). Plugin `consensus` 15.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's

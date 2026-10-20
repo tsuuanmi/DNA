@@ -3,9 +3,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use crate::model::sanger_read::SangerRead;
+use crate::sample_analysis::reads::PlacedReads;
+use dna_kernel::read_evidence::{EvidenceProfile, ReadEvidence};
 use dna_sample::model::sample_evidence::{NucleotideContribution, SampleEvidence};
-use dna_sanger::model::attachment::SangerAttachment;
-use dna_sanger::model::locus_evidence::LocusEvidence;
 
 /// Aggregation metrics rendered as the `key=value` tail of the
 /// `sample_aggregation_completed` record.
@@ -30,10 +31,8 @@ pub(super) struct SampleAggregationMetrics {
     reverse_profile_geometry_loci: usize,
     directional_profile_distance_loci: usize,
     directional_profile_distance_sum: f64,
-    locus_positive_corrected_channels: usize,
-    locus_positive_snr_channels: usize,
-    variant_positive_corrected_channels: usize,
-    variant_positive_snr_channels: usize,
+    locus_positive_profile_channels: usize,
+    variant_positive_profile_channels: usize,
     locus_forward_reads: usize,
     locus_reverse_reads: usize,
     locus_reference_reads: usize,
@@ -45,21 +44,35 @@ pub(super) struct SampleAggregationMetrics {
     callable_calls_total: usize,
 }
 
+/// A read's Sanger evidence and its evidence as the core received it.
+#[derive(Clone, Copy)]
+struct Read<'a> {
+    sanger: &'a SangerRead,
+    evidence: &'a ReadEvidence,
+}
+
+impl Read<'_> {
+    /// The profile of call `index`, when it has one.
+    fn profile(self, index: usize) -> Option<EvidenceProfile> {
+        self.evidence.calls().get(index)?.profile
+    }
+}
+
 /// Sanger evidence joined to the core sample evidence by read identity and
 /// call index.
 struct Joined<'a> {
     evidence: &'a SampleEvidence,
-    sanger: &'a BTreeMap<String, SangerAttachment>,
+    reads: BTreeMap<&'a str, Read<'a>>,
 }
 
 impl<'a> Joined<'a> {
-    fn attachment(&self, read_index: usize) -> Option<&'a SangerAttachment> {
+    fn attachment(&self, read_index: usize) -> Option<Read<'a>> {
         let read = self.evidence.reads.get(read_index)?;
-        self.sanger.get(&read.input_sha256)
+        self.reads.get(read.input_sha256.as_str()).copied()
     }
 
-    /// Sanger attachment and call index of every locus observation of a call.
-    fn locus_calls(&self) -> impl Iterator<Item = (&'a SangerAttachment, usize)> + '_ {
+    /// Sanger evidence and call index of every locus observation of a call.
+    fn locus_calls(&self) -> impl Iterator<Item = (Read<'a>, usize)> + '_ {
         self.evidence
             .locus_differences
             .iter()
@@ -70,8 +83,8 @@ impl<'a> Joined<'a> {
             })
     }
 
-    /// Sanger attachment and call index of every variant call.
-    fn variant_calls(&self) -> impl Iterator<Item = (&'a SangerAttachment, usize)> + '_ {
+    /// Sanger evidence and call index of every variant call.
+    fn variant_calls(&self) -> impl Iterator<Item = (Read<'a>, usize)> + '_ {
         self.evidence
             .variants
             .iter()
@@ -84,21 +97,42 @@ impl<'a> Joined<'a> {
     }
 }
 
-fn loci<'a>(
-    calls: impl Iterator<Item = (&'a SangerAttachment, usize)>,
-) -> impl Iterator<Item = &'a LocusEvidence> {
-    calls.filter_map(|(attachment, call)| attachment.locus(call))
+fn profiles<'a>(
+    calls: impl Iterator<Item = (Read<'a>, usize)>,
+) -> impl Iterator<Item = EvidenceProfile> {
+    calls.filter_map(|(read, call)| read.profile(call))
 }
 
-fn positive(values: impl Iterator<Item = f64>) -> usize {
-    values.filter(|value| *value > 0.0).count()
+/// Channels with positive signal: positive weights of the profiles, which
+/// are the corrected amplitudes normalized.
+fn positive(profiles: impl Iterator<Item = EvidenceProfile>) -> usize {
+    profiles
+        .flat_map(|profile| profile.weights)
+        .filter(|weight| *weight > 0.0)
+        .count()
 }
 
 pub(super) fn summarize(
     evidence: &SampleEvidence,
-    sanger: &BTreeMap<String, SangerAttachment>,
+    placed: &PlacedReads,
 ) -> SampleAggregationMetrics {
-    let joined = Joined { evidence, sanger };
+    let joined = Joined {
+        evidence,
+        reads: placed
+            .called
+            .iter()
+            .filter_map(|called| {
+                let sanger = placed.sanger.get(&called.input_sha256)?;
+                Some((
+                    called.input_sha256.as_str(),
+                    Read {
+                        sanger,
+                        evidence: &called.evidence,
+                    },
+                ))
+            })
+            .collect(),
+    };
     let (
         profile_geometry_loci,
         within_profile_impurity_sum,
@@ -160,16 +194,14 @@ pub(super) fn summarize(
             .iter()
             .map(|difference| difference.support_topology.profile_reverse_reads)
             .sum(),
-        profiled_variant_calls: loci(joined.variant_calls())
-            .filter(|locus| locus.profile.is_some())
-            .count(),
+        profiled_variant_calls: profiles(joined.variant_calls()).count(),
         noisy_locus_observations: joined
             .locus_calls()
-            .filter(|(attachment, call)| attachment.in_noisy_region(*call))
+            .filter(|(read, call)| read.sanger.in_noisy_region(*call))
             .count(),
         noisy_variant_calls: joined
             .variant_calls()
-            .filter(|(attachment, call)| attachment.in_noisy_region(*call))
+            .filter(|(read, call)| read.sanger.in_noisy_region(*call))
             .count(),
         eligible_nucleotide_locus_observations: evidence
             .locus_differences
@@ -221,18 +253,8 @@ pub(super) fn summarize(
         reverse_profile_geometry_loci,
         directional_profile_distance_loci,
         directional_profile_distance_sum,
-        locus_positive_corrected_channels: positive(
-            loci(joined.locus_calls()).flat_map(|locus| locus.corrected_amplitudes),
-        ),
-        locus_positive_snr_channels: positive(
-            loci(joined.locus_calls()).flat_map(|locus| locus.snrs),
-        ),
-        variant_positive_corrected_channels: positive(
-            loci(joined.variant_calls()).flat_map(|locus| locus.corrected_amplitudes),
-        ),
-        variant_positive_snr_channels: positive(
-            loci(joined.variant_calls()).flat_map(|locus| locus.snrs),
-        ),
+        locus_positive_profile_channels: positive(profiles(joined.locus_calls())),
+        variant_positive_profile_channels: positive(profiles(joined.variant_calls())),
         locus_forward_reads: evidence
             .locus_differences
             .iter()
@@ -266,11 +288,11 @@ pub(super) fn summarize(
         variants: evidence.variants.len(),
         masked_calls_total: (0..evidence.reads.len())
             .filter_map(|index| joined.attachment(index))
-            .map(|attachment| attachment.callability.masked_count())
+            .map(|read| read.sanger.callability.masked_calls)
             .sum(),
         callable_calls_total: (0..evidence.reads.len())
             .filter_map(|index| joined.attachment(index))
-            .map(|attachment| attachment.callability.callable_count())
+            .map(|read| read.sanger.calls.len() - read.sanger.callability.masked_calls)
             .sum(),
     }
 }
@@ -289,11 +311,11 @@ impl fmt::Display for SampleAggregationMetrics {
                 "between_profile_dispersion_sum={:.6} total_profile_heterogeneity_sum={:.6} ",
                 "forward_profile_geometry_loci={} reverse_profile_geometry_loci={} ",
                 "directional_profile_distance_loci={} directional_profile_distance_sum={:.6} ",
-                "locus_positive_corrected_channels={} locus_positive_snr_channels={} ",
+                "locus_positive_profile_channels={} ",
                 "locus_forward_reads={} locus_reverse_reads={} locus_reference_reads={} ",
                 "locus_alternate_reads={} locus_unresolved_reads={} locus_deletion_reads={} variants={} ",
-                "profiled_variant_calls={} noisy_variant_calls={} variant_positive_corrected_channels={} ",
-                "variant_positive_snr_channels={} masked_calls_total={} callable_calls_total={}"
+                "profiled_variant_calls={} noisy_variant_calls={} variant_positive_profile_channels={} ",
+                "masked_calls_total={} callable_calls_total={}"
             ),
             self.profiled_locus_observations,
             self.profiled_locus_forward_reads,
@@ -313,8 +335,7 @@ impl fmt::Display for SampleAggregationMetrics {
             self.reverse_profile_geometry_loci,
             self.directional_profile_distance_loci,
             self.directional_profile_distance_sum,
-            self.locus_positive_corrected_channels,
-            self.locus_positive_snr_channels,
+            self.locus_positive_profile_channels,
             self.locus_forward_reads,
             self.locus_reverse_reads,
             self.locus_reference_reads,
@@ -324,8 +345,7 @@ impl fmt::Display for SampleAggregationMetrics {
             self.variants,
             self.profiled_variant_calls,
             self.noisy_variant_calls,
-            self.variant_positive_corrected_channels,
-            self.variant_positive_snr_channels,
+            self.variant_positive_profile_channels,
             self.masked_calls_total,
             self.callable_calls_total
         )

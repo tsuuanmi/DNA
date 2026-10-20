@@ -6,9 +6,12 @@ calls around a call, `run_signal_flank` calls on each side, the call's base,
 and its second base), the per-key histograms of the second-channel share in
 `run_signal_resolution` steps, and the one call selection,
 `contributions`, that building a run signal and taking a read out of it both
-apply (`SELECTION` versions it). `read` processes one trace as a sample
-command does up to its core evidence and returns its contributions, or none
-for a read the sample commands reject. A run signal records the flank and
+apply (`SELECTION` versions it). It reads a read's evidence and each call's
+selected window peak heights (`BaseCalls::heights`, which a read evidence
+document records), so a read from its document is taken out as exactly as one
+from its trace. `read` admits one trace as a sample command does
+(`read_processing::admit`) and returns its contributions, or none for a read
+the sample commands reject. A run signal records the flank and
 resolution it was made with, and `RunSignal::check` refuses one whose values
 differ from the configuration's.
 

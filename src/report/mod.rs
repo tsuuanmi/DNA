@@ -4,7 +4,6 @@ mod aligned_calls;
 mod atomic;
 mod basecall;
 mod call;
-mod callability;
 mod consensus;
 mod evidence;
 mod json;
@@ -13,8 +12,6 @@ mod review;
 mod run_signal;
 mod sample;
 mod sanger_call;
-mod sanger_read;
-mod signal;
 mod variant;
 
 pub(crate) use atomic::publish;
@@ -24,7 +21,7 @@ pub(crate) use consensus::{
     CompletedConsensus, build as build_consensus, fasta as consensus_fasta,
     segments_fasta as consensus_segments_fasta,
 };
-pub(crate) use evidence::{CompletedEvidence, build as build_evidence};
+pub(crate) use evidence::{CompletedEvidence, Evidenced, build as build_evidence};
 pub(crate) use json::{CompletedAnalysis, build_analysis, serialize};
 pub(crate) use notation::{
     CompletedNotation, NamedRead, ReadRepresentation, SampleNotation, build as build_notation,
@@ -35,4 +32,3 @@ pub(crate) use review::{
 };
 pub(crate) use run_signal::{CompletedRunSignal, build as build_run_signal};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};
-pub(crate) use sanger_read::project as project_sanger_read;

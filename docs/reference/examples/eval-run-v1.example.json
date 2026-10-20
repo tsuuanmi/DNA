@@ -1,0 +1,2414 @@
+{
+  "anchors.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "status",
+      "strict_status",
+      "iupac_compatible_status",
+      "haplotype_status",
+      "haplotype_iupac_compatible_status",
+      "haplotype_lod_status",
+      "baseline_status",
+      "change"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "stratum": "hard",
+        "status": "concordant",
+        "strict_status": "discordant",
+        "iupac_compatible_status": "concordant",
+        "haplotype_status": "concordant",
+        "haplotype_iupac_compatible_status": "concordant",
+        "haplotype_lod_status": "concordant",
+        "baseline_status": "exact",
+        "change": "same"
+      }
+    ]
+  },
+  "checks.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "first",
+      "last",
+      "labels"
+    ],
+    "rows": [
+      {
+        "sample_id": "S01",
+        "first": "16184",
+        "last": "16193",
+        "labels": "long_run one_strand"
+      }
+    ]
+  },
+  "components.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "batch_date",
+      "read",
+      "strand",
+      "mixture",
+      "explained",
+      "components",
+      "offset",
+      "fraction",
+      "residual",
+      "unexplained",
+      "span",
+      "run",
+      "entered",
+      "truth_entered",
+      "agrees"
+    ],
+    "rows": [
+      {
+        "sample_id": "S01",
+        "batch_date": "",
+        "read": "S01_HV2F.ab1",
+        "strand": "forward",
+        "mixture": "212-260",
+        "explained": "yes",
+        "components": "2",
+        "offset": "0",
+        "fraction": "0.700",
+        "residual": "0.0412",
+        "unexplained": "0",
+        "span": "16-418",
+        "run": "303-315",
+        "entered": "C7",
+        "truth_entered": "C7",
+        "agrees": "yes"
+      },
+      {
+        "sample_id": "S01",
+        "batch_date": "",
+        "read": "S01_HV2F.ab1",
+        "strand": "forward",
+        "mixture": "212-260",
+        "explained": "yes",
+        "components": "2",
+        "offset": "1",
+        "fraction": "0.300",
+        "residual": "0.0412",
+        "unexplained": "0",
+        "span": "16-418",
+        "run": "303-315",
+        "entered": "C8",
+        "truth_entered": "C7",
+        "agrees": "no"
+      },
+      {
+        "sample_id": "S04",
+        "batch_date": "",
+        "read": "S04_HV1R.ab1",
+        "strand": "reverse",
+        "mixture": "40-88",
+        "explained": "no",
+        "components": "2",
+        "offset": "0",
+        "fraction": "0.620",
+        "residual": "0.1830",
+        "unexplained": "7",
+        "span": ".",
+        "run": ".",
+        "entered": ".",
+        "truth_entered": ".",
+        "agrees": "."
+      },
+      {
+        "sample_id": "S04",
+        "batch_date": "",
+        "read": "S04_HV1R.ab1",
+        "strand": "reverse",
+        "mixture": "40-88",
+        "explained": "no",
+        "components": "2",
+        "offset": "-1",
+        "fraction": "0.380",
+        "residual": "0.1830",
+        "unexplained": "7",
+        "span": ".",
+        "run": ".",
+        "entered": ".",
+        "truth_entered": ".",
+        "agrees": "."
+      }
+    ]
+  },
+  "diff.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "measure",
+      "baseline_status",
+      "status",
+      "change"
+    ],
+    "rows": [
+      {
+        "sample_id": "GONE",
+        "stratum": "",
+        "measure": "primary",
+        "baseline_status": "exact",
+        "status": "",
+        "change": "removed"
+      },
+      {
+        "sample_id": "GONE",
+        "stratum": "",
+        "measure": "strict",
+        "baseline_status": "exact",
+        "status": "",
+        "change": "removed"
+      },
+      {
+        "sample_id": "S00",
+        "stratum": "hard",
+        "measure": "strict",
+        "baseline_status": "concordant",
+        "status": "discordant",
+        "change": "regression"
+      },
+      {
+        "sample_id": "S01",
+        "stratum": "clean",
+        "measure": "primary",
+        "baseline_status": "exact",
+        "status": "discordant",
+        "change": "regression"
+      },
+      {
+        "sample_id": "S02",
+        "stratum": "clean",
+        "measure": "primary",
+        "baseline_status": "error",
+        "status": "failed",
+        "change": "changed"
+      },
+      {
+        "sample_id": "S02",
+        "stratum": "clean",
+        "measure": "strict",
+        "baseline_status": "error",
+        "status": "failed",
+        "change": "changed"
+      },
+      {
+        "sample_id": "S03",
+        "stratum": "hard",
+        "measure": "primary",
+        "baseline_status": "",
+        "status": "not_applicable",
+        "change": "added"
+      },
+      {
+        "sample_id": "S03",
+        "stratum": "hard",
+        "measure": "strict",
+        "baseline_status": "",
+        "status": "not_applicable",
+        "change": "added"
+      }
+    ]
+  },
+  "estimates.tsv": {
+    "comments": [],
+    "columns": [
+      "weighting",
+      "measure",
+      "metric",
+      "stratum",
+      "samples",
+      "population",
+      "events",
+      "rate",
+      "ci95",
+      "unweighted"
+    ],
+    "rows": [
+      {
+        "weighting": "corpus",
+        "measure": "primary",
+        "metric": "not_concordant",
+        "stratum": "clean",
+        "samples": "20",
+        "population": "200.00",
+        "events": "16",
+        "rate": "0.8000",
+        "ci95": "",
+        "unweighted": ""
+      },
+      {
+        "weighting": "corpus",
+        "measure": "primary",
+        "metric": "not_concordant",
+        "stratum": "hard",
+        "samples": "10",
+        "population": "45.00",
+        "events": "8",
+        "rate": "0.8000",
+        "ci95": "",
+        "unweighted": ""
+      },
+      {
+        "weighting": "corpus",
+        "measure": "primary",
+        "metric": "not_concordant",
+        "stratum": "all",
+        "samples": "30",
+        "population": "245.00",
+        "events": "24",
+        "rate": "0.8000",
+        "ci95": "0.1416",
+        "unweighted": "0.8000"
+      },
+      {
+        "weighting": "corpus",
+        "measure": "all",
+        "metric": "failed",
+        "stratum": "clean",
+        "samples": "20",
+        "population": "200.00",
+        "events": "4",
+        "rate": "0.2000",
+        "ci95": "",
+        "unweighted": ""
+      },
+      {
+        "weighting": "corpus",
+        "measure": "all",
+        "metric": "failed",
+        "stratum": "hard",
+        "samples": "10",
+        "population": "45.00",
+        "events": "3",
+        "rate": "0.3000",
+        "ci95": "",
+        "unweighted": ""
+      },
+      {
+        "weighting": "corpus",
+        "measure": "all",
+        "metric": "failed",
+        "stratum": "all",
+        "samples": "30",
+        "population": "245.00",
+        "events": "7",
+        "rate": "0.2184",
+        "ci95": "0.1433",
+        "unweighted": "0.2333"
+      }
+    ]
+  },
+  "forms.tsv": {
+    "comments": [
+      [
+        "truth_database_sha256",
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      ]
+    ],
+    "columns": [
+      "kind",
+      "window",
+      "sequence",
+      "form",
+      "samples"
+    ],
+    "rows": [
+      {
+        "kind": "window",
+        "window": "hv2_polyc",
+        "sequence": "CCCCCCCCTCCCCCC",
+        "form": "309.1C 315.1C",
+        "samples": "120"
+      },
+      {
+        "kind": "window",
+        "window": "hv2_polyc",
+        "sequence": "CCCCCCCCTCCCCCC",
+        "form": "309.1CC 315.1C",
+        "samples": "14"
+      },
+      {
+        "kind": "outside",
+        "window": "-",
+        "sequence": "-",
+        "form": "-",
+        "samples": "300"
+      },
+      {
+        "kind": "outside",
+        "window": "-",
+        "sequence": "-",
+        "form": "263G 750G",
+        "samples": "12"
+      }
+    ]
+  },
+  "run.json": {
+    "harness": "dna-eval",
+    "harness_version": "0.1.0",
+    "source": {
+      "revision": "0123456789abcdef0123456789abcdef01234567",
+      "dirty": false
+    },
+    "threads": 8,
+    "manifest": {
+      "path": "/data/panels/dev-v5.tsv",
+      "fields": {
+        "body_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "created": "2026-10-17",
+        "panel": "dev",
+        "rows": "30",
+        "salt": "dna-panel-v1",
+        "truth_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "version": "v5"
+      },
+      "body_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "rows": 30
+    },
+    "truth": {
+      "path": "/data/truth/statistics.sqlite",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "info": {
+        "created_at": "2026-10-16T09:00:00+00:00",
+        "samples": "29",
+        "schema_version": "1"
+      },
+      "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "recorded_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "state": "changed",
+      "changed_samples": 1,
+      "panel_samples_found": 29
+    },
+    "configuration_path": "/data/config/dna.toml",
+    "reference_path": "/data/references/rCRS.fasta",
+    "identities": [
+      {
+        "configuration_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "reference_name": "rCRS",
+        "reference_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "profile_id": "human-mtdna-rcrs",
+        "profile_sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+      }
+    ],
+    "baseline": "/data/runs/earlier",
+    "review_window": 10,
+    "current_since": "2026-01",
+    "run_signal": "batch",
+    "zones": {
+      "after": 20,
+      "edge": 40,
+      "overrun": 2
+    },
+    "constants": {
+      "lod_share": 100,
+      "faint_share": 30,
+      "minor_floor_share": 50,
+      "minor_noise_calls": 10,
+      "local_shadow_share": 50,
+      "noise_ratio": 3,
+      "upper_bound_alpha": 0.05,
+      "interval_z": 1.96,
+      "triage_window_margin": 3,
+      "triage_footprint_positions": 50
+    },
+    "samples": {
+      "haplotype": {
+        "total": 6,
+        "concordant": 1,
+        "discordant": 2,
+        "not_applicable": 1,
+        "failed": 2
+      },
+      "haplotype_iupac_compatible": {
+        "total": 6,
+        "concordant": 2,
+        "discordant": 1,
+        "not_applicable": 1,
+        "failed": 2
+      },
+      "haplotype_lod": {
+        "total": 6,
+        "concordant": 2,
+        "discordant": 1,
+        "not_applicable": 1,
+        "failed": 2
+      },
+      "iupac_compatible": {
+        "total": 6,
+        "concordant": 2,
+        "discordant": 1,
+        "not_applicable": 1,
+        "failed": 2
+      },
+      "primary": {
+        "total": 6,
+        "concordant": 1,
+        "discordant": 2,
+        "not_applicable": 1,
+        "failed": 2
+      },
+      "strict": {
+        "total": 6,
+        "concordant": 0,
+        "discordant": 3,
+        "not_applicable": 1,
+        "failed": 2
+      }
+    },
+    "workload": {
+      "all": {
+        "samples": 3,
+        "auto_pass": {
+          "samples": 2,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          }
+        },
+        "regions": {
+          "total": 9,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_region": [
+            {
+              "name": "HV1",
+              "total": 3,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        },
+        "zones": {
+          "total": 45,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_zone": [
+            {
+              "name": "window@HV1",
+              "total": 3,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        }
+      },
+      "current": {
+        "samples": 2,
+        "auto_pass": {
+          "samples": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          }
+        },
+        "regions": {
+          "total": 6,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_region": [
+            {
+              "name": "HV1",
+              "total": 2,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        },
+        "zones": {
+          "total": 30,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_zone": [
+            {
+              "name": "window@HV1",
+              "total": 2,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    "seconds": {
+      "total": 41.2,
+      "truth": 1.3,
+      "dna": 36.8,
+      "sample_median": 0.9,
+      "sample_p95": 2.1,
+      "sample_max": 3.4,
+      "sample_sum": 30.5
+    },
+    "triage": {
+      "policy": "draft: short_calls=100 causes=n,contested,masked,phase_loss,reference_frame one_strand=everywhere proxy=primer minor=upstream@100 single_minor=off",
+      "policies": 3,
+      "seconds": 0.4
+    }
+  },
+  "scores.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "batch",
+      "truth_batch",
+      "stratum",
+      "weight",
+      "weight_corpus",
+      "anchor_candidate",
+      "retired",
+      "status",
+      "concordant",
+      "dna_alleles",
+      "truth_alleles",
+      "dna_unique",
+      "truth_unique",
+      "reasons",
+      "positions",
+      "iupac_only",
+      "regions",
+      "strict_status",
+      "strict_concordant",
+      "uncovered",
+      "iupac_compatible_status",
+      "iupac_compatible_concordant",
+      "haplotype_status",
+      "haplotype_concordant",
+      "haplotype_blocks",
+      "haplotype_iupac_compatible_status",
+      "haplotype_iupac_compatible_concordant",
+      "haplotype_iupac_compatible_blocks",
+      "haplotype_lod_status",
+      "haplotype_lod_concordant",
+      "haplotype_lod_blocks",
+      "below_lod",
+      "class",
+      "class_regions",
+      "cause",
+      "cause_scope",
+      "cause_evidence",
+      "empop_ranges",
+      "empop_mitotype",
+      "empop_undecided",
+      "empop_ties",
+      "callable_yield",
+      "traces",
+      "rejected_traces",
+      "failure",
+      "review_checks",
+      "review_positions",
+      "review_clear",
+      "unreviewed",
+      "unreviewed_forced",
+      "review_zones",
+      "review_zone_count"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "batch": "b1",
+        "truth_batch": "b1",
+        "stratum": "hard",
+        "weight": "4.5",
+        "weight_corpus": "4.5",
+        "anchor_candidate": "1",
+        "retired": "0",
+        "status": "concordant",
+        "concordant": "Y",
+        "dna_alleles": "2",
+        "truth_alleles": "3",
+        "dna_unique": "",
+        "truth_unique": "16189Y",
+        "reasons": "",
+        "positions": "",
+        "iupac_only": "0",
+        "regions": "",
+        "strict_status": "discordant",
+        "strict_concordant": "N",
+        "uncovered": "16189Y",
+        "iupac_compatible_status": "concordant",
+        "iupac_compatible_concordant": "Y",
+        "haplotype_status": "concordant",
+        "haplotype_concordant": "Y",
+        "haplotype_blocks": "",
+        "haplotype_iupac_compatible_status": "concordant",
+        "haplotype_iupac_compatible_concordant": "Y",
+        "haplotype_iupac_compatible_blocks": "",
+        "haplotype_lod_status": "concordant",
+        "haplotype_lod_concordant": "Y",
+        "haplotype_lod_blocks": "",
+        "below_lod": "1",
+        "class": "coverage",
+        "class_regions": "hv1_polyc",
+        "cause": "lab",
+        "cause_scope": "defect",
+        "cause_evidence": "lab:no_read@16189",
+        "empop_ranges": "",
+        "empop_mitotype": "",
+        "empop_undecided": "",
+        "empop_ties": "",
+        "callable_yield": "HV1=0/342 HV2=268/268 HV3=0/0",
+        "traces": "2",
+        "rejected_traces": "0",
+        "failure": "",
+        "review_checks": "0",
+        "review_positions": "0",
+        "review_clear": "Y",
+        "unreviewed": "",
+        "unreviewed_forced": "",
+        "review_zones": "",
+        "review_zone_count": ""
+      },
+      {
+        "sample_id": "S01",
+        "batch": "b1",
+        "truth_batch": "b1",
+        "stratum": "clean",
+        "weight": "10",
+        "weight_corpus": "10",
+        "anchor_candidate": "0",
+        "retired": "0",
+        "status": "discordant",
+        "concordant": "N",
+        "dna_alleles": "3",
+        "truth_alleles": "3",
+        "dna_unique": "16189C",
+        "truth_unique": "16189Y",
+        "reasons": "shared_position,dna_only,truth_only",
+        "positions": "16189",
+        "iupac_only": "1",
+        "regions": "hv1_polyc",
+        "strict_status": "discordant",
+        "strict_concordant": "N",
+        "uncovered": "",
+        "iupac_compatible_status": "concordant",
+        "iupac_compatible_concordant": "Y",
+        "haplotype_status": "discordant",
+        "haplotype_concordant": "N",
+        "haplotype_blocks": "16189-16189:C/Y",
+        "haplotype_iupac_compatible_status": "concordant",
+        "haplotype_iupac_compatible_concordant": "Y",
+        "haplotype_iupac_compatible_blocks": "",
+        "haplotype_lod_status": "concordant",
+        "haplotype_lod_concordant": "Y",
+        "haplotype_lod_blocks": "",
+        "below_lod": "1",
+        "class": "heteroplasmy",
+        "class_regions": "hv1_polyc",
+        "cause": "undetermined",
+        "cause_scope": "defect",
+        "cause_evidence": "undetermined:one_strand@16189",
+        "empop_ranges": "",
+        "empop_mitotype": "",
+        "empop_undecided": "",
+        "empop_ties": "",
+        "callable_yield": "HV1=342/342 HV2=268/268 HV3=0/0",
+        "traces": "2",
+        "rejected_traces": "1",
+        "failure": "",
+        "review_checks": "1",
+        "review_positions": "10",
+        "review_clear": "N",
+        "unreviewed": "",
+        "unreviewed_forced": "",
+        "review_zones": "window@HV1",
+        "review_zone_count": "1"
+      },
+      {
+        "sample_id": "S02",
+        "batch": "b1",
+        "truth_batch": "b1",
+        "stratum": "clean",
+        "weight": "10",
+        "weight_corpus": "10",
+        "anchor_candidate": "0",
+        "retired": "0",
+        "status": "failed",
+        "concordant": "",
+        "dna_alleles": "",
+        "truth_alleles": "",
+        "dna_unique": "",
+        "truth_unique": "",
+        "reasons": "",
+        "positions": "",
+        "iupac_only": "",
+        "regions": "",
+        "strict_status": "failed",
+        "strict_concordant": "",
+        "uncovered": "",
+        "iupac_compatible_status": "failed",
+        "iupac_compatible_concordant": "",
+        "haplotype_status": "failed",
+        "haplotype_concordant": "",
+        "haplotype_blocks": "",
+        "haplotype_iupac_compatible_status": "failed",
+        "haplotype_iupac_compatible_concordant": "",
+        "haplotype_iupac_compatible_blocks": "",
+        "haplotype_lod_status": "failed",
+        "haplotype_lod_concordant": "",
+        "haplotype_lod_blocks": "",
+        "below_lod": "",
+        "class": "failed",
+        "class_regions": "",
+        "cause": "dna",
+        "cause_scope": "defect",
+        "cause_evidence": "dna:dna_failure",
+        "empop_ranges": "",
+        "empop_mitotype": "",
+        "empop_undecided": "",
+        "empop_ties": "",
+        "callable_yield": "",
+        "traces": "2",
+        "rejected_traces": "",
+        "failure": "dna: 2 traces",
+        "review_checks": "",
+        "review_positions": "",
+        "review_clear": "",
+        "unreviewed": "",
+        "unreviewed_forced": "",
+        "review_zones": "",
+        "review_zone_count": ""
+      },
+      {
+        "sample_id": "S03",
+        "batch": "b1",
+        "truth_batch": "b1",
+        "stratum": "hard",
+        "weight": "4.5",
+        "weight_corpus": "4.5",
+        "anchor_candidate": "0",
+        "retired": "0",
+        "status": "not_applicable",
+        "concordant": "N/A",
+        "dna_alleles": "0",
+        "truth_alleles": "3",
+        "dna_unique": "",
+        "truth_unique": "263G 16189Y",
+        "reasons": "",
+        "positions": "",
+        "iupac_only": "0",
+        "regions": "",
+        "strict_status": "not_applicable",
+        "strict_concordant": "N/A",
+        "uncovered": "",
+        "iupac_compatible_status": "not_applicable",
+        "iupac_compatible_concordant": "N/A",
+        "haplotype_status": "not_applicable",
+        "haplotype_concordant": "N/A",
+        "haplotype_blocks": "",
+        "haplotype_iupac_compatible_status": "not_applicable",
+        "haplotype_iupac_compatible_concordant": "N/A",
+        "haplotype_iupac_compatible_blocks": "",
+        "haplotype_lod_status": "not_applicable",
+        "haplotype_lod_concordant": "N/A",
+        "haplotype_lod_blocks": "",
+        "below_lod": "1",
+        "class": "not_comparable",
+        "class_regions": "",
+        "cause": "undetermined",
+        "cause_scope": "defect",
+        "cause_evidence": "undetermined:not_comparable",
+        "empop_ranges": "",
+        "empop_mitotype": "",
+        "empop_undecided": "",
+        "empop_ties": "",
+        "callable_yield": "HV1=342/342 HV2=268/268 HV3=0/0",
+        "traces": "2",
+        "rejected_traces": "1",
+        "failure": "",
+        "review_checks": "0",
+        "review_positions": "0",
+        "review_clear": "Y",
+        "unreviewed": "",
+        "unreviewed_forced": "",
+        "review_zones": "",
+        "review_zone_count": ""
+      },
+      {
+        "sample_id": "S04",
+        "batch": "b1",
+        "truth_batch": "b1",
+        "stratum": "clean",
+        "weight": "10",
+        "weight_corpus": "10",
+        "anchor_candidate": "0",
+        "retired": "0",
+        "status": "discordant",
+        "concordant": "N",
+        "dna_alleles": "3",
+        "truth_alleles": "3",
+        "dna_unique": "150T",
+        "truth_unique": "16189Y",
+        "reasons": "dna_only,truth_only",
+        "positions": "150 16189",
+        "iupac_only": "0",
+        "regions": "hv1_polyc,other",
+        "strict_status": "discordant",
+        "strict_concordant": "N",
+        "uncovered": "",
+        "iupac_compatible_status": "discordant",
+        "iupac_compatible_concordant": "N",
+        "haplotype_status": "discordant",
+        "haplotype_concordant": "N",
+        "haplotype_blocks": "150-150:T/C 16189-16189:T/Y",
+        "haplotype_iupac_compatible_status": "discordant",
+        "haplotype_iupac_compatible_concordant": "N",
+        "haplotype_iupac_compatible_blocks": "150-150:T/C",
+        "haplotype_lod_status": "discordant",
+        "haplotype_lod_concordant": "N",
+        "haplotype_lod_blocks": "150-150:T/C",
+        "below_lod": "1",
+        "class": "sequence",
+        "class_regions": "other",
+        "cause": "undetermined",
+        "cause_scope": "defect",
+        "cause_evidence": "undetermined:adjudicate",
+        "empop_ranges": "",
+        "empop_mitotype": "",
+        "empop_undecided": "",
+        "empop_ties": "",
+        "callable_yield": "HV1=342/342 HV2=268/268 HV3=0/0",
+        "traces": "2",
+        "rejected_traces": "0",
+        "failure": "",
+        "review_checks": "0",
+        "review_positions": "0",
+        "review_clear": "Y",
+        "unreviewed": "150-150:T/C",
+        "unreviewed_forced": "",
+        "review_zones": "",
+        "review_zone_count": ""
+      },
+      {
+        "sample_id": "S09",
+        "batch": "b1",
+        "truth_batch": "",
+        "stratum": "hard",
+        "weight": "4.5",
+        "weight_corpus": "4.5",
+        "anchor_candidate": "0",
+        "retired": "0",
+        "status": "failed",
+        "concordant": "",
+        "dna_alleles": "",
+        "truth_alleles": "",
+        "dna_unique": "",
+        "truth_unique": "",
+        "reasons": "",
+        "positions": "",
+        "iupac_only": "",
+        "regions": "",
+        "strict_status": "failed",
+        "strict_concordant": "",
+        "uncovered": "",
+        "iupac_compatible_status": "failed",
+        "iupac_compatible_concordant": "",
+        "haplotype_status": "failed",
+        "haplotype_concordant": "",
+        "haplotype_blocks": "",
+        "haplotype_iupac_compatible_status": "failed",
+        "haplotype_iupac_compatible_concordant": "",
+        "haplotype_iupac_compatible_blocks": "",
+        "haplotype_lod_status": "failed",
+        "haplotype_lod_concordant": "",
+        "haplotype_lod_blocks": "",
+        "below_lod": "",
+        "class": "failed",
+        "class_regions": "",
+        "cause": "lab",
+        "cause_scope": "defect",
+        "cause_evidence": "lab:truth_missing",
+        "empop_ranges": "",
+        "empop_mitotype": "",
+        "empop_undecided": "",
+        "empop_ties": "",
+        "callable_yield": "",
+        "traces": "2",
+        "rejected_traces": "1",
+        "failure": "truth_missing: the truth has no record of the sample",
+        "review_checks": "",
+        "review_positions": "",
+        "review_clear": "",
+        "unreviewed": "",
+        "unreviewed_forced": "",
+        "review_zones": "",
+        "review_zone_count": ""
+      }
+    ]
+  },
+  "signals.tsv": {
+    "comments": [],
+    "columns": [
+      "group",
+      "reads",
+      "calls",
+      "keys",
+      "keys_20_calls",
+      "keys_40_calls",
+      "keys_100_calls"
+    ],
+    "rows": [
+      {
+        "group": "batch:b1",
+        "reads": "58",
+        "calls": "41230",
+        "keys": "2961",
+        "keys_20_calls": "804",
+        "keys_40_calls": "433",
+        "keys_100_calls": "91"
+      },
+      {
+        "group": "month:unknown",
+        "reads": "58",
+        "calls": "41230",
+        "keys": "2961",
+        "keys_20_calls": "804",
+        "keys_40_calls": "433",
+        "keys_100_calls": "91"
+      }
+    ]
+  },
+  "summary.md": "# Evaluation run\n\n| Item | Value |\n|---|---|\n| panel | synthetic |\n\n## Panel against the truth\n\nPanel truth: not_recorded (digest cc072c2639d5f23934dbe001a01b2938212efbd0b5a591a8819ff0436395d36f, recorded -).\n\n| Check | Samples |\n|---|---:|\n| panel samples | 30 |\n| truth changed since the panel was built | 0 |\n| retired (left out of the estimates) | 0 |\n| without a truth record | 1 |\n| truth batch differs from the panel batch | 1 |\n| truth status not `OK` in its batch | 0 |\n\n",
+  "triage.md": "# Draft triage (PROP-0004 phase 0)\n\nResearch-grade stage-1 detectors over DNA's evidence, scored against the truth; not a DNA contract and not production triage. Retired samples are left out.\n\nReported policy `draft`: short_calls=100 causes=n,contested,masked,phase_loss,reference_frame one_strand=everywhere proxy=primer minor=upstream@100 single_minor=off.\n\n",
+  "triage.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "weight_corpus",
+      "retired",
+      "outcome",
+      "regions",
+      "findings",
+      "poor_traces",
+      "rerun_traces",
+      "status",
+      "strict_status",
+      "iupac_compatible_status",
+      "haplotype_status",
+      "haplotype_iupac_compatible_status",
+      "haplotype_lod_status"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "stratum": "clean",
+        "weight_corpus": "2",
+        "retired": "0",
+        "outcome": "pass",
+        "regions": "16180-16200=pass",
+        "findings": "",
+        "poor_traces": "",
+        "rerun_traces": "",
+        "status": "discordant",
+        "strict_status": "discordant",
+        "iupac_compatible_status": "discordant",
+        "haplotype_status": "concordant",
+        "haplotype_iupac_compatible_status": "concordant",
+        "haplotype_lod_status": "concordant"
+      },
+      {
+        "sample_id": "S01",
+        "stratum": "clean",
+        "weight_corpus": "2",
+        "retired": "0",
+        "outcome": "pass",
+        "regions": "16180-16200=pass",
+        "findings": "",
+        "poor_traces": "",
+        "rerun_traces": "",
+        "status": "discordant",
+        "strict_status": "discordant",
+        "iupac_compatible_status": "concordant",
+        "haplotype_status": "discordant",
+        "haplotype_iupac_compatible_status": "concordant",
+        "haplotype_lod_status": "concordant"
+      },
+      {
+        "sample_id": "S02",
+        "stratum": "hard",
+        "weight_corpus": "1",
+        "retired": "0",
+        "outcome": "review",
+        "regions": "16180-16200=review",
+        "findings": "16180-16200:region.one_strand=1",
+        "poor_traces": "",
+        "rerun_traces": "",
+        "status": "discordant",
+        "strict_status": "discordant",
+        "iupac_compatible_status": "discordant",
+        "haplotype_status": "discordant",
+        "haplotype_iupac_compatible_status": "discordant",
+        "haplotype_lod_status": "discordant"
+      },
+      {
+        "sample_id": "S03",
+        "stratum": "hard",
+        "weight_corpus": "1",
+        "retired": "0",
+        "outcome": "failed",
+        "regions": "",
+        "findings": "",
+        "poor_traces": "",
+        "rerun_traces": "",
+        "status": "failed",
+        "strict_status": "failed",
+        "iupac_compatible_status": "failed",
+        "haplotype_status": "failed",
+        "haplotype_iupac_compatible_status": "failed",
+        "haplotype_lod_status": "failed"
+      },
+      {
+        "sample_id": "S04",
+        "stratum": "hard",
+        "weight_corpus": "1",
+        "retired": "0",
+        "outcome": "rerun",
+        "regions": "",
+        "findings": "",
+        "poor_traces": "y_HV1F.ab1=trace.weak+trace.short,y_HV1R.ab1=trace.too_short",
+        "rerun_traces": "y_HV1F.ab1,y_HV1R.ab1",
+        "status": "failed",
+        "strict_status": "failed",
+        "iupac_compatible_status": "failed",
+        "haplotype_status": "failed",
+        "haplotype_iupac_compatible_status": "failed",
+        "haplotype_lod_status": "failed"
+      }
+    ]
+  },
+  "triage_detectors.tsv": {
+    "comments": [],
+    "columns": [
+      "detector",
+      "applied",
+      "samples",
+      "regions",
+      "positions",
+      "catches_primary",
+      "catches_strict",
+      "catches_iupac_compatible",
+      "catches_haplotype",
+      "catches_haplotype_iupac_compatible",
+      "catches_haplotype_lod",
+      "burden",
+      "unique_primary",
+      "unique_strict",
+      "unique_iupac_compatible",
+      "unique_haplotype",
+      "unique_haplotype_iupac_compatible",
+      "unique_haplotype_lod",
+      "sole_burden",
+      "if_applied_catches_primary",
+      "if_applied_catches_strict",
+      "if_applied_catches_iupac_compatible",
+      "if_applied_catches_haplotype",
+      "if_applied_catches_haplotype_iupac_compatible",
+      "if_applied_catches_haplotype_lod",
+      "if_applied_burden",
+      "position_hits_primary"
+    ],
+    "rows": [
+      {
+        "detector": "region.unreliable:n",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.unreliable:contested",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.unreliable:masked",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.unreliable:masked_read",
+        "applied": "0",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "-",
+        "unique_strict": "-",
+        "unique_iupac_compatible": "-",
+        "unique_haplotype": "-",
+        "unique_haplotype_iupac_compatible": "-",
+        "unique_haplotype_lod": "-",
+        "sole_burden": "-",
+        "if_applied_catches_primary": "0",
+        "if_applied_catches_strict": "0",
+        "if_applied_catches_iupac_compatible": "0",
+        "if_applied_catches_haplotype": "0",
+        "if_applied_catches_haplotype_iupac_compatible": "0",
+        "if_applied_catches_haplotype_lod": "0",
+        "if_applied_burden": "0",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.unreliable:phase_loss",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.unreliable:reference_frame",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.one_strand",
+        "applied": "1",
+        "samples": "1",
+        "regions": "1",
+        "positions": "1",
+        "catches_primary": "1",
+        "catches_strict": "1",
+        "catches_iupac_compatible": "1",
+        "catches_haplotype": "1",
+        "catches_haplotype_iupac_compatible": "1",
+        "catches_haplotype_lod": "1",
+        "burden": "0",
+        "unique_primary": "1",
+        "unique_strict": "1",
+        "unique_iupac_compatible": "1",
+        "unique_haplotype": "1",
+        "unique_haplotype_iupac_compatible": "1",
+        "unique_haplotype_lod": "1",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "1"
+      },
+      {
+        "detector": "region.gap",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      },
+      {
+        "detector": "region.minor_signal",
+        "applied": "1",
+        "samples": "0",
+        "regions": "0",
+        "positions": "0",
+        "catches_primary": "0",
+        "catches_strict": "0",
+        "catches_iupac_compatible": "0",
+        "catches_haplotype": "0",
+        "catches_haplotype_iupac_compatible": "0",
+        "catches_haplotype_lod": "0",
+        "burden": "0",
+        "unique_primary": "0",
+        "unique_strict": "0",
+        "unique_iupac_compatible": "0",
+        "unique_haplotype": "0",
+        "unique_haplotype_iupac_compatible": "0",
+        "unique_haplotype_lod": "0",
+        "sole_burden": "0",
+        "if_applied_catches_primary": "-",
+        "if_applied_catches_strict": "-",
+        "if_applied_catches_iupac_compatible": "-",
+        "if_applied_catches_haplotype": "-",
+        "if_applied_catches_haplotype_iupac_compatible": "-",
+        "if_applied_catches_haplotype_lod": "-",
+        "if_applied_burden": "-",
+        "position_hits_primary": "0"
+      }
+    ]
+  },
+  "triage_leaks.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "sample_outcome",
+      "measure",
+      "region",
+      "position",
+      "window",
+      "kind",
+      "class",
+      "dna_alleles",
+      "truth_alleles",
+      "marked_by"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "stratum": "clean",
+        "sample_outcome": "pass",
+        "measure": "primary",
+        "region": "16180-16200",
+        "position": "16190.1",
+        "window": "hv1_polyc",
+        "kind": "dna_unique",
+        "class": "insertion",
+        "dna_alleles": "16190.1C",
+        "truth_alleles": "",
+        "marked_by": ""
+      },
+      {
+        "sample_id": "S00",
+        "stratum": "clean",
+        "sample_outcome": "pass",
+        "measure": "primary",
+        "region": "16180-16200",
+        "position": "16193.1",
+        "window": "hv1_polyc",
+        "kind": "truth_unique",
+        "class": "insertion",
+        "dna_alleles": "",
+        "truth_alleles": "16193.1C",
+        "marked_by": ""
+      },
+      {
+        "sample_id": "S01",
+        "stratum": "clean",
+        "sample_outcome": "pass",
+        "measure": "primary",
+        "region": "16180-16200",
+        "position": "16189",
+        "window": "hv1_polyc",
+        "kind": "both",
+        "class": "iupac",
+        "dna_alleles": "16189C",
+        "truth_alleles": "16189Y",
+        "marked_by": ""
+      }
+    ]
+  },
+  "triage_minor.tsv": {
+    "comments": [],
+    "columns": [
+      "policy",
+      "rule",
+      "pass_corpus_without",
+      "pass_corpus",
+      "pass_corpus_cost",
+      "moved",
+      "burden",
+      "iupac_sites",
+      "iupac_caught",
+      "iupac_sites_all",
+      "iupac_caught_all",
+      "passed_without_primary",
+      "leaks_without_primary",
+      "passed_primary",
+      "leaks_primary",
+      "leak_upper95_primary",
+      "leak_rate_corpus_primary",
+      "passed_without_strict",
+      "leaks_without_strict",
+      "passed_strict",
+      "leaks_strict",
+      "leak_upper95_strict",
+      "leak_rate_corpus_strict",
+      "passed_without_iupac_compatible",
+      "leaks_without_iupac_compatible",
+      "passed_iupac_compatible",
+      "leaks_iupac_compatible",
+      "leak_upper95_iupac_compatible",
+      "leak_rate_corpus_iupac_compatible",
+      "passed_without_haplotype",
+      "leaks_without_haplotype",
+      "passed_haplotype",
+      "leaks_haplotype",
+      "leak_upper95_haplotype",
+      "leak_rate_corpus_haplotype",
+      "passed_without_haplotype_iupac_compatible",
+      "leaks_without_haplotype_iupac_compatible",
+      "passed_haplotype_iupac_compatible",
+      "leaks_haplotype_iupac_compatible",
+      "leak_upper95_haplotype_iupac_compatible",
+      "leak_rate_corpus_haplotype_iupac_compatible",
+      "passed_without_haplotype_lod",
+      "leaks_without_haplotype_lod",
+      "passed_haplotype_lod",
+      "leaks_haplotype_lod",
+      "leak_upper95_haplotype_lod",
+      "leak_rate_corpus_haplotype_lod"
+    ],
+    "rows": [
+      {
+        "policy": "draft",
+        "rule": "upstream@100",
+        "pass_corpus_without": "0.5714",
+        "pass_corpus": "0.5714",
+        "pass_corpus_cost": "0.0000",
+        "moved": "0",
+        "burden": "0",
+        "iupac_sites": "1",
+        "iupac_caught": "0",
+        "iupac_sites_all": "1",
+        "iupac_caught_all": "0",
+        "passed_without_primary": "2",
+        "leaks_without_primary": "2",
+        "passed_primary": "2",
+        "leaks_primary": "2",
+        "leak_upper95_primary": "1.0000",
+        "leak_rate_corpus_primary": "1.0000",
+        "passed_without_strict": "2",
+        "leaks_without_strict": "2",
+        "passed_strict": "2",
+        "leaks_strict": "2",
+        "leak_upper95_strict": "1.0000",
+        "leak_rate_corpus_strict": "1.0000",
+        "passed_without_iupac_compatible": "2",
+        "leaks_without_iupac_compatible": "1",
+        "passed_iupac_compatible": "2",
+        "leaks_iupac_compatible": "1",
+        "leak_upper95_iupac_compatible": "0.9747",
+        "leak_rate_corpus_iupac_compatible": "0.5000",
+        "passed_without_haplotype": "2",
+        "leaks_without_haplotype": "1",
+        "passed_haplotype": "2",
+        "leaks_haplotype": "1",
+        "leak_upper95_haplotype": "0.9747",
+        "leak_rate_corpus_haplotype": "0.5000",
+        "passed_without_haplotype_iupac_compatible": "2",
+        "leaks_without_haplotype_iupac_compatible": "0",
+        "passed_haplotype_iupac_compatible": "2",
+        "leaks_haplotype_iupac_compatible": "0",
+        "leak_upper95_haplotype_iupac_compatible": "0.7764",
+        "leak_rate_corpus_haplotype_iupac_compatible": "0.0000",
+        "passed_without_haplotype_lod": "2",
+        "leaks_without_haplotype_lod": "0",
+        "passed_haplotype_lod": "2",
+        "leaks_haplotype_lod": "0",
+        "leak_upper95_haplotype_lod": "0.7764",
+        "leak_rate_corpus_haplotype_lod": "0.0000"
+      }
+    ]
+  },
+  "triage_policies.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "retired",
+      "draft",
+      "short_off",
+      "short_50"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "stratum": "clean",
+        "retired": "0",
+        "draft": "pass",
+        "short_off": "pass",
+        "short_50": "pass"
+      },
+      {
+        "sample_id": "S01",
+        "stratum": "clean",
+        "retired": "0",
+        "draft": "pass",
+        "short_off": "pass",
+        "short_50": "pass"
+      },
+      {
+        "sample_id": "S02",
+        "stratum": "hard",
+        "retired": "0",
+        "draft": "review",
+        "short_off": "review",
+        "short_50": "review"
+      },
+      {
+        "sample_id": "S03",
+        "stratum": "hard",
+        "retired": "0",
+        "draft": "failed",
+        "short_off": "failed",
+        "short_50": "failed"
+      },
+      {
+        "sample_id": "S04",
+        "stratum": "hard",
+        "retired": "0",
+        "draft": "rerun",
+        "short_off": "rerun",
+        "short_50": "rerun"
+      }
+    ]
+  },
+  "triage_positions.tsv": {
+    "comments": [],
+    "columns": [
+      "region",
+      "position",
+      "samples",
+      "region.unreliable:n",
+      "region.unreliable:contested",
+      "region.unreliable:masked",
+      "region.unreliable:masked_read",
+      "region.unreliable:phase_loss",
+      "region.unreliable:reference_frame",
+      "region.one_strand",
+      "region.gap",
+      "region.minor_signal"
+    ],
+    "rows": [
+      {
+        "region": "16180-16200",
+        "position": "16180",
+        "samples": "3",
+        "region.unreliable:n": "0",
+        "region.unreliable:contested": "0",
+        "region.unreliable:masked": "0",
+        "region.unreliable:masked_read": "0",
+        "region.unreliable:phase_loss": "0",
+        "region.unreliable:reference_frame": "0",
+        "region.one_strand": "0",
+        "region.gap": "0",
+        "region.minor_signal": "0"
+      },
+      {
+        "region": "16180-16200",
+        "position": "16181",
+        "samples": "3",
+        "region.unreliable:n": "0",
+        "region.unreliable:contested": "0",
+        "region.unreliable:masked": "0",
+        "region.unreliable:masked_read": "0",
+        "region.unreliable:phase_loss": "0",
+        "region.unreliable:reference_frame": "0",
+        "region.one_strand": "0",
+        "region.gap": "0",
+        "region.minor_signal": "0"
+      },
+      {
+        "region": "16180-16200",
+        "position": "16182",
+        "samples": "3",
+        "region.unreliable:n": "0",
+        "region.unreliable:contested": "0",
+        "region.unreliable:masked": "0",
+        "region.unreliable:masked_read": "0",
+        "region.unreliable:phase_loss": "0",
+        "region.unreliable:reference_frame": "0",
+        "region.one_strand": "0",
+        "region.gap": "0",
+        "region.minor_signal": "0"
+      }
+    ]
+  },
+  "triage_regions.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "region",
+      "outcome",
+      "region.unreliable:n",
+      "region.unreliable:contested",
+      "region.unreliable:masked",
+      "region.unreliable:masked_read",
+      "region.unreliable:phase_loss",
+      "region.unreliable:reference_frame",
+      "region.one_strand",
+      "region.gap",
+      "region.minor_signal",
+      "rerun_traces",
+      "primary_positions",
+      "strict_positions",
+      "iupac_compatible_positions",
+      "haplotype_positions",
+      "haplotype_iupac_compatible_positions",
+      "haplotype_lod_positions"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "stratum": "clean",
+        "region": "16180-16200",
+        "outcome": "pass",
+        "region.unreliable:n": "0",
+        "region.unreliable:contested": "0",
+        "region.unreliable:masked": "0",
+        "region.unreliable:masked_read": "0",
+        "region.unreliable:phase_loss": "0",
+        "region.unreliable:reference_frame": "0",
+        "region.one_strand": "0",
+        "region.gap": "0",
+        "region.minor_signal": "0",
+        "rerun_traces": "",
+        "primary_positions": "16190.1 16193.1",
+        "strict_positions": "16190.1 16193.1",
+        "iupac_compatible_positions": "16190.1 16193.1",
+        "haplotype_positions": "",
+        "haplotype_iupac_compatible_positions": "",
+        "haplotype_lod_positions": ""
+      },
+      {
+        "sample_id": "S01",
+        "stratum": "clean",
+        "region": "16180-16200",
+        "outcome": "pass",
+        "region.unreliable:n": "0",
+        "region.unreliable:contested": "0",
+        "region.unreliable:masked": "0",
+        "region.unreliable:masked_read": "0",
+        "region.unreliable:phase_loss": "0",
+        "region.unreliable:reference_frame": "0",
+        "region.one_strand": "0",
+        "region.gap": "0",
+        "region.minor_signal": "0",
+        "rerun_traces": "",
+        "primary_positions": "16189",
+        "strict_positions": "16189",
+        "iupac_compatible_positions": "",
+        "haplotype_positions": "16189",
+        "haplotype_iupac_compatible_positions": "",
+        "haplotype_lod_positions": ""
+      },
+      {
+        "sample_id": "S02",
+        "stratum": "hard",
+        "region": "16180-16200",
+        "outcome": "review",
+        "region.unreliable:n": "0",
+        "region.unreliable:contested": "0",
+        "region.unreliable:masked": "0",
+        "region.unreliable:masked_read": "0",
+        "region.unreliable:phase_loss": "0",
+        "region.unreliable:reference_frame": "0",
+        "region.one_strand": "1",
+        "region.gap": "0",
+        "region.minor_signal": "0",
+        "rerun_traces": "",
+        "primary_positions": "16192",
+        "strict_positions": "16192",
+        "iupac_compatible_positions": "16192",
+        "haplotype_positions": "16192",
+        "haplotype_iupac_compatible_positions": "16192",
+        "haplotype_lod_positions": "16192"
+      }
+    ]
+  },
+  "triage_sweep.tsv": {
+    "comments": [],
+    "columns": [
+      "policy",
+      "parameters",
+      "samples",
+      "pass",
+      "review",
+      "rerun",
+      "failed",
+      "pass_rate",
+      "pass_corpus",
+      "pass_corpus_ci95",
+      "review_corpus",
+      "rerun_corpus",
+      "failed_corpus",
+      "passed_primary",
+      "leaks_primary",
+      "leak_rate_primary",
+      "leak_upper95_primary",
+      "leak_rate_corpus_primary",
+      "passed_strict",
+      "leaks_strict",
+      "leak_rate_strict",
+      "leak_upper95_strict",
+      "leak_rate_corpus_strict",
+      "passed_iupac_compatible",
+      "leaks_iupac_compatible",
+      "leak_rate_iupac_compatible",
+      "leak_upper95_iupac_compatible",
+      "leak_rate_corpus_iupac_compatible",
+      "passed_haplotype",
+      "leaks_haplotype",
+      "leak_rate_haplotype",
+      "leak_upper95_haplotype",
+      "leak_rate_corpus_haplotype",
+      "passed_haplotype_iupac_compatible",
+      "leaks_haplotype_iupac_compatible",
+      "leak_rate_haplotype_iupac_compatible",
+      "leak_upper95_haplotype_iupac_compatible",
+      "leak_rate_corpus_haplotype_iupac_compatible",
+      "passed_haplotype_lod",
+      "leaks_haplotype_lod",
+      "leak_rate_haplotype_lod",
+      "leak_upper95_haplotype_lod",
+      "leak_rate_corpus_haplotype_lod"
+    ],
+    "rows": [
+      {
+        "policy": "draft",
+        "parameters": "short_calls=100 causes=n,contested,masked,phase_loss,reference_frame one_strand=everywhere proxy=primer minor=upstream@100 single_minor=off",
+        "samples": "5",
+        "pass": "2",
+        "review": "1",
+        "rerun": "1",
+        "failed": "1",
+        "pass_rate": "0.4000",
+        "pass_corpus": "0.5714",
+        "pass_corpus_ci95": "0.0000",
+        "review_corpus": "0.1429",
+        "rerun_corpus": "0.1429",
+        "failed_corpus": "0.1429",
+        "passed_primary": "2",
+        "leaks_primary": "2",
+        "leak_rate_primary": "1.0000",
+        "leak_upper95_primary": "1.0000",
+        "leak_rate_corpus_primary": "1.0000",
+        "passed_strict": "2",
+        "leaks_strict": "2",
+        "leak_rate_strict": "1.0000",
+        "leak_upper95_strict": "1.0000",
+        "leak_rate_corpus_strict": "1.0000",
+        "passed_iupac_compatible": "2",
+        "leaks_iupac_compatible": "1",
+        "leak_rate_iupac_compatible": "0.5000",
+        "leak_upper95_iupac_compatible": "0.9747",
+        "leak_rate_corpus_iupac_compatible": "0.5000",
+        "passed_haplotype": "2",
+        "leaks_haplotype": "1",
+        "leak_rate_haplotype": "0.5000",
+        "leak_upper95_haplotype": "0.9747",
+        "leak_rate_corpus_haplotype": "0.5000",
+        "passed_haplotype_iupac_compatible": "2",
+        "leaks_haplotype_iupac_compatible": "0",
+        "leak_rate_haplotype_iupac_compatible": "0.0000",
+        "leak_upper95_haplotype_iupac_compatible": "0.7764",
+        "leak_rate_corpus_haplotype_iupac_compatible": "0.0000",
+        "passed_haplotype_lod": "2",
+        "leaks_haplotype_lod": "0",
+        "leak_rate_haplotype_lod": "0.0000",
+        "leak_upper95_haplotype_lod": "0.7764",
+        "leak_rate_corpus_haplotype_lod": "0.0000"
+      },
+      {
+        "policy": "short_off",
+        "parameters": "short_calls=0 causes=n,contested,masked,phase_loss,reference_frame one_strand=everywhere proxy=primer minor=upstream@100 single_minor=off",
+        "samples": "5",
+        "pass": "2",
+        "review": "1",
+        "rerun": "1",
+        "failed": "1",
+        "pass_rate": "0.4000",
+        "pass_corpus": "0.5714",
+        "pass_corpus_ci95": "0.0000",
+        "review_corpus": "0.1429",
+        "rerun_corpus": "0.1429",
+        "failed_corpus": "0.1429",
+        "passed_primary": "2",
+        "leaks_primary": "2",
+        "leak_rate_primary": "1.0000",
+        "leak_upper95_primary": "1.0000",
+        "leak_rate_corpus_primary": "1.0000",
+        "passed_strict": "2",
+        "leaks_strict": "2",
+        "leak_rate_strict": "1.0000",
+        "leak_upper95_strict": "1.0000",
+        "leak_rate_corpus_strict": "1.0000",
+        "passed_iupac_compatible": "2",
+        "leaks_iupac_compatible": "1",
+        "leak_rate_iupac_compatible": "0.5000",
+        "leak_upper95_iupac_compatible": "0.9747",
+        "leak_rate_corpus_iupac_compatible": "0.5000",
+        "passed_haplotype": "2",
+        "leaks_haplotype": "1",
+        "leak_rate_haplotype": "0.5000",
+        "leak_upper95_haplotype": "0.9747",
+        "leak_rate_corpus_haplotype": "0.5000",
+        "passed_haplotype_iupac_compatible": "2",
+        "leaks_haplotype_iupac_compatible": "0",
+        "leak_rate_haplotype_iupac_compatible": "0.0000",
+        "leak_upper95_haplotype_iupac_compatible": "0.7764",
+        "leak_rate_corpus_haplotype_iupac_compatible": "0.0000",
+        "passed_haplotype_lod": "2",
+        "leaks_haplotype_lod": "0",
+        "leak_rate_haplotype_lod": "0.0000",
+        "leak_upper95_haplotype_lod": "0.7764",
+        "leak_rate_corpus_haplotype_lod": "0.0000"
+      },
+      {
+        "policy": "short_50",
+        "parameters": "short_calls=50 causes=n,contested,masked,phase_loss,reference_frame one_strand=everywhere proxy=primer minor=upstream@100 single_minor=off",
+        "samples": "5",
+        "pass": "2",
+        "review": "1",
+        "rerun": "1",
+        "failed": "1",
+        "pass_rate": "0.4000",
+        "pass_corpus": "0.5714",
+        "pass_corpus_ci95": "0.0000",
+        "review_corpus": "0.1429",
+        "rerun_corpus": "0.1429",
+        "failed_corpus": "0.1429",
+        "passed_primary": "2",
+        "leaks_primary": "2",
+        "leak_rate_primary": "1.0000",
+        "leak_upper95_primary": "1.0000",
+        "leak_rate_corpus_primary": "1.0000",
+        "passed_strict": "2",
+        "leaks_strict": "2",
+        "leak_rate_strict": "1.0000",
+        "leak_upper95_strict": "1.0000",
+        "leak_rate_corpus_strict": "1.0000",
+        "passed_iupac_compatible": "2",
+        "leaks_iupac_compatible": "1",
+        "leak_rate_iupac_compatible": "0.5000",
+        "leak_upper95_iupac_compatible": "0.9747",
+        "leak_rate_corpus_iupac_compatible": "0.5000",
+        "passed_haplotype": "2",
+        "leaks_haplotype": "1",
+        "leak_rate_haplotype": "0.5000",
+        "leak_upper95_haplotype": "0.9747",
+        "leak_rate_corpus_haplotype": "0.5000",
+        "passed_haplotype_iupac_compatible": "2",
+        "leaks_haplotype_iupac_compatible": "0",
+        "leak_rate_haplotype_iupac_compatible": "0.0000",
+        "leak_upper95_haplotype_iupac_compatible": "0.7764",
+        "leak_rate_corpus_haplotype_iupac_compatible": "0.0000",
+        "passed_haplotype_lod": "2",
+        "leaks_haplotype_lod": "0",
+        "leak_rate_haplotype_lod": "0.0000",
+        "leak_upper95_haplotype_lod": "0.7764",
+        "leak_rate_corpus_haplotype_lod": "0.0000"
+      }
+    ]
+  },
+  "triage_traces.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "trace",
+      "primer",
+      "state",
+      "callable_span",
+      "findings",
+      "rerun_for"
+    ],
+    "rows": [
+      {
+        "sample_id": "S00",
+        "trace": "x_HV1F.ab1",
+        "primer": "HV1F",
+        "state": "admitted:forward",
+        "callable_span": "400",
+        "findings": "",
+        "rerun_for": ""
+      },
+      {
+        "sample_id": "S01",
+        "trace": "x_HV1F.ab1",
+        "primer": "HV1F",
+        "state": "admitted:forward",
+        "callable_span": "400",
+        "findings": "",
+        "rerun_for": ""
+      },
+      {
+        "sample_id": "S02",
+        "trace": "x_HV1F.ab1",
+        "primer": "HV1F",
+        "state": "admitted:forward",
+        "callable_span": "400",
+        "findings": "",
+        "rerun_for": ""
+      },
+      {
+        "sample_id": "S04",
+        "trace": "y_HV1F.ab1",
+        "primer": "HV1F",
+        "state": "weak",
+        "callable_span": "40",
+        "findings": "trace.weak+trace.short",
+        "rerun_for": "no_admitted_read"
+      },
+      {
+        "sample_id": "S04",
+        "trace": "y_HV1R.ab1",
+        "primer": "HV1R",
+        "state": "too_short",
+        "callable_span": "",
+        "findings": "trace.too_short",
+        "rerun_for": "no_admitted_read"
+      }
+    ]
+  },
+  "truth_changes.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "retired",
+      "recorded_digest",
+      "current_digest"
+    ],
+    "rows": [
+      {
+        "sample_id": "S04",
+        "stratum": "clean",
+        "retired": "0",
+        "recorded_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "current_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    ]
+  },
+  "windows.tsv": {
+    "comments": [],
+    "columns": [
+      "region",
+      "start",
+      "end",
+      "samples",
+      "checked",
+      "unreviewed",
+      "unreviewed_share",
+      "unreviewed_upper95"
+    ],
+    "rows": [
+      {
+        "region": "HV1",
+        "start": "16024",
+        "end": "16033",
+        "samples": "17",
+        "checked": "0",
+        "unreviewed": "0",
+        "unreviewed_share": "0.0000",
+        "unreviewed_upper95": "0.1843"
+      },
+      {
+        "region": "HV1",
+        "start": "16034",
+        "end": "16043",
+        "samples": "17",
+        "checked": "0",
+        "unreviewed": "0",
+        "unreviewed_share": "0.0000",
+        "unreviewed_upper95": "0.1843"
+      },
+      {
+        "region": "HV1",
+        "start": "16044",
+        "end": "16053",
+        "samples": "17",
+        "checked": "0",
+        "unreviewed": "0",
+        "unreviewed_share": "0.0000",
+        "unreviewed_upper95": "0.1843"
+      }
+    ]
+  }
+}

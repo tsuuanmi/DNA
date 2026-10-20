@@ -10,7 +10,8 @@ reviewer truth ([[PROP-0005]],
 [[ADR-0075]]). It is
 the only place in the repository for truth formats and comparison
 (SRS-COMPAT-003). Its outputs are validation evidence about a DNA revision,
-not DNA contracts. Source: [crates/dna-eval](../../crates/dna-eval/src/README.md).
+not DNA result contracts; their shape is the harness's own versioned contract
+([outputs](#outputs)). Source: [crates/dna-eval](../../crates/dna-eval/src/README.md).
 
 Measures, discrepancy classes, and causes are in [[validation/evaluation-measures]]; review workload, estimates, and the draft triage are in [[validation/evaluation-triage]].
 
@@ -299,34 +300,43 @@ and the positions and samples of each count.
 
 ## Outputs
 
-| File | Content |
-|---|---|
-| `scores.tsv` | per sample, sorted by `sample_id`: panel and truth batch, stratum, weights, anchor and retired flags; primary status (`concordant`, `discordant`, `not_applicable`, `failed`) and code (`Y`, `N`, `N/A`), allele counts, unique alleles of each side, rules, positions, `iupac_only`, windows; strict status, code, and `uncovered` alleles; IUPAC-compatible status and code; haplotype, haplotype IUPAC-compatible, and haplotype LoD status, code, and differing blocks of the way that decides each interval that hold a discordant position (`<start>-<end>[+]:<DNA>/<truth>`, `+` when open, `-` for an empty sequence, a sequence over 24 symbols as its first and last 10 and its length, `CCCTCCCCCC..TTCTGGCCAC(40)`); `below_lod`, the truth IUPAC positions below the limit of detection; the [discrepancy class](#discrepancy-classes) and its windows (`class`, `class_regions`); its [cause](#discrepancy-causes), scope, and findings (`cause`, `cause_scope`, `cause_evidence`); the [EMPOP query](#empop-queries) (`empop_ranges`, `empop_mitotype`) and the positions inside its ranges that the consensus left undecided or decided by a tie (`empop_undecided`, `empop_ties`); DNA's callable yield per HV region (`callable_yield`, `HV1=330/342 HV2=268/268 HV3=139/139`: the truth's analysed positions there that DNA's callable intervals cover); distinct and rejected traces; failure (`<kind>: <message>`); the [review workload](#review-workload): check items, positions to review, whether the sample is clear (`Y` with no check item), unreviewed blocks, and with `--forced-windows` the blocks still unreviewed, then the zones to check and their number (`review_checks`, `review_positions`, `review_clear`, `unreviewed`, `unreviewed_forced`, `review_zones`, `review_zone_count`) |
-| `components.tsv` | per sample, read, phase mixture, and component (ADR-0082): strand, the mixture's calls (`<start>-<end>`, 0-based, end exclusive), whether it is explained, its components, the component's offset and fraction, the mixture's residual and unexplained calls, and the component's span (`<first>-<last>`, 1-based, the first exceeding the last across the origin; `.` for an unexplained mixture, which lists offsets and fractions only); then once per reference run cluster in the span (runs of at least 4 bases one base apart, as `303-315`): the run the read enters in phase, the first after the cluster's left flank for a forward read and the last before its right flank for a reverse one, as base and length for the component and the truth (`entered`, `truth_entered`, from haplotypes, so independent of how the aligner splits an edit), and whether the component's haplotype over the cluster and its flanks is the truth's (`agrees`); `.` where an edit crosses the window's edge or the truth has an IUPAC symbol in it, and once with these unset when the span covers no cluster |
-| `checks.tsv` | per sample and check item, in sample then item order: `first` and `last` (1-based) and the item's label names, space-separated |
-| `signals.tsv` | with `--run-signal`, per group (`batch:<batch>`, `month:<YYYY-MM>`): reads and selected calls, keys, and keys with at least 20, 40, and 100 calls |
-| `windows.tsv` | per review window, by region and start: the counted samples whose analysed intervals reach it, those with a check item in it, those without one that have an unreviewed difference in it, that share, and its Wilson 95 % upper bound |
-| `estimates.tsv` | per weighting, measure, and metric: each stratum, then `all` with the interval |
-| `anchors.tsv` | anchor candidates with their status under each measure, their baseline status, and the primary change |
-| `diff.tsv` | with a baseline: per measure the baseline reports, the samples whose status class changed, including added and removed ones |
-| `truth_changes.tsv` | whenever the panel's truth changed: each sample whose truth digest differs, with its stratum, retired flag, and recorded (`-` when none) and current digests |
-| `summary.md` | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), the EMPOP queries, the callable yield per HV region (samples, analysed and callable positions, their share, and the samples short of full yield), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
-| `triage.tsv` | with `--triage`, per sample under the draft policy: outcome, region outcomes, findings with their position counts (and `minor_unavailable=…` when the minor channels could not be read), poor traces, the traces a rerun asks for, and the status under each measure |
-| `triage_regions.tsv` | with `--triage`, per sample and region: outcome, positions per detector, rerun traces, and the discordant positions under each measure |
-| `triage_traces.tsv` | with `--triage`, per input trace: primer, state, callable span, findings, and the regions whose rerun asks for it (`no_admitted_read` for a sample without an admitted read) |
-| `triage_leaks.tsv` | with `--triage`, every discordant position inside a passed region under each measure: the sample's outcome, region, position, window, kind, class, the alleles of each side, and the detectors marking it |
-| `triage_detectors.tsv` | with `--triage`, per region detector: whether the draft applies it, samples, regions, and positions flagged, catches per measure, burden, and hits; unique catches and sole burden for an applied detector, `if_applied_*` catches and burden for one not applied, `-` in the other set |
-| `triage_positions.tsv` | with `--triage`, per region position: the analysed samples each detector marks it in |
-| `triage_policies.tsv` | with `--triage`, per sample (retired ones included, with `retired`): its stratum and its class under each policy of the sweep, one column per policy named as in `triage_sweep.tsv` (`pass`, `review`, `rerun`, or `failed`) |
-| `triage_minor.tsv` | with `--triage`, per policy of the minor-signal measurement: its rule, A without and with it and the cost, moved samples and burden, IUPAC sites and those caught (in regions that pass without the rule, and in any region), and per measure the passed samples and leaks without and with the rule, the upper bound, and the corpus rate |
-| `triage_sweep.tsv` | with `--triage`, per policy: its parameters, A/B/C counts (with the `failed` samples) and corpus-weighted shares, and per measure the passed samples, leaks, rate, upper bound, and corpus rate |
-| `triage.md` | with `--triage`, the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
-| `forms.tsv` | how the reviewers write each sequence over the whole truth database, keyed by its SHA-256: per repeat window and window sequence the samples per written form, and the samples per set of calls outside the windows (`-` for an empty one); no sample identifiers |
-| `run.json` | the run header: harness version, the source revision and whether tracked files differed from it, recorded when the harness was built, threads, manifest fields and hash, the panel truth digest, the recorded one, the truth state and the number of changed samples, the database's file hash and `info` (provenance only), paths, DNA's configuration, reference, and profile identities, the review zone widths (`zones`: `after`, `edge`, `overrun`), the harness's measurement constants (`constants`: limit of detection, faint and minor shares, noise calls and ratio, local shadow share, upper-bound level, interval quantile, triage window margin and footprint), counts per measure, timings, and with `--triage` the draft policy, the number of policies, and the triage time |
+`dna-eval run` writes one contract, `dna.eval_run/v1`
+([PROP-0011](../proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+Its schema,
+[`eval-run-v1.schema.json`](../reference/schemas/eval-run-v1.schema.json), is
+authoritative for which files a run writes, every table's columns in order,
+and each column's format and meaning; it also says how a directory reads as
+one instance. The synthetic
+[example](../reference/examples/eval-run-v1.example.json) is such an
+instance. `validate_result_schemas.py --eval-run <directory>` checks a run
+directory against it, and the harness's tests check the headers and
+enumerated cells it writes. A change to a file's columns, formats, or meaning,
+or to which files a run writes, is a new contract version
+([[governance/versioning#evaluation-contracts|versioning]]).
+
+| File | Written | Content |
+|---|---|---|
+| `scores.tsv` | always | per sample: the comparison under each [measure](evaluation-measures.md#measures), the [discrepancy class](evaluation-measures.md#discrepancy-classes) and [cause](evaluation-measures.md#discrepancy-causes), the [EMPOP query](#empop-queries), the callable yield per HV region, the traces, the failure, and the [review workload](evaluation-triage.md#review-workload); read back as a later run's `--baseline` |
+| `components.tsv` | always | per phase-mixture component (ADR-0082) and reference run cluster it covers: the run it enters in phase against the truth's |
+| `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
+| `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
+| `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
+| `anchors.tsv` | always | the anchor candidates under each measure, against the baseline |
+| `forms.tsv` | always | how the reviewers write each sequence over the whole truth database, keyed by the database file's SHA-256, without sample identifiers; read back with `--forms` |
+| `run.json` | always | the run header: harness and source revision, inputs and identities, options, measurement constants, counts per measure, what passes without review (the [passes](evaluation-triage.md#review-workload) of the review workload), and timings |
+| `summary.md` | always | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence, and with a baseline the samples whose class changed), the EMPOP queries, the callable yield per HV region (samples, analysed and callable positions, their share, and the samples short of full yield), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the baseline |
+| `diff.tsv` | with `--baseline` | the samples whose status class changed, per measure the baseline reports |
+| `truth_changes.tsv` | when the panel's truth changed | the samples whose truth digest differs from the manifest's record |
+| `signals.tsv` | with `--run-signal` | per run-signal group: reads, calls, and keys |
+| `triage.tsv`, `triage_regions.tsv`, `triage_traces.tsv`, `triage_leaks.tsv`, `triage_detectors.tsv`, `triage_positions.tsv`, `triage_sweep.tsv`, `triage_policies.tsv`, `triage_minor.tsv` | with `--triage` | the [draft triage](evaluation-triage.md#draft-triage) per sample, region, trace, leak, detector, and region position; per policy of the sweep and of the minor-signal measurement; and each sample's class under every policy, which `dna-eval power` reads |
+| `triage.md` | with `--triage` | the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
+
+The Markdown reports are for people: the contract requires them, not their text.
 
 Every file except `run.json` depends only on the panel, the truth, DNA's
 calls (and with `--triage` its evidence), and the configuration, reference, profile, and baseline the summary
 names, so it is byte-identical whatever the thread count and whatever revision
-or database file it ran on. Run outputs and
+or database file it ran on; `forms.tsv` alone also records the database
+file's SHA-256 in its first line. Run outputs and
 panel manifests hold sample identifiers and stay outside the repository under
 the [[governance/data|data policy]]; DNA documents quote aggregates only.

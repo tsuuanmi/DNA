@@ -29,12 +29,10 @@ use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 
 use crate::error::{Result, RunSignalError};
-use crate::model::basecalls::BaseCalls;
 use crate::model::sanger::Chromatogram;
 use crate::model::second_cause::{SecondCause, SecondPeak};
-use crate::model::signal::ShortRead;
 use crate::read_processing::evidence::{PEAK_BELOW_MINIMUM, RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD};
-use crate::read_processing::{self, SangerConfig};
+use crate::read_processing::{self, Admission, SangerConfig};
 use crate::signal_processing::{RunSignalParameters, SignalProcessingConfig};
 use dna_kernel::model::nucleotide::Nucleotide;
 
@@ -153,10 +151,11 @@ pub struct Contributions {
 /// sides, `parameters.flank` deep. A read's first and last `flank` calls have
 /// no context. Each counts under each of its three other channels, with that
 /// channel's share of its peak and the primary peak, in
-/// `parameters.resolution` steps, from the read's `calls`.
+/// `parameters.resolution` steps, from the read's `heights`: each call's
+/// selected A/C/G/T peak heights in its window ([`BaseCalls::heights`](crate::model::basecalls::BaseCalls::heights)).
 #[must_use]
 pub fn contributions(
-    calls: &BaseCalls,
+    heights: &[[i32; 4]],
     evidence: &ReadEvidence,
     parameters: &RunSignalParameters,
 ) -> Contributions {
@@ -169,13 +168,13 @@ pub fn contributions(
             .iter()
             .map(|call| call.base)
             .collect::<String>();
-        let Some(peaks) = calls.calls.get(index).map(|call| call.peaks) else {
+        let Some(peaks) = heights.get(index) else {
             continue;
         };
         let Some(primary) = Nucleotide::from_char(call.base) else {
             continue;
         };
-        let height = peaks[primary.channel_index()].height;
+        let height = peaks[primary.channel_index()];
         if !evidence.informative_call(index)
             || call.placement != Placement::Scored
             || call.identity.edge
@@ -193,7 +192,7 @@ pub fn contributions(
             if other == primary {
                 continue;
             }
-            let peak = peaks[other.channel_index()].height.max(0);
+            let peak = peaks[other.channel_index()].max(0);
             let total = f64::from(height) + f64::from(peak);
             // A share in [0, 1], so the rounded steps fit the resolution.
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -224,15 +223,9 @@ pub fn contributions(
 ///
 /// Returns the failure of a Sanger stage other than those rejections.
 pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contributions>> {
-    let prepared = match read_processing::prepare(trace, config) {
-        Ok(prepared) => prepared,
-        Err(error) if ShortRead::of(&error).is_some() => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    if prepared.rejection(config).is_some() {
+    let Admission::Processed(processed) = read_processing::admit(trace, config)? else {
         return Ok(None);
-    }
-    let processed = read_processing::finish(trace, prepared, config)?;
+    };
     let evidence = read_processing::read_evidence(
         &processed.calls,
         &processed.signal,
@@ -243,7 +236,7 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
         &config.sanger_evidence,
     )?;
     Ok(Some(contributions(
-        &processed.calls,
+        &processed.calls.heights(),
         &evidence,
         &config.signal_processing.run_signal,
     )))
@@ -446,7 +439,6 @@ mod tests {
     use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile};
 
     use super::*;
-    use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
 
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -460,35 +452,25 @@ mod tests {
         mad_factor: 4.0,
     };
 
+    /// A read's window peak heights and its evidence.
+    type Read = (Vec<[i32; 4]>, ReadEvidence);
+
     /// A read of `bases`, each call's primary peak 1000 and its other
     /// channels at `others` (A/C/G/T order, the primary's entry ignored).
     fn read(
         bases: &str,
         others: [i32; 4],
-    ) -> std::result::Result<(BaseCalls, ReadEvidence), Box<dyn std::error::Error>> {
-        let calls = bases
+    ) -> std::result::Result<Read, Box<dyn std::error::Error>> {
+        let heights = bases
             .chars()
-            .enumerate()
-            .map(|(index, base)| BaseCall {
-                index_0based: index,
-                locus_position_0based: index * 4,
-                window_start_0based: index * 4,
-                window_end_0based_exclusive: index * 4 + 1,
-                peaks: std::array::from_fn(|channel| ChannelPeak {
-                    base: Nucleotide::ALL[channel],
-                    height: if Nucleotide::ALL[channel].as_char() == base {
+            .map(|base| {
+                std::array::from_fn(|channel| {
+                    if Nucleotide::ALL[channel].as_char() == base {
                         1000
                     } else {
                         others[channel]
-                    },
-                    position_0based: index * 4,
-                    source: PeakSource::LocalMaximum,
-                }),
-                primary_peak_evidence: None,
-                primary: base,
-                ambiguity: base,
-                qualifying_channels: Vec::new(),
-                vendor_agrees: None,
+                    }
+                })
             })
             .collect::<Vec<_>>();
         let evidence = bases
@@ -501,13 +483,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let count = evidence.len();
-        Ok((
-            BaseCalls {
-                primary_sequence: bases.into(),
-                calls,
-            },
-            ReadEvidence::new(evidence, 0..count, Vec::new())?,
-        ))
+        Ok((heights, ReadEvidence::new(evidence, 0..count, Vec::new())?))
     }
 
     // SRS-CALL-019

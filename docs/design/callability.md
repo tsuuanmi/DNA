@@ -179,7 +179,18 @@ The core caller does not read callability directly. The Sanger adapter
   width (a dye blob is broader), a spacing within `edge_spacing_minimum` to
   `edge_spacing_maximum` (0.5 to 1.5) times the median, no phase
   loss beyond that end, and not the base of its neighbour towards that end (a
-  signal one position off). Its indel verdict keeps the edge and its bound is
+  signal one position off). A phase loss after a repeat run that the read
+  ends on is no bar for a call before that run: the informative interval
+  ends with the run (two calls or more), the first call beyond it is masked
+  `post_homopolymer`, and every molecule shows the same sequence before the
+  run, so the call is in phase. A reverse read entering the HVS-I C-tract
+  from 16200 had its last calls before the tract at the edge, and with the
+  forward read dephased after the tract nobody read 16194-16205 cleanly; on
+  development panel v5 against `main` 20fc7ca this cleared 33 more samples
+  (77 of 1,107 such check items), with samples with an unreviewed or non-het
+  difference unchanged and no status change under any measure. A read that
+  physically ends inside the tract (a weak mask, not a phase loss) keeps its
+  edge. Its indel verdict keeps the edge and its bound is
   unchanged, so it still counts towards runs: as a base-only call it would
   stop counting, and run lengths the consensus estimated from it (`315.1C`)
   were lost. On development panel v5 against the rule's absence: `315.1C`

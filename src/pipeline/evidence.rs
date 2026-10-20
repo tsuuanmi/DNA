@@ -1,16 +1,19 @@
 //! Reference-free read evidence and result publication (PROP-0011): the
-//! modality's per-call evidence exactly as the core receives it.
+//! modality's per-call evidence exactly as the core receives it, or why the
+//! modality set the read aside.
 
 use std::path::Path;
 use std::time::Instant;
 
 use crate::error::Result;
 use crate::input::sanger;
+use crate::model::read_observation::{RejectedRead, RejectionCause};
+use crate::model::sanger_read::{Rejection, SangerRead};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
-use crate::report::{self, CompletedEvidence};
-use dna_sanger::read_processing::{self, ProcessedRead};
+use crate::report::{self, CompletedEvidence, Evidenced};
+use dna_sanger::read_processing::{self, Admission};
 
 use super::Operation;
 
@@ -41,37 +44,62 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
     );
     drop(stage);
 
-    let ProcessedRead {
-        calls,
-        signal,
-        callability,
-        quality,
-        second,
-        mixtures,
-        ..
-    } = read_processing::process(&inputs.trace, &inputs.config.sanger)?;
-    let stage = tracing::info_span!("read_evidence").entered();
-    let evidence = read_processing::read_evidence(
-        &calls,
-        &signal,
-        &callability,
-        &quality,
-        &second,
-        &mixtures,
-        &inputs.config.sanger.sanger_evidence,
-    )?;
-    drop(stage);
+    // The read is set aside as a sample command sets it aside: too short for
+    // one signal window, or with too few callable calls.
+    let rejected = |cause| {
+        let read = RejectedRead {
+            input_name: inputs.trace.source_name.clone(),
+            input_sha256: inputs.trace.source_sha256.clone(),
+            cause,
+        };
+        tracing::warn!(
+            event = "evidence_read_rejected",
+            trace_sha256 = %read.input_sha256,
+        );
+        Evidenced::Rejected(Box::new(Rejection::of(&read)))
+    };
+    let outcome = match read_processing::admit(&inputs.trace, &inputs.config.sanger)? {
+        Admission::TooShort(short) => rejected(RejectionCause::TooShort(short)),
+        Admission::TooFewCallable { sanger, rejection } => rejected(RejectionCause::Callability {
+            sanger: *sanger,
+            rejection,
+        }),
+        Admission::Processed(processed) => {
+            let stage = tracing::info_span!("read_evidence").entered();
+            let evidence = read_processing::read_evidence(
+                &processed.calls,
+                &processed.signal,
+                &processed.callability,
+                &processed.quality,
+                &processed.second,
+                &processed.mixtures,
+                &inputs.config.sanger.sanger_evidence,
+            )?;
+            drop(stage);
+            let sanger = SangerRead::project(
+                &processed.calls,
+                &processed.signal,
+                &processed.callability,
+                &processed.quality,
+                &processed.second,
+            )?;
+            Evidenced::Read {
+                sanger: Box::new(sanger),
+                evidence: Box::new(evidence),
+            }
+        }
+    };
 
     let _stage = tracing::info_span!("reporting").entered();
     let stage_started = Instant::now();
-    let sanger = report::project_sanger_read(&calls, signal, &callability, &quality)?;
+    let calls = match &outcome {
+        Evidenced::Read { evidence, .. } => evidence.calls().len(),
+        Evidenced::Rejected(_) => 0,
+    };
     let result = report::build_evidence(CompletedEvidence {
+        input: (inputs.trace.source_name, inputs.trace.source_sha256),
         config: inputs.config,
-        trace: inputs.trace,
-        calls,
-        sanger,
-        second,
-        evidence,
+        outcome,
         plugins: plugin::EVIDENCE,
     })?;
     let bytes = report::serialize(&result)?;
@@ -79,8 +107,8 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
         event = "evidence_ready_for_publication",
         elapsed_ms = stage_started.elapsed().as_millis(),
         total_elapsed_ms = started.elapsed().as_millis(),
-        schema = result.schema_version,
-        calls = result.read.call_count,
+        schema = result.schema_version(),
+        calls,
         output_path = ?output.display().to_string(),
         bytes = bytes.len(),
     );

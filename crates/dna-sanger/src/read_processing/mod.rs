@@ -13,12 +13,13 @@ use crate::basecalling;
 use crate::callability;
 use crate::decompose;
 use crate::error::{CallabilityError, Result};
+use crate::model::attachment::SangerRejection;
 use crate::model::basecalls::{BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability, ReadRejection};
 use crate::model::quality::QualityControlResult;
 use crate::model::sanger::Chromatogram;
 use crate::model::second_cause::SecondPeak;
-use crate::model::signal::SignalAnalysis;
+use crate::model::signal::{ShortRead, SignalAnalysis};
 use crate::quality_control;
 use crate::second_cause;
 use crate::signal_processing;
@@ -91,6 +92,51 @@ impl PreparedRead {
 pub fn process(trace: &Chromatogram, config: &SangerConfig) -> Result<ProcessedRead> {
     let prepared = prepare(trace, config)?;
     finish(trace, prepared, config)
+}
+
+/// What the Sanger stages make of one trace in a multi-read operation: its
+/// products, or why it is set aside, with the evidence its stages produced.
+pub enum Admission {
+    /// The read can be analyzed.
+    Processed(Box<ProcessedRead>),
+    /// The read has fewer calls than one signal window (SRS-SIG-007); no
+    /// stage ran on it.
+    TooShort(ShortRead),
+    /// Too few of the read's calls are callable.
+    TooFewCallable {
+        /// Integrity and callability of the read.
+        sanger: Box<SangerRejection>,
+        /// Callable and minimum call counts.
+        rejection: ReadRejection,
+    },
+}
+
+/// Runs the reference-free stages of one trace as a multi-read operation
+/// does: a read too short for one signal window, or with too few callable
+/// calls, is an [`Admission`] that sets it aside rather than an error.
+///
+/// # Errors
+///
+/// Returns the failure of a stage other than those two rejections.
+pub fn admit(trace: &Chromatogram, config: &SangerConfig) -> Result<Admission> {
+    let prepared = match prepare(trace, config) {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            return ShortRead::of(&error).map(Admission::TooShort).ok_or(error);
+        }
+    };
+    if let Some(rejection) = prepared.rejection(config) {
+        return Ok(Admission::TooFewCallable {
+            sanger: Box::new(SangerRejection {
+                integrity: prepared.signal.integrity,
+                callability: prepared.callability,
+            }),
+            rejection,
+        });
+    }
+    Ok(Admission::Processed(Box::new(finish(
+        trace, prepared, config,
+    )?)))
 }
 
 /// Runs basecalling, signal processing, and callability; a read shorter than
@@ -390,7 +436,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 13,
+    version: 15,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[

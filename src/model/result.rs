@@ -69,7 +69,7 @@ pub(crate) struct ReadResult {
 }
 
 /// Signal-derived callability view of one read (`dna.read_callability/v1`).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct CallabilityResult {
     pub(crate) callable_span: IntervalResult,
     pub(crate) segments: Vec<CallabilitySegmentResult>,
@@ -77,7 +77,7 @@ pub(crate) struct CallabilityResult {
 }
 
 /// One maximal run of calls sharing a phase state.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct CallabilitySegmentResult {
     pub(crate) calls: IntervalResult,
     pub(crate) state: PhaseState,
@@ -88,7 +88,7 @@ pub(crate) struct CallabilitySegmentResult {
 }
 
 /// A shared 0-based half-open result interval.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub(crate) struct IntervalResult {
     pub(crate) start: usize,
     pub(crate) end: usize,
@@ -115,14 +115,14 @@ pub(crate) struct TraceIntegrityResult {
 }
 
 /// Shared merged observation-only signal-quality and trace-integrity evidence.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct SignalQualityResult {
     pub(crate) integrity: TraceIntegrityResult,
     pub(crate) noisy_regions: Vec<NoisyRegionResult>,
 }
 
 /// A union of overlapping or adjacent candidate-noisy windows.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct NoisyRegionResult {
     pub(crate) calls: IntervalResult,
     pub(crate) samples: IntervalResult,

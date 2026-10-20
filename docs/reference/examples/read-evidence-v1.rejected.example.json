@@ -1,0 +1,66 @@
+{
+  "schema_version": "dna.read_evidence/v1",
+  "provenance": {
+    "input": {
+      "name": "trace.ab1",
+      "sha256": "a48e07b87c6c8e84bdb99a8fb4d4935522627134a6f0d6f7f471a20bf49f0c13"
+    },
+    "configuration_sha256": "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675",
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 13
+      }
+    ]
+  },
+  "rejection": {
+    "reason": "callable_calls_below_minimum",
+    "callable_calls": 4,
+    "minimum_callable_calls": 20
+  },
+  "integrity": {
+    "ploc_count": 6,
+    "duplicate_ploc_positions": 0,
+    "vendor_primary_count": 6,
+    "vendor_quality_count": 6,
+    "minimum_ploc_spacing": 12,
+    "median_ploc_spacing": 12,
+    "maximum_ploc_spacing": 12,
+    "clipped_channel_samples": 0,
+    "maximum_to_median_event_signal_ratio": 1.16
+  },
+  "callability": {
+    "callable_span": {
+      "start": 0,
+      "end": 4
+    },
+    "segments": [
+      {
+        "calls": {
+          "start": 0,
+          "end": 4
+        },
+        "state": "in_phase",
+        "after_repeat": false
+      },
+      {
+        "calls": {
+          "start": 4,
+          "end": 5
+        },
+        "state": "mixed",
+        "after_repeat": false
+      },
+      {
+        "calls": {
+          "start": 5,
+          "end": 6
+        },
+        "state": "weak",
+        "after_repeat": false
+      }
+    ],
+    "masked_calls": 2
+  }
+}

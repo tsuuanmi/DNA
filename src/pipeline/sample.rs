@@ -1,22 +1,21 @@
 //! Multi-read sample evidence orchestration and publication.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 use crate::error::{Result, SampleError};
-use crate::input::sanger;
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::report::{self, CompletedSampleEvidence, SangerSampleEvidence};
 use crate::sample_analysis::{self, reads};
 
-use super::{Operation, represent, sample_metrics};
+use super::{Operation, SampleInput, represent, sample_metrics};
 
 /// Runs one sample-evidence operation with one sample-level append-only log.
 pub(crate) fn run(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     config_path: &Path,
 ) -> Result<()> {
@@ -26,16 +25,17 @@ pub(crate) fn run(
             event = "sample_started",
             version = env!("CARGO_PKG_VERSION"),
             sample_id = ?sample_id,
-            traces = traces.len(),
+            traces = input.len(),
+            evidence = matches!(input, SampleInput::Evidence(_)),
             reference_path = ?reference.display().to_string(),
         );
     })?
-    .run(|log, started| sample(sample_id, traces, reference, config_path, log, started))
+    .run(|log, started| sample(sample_id, input, reference, config_path, log, started))
 }
 
 fn sample(
     sample_id: &str,
-    traces: &[PathBuf],
+    input: SampleInput<'_>,
     reference: &Path,
     config_path: &Path,
     log: &OperationLog,
@@ -43,13 +43,16 @@ fn sample(
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
     let stage_started = Instant::now();
-    let inputs = sanger::load_sample(traces, reference, config_path)?;
+    let super::LoadedSample {
+        loaded: inputs,
+        reads,
+    } = super::load_sample(input, reference, config_path)?;
     let output = path::sample_output(sample_id)?;
     tracing::info!(
         event = "sample_inputs_loaded",
         elapsed_ms = stage_started.elapsed().as_millis(),
         sample_id = ?sample_id,
-        traces = inputs.traces.len(),
+        traces = reads.len(),
         reference_name = ?inputs.reference.name,
         reference_sha256 = %inputs.reference.sequence_sha256,
         topology = ?inputs.reference.topology,
@@ -63,7 +66,7 @@ fn sample(
 
     drop(stage);
     let placed = reads::place(
-        &inputs.traces,
+        reads.reads(),
         &inputs.reference,
         &inputs.config,
         &inputs.profile,
@@ -74,7 +77,7 @@ fn sample(
     let stage = tracing::info_span!("sample_aggregation").entered();
     let stage_started = Instant::now();
     let evidence = sample_analysis::aggregate(&placed, &inputs.config)?;
-    let metrics = sample_metrics::summarize(&evidence, &placed.sanger);
+    let metrics = sample_metrics::summarize(&evidence, &placed);
     tracing::info!(
         event = "sample_aggregation_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),

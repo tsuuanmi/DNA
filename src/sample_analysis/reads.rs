@@ -1,4 +1,5 @@
-//! One placement pass over a sample's traces, with reads processed concurrently.
+//! One placement pass over a sample's reads, from their traces or their
+//! recorded evidence (PROP-0011), with reads processed concurrently.
 
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
@@ -8,16 +9,19 @@ use std::thread;
 
 use crate::config::Config;
 use crate::error::{Result, SampleError};
-use crate::model::read_observation::{ReadObservation, RejectedRead, RejectionCause};
+use crate::input::evidence::{Recorded, RecordedRead};
+use crate::model::read_observation::{RejectedRead, RejectionCause};
+use crate::model::sample_result::ReadRejectionResult;
+use crate::model::sanger_read::{self, RejectedSanger, Rejection, SangerRead};
 use crate::variant_analysis;
-use crate::variant_analysis::observation::Observation;
+use crate::variant_analysis::observation::{Called, Observation};
 use dna_call::model::called_read::CalledRead;
+use dna_call::read_call::ReadIdentity;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
-use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
+use dna_sanger::model::attachment::SangerAttachment;
 use dna_sanger::model::sanger::Chromatogram;
-use dna_sanger::model::signal::ShortRead;
-use dna_sanger::read_processing;
+use dna_sanger::read_processing::{self, Admission};
 
 /// Where the instrumentation of a read processed on a worker thread goes.
 ///
@@ -36,38 +40,78 @@ pub(crate) trait ReadScope: Sync {
     fn replay(&self, records: Self::Records);
 }
 
-/// Every trace of a sample after one placement pass.
+/// Every read of a sample after one placement pass.
 pub(crate) struct PlacedReads {
-    /// Admitted reads, in trace order.
+    /// Admitted reads, in input order.
     pub(crate) called: Vec<CalledRead>,
-    /// Sanger evidence of the admitted reads, by read content identity.
-    pub(crate) sanger: BTreeMap<String, SangerAttachment>,
-    /// Rejected reads, in trace order.
-    pub(crate) rejected: Vec<RejectedRead>,
+    /// Sanger evidence of the admitted reads as the documents report it, by
+    /// read content identity.
+    pub(crate) sanger: BTreeMap<String, SangerRead>,
+    /// Rejected reads as the documents report them, in input order.
+    pub(crate) rejected: Vec<Rejection>,
+    /// The Sanger products of the reads processed from their traces, which
+    /// the public sample analysis carries; empty for reads from their
+    /// recorded evidence, which keeps no trace products.
+    pub(crate) products: Products,
     /// Read-level warnings over the admitted reads.
     pub(crate) warning_total: usize,
 }
 
-/// What one trace became.
-enum Placement {
-    Admitted {
-        read: Box<ReadObservation>,
-        warnings: usize,
-    },
-    Rejected(Box<RejectedRead>),
+/// The Sanger products of the reads of a pass over traces.
+#[derive(Default)]
+pub(crate) struct Products {
+    /// Sanger products of the admitted reads, by read content identity.
+    pub(crate) reads: BTreeMap<String, SangerAttachment>,
+    /// Rejected reads with their causes, in trace order.
+    pub(crate) rejected: Vec<RejectedRead>,
 }
 
-/// Processes every trace independently on up to `workers` threads; a read
+/// What one read became.
+enum Placement {
+    Admitted {
+        called: Box<CalledRead>,
+        sanger: Box<SangerRead>,
+        /// The trace's Sanger products, for a read processed from its trace.
+        products: Option<Box<SangerAttachment>>,
+        warnings: usize,
+    },
+    Rejected {
+        rejection: Box<Rejection>,
+        /// The rejection with its Sanger products, for a read processed from
+        /// its trace.
+        products: Option<Box<RejectedRead>>,
+    },
+}
+
+/// The reads of one sample pass: traces, or their recorded evidence.
+#[derive(Clone, Copy)]
+pub(crate) enum Reads<'a> {
+    /// Traces, processed by the Sanger plugin.
+    Traces(&'a [Chromatogram]),
+    /// Read evidence documents the Sanger plugin wrote (PROP-0011).
+    Recorded(&'a [Recorded]),
+}
+
+impl Reads<'_> {
+    const fn len(self) -> usize {
+        match self {
+            Self::Traces(traces) => traces.len(),
+            Self::Recorded(reads) => reads.len(),
+        }
+    }
+}
+
+/// Processes every read independently on up to `workers` threads; a read
 /// shorter than one signal window, one with too few callable calls, or one
 /// the core cannot place is recorded as rejected and the remaining reads
-/// continue.
+/// continue. A recorded read is placed exactly as the read of its trace.
 ///
-/// The outcome equals a sequential pass: the first other failure in trace
+/// The outcome equals a sequential pass: the first other failure in input
 /// order, a typed error or a panic, fails the pass, and only the records of
 /// the reads up to it are replayed. Workers stop taking reads after the
 /// lowest failed one.
 pub(crate) fn place(
-    traces: &[Chromatogram],
+    reads: Reads<'_>,
     reference: &Reference,
     config: &Config,
     profile: &Profile,
@@ -75,12 +119,17 @@ pub(crate) fn place(
     workers: NonZeroUsize,
 ) -> Result<PlacedReads> {
     let slots = concurrently(
-        traces.len(),
+        reads.len(),
         workers,
         |index| {
             scope.record(|| {
-                panic::catch_unwind(AssertUnwindSafe(|| {
-                    place_one(index, &traces[index], reference, config, profile)
+                panic::catch_unwind(AssertUnwindSafe(|| match reads {
+                    Reads::Traces(traces) => {
+                        place_trace(index, &traces[index], reference, config, profile)
+                    }
+                    Reads::Recorded(recorded) => {
+                        place_recorded(index, &recorded[index], reference, config, profile)
+                    }
                 }))
             })
         },
@@ -91,19 +140,36 @@ pub(crate) fn place(
         called: Vec::with_capacity(placements.len()),
         sanger: BTreeMap::new(),
         rejected: Vec::new(),
+        products: Products::default(),
         warning_total: 0,
     };
     for placement in placements {
         match placement {
-            Placement::Admitted { read, warnings } => {
-                let read = *read;
+            Placement::Admitted {
+                called,
+                sanger,
+                products,
+                warnings,
+            } => {
                 placed.warning_total += warnings;
-                placed
-                    .sanger
-                    .insert(read.called.input_sha256.clone(), read.sanger);
-                placed.called.push(read.called);
+                placed.sanger.insert(called.input_sha256.clone(), *sanger);
+                if let Some(products) = products {
+                    placed
+                        .products
+                        .reads
+                        .insert(called.input_sha256.clone(), *products);
+                }
+                placed.called.push(*called);
             }
-            Placement::Rejected(read) => placed.rejected.push(*read),
+            Placement::Rejected {
+                rejection,
+                products,
+            } => {
+                placed.rejected.push(*rejection);
+                if let Some(products) = products {
+                    placed.products.rejected.push(*products);
+                }
+            }
         }
     }
     Ok(placed)
@@ -183,7 +249,7 @@ fn concurrently<T: Send>(
     slots
 }
 
-fn place_one(
+fn place_trace(
     index: usize,
     trace: &Chromatogram,
     reference: &Reference,
@@ -197,45 +263,40 @@ fn place_one(
         trace_sha256 = %trace.source_sha256,
     );
     let reject = |cause| {
-        Ok(Placement::Rejected(Box::new(RejectedRead {
+        let read = RejectedRead {
             input_name: trace.source_name.clone(),
             input_sha256: trace.source_sha256.clone(),
             cause,
-        })))
+        };
+        Ok(Placement::Rejected {
+            rejection: Box::new(Rejection::of(&read)),
+            products: Some(Box::new(read)),
+        })
     };
-    let prepared = match read_processing::prepare(trace, &config.sanger) {
-        Ok(prepared) => prepared,
-        Err(error) => {
-            let Some(short) = ShortRead::of(&error) else {
-                return Err(error.into());
-            };
-            tracing::warn!(
-                event = "sample_read_rejected",
-                read_index = index,
-                trace_sha256 = %trace.source_sha256,
-                reason = "too_short",
-                calls = short.calls,
-                minimum_calls = short.minimum_calls,
+    let processed = match read_processing::admit(trace, &config.sanger)? {
+        Admission::Processed(processed) => *processed,
+        Admission::TooShort(short) => {
+            rejected_too_short(
+                index,
+                &trace.source_sha256,
+                short.calls,
+                short.minimum_calls,
             );
             return reject(RejectionCause::TooShort(short));
         }
+        Admission::TooFewCallable { sanger, rejection } => {
+            rejected_callability(
+                index,
+                &trace.source_sha256,
+                rejection.callable_calls,
+                rejection.minimum_callable_calls,
+            );
+            return reject(RejectionCause::Callability {
+                sanger: *sanger,
+                rejection,
+            });
+        }
     };
-    if let Some(rejection) = prepared.rejection(&config.sanger) {
-        tracing::warn!(
-            event = "sample_read_rejected",
-            read_index = index,
-            trace_sha256 = %trace.source_sha256,
-            reason = "callable_calls_below_minimum",
-            callable_calls = rejection.callable_calls,
-            minimum_callable_calls = rejection.minimum_callable_calls,
-        );
-        let sanger = SangerRejection {
-            integrity: prepared.signal.integrity,
-            callability: prepared.callability,
-        };
-        return reject(RejectionCause::Callability { sanger, rejection });
-    }
-    let processed = read_processing::finish(trace, prepared, &config.sanger)?;
     let completed =
         match variant_analysis::observation::observe(trace, processed, reference, config, profile)?
         {
@@ -245,31 +306,162 @@ fn place_one(
                 error,
                 sanger,
             } => {
-                tracing::warn!(
-                    event = "sample_read_rejected",
-                    read_index = index,
-                    trace_sha256 = %trace.source_sha256,
-                    reason = rejection.label(),
-                    detail = %error,
-                );
+                rejected_placement(index, &trace.source_sha256, rejection.label(), &error);
                 return reject(RejectionCause::Placement {
                     sanger: *sanger,
                     rejection,
                 });
             }
         };
+    let read = completed.read;
+    completed_read(index, &read.called);
+    Ok(Placement::Admitted {
+        sanger: Box::new(SangerRead::of(&read.sanger)?),
+        called: Box::new(read.called),
+        products: Some(Box::new(read.sanger)),
+        warnings: completed.warning_total,
+    })
+}
+
+/// Places one read from its recorded evidence: a read the Sanger plugin
+/// rejected is rejected again with its recorded cause, and every other read
+/// goes to the core as the read of its trace does.
+fn place_recorded(
+    index: usize,
+    recorded: &Recorded,
+    reference: &Reference,
+    config: &Config,
+    profile: &Profile,
+) -> Result<Placement> {
+    let (input_name, input_sha256) = match recorded {
+        Recorded::Read(read) => (&read.input_name, &read.input_sha256),
+        Recorded::Rejected(rejection) => (&rejection.input_name, &rejection.input_sha256),
+    };
+    tracing::info!(
+        event = "sample_read_started",
+        read_index = index,
+        trace_name = ?input_name,
+        trace_sha256 = %input_sha256,
+    );
+    let read = match recorded {
+        Recorded::Rejected(rejection) => {
+            match rejection.cause {
+                ReadRejectionResult::TooShort {
+                    calls,
+                    minimum_calls,
+                } => rejected_too_short(index, input_sha256, calls, minimum_calls),
+                ReadRejectionResult::CallableCallsBelowMinimum {
+                    callable_calls,
+                    minimum_callable_calls,
+                } => rejected_callability(
+                    index,
+                    input_sha256,
+                    callable_calls,
+                    minimum_callable_calls,
+                ),
+                _ => {}
+            }
+            return Ok(Placement::Rejected {
+                rejection: rejection.clone(),
+                products: None,
+            });
+        }
+        Recorded::Read(read) => read,
+    };
+    let RecordedRead {
+        input_name,
+        input_sha256,
+        evidence,
+        sanger,
+    } = &**read;
+    let stage = tracing::info_span!("read_evidence").entered();
+    variant_analysis::observation::record_evidence(evidence, config);
+    drop(stage);
+    let identity = ReadIdentity {
+        input_name: input_name.clone(),
+        input_sha256: input_sha256.clone(),
+        declared: None,
+    };
+    let called = match variant_analysis::observation::place(
+        identity,
+        evidence.clone(),
+        reference,
+        config,
+        profile,
+    )? {
+        Called::Placed(called) => *called,
+        Called::Unplaced { rejection, error } => {
+            rejected_placement(index, input_sha256, rejection.label(), &error);
+            return Ok(Placement::Rejected {
+                rejection: Box::new(Rejection {
+                    input_name: input_name.clone(),
+                    input_sha256: input_sha256.clone(),
+                    cause: sanger_read::placement(rejection),
+                    sanger: Some(RejectedSanger {
+                        integrity: sanger.signal_quality.integrity.clone(),
+                        callability: sanger.callability.clone(),
+                    }),
+                }),
+                products: None,
+            });
+        }
+    };
+    let warnings = variant_analysis::observation::warning_total(&sanger.read_warnings(), &called);
+    completed_read(index, &called);
+    Ok(Placement::Admitted {
+        called: Box::new(called),
+        sanger: Box::new(sanger.clone()),
+        products: None,
+        warnings,
+    })
+}
+
+fn rejected_too_short(index: usize, sha256: &str, calls: usize, minimum_calls: usize) {
+    tracing::warn!(
+        event = "sample_read_rejected",
+        read_index = index,
+        trace_sha256 = %sha256,
+        reason = "too_short",
+        calls,
+        minimum_calls,
+    );
+}
+
+fn rejected_callability(
+    index: usize,
+    sha256: &str,
+    callable_calls: usize,
+    minimum_callable_calls: usize,
+) {
+    tracing::warn!(
+        event = "sample_read_rejected",
+        read_index = index,
+        trace_sha256 = %sha256,
+        reason = "callable_calls_below_minimum",
+        callable_calls,
+        minimum_callable_calls,
+    );
+}
+
+fn rejected_placement(index: usize, sha256: &str, reason: &str, error: &crate::error::Error) {
+    tracing::warn!(
+        event = "sample_read_rejected",
+        read_index = index,
+        trace_sha256 = %sha256,
+        reason,
+        detail = %error,
+    );
+}
+
+fn completed_read(index: usize, called: &CalledRead) {
     tracing::info!(
         event = "sample_read_completed",
         read_index = index,
-        trace_sha256 = %completed.read.called.input_sha256,
-        orientation = ?completed.read.called.alignment.orientation(),
-        segments = completed.read.called.alignment.reference_segments().len(),
-        variants = completed.read.called.variants.reported.len(),
+        trace_sha256 = %called.input_sha256,
+        orientation = ?called.alignment.orientation(),
+        segments = called.alignment.reference_segments().len(),
+        variants = called.variants.reported.len(),
     );
-    Ok(Placement::Admitted {
-        read: Box::new(completed.read),
-        warnings: completed.warning_total,
-    })
 }
 
 #[cfg(test)]

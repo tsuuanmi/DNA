@@ -13,9 +13,13 @@ to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
-Output contract: none yet; `run.json` and the TSV tables follow the
-[evaluation harness](../../../docs/validation/evaluation-harness.md#outputs)
-by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+Output contract: `dna-eval run` writes
+[`dna.eval_run/v1`](../../../docs/reference/schemas/eval-run-v1.schema.json):
+which files a run directory holds, `run.json`, and every table's columns
+([evaluation harness](../../../docs/validation/evaluation-harness.md#outputs),
+[PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+The outputs of `approve` and `convention`, and the manifest `panel` writes,
+have no schema; the evaluation harness document describes them.
 
 - `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`), run orchestration, output
   directory, and the `run.json` header.
@@ -53,7 +57,9 @@ by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contrac
 - `workload.rs` — the review workload: windows over the HV regions, each
   sample's positions to review and unreviewed difference blocks from `dna
   review`'s check items (`SampleAnalysis::review_checks`), forced-window
-  lists, and the Wilson bound of `windows.tsv`.
+  lists, the Wilson bound of `windows.tsv`, and what passes without review
+  (samples, regions, and zones no check item touches, and the passed ones
+  with an unreviewed block, het or not) for the summary and `run.json`.
 - `unrecorded.rs` — the run-length alleles a profile convention leaves
   unrecorded, left out of every comparison on both sides.
 - `components.rs` — `components.tsv`: every phase-mixture component
@@ -61,8 +67,8 @@ by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contrac
   haplotypes against the truth, and an unexplained mixture's offsets and
   fractions.
 - `zones.rs` — the review zones of the target profile's regions (repeat
-  window, after a window, amplicon start and end, interior) and the zones a
-  check item touches.
+  window, after a window, amplicon start and end, interior), the zones a
+  check item touches, and the zone instance that holds a position.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, and the
   Markdown summary.
@@ -82,6 +88,9 @@ by convention ([PROP-0011 increment 3](../../../docs/proposals/0011-step-contrac
   through DNA's normalization and nomenclature windows, and the change
   patterns where DNA writes them differently.
 - `error.rs` — failures that stop a run.
+- `contract.rs` — test support: the `dna.eval_run/v1` schema, read so the
+  tests check each table's header and cells, and `run.json`'s fields, as the
+  harness writes them.
 
 `build.rs` records the git revision the harness is built from, and whether
 tracked files differed from it, for `run.json`.

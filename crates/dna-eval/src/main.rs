@@ -16,6 +16,8 @@ mod cause;
 mod classes;
 mod compare;
 mod components;
+#[cfg(test)]
+mod contract;
 mod convention;
 mod error;
 mod estimate;
@@ -52,6 +54,7 @@ use crate::manifest::Manifest;
 use crate::report::{Report, Row, Status};
 use crate::runner::{Identity, Outcome, Threads};
 use crate::truth::TruthCheck;
+use crate::workload::Passes;
 
 /// The panels `run` reads: the development panel the rules are tuned on, and
 /// the readiness panel that checks them before a pre-registration. A hold-out
@@ -68,6 +71,12 @@ const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted forced-window list.
 const MAX_FORCED_BYTES: u64 = 1024 * 1024;
+
+/// The header of `signals.tsv`.
+const SIGNALS_HEADER: &str =
+    "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
+/// The header of `checks.tsv`.
+const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -456,8 +465,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         cli,
         &manifest,
         &truth,
-        &check,
-        &rows,
+        &report,
         &outcomes,
         Times {
             started,
@@ -480,16 +488,14 @@ fn run(cli: &RunArgs) -> Result<String> {
         write(&cli.output, name, &contents)?;
     }
     if cli.run_signal.is_some() {
-        let mut text = String::from(
-            "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n",
-        );
+        let mut text = String::from(SIGNALS_HEADER);
         for line in &signal_groups {
             text.push_str(line);
             text.push('\n');
         }
         write(&cli.output, "signals.tsv", &text)?;
     }
-    let mut checks = String::from("sample_id\tfirst\tlast\tlabels\n");
+    let mut checks = String::from(CHECKS_HEADER);
     for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
         if let Ok(called) = &outcome.result {
             for (first, last, labels) in &called.check_labels {
@@ -779,6 +785,8 @@ struct Header {
     constants: Constants,
     /// Outcome counts per measure.
     samples: BTreeMap<&'static str, Counts>,
+    /// What passes without review.
+    workload: WorkloadHeader,
     seconds: Seconds,
     /// The draft triage, when the run asked for it.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -837,6 +845,15 @@ impl Constants {
             triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
         }
     }
+}
+
+/// What passes without review over the samples the review workload counts,
+/// and over the current data when the run names it.
+#[derive(Debug, Serialize)]
+struct WorkloadHeader {
+    all: Passes,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    current: Option<Passes>,
 }
 
 /// The widths that place the review zones, from the run's options.
@@ -918,11 +935,12 @@ fn header(
     cli: &RunArgs,
     manifest: &Manifest,
     truth: &Truth,
-    check: &TruthCheck,
-    rows: &[Row<'_>],
+    report: &Report<'_>,
     outcomes: &[Outcome],
     times: Times,
 ) -> Header {
+    let (rows, check) = (report.rows(), report.check());
+    let (all, current) = report.passes();
     let counts = |measure: Measure| Counts {
         total: rows.len(),
         concordant: count(rows, measure, Status::Concordant),
@@ -984,6 +1002,7 @@ fn header(
             .into_iter()
             .map(|measure| (measure.label(), counts(measure)))
             .collect(),
+        workload: WorkloadHeader { all, current },
         seconds: Seconds {
             total: times.started.elapsed().as_secs_f64(),
             truth: truth.seconds,
@@ -1096,6 +1115,118 @@ mod tests {
             columns: Vec::new(),
             samples: Vec::new(),
         }
+    }
+
+    /// `run.json` with every optional field, and without them, and the
+    /// headers of `checks.tsv` and `signals.tsv`, follow `dna.eval_run/v1`.
+    #[test]
+    fn the_run_header_and_tables_follow_the_contract() -> contract::Checked {
+        let digest = "a".repeat(64);
+        let counts = || Counts {
+            total: 3,
+            concordant: 1,
+            discordant: 1,
+            not_applicable: 0,
+            failed: 1,
+        };
+        let zones = zones::Zones::new(
+            &[(16024, 16365), (73, 340)],
+            &[(16184, 16193)],
+            zones::Widths {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+        );
+        let passes = || workload::passes(std::iter::empty(), Some(&zones));
+        let header = Header {
+            harness: env!("CARGO_PKG_NAME"),
+            harness_version: env!("CARGO_PKG_VERSION"),
+            source: Source {
+                revision: Some("0".repeat(40)),
+                dirty: Some(false),
+            },
+            threads: 4,
+            manifest: ManifestHeader {
+                path: PathBuf::from("/panel.tsv"),
+                fields: BTreeMap::from([("panel".to_owned(), "dev".to_owned())]),
+                body_sha256: digest.clone(),
+                rows: 3,
+            },
+            truth: TruthHeader {
+                path: PathBuf::from("/statistics.sqlite"),
+                sha256: digest.clone(),
+                info: BTreeMap::from([("schema_version".to_owned(), "1".to_owned())]),
+                digest: digest.clone(),
+                recorded_digest: Some(digest.clone()),
+                state: truth::TruthState::Unchanged.label(),
+                changed_samples: 0,
+                panel_samples_found: 3,
+            },
+            configuration_path: PathBuf::from("/dna.toml"),
+            reference_path: PathBuf::from("/rCRS.fasta"),
+            identities: vec![Identity {
+                configuration_sha256: digest.clone(),
+                reference_name: "rCRS".into(),
+                reference_sha256: digest.clone(),
+                profile_id: "human-mtdna-rcrs".into(),
+                profile_sha256: digest,
+            }],
+            baseline: Some(PathBuf::from("/earlier")),
+            review_window: report::REVIEW_WINDOW,
+            current_since: Some("2026-01".into()),
+            run_signal: Some("batch".into()),
+            forced_windows: Some(PathBuf::from("/forced.txt")),
+            zones: ZoneHeader {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+            constants: Constants::current(),
+            samples: Measure::ALL
+                .into_iter()
+                .map(|measure| (measure.label(), counts()))
+                .collect(),
+            workload: WorkloadHeader {
+                all: passes(),
+                current: Some(passes()),
+            },
+            seconds: Seconds {
+                total: 2.5,
+                truth: 0.5,
+                dna: 1.5,
+                sample_median: 0.5,
+                sample_p95: 0.75,
+                sample_max: 1.0,
+                sample_sum: 1.5,
+            },
+            triage: Some(TriageHeader {
+                policy: "draft: short_calls=100".into(),
+                policies: 2,
+                seconds: 0.25,
+            }),
+        };
+        contract::check_document("run.json", &serde_json::to_value(&header)?)?;
+        let bare = Header {
+            source: Source {
+                revision: None,
+                dirty: None,
+            },
+            identities: Vec::new(),
+            baseline: None,
+            current_since: None,
+            run_signal: None,
+            forced_windows: None,
+            triage: None,
+            workload: WorkloadHeader {
+                all: header.workload.all,
+                current: None,
+            },
+            ..header
+        };
+        contract::check_document("run.json", &serde_json::to_value(&bare)?)?;
+        contract::check_table("checks.tsv", CHECKS_HEADER)?;
+        contract::check_table("signals.tsv", SIGNALS_HEADER)
     }
 
     #[test]

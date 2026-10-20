@@ -77,7 +77,7 @@ pub(crate) fn observe(
     )?;
     record_evidence(&evidence, config);
     drop(stage);
-    let called = match call(
+    let called = match place(
         ReadIdentity {
             input_name: trace.source_name.clone(),
             input_sha256: trace.source_sha256.clone(),
@@ -87,15 +87,12 @@ pub(crate) fn observe(
         reference,
         config,
         profile,
-    ) {
-        Ok(called) => called,
-        Err(error) => {
-            let Some(rejection) = PlacementRejection::of(&error) else {
-                return Err(error.into());
-            };
+    )? {
+        Called::Placed(called) => *called,
+        Called::Unplaced { rejection, error } => {
             return Ok(Observation::Unplaced {
                 rejection,
-                error: error.into(),
+                error,
                 sanger: Box::new(SangerRejection {
                     integrity: signal.integrity,
                     callability,
@@ -145,6 +142,38 @@ pub(crate) fn record_evidence(evidence: &ReadEvidence, config: &Config) {
         minimum_peak_height = config.sanger.sanger_evidence.minimum_peak_height,
         relative_quality_threshold = config.sanger.sanger_evidence.relative_quality_threshold,
     );
+}
+
+/// What the core made of one read's evidence.
+pub(crate) enum Called {
+    /// The core placed and called the read.
+    Placed(Box<CalledRead>),
+    /// The core could not place the read (SRS-SAMPLE-029).
+    Unplaced {
+        rejection: PlacementRejection,
+        error: Error,
+    },
+}
+
+/// Places and calls one read's evidence with the core, as [`call`] does; a
+/// read the core cannot place is [`Called::Unplaced`] rather than an error.
+pub(crate) fn place(
+    identity: ReadIdentity,
+    evidence: ReadEvidence,
+    reference: &Reference,
+    config: &Config,
+    profile: &Profile,
+) -> Result<Called> {
+    match call(identity, evidence, reference, config, profile) {
+        Ok(called) => Ok(Called::Placed(Box::new(called))),
+        Err(error) => match PlacementRejection::of(&error) {
+            Some(rejection) => Ok(Called::Unplaced {
+                rejection,
+                error: error.into(),
+            }),
+            None => Err(error.into()),
+        },
+    }
 }
 
 /// Places and calls one read's evidence with the core: evidence from a

@@ -88,6 +88,20 @@ flowchart LR
     dec --> cr3["CalledRead"] --> v3["dna.variants/v1"]
 ```
 
+A read's evidence document replays its placement and per-read calling
+without the trace (SRS-API-018), and a sample's documents replay the sample
+commands (SRS-API-019); a document of a read the Sanger plugin set aside
+carries its rejection instead:
+
+```mermaid
+flowchart LR
+    evdocs["dna.read_evidence/v1 (per read)"] --> inev2["input::evidence<br/>ReadEvidence + Sanger evidence<br/>or a Rejection"]
+    inev2 --> rc3["dna_call::read_call"]
+    ref2["FASTA"] --> rc3
+    rc3 --> cr4["CalledRead"] --> reads["sample_analysis::reads"]
+    reads --> outs["sample, consensus, review"]
+```
+
 A variants document reaches the post-calling plugins in another process
 (`dna notation`):
 
@@ -107,12 +121,15 @@ flowchart LR
 single-read scientific path. The public Rust Variant Analysis capability, CLI
 analysis, and sample processing reuse that path rather than owning duplicate
 implementations; analysis from a read evidence document reuses its core call
-(`observation::call`) and the report layer's single Sanger projection
-(`SangerRead`), so both analyze paths build the document the same way.
+(`observation::call`) and the single Sanger projection of the facade's
+model (`SangerRead`), so both analyze paths build the document the same way.
 Sample processing is one pass, `sample_analysis::reads`, that places each
-trace once; the sample evidence and the consensus both start from
-it, in the `sample` and `consensus` commands and in the public Sample Analysis
-capability alike.
+read once, from its trace or from its evidence document; the sample evidence
+and the consensus both start from it, in the `sample`, `consensus`, and
+`review` commands and in the public Sample Analysis capability alike. Every
+sample document reads a read's Sanger evidence through `SangerRead` and a
+rejected read through `Rejection`, which the trace path projects and the
+evidence path reads back, so both build the documents the same way.
 
 Alignment and variant calling see the read only as `ReadEvidence`
 ([[ADR-0069]]):
@@ -156,13 +173,13 @@ flowchart LR
 | placement ([dna-align](../../crates/dna-align/src/README.md)) | `dna.read_evidence/v1` (in process from a trace, or the file with `--evidence`), reference FASTA | `dna.analysis/v10` `alignment` and each call's `column` | `dna analyze`, `dna analyze --evidence` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
 | read assertion ([dna-call](../../crates/dna-call/src/README.md)) | `dna.read_evidence/v1` (in process or the file), `dna.analysis/v10` `alignment` | `dna.analysis/v10` `variants` and each call's `trust`; component calls: none yet ([PROP-0010](../proposals/0010-length-mixture-decomposition.md)) | `dna analyze`, `dna analyze --evidence` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
 | read assertion over reviewed sequences ([dna-call](../../crates/dna-call/src/README.md), facade `input::sequence`) | consensus FASTA | `dna.variants/v1` | `dna call <FASTA>...` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
-| sample evidence ([dna-sample](../../crates/dna-sample/src/README.md)) | the sample's placed reads (`CalledRead`, in process) | `dna.sample_evidence/v10` | `dna sample` | [sample-evidence-v10](../reference/schemas/sample-evidence-v10.schema.json) |
-| consensus ([dna-consensus](../../crates/dna-consensus/src/README.md) `build`) | the sample's placed reads (`CalledRead`, in process) | `dna.consensus/v1` and its FASTA | `dna consensus` | [consensus-v1](../reference/schemas/consensus-v1.schema.json) |
+| sample evidence ([dna-sample](../../crates/dna-sample/src/README.md)) | the reads' `dna.read_evidence/v1` (in process from the traces, or the files with `--evidence`), reference FASTA | `dna.sample_evidence/v10` | `dna sample`, `dna sample --evidence` | [sample-evidence-v10](../reference/schemas/sample-evidence-v10.schema.json) |
+| consensus ([dna-consensus](../../crates/dna-consensus/src/README.md) `build`) | the reads' `dna.read_evidence/v1` (in process or the files), reference FASTA | `dna.consensus/v1` and its FASTA | `dna consensus`, `dna consensus --evidence` | [consensus-v1](../reference/schemas/consensus-v1.schema.json) |
 | decided calls ([dna-consensus](../../crates/dna-consensus/src/README.md) `decided`) | `dna.consensus/v1` | `dna.variants/v1` | `dna call <consensus.json>` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
 | normalization and nomenclature ([dna-normalize](../../crates/dna-normalize/src/README.md)) | `dna.variants/v1` | `dna.notation/v1` `notation` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
 | conformance and EMPOP query ([dna-empop](../../crates/dna-empop/src/README.md)) | `dna.variants/v1`, as represented | `dna.notation/v1` `conformance`, `empop` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
-| review (facade [report](../../src/report/README.md) `review.rs`) | the sample's analysis and call (in process), optional `dna.signal/v1` | `dna.review/v1` | `dna review` | [review-v1](../reference/schemas/review-v1.schema.json) |
-| evaluation ([dna-eval](../../crates/dna-eval/src/README.md)) | panel manifest, reviewer truth, ABIF traces | none yet: `run.json` and TSV tables by convention ([increment 3](../proposals/0011-step-contracts.md#increment-3-evaluation-contracts)) | `dna-eval run` | — |
+| review (facade [report](../../src/report/README.md) `review.rs`) | the reads' `dna.read_evidence/v1` (in process or the files), reference FASTA, optional `dna.signal/v1`; the sample's analysis and call in process | `dna.review/v1` | `dna review`, `dna review --evidence` | [review-v1](../reference/schemas/review-v1.schema.json) |
+| evaluation ([dna-eval](../../crates/dna-eval/src/README.md)) | panel manifest, reviewer truth, ABIF traces; optionally an earlier run's `scores.tsv` (`--baseline`) and `forms.tsv` (`--forms`) | `dna.eval_run/v1`: `run.json` and the TSV tables of the run directory | `dna-eval run` | [eval-run-v1](../reference/schemas/eval-run-v1.schema.json) |
 
 When the profile declares notation, `dna sample` and `dna call` also carry
 dna-normalize's `notation` in their documents.
@@ -171,8 +188,10 @@ A contract the next step reads can replay that step without the traces
 ([PROP-0011](../proposals/0011-step-contracts.md)): `dna analyze --evidence`
 places and calls a read from its `dna.read_evidence/v1` file, which carries
 everything the core and the analysis document need, and writes the analysis
-byte-identical to `dna analyze <trace>` (SRS-API-018). The sample commands
-still start from traces.
+byte-identical to `dna analyze <trace>` (SRS-API-018). `dna sample`,
+`dna consensus`, and `dna review` with `--evidence` start from a sample's
+documents, rejected reads included, and write their documents byte-identical
+to the trace-based commands (SRS-API-019).
 
 ## Platform direction
 

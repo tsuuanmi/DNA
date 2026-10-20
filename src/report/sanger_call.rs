@@ -3,8 +3,6 @@
 use crate::error::CallEvidenceError;
 use crate::model::sanger_read::SangerCallSignal;
 use dna_align::model::alignment::Orientation;
-use dna_sanger::model::basecalls::BaseCalls;
-use dna_sanger::model::quality::QualityControlResult;
 
 /// Primary-event peak heights on the reference strand and relative quality of
 /// one Sanger call.
@@ -14,42 +12,18 @@ pub(super) struct SangerCallEvidence {
     pub(super) quality: u8,
 }
 
-/// Resolves call `index` against its call and quality records and projects its
+/// Resolves call `index` against a read's call signals and projects its
 /// primary-event peak heights onto the reference strand.
 pub(super) fn evidence(
-    calls: &BaseCalls,
-    quality: &QualityControlResult,
+    signals: &[SangerCallSignal],
     orientation: Orientation,
     index: usize,
 ) -> Result<SangerCallEvidence, CallEvidenceError> {
-    on_reference(signal(calls, quality, index)?, orientation, index)
-}
-
-/// The signal of call `index` from its call and quality records, on the read
-/// strand.
-pub(super) fn signal(
-    calls: &BaseCalls,
-    quality: &QualityControlResult,
-    index: usize,
-) -> Result<SangerCallSignal, CallEvidenceError> {
-    let call = calls
-        .calls
+    let signal = signals
         .get(index)
+        .copied()
         .ok_or(CallEvidenceError::MissingCall { index })?;
-    let score = quality
-        .per_call
-        .get(index)
-        .ok_or(CallEvidenceError::MissingQuality { index })?;
-    if call.index_0based != index || score.index_0based != index {
-        return Err(CallEvidenceError::IndexMismatch { index });
-    }
-    Ok(SangerCallSignal {
-        peaks: call
-            .primary_peak_evidence
-            .as_ref()
-            .map(|primary| primary.channel_heights),
-        quality: score.relative_quality_score,
-    })
+    on_reference(signal, orientation, index)
 }
 
 /// The signal of call `index` with its primary-event peak heights projected
@@ -79,8 +53,10 @@ const fn reference_peak_heights(orientation: Orientation, peaks: [i32; 4]) -> [i
 #[cfg(test)]
 mod tests {
     use dna_kernel::model::nucleotide::Nucleotide;
-    use dna_sanger::model::basecalls::{BaseCall, ChannelPeak, PeakSource, PrimaryPeakEvidence};
-    use dna_sanger::model::quality::CallQuality;
+    use dna_sanger::model::basecalls::{
+        BaseCall, BaseCalls, ChannelPeak, PeakSource, PrimaryPeakEvidence,
+    };
+    use dna_sanger::model::quality::{CallQuality, QualityControlResult};
 
     use super::*;
 
@@ -135,19 +111,32 @@ mod tests {
         )
     }
 
+    /// Call `index`'s signal from its records, on the reference strand.
+    fn joined(
+        calls: &BaseCalls,
+        quality: &QualityControlResult,
+        orientation: Orientation,
+        index: usize,
+    ) -> Result<SangerCallEvidence, CallEvidenceError> {
+        let signals = (0..calls.len())
+            .map(|call| SangerCallSignal::of(calls, quality, &[], call))
+            .collect::<Result<Vec<_>, _>>()?;
+        evidence(&signals, orientation, index)
+    }
+
     #[test]
     fn projects_reverse_peaks_onto_the_reference_strand() {
         let (calls, quality) = records(vec![call(0, 'A', Some([10, 20, 30, 40]))], &[0]);
 
         assert_eq!(
-            evidence(&calls, &quality, Orientation::Forward, 0),
+            joined(&calls, &quality, Orientation::Forward, 0),
             Ok(SangerCallEvidence {
                 peak_heights: [10, 20, 30, 40],
                 quality: 40,
             })
         );
         assert_eq!(
-            evidence(&calls, &quality, Orientation::Reverse, 0),
+            joined(&calls, &quality, Orientation::Reverse, 0),
             Ok(SangerCallEvidence {
                 peak_heights: [40, 30, 20, 10],
                 quality: 40,
@@ -159,25 +148,25 @@ mod tests {
     fn rejects_unresolvable_call_records() {
         let (calls, quality) = records(vec![call(0, 'A', Some([1, 0, 0, 0]))], &[0]);
         assert_eq!(
-            evidence(&calls, &quality, Orientation::Forward, 1),
+            joined(&calls, &quality, Orientation::Forward, 1),
             Err(CallEvidenceError::MissingCall { index: 1 })
         );
 
         let (calls, quality) = records(vec![call(0, 'A', Some([1, 0, 0, 0]))], &[]);
         assert_eq!(
-            evidence(&calls, &quality, Orientation::Forward, 0),
+            joined(&calls, &quality, Orientation::Forward, 0),
             Err(CallEvidenceError::MissingQuality { index: 0 })
         );
 
         let (calls, quality) = records(vec![call(0, 'A', Some([1, 0, 0, 0]))], &[5]);
         assert_eq!(
-            evidence(&calls, &quality, Orientation::Forward, 0),
+            joined(&calls, &quality, Orientation::Forward, 0),
             Err(CallEvidenceError::IndexMismatch { index: 0 })
         );
 
         let (calls, quality) = records(vec![call(0, 'A', None)], &[0]);
         assert_eq!(
-            evidence(&calls, &quality, Orientation::Forward, 0),
+            joined(&calls, &quality, Orientation::Forward, 0),
             Err(CallEvidenceError::MissingPeakEvidence { index: 0 })
         );
     }

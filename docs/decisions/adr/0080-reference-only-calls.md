@@ -109,6 +109,92 @@ period; clear samples 68.7 → 70.2 % on current data, 47.4 → 47.7 % in
 2025-08..11, and 67.2 → 68.5 % older; no strict or `haplotype_lod` changes.
 Plugins `sanger` 12 and `consensus` 12.
 
+### Start-tail confirmations
+
+The two Sanger rules were then widened together, measured on development
+panel v5 against `main` 20fc7ca:
+- a single-channel call may confirm the reference with a second base
+  standing out when its cause is `neighbour_tail` or `dye_blob`;
+- an isolated mixed tail or blob call keeps its confirmation at a signal edge
+  whose every cause is benign, by the same test as a single-channel call;
+- an isolated mixed tail or blob call may also be withheld for the peak floor
+  or its relative quality, and a neighbour masked as weak before the trim
+  interval counts as single-channel.
+
+Every core guard is unchanged: an unexplained second peak on any read, the
+other strand's same second base, beside-difference withdrawal, the run
+junction, and stretches. An `off_centre`, `second_template`, or `phase_shift`
+second never lets a call confirm, and a read's physical end is never benign.
+
+Measured result: samples with an unreviewed difference and with a non-het
+one unchanged in every period, no status of any measure changed; clear
+samples 71.00 → 72.05 % on current data (+113), 48.59 → 49.29 % in 2025-08..11
+(+19), and 69.41 → 70.84 % older (+43). Plugin `sanger` 14.
+### One-strand unexplained seconds
+
+Amended 2026-10-19. Rule 2 withdrew a confirmation wherever any read showed
+an unexplained second peak. It now applies to a read of the confirming
+call's strand as before. A read of the other strand withdraws it only when
+its second base does not stand out, or when a read of the confirming strand
+shows that second base standing out too. The other-strand guard on the
+confirming call's own second base is unchanged. This narrows rule 2 and
+the last of the consequences below.
+
+An unexplained second on one strand alone is not the two-strand signature
+of heteroplasmy the guard exists for. The strand that confirms reads its
+base cleanly, apart from an explained artefact. A second on the confirming
+strand still hides the confirmation: at 2563003 152 (a `Y` heteroplasmy) the
+HV1F tail confirms C while HV2F, of the same strand, shows an unexplained C,
+and the position stays undecided.
+
+Measured on development panel v5 against `main` 20fc7ca:
+
+| Period | Unreviewed | Non-het | Clear |
+|---|---|---|---|
+| current | 440 → 440 | 94 → 94 | 71.00 → 71.39 % (+42) |
+| 2025-08..11 | 151 → 151 | 51 → 51 | 48.59 → 52.15 % (+96) |
+| older | 174 → 174 | 84 → 84 | 69.41 → 70.01 % (+18) |
+
+No status changes; 761 positions decided more, none fewer. One sample whose
+only check was the undecided position becomes clear with its existing
+unreviewed `309` length difference. Plugin `consensus` 14.
+
+### Vouched calls within the end margin
+
+Amended 2026-10-20. The core trusts no call within
+`variant_calling.read_end_margin` calls of a read end the modality does not
+vouch for (SRS-VAR-013), and Sanger never vouches. At the start of HVS-I the
+first read calls fall inside that margin. The Sanger read-start rule
+(SRS-CALL-018) already clears many of them of the modality's own edge from
+the read's own signal, but the core margin kept them from deciding, so
+16024-16035 stayed undecided wherever no read of the other strand reached
+it.
+
+A call within that margin now confirms the reference at its position, as a
+reference-only call does, when all of these hold:
+- the modality vouches for its base: scored, clear of its edges, and
+  withheld for nothing;
+- it shows no second base standing out and no second peak left
+  unexplained;
+- it reads the reference's base, and its alignment column is not shifted.
+
+Every guard of a confirmation applies to it unchanged. The margin exists so
+that no indel or run end rests on a read end's calls, and a confirmation
+shows neither: its run role stays its call's, and stretches do not count it.
+A reference-only call keeps the margin, since its base is withheld.
+
+Measured on development panel v5 against the stack of #169, #171, #170, #173,
+and #172 (integration 3498c4e):
+
+| Period | Unreviewed | Non-het | Clear |
+|---|---|---|---|
+| current | 440 → 440 | 94 → 94 | 72.80 → 73.16 % (+38) |
+| 2025-08..11 | 151 → 151 | 51 → 51 | 53.38 → 53.38 % |
+| older | 174 → 174 | 84 → 84 | 71.63 → 71.96 % (+10) |
+
+No status of any measure changes. All 48 samples were held only by
+read-start checks at 16024-16045. Plugin `consensus` 15.
+
 ## Alternatives
 
 - **Lift the veto by cause in the modality.** This gave the largest gain and
@@ -118,6 +204,9 @@ Plugins `sanger` 12 and `consensus` 12.
   decided.
 - **Unresolve every differing site beside a confirmed position.** This held
   the gate, but turned about 100 correct calls into `N`.
+- **Let a modality-vouched call within the end margin also bound runs or
+  support variants.** The margin guards exactly those uses, and the
+  read-start residue needs only the reference confirmed.
 - **Let the core read the modality's reason labels.** This was rejected:
   reasons are reported verbatim, and the core interprets none of them
   (ADR-0069).

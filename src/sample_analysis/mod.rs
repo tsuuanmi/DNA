@@ -2,7 +2,8 @@
 //!
 //! One placement pass over a sample's traces yields both the sample evidence
 //! and the consensus, without CLI logging, JSON serialization, or result
-//! publication. The `sample` and `consensus` operations run the same pass.
+//! publication. The `sample` and `consensus` operations run the same pass,
+//! from the traces or from their recorded read evidence (PROP-0011).
 //! [`SampleAnalysis::call`] then calls the consensus as `call` would.
 
 pub(crate) mod reads;
@@ -16,6 +17,7 @@ use tracing::{Dispatch, Span};
 use crate::config::Config;
 use crate::error::{Result, SampleError};
 use crate::input::sanger::{self, SampleInputs};
+use crate::model::sanger_read::{Rejection, SangerRead};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_trust;
 use dna_kernel::model::reference::Reference;
@@ -37,7 +39,7 @@ pub use dna_sanger::run_signal::{Contributions, RunSignal};
 
 pub use crate::variant_analysis::ReferenceSegment;
 
-use reads::{PlacedReads, ReadScope};
+use reads::{PlacedReads, ReadScope, Reads};
 
 /// Typed result of one sample analysis: the sample evidence and the consensus
 /// of one placement pass.
@@ -54,7 +56,8 @@ pub struct SampleAnalysis {
     pub evidence: SampleEvidence,
     /// Consensus of the admitted reads.
     pub consensus: Consensus,
-    /// Sanger evidence of each admitted read, by read content SHA-256.
+    /// Sanger products of each admitted read, by read content SHA-256: of
+    /// every admitted read, since this API analyzes traces.
     pub reads: BTreeMap<String, SangerAttachment>,
     /// Each rejected read with its cause, by read content SHA-256; the cause
     /// carries the read's Sanger evidence unless the read was too short to
@@ -67,6 +70,14 @@ pub struct SampleAnalysis {
     /// The admitted reads as the core placed them, which
     /// [`SampleAnalysis::observations`] reads.
     pub(crate) called: Vec<CalledRead>,
+    /// Each admitted read's Sanger evidence as the documents report it, by
+    /// read content SHA-256: what every report reads. Unlike [`Self::reads`],
+    /// it is complete for an analysis the CLI runs from recorded read
+    /// evidence (PROP-0011), which keeps no trace products.
+    pub(crate) sanger: BTreeMap<String, SangerRead>,
+    /// Each rejected read as the documents report it, by read content
+    /// SHA-256; complete as [`Self::sanger`] is.
+    pub(crate) rejections: BTreeMap<String, Rejection>,
 }
 
 impl SampleAnalysis {
@@ -90,11 +101,11 @@ impl SampleAnalysis {
         let mut traces = Vec::new();
         let mut sum = Contributions::default();
         for read in &self.called {
-            let Some(sanger) = self.reads.get(&read.input_sha256) else {
+            let Some(sanger) = self.sanger.get(&read.input_sha256) else {
                 continue;
             };
             let own = dna_sanger::run_signal::contributions(
-                &sanger.calls,
+                &sanger.heights(),
                 &read.evidence,
                 &self.loaded.config.sanger.signal_processing.run_signal,
             );
@@ -321,48 +332,83 @@ pub fn analyze_sanger_outcome(
     config: &Path,
     workers: NonZeroUsize,
 ) -> Result<SampleOutcome> {
-    analyze(
-        sanger::load_sample(traces, reference, config)?,
-        &CallerScope::current(),
-        workers,
+    let SampleInputs {
+        config,
+        profile,
+        traces,
+        reference,
+    } = sanger::load_sample(traces, reference, config)?;
+    let loaded = Loaded {
+        config,
+        profile,
+        reference,
+    };
+    Ok(
+        match analyze(
+            Reads::Traces(&traces),
+            loaded,
+            &CallerScope::current(),
+            workers,
+        )? {
+            Outcome::Analyzed(analysis) => SampleOutcome::Analyzed(analysis),
+            Outcome::Rejected { products, .. } => SampleOutcome::Rejected(products),
+        },
     )
 }
 
-/// Runs the placement pass, the aggregation, and the consensus over loaded
-/// inputs, with each read's instrumentation going to `scope`; the shared body
-/// of [`analyze_sanger_outcome`] and the `review` operation.
+/// What one sample analysis yields inside the crate: the analysis, or, when
+/// every read was rejected, those reads as the documents report them and,
+/// for reads from their traces, with their Sanger products.
+pub(crate) enum Outcome {
+    /// At least one read was admitted.
+    Analyzed(Box<SampleAnalysis>),
+    /// Every read was rejected.
+    Rejected {
+        /// Each read as the documents report it, by read content SHA-256.
+        rejections: BTreeMap<String, Rejection>,
+        /// Each read with its Sanger products, by read content SHA-256;
+        /// empty for reads from their recorded evidence.
+        products: BTreeMap<String, RejectedRead>,
+    },
+}
+
+/// Runs the placement pass, the aggregation, and the consensus over a
+/// sample's reads, from their traces or their recorded evidence, with each
+/// read's instrumentation going to `scope`; the shared body of
+/// [`analyze_sanger_outcome`] and the `review` operation.
 pub(crate) fn analyze(
-    inputs: SampleInputs,
+    reads: Reads<'_>,
+    loaded: Loaded,
     scope: &impl ReadScope,
     workers: NonZeroUsize,
-) -> Result<SampleOutcome> {
+) -> Result<Outcome> {
     let placed = reads::place(
-        &inputs.traces,
-        &inputs.reference,
-        &inputs.config,
-        &inputs.profile,
+        reads,
+        &loaded.reference,
+        &loaded.config,
+        &loaded.profile,
         scope,
         workers,
     )?;
     if placed.called.is_empty() && !placed.rejected.is_empty() {
-        return Ok(SampleOutcome::Rejected(by_identity(placed.rejected)));
+        return Ok(Outcome::Rejected {
+            rejections: by_identity(placed.rejected),
+            products: rejected_by_identity(placed.products.rejected),
+        });
     }
-    let evidence = aggregate(&placed, &inputs.config)?;
-    let consensus = build_consensus(&placed, &evidence, &inputs.reference, &inputs.config);
-    let loaded = Loaded {
-        config: inputs.config,
-        profile: inputs.profile,
-        reference: inputs.reference,
-    };
-    Ok(SampleOutcome::Analyzed(Box::new(SampleAnalysis {
+    let evidence = aggregate(&placed, &loaded.config)?;
+    let consensus = build_consensus(&placed, &evidence, &loaded.reference, &loaded.config);
+    Ok(Outcome::Analyzed(Box::new(SampleAnalysis {
         reference: loaded.reference.identity(),
         profile: loaded.profile.identity().clone(),
         evidence,
         consensus,
-        reads: placed.sanger,
-        rejected: by_identity(placed.rejected),
+        reads: placed.products.reads,
+        rejected: rejected_by_identity(placed.products.rejected),
         loaded,
         called: placed.called,
+        sanger: placed.sanger,
+        rejections: by_identity(placed.rejected),
     })))
 }
 
@@ -406,7 +452,15 @@ pub(crate) fn build_consensus(
 }
 
 /// Rejected reads keyed by read content identity.
-pub(crate) fn by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, RejectedRead> {
+pub(crate) fn by_identity(rejected: Vec<Rejection>) -> BTreeMap<String, Rejection> {
+    rejected
+        .into_iter()
+        .map(|read| (read.input_sha256.clone(), read))
+        .collect()
+}
+
+/// Rejected reads with their Sanger products keyed by read content identity.
+fn rejected_by_identity(rejected: Vec<RejectedRead>) -> BTreeMap<String, RejectedRead> {
     rejected
         .into_iter()
         .map(|read| (read.input_sha256.clone(), read))

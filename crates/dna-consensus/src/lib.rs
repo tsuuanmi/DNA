@@ -148,9 +148,13 @@ fn decide_positions(
 }
 
 /// Withdraws the reference confirmations a second sequence may hide
-/// (ADR-0080): at a position where any read shows a second peak its modality
-/// does not explain, and where a read of the other strand shows the
-/// confirming call's own second base standing out.
+/// (ADR-0080): at a position where a read of the confirming strand shows a
+/// second peak its modality does not explain, where a read of the other
+/// strand does so without its second base standing out, or with a second
+/// base that a read of the confirming strand shows standing out too, and
+/// where a read of the other strand shows the confirming call's own second
+/// base standing out. A second on one strand alone is not the two-strand
+/// signature of a second sequence.
 fn hide_confirmations(observed: &mut [ReadObservations]) {
     let hidden = observed
         .iter()
@@ -161,9 +165,23 @@ fn hide_confirmations(observed: &mut [ReadObservations]) {
                 .filter(|(_, observation)| observation.confirms)
                 .filter(|(position, _)| {
                     let second = read.seconds.get(position);
+                    // A second base standing out on a read of the confirming
+                    // strand.
+                    let confirming_strand_shows = |base: &char| {
+                        observed.iter().any(|third| {
+                            third.forward == read.forward
+                                && third.seconds.get(position) == Some(base)
+                        })
+                    };
                     observed.iter().any(|other| {
-                        other.unexplained.contains(position)
-                            || (other.forward != read.forward
+                        let other_strand = other.forward != read.forward;
+                        (other.unexplained.contains(position)
+                            && (!other_strand
+                                || other
+                                    .seconds
+                                    .get(position)
+                                    .is_none_or(confirming_strand_shows)))
+                            || (other_strand
                                 && second.is_some()
                                 && other.seconds.get(position) == second)
                     })
@@ -1731,7 +1749,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 13,
+    version: 15,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2213,6 +2231,46 @@ mod tests {
 
     // SRS-CONS-010
     #[test]
+    fn a_vouched_call_within_the_end_margin_confirms_the_reference()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        use super::observe::observe;
+        // A read equal to the reference, its ends unvouched: calls 0-2 lie
+        // within a margin of three calls of its start, and call `i` observes
+        // position `i`.
+        let mut read = placed("r", REFERENCE, &[])?;
+        let mut edge = read.evidence.calls()[0];
+        edge.identity.edge = true;
+        let mut second = read.evidence.calls()[1];
+        second.second = Some(dna_kernel::read_evidence::SecondBase {
+            base: 'A',
+            share: 0.3,
+            stands_out: true,
+        });
+        read.evidence = read.evidence.with_call(0, edge).with_call(1, second);
+        let settings = RawVariantCallingConfig {
+            max_indel_length: 50,
+            read_end_margin: 3,
+        }
+        .validate()?;
+        let observed = observe(&read, &settings, REFERENCE.as_bytes(), 4);
+        let site = |position: usize| {
+            observed
+                .positions
+                .get(&position)
+                .map(|site| (site.clean, site.confirms))
+        };
+        // The modality's edge verdict, or a second base standing out, leaves
+        // the reference unconfirmed; the call at 2, vouched for its base,
+        // confirms it. Beyond the margin, calls are clean on their own.
+        assert_eq!(site(0), Some((false, false)));
+        assert_eq!(site(1), Some((false, false)));
+        assert_eq!(site(2), Some((true, true)));
+        assert_eq!(site(3), Some((true, false)));
+        Ok(())
+    }
+
+    // SRS-CONS-010
+    #[test]
     fn a_confirmation_beside_any_observed_difference_is_withdrawn()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         // A second read reads T at 16 (C>T), uncleanly: a shifted read can
@@ -2315,8 +2373,52 @@ mod tests {
         assert!(!observations(true, (false, Some('C'), false)));
         // The same strand doing so is not a second sequence by itself.
         assert!(observations(true, (true, Some('C'), false)));
-        // Any read with a second peak its modality does not explain.
+        // A read of the confirming strand with a second peak its modality
+        // does not explain.
         assert!(!observations(true, (true, None, true)));
+        assert!(!observations(true, (true, Some('A'), true)));
+    }
+
+    // SRS-CONS-010
+    #[test]
+    fn an_unexplained_second_on_the_other_strand_alone_keeps_a_confirmation() {
+        // Read `a` (forward) confirms the reference at 14 with a second C,
+        // read `b` (reverse) shows an unexplained second peak there, and read
+        // `c` (forward) optionally shows a second base standing out.
+        let observations = |second: Option<char>, third: Option<char>| {
+            let read = |name: &str, forward: bool| {
+                let mut read = rows(name, 0, REFERENCE, REFERENCE, &"c".repeat(REFERENCE.len()));
+                read.forward = forward;
+                read
+            };
+            let mut first = read("a", true);
+            if let Some(observation) = first.positions.get_mut(&14) {
+                observation.confirms = true;
+            }
+            first.seconds.insert(14, 'C');
+            let mut other = read("b", false);
+            other.unexplained.insert(14);
+            if let Some(base) = second {
+                other.seconds.insert(14, base);
+            }
+            let mut same = read("c", true);
+            if let Some(base) = third {
+                same.seconds.insert(14, base);
+            }
+            let mut observed = vec![first, other, same];
+            hide_confirmations(&mut observed);
+            observed[0].positions[&14].confirms
+        };
+        // A second base the confirming strand does not show: one strand
+        // alone, so the confirmation stands.
+        assert!(observations(Some('A'), None));
+        assert!(observations(Some('A'), Some('G')));
+        // The confirming strand shows the same second base standing out.
+        assert!(!observations(Some('A'), Some('A')));
+        // The confirming call's own second base: the other-strand guard.
+        assert!(!observations(Some('C'), None));
+        // No second base standing out to compare: still withdrawn.
+        assert!(!observations(None, None));
     }
 
     // SRS-CONS-003, SRS-CONS-006

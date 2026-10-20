@@ -77,15 +77,21 @@ pub fn run(cli: Cli) -> Result<()> {
         },
         Command::Basecall(args) => pipeline::basecall(&args.trace, &config_path),
         Command::Evidence(args) => pipeline::evidence(&args.trace, &config_path),
-        Command::Sample(args) => {
-            pipeline::sample(&args.sample_id, &args.traces, &args.reference, &config_path)
-        }
-        Command::Consensus(args) => {
-            pipeline::consensus(&args.sample_id, &args.traces, &args.reference, &config_path)
-        }
+        Command::Sample(args) => pipeline::sample(
+            &args.sample_id,
+            sample_input(&args.traces, &args.evidence)?,
+            &args.reference,
+            &config_path,
+        ),
+        Command::Consensus(args) => pipeline::consensus(
+            &args.sample_id,
+            sample_input(&args.traces, &args.evidence)?,
+            &args.reference,
+            &config_path,
+        ),
         Command::Review(args) => pipeline::review(
             &args.sample_id,
-            &args.traces,
+            sample_input(&args.traces, &args.evidence)?,
             &args.reference,
             args.signal.as_deref(),
             &config_path,
@@ -103,5 +109,24 @@ pub fn run(cli: Cli) -> Result<()> {
             &args.reference,
             &config_path,
         ),
+    }
+}
+
+/// A sample command's reads: its traces or their read evidence documents,
+/// exactly one of the two.
+fn sample_input<'a>(
+    traces: &'a [PathBuf],
+    evidence: &'a [PathBuf],
+) -> Result<pipeline::SampleInput<'a>> {
+    match (traces.is_empty(), evidence.is_empty()) {
+        (false, true) => Ok(pipeline::SampleInput::Traces(traces)),
+        (true, false) => Ok(pipeline::SampleInput::Evidence(evidence)),
+        // The command line enforces this; a `Cli` built in code may not.
+        _ => Err(KernelError::Path {
+            kind: "sample input",
+            path: PathBuf::new(),
+            reason: "a sample command takes traces or --evidence documents, not both",
+        }
+        .into()),
     }
 }

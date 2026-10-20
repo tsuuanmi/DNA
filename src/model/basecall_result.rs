@@ -36,7 +36,7 @@ pub(crate) struct BasecallReadResult {
 }
 
 /// Public non-fatal basecall counts.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct BasecallWarningSummaryResult {
     pub(crate) unresolved_primary_calls: usize,
     pub(crate) multi_channel_unresolved_calls: usize,

@@ -12,7 +12,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Configuration](configuration.md): strict TOML and environment behavior.
 - [Target profiles](profiles.md): target knowledge referenced by the configuration.
 - [Basecall result](basecalls.md): `dna.basecalls/v3`.
-- [Read evidence](read-evidence.md): `dna.read_evidence/v1`, the modality → core boundary, also the input of `dna analyze --evidence`.
+- [Read evidence](read-evidence.md): `dna.read_evidence/v1`, the modality → core boundary, also the input of `dna analyze --evidence` and of `dna sample`, `dna consensus`, and `dna review` with `--evidence`.
 - [Analysis result](analysis/README.md): `dna.analysis/v10`.
 - [Sample evidence result](sample-evidence/README.md): `dna.sample_evidence/v10`.
 - [Variants result](variants.md): `dna.variants/v1`.
@@ -37,6 +37,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Consensus JSON Schema](schemas/consensus-v1.schema.json)
 - [Review JSON Schema](schemas/review-v1.schema.json)
 - [Run signal JSON Schema](schemas/signal-v1.schema.json)
+- [Evaluation run JSON Schema](schemas/eval-run-v1.schema.json): `dna.eval_run/v1`, the evaluation harness output, described in [validation](../validation/evaluation-harness.md#outputs)
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.

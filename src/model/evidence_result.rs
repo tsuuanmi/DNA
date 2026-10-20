@@ -1,13 +1,47 @@
 //! Serializable `dna.read_evidence/v1` contract: one read's evidence as the
-//! modality hands it to the core (PROP-0011).
+//! modality hands it to the core, or why the modality set the read aside
+//! (PROP-0011).
 
 use serde::Serialize;
 
 use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::result::{
-    CallabilityResult, InputResult, IntervalResult, PeakHeightsResult, PlacementResult,
-    PluginResult, SignalQualityResult,
+    CallabilityResult, IntervalResult, PeakHeightsResult, PlacementResult, PluginResult,
+    SignalQualityResult, TraceIntegrityResult,
 };
+use crate::model::sample_result::ReadRejectionResult;
+
+/// One read evidence document: a read the modality hands to the core, or one
+/// it set aside.
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub(crate) enum EvidenceDocument {
+    Read(EvidenceResult),
+    Rejected(RejectedEvidenceResult),
+}
+
+impl EvidenceDocument {
+    pub(crate) const fn schema_version(&self) -> &'static str {
+        match self {
+            Self::Read(document) => document.schema_version,
+            Self::Rejected(document) => document.schema_version,
+        }
+    }
+}
+
+/// The evidence of a read the modality set aside: its cause and, when it
+/// reached callability, its integrity and callability, as the sample
+/// documents report a rejected read.
+#[derive(Debug, Serialize)]
+pub(crate) struct RejectedEvidenceResult {
+    pub(crate) schema_version: &'static str,
+    pub(crate) provenance: EvidenceProvenanceResult,
+    pub(crate) rejection: ReadRejectionResult,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) integrity: Option<TraceIntegrityResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) callability: Option<CallabilityResult>,
+}
 
 /// One read's evidence document.
 #[derive(Debug, Serialize)]
@@ -25,9 +59,17 @@ pub(crate) struct EvidenceResult {
 /// Deterministic input identities of the evidence.
 #[derive(Debug, Serialize)]
 pub(crate) struct EvidenceProvenanceResult {
-    pub(crate) input: InputResult,
+    pub(crate) input: EvidenceInputResult,
     pub(crate) configuration_sha256: String,
     pub(crate) plugins: Vec<PluginResult>,
+}
+
+/// The trace the evidence was written from: its file name, from which the
+/// sample documents name the read, and its content identity.
+#[derive(Debug, Serialize)]
+pub(crate) struct EvidenceInputResult {
+    pub(crate) name: String,
+    pub(crate) sha256: String,
 }
 
 /// What the evidence asserts about the read as a whole.
@@ -129,13 +171,15 @@ pub(crate) struct SecondBaseResult {
     pub(crate) stands_out: bool,
 }
 
-/// The Sanger signal of the call: its trace position, its strongest peak,
-/// its channel heights at the primary event, its relative quality, and the
-/// cause of its second peak (SRS-CALL-021).
+/// The Sanger signal of the call: its trace position, its selected channel
+/// peaks, its channel heights at the primary event, its relative quality,
+/// and the cause of its second peak (SRS-CALL-021).
 #[derive(Debug, Serialize)]
 pub(crate) struct CallSignalResult {
     pub(crate) scan: usize,
-    pub(crate) height: u32,
+    /// The selected A/C/G/T peak heights in the call's window, on the read
+    /// strand.
+    pub(crate) channels: PeakHeightsResult,
     /// A/C/G/T heights at the primary event on the read strand, when the call
     /// has one.
     #[serde(skip_serializing_if = "Option::is_none")]
