@@ -90,12 +90,44 @@ check item touches. Over the same samples, the summary's "Passes" table and
 
 A passed zone may lie in a region that needs a check, so the passed zones
 with an unreviewed block can outnumber the passed regions with one; and they
-count zones, where the zone kind table above counts blocks. A sample, region,
-or zone with unreviewed blocks is non-het when one of them is not het, and
-het only otherwise. A block is het when the truth writes an IUPAC
-code of two or three bases (`R`, `Y`, `K`, `M`, `S`, `W`, `B`, `D`, `H`,
-`V`) in it; `N` is not one. A block outside every region counts for its
-sample only.
+count zones, where the zone kind table above counts blocks. A block outside
+every region counts for its sample only.
+
+Each unreviewed block has one class, the first that applies:
+
+1. `re-check`: the re-check list (`--recheck`) names a span of its sample
+   that the block overlaps;
+2. `truth N`: the truth writes `N` in it (the reviewer abstained);
+3. `het`: the truth writes an IUPAC code of two or three bases (`R`, `Y`,
+   `K`, `M`, `S`, `W`, `B`, `D`, `H`, `V`) in it;
+4. `non-het`: any other block, a DNA error that neither a heteroplasmy, a
+   truth `N`, nor the re-check list explains.
+
+A passed sample, region, or zone with unreviewed blocks counts once, under
+its most severe block, in the order non-het, truth N, het, re-check
+(`non_het`, `truth_n_only`, `het_only`, `recheck_only`): one non-het block
+makes it non-het, and it is re-check only when every block is on the list.
+The non-het count is the gate a change must not raise. Het is reported but
+counts as a pass, and the truth N and re-check units await a check of the
+truth, not of DNA. The sample measure "Samples with an unreviewed
+difference" and the TSV tables (`unreviewed` in `scores.tsv`, `windows.tsv`)
+count every block whatever its class.
+
+`--recheck <file.tsv>` names the difference blocks whose truth is under
+re-check: raw-trace adjudication found the truth wrong or questionable, or
+a blind re-check of the truth is pending. The file is tab-separated with the
+header `sample_id`, `first`, `last`, `reason`, `source`: per row a sample,
+the first and last reference positions of the block (1-based, inclusive, as
+in the block notation of `unreviewed`), why its truth is under re-check, and
+where the adjudication is recorded. Every cell must be filled and `first`
+must not exceed `last`; another header, a row of another width, a position
+that is not a number from 1, or a repeated (`sample_id`, `first`, `last`)
+stops the run. `run.json` records the list's path, SHA-256, and rows
+(`recheck`); the summary names it and gives, with the passes, the
+unreviewed blocks on it and the rows that overlap no difference block of
+the samples counted, which flags a stale row. The list holds sample
+identifiers and stays outside the repository under the
+[[governance/data|data policy]]. Without it, no block is re-check.
 
 `--current-since <YYYY-MM>` names the first batch month of the current data:
 the samples whose `batch_date` is in or after it. Recent batches come first,

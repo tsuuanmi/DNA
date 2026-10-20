@@ -23,7 +23,8 @@ cargo run --release -p dna-eval -- run \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> [--baseline <earlier-run-directory>] \
   --threads <1-256> [--triage] [--forms <earlier-run-directory>/forms.tsv] \
-  [--review-window <bp>] [--forced-windows <file>] [--current-since <YYYY-MM>] \
+  [--review-window <bp>] [--forced-windows <file>] [--recheck <file.tsv>] \
+  [--current-since <YYYY-MM>] \
   [--run-signal batch|month [--run-signal-batch-reads <n>]] \
   [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>]
 
@@ -334,7 +335,7 @@ or to which files a run writes, is a new contract version
 The Markdown reports are for people: the contract requires them, not their text.
 
 Every file except `run.json` depends only on the panel, the truth, DNA's
-calls (and with `--triage` its evidence), and the configuration, reference, profile, and baseline the summary
+calls (and with `--triage` its evidence), and the configuration, reference, profile, baseline, and re-check list the summary
 names, so it is byte-identical whatever the thread count and whatever revision
 or database file it ran on; `forms.tsv` alone also records the database
 file's SHA-256 in its first line. Run outputs and

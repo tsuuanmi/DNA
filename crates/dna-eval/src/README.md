@@ -59,7 +59,11 @@ have no schema; the evaluation harness document describes them.
   review`'s check items (`SampleAnalysis::review_checks`), forced-window
   lists, the Wilson bound of `windows.tsv`, and what passes without review
   (samples, regions, and zones no check item touches, and the passed ones
-  with an unreviewed block, het or not) for the summary and `run.json`.
+  with an unreviewed block by the class of their blocks: non-het, truth N,
+  het, or re-check) for the summary and `run.json`.
+- `recheck.rs` — the re-check list of `run --recheck`: the difference blocks
+  whose truth is under re-check, per sample and span, that the pass
+  measures count in their own class.
 - `unrecorded.rs` — the run-length alleles a profile convention leaves
   unrecorded, left out of every comparison on both sides.
 - `components.rs` — `components.tsv`: every phase-mixture component

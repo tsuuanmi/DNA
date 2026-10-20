@@ -26,6 +26,7 @@ mod haplotype;
 mod lod;
 mod manifest;
 mod panel;
+mod recheck;
 mod report;
 mod runner;
 mod triage;
@@ -46,11 +47,13 @@ use std::time::Instant;
 use clap::{Args, Parser, Subcommand};
 use dna_kernel::model::reference::ReferenceTopology;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::cause::forms::Forms;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
 use crate::manifest::Manifest;
+use crate::recheck::Recheck;
 use crate::report::{Report, Row, Status};
 use crate::runner::{Identity, Outcome, Threads};
 use crate::truth::TruthCheck;
@@ -71,6 +74,8 @@ const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted forced-window list.
 const MAX_FORCED_BYTES: u64 = 1024 * 1024;
+/// Largest accepted re-check list.
+const MAX_RECHECK_BYTES: u64 = 16 * 1024 * 1024;
 
 /// The header of `signals.tsv`.
 const SIGNALS_HEADER: &str =
@@ -221,6 +226,12 @@ struct RunArgs {
     /// learned on this run's panel overstates its effect.
     #[arg(long)]
     forced_windows: Option<PathBuf>,
+    /// Difference blocks whose truth is under re-check (TSV: `sample_id`,
+    /// `first`, `last`, `reason`, `source`): the pass measures count a block
+    /// that overlaps a listed span of its sample as re-check, not as a DNA
+    /// error.
+    #[arg(long)]
+    recheck: Option<PathBuf>,
     /// First batch month (`YYYY-MM`) of the current data: the summary reports
     /// the samples whose manifest `batch_date` is in or after it first.
     #[arg(long)]
@@ -373,6 +384,25 @@ fn run(cli: &RunArgs) -> Result<String> {
             })
         })
         .transpose()?;
+    let (recheck, recheck_header) = match &cli.recheck {
+        Some(path) => {
+            let failure = |message: String| Error::Recheck {
+                path: path.clone(),
+                message,
+            };
+            let bytes = read(path, "re-check list", MAX_RECHECK_BYTES)?;
+            let sha256 = format!("{:x}", Sha256::digest(&bytes));
+            let text = String::from_utf8(bytes).map_err(|error| failure(error.to_string()))?;
+            let list = Recheck::parse(&text).map_err(failure)?;
+            let header = RecheckHeader {
+                path: absolute(path),
+                sha256,
+                rows: list.rows(),
+            };
+            (Some(list), Some(header))
+        }
+        None => (None, None),
+    };
     let widths = zones::Widths {
         after: cli.zone_after,
         edge: cli.zone_edge,
@@ -452,7 +482,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         &check,
         (&forms, reference.sequence.as_str()),
     )
-    .with_review(cli.review_window, forced, Some(zones))
+    .with_review(cli.review_window, forced, Some(zones), recheck)
     .with_current_since(cli.current_since.clone());
     let triage_started = Instant::now();
     let triage = cli
@@ -472,6 +502,7 @@ fn run(cli: &RunArgs) -> Result<String> {
             dna: dna_seconds,
         },
     );
+    header.recheck = recheck_header;
     header.triage = triage.as_ref().map(|triage| TriageHeader {
         policy: triage
             .policy()
@@ -779,6 +810,9 @@ struct Header {
     /// The forced-window list the workload also counts as reviewed.
     #[serde(skip_serializing_if = "Option::is_none")]
     forced_windows: Option<PathBuf>,
+    /// The re-check list the pass measures read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    recheck: Option<RecheckHeader>,
     /// The widths that place the review zones, in positions.
     zones: ZoneHeader,
     /// The harness's own measurement constants.
@@ -845,6 +879,14 @@ impl Constants {
             triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
         }
     }
+}
+
+/// The re-check list: its path, its SHA-256, and its rows.
+#[derive(Debug, Serialize)]
+struct RecheckHeader {
+    path: PathBuf,
+    sha256: String,
+    rows: usize,
 }
 
 /// What passes without review over the samples the review workload counts,
@@ -992,6 +1034,7 @@ fn header(
         run_signal: cli.run_signal.clone(),
         current_since: cli.current_since.clone(),
         forced_windows: cli.forced_windows.as_deref().map(absolute),
+        recheck: None,
         constants: Constants::current(),
         zones: ZoneHeader {
             after: cli.zone_after,
@@ -1071,6 +1114,14 @@ fn context(header: &Header) -> Vec<(&'static str, String)> {
                 .map_or_else(|| "none".to_owned(), |path| path.display().to_string()),
         ),
     ]
+    .into_iter()
+    .chain(header.recheck.as_ref().map(|recheck| {
+        (
+            "re-check list",
+            format!("{} rows, sha256 {}", recheck.rows, recheck.sha256),
+        )
+    }))
+    .collect()
 }
 
 /// The git revision of the checkout the harness was built from, recorded by
@@ -1177,6 +1228,11 @@ mod tests {
             current_since: Some("2026-01".into()),
             run_signal: Some("batch".into()),
             forced_windows: Some(PathBuf::from("/forced.txt")),
+            recheck: Some(RecheckHeader {
+                path: PathBuf::from("/recheck.tsv"),
+                sha256: "b".repeat(64),
+                rows: 2,
+            }),
             zones: ZoneHeader {
                 after: 20,
                 edge: 40,
@@ -1217,6 +1273,7 @@ mod tests {
             current_since: None,
             run_signal: None,
             forced_windows: None,
+            recheck: None,
             triage: None,
             workload: WorkloadHeader {
                 all: header.workload.all,
