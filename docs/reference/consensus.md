@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-VAR]
+implements: [SRS-API, SRS-CONS, SRS-VAR]
 decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080]
 ---
 
@@ -77,6 +77,12 @@ The method is described in [[design/consensus|design]].
   reference confirmations decided (ADR-0080). They read the reference, and
   when the decisions are called (`dna call` of this document) they bound no
   neighbouring run.
+- **`unreliable_only`:** stretches `{first, last, reason}` of reference
+  positions (1-based, inclusive, increasing) that reads observe only inside
+  their unreliable spans, with the spans' reason (`poor_start_signal`,
+  SRS-CONS-012). When the decisions are called, a reportable region's ends
+  made of such positions are not analysed, up to the last one the consensus
+  does not settle as the reference.
 - **`summary`:** counts over the segments:
   - `called_positions`;
   - `contested_sites`;

@@ -67,6 +67,13 @@
         "minimum": 1
       }
     },
+    "not_analysed": {
+      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); no item or zone holds them; for called.",
+      "type": "array",
+      "items": {
+        "$ref": "urn:signal:schema:consensus:v1#/$defs/stretch"
+      }
+    },
     "empop": {
       "$ref": "urn:signal:schema:notation:v1#/$defs/empop"
     },
@@ -100,7 +107,8 @@
         "required": [
           "callable",
           "zones",
-          "reference_only"
+          "reference_only",
+          "not_analysed"
         ],
         "not": {
           "required": [
@@ -125,6 +133,7 @@
           "calls": false,
           "callable": false,
           "reference_only": false,
+          "not_analysed": false,
           "empop": false,
           "zones": false
         }
@@ -144,6 +153,7 @@
           "calls": false,
           "callable": false,
           "reference_only": false,
+          "not_analysed": false,
           "empop": false,
           "zones": false,
           "items": {
@@ -958,6 +968,18 @@
               "minLength": 1
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label"
+          ],
+          "properties": {
+            "label": {
+              "const": "beside_not_analysed"
+            }
+          }
         }
       ]
     },
@@ -1156,6 +1178,7 @@
             "long_run",
             "edge_deletion",
             "run_deletion",
+            "beside_not_analysed",
             "one_read",
             "one_strand",
             "noisy_signal",
@@ -1202,6 +1225,10 @@
               "type": "integer",
               "minimum": 0
             },
+            "beside_not_analysed": {
+              "type": "integer",
+              "minimum": 0
+            },
             "one_read": {
               "type": "integer",
               "minimum": 0
@@ -1242,7 +1269,8 @@
           "required": [
             "reportable",
             "check",
-            "reference_only"
+            "reference_only",
+            "not_analysed"
           ],
           "properties": {
             "reportable": {
@@ -1254,6 +1282,10 @@
               "minimum": 0
             },
             "reference_only": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_analysed": {
               "type": "integer",
               "minimum": 0
             }

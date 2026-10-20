@@ -46,6 +46,9 @@ pub enum CutReason {
     Unresolved,
     /// It is a position of a variant excluded from reporting.
     ExcludedVariant,
+    /// The call does not analyse it: a reportable region's end that only
+    /// reads' unreliable spans observe (SRS-CONS-012).
+    NotAnalysed,
     /// More than one record calls it.
     Overlap,
 }
@@ -57,6 +60,7 @@ impl CutReason {
         match self {
             Self::Unresolved => "unresolved",
             Self::ExcludedVariant => "excluded_variant",
+            Self::NotAnalysed => "not_analysed",
             Self::Overlap => "overlap",
         }
     }
@@ -117,9 +121,15 @@ enum State {
 }
 
 /// Builds the EMPOP query of a sample over the profile's `regions` (1-based
-/// inclusive), from its called `records` and its rendered `calls`.
+/// inclusive), from its called `records`, its rendered `calls`, and the
+/// reference intervals (0-based half-open) the call does not analyse.
 #[must_use]
-pub fn export(regions: &[[usize; 2]], records: &[Record], calls: &[Call<'_>]) -> Export {
+pub fn export(
+    regions: &[[usize; 2]],
+    records: &[Record],
+    calls: &[Call<'_>],
+    not_analysed: &[Range<usize>],
+) -> Export {
     let excluded = records
         .iter()
         .flat_map(|record| record.excluded.iter().flat_map(positions))
@@ -135,6 +145,7 @@ pub fn export(regions: &[[usize; 2]], records: &[Record], calls: &[Call<'_>]) ->
         {
             1 => State::Called,
             0 if !records.iter().any(|record| covers(&record.reference)) => State::Outside,
+            0 if covers(not_analysed) => State::Cut(CutReason::NotAnalysed),
             0 if excluded.contains(&index) => State::Cut(CutReason::ExcludedVariant),
             0 => State::Cut(CutReason::Unresolved),
             _ => State::Cut(CutReason::Overlap),
@@ -213,7 +224,7 @@ fn positions(variant: &Variant) -> Vec<usize> {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "empop",
     family: PluginFamily::PostCalling,
-    version: 1,
+    version: 2,
     provides: &[Contract::EmpopQuery],
     requires: &[Contract::Nomenclature],
     config_sections: &[],
@@ -264,7 +275,7 @@ mod tests {
             record((4, 40), &[(4, 14), (16, 40)]),
             record((100, 120), &[(100, 120)]),
         ];
-        let exported = export(&REGIONS, &records, &[]);
+        let exported = export(&REGIONS, &records, &[], &[]);
         assert_eq!(exported.ranges, [[101, 120], [11, 14], [17, 30]]);
         assert_eq!(exported.ranges_text(), "101-120 11-14 17-30");
         assert_eq!(reasons(&exported), [(15, 16, "unresolved")]);
@@ -290,7 +301,7 @@ mod tests {
                 excluded(20, "A", "AC", VariantKind::Ins),
             ],
         }];
-        let exported = export(&[[11, 30]], &records, &[]);
+        let exported = export(&[[11, 30]], &records, &[], &[]);
         assert_eq!(exported.ranges, [[11, 12], [14, 19], [22, 30]]);
         assert_eq!(
             reasons(&exported),
@@ -302,7 +313,7 @@ mod tests {
     #[test]
     fn positions_two_records_call_are_cut() {
         let records = [record((10, 20), &[(10, 20)]), record((15, 30), &[(15, 30)])];
-        let exported = export(&[[11, 30]], &records, &[]);
+        let exported = export(&[[11, 30]], &records, &[], &[]);
         assert_eq!(exported.ranges, [[11, 15], [21, 30]]);
         assert_eq!(reasons(&exported), [(16, 20, "overlap")]);
     }
@@ -327,14 +338,14 @@ mod tests {
             // An IUPAC code passes through.
             call(28, 0, "28Y"),
         ];
-        let exported = export(&[[11, 30]], &records, &calls);
+        let exported = export(&[[11, 30]], &records, &calls, &[]);
         assert_eq!(exported.mitotype_text(), "12DEL 15.1C 15.2C 20.1C 25G 28Y");
     }
 
     // SRS-NOM-018
     #[test]
     fn a_region_without_records_exports_nothing() {
-        let exported = export(&REGIONS, &[], &[call(15, 0, "15G")]);
+        let exported = export(&REGIONS, &[], &[call(15, 0, "15G")], &[]);
         assert_eq!(
             exported,
             Export {

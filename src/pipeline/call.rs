@@ -120,7 +120,11 @@ fn call(
 /// Calls every consensus sequence and derives the notation over loaded inputs,
 /// without output paths, operation logs, or publication.
 pub(super) fn complete(sample_id: &str, inputs: CallInputs) -> Result<CompletedCall> {
-    let Called { reads, notation } = call_sequences(
+    let Called {
+        reads,
+        notation,
+        not_analysed,
+    } = call_sequences(
         &inputs.reads,
         &inputs.config,
         &inputs.profile,
@@ -138,13 +142,18 @@ pub(super) fn complete(sample_id: &str, inputs: CallInputs) -> Result<CompletedC
         reads,
         notation,
         plugins,
+        not_analysed,
     })
 }
 
 /// Calls a consensus document's decided edits and derives the notation over
 /// loaded inputs, without output paths, operation logs, or publication.
 fn complete_consensus(sample_id: &str, inputs: ConsensusInputs) -> Result<CompletedCall> {
-    let Called { reads, notation } = call_consensus(
+    let Called {
+        reads,
+        notation,
+        not_analysed,
+    } = call_consensus(
         &inputs.consensus,
         &inputs.reads,
         &inputs.config,
@@ -163,6 +172,7 @@ fn complete_consensus(sample_id: &str, inputs: ConsensusInputs) -> Result<Comple
         reads,
         notation,
         plugins,
+        not_analysed,
     })
 }
 
@@ -171,6 +181,9 @@ pub(super) struct Called {
     pub(super) reads: Vec<CalledRead>,
     /// `None` when the profile declares no notation.
     pub(super) notation: Option<SampleNotation>,
+    /// Reference intervals (0-based half-open) the call does not analyse
+    /// (SRS-CONS-012); empty for sequences called without a consensus.
+    pub(super) not_analysed: Vec<std::ops::Range<usize>>,
 }
 
 /// The reference interval a record name declares, as a consensus segment's
@@ -226,7 +239,11 @@ pub(super) fn call_sequences(
 
     let _stage = tracing::info_span!("nomenclature").entered();
     let notation = represent::represent(&reads, reference, profile)?;
-    Ok(Called { reads, notation })
+    Ok(Called {
+        reads,
+        notation,
+        not_analysed: Vec::new(),
+    })
 }
 
 /// The scientific step of `call` over a consensus (PROP-0006): each segment,
@@ -274,7 +291,15 @@ pub(super) fn call_consensus(
 
     let _stage = tracing::info_span!("nomenclature").entered();
     let notation = represent::represent(&reads, reference, profile)?;
-    Ok(Called { reads, notation })
+    let not_analysed = decided::not_analysed(consensus, &profile.regions)
+        .iter()
+        .map(|stretch| stretch.first_0based..stretch.last_0based + 1)
+        .collect();
+    Ok(Called {
+        reads,
+        notation,
+        not_analysed,
+    })
 }
 
 #[cfg(test)]

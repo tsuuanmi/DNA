@@ -22,6 +22,9 @@ pub(crate) struct CompletedCall {
     pub(crate) notation: Option<SampleNotation>,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
+    /// Reference intervals (0-based half-open) the call does not analyse
+    /// (SRS-CONS-012).
+    pub(crate) not_analysed: Vec<std::ops::Range<usize>>,
 }
 
 /// Builds `dna.variants/v1` without filesystem side effects.
@@ -33,6 +36,7 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
         reads,
         notation,
         plugins,
+        not_analysed,
     } = completed;
     let first = reads.first().ok_or(ReportError::Inconsistent(
         "a call document needs at least one read",
@@ -75,6 +79,13 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
             plugins: project_plugins(plugins),
         },
         reads,
+        not_analysed: not_analysed
+            .into_iter()
+            .map(|range| IntervalResult {
+                start: range.start,
+                end: range.end,
+            })
+            .collect(),
         notation,
     })
 }

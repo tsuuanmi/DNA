@@ -327,6 +327,7 @@
                 "enum": [
                   "unresolved",
                   "excluded_variant",
+                  "not_analysed",
                   "overlap"
                 ]
               }

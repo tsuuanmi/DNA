@@ -8,7 +8,7 @@ use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::variant::VariantKind;
 use dna_kernel::model::nucleotide::reverse_complement;
-use dna_kernel::read_evidence::{CallEvidence, Placement};
+use dna_kernel::read_evidence::{CallEvidence, EvidenceReason, Placement};
 
 /// What one read contributes at one reference position or junction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -588,6 +588,70 @@ impl ReadObservations {
         }
         bases.into_iter().collect()
     }
+}
+
+/// The reference positions (0-based) reads observe only inside their
+/// modality's unreliable spans (SRS-CONS-012): a read's call there lies in
+/// such a span, and no read shows the position soundly outside its own
+/// spans, by a call aligned there that is scored, trusted, and withheld for
+/// nothing on its base. Each with the reason of the first read's span there.
+/// A deleted position lies in a span when the calls on both sides of it do.
+pub(super) fn unreliable_only(
+    reads: &[&CalledRead],
+    config: &VariantCallingConfig,
+) -> BTreeMap<usize, EvidenceReason> {
+    let mut unreliable: BTreeMap<usize, EvidenceReason> = BTreeMap::new();
+    let mut sound = BTreeSet::new();
+    for read in reads {
+        let eligibility = Eligibility::new(&read.evidence, config);
+        let calls = read.evidence.calls();
+        let spans = read.evidence.unreliable();
+        let reason = |call: usize| {
+            spans
+                .iter()
+                .find(|span| span.calls.contains(&call))
+                .map(|span| span.reason)
+        };
+        let columns = read.alignment.columns();
+        // The reason of the nearest call at or after each column.
+        let mut after = vec![None; columns.len()];
+        let mut next = None;
+        for (offset, column) in columns.iter().enumerate().rev() {
+            if let Some(call) = column.original_call_index_0based() {
+                next = Some(reason(call));
+            }
+            after[offset] = next.flatten();
+        }
+        let mut before = None;
+        for (offset, column) in columns.iter().enumerate() {
+            let here = match column.original_call_index_0based() {
+                Some(call) => {
+                    before = reason(call);
+                    before
+                }
+                None => before.and(after[offset]),
+            };
+            let Some(position) = column.reference_index_0based() else {
+                continue;
+            };
+            match (here, column.original_call_index_0based()) {
+                (Some(reason), _) => {
+                    unreliable.entry(position).or_insert(reason);
+                }
+                (None, Some(call))
+                    if eligibility.trusted(call)
+                        && calls.get(call).is_some_and(|call| {
+                            call.placement == Placement::Scored && call.identity.withheld.is_empty()
+                        }) =>
+                {
+                    sound.insert(position);
+                }
+                _ => {}
+            }
+        }
+    }
+    unreliable.retain(|position, _| !sound.contains(position));
+    unreliable
 }
 
 const fn canonical(base: char) -> bool {

@@ -1,7 +1,9 @@
 //! An adjudicated sample consensus: sequence segments and the evidence behind
 //! each decision (PROP-0003, ADR-0073).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+use dna_kernel::read_evidence::EvidenceReason;
 
 /// How the rule decided a site or stretch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,4 +150,9 @@ pub struct Consensus {
     /// observe cleanly (ADR-0080): decided as the reference, they bound no
     /// neighbour's run when the decisions are called.
     pub reference_only: BTreeSet<usize>,
+    /// Reference positions (0-based) that reads observe only inside their
+    /// unreliable spans (SRS-CONS-012): some read's call there lies in such
+    /// a span, and no read shows the position cleanly outside its own. Each
+    /// with the reason of the first such span.
+    pub unreliable_only: BTreeMap<usize, EvidenceReason>,
 }

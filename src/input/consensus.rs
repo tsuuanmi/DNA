@@ -5,6 +5,7 @@
 //! document's own provenance stays with it; the call checks the sample and
 //! the reference identity.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -47,6 +48,15 @@ struct RawDocument {
     segments: Vec<RawSegment>,
     sites: Vec<RawSite>,
     reference_only: Vec<usize>,
+    unreliable_only: Vec<RawStretch>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawStretch {
+    first: usize,
+    last: usize,
+    reason: String,
 }
 
 #[derive(Deserialize)]
@@ -241,10 +251,28 @@ fn parse(bytes: &[u8], path: &Path, sample_id: &str, reference: &Reference) -> R
                 ))
         })
         .collect::<std::result::Result<_, _>>()?;
+    let mut unreliable_only = BTreeMap::new();
+    for stretch in raw.unreliable_only {
+        let reason = dna_sanger::read_processing::reason(&stretch.reason).ok_or(
+            ConsensusDocumentError::Inconsistent(
+                "an unreliable-only stretch has an unknown reason",
+            ),
+        )?;
+        if stretch.first == 0 || stretch.last < stretch.first || stretch.last > length {
+            return Err(ConsensusDocumentError::Inconsistent(
+                "an unreliable-only stretch is outside the reference",
+            )
+            .into());
+        }
+        for position in stretch.first - 1..stretch.last {
+            unreliable_only.insert(position, reason);
+        }
+    }
     Ok(Consensus {
         segments,
         sites,
         summary: ConsensusSummary::default(),
         reference_only,
+        unreliable_only,
     })
 }

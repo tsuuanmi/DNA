@@ -18,7 +18,18 @@ pub(crate) struct ConsensusResult {
     /// Reference positions (1-based) only reference confirmations decided
     /// (ADR-0080), in order.
     pub(crate) reference_only: Vec<usize>,
+    /// Stretches of reference positions (1-based) reads observe only inside
+    /// their unreliable spans (SRS-CONS-012), with the spans' reason.
+    pub(crate) unreliable_only: Vec<StretchResult>,
     pub(crate) summary: ConsensusSummaryResult,
+}
+
+/// A stretch of reference positions (1-based, inclusive) with a reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct StretchResult {
+    pub(crate) first: usize,
+    pub(crate) last: usize,
+    pub(crate) reason: &'static str,
 }
 
 /// One admitted read, in the sample's read order.

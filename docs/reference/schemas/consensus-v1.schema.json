@@ -13,6 +13,7 @@
     "segments",
     "sites",
     "reference_only",
+    "unreliable_only",
     "summary"
   ],
   "properties": {
@@ -60,11 +61,42 @@
         "$ref": "#/$defs/site"
       }
     },
+    "unreliable_only": {
+      "description": "Stretches of reference positions (1-based, increasing) that reads observe only inside their unreliable spans and that no reference confirmation decides (SRS-CONS-012), with the spans' reason; in a call, those at a reportable region's ends are not analysed.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stretch"
+      }
+    },
     "summary": {
       "$ref": "#/$defs/summary"
     }
   },
   "$defs": {
+    "stretch": {
+      "description": "Reference positions first..last (1-based, inclusive) with a snake_case reason label.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first",
+        "last",
+        "reason"
+      ],
+      "properties": {
+        "first": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "last": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        }
+      }
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"

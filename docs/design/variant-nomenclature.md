@@ -1,5 +1,5 @@
 ---
-implements: [SRS-NOM, SRS-VAR]
+implements: [SRS-CONS, SRS-NOM, SRS-VAR]
 decided-by: [ADR-0047, ADR-0057, ADR-0060, ADR-0063, ADR-0065, ADR-0069, ADR-0077]
 covers:
   - crates/dna-empop/src/conformance.rs
@@ -232,7 +232,9 @@ decides nothing (ADR-0077 §5). EMPOP reads an omission inside a range as the
 reference, so a range covers only the positions exactly one record calls: the
 records' callable segments, which already leave out every `N` and every
 excluded variant's positions (SRS-VAR-019). A record position no range covers
-is listed as `unresolved`, `excluded_variant`, or `overlap`.
+is listed as `unresolved`, `excluded_variant`, `not_analysed` (a region end the
+call does not analyse, SRS-CONS-012, from the variants document's
+`not_analysed`), or `overlap`.
 
 The mitotype follows EMPOP's numbering, which places an insertion `X.k` at
 `X`. A range that holds `X` claims the complete list of insertions after `X`,

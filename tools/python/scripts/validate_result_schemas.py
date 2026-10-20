@@ -51,6 +51,7 @@ REVIEW_UNASSURED = frozenset(
         "long_run",
         "edge_deletion",
         "run_deletion",
+        "beside_not_analysed",
         "not_covered",
     }
 )
@@ -65,6 +66,7 @@ REVIEW_LABELS = {
     "long_run": 2,
     "edge_deletion": 2,
     "run_deletion": 2,
+    "beside_not_analysed": 2,
     "one_read": 3,
     "one_strand": 3,
     "noisy_signal": 4,
@@ -1164,6 +1166,13 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
             errors.append(
                 f"{label}: summary reference_only count disagrees with the positions"
             )
+    left_out = document.get("not_analysed", [])
+    if isinstance(left_out, list):
+        held_out = sum(stretch["last"] - stretch["first"] + 1 for stretch in left_out)
+        if positions.get("not_analysed") != held_out:
+            errors.append(
+                f"{label}: summary not_analysed count disagrees with the stretches"
+            )
     validate_zones(document, items, positions, summary, label, errors)
     validate_mixtures(document, label, errors)
 
@@ -1244,13 +1253,27 @@ def rejected_review_shapes(
     unknown_label["items"][0]["labels"].append({"label": "watched"})
     failed_without_error = copy.deepcopy(example)
     failed_without_error["status"] = "call_failed"
-    for key in ("calls", "callable", "reference_only", "empop", "zones"):
+    for key in (
+        "calls",
+        "callable",
+        "reference_only",
+        "not_analysed",
+        "empop",
+        "zones",
+    ):
         failed_without_error.pop(key)
     called_with_error = copy.deepcopy(example)
     called_with_error["error"] = "the consensus has no segment"
     rejected_with_items = copy.deepcopy(example)
     rejected_with_items["status"] = "rejected"
-    for key in ("calls", "callable", "reference_only", "empop", "zones"):
+    for key in (
+        "calls",
+        "callable",
+        "reference_only",
+        "not_analysed",
+        "empop",
+        "zones",
+    ):
         rejected_with_items.pop(key)
     unlisted_call = copy.deepcopy(example)
     for item in unlisted_call["items"]:

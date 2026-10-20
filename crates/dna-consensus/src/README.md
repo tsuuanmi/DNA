@@ -24,7 +24,8 @@ behind every non-trivial decision.
 - `observe.rs`: each read's observations per reference position and junction,
   with each base's trust level (`Trust`) and reference position, the reference
   confirmations of reference-only calls, and the second bases the confirmations
-  must not hide (ADR-0080). It reuses
+  must not hide (ADR-0080); and the positions reads observe only inside
+  their unreliable spans (SRS-CONS-012). It reuses
   `dna_call::Eligibility` for the trusted calls and for the run-end
   test of insertions and deletions (ADR-0071).
 - `decide.rs`: decision rule version 1 over clean observations.
@@ -36,7 +37,10 @@ behind every non-trivial decision.
   at the 3' end of a run of length evidence `phase_loss` or
   `reference_frame`, excluded as `run_boundary`, with that end left out of
   the callable segments; a `reference_only` position shows its base only and
-  bounds no neighbouring run (ADR-0080).
+  bounds no neighbouring run (ADR-0080); `not_analysed`, the stretches at a
+  reportable region's ends that only reads' unreliable spans observe, up to
+  the last position not settled as the reference, left out of the callable
+  segments with their changes excluded (SRS-CONS-012).
 - `lib.rs`: the entry point `build`, which handles stretches of whole
   reference runs (seeded by clean differences and by disputed runs no read
   bounds), segment assembly, and the `consensus` plugin descriptor.

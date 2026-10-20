@@ -47,15 +47,15 @@
       {
         "id": "empop",
         "family": "post_calling",
-        "version": 1
+        "version": 2
       },
       {
         "id": "review",
         "family": "post_calling",
-        "version": 19
+        "version": 20
       }
     ],
-    "rules": 19
+    "rules": 20
   },
   "reads": [
     {
@@ -214,6 +214,7 @@
   "reference_only": [
     16031
   ],
+  "not_analysed": [],
   "empop": {
     "ranges": [
       [
@@ -1404,6 +1405,7 @@
       "long_run": 0,
       "edge_deletion": 0,
       "run_deletion": 0,
+      "beside_not_analysed": 0,
       "one_read": 2,
       "one_strand": 2,
       "noisy_signal": 0,
@@ -1416,7 +1418,8 @@
     "positions": {
       "reportable": 749,
       "check": 24,
-      "reference_only": 1
+      "reference_only": 1,
+      "not_analysed": 0
     },
     "zones": {
       "total": 14,

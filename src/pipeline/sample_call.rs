@@ -32,7 +32,11 @@ impl SampleAnalysis {
             sample_id,
             &self.consensus,
         ))?;
-        let Called { reads, notation } = call::call_consensus(
+        let Called {
+            reads,
+            notation,
+            not_analysed,
+        } = call::call_consensus(
             &self.consensus,
             &sequences,
             &loaded.config,
@@ -80,7 +84,7 @@ impl SampleAnalysis {
                         text: &call.text,
                     })
                     .collect::<Vec<_>>();
-                export::export(&loaded.profile.regions, &records, &calls)
+                export::export(&loaded.profile.regions, &records, &calls, &not_analysed)
             });
         Ok(ConsensusCall {
             callable_segments: reads

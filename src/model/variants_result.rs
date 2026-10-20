@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 
-use crate::model::result::AlignmentResult;
+use crate::model::result::{AlignmentResult, IntervalResult};
 use crate::model::sample_result::{SampleNotationResult, SampleProvenanceResult};
 use dna_call::model::variant::{VariantExclusionReason, VariantKind};
 
@@ -14,6 +14,10 @@ pub(crate) struct VariantsResult {
     pub(crate) sample_id: String,
     pub(crate) provenance: SampleProvenanceResult,
     pub(crate) reads: Vec<ReadVariantsResult>,
+    /// Reference intervals (0-based half-open) the call does not analyse:
+    /// the ends of reportable regions only reads' unreliable spans observe
+    /// (SRS-CONS-012); empty unless the call is of a consensus.
+    pub(crate) not_analysed: Vec<IntervalResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) notation: Option<SampleNotationResult>,
 }
