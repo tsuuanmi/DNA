@@ -9,6 +9,17 @@ summary: "a library crate `dna-trace` re-processes the trace windows the Sanger 
 
 ## Problem
 
+The user's measure (2026-10-20) is errors that pass with no flag. On
+development panel v5's current data with the overnight stack (#175, #176),
+475 blocks are unflagged errors: 366 heteroplasmy, 73 non-het, and 36 where
+the truth reads `N`. The non-het blocks in this proposal's scope are:
+
+- 30 in the HVS-II polyC window, at 309: a wrong length passed with no check;
+- 16 at 573 (`CC/C`): the 2026-10-18 adjudication found most of them truth
+  errors, and they are on the reviewer re-check list;
+- possibly some of the 12 HVS-I `reads_show_reference` blocks around 16193,
+  not yet adjudicated.
+
 The largest block of review work left on current data is homopolymer length,
 where the trace is a superposition of molecules whose runs differ in length.
 On development panel v5 with the overnight stack (#175, #176), 2,871 of 10,695
@@ -28,8 +39,10 @@ that approach:
   strand. It raised samples with an unreviewed difference (current 440 → 442,
   older 174 → 175).
 - **Two strands decide only when the decode is clear.** The reference-free
-  two-strand decoder spike covers 1,058 hard current samples with usable
-  truth (both strands in 979):
+  two-strand decoder spike covers 1,058 hard samples with usable truth (both
+  strands in 979). "Hard" means DNA's 303–315 was wrong or undecided on
+  `main` on 2026-10-19; the easy set is 500 samples DNA got right. The spike
+  decoded only HVS-II, not 16184–16193 (HVS-I) or 568–573 (HVS-III).
   - **run 311–315:** the reverse read enters it in phase. Its decoded length
     is right in 90.8 % of hard reads, and in 99.7 % when the strands agree.
   - **run 303–309, per read:** primary calls are right in 9.8 % (HV2F) and
@@ -55,8 +68,9 @@ that approach:
 
 ## Goals
 
-The user's goal (2026-10-20) is no unflagged error in what is auto-passed,
-not the most auto-passes. The order of preference:
+The user's goal (2026-10-20): unflagged errors in auto-passed zones must
+never rise and should fall; the number of auto-passes comes second. The
+order of preference:
 
 1. auto-passed and right;
 2. not auto-passed, but flagged with what the reviewer needs;
@@ -171,8 +185,12 @@ The consensus combines the two strands' assertions per run:
 
 ### Increments
 
-Each increment is one PR, measured on development panel v5 and, once it
-exists, on the untouched ~20,000-sample test set, never used for tuning.
+Each increment is one PR, measured on development panel v5 and, once it is
+frozen, on the readiness panel: the draft `results/test-panel/test-v1-draft.tsv`,
+20,140 samples. It holds 12,731 samples from 148 batch-disjoint new batches
+(2026-09/10) and 7,409 from dev-batch remainders, reported separately.
+Every use of it is logged, and a result that drives a rule change turns it
+into development data.
 
 1. **Move.** `dna-sanger/src/decompose` moves into `dna-trace`, unchanged.
    The panel must be byte-identical. An optional debug dump of the window's
@@ -183,12 +201,24 @@ exists, on the untouched ~20,000-sample test set, never used for tuning.
    read's per-run lengths, fractions, margin, and near-equal mark go on
    `PhaseMixture`. Evidence only.
 3. **Flag.** The review shows the per-run components and strand agreement
-   for every mixture run. No decision changes yet. This is reviewer
-   information on today's checks.
+   for every mixture run. It is also the first increment that reduces
+   unflagged errors: a run that passes with no check today becomes a check
+   whenever its decode is not "clear, and both strands agree with DNA's
+   call", that is, when the strands disagree, the top two are near-equal,
+   or only one strand decodes it. Expect more checks. The gate wants
+   unflagged non-het blocks in the HVS-II polyC window to fall from 30, with
+   heteroplasmy and precision unchanged. Reported: runs newly flagged, and
+   how many of them hold a truth difference. No decision changes yet.
 4. **Decide when clear.** The consensus decides a run's length on "clear and
    both strands agree", with its own run evidence. Run 311–315, which the
-   reverse read enters in phase, comes first. Run 303–309 waits for the
-   blind re-check of its confident disagreements (results/review-recheck-2026-10-19).
+   reverse read enters in phase, comes first. Its expected gain is small and
+   must be measured: standalone 311–315 checks are about 70 of the 665
+   samples held only by the HVS-II window on current data, and most checks
+   span 303–309. Its value is mainly safety and the mechanism. Run 303–309
+   waits for the blind re-check of its confident disagreements
+   (results/review-recheck-2026-10-19). Before this increment extends to
+   16184–16193 (HVS-I) or 568–573 (HVS-III), research measures the decode
+   there.
 5. **Read start (open, pending research).** If re-processing the read-start
    noise rescues calls with no added error, the same machinery applies.
    Otherwise the read-start span gets the `poor_signal` label, a first-class
@@ -214,11 +244,15 @@ exists, on the untouched ~20,000-sample test set, never used for tuning.
 - **Primary gate.** Unflagged error blocks per zone kind (start, end, polyC
   window, after polyC, interior) and region, non-het first. They must never
   rise on any period and should fall. Samples with an unreviewed or non-het
-  difference must not rise. Clear samples are secondary.
+  difference must not rise. Clear samples are secondary. The instrument is
+  `dna-eval`'s per-zone table (#177): for each kind and region, the zones
+  that pass, and those that pass with an unflagged block, het and non-het.
 - **Decisions.** Every decided run is reported by bucket: two strands
   agreeing and clear, near-equal, one strand, disagreeing. Each bucket gets
   its count and its accuracy against truth. A bucket is decided only where
-  its accuracy holds on the held-out set too.
+  its accuracy, set on development panel v5, holds on the readiness panel
+  at a logged use. The hold-out (validation-v3) stays reserved for
+  `approve`.
 - **Flags.** Each flagged run is reported with the components shown, so the
   reviewer workload is measured, not assumed.
 - **Unit tests** on synthetic traces for every model step:
