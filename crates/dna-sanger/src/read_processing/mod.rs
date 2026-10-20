@@ -11,7 +11,6 @@ use std::time::Instant;
 
 use crate::basecalling;
 use crate::callability;
-use crate::decompose;
 use crate::error::{CallabilityError, Result};
 use crate::model::attachment::SangerRejection;
 use crate::model::basecalls::{BaseCalls, PeakSource};
@@ -24,6 +23,7 @@ use crate::quality_control;
 use crate::second_cause;
 use crate::signal_processing;
 use dna_kernel::read_evidence::PhaseMixture;
+use dna_trace::decompose::TraceCall;
 
 /// Warning counts shared by command-level operational summaries.
 pub struct ReadWarnings {
@@ -410,16 +410,7 @@ pub fn finish(
     );
 
     let second = second_cause::classify(&calls, &signal, &callability, &config.signal_processing);
-    let mixtures = decompose::mixtures(
-        &calls,
-        &signal,
-        &callability,
-        quality.trim_start_0based,
-        config.signal_processing.decompose_unexplained_quantile,
-        config.callability.minimum_callable_calls,
-        config.callability.repeat_window_calls,
-    )
-    .unwrap_or_default();
+    let mixtures = phase_mixtures(&calls, &signal, &callability, &quality, config);
     Ok(ProcessedRead {
         calls,
         signal,
@@ -447,3 +438,46 @@ pub const PLUGIN: PluginDescriptor = PluginDescriptor {
         "sanger_evidence",
     ],
 };
+
+/// The read's phase mixtures (SRS-CALL-023), decomposed by `dna-trace`
+/// (ADR-0084) from the read's calls, their normalised locus profiles, the
+/// callability mask, its dephased segments, and the trim start.
+fn phase_mixtures(
+    calls: &BaseCalls,
+    signal: &SignalAnalysis,
+    callability: &ReadCallability,
+    quality: &QualityControlResult,
+    config: &SangerConfig,
+) -> Vec<PhaseMixture> {
+    let trace = calls
+        .calls
+        .iter()
+        .enumerate()
+        .map(|(index, call)| TraceCall {
+            primary: call.primary,
+            single: call.qualifying_channels.len() == 1,
+            profile: signal
+                .loci
+                .get(index)
+                .filter(|locus| locus.call_index_0based == index)
+                .and_then(|locus| locus.profile)
+                .map(|profile| profile.weights),
+            in_phase: callability.mask.get(index).is_some_and(Option::is_none),
+        })
+        .collect::<Vec<_>>();
+    let dephased = callability
+        .segments
+        .iter()
+        .filter(|segment| segment.state == PhaseState::Dephased)
+        .map(|segment| segment.call_start_0based..segment.call_end_0based_exclusive)
+        .collect::<Vec<_>>();
+    dna_trace::decompose::mixtures(
+        &trace,
+        &dephased,
+        quality.trim_start_0based,
+        config.signal_processing.decompose_unexplained_quantile,
+        config.callability.minimum_callable_calls,
+        config.callability.repeat_window_calls,
+    )
+    .unwrap_or_default()
+}
