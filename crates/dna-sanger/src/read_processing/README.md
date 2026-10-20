@@ -27,8 +27,9 @@ modality-neutral core.
     (SNVs only);
   - the second-peak assertions (SRS-CALL-022, ADR-0080): whether each
     call's second base stands out, whether its second peak is unexplained,
-    and whether a call is `reference_only`: an isolated mixed call whose
-    peak is a neighbour's tail or a dye blob, withheld otherwise at most for
+    and whether a call is `reference_only`: a mixed call whose peak is a
+    neighbour's tail or a dye blob, between neighbours with one qualifying
+    channel or a tail or blob second peak of their own, withheld otherwise at most for
     its quality, off any signal edge but a benign one; or a single-channel
     call without an unexplained second peak, withheld only for its quality
     or at a benign signal edge (the untrimmed start, a weak mask clear of

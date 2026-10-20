@@ -13,8 +13,10 @@ second peak to a reviewer, and the evidence adapter turns it into three
 generic assertions the core may read (SRS-CALL-022, ADR-0080):
 - whether the second base stands out;
 - whether the call shows a second peak it does not explain;
-- whether a call may confirm the reference: an isolated mixed call whose
-  peak is a neighbour's tail or a dye blob, or a single-channel call withheld
+- whether a call may confirm the reference: a mixed call whose peak is a
+  neighbour's tail or a dye blob, between neighbours that show one base (one
+  qualifying channel, or a second peak of those two causes, since a blob is
+  wider than one call), or a single-channel call withheld
   only for its quality or at a benign signal edge whose second peak, if it
   stands out, is one of those two.
 

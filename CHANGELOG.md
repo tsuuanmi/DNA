@@ -602,6 +602,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
+  may confirm the reference beside a neighbour that is itself mixed, when
+  that neighbour's second peak is also a tail or a blob: a blob is wider than
+  one call (SRS-CALL-022, ADR-0080 amended, plugin `sanger` 19). Every core
+  guard of a confirmation is unchanged. On development panel v5 against the
+  previous commit the diff gate passes: unreviewed and non-het passed zones
+  unchanged, no status changes, 84 more samples clear (current 76.19 → 76.51
+  %, earlier 64.78 → 65.63 %), and positions to review 141,588 → 136,579.
 - The Sanger evidence vouches for the two calls beside a junction whose
   spacing marks a missing peak by their bases only (SRS-CALL-026, plugin
   `sanger` 18): they place no indel and show no run's end. Callability's

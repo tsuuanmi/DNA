@@ -195,6 +195,47 @@ and #172 (integration 3498c4e):
 No status of any measure changes. All 48 samples were held only by
 read-start checks at 16024-16045. Plugin `consensus` 15.
 
+### Blob-wide neighbours
+
+Amended 2026-10-20. A mixed tail or blob call confirmed the reference only
+between in-phase neighbours with one qualifying channel. The guard kept a
+call beside another mixed call from confirming, for fear of a second
+sequence. A dye blob, however, is wider than one call, so the calls beside a
+blob call are mixed too, and their own second peaks are the same blob or a
+neighbour's tail. The guard then left whole blob stretches undecided on one
+strand.
+
+A neighbour now also counts as showing one base when its own second peak is
+a neighbour's tail or a dye blob (SRS-CALL-021). It must still be in phase,
+or masked as weak before the trim interval. A neighbour whose second peak is
+`second_template`, `phase_shift`, `off_centre`, `noise`, `context`, or a
+mixed stretch still stops the call. The modality cannot ask whether the
+neighbours read the reference; every core guard of a confirmation holds
+that line unchanged. A confirmation is withdrawn beside any read's observed
+difference and beside a decided site that differs from the reference. Each
+neighbour confirms only its own position, and only where it reads the
+reference.
+
+Measured on development panel v5 with `dna-eval diff` against the previous
+commit (the edge-deletion zone and the missing-peak rule, PR stack on
+`feat/eval-diff` ae98063). GATE PASS:
+
+| Period | Clear | Unreviewed | Non-het passed zones |
+|---|---|---|---|
+| current (2026-01 and later) | 76.19 → 76.51 % (+35) | 387 → 387 | unchanged |
+| earlier | 64.78 → 65.63 % (+49) | 280 → 280 | unchanged |
+
+- **Workload.** Current `interior@HVS-I` checks fall 303 → 268, and
+  `interior@HVS-II` 219 → 206. Over all periods, `end@HVS-I` falls
+  403 → 338 and `after@HVS-III` 750 → 684. Positions to review fall
+  141,588 → 136,579.
+- **Unchanged.** No status of any measure changes, and no coverage changes.
+- **Het.** Three newly clear samples carry an unreviewed heteroplasmy in a
+  zone no check touched before either: 2538274 `146Y`, 2566906 `227R`, and
+  LN_25_AA3929 `16182M`. In LN_25_AA2476 the zone of an unreviewed `16266Y`
+  loses its check. The gate counts heteroplasmy as optional.
+- **Plugin.** `sanger` 19.
+
 ## Alternatives
 
 - **Lift the veto by cause in the modality.** This gave the largest gain and
