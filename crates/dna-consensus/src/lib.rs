@@ -99,6 +99,66 @@ pub fn build(
     consensus
 }
 
+/// One run of one read over a reference stretch, as the consensus reads it
+/// (ADR-0074): its base, its call count, and whether the read shows its
+/// length in phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadRun {
+    /// The run's base, on the reference strand.
+    pub base: char,
+    /// The read's calls of the run.
+    pub length: usize,
+    /// Every call of the run is clean and counts, and the calls just before
+    /// and after it are unmasked calls of another base that resolve the
+    /// run's ends: the `in_phase` length evidence of a run.
+    pub in_phase: bool,
+}
+
+/// Each read's runs over the 0-based reference stretch `first..=last`, by
+/// the consensus's own reading of the read (its observations, framed by the
+/// calls beside the stretch); `None` for a read that does not cover the
+/// stretch or reads an unresolved call in it. Reads come in `reads` order.
+#[must_use]
+pub fn read_runs_over(
+    reads: &[&CalledRead],
+    reference: &Reference,
+    config: &CallConfig,
+    consensus_config: &ConsensusConfig,
+    first: usize,
+    last: usize,
+) -> Vec<Option<Vec<ReadRun>>> {
+    let bases = reference.sequence.as_bytes();
+    reads
+        .iter()
+        .map(|read| {
+            let observed = observe(
+                read,
+                &config.variant_calling,
+                bases,
+                consensus_config.seeded_run,
+            );
+            let (left, chars, right) = observed.span(first, last, bases.len())?;
+            if chars.iter().any(|char| char.base == 'N') {
+                return None;
+            }
+            let runs = read_runs(&observed.name, left, &resolved(&chars), right, true);
+            Some(
+                runs.runs
+                    .iter()
+                    .map(|run| ReadRun {
+                        base: run.base,
+                        length: run.length,
+                        in_phase: run.clean
+                            && run.counted
+                            && run.left == End::InPhase
+                            && run.right == End::InPhase,
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
 /// Decides every stretch by its run structure and every other covered
 /// position by its clean observations, then leaves unplaced the length
 /// changes nothing beside them places.

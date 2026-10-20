@@ -6,8 +6,10 @@ Owns the consensus, a core step
 sequence do a sample's reads agree on, stretch by stretch? It depends on
 `dna-kernel`, `dna-align`, and `dna-call`, not on `dna-sample`.
 
-Public surface: `build`, the `consensus` plugin descriptor (it requires
-`CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
+Public surface: `build`, `read_runs_over` (each read's runs over a reference
+stretch as the consensus reads them, with whether each is in phase: the
+review's one source of in-phase run lengths, SRS-API-020), the `consensus`
+plugin descriptor (it requires `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
 plugin descriptor), and the [model](model/README.md).
 
 Output contract: [`dna.consensus/v1`](../../../docs/reference/schemas/consensus-v1.schema.json)

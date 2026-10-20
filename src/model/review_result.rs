@@ -278,6 +278,16 @@ pub(crate) enum LabelResult {
     EstimatedLength {
         runs: Vec<RunResult>,
     },
+    /// A run of an anchored repeat window whose reads' decodes do not
+    /// confirm DNA's length (SRS-API-020): a check.
+    LengthUnconfirmed {
+        runs: Vec<LengthRunResult>,
+    },
+    /// The reads' decodes of an anchored window whose run lengths the
+    /// profile does not record: context, never a check.
+    LengthNotRecorded {
+        runs: Vec<LengthRunResult>,
+    },
     Undecided,
     OneRead {
         read: String,
@@ -354,6 +364,32 @@ pub(crate) struct RunResult {
     pub(crate) base: char,
     pub(crate) length: usize,
     pub(crate) length_evidence: &'static str,
+}
+
+/// One run of an anchored repeat window: which run (1 before the anchor, 2
+/// after it, 1 alone when the anchor is lost), its base, DNA's length, how
+/// the reads' decodes agree, and each read's length.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct LengthRunResult {
+    pub(crate) run: usize,
+    pub(crate) base: char,
+    pub(crate) called: Option<usize>,
+    pub(crate) agreement: &'static str,
+    pub(crate) reads: Vec<LengthReadResult>,
+}
+
+/// One read's length of a run: decoded from its first-run marginal
+/// (`decode`), derived from its total when the run is the next it reads
+/// (`derived`), or read in phase, both ends shown (`in_phase`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct LengthReadResult {
+    pub(crate) read: String,
+    pub(crate) strand: Orientation,
+    pub(crate) length: usize,
+    pub(crate) share: f64,
+    pub(crate) next: Option<usize>,
+    pub(crate) margin: &'static str,
+    pub(crate) source: &'static str,
 }
 
 /// What one admitted read shows over an item.
@@ -435,6 +471,7 @@ pub(crate) struct LabelCounts {
     pub(crate) read_disagrees: usize,
     pub(crate) possible_heteroplasmy: usize,
     pub(crate) estimated_length: usize,
+    pub(crate) length_unconfirmed: usize,
     pub(crate) undecided: usize,
     pub(crate) not_called: usize,
     pub(crate) long_run: usize,
@@ -449,4 +486,5 @@ pub(crate) struct LabelCounts {
     pub(crate) dephased_end: usize,
     pub(crate) read_edge: usize,
     pub(crate) poor_signal: usize,
+    pub(crate) length_not_recorded: usize,
 }

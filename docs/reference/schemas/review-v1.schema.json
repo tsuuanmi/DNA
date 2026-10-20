@@ -980,6 +980,246 @@
               "const": "beside_not_analysed"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "runs"
+          ],
+          "properties": {
+            "label": {
+              "const": "length_unconfirmed"
+            },
+            "runs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "run",
+                  "base",
+                  "called",
+                  "agreement",
+                  "reads"
+                ],
+                "properties": {
+                  "run": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2
+                  },
+                  "base": {
+                    "enum": [
+                      "A",
+                      "C",
+                      "G",
+                      "T"
+                    ]
+                  },
+                  "called": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "agreement": {
+                    "enum": [
+                      "confirmed",
+                      "differs_from_call",
+                      "undecided_call",
+                      "one_strand",
+                      "not_clear",
+                      "disagree",
+                      "structure_differs"
+                    ]
+                  },
+                  "reads": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "read",
+                        "strand",
+                        "length",
+                        "share",
+                        "next",
+                        "margin",
+                        "source"
+                      ],
+                      "properties": {
+                        "read": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "strand": {
+                          "enum": [
+                            "forward",
+                            "reverse"
+                          ]
+                        },
+                        "length": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "share": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "next": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1
+                        },
+                        "margin": {
+                          "enum": [
+                            "clear",
+                            "near_equal",
+                            "undefined"
+                          ]
+                        },
+                        "source": {
+                          "enum": [
+                            "decode",
+                            "derived",
+                            "in_phase"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "runs"
+          ],
+          "properties": {
+            "label": {
+              "const": "length_not_recorded"
+            },
+            "runs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "run",
+                  "base",
+                  "called",
+                  "agreement",
+                  "reads"
+                ],
+                "properties": {
+                  "run": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2
+                  },
+                  "base": {
+                    "enum": [
+                      "A",
+                      "C",
+                      "G",
+                      "T"
+                    ]
+                  },
+                  "called": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "agreement": {
+                    "enum": [
+                      "confirmed",
+                      "differs_from_call",
+                      "undecided_call",
+                      "one_strand",
+                      "not_clear",
+                      "disagree",
+                      "structure_differs"
+                    ]
+                  },
+                  "reads": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "read",
+                        "strand",
+                        "length",
+                        "share",
+                        "next",
+                        "margin",
+                        "source"
+                      ],
+                      "properties": {
+                        "read": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "strand": {
+                          "enum": [
+                            "forward",
+                            "reverse"
+                          ]
+                        },
+                        "length": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "share": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "next": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 1
+                        },
+                        "margin": {
+                          "enum": [
+                            "clear",
+                            "near_equal",
+                            "undefined"
+                          ]
+                        },
+                        "source": {
+                          "enum": [
+                            "decode",
+                            "derived",
+                            "in_phase"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1173,6 +1413,7 @@
             "read_disagrees",
             "possible_heteroplasmy",
             "estimated_length",
+            "length_unconfirmed",
             "undecided",
             "not_called",
             "long_run",
@@ -1186,7 +1427,8 @@
             "phase_shift",
             "dephased_end",
             "read_edge",
-            "poor_signal"
+            "poor_signal",
+            "length_not_recorded"
           ],
           "properties": {
             "strands_disagree": {
@@ -1202,6 +1444,10 @@
               "minimum": 0
             },
             "estimated_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "length_unconfirmed": {
               "type": "integer",
               "minimum": 0
             },
@@ -1258,6 +1504,10 @@
               "minimum": 0
             },
             "poor_signal": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "length_not_recorded": {
               "type": "integer",
               "minimum": 0
             }
