@@ -178,6 +178,7 @@ struct RawTract {
     autocorrelation: f64,
     first: RawMarginal,
     total: RawMarginal,
+    downstream: String,
     cleaned: Option<RawCleaned>,
 }
 
@@ -1110,6 +1111,7 @@ fn tract(raw: &RawTract) -> TractLengths {
         autocorrelation: raw.autocorrelation,
         first: marginal(&raw.first),
         total: marginal(&raw.total),
+        downstream: raw.downstream.clone(),
         cleaned: raw.cleaned.as_ref().map(|cleaned| CleanedLengths {
             leakage: cleaned.leakage.as_ref().map(|shares| {
                 shares

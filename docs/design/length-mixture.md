@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0074, ADR-0082, ADR-0084]
+decided-by: [ADR-0074, ADR-0080, ADR-0082, ADR-0084]
 ---
 
 # Length mixtures
@@ -230,6 +230,21 @@ removed: in each of those samples run 2 stays one-strand.
 The flagged phase-lost run 1s are mostly a real C8/C9 mix: for 61 of 69,
 both strands put `p` near 0.5. The rule refuses them, as it should. Run 2 is
 almost always read in phase, and an `in_phase` length is never replaced.
+
+## Downstream confirmations
+
+The decode's shared downstream sequence `D` is identifiable whatever the
+length mixture: every molecule reads it, shifted by its length. Where `D`
+reads the reference after a tract, the read confirms the reference there,
+although its own calls are masked (SRS-CONS-010, [[ADR-0080]] "Decoded
+downstream confirmations"). The decode publishes `D` as far as it determines
+it: the window less the shortest length the dynamic programme decodes
+jointly (SRS-CALL-025). The tract's end comes from the reference's run
+structure and is anchored by `D` itself, since a dephased call's alignment
+is unreliable there. The read's own call must be the mixture `D` predicts,
+and another read's in-phase, unexplained second peak withdraws the
+confirmation. Most of the remaining after-zone positions are lost to such
+peaks on reads dephased by an upstream length mixture.
 
 ## Evaluation
 

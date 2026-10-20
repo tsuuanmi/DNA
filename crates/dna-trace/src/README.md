@@ -27,7 +27,8 @@ constants), and the modality's plugin version covers its output.
   as a mixture of molecules sharing one downstream sequence, by NNLS (`dna_kernel::nnls`) and an
   exact dynamic programme from a start per candidate length. Only the first
   run's and the total's marginals are identifiable, so only they are
-  reported, with standard errors and autocorrelation-deflated margins.
+  reported, with standard errors and autocorrelation-deflated margins. The shared downstream sequence is reported as far as
+  the decode determines it (`TractDecode::decoded`).
   `signature`, `leakage`, and `refit` clean the minor shares with the read's
   own base signatures and neighbour leakage. Its constants come from the
   modality (`TractParams`, `LeakageParams`, `LocateParams`); the iteration

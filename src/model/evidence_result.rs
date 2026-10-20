@@ -115,6 +115,8 @@ pub(crate) struct TractEvidenceResult {
     pub(crate) autocorrelation: f64,
     pub(crate) first: LengthMarginalResult,
     pub(crate) total: LengthMarginalResult,
+    /// The decoded downstream sequence, read strand, read order.
+    pub(crate) downstream: String,
     pub(crate) cleaned: Option<CleanedLengthsResult>,
 }
 

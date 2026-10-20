@@ -602,6 +602,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A read's decoded downstream sequence after a homopolymer tract confirms
+  the reference where its own calls are masked (SRS-CONS-010, ADR-0080
+  amended, ADR-0084 amended, PROP-0012). The tract's end comes from the
+  reference's run structure, anchored by the decode; the decode must read
+  the reference over `consensus.downstream_flank` positions on each side,
+  outside repeats; the read's own call must be the decoded mixture
+  (`consensus.downstream_second_z`); and another read's in-phase,
+  unexplained second peak withdraws it. `dna.read_evidence/v1` tracts gain
+  `downstream` (in place, pre-release); configuration schema 22 adds
+  `downstream_flank`, `downstream_repeat_copies`, and `downstream_second_z`.
+  Plugins `sanger` 20 and `consensus` 19. On development panel v5 against
+  increment 4 the diff gate passes with `unreviewed.tsv` unchanged: clear
+  +11 (current 7,646 → 7,651), checked positions 100,222 → 98,902, zones
+  `after@HVS-II` 432 → 412 and `end@HVS-II` 93 → 71.
 - The consensus decides a run it would leave as an estimate
   (`anchored_end`, `phase_loss`, or `reference_frame`) when the reads' tract
   decodes on both strands put one length on top beyond the strands' spread

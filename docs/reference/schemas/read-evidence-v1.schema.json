@@ -501,6 +501,7 @@
         "autocorrelation",
         "first",
         "total",
+        "downstream",
         "cleaned"
       ],
       "properties": {
@@ -586,6 +587,11 @@
         "total": {
           "description": "The total length marginal: run, mark, and run.",
           "$ref": "#/$defs/length_marginal"
+        },
+        "downstream": {
+          "description": "The decoded downstream sequence D on the read strand, in read order: the bases every molecule shares after the tract, as far as the decode determines them (the window less the shortest length it decodes jointly). D[m] is the base m calls after the tract's end. The core reads it only as a source of reference confirmations (SRS-CONS-010).",
+          "type": "string",
+          "pattern": "^[ACGT]*$"
         },
         "cleaned": {
           "description": "The chosen structure refitted with the read's own base signatures and leakage over the signature decode's downstream sequence; null when the refit does not fit.",

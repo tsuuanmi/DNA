@@ -31,6 +31,11 @@ behind every non-trivial decision.
   their unreliable spans (SRS-CONS-012). It reuses
   `dna_call::Eligibility` for the trusted calls and for the run-end
   test of insertions and deletions (ADR-0071).
+- `downstream.rs`: reference confirmations from a read's decoded
+  downstream sequences (SRS-CONS-010): the tract's end from the reference's
+  run structure, anchored by the decode; the flank, span, repeat, and
+  own-call tests; and the positions another read's decode or in-phase
+  unexplained second peak excludes.
 - `decide.rs`: decision rule version 1 over clean observations.
 - `decided.rs`: the consensus's decided edits as called records
   (SRS-VAR-021, ADR-0078, plugin `decided`): each segment's columns from its

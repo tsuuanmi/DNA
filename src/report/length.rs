@@ -419,6 +419,7 @@ mod tests {
             autocorrelation: 0.0,
             first: marginal(&[first], first, margin),
             total: marginal(&[total], total, Margin::Clear),
+            downstream: String::new(),
             cleaned: None,
         }
     }

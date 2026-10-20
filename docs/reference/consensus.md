@@ -79,7 +79,9 @@ The method is described in [[design/consensus|design]].
       strands' spread and replicate noise (SRS-CONS-013). It is observed,
       not an estimate.
 - **`reference_only`:** reference positions (1-based, increasing) that only
-  reference confirmations decided (ADR-0080). They read the reference, and
+  reference confirmations decided (ADR-0080): reference-only calls, or a
+  read's decoded downstream sequence after a homopolymer tract
+  (SRS-CONS-010). They read the reference, and
   when the decisions are called (`dna call` of this document) they bound no
   neighbouring run.
 - **`unreliable_only`:** stretches `{first, last, reason}` of reference

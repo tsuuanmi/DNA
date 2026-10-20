@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 21
+schema_version = 22
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -214,6 +214,20 @@ dissent_edge = 40
 length_confidence = 2.326
 length_noise_forward = [0.065, 0.111]
 length_noise_reverse = [0.111, 0.128]
+# A read's decoded downstream sequence (the bases after a homopolymer tract,
+# from its tract decode) confirms the reference at a position only when the
+# `downstream_flank` bases on each side read the reference too, and not in
+# or beside a homopolymer of at least `seeded_run` bases or a period-2 or
+# period-3 repeat of at least `downstream_repeat_copies` copies
+# (SRS-CONS-010). A flank of 2 let coincidental matches through at distance
+# 1-2; the AC repeat at 515-524 needed the repeat rule.
+downstream_flank = 3
+downstream_repeat_copies = 3
+# The read's own call at the position must be the decoded mixture: its
+# second peak's share of its top two within `downstream_second_z` residual
+# sigmas of the read's own tract decode of the share the mixture puts there,
+# and without a second peak its base the decoded one (SRS-CONS-010).
+downstream_second_z = 2.0
 
 [review]
 # A decided run longer than its reference run by at least `run_growth` bases

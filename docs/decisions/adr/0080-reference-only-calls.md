@@ -15,7 +15,7 @@ related: [ADR-0027, ADR-0069, ADR-0071, ADR-0074, ADR-0078]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/consensus](../../design/consensus.md), [design/second-peak-cause](../../design/second-peak-cause.md), [reference/consensus](../../reference/consensus.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [requirements/consensus](../../requirements/consensus.md)
+- **Governs:** [design/consensus](../../design/consensus.md), [design/length-mixture](../../design/length-mixture.md), [design/second-peak-cause](../../design/second-peak-cause.md), [reference/consensus](../../reference/consensus.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/api](../../requirements/api.md), [requirements/callability](../../requirements/callability.md), [requirements/consensus](../../requirements/consensus.md)
 <!-- docs:end backlinks -->
 
 ## Context
@@ -235,6 +235,63 @@ commit (the edge-deletion zone and the missing-peak rule, PR stack on
   LN_25_AA3929 `16182M`. In LN_25_AA2476 the zone of an unreviewed `16266Y`
   loses its check. The gate counts heteroplasmy as optional.
 - **Plugin.** `sanger` 19.
+
+### Decoded downstream confirmations
+
+Amended 2026-10-21 ([[PROP-0012]]). After a homopolymer tract a read is a
+mixture of molecules whose runs differ in length but share one downstream
+sequence `D`, which the modality decodes from the read's own signal
+(SRS-CALL-025). Its calls there are masked: dephased, they show no base of
+their own. Where `D` reads the reference, the read confirms the reference
+at the position, a confirmation like any other: every guard of this
+decision applies, and it has no run role (SRS-CONS-010). Three rules make
+the decode a sound witness:
+
+- **Placement.** The tract's end comes from the reference's own run
+  structure, and `D` must read the reference over its first flank right
+  after it, so a dephased call's alignment never places it. `D` confirms a
+  position only with the reference over `consensus.downstream_flank`
+  positions on each side, inside its decoded span, before the read's last
+  call, and outside every homopolymer and short tandem repeat but its own
+  tract. A flank of 2 let coincidental matches through at distance 1-2; the
+  AC repeat at 515-524 needed the repeat rule (research e15/e19).
+- **The own call.** The confirming read's masked call must be the decoded
+  mixture: its second base's share of its top two within
+  `consensus.downstream_second_z` (2.0) residual sigmas of the share the
+  mixture puts there, whichever base a near-equal mixture puts first. A
+  call the mixture does not explain may show a second sequence: the rule
+  refused the three heteroplasmies an earlier probe let through (`279Y`,
+  `16153R` on the confirming read).
+- **Other reads.** A confirming read cannot show a second sequence at its
+  own masked call, so on either strand another read's in-phase second peak
+  its modality leaves unexplained withdraws a decoded confirmation, unless
+  that read's own decode confirms the position (`182Y`). A masked call's
+  second peak is its own dephasing and withdraws nothing; the same holds in
+  the guard against hidden second sequences.
+
+Measured on development panel v5 with `dna-eval diff` against increment 4
+(PR #195, 1e39677). GATE PASS: `unreviewed.tsv` is byte-identical, no
+heteroplasmy or truth `N` moves, no coverage change.
+
+| Period | Clear | Checked positions |
+|---|---|---|
+| current (2026-01 and later) | 7,646 → 7,651 | 50,830 → 49,960 |
+| 2025-08 to 2025-12 | 1,936 → 1,940 | 21,528 → 21,269 |
+| before 2025-08 | 1,608 → 1,610 | 27,864 → 27,673 |
+
+- **Workload.** Zones needing a check, all periods: `after@HVS-II`
+  432 → 412, `end@HVS-II` 93 → 71, `start@HVS-I` 497 → 487, `after@HVS-I`
+  578 → 571, `after@HVS-III` 684 → 677.
+- **Items.** A confirmed position inside an undecided stretch splits its
+  item, so current check items rise 8,267 → 8,463 while their positions
+  fall.
+- **One call.** 2514527 (2025) now calls `315.1C`, which the truth does not
+  hold; its window zone stays a check.
+- **Cap.** Most remaining after-zone positions are lost to other reads'
+  in-phase calls with unexplained seconds of 22-48 %, dephasing from an
+  upstream length mixture that callability does not mark. A modality fix
+  there would raise the gain.
+- **Plugins.** `sanger` 20 (`TractLengths::downstream`), `consensus` 19.
 
 ## Alternatives
 

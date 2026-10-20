@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CALL]
+implements: [SRS-API, SRS-CALL, SRS-CONS]
 decided-by: [ADR-0069, ADR-0076, ADR-0080, ADR-0082, ADR-0084]
 ---
 
@@ -56,7 +56,8 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
     (SRS-CALL-024). The calls keep their verdicts.
   - `tracts`: the homopolymer tracts the modality decodes from the read's own
     signal (SRS-CALL-025, [[PROP-0012]]), one per distinct first call, in
-    onset order. Evidence only: the core reads none of it. Each tract has:
+    onset order. The core reads only `downstream`, as reference
+    confirmations (SRS-CONS-010). Each tract has:
     - `onset`, the call where the read leaves phase;
     - `calls`, the calls the decode fits from the tract's first call;
     - `extent`, the calls that read the run or the mark;
@@ -72,6 +73,9 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
       shows), and the `margin`: `clear` (a single length, or a margin at
       least `trace.near_equal_z`), `near_equal` (below it), or `undefined`
       (two lengths without a finite margin, never clear);
+    - `downstream`, the decoded downstream sequence on the read strand, in
+      read order, as far as the decode determines it (the window less the
+      shortest length it decodes jointly);
     - `cleaned`, the chosen structure refitted with the read's own base
       signatures and neighbour `leakage`, with its `residual` and `first`
       marginal; null when the refit does not fit.
