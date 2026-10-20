@@ -388,6 +388,7 @@ name = "dna-trace"
 version = "0.1.0"
 dependencies = [
  "dna-kernel",
+ "serde_json",
  "tracing",
 ]
 

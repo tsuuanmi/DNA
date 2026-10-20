@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL]
-decided-by: [ADR-0069, ADR-0076, ADR-0080, ADR-0082]
+decided-by: [ADR-0069, ADR-0076, ADR-0080, ADR-0082, ADR-0084]
 ---
 
 # DNA Read Evidence Output
@@ -54,6 +54,29 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
     asserts are not to stand unchecked, each with its `reason`:
     `poor_start_signal`, the read's start before its first run of sound calls
     (SRS-CALL-024). The calls keep their verdicts.
+  - `tracts`: the homopolymer tracts the modality decodes from the read's own
+    signal (SRS-CALL-025, [[PROP-0012]]), one per distinct first call, in
+    onset order. Evidence only: the core reads none of it. Each tract has:
+    - `onset`, the call where the read leaves phase;
+    - `calls`, the calls the decode fits from the tract's first call;
+    - `extent`, the calls that read the run or the mark;
+    - `run` and `mark`, the run base and the chosen mark on the read strand,
+      with `mark` null for a single run;
+    - `candidates`, every structure fitted with its `residual`: the single
+      run first, then each other base in A, C, G, T order;
+    - `residual`, `sigma`, and `autocorrelation` of the chosen fit;
+    - `first` and `total`, the first run's and the total's length marginals,
+      the only identifiable ones. Each lists `lengths` with their `shares` of
+      the signal and standard `errors`, the `dominant` and `next` lengths, the
+      margin between them `z` and `z_adjusted` (null when a single length
+      shows), and the `margin`: `clear` (a single length, or a margin at
+      least `trace.near_equal_z`), `near_equal` (below it), or `undefined`
+      (two lengths without a finite margin, never clear);
+    - `cleaned`, the chosen structure refitted with the read's own base
+      signatures and neighbour `leakage`, with its `residual` and `first`
+      marginal; null when the refit does not fit.
+
+    Shares are signal shares, never heteroplasmy levels.
 - `signal_quality` and `warnings`: the trace integrity, merged noisy regions,
   and the modality's warning counts, as in `dna.basecalls/v3`.
 - `calls`, one per call in call order. First the kernel contract the core reads:
@@ -140,8 +163,8 @@ The reader:
   loaded configuration's minimum, a count below it, and callable and masked
   calls that add up to the read's calls;
 - rebuilds the kernel's `ReadEvidence` through its own constructors (reason
-  order, informative interval, ends, mixtures), so every kernel invariant is
-  checked again.
+  order, informative interval, ends, mixtures, unreliable spans, tracts), so
+  every kernel invariant is checked again.
 
 Numbers are parsed correctly rounded, so every value written is read back
 bit for bit. Each failure is a typed `invalid read evidence` error and writes

@@ -10,7 +10,9 @@ Output contract: none; the kernel runs no step. The facade serializes its
 
 - [error](error/README.md) — the one typed error of every stage, re-exported as `dna::error`.
 - `read_evidence.rs` — the modality → core per-read evidence contract, with a
-  modality's phase mixtures (`PhaseMixture`, ADR-0082).
+  modality's phase mixtures (`PhaseMixture`, ADR-0082), unreliable spans
+  (`UnreliableSpan`, SRS-CALL-024), and tract decodes (`TractLengths`,
+  SRS-CALL-025), each validated as the modality attaches it.
 - `variant.rs` — public called-variant contracts, re-exported as `dna::variant`.
 - `plugin.rs` — plugin descriptor types and their compile-time validation.
 - [profile](profile/README.md) — target profiles.

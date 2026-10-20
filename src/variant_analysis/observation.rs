@@ -62,6 +62,7 @@ pub(crate) fn observe(
         quality,
         second,
         mixtures,
+        tracts,
         warnings: read_warnings,
     } = processed;
 
@@ -73,6 +74,7 @@ pub(crate) fn observe(
         &quality,
         &second,
         &mixtures,
+        &tracts,
         &config.sanger.sanger_evidence,
     )?;
     record_evidence(&evidence, config);

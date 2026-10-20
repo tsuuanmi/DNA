@@ -1469,6 +1469,8 @@ def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
             errors.append(
                 f"{label}: mixture {index} lists an unexplained call outside it"
             )
+    for index, tract in enumerate(read.get("tracts", [])):
+        validate_tract(tract, len(calls), f"{label}: tract {index}", errors)
     listed = set(read.get("reasons", []))
     for call in calls:
         held = set(call.get("identity", {}).get("withheld", [])) | set(
@@ -1478,6 +1480,60 @@ def validate_evidence(document: Any, label: str, errors: list[str]) -> None:
             errors.append(
                 f"{label}: call {call.get('index')} holds a reason read.reasons does not list"
             )
+
+
+def validate_marginal(
+    marginal: dict[str, Any], longest: int, label: str, errors: list[str]
+) -> None:
+    """Check a tract marginal as the kernel does (SRS-CALL-025)."""
+    lengths = marginal.get("lengths", [])
+    shares = marginal.get("shares", [])
+    if lengths != sorted(set(lengths)) or (lengths and lengths[-1] > longest):
+        errors.append(f"{label}: lengths are not ascending within the candidates")
+    if len(shares) != len(lengths) or len(marginal.get("errors", [])) != len(lengths):
+        errors.append(f"{label}: shares or errors do not match the lengths")
+    if abs(sum(shares) - 1.0) > 1e-6:
+        errors.append(f"{label}: shares do not sum to one")
+    dominant, following = marginal.get("dominant"), marginal.get("next")
+    if dominant not in lengths or (
+        following is not None and (following not in lengths or following == dominant)
+    ):
+        errors.append(f"{label}: dominant or next length is not among the lengths")
+    undefined = following is not None and marginal.get("z_adjusted") is None
+    if (marginal.get("margin") == "undefined") != undefined:
+        errors.append(f"{label}: margin is undefined unless two lengths lack one")
+
+
+def validate_tract(
+    tract: dict[str, Any], count: int, label: str, errors: list[str]
+) -> None:
+    """Check a tract decode as the kernel does (SRS-CALL-025)."""
+    span = tract.get("calls", {})
+    start, end = span.get("start", 0), span.get("end", 0)
+    if not start < tract.get("onset", 0) < count or end > count:
+        errors.append(f"{label}: does not fit the calls")
+    if end - start < tract.get("extent", 0):
+        errors.append(f"{label}: fits fewer calls than its extent")
+    candidates = tract.get("candidates", [])
+    marks = [candidate.get("mark") for candidate in candidates]
+    order = [None] + [base for base in "ACGT" if base != tract.get("run")]
+    if marks != [mark for mark in order if mark in marks] or marks[:1] != [None]:
+        errors.append(f"{label}: candidates are not in evaluation order")
+    chosen = [c for c in candidates if c.get("mark") == tract.get("mark")]
+    if not chosen or chosen[0].get("residual") != tract.get("residual"):
+        errors.append(f"{label}: the chosen structure is not a candidate")
+    elif any(c.get("residual", 0) < tract.get("residual", 0) for c in candidates):
+        errors.append(f"{label}: a candidate fits better than the chosen one")
+    total = tract.get("total", {})
+    lengths = total.get("lengths", [])
+    if lengths != list(range(lengths[0], lengths[0] + len(lengths)) if lengths else []):
+        errors.append(f"{label}: total lengths are not consecutive")
+    longest = lengths[-1] if lengths else 0
+    validate_marginal(total, longest, f"{label} total", errors)
+    validate_marginal(tract.get("first", {}), longest, f"{label} first", errors)
+    cleaned = tract.get("cleaned")
+    if cleaned is not None:
+        validate_marginal(cleaned.get("first", {}), longest, f"{label} cleaned", errors)
 
 
 def rejected_evidence_shapes(
@@ -1541,6 +1597,29 @@ def rejected_evidence_shapes(
         ("too-short evidence with callability", short_with_callability),
         ("rejected evidence without its integrity", callable_without_integrity),
         ("evidence rejected by the core", placement_rejection),
+    ]
+
+
+def inconsistent_tract_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    """Read evidence whose tract the schema admits but the kernel refuses."""
+    past_calls = copy.deepcopy(example)
+    past_calls["read"]["tracts"][0]["calls"]["end"] = 99
+    unordered = copy.deepcopy(example)
+    unordered["read"]["tracts"][0]["candidates"].reverse()
+    shares = copy.deepcopy(example)
+    shares["read"]["tracts"][0]["first"]["shares"][0] = 0.5
+    gap = copy.deepcopy(example)
+    gap["read"]["tracts"][0]["total"]["lengths"] = [1, 2, 4]
+    clear_without_margin = copy.deepcopy(example)
+    clear_without_margin["read"]["tracts"][0]["first"]["z_adjusted"] = None
+    return [
+        ("evidence tract past the calls", past_calls),
+        ("evidence tract candidates out of order", unordered),
+        ("evidence tract shares not summing to one", shares),
+        ("evidence tract total lengths with a gap", gap),
+        ("evidence tract clear without a margin", clear_without_margin),
     ]
 
 
@@ -2189,6 +2268,11 @@ def main(argv: list[str] | None = None) -> int:
     evidence_example = load_json(EVIDENCE_EXAMPLE)
     rejected_evidence = rejected_evidence_shapes(evidence_example)
     assert_rejected(evidence_validator, rejected_evidence, errors)
+    for label, document in inconsistent_tract_shapes(evidence_example):
+        tract_errors: list[str] = []
+        validate_evidence(document, label, tract_errors)
+        if not tract_errors:
+            errors.append(f"expected {label} to be rejected, but it validated")
     check_eval_tables(load_json(EVAL_RUN_SCHEMA), errors)
     eval_run_example = load_json(EVAL_RUN_EXAMPLE)
     rejected_eval_runs = rejected_eval_run_shapes(eval_run_example)

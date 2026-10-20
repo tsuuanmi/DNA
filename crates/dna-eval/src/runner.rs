@@ -33,6 +33,7 @@ use crate::error::{Error, Result};
 use crate::evidence::{self, Evidence};
 use crate::lod;
 use crate::manifest::Sample;
+use crate::tracts;
 
 /// Largest accepted thread count.
 pub(crate) const MAX_THREADS: usize = 256;
@@ -64,6 +65,8 @@ pub(crate) struct Called {
     pub(crate) check_labels: Vec<(i64, i64, String)>,
     /// Every read's phase-mixture components (ADR-0082).
     pub(crate) components: Vec<components::Row>,
+    /// Every read's tract decodes (PROP-0012).
+    pub(crate) tracts: Vec<tracts::Row>,
 }
 
 /// A sample's EMPOP query (PROP-0007), and the consensus decisions its
@@ -401,6 +404,7 @@ fn call(
         checks,
         check_labels,
         components: components::rows(analysis),
+        tracts: tracts::rows(analysis),
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -615,6 +619,7 @@ mod tests {
                     checks: Vec::new(),
                     check_labels: Vec::new(),
                     components: Vec::new(),
+                    tracts: Vec::new(),
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

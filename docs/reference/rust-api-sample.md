@@ -74,6 +74,7 @@ impl SampleAnalysis {
     ) -> dna::error::Result<Vec<LocusObservations>>;
     pub fn trust(&self, input_sha256: &str) -> Option<Vec<CallTrust>>;
     pub fn components(&self) -> Vec<ReadMixtures>;
+    pub fn tracts(&self) -> Vec<ReadTracts>;
 }
 
 #[non_exhaustive]
@@ -82,6 +83,18 @@ pub struct ReadMixtures {
     pub sha256: String,
     pub forward: bool,
     pub mixtures: Vec<MixtureCalls>,
+}
+
+pub struct ReadTracts {
+    pub read: String,
+    pub sha256: String,
+    pub forward: bool,
+    pub tracts: Vec<PlacedTract>,
+}
+
+pub struct PlacedTract {
+    pub reference: Option<usize>,
+    pub tract: TractLengths,
 }
 
 #[non_exhaustive]
@@ -147,6 +160,11 @@ impl RejectionCause {
   last across the origin), its bases there, and its observed variants
   (SRS-VAR-022). It is computed on demand, changes nothing, and is evidence
   for evaluation and review, not a calling contract.
+- `tracts()` returns, per admitted read in placement order, its tract
+  decodes (`TractLengths` and `LengthMarginal`, `dna_kernel::read_evidence`,
+  re-exported here; SRS-CALL-025), each with the reference position (1-based)
+  its first call is aligned to, or `None`. It is computed on demand, changes
+  nothing, and is evidence for evaluation, not a calling contract.
 - `rejected` holds each rejected read's name, identity, and cause: fewer
   calls than one signal window, too few callable calls, or a placement the
   core rejected. The last two carry the read's integrity and callability

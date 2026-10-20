@@ -73,6 +73,7 @@ fn evidence(trace: &Path, config_path: &Path, log: &OperationLog, started: Insta
                 &processed.quality,
                 &processed.second,
                 &processed.mixtures,
+                &processed.tracts,
                 &inputs.config.sanger.sanger_evidence,
             )?;
             drop(stage);

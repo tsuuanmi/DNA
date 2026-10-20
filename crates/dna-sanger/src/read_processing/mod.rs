@@ -22,7 +22,7 @@ use crate::model::signal::{ShortRead, SignalAnalysis};
 use crate::quality_control;
 use crate::second_cause;
 use crate::signal_processing;
-use dna_kernel::read_evidence::PhaseMixture;
+use dna_kernel::read_evidence::{PhaseMixture, TractLengths};
 use dna_trace::decompose::TraceCall;
 
 /// Warning counts shared by command-level operational summaries.
@@ -53,6 +53,8 @@ pub struct ProcessedRead {
     pub second: Vec<Option<SecondPeak>>,
     /// The read's phase mixtures after repeat runs (SRS-CALL-023).
     pub mixtures: Vec<PhaseMixture>,
+    /// The read's tracts and their length decodes (PROP-0012 increment 2).
+    pub tracts: Vec<TractLengths>,
     /// Warning counts for operational summaries.
     pub warnings: ReadWarnings,
 }
@@ -411,6 +413,7 @@ pub fn finish(
 
     let second = second_cause::classify(&calls, &signal, &callability, &config.signal_processing);
     let mixtures = phase_mixtures(&calls, &signal, &callability, &quality, config);
+    let tracts = crate::tract::tracts(trace, &calls, &callability, &config.trace);
     Ok(ProcessedRead {
         calls,
         signal,
@@ -418,6 +421,7 @@ pub fn finish(
         quality,
         second,
         mixtures,
+        tracts,
         warnings,
     })
 }
@@ -427,7 +431,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 16,
+    version: 17,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[
@@ -436,6 +440,7 @@ pub const PLUGIN: PluginDescriptor = PluginDescriptor {
         "callability",
         "quality_control",
         "sanger_evidence",
+        "trace",
     ],
 };
 

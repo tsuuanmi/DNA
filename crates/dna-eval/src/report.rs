@@ -2182,6 +2182,7 @@ mod tests {
             };
             Ok(Called {
                 components: Vec::new(),
+                tracts: Vec::new(),
                 rejected: index % 2,
                 alleles,
                 not_recorded: BTreeSet::new(),

@@ -3,7 +3,7 @@ id: ADR-0084
 status: proposed
 date: 2026-10-20
 family: [callability]
-related: [ADR-0069, ADR-0070, ADR-0079, ADR-0082, PROP-0012]
+related: [ADR-0069, ADR-0070, ADR-0079, ADR-0082, ADR-0083, PROP-0012]
 ---
 
 # ADR-0084: Trace signal engineering is a library crate the modality calls
@@ -11,11 +11,11 @@ related: [ADR-0069, ADR-0070, ADR-0079, ADR-0082, PROP-0012]
 <!-- docs:begin lifecycle -->
 - **Status:** Proposed
 - **Date:** 2026-10-20
-- **Related:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0070](0070-workspace-split-by-plugin-family.md), [ADR-0079](0079-core-crates-by-step.md), [ADR-0082](0082-phase-mixtures.md), [PROP-0012](../../proposals/0012-trace-crate.md)
+- **Related:** [ADR-0069](0069-plugin-first-modality-core-post-calling.md), [ADR-0070](0070-workspace-split-by-plugin-family.md), [ADR-0079](0079-core-crates-by-step.md), [ADR-0082](0082-phase-mixtures.md), [ADR-0083](0083-set-aside-dissent.md), [PROP-0012](../../proposals/0012-trace-crate.md)
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/length-mixture](../../design/length-mixture.md), [engineering/ci-cd](../../engineering/ci-cd.md)
+- **Governs:** [design/length-mixture](../../design/length-mixture.md), [engineering/ci-cd](../../engineering/ci-cd.md), [reference/configuration](../../reference/configuration.md), [reference/read-evidence](../../reference/read-evidence.md), [requirements/callability](../../requirements/callability.md)
 <!-- docs:end backlinks -->
 
 ## Context
@@ -57,6 +57,27 @@ place in that graph.
   clear and both strands agree. Otherwise the review flags it with the
   components ([[PROP-0012]]).
 
+### Two length assertions, for now
+
+Increment 2 adds a second assertion over related windows rather than
+extending `PhaseMixture`:
+
+- `PhaseMixture` ([[ADR-0082]]) is the offset model. It fits each dephased
+  segment as the read's own calls shifted by whole calls, and its explained
+  gate feeds the consensus's set-aside rules ([[ADR-0083]]).
+- `TractLengths` is the length decode. Before every call where callability
+  sees the read leave phase, not only at dephased segments, it locates the
+  tract from the read's primaries, chooses its structure (a single run, or
+  two runs around a mark), and reports the first run's and the total's
+  length marginals.
+
+The two locate their run differently. Matching them by position would be a
+rule of its own, so neither is fitted into the other. The core reads nothing
+from `tracts` in increment 2. Increment 3 or 4 decides, with data, whether
+one replaces the other, so the duplication stays temporary and visible. The
+decode's constants are the `[trace]` section, which the `sanger` plugin
+declares and validates.
+
 ## Alternatives
 
 - **Keep the decoder in `dna-sanger`.** Simpler, but the user asked for a
@@ -76,3 +97,5 @@ place in that graph.
   ([[PROP-0012]] increment 1, byte-identical).
 - The `sanger` plugin version covers every output change that `dna-trace`
   causes.
+- Until increment 3 or 4 settles it, a read can carry both a `PhaseMixture`
+  and a `TractLengths` for one run.
