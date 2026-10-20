@@ -526,6 +526,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review's `possible_heteroplasmy` is `explained` context, not a check,
+  when every qualifying read of one strand shows a second peak the Sanger
+  evidence explains by its shape (a neighbour's tail or a dye blob, not
+  `second_unexplained`, SRS-CALL-022); a position outside every site that
+  holds only such a label is a `note` item (`review` plugin 19, rules
+  version 19). On the development panel none of the 23 such flags was a
+  heteroplasmy or hid a difference: 14 checks go and 4 samples clear, with
+  no unreviewed difference added.
 - A Sanger call before a run that the read loses phase after
   (`post_homopolymer`) is no longer at a signal edge when its own signal is
   unambiguous (SRS-CALL-017): before the run every molecule shows the same
