@@ -202,6 +202,7 @@ pub(crate) fn approve(prereg_path: &Path, output: &Path, threads: usize) -> Resu
         threads,
         true,
         None,
+        None,
         &mut Vec::new(),
     )?;
     let profile = crate::target_profile(&inputs.config)?;

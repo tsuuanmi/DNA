@@ -7,7 +7,7 @@ mod consensus;
 mod evidence;
 mod notation;
 mod path;
-mod plugins;
+pub(crate) mod plugins;
 mod represent;
 mod review;
 mod sample;
@@ -108,6 +108,11 @@ fn load_sample(
             }
         }
     })
+}
+
+/// The read evidence document of one trace, in memory (PROP-0011).
+pub(crate) fn evidence_document(trace: &Path, config_path: &Path) -> Result<Vec<u8>> {
+    evidence::document(trace, config_path)
 }
 
 /// Runs one AB1-to-reference analysis.

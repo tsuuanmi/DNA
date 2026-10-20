@@ -494,6 +494,47 @@ pub(crate) fn load_sample(
     })
 }
 
+/// Loads configuration, profile, and reference, and reads one sample's read
+/// evidence `documents` from memory, each named for its errors, each of
+/// which `plugins` must have written under the loaded configuration.
+pub(crate) fn load_sample_documents(
+    documents: &[(String, Vec<u8>)],
+    reference_path: &Path,
+    config_path: &Path,
+    plugins: &[&PluginDescriptor],
+) -> Result<SampleInputs> {
+    if documents.is_empty() {
+        return Err(SampleError::NoTraces.into());
+    }
+    require_regular_file(reference_path, "reference")?;
+    let config = load_config(config_path)?;
+    let profile = load_profile(&config)?;
+    let reads = {
+        let expected = Expected::of(&config, plugins);
+        documents
+            .iter()
+            .map(|(name, bytes)| {
+                let length = bytes.len() as u64;
+                if length == 0 || length > MAX_EVIDENCE_BYTES {
+                    return Err(ReadEvidenceError::FileSize {
+                        bytes: length,
+                        maximum: MAX_EVIDENCE_BYTES,
+                    }
+                    .into());
+                }
+                parse(bytes, Path::new(name), &expected)
+            })
+            .collect::<Result<Vec<_>>>()?
+    };
+    let reference = load_reference(reference_path, &profile)?;
+    Ok(SampleInputs {
+        config,
+        profile,
+        reference,
+        reads,
+    })
+}
+
 /// Reads one bounded document from disk into the read it records.
 fn read_document(document: &Path, expected: &Expected<'_>) -> Result<Recorded> {
     let read_error = |source| KernelError::Read {

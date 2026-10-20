@@ -162,6 +162,15 @@ impl RejectionCause {
   last across the origin), its bases there, and its observed variants
   (SRS-VAR-022). It is computed on demand, changes nothing, and is evidence
   for evaluation and review, not a calling contract.
+- `read_evidence_document(trace, config)` returns a trace's
+  `dna.read_evidence/v1` document in memory, as `dna evidence` writes it;
+  `analyze_evidence_outcome(documents, reference, config, workers)` analyses
+  a sample from such documents in memory, as `dna sample --evidence` does from
+  files (SRS-API-019), and returns `EvidenceOutcome`: the analysis, or how
+  many distinct reads were set aside. Reads from recorded evidence carry no
+  Sanger products, so that analysis's `reads` and `rejected` are empty; its
+  sample evidence lists the rejected reads. `dna-eval run --evidence-cache`
+  uses both.
 - `tracts()` returns, per admitted read in placement order, its tract
   decodes (`TractLengths` and `LengthMarginal`, `dna_kernel::read_evidence`,
   re-exported here; SRS-CALL-025), each with the reference position (1-based)
@@ -198,6 +207,20 @@ pub fn analyze_sanger_outcome(
 pub enum SampleOutcome {
     Analyzed(Box<SampleAnalysis>),
     Rejected(BTreeMap<String, RejectedRead>),
+}
+
+pub fn read_evidence_document(trace: &Path, config: &Path) -> dna::error::Result<Vec<u8>>
+
+pub fn analyze_evidence_outcome(
+    documents: &[(String, Vec<u8>)],
+    reference: &Path,
+    config: &Path,
+    workers: NonZeroUsize,
+) -> dna::error::Result<EvidenceOutcome>
+
+pub enum EvidenceOutcome {
+    Analyzed(Box<SampleAnalysis>),
+    Rejected { reads: usize },
 }
 ```
 

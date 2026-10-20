@@ -66,6 +66,12 @@ have no schema; the evaluation harness document describes them.
   measures count in their own class.
 - `unrecorded.rs` — the run-length alleles a profile convention leaves
   unrecorded, left out of every comparison on both sides.
+- `cache.rs` — the read evidence cache of `run --evidence-cache`: each
+  trace's `dna.read_evidence/v1` document, gzip-compressed, in a generation
+  keyed by the configuration's SHA-256, the `sanger` version, and the read
+  stage's code identity (git object ids recorded by `build.rs`), written
+  atomically, a corrupt entry being a miss; `cache prune` keeps the newest
+  generations.
 - `components.rs` — `components.tsv`: every phase-mixture component
   (ADR-0082) with the reference run clusters it covers, measured as
   haplotypes against the truth, and an unexplained mixture's offsets and

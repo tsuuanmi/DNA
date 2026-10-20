@@ -407,6 +407,18 @@
       "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "rows": 1
     },
+    "evidence_cache": {
+      "directory": "/cache/evidence",
+      "key": {
+        "sanger": 17,
+        "configuration_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "code_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "hits": 5,
+      "misses": 1,
+      "replaced": 0,
+      "bytes": 270000
+    },
     "zones": {
       "after": 20,
       "edge": 40,

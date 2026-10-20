@@ -1,0 +1,374 @@
+//! The read evidence cache (`--evidence-cache`): each trace's
+//! `dna.read_evidence/v1` document, stored once per trace and read stage, so
+//! a run whose read stage is unchanged skips it (PROP-0011's step contracts).
+//!
+//! A document depends on the trace, the configuration, and the read stage's
+//! code alone: the read stage reads no profile and no reference (ADR-0069),
+//! and nothing of the core, the consensus, or the review. So an entry is
+//! keyed by the trace's content SHA-256 under a generation directory named
+//! for the configuration file's SHA-256 (which the document's provenance
+//! records and the reader checks), the `sanger` plugin version, and the read
+//! stage's code identity: the git object ids of every source on the path
+//! from a trace to its document, recorded at build time. A build from a
+//! checkout whose read-stage sources differ from their commit has no code
+//! identity, and the cache is refused: a plugin version does not move on a
+//! work-in-progress commit, and a stale document would fake a measurement.
+//!
+//! Entries are gzip-compressed and written to a temporary file then renamed,
+//! so a concurrent run never reads half an entry. An entry that does not
+//! decompress, is not JSON, or names another trace is a miss: it is
+//! recomputed and replaced, never an error.
+
+use std::fs;
+use std::io::{self, Read as _, Write as _};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
+use flate2::Compression;
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+
+/// The read stage's code identity this harness was built with:
+/// `path=object;` per read-stage source, empty when a source differed from
+/// its commit or without git.
+const CODE: &str = env!("DNA_EVAL_READ_STAGE");
+
+/// An entry's file name suffix.
+const SUFFIX: &str = ".json.gz";
+
+/// Why the cache cannot be used.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum CacheError {
+    /// The harness was built from read-stage sources that differ from their
+    /// commit, or without git.
+    #[error(
+        "--evidence-cache needs a build from committed read-stage sources; this build has no read-stage code identity"
+    )]
+    NoCodeIdentity,
+    /// The cache directory cannot be created or read.
+    #[error("evidence cache {path}: {source}")]
+    Io {
+        /// The directory or entry.
+        path: PathBuf,
+        /// The failure.
+        source: io::Error,
+    },
+}
+
+/// The parts of a generation's key, as `run.json` records them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct Key {
+    /// The `sanger` plugin version.
+    pub(crate) sanger: u32,
+    /// The configuration file's SHA-256.
+    pub(crate) configuration_sha256: String,
+    /// The SHA-256 of the read stage's code identity.
+    pub(crate) code_sha256: String,
+}
+
+impl Key {
+    /// The generation directory's name: the SHA-256 of the key's parts.
+    fn generation(&self) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(format!(
+            "sanger={}\nconfiguration={}\ncode={}\n",
+            self.sanger, self.configuration_sha256, self.code_sha256
+        ));
+        format!("{:x}", hasher.finalize())
+    }
+}
+
+/// A run's use of the cache, as `run.json` records it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct Usage {
+    /// The cache directory, absolute.
+    pub(crate) directory: String,
+    /// The generation's key.
+    pub(crate) key: Key,
+    /// Traces read from the cache.
+    pub(crate) hits: usize,
+    /// Traces processed and stored: absent or unreadable entries.
+    pub(crate) misses: usize,
+    /// Of the misses, entries that were present but unreadable.
+    pub(crate) replaced: usize,
+    /// Bytes of the generation's entries after the run.
+    pub(crate) bytes: u64,
+}
+
+/// One generation of the cache, filled and read by a run.
+pub(crate) struct EvidenceCache {
+    root: PathBuf,
+    generation: PathBuf,
+    key: Key,
+    hits: AtomicUsize,
+    misses: AtomicUsize,
+    replaced: AtomicUsize,
+    sequence: AtomicU64,
+}
+
+impl EvidenceCache {
+    /// Opens the generation of `root` for the configuration at `config`
+    /// under this build's read stage.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CacheError`] without a code identity, or when the
+    /// directory cannot be created or the configuration read.
+    pub(crate) fn open(root: &Path, config: &Path) -> Result<Self, CacheError> {
+        Self::with_code(root, config, CODE)
+    }
+
+    fn with_code(root: &Path, config: &Path, code: &str) -> Result<Self, CacheError> {
+        if code.is_empty() {
+            return Err(CacheError::NoCodeIdentity);
+        }
+        let io = |path: &Path| {
+            let path = path.to_path_buf();
+            move |source| CacheError::Io { path, source }
+        };
+        let configuration = fs::read(config).map_err(io(config))?;
+        let key = Key {
+            sanger: dna_sanger::read_processing::PLUGIN.version,
+            configuration_sha256: format!("{:x}", Sha256::digest(&configuration)),
+            code_sha256: format!("{:x}", Sha256::digest(code.as_bytes())),
+        };
+        let root = std::path::absolute(root).map_err(io(root))?;
+        let generation = root.join(key.generation());
+        fs::create_dir_all(&generation).map_err(io(&generation))?;
+        Ok(Self {
+            root,
+            generation,
+            key,
+            hits: AtomicUsize::new(0),
+            misses: AtomicUsize::new(0),
+            replaced: AtomicUsize::new(0),
+            sequence: AtomicU64::new(0),
+        })
+    }
+
+    /// The read evidence document of the trace at `trace`, whose content
+    /// SHA-256 is `sha256`: read from the cache, or made by `make` and
+    /// stored.
+    ///
+    /// # Errors
+    ///
+    /// Returns `make`'s failure. A failure to store the document is not an
+    /// error: the next run makes it again.
+    pub(crate) fn document<E>(
+        &self,
+        sha256: &str,
+        make: impl FnOnce() -> Result<Vec<u8>, E>,
+    ) -> Result<Vec<u8>, E> {
+        let path = self.generation.join(format!("{sha256}{SUFFIX}"));
+        match read_entry(&path, sha256) {
+            Entry::Hit(document) => {
+                self.hits.fetch_add(1, Ordering::Relaxed);
+                return Ok(document);
+            }
+            Entry::Unreadable => {
+                self.replaced.fetch_add(1, Ordering::Relaxed);
+            }
+            Entry::Absent => {}
+        }
+        self.misses.fetch_add(1, Ordering::Relaxed);
+        let document = make()?;
+        let temporary = self.generation.join(format!(
+            ".{sha256}.{}.{}.tmp",
+            std::process::id(),
+            self.sequence.fetch_add(1, Ordering::Relaxed)
+        ));
+        if write_entry(&temporary, &document).is_ok() {
+            if fs::rename(&temporary, &path).is_err() {
+                let _ = fs::remove_file(&temporary);
+            }
+        } else {
+            let _ = fs::remove_file(&temporary);
+        }
+        Ok(document)
+    }
+
+    /// The run's use of the cache so far.
+    pub(crate) fn usage(&self) -> Usage {
+        Usage {
+            directory: self.root.display().to_string(),
+            key: self.key.clone(),
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            replaced: self.replaced.load(Ordering::Relaxed),
+            bytes: entries(&self.generation)
+                .iter()
+                .map(|(_, bytes, _)| bytes)
+                .sum(),
+        }
+    }
+}
+
+/// What a cache file holds.
+enum Entry {
+    Absent,
+    Unreadable,
+    Hit(Vec<u8>),
+}
+
+/// Reads the entry at `path`: a gzip stream of a JSON document whose
+/// provenance names the trace `sha256`.
+fn read_entry(path: &Path, sha256: &str) -> Entry {
+    let Ok(file) = fs::File::open(path) else {
+        return Entry::Absent;
+    };
+    let mut document = Vec::new();
+    if GzDecoder::new(file).read_to_end(&mut document).is_err() {
+        return Entry::Unreadable;
+    }
+    let names = serde_json::from_slice::<serde_json::Value>(&document)
+        .is_ok_and(|value| value["provenance"]["input"]["sha256"] == sha256);
+    if names {
+        Entry::Hit(document)
+    } else {
+        Entry::Unreadable
+    }
+}
+
+fn write_entry(path: &Path, document: &[u8]) -> io::Result<()> {
+    let mut encoder = GzEncoder::new(fs::File::create(path)?, Compression::default());
+    encoder.write_all(document)?;
+    encoder.finish()?.sync_all()
+}
+
+/// Each entry of a generation: its path, size, and modification time.
+fn entries(generation: &Path) -> Vec<(PathBuf, u64, std::time::SystemTime)> {
+    fs::read_dir(generation)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let metadata = entry.metadata().ok()?;
+            Some((entry.path(), metadata.len(), metadata.modified().ok()?))
+        })
+        .collect()
+}
+
+/// Removes every generation of `root` but the `keep` most recently used
+/// (by their newest entry), and returns the removed directories with their
+/// sizes.
+///
+/// # Errors
+///
+/// Returns [`CacheError::Io`] when the root cannot be read or a generation
+/// removed.
+pub(crate) fn prune(root: &Path, keep: usize) -> Result<Vec<(PathBuf, u64)>, CacheError> {
+    let io = |path: &Path| {
+        let path = path.to_path_buf();
+        move |source| CacheError::Io { path, source }
+    };
+    let mut generations = fs::read_dir(root)
+        .map_err(io(root))?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| {
+            let path = entry.path();
+            let files = entries(&path);
+            let newest = files.iter().map(|(_, _, modified)| *modified).max();
+            let bytes = files.iter().map(|(_, bytes, _)| bytes).sum::<u64>();
+            (newest, path, bytes)
+        })
+        .collect::<Vec<_>>();
+    generations.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
+    let mut removed = Vec::new();
+    for (_, path, bytes) in generations.into_iter().skip(keep) {
+        fs::remove_dir_all(&path).map_err(io(&path))?;
+        removed.push((path, bytes));
+    }
+    Ok(removed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn document(sha256: &str) -> Vec<u8> {
+        format!("{{\"provenance\":{{\"input\":{{\"sha256\":\"{sha256}\"}}}}}}").into_bytes()
+    }
+
+    fn cache(root: &Path, code: &str) -> Result<EvidenceCache, CacheError> {
+        let config = root.join("dna.toml");
+        if !config.exists() {
+            fs::write(&config, "schema_version = 19\n").map_err(|source| CacheError::Io {
+                path: config.clone(),
+                source,
+            })?;
+        }
+        EvidenceCache::with_code(&root.join("cache"), &config, code)
+    }
+
+    /// A miss stores the document, a hit reads it back, and a build without
+    /// a code identity is refused.
+    #[test]
+    fn stores_then_reads_a_document() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let cache = cache(root.path(), "crates/dna-sanger=abc;")?;
+        let made = cache.document("aa", || Ok::<_, CacheError>(document("aa")))?;
+        let read = cache.document("aa", || -> Result<Vec<u8>, CacheError> {
+            panic!("a stored document is made again")
+        })?;
+        assert_eq!(made, read);
+        let usage = cache.usage();
+        assert_eq!((usage.hits, usage.misses, usage.replaced), (1, 1, 0));
+        assert!(usage.bytes > 0);
+        assert!(matches!(
+            self::cache(root.path(), ""),
+            Err(CacheError::NoCodeIdentity)
+        ));
+        Ok(())
+    }
+
+    /// An entry stored under another code identity is never read, and an
+    /// unreadable or forged entry is replaced, not an error.
+    #[test]
+    fn ignores_other_generations_and_replaces_bad_entries() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = tempfile::tempdir()?;
+        let old = cache(root.path(), "crates/dna-sanger=old;")?;
+        old.document("aa", || Ok::<_, CacheError>(document("aa")))?;
+        let new = cache(root.path(), "crates/dna-sanger=new;")?;
+        let mut made = 0;
+        new.document("aa", || {
+            made += 1;
+            Ok::<_, CacheError>(document("aa"))
+        })?;
+        assert_eq!(made, 1);
+        let path = new.generation.join(format!("bb{SUFFIX}"));
+        fs::write(&path, b"not gzip")?;
+        new.document("bb", || Ok::<_, CacheError>(document("bb")))?;
+        write_entry(&new.generation.join(format!("cc{SUFFIX}")), &document("dd"))?;
+        let replaced = new.document("cc", || Ok::<_, CacheError>(document("cc")))?;
+        assert_eq!(replaced, document("cc"));
+        let usage = new.usage();
+        assert_eq!((usage.hits, usage.misses, usage.replaced), (0, 3, 2));
+        assert_eq!(
+            new.document("bb", || -> Result<Vec<u8>, CacheError> {
+                panic!("a replaced entry is made again")
+            })?,
+            document("bb")
+        );
+        Ok(())
+    }
+
+    /// Pruning keeps the most recently used generations.
+    #[test]
+    fn prunes_all_but_the_newest_generations() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let old = cache(root.path(), "crates/dna-sanger=old;")?;
+        old.document("aa", || Ok::<_, CacheError>(document("aa")))?;
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let new = cache(root.path(), "crates/dna-sanger=new;")?;
+        new.document("aa", || Ok::<_, CacheError>(document("aa")))?;
+        let removed = prune(&root.path().join("cache"), 1)?;
+        assert_eq!(removed.len(), 1);
+        assert_eq!(removed[0].0, old.generation);
+        assert!(new.generation.exists());
+        Ok(())
+    }
+}
