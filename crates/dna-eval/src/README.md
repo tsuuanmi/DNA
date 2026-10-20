@@ -85,8 +85,13 @@ have no schema; the evaluation harness document describes them.
   window, after a window, amplicon start and end, interior), the zones a
   check item touches, and the zone instance that holds a position.
 - `baseline.rs` — the statuses of an earlier run and their classes.
-- `report.rs` — scores, estimates, anchors, the baseline diff, and the
-  Markdown summary.
+- `report.rs` — scores, estimates, anchors, the baseline diff, the
+  unreviewed blocks (`unreviewed.tsv`), and the Markdown summary.
+- `rundiff.rs` — `dna-eval diff`: a run against a base run of the same
+  panel, from their directories alone. It refuses runs that measure
+  different things or whose files disagree with their `run.json`, counts the
+  passes per group (all, period, source) and zone, and gives the verdict
+  that gates a probe.
 - `evidence.rs` — with `run --triage`, the compact triage evidence the
   runner takes from each sample's analysis: per region position, the clean
   strands, masked reads, and consensus marks; per trace, its primer, state,

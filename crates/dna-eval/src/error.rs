@@ -87,6 +87,8 @@ pub(crate) enum Error {
     /// The run header could not be serialized.
     #[error("{0}")]
     Cache(#[from] crate::cache::CacheError),
+    #[error("{0}")]
+    Diff(#[from] DiffError),
     #[error("cannot serialize the run header: {0}")]
     Serialize(#[source] serde_json::Error),
     /// A harness thread panicked outside the per-sample guard.
@@ -229,4 +231,23 @@ pub(crate) enum PreregError {
     /// A value is outside its allowed set or range.
     #[error("{field}: {message}")]
     Invalid { field: String, message: String },
+}
+
+/// Why two runs cannot be compared.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum DiffError {
+    /// A run file cannot be read or parsed.
+    #[error("{path}: {message}")]
+    Run {
+        /// The file.
+        path: PathBuf,
+        /// What is wrong with it.
+        message: String,
+    },
+    /// A run's files count other passes than its own `run.json` records.
+    #[error("{0}: unreviewed.tsv and scores.tsv count other passes than run.json records ({1})")]
+    Inconsistent(PathBuf, String),
+    /// The runs measure different things.
+    #[error("the runs are not comparable: {0}; pass --force to compare them anyway")]
+    Mismatch(String),
 }

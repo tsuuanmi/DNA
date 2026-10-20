@@ -13,6 +13,7 @@
     "windows.tsv",
     "summary.md",
     "checks.tsv",
+    "unreviewed.tsv",
     "components.tsv",
     "tracts.tsv",
     "forms.tsv"
@@ -44,6 +45,9 @@
     },
     "checks.tsv": {
       "$ref": "#/$defs/checks"
+    },
+    "unreviewed.tsv": {
+      "$ref": "#/$defs/unreviewed"
     },
     "signals.tsv": {
       "$ref": "#/$defs/signals"
@@ -1957,6 +1961,88 @@
               "labels": {
                 "description": "The item's `dna.review/v1` label names, space-separated.",
                 "$ref": "#/$defs/words"
+              }
+            }
+          }
+        }
+      }
+    },
+    "unreviewed": {
+      "description": "One row per sample and `haplotype_lod` difference block that no check item overlaps, in panel then block order: its first and last anchors (1-based), its text as in `scores.tsv` `unreviewed`, its class as the pass measures split it (re-check list, then truth `N`, then a truth heteroplasmy, else a non-het DNA error), the review zone that holds its first anchor, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comments",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "comments": {
+          "$ref": "#/$defs/no_comments"
+        },
+        "columns": {
+          "const": [
+            "sample_id",
+            "first",
+            "last",
+            "block",
+            "class",
+            "zone",
+            "zone_checked"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sample_id",
+              "first",
+              "last",
+              "block",
+              "class",
+              "zone",
+              "zone_checked"
+            ],
+            "properties": {
+              "sample_id": {
+                "description": "The panel sample identifier.",
+                "$ref": "#/$defs/text"
+              },
+              "first": {
+                "description": "The block's first anchor, 1-based.",
+                "$ref": "#/$defs/count"
+              },
+              "last": {
+                "description": "The block's last anchor, 1-based.",
+                "$ref": "#/$defs/count"
+              },
+              "block": {
+                "description": "The block, `<first>-<last>[+]:<dna>/<truth>` as in `scores.tsv`.",
+                "$ref": "#/$defs/nonempty"
+              },
+              "class": {
+                "description": "`non_het`, `het`, `truth_n`, or `recheck` (the re-check list names it).",
+                "enum": [
+                  "non_het",
+                  "het",
+                  "truth_n",
+                  "recheck"
+                ]
+              },
+              "zone": {
+                "description": "The review zone (`kind@region`) holding the block's first anchor; `.` outside every zone.",
+                "type": "string",
+                "pattern": "^([a-z_]+@[A-Z0-9]+|\\.)$"
+              },
+              "zone_checked": {
+                "description": "Whether a check item of the sample touches that zone; `.` without one.",
+                "enum": [
+                  "yes",
+                  "no",
+                  "."
+                ]
               }
             }
           }

@@ -91,6 +91,9 @@ pub(crate) struct Workload {
 /// One unreviewed difference block, as the zone and pass measures count it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Escape {
+    /// The block's first and last anchors, 1-based.
+    pub(crate) first: i64,
+    pub(crate) last: i64,
     /// The zone instance that holds the block's first anchor, when one does.
     pub(crate) zone: Option<Instance>,
     /// What the block is, as the pass measures split it.
@@ -112,6 +115,16 @@ pub(crate) enum Class {
 }
 
 impl Class {
+    /// The class's label in `unreviewed.tsv`.
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Recheck => "recheck",
+            Self::Het => "het",
+            Self::TruthN => "truth_n",
+            Self::NonHet => "non_het",
+        }
+    }
+
     /// The class of `block`, listed when it overlaps one of `listed`, its
     /// sample's spans on the re-check list.
     pub(crate) fn of(block: &Block, listed: &[(i64, i64)]) -> Self {
@@ -222,6 +235,8 @@ pub(crate) fn of(
         escapes: unreviewed
             .iter()
             .map(|block| Escape {
+                first: block.start,
+                last: block.end,
                 zone: zones.and_then(|zones| zones.instance(block.start)),
                 class: Class::of(block, listed),
             })
@@ -509,6 +524,8 @@ mod tests {
         assert_eq!(
             workload.escapes,
             [Escape {
+                first: 16040,
+                last: 16041,
                 zone: Some((0, Kind::Start)),
                 class: Class::NonHet
             }]
@@ -680,7 +697,12 @@ mod tests {
         assert_eq!(class("AY", &[]), Het);
         assert_eq!(class("GG", &[]), NonHet);
         // A passed unit counts once, under its most severe block.
-        let escape = |class| Escape { zone: None, class };
+        let escape = |class| Escape {
+            first: 1,
+            last: 1,
+            zone: None,
+            class,
+        };
         let count = |classes: &[Class]| {
             let mut escaped = Escaped::default();
             escaped.add(&classes.iter().copied().map(escape).collect::<Vec<_>>());

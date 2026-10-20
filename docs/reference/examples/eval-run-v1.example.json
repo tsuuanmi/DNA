@@ -2556,6 +2556,29 @@
       }
     ]
   },
+  "unreviewed.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "first",
+      "last",
+      "block",
+      "class",
+      "zone",
+      "zone_checked"
+    ],
+    "rows": [
+      {
+        "sample_id": "S01",
+        "first": "309",
+        "last": "309",
+        "block": "309-309+:CC/C",
+        "class": "non_het",
+        "zone": "window@HV2",
+        "zone_checked": "no"
+      }
+    ]
+  },
   "windows.tsv": {
     "comments": [],
     "columns": [
