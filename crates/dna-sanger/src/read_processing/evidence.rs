@@ -191,19 +191,28 @@ pub fn read_evidence(
             }
             if call.qualifying_channels.len() > 1 {
                 // A mixed call withheld for nothing else than the peak floor
-                // or its relative quality, in phase between single-channel
-                // calls, whose second peak is a neighbour's tail or a dye
-                // blob, may still confirm the reference (SRS-CALL-022): its
-                // base is withheld all the same. A neighbour before the trim
-                // interval may be masked as weak: the read's untrimmed start.
+                // or its relative quality, in phase between neighbours that
+                // show one base, whose second peak is a neighbour's tail or a
+                // dye blob, may still confirm the reference (SRS-CALL-022):
+                // its base is withheld all the same. A neighbour shows one
+                // base when it has one qualifying channel, or when its own
+                // second peak is a neighbour's tail or a dye blob: a blob is
+                // wider than one call, so its neighbours are mixed too. A
+                // neighbour before the trim interval may be masked as weak:
+                // the read's untrimmed start.
                 let single = |at: Option<usize>| {
                     at.is_some_and(|at| {
                         callability.mask.get(at).is_some_and(|state| {
                             state.is_none() || (at < start && *state == Some(PhaseState::Weak))
-                        }) && calls
-                            .calls
-                            .get(at)
-                            .is_some_and(|call| call.qualifying_channels.len() == 1)
+                        }) && calls.calls.get(at).is_some_and(|call| {
+                            call.qualifying_channels.len() == 1
+                                || second.get(at).copied().flatten().is_some_and(|peak| {
+                                    matches!(
+                                        peak.cause,
+                                        SecondCause::NeighbourTail | SecondCause::DyeBlob
+                                    )
+                                })
+                        })
                     })
                 };
                 evidence.reference_only = artefact
@@ -1133,6 +1142,30 @@ mod tests {
         calls.calls[3].qualifying_channels = vec![Nucleotide::A, Nucleotide::G];
         let crowded = evidence(&calls, &peak(SecondCause::DyeBlob))?;
         assert!(!crowded.calls()[2].reference_only);
+        // A mixed neighbour whose own second peak is a neighbour's tail or a
+        // dye blob shows one base all the same: a blob is wider than one call.
+        let neighbour = |cause| {
+            let mut second = peak(SecondCause::DyeBlob);
+            second[3] = Some(SecondPeak {
+                base: 'G',
+                share: 0.3,
+                stands_out: true,
+                cause,
+            });
+            second
+        };
+        for cause in [SecondCause::NeighbourTail, SecondCause::DyeBlob] {
+            let blob = evidence(&calls, &neighbour(cause))?;
+            assert!(blob.calls()[2].reference_only, "{cause:?}");
+        }
+        for cause in [
+            SecondCause::SecondTemplate,
+            SecondCause::PhaseShift,
+            SecondCause::OffCentre,
+        ] {
+            let other = evidence(&calls, &neighbour(cause))?;
+            assert!(!other.calls()[2].reference_only, "{cause:?}");
+        }
         Ok(())
     }
 
