@@ -10,9 +10,12 @@
 //! (the total less the first and the mark). A read that shows a run in
 //! phase, both its ends resolved by unmasked calls as the consensus reads it
 //! (ADR-0074), gives that run's length too. A strand gives a run one clear
-//! length when every length its reads give is clear and equal. A run is
-//! confirmed when both strands give it one clear length, the same, and it is
-//! DNA's call. Nothing here decides a length; it labels them.
+//! length when every length its reads give is clear and equal. The reads
+//! give a run its length when both strands give it one clear length, the
+//! same, or when one strand gives none and the other gives one clear length
+//! that a read of it shows in phase; a run whose only views are decodes
+//! needs both strands. A run is confirmed when that length is DNA's call.
+//! Nothing here decides a length; it labels them.
 
 use dna_consensus::ReadRun;
 use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
@@ -309,21 +312,29 @@ pub(super) fn judge(
                     },
                 )
             };
-            let agreement = match (strand(true), strand(false)) {
+            // A read in phase through the run shows its length directly
+            // (ADR-0074): the other strand giving none is no contradiction.
+            let in_phase = reads
+                .iter()
+                .any(|contribution| contribution.result.source == "in_phase");
+            let read_length = match (strand(true), strand(false)) {
                 _ if reads
                     .iter()
                     .any(|contribution| contribution.structure_differs) =>
                 {
-                    "structure_differs"
+                    Err("structure_differs")
                 }
-                (Some(Ok(forward)), Some(Ok(reverse))) if forward != reverse => "disagree",
-                (Some(Err(())), _) | (_, Some(Err(()))) => "not_clear",
-                (None, _) | (_, None) => "one_strand",
-                (Some(Ok(length)), Some(Ok(_))) => match called_length {
-                    None => "undecided_call",
-                    Some(called) if called != length => "differs_from_call",
-                    Some(_) => "confirmed",
-                },
+                (Some(Ok(forward)), Some(Ok(reverse))) if forward != reverse => Err("disagree"),
+                (Some(Err(())), _) | (_, Some(Err(()))) => Err("not_clear"),
+                (Some(Ok(length)), None) | (None, Some(Ok(length))) if in_phase => Ok(length),
+                (None, _) | (_, None) => Err("one_strand"),
+                (Some(Ok(length)), Some(Ok(_))) => Ok(length),
+            };
+            let agreement = match (read_length, called_length) {
+                (Err(agreement), _) => agreement,
+                (Ok(_), None) => "undecided_call",
+                (Ok(length), Some(called)) if called != length => "differs_from_call",
+                (Ok(_), Some(_)) => "confirmed",
             };
             LengthRunResult {
                 run,
@@ -542,5 +553,76 @@ mod tests {
         let one = [run('C', 13, true)];
         let runs = judge(&HVS2, Some(&[8, 5]), &decodes, &[reverse(&one)]);
         assert_eq!(runs[0].agreement, "structure_differs");
+    }
+
+    // SRS-API-020
+    #[test]
+    fn one_strand_confirms_only_with_a_read_in_phase() {
+        let run = |base, length, in_phase| ReadRun {
+            base,
+            length,
+            in_phase,
+        };
+        // F reads run 1 as 8 and, from its total, run 2 as 5; no reverse
+        // read gives either run a length.
+        let forward = tract('C', Some('T'), 8, 14, Margin::Clear);
+        let decodes = [Decode {
+            read: "F",
+            strand: Orientation::Forward,
+            reference: Some(303),
+            tract: &forward,
+        }];
+        let agreements = |called: &[usize], in_phase: &[InPhase<'_>]| {
+            judge(&HVS2, Some(called), &decodes, in_phase)
+                .iter()
+                .map(|run| run.agreement)
+                .collect::<Vec<_>>()
+        };
+        // A decode alone on one strand does not confirm.
+        assert_eq!(agreements(&[8, 5], &[]), ["one_strand", "one_strand"]);
+        // A forward read in phase through both runs confirms them.
+        let through = [
+            run('A', 1, true),
+            run('C', 8, true),
+            run('T', 1, true),
+            run('C', 5, true),
+        ];
+        let read = |runs| InPhase {
+            read: "F2",
+            strand: Orientation::Forward,
+            runs,
+        };
+        assert_eq!(
+            agreements(&[8, 5], &[read(&through)]),
+            ["confirmed", "confirmed"]
+        );
+        // The same length, not DNA's, differs from the call.
+        assert_eq!(
+            agreements(&[9, 5], &[read(&through)]),
+            ["differs_from_call", "confirmed"]
+        );
+        // In phase through run 2 only: run 1 still rests on the decode.
+        let second = [
+            run('A', 1, true),
+            run('C', 8, false),
+            run('T', 1, true),
+            run('C', 5, true),
+        ];
+        assert_eq!(
+            agreements(&[8, 5], &[read(&second)]),
+            ["one_strand", "confirmed"]
+        );
+        // A read in phase with another length than the decode's: the strand
+        // gives no one length.
+        let longer = [
+            run('A', 1, true),
+            run('C', 9, true),
+            run('T', 1, true),
+            run('C', 5, true),
+        ];
+        assert_eq!(
+            agreements(&[8, 5], &[read(&longer)]),
+            ["not_clear", "confirmed"]
+        );
     }
 }

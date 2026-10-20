@@ -49,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 22,
+    version: 23,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
