@@ -85,6 +85,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   an unreviewed non-het difference fall from 74 to 43 (31 truth N only), and
   with the 186-row re-check list of 2026-10-20 to 20 (5 truth N only, 49
   re-check only); `window@HV2` keeps 17 of its 19.
+- The Sanger plugin asserts a read's poor start as an unreliable span
+  (SRS-CALL-024, PROP-0012 increment 5): from its first call to its first
+  run of `start_identity_margin` consecutive sound calls. `ReadEvidence`
+  gains `unreliable`, published in `dna.read_evidence/v1` (`read.unreliable`)
+  and in `dna review` (`reads[].unreliable`). The review labels an item
+  covered by such a span with no other read sound there `poor_signal`, and a
+  difference there is a check. Plugins `sanger` 16 and `review` 18. On
+  development panel v5 against `main` 69e1471, passed zones with a non-het
+  unreviewed difference fall 74 -> 72 on current data and 177 -> 175 in all
+  (`end@HV3`; no zone rises), and 4 current samples (5 in all) lose their
+  auto-pass (73.16 -> 73.12 %).
 - `dna analyze --evidence <read_evidence.json> --reference <fasta>` places
   and calls a read from its `dna.read_evidence/v1` document alone, without
   the trace (SRS-API-018, PROP-0011 increment 4a), and writes the analysis
@@ -553,6 +564,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   non-het are unchanged in every period, no status changes, and 48 samples
   held only by HVS-I read-start checks become clear (current 72.80 ->
   73.16 %, older 71.63 -> 71.96 %). Plugin `consensus` 15.
+- Phase-mixture decomposition moves from `dna-sanger` into the new library
+  crate `dna-trace` (PROP-0012 increment 1, ADR-0084), which reads plain
+  per-call data and depends on `dna-kernel` only; `dna-sanger` calls it. No
+  output changes, so no plugin version changes.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's

@@ -17,8 +17,8 @@ use crate::model::review_result::{
     Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
     LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
     ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
-    SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult, ZoneCounts,
-    ZoneKind, ZoneResult,
+    SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
+    UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::model::sanger_read::{Rejection, SangerRead};
@@ -43,7 +43,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 17,
+    version: 18,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -126,6 +126,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     admitted: false,
                     rejection: Some(read.cause),
                     masked: None,
+                    unreliable: None,
                     mixtures: None,
                 })
                 .collect();
@@ -184,6 +185,11 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                     &analysis.trust(&read.input_sha256).ok_or_else(missing)?,
                     &regions,
                 )),
+                unreliable: Some(unreliable_spans(
+                    called.alignment.columns(),
+                    &called.evidence,
+                    &regions,
+                )),
                 mixtures: Some(
                     mixtures
                         .get(&read.input_sha256)
@@ -208,6 +214,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             admitted: false,
             rejection: Some(rejected.cause),
             masked: None,
+            unreliable: None,
             mixtures: None,
         });
     }
@@ -802,7 +809,12 @@ impl<'a> Sample<'a> {
         // A label that leaves the item unassured makes it a check; the others
         // are context for the reviewer. An item with neither a call nor such a
         // label is DNA's own decision and is not listed.
-        let assured = !labels.iter().any(unassured);
+        // A difference inside a read's poor signal is a check too: there the
+        // reads' differences are often wrong (SRS-CALL-024).
+        let poor = labels
+            .iter()
+            .any(|label| matches!(label, LabelResult::PoorSignal { .. }));
+        let assured = !(labels.iter().any(unassured) || (differs && poor));
         if !differs && assured {
             return Ok(None);
         }
@@ -878,6 +890,22 @@ impl<'a> Sample<'a> {
                         Placement::Scored => None,
                     };
                     if let Some(label) = label {
+                        labels
+                            .entry((rank(&label), name(&label), index))
+                            .or_insert(label);
+                    }
+                    // Inside the read's unreliable span, where no other read
+                    // shows the position soundly.
+                    if read
+                        .evidence
+                        .unreliable()
+                        .iter()
+                        .any(|span| span.calls.contains(&call))
+                        && !self.sound_elsewhere(&locus.observations, index)?
+                    {
+                        let label = LabelResult::PoorSignal {
+                            read: read.name.to_owned(),
+                        };
                         labels
                             .entry((rank(&label), name(&label), index))
                             .or_insert(label);
@@ -1236,6 +1264,36 @@ impl<'a> Sample<'a> {
             .find(|observation| observation.read_index == index)
     }
 
+    /// Whether a read other than read `index` shows the position of
+    /// `observations` soundly: a scored, trusted call the modality withholds
+    /// for nothing, outside the read's own unreliable spans.
+    fn sound_elsewhere(
+        &self,
+        observations: &[SampleLocusObservation],
+        index: usize,
+    ) -> Result<bool> {
+        for observation in observations {
+            if observation.read_index == index {
+                continue;
+            }
+            let Some(call) = observation.call_index_0based else {
+                continue;
+            };
+            let read = self.read(observation.read_index)?;
+            let sound = read.trust.get(call).is_some_and(|trust| {
+                trust.placement == Placement::Scored && trust.trusted && trust.vetoes.is_empty()
+            }) && !read
+                .evidence
+                .unreliable()
+                .iter()
+                .any(|span| span.calls.contains(&call));
+            if sound {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     fn read(&self, index: usize) -> Result<&Read<'a>> {
         Ok(self
             .reads
@@ -1588,7 +1646,8 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::NotCovered
         | LabelResult::PhaseShift { .. }
         | LabelResult::DephasedEnd { .. }
-        | LabelResult::ReadEdge { .. } => 4,
+        | LabelResult::ReadEdge { .. }
+        | LabelResult::PoorSignal { .. } => 4,
     }
 }
 
@@ -1611,7 +1670,50 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::PhaseShift { .. } => "phase_shift",
         LabelResult::DephasedEnd { .. } => "dephased_end",
         LabelResult::ReadEdge { .. } => "read_edge",
+        LabelResult::PoorSignal { .. } => "poor_signal",
     }
+}
+
+/// The reference positions, within `regions`, that a read's aligned calls
+/// cover inside one of its unreliable spans (SRS-CALL-024), as maximal
+/// stretches of one reason.
+fn unreliable_spans(
+    columns: &[AlignmentColumn],
+    evidence: &ReadEvidence,
+    regions: &[[usize; 2]],
+) -> Vec<UnreliableSpanResult> {
+    let mut spans: Vec<UnreliableSpanResult> = Vec::new();
+    for column in columns {
+        let (Some(reference), Some(call)) = (
+            column.reference_index_0based(),
+            column.original_call_index_0based(),
+        ) else {
+            continue;
+        };
+        let position = reference + 1;
+        let Some(span) = evidence
+            .unreliable()
+            .iter()
+            .find(|span| span.calls.contains(&call))
+        else {
+            continue;
+        };
+        if !inside(regions, position) {
+            continue;
+        }
+        let reason = span.reason.label();
+        match spans.last_mut() {
+            Some(last) if last.last + 1 == position && last.reason == reason => {
+                last.last = position;
+            }
+            _ => spans.push(UnreliableSpanResult {
+                first: position,
+                last: position,
+                reason,
+            }),
+        }
+    }
+    spans
 }
 
 /// The reference positions, within `regions`, that a read's aligned calls
@@ -1682,7 +1784,8 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
         | LabelResult::RunDeletion { read }
         | LabelResult::NoisySignal { read, .. }
         | LabelResult::PhaseShift { read, .. }
-        | LabelResult::ReadEdge { read } => (0, read.as_str()),
+        | LabelResult::ReadEdge { read }
+        | LabelResult::PoorSignal { read } => (0, read.as_str()),
         _ => (0, ""),
     };
     (rank(label), name(label), position, read)
@@ -1789,7 +1892,8 @@ fn summarize(
                 "not_covered" => &mut labels.not_covered,
                 "phase_shift" => &mut labels.phase_shift,
                 "dephased_end" => &mut labels.dephased_end,
-                _ => &mut labels.read_edge,
+                "read_edge" => &mut labels.read_edge,
+                _ => &mut labels.poor_signal,
             };
             *count += 1;
         }
@@ -2414,6 +2518,7 @@ mod tests {
                 span(6, 6, PhaseState::Dephased, true),
                 span(7, 7, PhaseState::Mixed, false),
             ]),
+            unreliable: Some(Vec::new()),
             mixtures: Some(Vec::new()),
         }];
         let check = item(ItemKind::Check, vec![LabelResult::Undecided]);

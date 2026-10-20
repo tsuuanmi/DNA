@@ -144,7 +144,7 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 16] = [
+const RANKS: [(&str, u64); 17] = [
     ("strands_disagree", 0),
     ("read_disagrees", 0),
     ("possible_heteroplasmy", 1),
@@ -161,18 +161,20 @@ const RANKS: [(&str, u64); 16] = [
     ("phase_shift", 4),
     ("dephased_end", 4),
     ("read_edge", 4),
+    ("poor_signal", 4),
 ];
 
 /// The document's structural invariants: items ordered by priority then
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 17);
+    assert_eq!(value["provenance"]["rules"], 18);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
             assert!(read.get("masked").is_none());
             assert!(read.get("mixtures").is_none());
+            assert!(read.get("unreliable").is_none());
             continue;
         }
         // Each phase mixture leads with its dominant sequence, offset 0.
@@ -387,8 +389,8 @@ fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>
     assert_eq!(
         value["reads"],
         serde_json::json!([
-            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": [], "mixtures": []},
-            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": [], "mixtures": []},
+            {"name": "read-forward", "sha256": value["reads"][0]["sha256"], "strand": "forward", "admitted": true, "masked": [], "unreliable": [], "mixtures": []},
+            {"name": "read-reverse", "sha256": value["reads"][1]["sha256"], "strand": "reverse", "admitted": true, "masked": [], "unreliable": [], "mixtures": []},
         ])
     );
     assert_eq!(value["calls"][0]["call"], "15A");

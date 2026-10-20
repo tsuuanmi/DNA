@@ -10,7 +10,7 @@
       {
         "id": "sanger",
         "family": "modality",
-        "version": 15
+        "version": 16
       }
     ]
   },
@@ -85,6 +85,15 @@
         "unexplained": [
           5
         ]
+      }
+    ],
+    "unreliable": [
+      {
+        "calls": {
+          "start": 0,
+          "end": 2
+        },
+        "reason": "poor_start_signal"
       }
     ]
   },

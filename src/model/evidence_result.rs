@@ -89,6 +89,17 @@ pub(crate) struct EvidenceReadResult {
     /// The stretches the modality decomposes into the read's own sequence at
     /// whole-call offsets (ADR-0082).
     pub(crate) mixtures: Vec<MixtureEvidenceResult>,
+    /// The spans of calls whose differences the modality asserts are not to
+    /// stand unchecked, with its reason (SRS-CALL-024).
+    pub(crate) unreliable: Vec<UnreliableEvidenceResult>,
+}
+
+/// One unreliable span as the modality asserts it, over call indices.
+#[derive(Debug, Serialize)]
+pub(crate) struct UnreliableEvidenceResult {
+    /// The span, 0-based half-open call indices.
+    pub(crate) calls: IntervalResult,
+    pub(crate) reason: &'static str,
 }
 
 /// One phase mixture as the modality asserts it, over call indices.

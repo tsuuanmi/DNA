@@ -50,6 +50,10 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
     the `components` (offset and fraction, the dominant sequence first), and
     the `unexplained` calls. How each component compares with the reference is
     a read assertion of the core, in `dna review` (`reads[].mixtures`).
+  - `unreliable`: the spans of `calls` whose differences the modality
+    asserts are not to stand unchecked, each with its `reason`:
+    `poor_start_signal`, the read's start before its first run of sound calls
+    (SRS-CALL-024). The calls keep their verdicts.
 - `signal_quality` and `warnings`: the trace integrity, merged noisy regions,
   and the modality's warning counts, as in `dna.basecalls/v3`.
 - `calls`, one per call in call order. First the kernel contract the core reads:
