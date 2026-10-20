@@ -9,10 +9,12 @@ summary: "a library crate `dna-trace` re-processes the trace windows the Sanger 
 
 ## Problem
 
-The user's measure (2026-10-20) is errors that pass with no flag. On
-development panel v5's current data with the overnight stack (#175, #176),
-475 blocks are unflagged errors: 366 heteroplasmy, 73 non-het, and 36 where
-the truth reads `N`. The non-het blocks in this proposal's scope are:
+The user's measure (2026-10-20) is non-heteroplasmy errors that pass with no
+flag. Heteroplasmy stays optional: detecting it is a bonus, and an unflagged
+one counts as a pass. A block where the truth reads `N` goes to the reviewer
+re-check list. On development panel v5's current data with the overnight
+stack (#175, #176), 475 blocks are unflagged errors: 366 heteroplasmy, 73
+non-het, and 36 truth-`N`. The non-het blocks in this proposal's scope are:
 
 - 30 in the HVS-II polyC window, at 309: a wrong length passed with no check;
 - 16 at 573 (`CC/C`): the 2026-10-18 adjudication found most of them truth
@@ -68,8 +70,8 @@ that approach:
 
 ## Goals
 
-The user's goal (2026-10-20): unflagged errors in auto-passed zones must
-never rise and should fall; the number of auto-passes comes second. The
+The user's goal (2026-10-20): unflagged non-het errors in auto-passed zones
+must never rise and should fall; the number of auto-passes comes second. The
 order of preference:
 
 1. auto-passed and right;
@@ -185,12 +187,14 @@ The consensus combines the two strands' assertions per run:
 
 ### Increments
 
-Each increment is one PR, measured on development panel v5 and, once it is
-frozen, on the readiness panel: the draft `results/test-panel/test-v1-draft.tsv`,
-20,140 samples. It holds 12,731 samples from 148 batch-disjoint new batches
-(2026-09/10) and 7,409 from dev-batch remainders, reported separately.
-Every use of it is logged, and a result that drives a rule change turns it
-into development data.
+Each increment is one PR, measured on development panel v5 and on the
+readiness panel `results/test-panel/readiness-v2.tsv` at a logged use. That
+panel holds 20,140 samples: 12,731 from 148 batch-disjoint new batches
+(2026-09/10, `fresh_batch`) and 7,409 from dev-batch remainders
+(`dev_batch_remainder`), reported separately. It is used for aggregates
+only, never inspected per sample while tuning, and each use is logged in
+`results/test-panel/readiness-log.md`. A result that drives a rule change
+turns it into development data.
 
 1. **Move.** `dna-sanger/src/decompose` moves into `dna-trace`, unchanged.
    The panel must be byte-identical. An optional debug dump of the window's
@@ -207,7 +211,7 @@ into development data.
    call", that is, when the strands disagree, the top two are near-equal,
    or only one strand decodes it. Expect more checks. The gate wants
    unflagged non-het blocks in the HVS-II polyC window to fall from 30, with
-   heteroplasmy and precision unchanged. Reported: runs newly flagged, and
+   precision unchanged. Reported: runs newly flagged, and
    how many of them hold a truth difference. No decision changes yet.
 4. **Decide when clear.** The consensus decides a run's length on "clear and
    both strands agree", with its own run evidence. Run 311–315, which the
@@ -241,18 +245,18 @@ into development data.
 
 ## Validation plan
 
-- **Primary gate.** Unflagged error blocks per zone kind (start, end, polyC
-  window, after polyC, interior) and region, non-het first. They must never
-  rise on any period and should fall. Samples with an unreviewed or non-het
+- **Primary gate.** Unflagged non-het error blocks per zone kind (start, end,
+  polyC window, after polyC, interior) and region. They must never rise on
+  any period and should fall. Heteroplasmy escapes are reported but not
+  gated, and truth-`N` blocks go to the re-check list. Samples with an unreviewed or non-het
   difference must not rise. Clear samples are secondary. The instrument is
   `dna-eval`'s per-zone table (#177): for each kind and region, the zones
   that pass, and those that pass with an unflagged block, het and non-het.
 - **Decisions.** Every decided run is reported by bucket: two strands
   agreeing and clear, near-equal, one strand, disagreeing. Each bucket gets
   its count and its accuracy against truth. A bucket is decided only where
-  its accuracy, set on development panel v5, holds on the readiness panel
-  at a logged use. The hold-out (validation-v3) stays reserved for
-  `approve`.
+  its accuracy, set on development panel v5, holds on readiness-v2 at a
+  logged use. The hold-out (validation-v3) stays reserved for `approve`.
 - **Flags.** Each flagged run is reported with the components shown, so the
   reviewer workload is measured, not assumed.
 - **Unit tests** on synthetic traces for every model step:
