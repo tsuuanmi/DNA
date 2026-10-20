@@ -60,6 +60,16 @@ For position `i` with amplitudes `a` and total `T = Σ a`:
 Every value is rounded to six decimals before storage or comparison. Fewer than
 two positions is a typed failure.
 
+The same measure marks the junctions where the read missed a peak
+(`gaps`, SRS-CALL-026). With `M` the median spacing of the window at the
+position before a junction, the junction is a gap when `Δ − M`, and
+`Δ + Δ' − 2M` for each neighbouring junction's `Δ'`, are each at least
+`spacing_defect × M`. A missing peak leaves a gap about `2M` and the ladder a
+call behind; a peak placed late is followed by a short spacing that makes up
+for it (`Δ + Δ' ≈ 2M`) and is no gap. Gaps mask nothing: the Sanger evidence
+vouches for the two calls beside each by their bases only (see
+[Consumers](#consumers)).
+
 ### Substep 4.2 — Repeat runs
 
 Maximal runs of at least `repeat_min_length` identical
@@ -219,6 +229,18 @@ The core caller does not read callability directly. The Sanger adapter
   unchanged, `73G` in 29 more samples, HVS-I start window `16024-16033`
   checked in 17 % fewer samples, `haplotype_lod` none better or worse;
 - every call carries its second base and its share (SRS-CALL-015);
+- the two calls beside a gap (Substep 4.1) are vouched for by their bases
+  only (SRS-CALL-026): they place no insertion or deletion and show no run's
+  end. A missed peak makes the read show a deletion that the template does
+  not hold, and the consensus weighed it against the other strand's clean
+  reference: on development panel v5 such one-read deletions at junctions
+  22-24 scans wide, against a read spacing of about 12, were all truth
+  reference (`16244`, `16255`, `16274`, `16146`, `260` and others). Without
+  the compensation test, a late peak in the HVS-I start's `GGGG` (17 then 6
+  scans) left `16036` undecided in about 170 samples. Against the previous
+  commit: unreviewed 668 → 667, non-het passed zones unchanged, 22 more
+  samples clear (current 76.06 → 76.19 %), 63 checks removed and 17 added,
+  and four samples concordant under every measure that were discordant;
 - the read's poor start is asserted as an unreliable span (SRS-CALL-024):
   from its first call to its first run of `start_identity_margin` (12)
   consecutive sound calls, the vouching rules above having judged each call

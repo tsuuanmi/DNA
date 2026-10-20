@@ -602,6 +602,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The Sanger evidence vouches for the two calls beside a junction whose
+  spacing marks a missing peak by their bases only (SRS-CALL-026, plugin
+  `sanger` 18): they place no indel and show no run's end. Callability's
+  spacing measure finds the junctions: wider than the local median by
+  `callability.spacing_defect` of it, and still so together with either
+  neighbouring junction, so a peak merely placed late is no gap. No new
+  configuration. A one-read deletion at such a junction, opposed by a clean
+  read of the other strand, had been a check; on development panel v5 every
+  one was truth reference. Against the previous commit the diff gate
+  passes: unreviewed 668 → 667, non-het passed zones unchanged, clear
+  72.08 → 72.21 % (current 76.06 → 76.19 %), current `interior@HV1` checks
+  311 → 303, and four samples become concordant under every measure.
 - The review's `edge_deletion` label reads its own zone,
   `review.deletion_zone` (default 20, its width before ADR-0085), instead of
   `review.edge_zone`, which keeps 40 for `beside_not_analysed` (ADR-0085,

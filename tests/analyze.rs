@@ -91,7 +91,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 17},
+            {"id": "sanger", "family": "modality", "version": 18},
             {"id": "core", "family": "core", "version": 11},
         ])
     );

@@ -34,10 +34,7 @@ pub(super) fn calculate(
         .iter()
         .map(|position| rank(position.amplitudes))
         .collect::<Vec<_>>();
-    let spacings = evidence
-        .windows(2)
-        .map(|pair| pair[1].coordinate.saturating_sub(pair[0].coordinate) as f64)
-        .collect::<Vec<_>>();
+    let spacings = spacings(evidence);
     let weak_below = weak_amplitude_fraction * median_primary_amplitude(evidence, &ranked);
     Ok(evidence
         .iter()
@@ -106,20 +103,73 @@ fn rank(amplitudes: [f64; 4]) -> (Option<usize>, Option<usize>) {
     }
 }
 
+/// The spacings between consecutive positions, in call order.
+fn spacings(evidence: &[PositionEvidence]) -> Vec<f64> {
+    evidence
+        .windows(2)
+        .map(|pair| pair[1].coordinate.saturating_sub(pair[0].coordinate) as f64)
+        .collect()
+}
+
+/// The median spacing of the window around position `index`: up to
+/// `half_window` spacings on each side; zero for an empty window.
+fn local_median(index: usize, spacings: &[f64], half_window: usize) -> f64 {
+    let window_start = index.saturating_sub(half_window);
+    let window_end = index.saturating_add(half_window).min(spacings.len());
+    let mut window = spacings
+        .get(window_start..window_end)
+        .unwrap_or_default()
+        .to_vec();
+    if window.is_empty() {
+        return 0.0;
+    }
+    window.sort_by(f64::total_cmp);
+    let middle = window.len() / 2;
+    if window.len().is_multiple_of(2) {
+        f64::midpoint(window[middle - 1], window[middle])
+    } else {
+        window[middle]
+    }
+}
+
+/// The junctions whose spacing marks a missing peak, each by the position
+/// before it (SRS-CALL-026). With `M` the median spacing of that position's
+/// window, the junction's spacing exceeds `M`, and its span together with
+/// either neighbouring junction exceeds `2M`, each by at least
+/// `spacing_defect` of `M`: the measure and level of a spacing defect
+/// (SRS-CALL-002), in the wide direction only. A peak the basecaller missed
+/// leaves a gap about twice the read's spacing, and the ladder stays a call
+/// behind; a peak merely placed late is followed by a short spacing that
+/// makes up for it.
+pub(super) fn gaps(
+    evidence: &[PositionEvidence],
+    half_window: usize,
+    spacing_defect: f64,
+) -> Vec<usize> {
+    let spacings = spacings(evidence);
+    (0..spacings.len())
+        .filter(|&index| {
+            let median = local_median(index, &spacings, half_window);
+            let wide = |span: f64, expected: f64| {
+                round_metric((span - expected * median) / median) >= spacing_defect
+            };
+            let spacing = spacings[index];
+            median > 0.0
+                && wide(spacing, 1.0)
+                && [index.checked_sub(1), index.checked_add(1)]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|neighbour| spacings.get(neighbour))
+                    .all(|&neighbour| wide(spacing + neighbour, 2.0))
+        })
+        .collect()
+}
+
 /// Relative deviation of the position's neighbouring spacings from the median
 /// spacing of the surrounding window; zero when the median carries no
 /// information.
 fn spacing_deviation(index: usize, spacings: &[f64], half_window: usize) -> f64 {
-    let window_start = index.saturating_sub(half_window);
-    let window_end = index.saturating_add(half_window).min(spacings.len());
-    let mut window = spacings[window_start..window_end].to_vec();
-    window.sort_by(f64::total_cmp);
-    let middle = window.len() / 2;
-    let median = if window.len().is_multiple_of(2) {
-        f64::midpoint(window[middle - 1], window[middle])
-    } else {
-        window[middle]
-    };
+    let median = local_median(index, spacings, half_window);
     if median <= 0.0 {
         return 0.0;
     }
@@ -194,6 +244,32 @@ mod tests {
         assert_eq!(features[6].spacing_deviation, 1.5);
         assert_eq!(features[7].spacing_deviation, 0.0);
         Ok(())
+    }
+
+    // SRS-CALL-026
+    #[test]
+    fn a_gap_is_a_spacing_at_least_the_defect_wider_than_the_local_median() {
+        let evidence = |coordinates: &[usize]| {
+            coordinates
+                .iter()
+                .map(|&coordinate| position([1_000.0, 0.0, 0.0, 0.0], coordinate))
+                .collect::<Vec<_>>()
+        };
+        // Spacings 12, 12, 6, 12, 12, 24, 12, 12, 12: the narrow junction is
+        // no gap, the junction after position 5 is twice the median.
+        let missing = evidence(&[0, 12, 24, 30, 42, 54, 78, 90, 102, 114]);
+        assert_eq!(gaps(&missing, 8, 0.5), [5]);
+        assert_eq!(gaps(&missing, 8, 1.0), [5]);
+        assert!(gaps(&missing, 8, 1.5).is_empty());
+        // Spacings 12, 12, 12, 12, 12, 18, 6, 12, 12: a peak placed late,
+        // whose next spacing makes up for it, is no gap.
+        let late = evidence(&[0, 12, 24, 36, 48, 60, 78, 84, 96, 108]);
+        assert!(gaps(&late, 8, 0.5).is_empty());
+        // A constant spacing has none.
+        let even = (0..10)
+            .map(|index| position([1_000.0, 0.0, 0.0, 0.0], index * 12))
+            .collect::<Vec<_>>();
+        assert!(gaps(&even, 8, 0.5).is_empty());
     }
 
     #[test]

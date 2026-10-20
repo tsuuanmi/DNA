@@ -98,7 +98,13 @@ fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCall
             rules: settings.shadow,
         },
     );
-    mask::build(repeats, segments, features.len())
+    let mut callability = mask::build(repeats, segments, features.len())?;
+    callability.gaps = features::gaps(
+        evidence,
+        settings.spacing_half_window,
+        settings.thresholds.spacing_defect,
+    );
+    Ok(callability)
 }
 
 #[cfg(test)]
