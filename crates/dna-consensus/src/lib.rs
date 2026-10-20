@@ -360,6 +360,11 @@ fn withdraw_near_differences(
 ///   `dissent_edge` calls of its own ends, and the supporting read lies at
 ///   least `dissent_edge` calls from its ends.
 ///
+/// At a site or stretch called by a strict majority as other than the
+/// reference, the first rule alone applies, and only to reads that show the
+/// decided runs in order and differ from the decision in a run's length
+/// alone.
+///
 /// A set-aside read shows nothing there and no longer opposes the decision,
 /// which keeps its value. Whether any was set aside.
 fn set_aside_dissent(
@@ -380,7 +385,13 @@ fn set_aside_dissent(
             .iter()
             .map(|&base| char::from(base))
             .collect::<String>();
-        if decision.value.as_deref() != Some(reference.as_str()) {
+        let Some(value) = decision.value.as_deref() else {
+            continue;
+        };
+        // Off the reference, only a called decision's dissent in a run's
+        // length alone may be set aside.
+        let at_reference = value == reference;
+        if !at_reference && decision.state != SiteState::Called {
             continue;
         }
         let index = |name: &String| observed.iter().position(|read| &read.name == name);
@@ -451,9 +462,28 @@ fn set_aside_dissent(
                         .is_some_and(|&edge| edge < dissent_edge)
                 })
         };
-        let artefact = opposing.iter().all(|&read| explained(&observed[read])) && anchored(margin);
-        let edge_indel =
-            opposing.iter().all(|&read| indel_near_end(&observed[read])) && anchored(dissent_edge);
+        // The read shows the decided runs in order, every call resolved, and
+        // differs from the decision only in a run's length.
+        let composition = |sequence: &str| {
+            runs_of(sequence.chars())
+                .into_iter()
+                .map(|(base, _)| base)
+                .collect::<String>()
+        };
+        let length_only = |read: &ReadObservations| {
+            read.span(first, last, length).is_some_and(|(_, chars, _)| {
+                let observed = chars.iter().map(|char| char.base).collect::<String>();
+                chars.iter().all(|char| is_canonical(char.base))
+                    && observed != value
+                    && composition(&observed) == composition(value)
+            })
+        };
+        let artefact = opposing.iter().all(|&read| {
+            explained(&observed[read]) && (at_reference || length_only(&observed[read]))
+        }) && anchored(margin);
+        let edge_indel = at_reference
+            && opposing.iter().all(|&read| indel_near_end(&observed[read]))
+            && anchored(dissent_edge);
         if artefact || edge_indel {
             aside.extend(opposing.into_iter().map(|read| (read, first, last)));
         }
@@ -1749,7 +1779,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 15,
+    version: 16,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2674,6 +2704,51 @@ mod tests {
         assert_eq!(after.value.as_deref(), Some("A"));
         assert_eq!(after.state, SiteState::Called);
         assert!(after.opposing.is_empty());
+    }
+
+    // SRS-CONS-011
+    #[test]
+    fn a_run_length_dissent_from_a_called_variant_is_set_aside() {
+        const RUN: &str = "ACATGGGGTACA";
+        let reads = |opposing: &str| {
+            let forward = rows("f", 0, "ACATGGGG-TACA", "ACATGGGGGTACA", "ccccccccccccc");
+            let mut reverse = rows("r", 0, "ACATGGGG-TACA", "ACATGGGGGTACA", "ccccccccccccc");
+            reverse.forward = false;
+            let mut other = rows("o", 0, RUN, opposing, "cccccccccccc");
+            // Its second base stands out, and the modality explains its peak.
+            other.seconds.insert(8, 'G');
+            let mut observed = vec![forward, reverse, other];
+            for read in &mut observed {
+                read.edges = (0..RUN.len()).map(|position| (position, 50)).collect();
+            }
+            observed
+        };
+        let set_aside = |observed: &mut Vec<ReadObservations>| {
+            let decided = decide_positions(observed, RUN.as_bytes(), 4);
+            set_aside_dissent(observed, &decided, RUN.as_bytes(), 12, 40)
+        };
+        let decided_at = |observed: &[ReadObservations]| {
+            decide_positions(observed, RUN.as_bytes(), 4)
+                .range(..=5)
+                .next_back()
+                .map(|(_, (_, decision))| decision.clone())
+        };
+        let mut length = reads(RUN);
+        let before = decided_at(&length).map(|decision| (decision.value, decision.opposing));
+        assert_eq!(
+            before,
+            Some((Some("GGGGGT".to_owned()), vec!["o".to_owned()]))
+        );
+        assert!(set_aside(&mut length));
+        let after = decided_at(&length).map(|decision| (decision.value, decision.opposing));
+        assert_eq!(after, Some((Some("GGGGGT".to_owned()), Vec::new())));
+        // Without a second base standing out, the dissent stands.
+        let mut plain = reads(RUN);
+        plain[2].seconds.clear();
+        assert!(!set_aside(&mut plain));
+        // A read showing other runs differs in more than a length.
+        let mut substituted = reads("ACATGGAGTACA");
+        assert!(!set_aside(&mut substituted));
     }
 
     // SRS-CONS-011

@@ -534,6 +534,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   non-het are unchanged in every period, no status changes, and 48 samples
   held only by HVS-I read-start checks become clear (current 72.80 ->
   73.16 %, older 71.63 -> 71.96 %). Plugin `consensus` 15.
+- An opposing read whose dissent from a called variant is only a run's
+  length is set aside under the explained-second rule (SRS-CONS-011,
+  ADR-0083): every call it shows there is resolved, it shows the decided
+  runs in the same order, it shows a second base standing out there that its
+  modality explains, and a clean read of the other strand without a second
+  peak supports the decision. The indel-at-a-read-end rule stays
+  reference-only, and a substitution against a called variant is never set
+  aside. This lifts the HV1F overcall of the G run 66-71 beside `73G`. On
+  panel v5 against `main` 69e1471, unreviewed and non-het are unchanged in
+  every period, no status changes, and 19 samples become clear (current
+  73.16 -> 73.31 %, 2025-08..11 53.38 -> 53.41 %, older 71.96 -> 72.00 %).
+  Plugin `consensus` 16.
 - `dna.read_evidence/v1` carries everything the analysis document reports
   beside the core's products, in place (pre-release): `read.trim`,
   `signal_quality`, and `warnings` as in `dna.basecalls/v3`, and each call's

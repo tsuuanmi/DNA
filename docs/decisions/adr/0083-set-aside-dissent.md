@@ -60,9 +60,62 @@ The core reads only the kernel's assertions and the reads' informative
 intervals, never a modality's labels (ADR-0069). A set-aside read shows
 nothing at the site, inside a stretch as well, and the positions are decided
 again in the loop that withdraws reference confirmations (ADR-0080). Only
-reads against the reference are set aside, so the decided value never
-changes: a contested site becomes called, and a called one loses its
-dissent.
+reads against the reference are set aside, apart from the run-length
+dissent below, so the decided value never changes: a contested site becomes
+called, and a called one loses its dissent.
+
+### Run-length dissent from a called variant
+
+Amended 2026-10-20. On the current slice of development panel v5, 25 samples
+were held only by the `start@HV2` zone, each by one check at 73
+(`strands_disagree`). In all 25 the reviewers' sequence is `73G` alone, and
+the consensus decides the stretch 66-73 (`GGGGGGTA` in the reference) as
+`GGGGGGTG`, supported by HV2F and HV3R. The only opposing read is HV1F, the
+forward read that crosses the origin. It reads `73G` cleanly as well and
+differs only in the length of the G run 66-71: G7 in 24 samples, and in one
+(`2565539`) G6 against two reads of G7, a run length outside the reportable
+region. HV1F reads the run 630-720 calls into the read, 25-153 calls (median
+about 57) before the end of its informative interval and inside its in-phase
+signal. In 24 samples HV1F shows a G second peak standing out at 72 that its
+modality explains as a neighbour's tail. Rule 1 or 2 did not set it aside
+because:
+
+| Reason | Samples |
+|---|---|
+| The decision is not the reference (`73G` is inside the stretch) | 25 |
+| Rule 2 reads HV1F's own `73G` as a substitution | 25 |
+| Rule 2: the insertion is within `dissent_edge` calls of HV1F's end | 4 of 25 |
+| HV2F cannot anchor: it is on HV1F's strand | 25 |
+| Rule 1 would hold at a reference decision | 17 |
+| Rule 1 fails: HV3R, the only anchor, shows a G second standing out at 72 | 8 |
+
+Rule 1 therefore also applies at a site or stretch called by a strict
+majority (`called`) as a value other than the reference, to opposing reads
+whose dissent is a run's length alone: every call they show there is
+resolved, and they show the decided runs in the same order. Every other
+condition of rule 1 is unchanged. Rule 2 stays reference-only, and a
+substitution against a called variant is never set aside. The remaining
+supporting reads keep their majority, so the decided value does not change.
+
+The 8 samples where HV3R shows the G second at 72 keep their check. A second
+standing out on both strands at one position is the signature of a second
+sequence, and the anchor's guard keeps it (`2558783`, `2566026`, `2566574`,
+`2566845`, `2567577`, `2567589`, `2568024`, `LN_26_AC7273`).
+
+Measured on development panel v5 against `main` 69e1471:
+
+| Period | Unreviewed | Non-het | Clear |
+|---|---|---|---|
+| current | 440 → 440 | 94 → 94 | 73.16 → 73.31 % (+17) |
+| 2025-08..11 | 151 → 151 | 51 → 51 | 53.38 → 53.41 % (+1) |
+| older | 174 → 174 | 84 → 84 | 71.96 → 72.00 % (+1) |
+
+No status of any measure changes, and no unreviewed difference appears or
+disappears. Checks change in 21 samples. In 20 the check at 73 goes, which
+clears 19 samples: the 17 current samples rule 1 reaches, `LN_25_AA7280`,
+and `2525350`. The only other change is a check at 16221-16224
+(`2537451`), where DNA's `16223T` is the reviewers' too. Plugin `consensus`
+16.
 
 ## Alternatives
 
