@@ -207,7 +207,7 @@ observations.
 | Field | For status | Content |
 |---|---|---|
 | `provenance` | all | v1's, plus `policy {version, labels: [{id, class, rank}]}`; `rules` is the predicate version |
-| `reads` | all | admitted reads `{name, sha256, strand, admitted}`, rejected reads with `rejection`; v1's `masked` and `mixtures` move to `annotations` |
+| `reads` | all | admitted reads `{name, sha256, strand, admitted}`, rejected reads with `rejection`; v1's `masked`, `mixtures`, and `unreliable` move to `annotations` |
 | `calls`, `callable`, `reference_only`, `empop` | called | as v1 |
 | `windows` | called | the profile's repeat windows `{name, first, last}`: profile knowledge, kept apart from data |
 | `annotations` | called, call_failed | `{id: "A<n>", label, first, last, reads: [{read, strand, first, last}], strands: {forward, reverse}, detail}` in order of first, then label, then read |
@@ -365,7 +365,7 @@ Four pull requests, each its own plugin and schema version:
 1. Registry, label IDs, policy, `kind`, `summary.regions`, `windows`; v1's
    `zones` removed. `dna.review/v1` → `v2`. No predicate changes.
 2. `annotations[]` and item `positions[]` with `at` and `within`, replacing
-   `evidence` and the reads' `masked` and `mixtures`.
+   `evidence` and the reads' `masked`, `mixtures`, and `unreliable`.
 3. `mixture.second_base_one_strand`, as context.
 4. `dna-eval` reads v2 and records per-label measures.
 
