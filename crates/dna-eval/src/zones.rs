@@ -159,12 +159,17 @@ impl Zones {
         instances
     }
 
-    /// The kind of `position`, when it lies in a region.
-    pub(crate) fn kind(&self, position: i64) -> Option<Kind> {
-        self.regions.iter().find_map(|region| {
-            let index = usize::try_from(position - region.start).ok()?;
-            region.kinds.get(index).copied()
+    /// The instance that holds `position`, when it lies in a region.
+    pub(crate) fn instance(&self, position: i64) -> Option<Instance> {
+        self.regions.iter().enumerate().find_map(|(index, region)| {
+            let offset = usize::try_from(position - region.start).ok()?;
+            Some((index, *region.kinds.get(offset)?))
         })
+    }
+
+    /// The regions' names, in region order.
+    pub(crate) fn names(&self) -> impl Iterator<Item = &str> {
+        self.regions.iter().map(|region| region.name.as_str())
     }
 
     /// `kind@region`, as `scores.tsv` writes an instance.
@@ -208,19 +213,23 @@ mod tests {
     #[test]
     fn positions_take_the_kind_of_highest_precedence() {
         let zones = hv2();
-        assert_eq!(zones.kind(73), Some(Kind::Start));
-        assert_eq!(zones.kind(112), Some(Kind::Start));
-        assert_eq!(zones.kind(113), Some(Kind::Interior));
-        assert_eq!(zones.kind(282), Some(Kind::Interior));
-        assert_eq!(zones.kind(283), Some(Kind::After));
-        assert_eq!(zones.kind(303), Some(Kind::Window));
-        assert_eq!(zones.kind(315), Some(Kind::Window));
+        let kind = |position| zones.instance(position).map(|(_, kind)| kind);
+        assert_eq!(kind(73), Some(Kind::Start));
+        assert_eq!(kind(112), Some(Kind::Start));
+        assert_eq!(kind(113), Some(Kind::Interior));
+        assert_eq!(kind(282), Some(Kind::Interior));
+        assert_eq!(kind(283), Some(Kind::After));
+        assert_eq!(kind(303), Some(Kind::Window));
+        assert_eq!(kind(315), Some(Kind::Window));
         // After the window outranks the region's end.
-        assert_eq!(zones.kind(335), Some(Kind::After));
-        assert_eq!(zones.kind(336), Some(Kind::End));
-        assert_eq!(zones.kind(340), Some(Kind::End));
-        assert_eq!(zones.kind(341), None);
+        assert_eq!(kind(335), Some(Kind::After));
+        assert_eq!(kind(336), Some(Kind::End));
+        assert_eq!(kind(340), Some(Kind::End));
+        assert_eq!(kind(341), None);
         assert_eq!(zones.label((0, Kind::After)), "after@HV2");
+        assert_eq!(zones.instance(72), None);
+        assert_eq!(zones.instance(340), Some((0, Kind::End)));
+        assert_eq!(zones.names().collect::<Vec<_>>(), ["HV2"]);
         assert_eq!(
             zones.instances(),
             [

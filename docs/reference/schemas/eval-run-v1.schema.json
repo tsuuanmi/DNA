@@ -276,6 +276,7 @@
         "zones",
         "constants",
         "samples",
+        "workload",
         "seconds"
       ],
       "properties": {
@@ -791,6 +792,22 @@
             }
           }
         },
+        "workload": {
+          "description": "What passes without review (a sample, a region, or a zone that no check item touches), over the samples the review workload counts (compared under `haplotype_lod` with a concordant or discordant status): `all` over every one, `current` over those of the current data, with `current_since`. Shares are each count over its total.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all"
+          ],
+          "properties": {
+            "all": {
+              "$ref": "#/$defs/passes"
+            },
+            "current": {
+              "$ref": "#/$defs/passes"
+            }
+          }
+        },
         "seconds": {
           "type": "object",
           "additionalProperties": false,
@@ -857,6 +874,183 @@
               "minimum": 0
             }
           }
+        }
+      },
+      "if": {
+        "required": [
+          "current_since"
+        ]
+      },
+      "then": {
+        "properties": {
+          "workload": {
+            "required": [
+              "current"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "workload": {
+            "not": {
+              "required": [
+                "current"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "passes": {
+      "description": "What passes without review over one set of samples.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "auto_pass",
+        "regions",
+        "zones"
+      ],
+      "properties": {
+        "samples": {
+          "description": "The samples counted.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "auto_pass": {
+          "description": "Samples without a check item (`review_clear` `Y`), and those of them with an unreviewed block.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "samples",
+            "unreviewed"
+          ],
+          "properties": {
+            "samples": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreviewed": {
+              "$ref": "#/$defs/escaped"
+            }
+          }
+        },
+        "regions": {
+          "description": "One region per sample and region of the target profile's zones: `total`, those needing a check (a check item touches one of its zones, `<kind>@<region>`), and the passed ones holding an unreviewed block's first position; overall and per region, in profile order.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "checked",
+            "unreviewed",
+            "by_region"
+          ],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "checked": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreviewed": {
+              "$ref": "#/$defs/escaped"
+            },
+            "by_region": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/unit"
+              }
+            }
+          }
+        },
+        "zones": {
+          "description": "One zone per sample and zone instance of the target profile (a kind in a region): `total`, those a check item touches (the sum of `review_zone_count`), and the passed ones holding an unreviewed block's first position; overall and per zone, in the order of the summary's zone table.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "checked",
+            "unreviewed",
+            "by_zone"
+          ],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "checked": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreviewed": {
+              "$ref": "#/$defs/escaped"
+            },
+            "by_zone": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/unit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "unit": {
+      "description": "One region (`HV1`) or zone (`after@HV2`) of the target profile over the samples counted.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "total",
+        "checked",
+        "unreviewed"
+      ],
+      "properties": {
+        "name": {
+          "description": "A region's name (the HV region that holds its first position, else its bounds), or a zone's `<kind>@<region>`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "total": {
+          "description": "The samples counted.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "checked": {
+          "description": "Samples with a check item in the region's zones, or touching the zone.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreviewed": {
+          "description": "The other samples whose unreviewed blocks start in the region or zone (by first position).",
+          "$ref": "#/$defs/escaped"
+        }
+      }
+    },
+    "escaped": {
+      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, those with a non-het block, and those with het blocks only (a block is het when the truth writes an IUPAC code of two or three bases in it, not `N`); `non_het` + `het_only` = `total`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "non_het",
+        "het_only"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "non_het": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "het_only": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

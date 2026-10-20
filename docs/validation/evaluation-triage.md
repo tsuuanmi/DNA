@@ -69,6 +69,34 @@ summary gives:
 The profile is the one the configuration names, and every analysed sample
 must have used it. The widths are in `run.json`.
 
+**Passes.** A reviewer works per region and per zone, so the workload also
+counts what passes without review: a sample, a region, or a zone that no
+check item touches. Over the same samples, the summary's "Passes" table and
+`run.json` `workload` (`all`, and `current` with `--current-since`) give:
+
+- auto-pass samples: those without a check item (`review_clear` `Y`), and
+  those of them with an unreviewed block;
+- regions: one per sample and reportable region of the profile. A region
+  needs a check when a check item touches one of its zones; the summary gives
+  the regions needing a check and the pass share, overall and per region, and
+  the passed regions that hold an unreviewed block, which counts for the
+  region of its first position;
+- zones: one per sample and zone (a kind in a region, as listed above), and
+  those a check item touches; the summary gives the zones needing a check and
+  the pass share, overall, per zone, and per zone kind (summed over the
+  regions), and the passed zones that hold an unreviewed block, which counts
+  for the zone of its first position. A zone a check item touches is not
+  passed, even when an unreviewed block in it lies beside the item.
+
+A passed zone may lie in a region that needs a check, so the passed zones
+with an unreviewed block can outnumber the passed regions with one; and they
+count zones, where the zone kind table above counts blocks. A sample, region,
+or zone with unreviewed blocks is non-het when one of them is not het, and
+het only otherwise. A block is het when the truth writes an IUPAC
+code of two or three bases (`R`, `Y`, `K`, `M`, `S`, `W`, `B`, `D`, `H`,
+`V`) in it; `N` is not one. A block outside every region counts for its
+sample only.
+
 `--current-since <YYYY-MM>` names the first batch month of the current data:
 the samples whose `batch_date` is in or after it. Recent batches come first,
 since old batches may predate the laboratory's current practice. The

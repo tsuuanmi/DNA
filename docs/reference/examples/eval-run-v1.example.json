@@ -463,6 +463,434 @@
         "failed": 2
       }
     },
+    "workload": {
+      "all": {
+        "samples": 3,
+        "auto_pass": {
+          "samples": 2,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          }
+        },
+        "regions": {
+          "total": 9,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_region": [
+            {
+              "name": "HV1",
+              "total": 3,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        },
+        "zones": {
+          "total": 45,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_zone": [
+            {
+              "name": "window@HV1",
+              "total": 3,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV1",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV2",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV3",
+              "total": 3,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        }
+      },
+      "current": {
+        "samples": 2,
+        "auto_pass": {
+          "samples": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          }
+        },
+        "regions": {
+          "total": 6,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_region": [
+            {
+              "name": "HV1",
+              "total": 2,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        },
+        "zones": {
+          "total": 30,
+          "checked": 1,
+          "unreviewed": {
+            "total": 1,
+            "non_het": 1,
+            "het_only": 0
+          },
+          "by_zone": [
+            {
+              "name": "window@HV1",
+              "total": 2,
+              "checked": 1,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV1",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV2",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 1,
+                "non_het": 1,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "window@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "after@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "start@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "end@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            },
+            {
+              "name": "interior@HV3",
+              "total": 2,
+              "checked": 0,
+              "unreviewed": {
+                "total": 0,
+                "non_het": 0,
+                "het_only": 0
+              }
+            }
+          ]
+        }
+      }
+    },
     "seconds": {
       "total": 41.2,
       "truth": 1.3,
