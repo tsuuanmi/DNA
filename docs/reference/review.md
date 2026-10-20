@@ -258,7 +258,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 21)
+## Labels (rules version 22)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -380,10 +380,14 @@ exemption lifts the margin (ADR-0076).
   lengths were 89 % wrong (an anchored end or one read counts one base too
   many in a long run), against 2 % for lengths both strands showed in phase.
 - `edge_deletion` `{read}`: a decided deletion that rests on a single read
-  and lies within `review.edge_zone` positions of a reportable region's first
-  or last position, where a read's own edge loses or doubles a base (rules
-  version 7). On current development data such deletions were 88 % wrong,
-  against 0.2 % inside the regions and 0.8 % with both strands.
+  and lies within `review.deletion_zone` positions of a reportable region's
+  first or last position, where a read's own edge loses or doubles a base
+  (rules version 7). On current development data such deletions were 88 %
+  wrong, against 0.2 % inside the regions and 0.8 % with both strands. Rules
+  version 20 widened the zone with `review.edge_zone`; rules version 22 gives
+  it its own key at its earlier width, since the wider zone flagged the
+  common true `106-111DEL`, read by one HVS-II forward read 40 to 70 calls
+  from its end (41 checks on development panel v5, DNA right in all).
 - `beside_not_analysed` (rules version 20): an item with a difference lies
   within `review.edge_zone` positions of a reportable region's end that the
   call does not analyse (`not_analysed`, SRS-CONS-012). The reads there sit

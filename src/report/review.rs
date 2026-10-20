@@ -49,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 21,
+    version: 22,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -930,7 +930,7 @@ impl<'a> Sample<'a> {
         .then(|| self.reads[index].name.to_owned())
     }
 
-    /// The single read a deletion within `edge_zone` positions of a
+    /// The single read a deletion within `deletion_zone` positions of a
     /// reportable region's first or last position rests on; `None` for any
     /// other site.
     fn edge_deletion(&self, site: &ConsensusSite) -> Option<String> {
@@ -945,7 +945,7 @@ impl<'a> Sample<'a> {
             &self.reportable,
             site.first_0based + 1,
             site.last_0based + 1,
-            self.config.edge_zone,
+            self.config.deletion_zone,
         );
         let index = *self.by_input.get(input.as_str())?;
         near.then(|| self.reads[index].name.to_owned())
@@ -1679,8 +1679,6 @@ fn long_runs(site: &ConsensusSite, growth: usize) -> Vec<GrowthResult> {
         .collect()
 }
 
-/// Whether `first..=last` (1-based) lies in a region and within `zone`
-/// positions of its first or last position.
 /// Whether an item over `first..=last` lies within `zone` positions of a
 /// reportable region's end that the call leaves out as not analysed
 /// (SRS-CONS-012): the reads there sit right after their poor start, where
@@ -1702,6 +1700,8 @@ fn beside_not_analysed(
     })
 }
 
+/// Whether `first..=last` (1-based) lies in a region and within `zone`
+/// positions of its first or last position.
 fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> bool {
     regions.iter().any(|&[start, end]| {
         start <= first && last <= end && (first - start < zone || end - last < zone)
@@ -2528,6 +2528,10 @@ mod tests {
         assert!(!near_edge(&regions, 200, 201, 20));
         assert!(!near_edge(&regions, 10, 10, 20));
         assert!(!near_edge(&regions, 16031, 16031, 0));
+        // `106-111DEL` lies outside the deletion zone (20) of HVS-II's start,
+        // but inside the wider edge zone beside a region end not analysed.
+        assert!(!near_edge(&regions, 106, 111, 20));
+        assert!(near_edge(&regions, 106, 111, 40));
     }
 
     #[test]
