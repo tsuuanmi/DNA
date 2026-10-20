@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 20
+schema_version = 21
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -204,6 +204,16 @@ site_gap_extension_cost = 2
 # against a reference decision, is set aside when a read of the other strand
 # reads the site cleanly at least this far from its own ends (SRS-CONS-011).
 dissent_edge = 40
+# The two-strand run-length rule (PROP-0012 increment 4) decides a run of a
+# length mixture only when every read's top length clears one half by more
+# than the strands' spread or its strand's replicate excess noise, by
+# `length_confidence` standard errors (a one-sided 99 % level). The noise of
+# a forward and a reverse read's view of the first and second run of a
+# window was estimated from 743 re-sequenced samples (see the configuration
+# reference).
+length_confidence = 2.326
+length_noise_forward = [0.065, 0.111]
+length_noise_reverse = [0.111, 0.128]
 
 [review]
 # A decided run longer than its reference run by at least `run_growth` bases

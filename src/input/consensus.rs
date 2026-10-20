@@ -120,6 +120,7 @@ fn evidence(label: &str) -> Option<RunEvidence> {
         RunEvidence::PhaseLoss,
         RunEvidence::ConfirmedEnd,
         RunEvidence::ReferenceFrame,
+        RunEvidence::TwoStrand,
     ]
     .into_iter()
     .find(|evidence| evidence.label() == label)

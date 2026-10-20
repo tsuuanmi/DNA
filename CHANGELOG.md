@@ -602,6 +602,38 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The consensus decides a run it would leave as an estimate
+  (`anchored_end`, `phase_loss`, or `reference_frame`) when the reads' tract
+  decodes on both strands put one length on top beyond the strands' spread
+  and replicate noise (SRS-CONS-013, ADR-0074 amendment, PROP-0012
+  increment 4). This applies to either of two runs of one base around a
+  single-base anchor, in a stretch whose call keeps that reference
+  composition. The window comes from the stretch's own structure, not from
+  the profile.
+  - **Evidence.** Such a run carries `length_evidence` `two_strand`
+    (`dna.consensus/v1`, in place, pre-release). It is observed, so its 3'
+    end stays callable. An `in_phase` or `confirmed_end` length is never
+    replaced.
+  - **Review.** A `two_strand` run counts as confirmed in
+    `length_unconfirmed`, unless a read's structure differs from DNA's.
+  - **Configuration.** The constants are new `[consensus]` keys
+    `length_confidence` (2.326), `length_noise_forward` ([0.065, 0.111]),
+    and `length_noise_reverse` ([0.111, 0.128]): replicate noise per strand
+    and run, from 743 re-sequenced samples
+    (`docs/design/length-mixture.md`). Configuration schema 21.
+  - **Shared code.** The non-negative least squares solver moves from
+    `dna-trace` to `dna_kernel::nnls`, unchanged.
+  - **Measured.** On development panel v5 against increment 3
+    (`dna-eval diff`, GATE PASS), the effect is near zero:
+    - one call changes (a C8 at 303-309 where truth has `N`), and no error
+      is introduced;
+    - window@HV2 checks go from 3,073 to 3,072;
+    - 31 more run 1s become `two_strand` at the length DNA already had, but
+      none of their checks goes, because run 2 stays one-strand there.
+    Most flagged run 1s are a real C8/C9 mix (61 of 69 near-equal on both
+    strands), which the rule refuses.
+  - Plugins `consensus` 18 and `review` 23 (rules 23).
+
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than

@@ -258,7 +258,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 22)
+## Labels (rules version 23)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -356,7 +356,10 @@ exemption lifts the margin (ADR-0076).
   - `differs_from_call`: both strands agree on another length than DNA's.
 
   A run both strands give one clear length that is DNA's is confirmed and not
-  listed. The label is a check: the decodes do not assure DNA's length.
+  listed. So is a run the consensus decided by the two-strand rule
+  (`length_evidence` `two_strand`, SRS-CONS-013, rules version 23), unless
+  its structure differs. The label is a check: the decodes do not assure
+  DNA's length.
 - `length_not_recorded` `{runs: [...]}` (rules version 21): the same runs, as
   `length_unconfirmed` lists them, confirmed ones included, of an anchored
   window over which the profile's report convention leaves the run lengths
