@@ -55,7 +55,7 @@
         "version": 20
       }
     ],
-    "rules": 20
+    "rules": 21
   },
   "reads": [
     {
@@ -1400,6 +1400,7 @@
       "read_disagrees": 0,
       "possible_heteroplasmy": 1,
       "estimated_length": 1,
+      "length_unconfirmed": 0,
       "undecided": 0,
       "not_called": 0,
       "long_run": 0,
@@ -1413,7 +1414,8 @@
       "phase_shift": 2,
       "dephased_end": 0,
       "read_edge": 0,
-      "poor_signal": 0
+      "poor_signal": 0,
+      "length_not_recorded": 0
     },
     "positions": {
       "reportable": 749,

@@ -1,6 +1,6 @@
 ---
-implements: [SRS-CALL, SRS-VAR]
-decided-by: [ADR-0082, ADR-0084]
+implements: [SRS-API, SRS-CALL, SRS-VAR]
+decided-by: [ADR-0074, ADR-0082, ADR-0084]
 ---
 
 # Length mixtures
@@ -146,6 +146,30 @@ The decode is evidence only, a second assertion beside `PhaseMixture`
 ([[ADR-0084]]). The steps are memoised by downstream sequence, and the NNLS
 reuses its QR prefix, so the results equal a plain implementation's. The
 research reference's vectors check every output.
+
+## Flag (increment 3)
+
+The review judges the runs of each anchored repeat window from the decodes
+(SRS-API-020). It credits each decode to the run its first call is aligned
+to, the run at the tract's start. A forward read gives run 1, the one it
+enters first, and a reverse read gives run 2. With the anchor as its mark
+and both marginals clear, a read also gives the next run's length from its
+total.
+
+A read that stays in phase through a run is ADR-0074's `in_phase` evidence.
+It gives that run's length as well, read by the consensus's own
+`read_runs_over`, so the review and the consensus share one meaning of "in
+phase". Without that, a reverse read in phase through the C5 would leave
+most runs to one strand.
+
+A strand gives a run one clear length when all its reads agree with clear
+margins. A run is confirmed when both strands give the same length and it
+is DNA's call. Every other run a decode reaches is a check
+(`length_unconfirmed`). Where the profile leaves the window's run lengths
+unrecorded (HVS-I), the same view is context (`length_not_recorded`).
+
+Increment 4 replaces "clear" with the data-derived decision rule, one
+function the consensus uses to decide and the review uses to confirm.
 
 ## Evaluation
 

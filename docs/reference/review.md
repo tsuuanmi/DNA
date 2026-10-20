@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0076, ADR-0080, ADR-0082]
+decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -179,9 +179,9 @@ the clipped columns, what most of its supporting reads show there). It has:
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
-  `explained`, `estimated_length`, `undecided`, `not_called`, `long_run`,
-  `edge_deletion`, `run_deletion`, `beside_not_analysed`,
-  `not_covered`), whatever its calls; otherwise `variant`: it
+  `explained`, `estimated_length`, `length_unconfirmed`, `undecided`,
+  `not_called`, `long_run`, `edge_deletion`, `run_deletion`,
+  `beside_not_analysed`, `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference; otherwise `note` (rules version 19): it holds an `explained`
@@ -254,11 +254,11 @@ and `5` for a variant without a label. Items are ordered by priority, then
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy` |
-| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `long_run`, `not_called`, `run_deletion`, `undecided` |
+| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
-| 4 | `dephased_end`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
+| 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 13)
+## Labels (rules version 21)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -332,6 +332,37 @@ exemption lifts the margin (ADR-0076).
   length the reviewers record, and stays listed. The reviewers do not record
   that length, so its estimate leaves nothing to assure (on the human
   profile, the HVS-I C run of ten or more that 16189C creates).
+- `length_unconfirmed` `{runs: [{run, base, called, agreement, reads}]}`
+  (rules version 21, SRS-API-020): runs of an anchored repeat window (on the
+  human profile, HVS-II `C7 T C5`) that the reads' tract decodes reach
+  ([[PROP-0012]] increment 3) but do not confirm. `run` is 1 before the
+  anchor and 2 after it (1 alone when DNA calls one run); `called` is DNA's
+  length, null when its call there holds an `N`. Each read gives a length
+  with its `source`:
+  - `decode`, the first-run marginal of the run the read enters first (a
+    forward read enters run 1, a reverse read run 2);
+  - `derived`, the next run, from the read's total, when its mark is the
+    anchor and both its marginals are clear;
+  - `in_phase`, a run the consensus reads in phase in that read (ADR-0074).
+
+  Each also carries its `share`, `next` length, and `margin`. `agreement`
+  says why the run is not confirmed, the first that applies:
+  - `structure_differs`: a read sees two runs where DNA calls one, or the
+    reverse;
+  - `disagree`: the strands give different clear lengths;
+  - `not_clear`: a strand's lengths are not all clear and equal;
+  - `one_strand`: one strand gives no length;
+  - `undecided_call`;
+  - `differs_from_call`: both strands agree on another length than DNA's.
+
+  A run both strands give one clear length that is DNA's is confirmed and not
+  listed. The label is a check: the decodes do not assure DNA's length.
+- `length_not_recorded` `{runs: [...]}` (rules version 21): the same runs, as
+  `length_unconfirmed` lists them, confirmed ones included, of an anchored
+  window over which the profile's report convention leaves the run lengths
+  unrecorded (on the human profile, HVS-I). Context only: the reviewers do
+  not record those lengths, and a check against them would follow a
+  convention, not an error.
 - `undecided`: the site is `unresolved` or `contested` (a tie, even one the
   consensus settled on the reference and whichever strands the tied reads are
   on), or its call holds an `N`; or a gap is covered but not callable.
