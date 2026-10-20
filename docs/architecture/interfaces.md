@@ -14,7 +14,9 @@ DNA separates six interface classes:
    orchestration.
 2. **Input adapter boundary** — source-specific loaders such as
    `input::sanger` validate external sequencing/reference/configuration inputs
-   and produce validated internal models without owning CLI output publication.
+   and produce validated internal models without owning CLI output publication. Recorded contract documents (`dna.read_evidence/v1`,
+   `dna.consensus/v1`, `dna.variants/v1`, `dna.signal/v1`) are input adapters too:
+   a step can be replayed from the contract the previous step wrote.
 3. **Public Rust capability boundary** — typed reusable operations such as
    Sanger Variant Analysis return stable typed called-variant results without CLI
    publication side effects.

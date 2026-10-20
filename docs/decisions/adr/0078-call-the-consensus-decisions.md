@@ -14,7 +14,7 @@ related: [ADR-0047, ADR-0071, ADR-0073, ADR-0074, PROP-0006]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [architecture/data-flow](../../architecture/data-flow.md), [architecture/variant-lifecycle](../../architecture/variant-lifecycle.md), [design/pipeline](../../design/pipeline.md), [reference/consensus](../../reference/consensus.md), [reference/rust-api](../../reference/rust-api.md), [reference/rust-api-sample](../../reference/rust-api-sample.md), [reference/variants](../../reference/variants.md), [requirements/variants](../../requirements/variants.md), [validation/known-limitations](../../validation/known-limitations.md)
+- **Governs:** [architecture/data-flow](../../architecture/data-flow.md), [architecture/overview](../../architecture/overview.md), [architecture/variant-lifecycle](../../architecture/variant-lifecycle.md), [design/pipeline](../../design/pipeline.md), [reference/consensus](../../reference/consensus.md), [reference/rust-api](../../reference/rust-api.md), [reference/rust-api-sample](../../reference/rust-api-sample.md), [reference/variants](../../reference/variants.md), [requirements/variants](../../requirements/variants.md), [validation/known-limitations](../../validation/known-limitations.md)
 <!-- docs:end backlinks -->
 
 ## Context

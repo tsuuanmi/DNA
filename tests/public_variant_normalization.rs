@@ -281,3 +281,47 @@ fn rejects_source_allele_that_disagrees_with_reference() -> Result<(), Box<dyn s
     ));
     Ok(())
 }
+
+// SRS-VN-003 SRS-VN-004
+#[test]
+fn source_variants_are_applied_jointly_into_one_alternate_haplotype()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = "CAAAAG";
+    write_reference(&reference_path, sequence)?;
+    let called = called(
+        sequence,
+        vec![
+            variant(1, "C", "CA", VariantKind::Ins),
+            variant(5, "A", "T", VariantKind::Snv),
+        ],
+    );
+
+    let result = normalize(&reference_path, &called)?;
+
+    // C, inserted A, A2..A4, substituted T, G: both edits in one haplotype.
+    assert_eq!(result.alternate_sequence, "CAAAATG");
+    // The moved insertion and the substitution still give the same haplotype.
+    let moved = variant(4, "A", "AA", VariantKind::Ins);
+    assert!(result.normalized_variants.contains(&moved));
+    assert_eq!(result.normalized_variants.len(), 2);
+    Ok(())
+}
+
+// SRS-VN-009
+#[test]
+fn normalized_variants_are_emitted_in_position_order() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference_path = directory.path().join("reference.fa");
+    let sequence = "CAAAAGTTCC";
+    write_reference(&reference_path, sequence)?;
+    let late = variant(9, "C", "A", VariantKind::Snv);
+    let early = variant(6, "G", "T", VariantKind::Snv);
+    let called = called(sequence, vec![late.clone(), early.clone()]);
+
+    let result = normalize(&reference_path, &called)?;
+
+    assert_eq!(result.normalized_variants, vec![early, late]);
+    Ok(())
+}

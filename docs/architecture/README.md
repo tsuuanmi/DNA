@@ -1,6 +1,6 @@
 # Architecture
 
-Architecture describes **current system structure**: stable boundaries, context, data flow, interfaces, dependency direction, and cross-cutting invariants.
+Architecture describes **current system structure**: stable boundaries, context, data flow, interfaces, dependency direction, and cross-cutting invariants. Diagrams are Mermaid blocks in the document that owns the fact: the [context diagram](context.md#context-diagram), the [crate dependency graph](overview.md#module-boundaries), and the [data-flow](data-flow.md) diagrams (one read, a sample, the other entries, post-calling, step contracts).
 
 - [Overview](overview.md)
 - [System context](context.md)

@@ -2,7 +2,6 @@
 implements: [SRS-SAMPLE, SRS-VAR]
 decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0076, ADR-0080, ADR-0083]
 verified-by: [tests/consensus.rs]
-unverified: [SRS-CONS-002]
 ---
 
 # Sample consensus requirements

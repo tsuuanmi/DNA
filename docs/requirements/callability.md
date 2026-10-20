@@ -2,7 +2,9 @@
 implements: [SRS-ALN, SRS-CFG, SRS-QC, SRS-SAMPLE, SRS-VAR]
 decided-by: [ADR-0067, ADR-0076, ADR-0080, ADR-0082]
 verified-by: [crates/dna-sanger/src/callability]
-unverified: [SRS-CALL-001, SRS-CALL-007, SRS-CALL-008]
+unverified:
+  - SRS-CALL-007 wording rule for published labels
+  - "SRS-CALL-008 layering rule, partly enforced by validate_module_layers"
 ---
 
 # Signal-derived Read Callability Requirements
@@ -38,5 +40,5 @@ These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
 ## Implemented in
 
 <!-- docs:begin backlinks -->
-- **Implemented in:** [design/callability](../design/callability.md), [design/length-mixture](../design/length-mixture.md), [design/second-peak-cause](../design/second-peak-cause.md), [design/variant-calling](../design/variant-calling.md), [reference/configuration](../reference/configuration.md), [reference/read-evidence](../reference/read-evidence.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/signal](../reference/signal.md), [reference/variants](../reference/variants.md), [requirements/alignment](alignment.md), [requirements/api](api.md), [requirements/basecalling](basecalling.md), [requirements/configuration](configuration.md), [requirements/output](output.md), [requirements/quality-control](quality-control.md), [requirements/sample-evidence/callability](sample-evidence/callability.md), [requirements/variants](variants.md), [validation/discrepancy-catalogue](../validation/discrepancy-catalogue.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
+- **Implemented in:** [architecture/overview](../architecture/overview.md), [design/callability](../design/callability.md), [design/length-mixture](../design/length-mixture.md), [design/second-peak-cause](../design/second-peak-cause.md), [design/variant-calling](../design/variant-calling.md), [reference/configuration](../reference/configuration.md), [reference/read-evidence](../reference/read-evidence.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/signal](../reference/signal.md), [reference/variants](../reference/variants.md), [requirements/alignment](alignment.md), [requirements/api](api.md), [requirements/basecalling](basecalling.md), [requirements/configuration](configuration.md), [requirements/output](output.md), [requirements/quality-control](quality-control.md), [requirements/sample-evidence/callability](sample-evidence/callability.md), [requirements/variants](variants.md), [validation/discrepancy-catalogue](../validation/discrepancy-catalogue.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
 <!-- docs:end backlinks -->

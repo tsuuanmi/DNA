@@ -666,6 +666,117 @@ fn sample_fails_closed_when_the_profile_names_another_reference()
     Ok(())
 }
 
+// SRS-SAMPLE-002
+#[test]
+fn overlap_is_discovered_from_coordinates_not_read_names() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let first = directory.path().join("alpha.ab1");
+    let second = directory.path().join("beta-lane.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    // Neither name is an F/R pair name and both reads map forward.
+    write_abif(&first, QUERY)?;
+    write_abif(&second, &QUERY[..QUERY.len() - 1])?;
+
+    run(&[&first, &second], &reference, &config, directory.path()).success();
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let overlaps = value["overlaps"].as_array().ok_or("overlaps array")?;
+    assert_eq!(overlaps.len(), 1);
+    let pair = [&overlaps[0]["left"], &overlaps[0]["right"]];
+    assert!(pair.contains(&&Value::from("alpha")));
+    assert!(pair.contains(&&Value::from("beta-lane")));
+    assert_eq!(overlaps[0]["shared_positions"], QUERY.len() - 1);
+    Ok(())
+}
+
+// SRS-SAMPLE-003
+#[test]
+fn a_usable_read_without_an_fr_partner_is_not_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let only = directory.path().join("read-forward.ab1");
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    write_abif(&only, QUERY)?;
+
+    run(&[&only], &reference, &config, directory.path()).success();
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    assert_eq!(value["rejected_reads"], serde_json::json!([]));
+    assert_eq!(value["reads"].as_array().map(Vec::len), Some(1));
+    assert_eq!(value["overlaps"], serde_json::json!([]));
+    Ok(())
+}
+
+// SRS-SAMPLE-026
+#[test]
+fn every_read_publishes_callable_reference_segments() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let [forward, reverse] = write_two_reads(directory.path(), &reference)?;
+    write_config(&config, "linear")?;
+
+    run(&[&forward, &reverse], &reference, &config, directory.path()).success();
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let reads = value["reads"].as_array().ok_or("reads array")?;
+    assert_eq!(reads.len(), 2);
+    for read in reads {
+        let alignment = &read["alignment"];
+        assert_eq!(
+            alignment["reference_segments"],
+            serde_json::json!([{"start": 4, "end": 4 + QUERY.len()}])
+        );
+        assert_eq!(
+            alignment["callable_reference_segments"],
+            alignment["reference_segments"]
+        );
+    }
+    Ok(())
+}
+
+// SRS-NOM-012
+#[test]
+fn notation_lists_every_read_carrying_a_call_in_registry_order()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let reference = directory.path().join("reference.fa");
+    let config = directory.path().join("dna.toml");
+    let forward = directory.path().join("read-forward.ab1");
+    let reverse = directory.path().join("read-reverse.ab1");
+    let mut alternate = QUERY.as_bytes().to_vec();
+    alternate[10] = b'A';
+    let alternate = String::from_utf8(alternate)?;
+    write_reference(&reference, &format!("TTTT{QUERY}CCCC"))?;
+    write_abif(&forward, &alternate)?;
+    write_abif(&reverse, &reverse_complement(&alternate))?;
+    write_config(&config, "linear")?;
+    let profile = config.with_extension("profile.toml");
+    let mut text = fs::read_to_string(&profile)?;
+    text.push_str(
+        "[normalization]\nindel_placement='right'\nmax_trade=20\n[notation]\nstyle='per_base_decimal'\n",
+    );
+    fs::write(&profile, text)?;
+
+    run(&[&reverse, &forward], &reference, &config, directory.path()).success();
+    let value: Value = serde_json::from_slice(&fs::read(sample_output_path(directory.path()))?)?;
+    let registry = value["reads"]
+        .as_array()
+        .ok_or("reads array")?
+        .iter()
+        .map(|read| read["name"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(registry.len(), 2);
+    assert_eq!(
+        value["notation"]["calls"],
+        serde_json::json!([{"call": "15A", "reads": registry}])
+    );
+    Ok(())
+}
+
 fn run(
     traces: &[&PathBuf],
     reference: &Path,
