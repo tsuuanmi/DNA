@@ -342,6 +342,10 @@ impl Change {
 }
 
 /// Every derived output of one run.
+/// The header of `unreviewed.tsv`.
+pub(crate) const UNREVIEWED_HEADER: &str =
+    "sample_id\tfirst\tlast\tblock\tclass\tzone\tzone_checked\n";
+
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
     baseline: Option<&'a Statuses>,
@@ -556,8 +560,45 @@ impl<'a> Report<'a> {
         if self.check.state() == TruthState::Changed {
             files.push(("truth_changes.tsv", self.check.changes()));
         }
+        files.push(("unreviewed.tsv", self.unreviewed()));
         files.push(("summary.md", self.summary(context)));
         files
+    }
+
+    /// `unreviewed.tsv`: one row per sample and unreviewed difference block,
+    /// in sample order then block order: its anchors, its text, its class as
+    /// the pass measures split it, the zone that holds its first anchor, and
+    /// whether a check item touches that zone, so that a later comparison of
+    /// two runs (`dna-eval diff`) counts the same passes from the files.
+    fn unreviewed(&self) -> String {
+        let mut text = String::from(UNREVIEWED_HEADER);
+        for (row, workload) in self.rows.iter().zip(&self.review.workloads) {
+            let Some(workload) = workload else {
+                continue;
+            };
+            for (escape, block) in workload.escapes.iter().zip(&workload.unreviewed) {
+                let (zone, checked) = match (escape.zone, self.review.zones.as_ref()) {
+                    (Some(instance), Some(zones)) => (
+                        zones.label(instance),
+                        if workload.zones.contains(&instance) {
+                            "yes"
+                        } else {
+                            "no"
+                        },
+                    ),
+                    _ => (".".to_owned(), "."),
+                };
+                let _ = writeln!(
+                    text,
+                    "{}\t{}\t{}\t{block}\t{}\t{zone}\t{checked}",
+                    row.sample.id,
+                    escape.first,
+                    escape.last,
+                    escape.class.label(),
+                );
+            }
+        }
+        text
     }
 
     /// `scores.tsv`: one row per sample.
@@ -2235,6 +2276,7 @@ mod tests {
                 "anchors.tsv",
                 "windows.tsv",
                 "diff.tsv",
+                "unreviewed.tsv",
                 "summary.md"
             ]
         );
@@ -2297,7 +2339,7 @@ mod tests {
             ("removed", "| removed | 1 | 1 | 0 | 0 | 0 | 0 |"),
             ("regression", "| regression | 1 | 1 | 0 | 0 | 0 | 0 |"),
         ] {
-            assert_eq!(summary_counts(&one[5].1, change).as_deref(), Some(line));
+            assert_eq!(summary_counts(&one[6].1, change).as_deref(), Some(line));
             for (measure, column) in [("primary", 2), ("strict", 3), ("iupac_compatible", 4)] {
                 let rows = diff
                     .lines()
@@ -2318,7 +2360,7 @@ mod tests {
         let estimates = &one[1].1;
         assert!(estimates.contains("corpus\tstrict\tnot_concordant\tall\t"));
         assert!(estimates.contains("pool\tall\tfailed\tall\t"));
-        let summary = &one[5].1;
+        let summary = &one[6].1;
         for line in [
             "| without a truth record | 1 |",
             "| truth batch differs from the panel batch | 1 |",
@@ -2370,6 +2412,7 @@ mod tests {
                 "anchors.tsv",
                 "windows.tsv",
                 "truth_changes.tsv",
+                "unreviewed.tsv",
                 "summary.md"
             ]
         );
@@ -2379,7 +2422,7 @@ mod tests {
                 .contains(&format!("S1\tclean\t0\t{}\t{}\n", digest("c"), digest("d")))
         );
         crate::contract::check_table("truth_changes.tsv", &files[4].1)?;
-        let summary = &files[5].1;
+        let summary = &files[6].1;
         assert!(summary.starts_with("# Evaluation run\n\n**Truth changed:** the truth of 1 panel"));
         assert!(summary.contains("| truth changed since the panel was built | 1 |"));
         let unchanged = TruthCheck {
@@ -2389,7 +2432,7 @@ mod tests {
         };
         let files = Report::new(&[], None, &unchanged, (&Forms::default(), "")).files(&[]);
         assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
-        assert!(files[4].1.contains("Panel truth: unchanged"));
+        assert!(files[5].1.contains("Panel truth: unchanged"));
         // The header digest differs while no row does: the file is still
         // written, and the notice says why it lists nothing.
         let header_only = TruthCheck {

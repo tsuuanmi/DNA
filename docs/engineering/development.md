@@ -62,7 +62,10 @@ so the outputs equal a run from the traces. On a 410-sample subset of panel v5
 every table was byte-identical from the traces, a cold cache, and a warm one,
 and a warm run took a fifth of the CPU. The cache needs a harness built from
 committed read-stage sources, since a plugin version does not move on a
-work-in-progress commit; `run.json` records its key and hits. Keep one cache
+work-in-progress commit; `run.json` records its key and hits. Compare a probe with its base run with
+`dna-eval diff --base <run> --run <run>`: it refuses runs that measure
+different things, and exits 2 with `GATE FAIL` when more passed samples or
+zones carry a non-het unreviewed block. Keep one cache
 directory per machine, and remove old generations with
 `dna-eval cache prune --dir <dir> --keep <n>` (about 3 GB per generation for
 panel v5).

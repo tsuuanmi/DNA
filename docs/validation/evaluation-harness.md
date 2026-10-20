@@ -59,6 +59,47 @@ the workspace but not shipped in a release.
 committed pre-registration ([approval](#approval)). `power` reads a
 development or readiness run.
 
+## Comparing two runs
+
+```bash
+cargo run --release -p dna-eval -- diff --base <run-directory> --run <run-directory> \
+  [--output <new-directory>] [--force]
+```
+
+`diff` compares a candidate run with a base run of the same panel from
+their directories alone, and gates it.
+
+- **Comparability.** Both runs must record the same manifest body, truth
+  digest, re-check list, current-data month, review window, and zone widths,
+  each from a clean build. Otherwise `diff` refuses, or with `--force` it
+  compares and warns at the top of the report.
+- **Counting.** From each run's `scores.tsv` and `unreviewed.tsv`, it counts
+  the passes as the run's own summary does: a passed unit counts under its
+  most severe unreviewed block. It first checks that these counts equal the
+  ones the run's `run.json` records, and refuses a run whose files disagree.
+- **Groups.** Every count is given for all samples, by period (the
+  manifest's `batch_date` against the current-data month), and by the
+  manifest's `source` column when it has one.
+
+The report (`diff.md`) shows, before and after:
+
+- **Samples:** samples, clear samples, samples with a non-het or het
+  unreviewed block, passed samples by their most severe block, and positions
+  to review.
+- **Zones:** for every zone that changed, the units needing a check and the
+  passed units with a non-het block.
+- **Coverage:** the truth alleles DNA's callable intervals newly leave out
+  or now cover, by allele.
+- **Status changes:** per measure, by status.
+- **Changed samples:** the samples whose unreviewed blocks or clear state
+  changed, with the blocks gone and new. The first 40 are shown;
+  `samples.tsv` lists all, and `statuses.tsv` lists every status change.
+
+The verdict is `GATE FAIL`, with exit status 2, when in any group more
+passed samples carry a non-het block, more samples carry a non-het or het
+unreviewed block, or more passed units of any zone carry a non-het block.
+Re-check and truth-`N` blocks never count. Otherwise it is `GATE PASS`.
+
 ## Approval
 
 `dna-eval approve` is the single approval run of the [approval
@@ -355,6 +396,7 @@ or to which files a run writes, is a new contract version
 | `components.tsv` | always | per phase-mixture component (ADR-0082) and reference run cluster it covers: the run it enters in phase against the truth's |
 | `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
+| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure, against the baseline |

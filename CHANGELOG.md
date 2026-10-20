@@ -17,6 +17,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval diff --base <run> --run <run>` compares a run with a base run of
+  the same panel from their directories alone, and gates it.
+  - **Comparability:** it refuses runs with another manifest, truth, re-check
+    list, current month, review window, or zones, or a dirty build (`--force`
+    warns instead), and runs whose files disagree with their `run.json`.
+  - **Report:** per group (all, period, source), samples, clear samples,
+    unreviewed samples, passed samples by their most severe block, and
+    positions to review; per changed zone, units needing a check and passed
+    units with a non-het block; coverage changes by allele; status changes
+    per measure; and the changed samples, in `samples.tsv` and
+    `statuses.tsv`.
+  - **Verdict:** it exits 2 with `GATE FAIL` when non-het escapes or
+    unreviewed samples rise anywhere.
+  - **New table:** `dna-eval run` writes `unreviewed.tsv`, one row per
+    unreviewed block with its class, zone, and whether a check touches the
+    zone (`dna.eval_run/v1`, in place, pre-release).
+
 - A reportable region's poor start is not analysed (SRS-CONS-012,
   ADR-0085, user decision 2026-10-20). `dna.consensus/v1` publishes
   `unreliable_only`, the positions only reads' unreliable spans observe. The

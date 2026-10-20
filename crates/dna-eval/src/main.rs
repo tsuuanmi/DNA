@@ -29,6 +29,7 @@ mod manifest;
 mod panel;
 mod recheck;
 mod report;
+mod rundiff;
 mod runner;
 mod tracts;
 mod triage;
@@ -112,6 +113,29 @@ enum Command {
     Convention(ConventionArgs),
     /// Manages a read evidence cache (`run --evidence-cache`).
     Cache(CacheArgs),
+    /// Compares a run with a base run of the same panel and gates it: exits
+    /// 2 with `GATE FAIL` when more passed samples or zones carry a non-het
+    /// unreviewed block, or more samples carry an unreviewed block.
+    Diff(DiffArgs),
+}
+
+/// Arguments of `dna-eval diff`.
+#[derive(Debug, Args)]
+struct DiffArgs {
+    /// The base run directory.
+    #[arg(long)]
+    base: PathBuf,
+    /// The run directory compared with it.
+    #[arg(long)]
+    run: PathBuf,
+    /// A new directory for `diff.md`, `samples.tsv`, and `statuses.tsv`.
+    #[arg(long)]
+    output: Option<PathBuf>,
+    /// Compare runs that measure different things (another manifest, truth,
+    /// re-check list, current month, window, or zones, or a dirty build),
+    /// with a warning in the report.
+    #[arg(long)]
+    force: bool,
 }
 
 /// Arguments of `dna-eval cache`.
@@ -132,6 +156,40 @@ enum CacheAction {
         #[arg(long)]
         keep: usize,
     },
+}
+
+/// Runs `dna-eval diff`: prints the comparison, writes its files when asked,
+/// and exits 2 when the gate fails.
+fn diff(args: &DiffArgs) -> ExitCode {
+    let compared = rundiff::compare(&args.base, &args.run, args.force)
+        .map_err(Error::from)
+        .and_then(|comparison| {
+            if let Some(output) = &args.output {
+                prepare_output(output)?;
+                for (name, contents) in [
+                    ("diff.md", &comparison.report),
+                    ("samples.tsv", &comparison.samples),
+                    ("statuses.tsv", &comparison.statuses),
+                ] {
+                    write(output, name, contents)?;
+                }
+            }
+            Ok(comparison)
+        });
+    match compared {
+        Ok(comparison) => {
+            print!("{}", comparison.report);
+            if comparison.gate_failed {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(error) => {
+            eprintln!("dna-eval: {error}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// Arguments of `dna-eval convention`.
@@ -295,6 +353,7 @@ struct RunArgs {
 
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
+        Command::Diff(args) => return diff(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Approve(args) => approve::approve(&args.prereg, &args.output, args.threads),
