@@ -120,6 +120,12 @@ fn assertion(tract: &Tract, near_equal_z: f64) -> Option<TractLengths> {
         autocorrelation: decode.autocorrelation,
         first: marginal(&decode.first, near_equal_z)?,
         total: marginal(&decode.total, near_equal_z)?,
+        downstream: decode
+            .downstream
+            .iter()
+            .take(decode.decoded)
+            .map(|&base| BASES[base])
+            .collect(),
         cleaned,
     })
 }

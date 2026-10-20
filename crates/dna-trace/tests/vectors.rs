@@ -173,6 +173,37 @@ fn decodes_the_reference_vectors() -> Result<(), Box<dyn std::error::Error>> {
             .filter_map(index)
             .collect::<Vec<_>>();
         assert_eq!(decoded.downstream, downstream, "{id}: D");
+        // The decoded span: the window less the shortest length among the
+        // `joint_lengths` consecutive total lengths holding the most share.
+        let held = |from: usize| {
+            decoded
+                .total
+                .lengths
+                .iter()
+                .zip(&decoded.total.shares)
+                .filter(|&(&length, &share)| {
+                    share > 0.0 && (from..from + tract.joint_lengths).contains(&length)
+                })
+                .map(|(_, share)| share)
+                .sum::<f64>()
+        };
+        let shortest = decoded
+            .total
+            .lengths
+            .iter()
+            .zip(&decoded.total.shares)
+            .filter(|&(_, &share)| share > 0.0)
+            .map(|(&length, _)| length)
+            .fold(None::<(usize, f64)>, |best, from| match best {
+                Some((_, kept)) if held(from) <= kept => best,
+                _ => Some((from, held(from))),
+            })
+            .map(|(from, _)| from);
+        assert_eq!(
+            Some(decoded.decoded),
+            shortest.map(|shortest| decoded.window - shortest),
+            "{id}: decoded span"
+        );
         close(decoded.residual, number(&expected["res"]), "res", &id);
         close(decoded.sigma, number(&expected["sig_fit"]), "sig_fit", &id);
         close(

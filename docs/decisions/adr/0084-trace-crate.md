@@ -47,7 +47,8 @@ place in that graph.
   primary calls, and the call ranges the modality flags. It reads no ABIF,
   reference, alignment, or truth.
 - Its output is typed results. The modality turns them into kernel
-  assertions (`PhaseMixture`, [[ADR-0082]]), and the core reads only those.
+  assertions (`PhaseMixture`, [[ADR-0082]], and `TractLengths`), and the core
+  reads only those.
 - Its parameters belong to the modality's configuration, validated and
   recorded in provenance through the `sanger` plugin. Levels come from the
   read's or the run's own data wherever possible.
@@ -73,7 +74,9 @@ extending `PhaseMixture`:
 
 The two locate their run differently. Matching them by position would be a
 rule of its own, so neither is fitted into the other. The core reads nothing
-from `tracts` in increment 2. Increment 3 or 4 decides, with data, whether
+from `tracts` in increment 2. Amended 2026-10-21: the core reads a tract's
+decoded downstream sequence, and only that, as a source of reference
+confirmations ([[ADR-0080]], SRS-CONS-010); the lengths decide nothing. Increment 3 or 4 decides, with data, whether
 one replaces the other, so the duplication stays temporary and visible. The
 decode's constants are the `[trace]` section, which the `sanger` plugin
 declares and validates.

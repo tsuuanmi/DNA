@@ -17,7 +17,7 @@
 //! the read's own residual autocorrelation (`z_adj`). Shares are signal
 //! shares, never heteroplasmy levels.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use dna_kernel::nnls::nnls;
 
@@ -72,6 +72,12 @@ pub struct TractDecode {
     pub window: usize,
     /// The decoded downstream sequence, as channel indices.
     pub downstream: Vec<usize>,
+    /// How many of `downstream`'s first positions the decode determines:
+    /// the window less the shortest length the dynamic programme decodes
+    /// jointly. The shortest molecule reads `downstream[m]` at call
+    /// `shortest + m`, so later positions lie past the window and keep their
+    /// starting value.
+    pub decoded: usize,
     /// Root mean square of the fit's residual per channel row.
     pub residual: f64,
     /// The residual scaled to the fit's degrees of freedom.
@@ -279,6 +285,7 @@ pub fn decode(
         downstream,
         setup.extent,
         setup.window,
+        params.joint_lengths,
     );
     decoded.iterations_capped = iterations_capped;
     decoded.joint_capped = joint_capped;
@@ -614,6 +621,7 @@ pub fn refit(
         downstream.to_vec(),
         setup.extent,
         setup.window,
+        params.joint_lengths,
     ))
 }
 
@@ -628,6 +636,45 @@ impl Molecule {
         self.second
             .map_or(self.first, |second| self.first + second + 1)
     }
+}
+
+/// Each total length's summed fraction, over the molecules that hold some.
+fn length_weights(molecules: &[Molecule], fractions: &[f64]) -> BTreeMap<usize, f64> {
+    let mut weight = BTreeMap::<usize, f64>::new();
+    for (molecule, &fraction) in molecules.iter().zip(fractions) {
+        if fraction > 0.0 {
+            *weight.entry(molecule.length()).or_default() += fraction;
+        }
+    }
+    weight
+}
+
+/// The lengths the dynamic programme decodes jointly: those holding weight
+/// among the `joint` consecutive lengths that hold the most, the shortest
+/// such group on a tie; empty when no length holds weight.
+fn joint_group(weight: &BTreeMap<usize, f64>, joint: usize) -> Vec<usize> {
+    let Some(start) = weight
+        .keys()
+        .copied()
+        .map(|from| {
+            let held = weight
+                .range(from..from + joint)
+                .map(|(_, value)| *value)
+                .sum::<f64>();
+            (from, held)
+        })
+        .fold(None::<(usize, f64)>, |best, (from, held)| match best {
+            Some((_, kept)) if held <= kept => best,
+            _ => Some((from, held)),
+        })
+        .map(|(from, _)| from)
+    else {
+        return Vec::new();
+    };
+    weight
+        .range(start..start + joint)
+        .map(|(&length, _)| length)
+        .collect()
 }
 
 struct Model<'a> {
@@ -707,34 +754,11 @@ impl Model<'_> {
         current: &[usize],
         joint: usize,
     ) -> (Vec<usize>, bool) {
-        let mut weight = std::collections::BTreeMap::<usize, f64>::new();
-        for (molecule, &fraction) in self.molecules.iter().zip(fractions) {
-            if fraction > 0.0 {
-                *weight.entry(molecule.length()).or_default() += fraction;
-            }
-        }
-        let Some(window_start) = weight
-            .keys()
-            .copied()
-            .map(|from| {
-                let held = weight
-                    .range(from..from + joint)
-                    .map(|(_, value)| *value)
-                    .sum::<f64>();
-                (from, held)
-            })
-            .fold(None::<(usize, f64)>, |best, (from, held)| match best {
-                Some((_, kept)) if held <= kept => best,
-                _ => Some((from, held)),
-            })
-            .map(|(from, _)| from)
-        else {
+        let weight = length_weights(self.molecules, fractions);
+        let joined = joint_group(&weight, joint);
+        if joined.is_empty() {
             return (current.to_vec(), false);
-        };
-        let joined = weight
-            .range(window_start..window_start + joint)
-            .map(|(&length, _)| length)
-            .collect::<Vec<_>>();
+        }
         let capped = joined.len() < weight.len();
         let (Some(&shortest), Some(&longest)) = (joined.first(), joined.last()) else {
             return (current.to_vec(), capped);
@@ -997,6 +1021,7 @@ fn summarise(
     downstream: Vec<usize>,
     extent: usize,
     window: usize,
+    joint: usize,
 ) -> TractDecode {
     let sum = fractions.iter().sum::<f64>();
     let scale = if sum == 0.0 { 1.0 } else { sum };
@@ -1130,10 +1155,14 @@ fn summarise(
         z: SINGLE,
         z_adjusted: SINGLE,
     };
+    let decoded = joint_group(&length_weights(molecules, fractions), joint)
+        .first()
+        .map_or(0, |&shortest| window.saturating_sub(shortest));
     TractDecode {
         extent,
         window,
         downstream,
+        decoded,
         residual,
         sigma,
         autocorrelation,

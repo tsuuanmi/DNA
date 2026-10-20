@@ -120,6 +120,11 @@ pub(super) struct ReadObservations {
     /// read's informative interval, through the nearer of the calls on both
     /// sides of a deleted position or a junction after it (SRS-CONS-011).
     pub(super) edges: BTreeMap<usize, usize>,
+    /// The positions the read's decoded downstream sequences confirm, with
+    /// the value its own call observed there (SRS-CONS-010): its masked call
+    /// is the mixture the decode explains, so it neither shows nor hides a
+    /// second sequence there while the confirmation stands.
+    pub(super) decoded: BTreeMap<usize, SiteValue>,
 }
 
 /// Walks the read's alignment columns in reference order.
@@ -472,6 +477,7 @@ pub(super) fn observe(
         seconds,
         unexplained,
         edges,
+        decoded: BTreeMap::new(),
     }
 }
 

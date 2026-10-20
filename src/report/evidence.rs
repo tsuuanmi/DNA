@@ -237,6 +237,7 @@ fn tract(tract: &TractLengths) -> TractEvidenceResult {
         autocorrelation: tract.autocorrelation,
         first: marginal(&tract.first),
         total: marginal(&tract.total),
+        downstream: tract.downstream.clone(),
         cleaned: tract.cleaned.as_ref().map(|cleaned| CleanedLengthsResult {
             leakage: cleaned.leakage.as_ref().map(|shares| {
                 shares

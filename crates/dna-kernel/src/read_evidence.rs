@@ -397,8 +397,9 @@ pub struct CleanedLengths {
 /// from the read's own signal (PROP-0012). Over `window` calls from
 /// `call_start`, the read is a mixture of molecules `run^a mark run^b D` (or
 /// `run^L D` without a mark) sharing one downstream sequence `D`. Only the
-/// first run's and the total's marginals are identifiable. It decides
-/// nothing: the core reads none of it.
+/// first run's and the total's marginals are identifiable. The core reads
+/// only `downstream`, as a source of reference confirmations (SRS-CONS-010);
+/// the lengths decide nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TractLengths {
     /// The call where the modality sees the read leave phase, after the
@@ -429,6 +430,11 @@ pub struct TractLengths {
     pub first: LengthMarginal,
     /// The total lengths: run, mark, and run.
     pub total: LengthMarginal,
+    /// The decoded downstream sequence `D` on the read strand, in read
+    /// order: the bases every molecule shares after the tract, as far as the
+    /// decode determines them (the window less the shortest length it
+    /// decodes jointly). `D[m]` is the base `m` calls after the tract's end.
+    pub downstream: String,
     /// The refit with the read's signatures and leakage, when it fits.
     pub cleaned: Option<CleanedLengths>,
 }
@@ -517,6 +523,8 @@ impl TractLengths {
                 .all(|pair| pair[1] == pair[0] + 1)
             && self.total.valid(longest)
             && self.first.valid(longest)
+            && self.downstream.len() <= self.window
+            && self.downstream.chars().all(base)
             && self.cleaned.as_ref().is_none_or(|cleaned| {
                 cleaned.residual.is_finite()
                     && cleaned.residual >= 0.0
@@ -968,6 +976,7 @@ mod tests {
             autocorrelation: 0.3,
             first: marginal(vec![1, 2, 3, 4, 5, 6], vec![0.0, 0.0, 0.1, 0.1, 0.6, 0.2]),
             total: marginal(vec![4, 5, 6, 7], vec![0.1, 0.6, 0.2, 0.1]),
+            downstream: "GTACGTAA".into(),
             cleaned: Some(CleanedLengths {
                 leakage: Some(vec![LeakageShare {
                     offset: 1,
@@ -1006,6 +1015,8 @@ mod tests {
         edit(&|t| t.total.next = t.total.dominant);
         edit(&|t| t.first.z = Some(f64::INFINITY));
         edit(&|t| t.first.z_adjusted = None);
+        edit(&|t| t.downstream = "GTACGTAANCCCC".into());
+        edit(&|t| t.downstream = "GTANG".into());
         edit(&|t| {
             t.total.next = None;
             t.total.margin = Margin::Undefined;

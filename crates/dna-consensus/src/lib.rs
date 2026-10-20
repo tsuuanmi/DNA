@@ -15,6 +15,7 @@ pub mod model;
 
 mod decide;
 pub mod decided;
+mod downstream;
 pub mod length;
 mod observe;
 
@@ -57,13 +58,39 @@ pub fn build(
             )
         })
         .collect::<Vec<_>>();
+    // A read's decoded downstream sequences confirm the reference where no
+    // read's decode reads another base, and no read whose own decode does
+    // not explain its call there shows an in-phase second peak its modality
+    // leaves unexplained, on either strand: a read confirming from its decode
+    // cannot show a second sequence itself (SRS-CONS-010).
+    let verdicts = reads
+        .iter()
+        .map(|read| downstream::verdicts(read, bases, consensus_config))
+        .collect::<Vec<_>>();
+    let excluded = verdicts
+        .iter()
+        .zip(reads)
+        .flat_map(|(verdict, read)| {
+            verdict.differs.iter().copied().chain(
+                downstream::unexplained_in_phase(read)
+                    .into_iter()
+                    .filter(|position| !verdict.confirms.contains(position)),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    for (read, verdict) in observed.iter_mut().zip(&verdicts) {
+        downstream::confirm(read, verdict.confirms.difference(&excluded), bases);
+    }
     let unreliable_only = observe::unreliable_only(reads, &config.variant_calling);
     // Reference confirmations (ADR-0080): none where a second sequence may
     // hide, none within or beside a site that differs from the reference, and
     // the positions they alone decide bound no neighbour's run when called.
     hide_confirmations(&mut observed);
+    downstream::restore(&mut observed);
     withdraw_beside_observed_differences(&mut observed, bases);
+    downstream::restore(&mut observed);
     withdraw_unobserved_run_junctions(&mut observed, bases, consensus_config.seeded_run);
+    downstream::restore(&mut observed);
     let mut decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     // Deciding again can move a differing site beside another confirmation,
     // or leave a reference decision with dissent to set aside: each pass
@@ -77,6 +104,7 @@ pub fn build(
             consensus_config.dissent_edge,
         )
     {
+        downstream::restore(&mut observed);
         decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     }
     two_strand(&mut decided, reads, reference, config, consensus_config);
@@ -328,27 +356,46 @@ fn hide_confirmations(observed: &mut [ReadObservations]) {
                 .iter()
                 .filter(|(_, observation)| observation.confirms)
                 .filter(|(position, _)| {
-                    let second = read.seconds.get(position);
+                    // A read's masked call that its own decode explains, at a
+                    // position the decode confirms, shows no second sequence
+                    // (SRS-CONS-010).
+                    let explained = |third: &ReadObservations| third.decoded.contains_key(position);
+                    let second = read.seconds.get(position).filter(|_| !explained(read));
                     // A second base standing out on a read of the confirming
                     // strand.
                     let confirming_strand_shows = |base: &char| {
                         observed.iter().any(|third| {
                             third.forward == read.forward
+                                && !explained(third)
                                 && third.seconds.get(position) == Some(base)
                         })
                     };
-                    observed.iter().any(|other| {
-                        let other_strand = other.forward != read.forward;
-                        (other.unexplained.contains(position)
-                            && (!other_strand
-                                || other
-                                    .seconds
-                                    .get(position)
-                                    .is_none_or(confirming_strand_shows)))
-                            || (other_strand
-                                && second.is_some()
-                                && other.seconds.get(position) == second)
-                    })
+                    // A decoded confirmation reads past its own dephasing, so
+                    // another read's masked call shows no second sequence
+                    // against it either: only in-phase calls count.
+                    let in_phase = |other: &ReadObservations| {
+                        !explained(read)
+                            || other
+                                .positions
+                                .get(position)
+                                .and_then(|observation| observation.chars.first())
+                                .is_some_and(|char| char.trust >= Trust::Unmasked)
+                    };
+                    observed
+                        .iter()
+                        .filter(|other| !explained(other) && in_phase(other))
+                        .any(|other| {
+                            let other_strand = other.forward != read.forward;
+                            (other.unexplained.contains(position)
+                                && (!other_strand
+                                    || other
+                                        .seconds
+                                        .get(position)
+                                        .is_none_or(confirming_strand_shows)))
+                                || (other_strand
+                                    && second.is_some()
+                                    && other.seconds.get(position) == second)
+                        })
                 })
                 .map(move |(position, _)| (index, *position))
         })
@@ -1946,7 +1993,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 18,
+    version: 19,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2295,6 +2342,7 @@ mod tests {
             autocorrelation: 0.0,
             first: marginal(first),
             total: marginal(total),
+            downstream: String::new(),
             cleaned: None,
         }
     }
@@ -2377,6 +2425,108 @@ mod tests {
         let decision = settle(RunEvidence::ConfirmedEnd)?;
         assert_eq!(decision.runs[0], run('C', 7, RunEvidence::ConfirmedEnd));
         assert_eq!(decision.value.as_deref(), Some("CCCCCCCTCCCCC"));
+        Ok(())
+    }
+
+    /// A forward read of `sequence` over a reference with a C9 tract at
+    /// 10-18 (0-based), every call after the tract masked as dephased, with
+    /// a tract decode whose downstream sequence is `downstream`.
+    fn decoded_read(
+        reference: &Reference,
+        downstream: &str,
+    ) -> std::result::Result<CalledRead, Box<dyn std::error::Error>> {
+        use dna_kernel::read_evidence::{LengthMarginal, Margin, StructureFit, TractLengths};
+        let sequence = reference.sequence.as_str();
+        let mut evidence = ReadEvidence::clean(sequence);
+        for index in 19..sequence.len() {
+            let call = evidence.calls()[index]
+                .masked(Placement::Anchoring(EvidenceReason::new("dephased_signal")));
+            evidence = evidence.with_call(index, call);
+        }
+        let single = LengthMarginal {
+            lengths: vec![9],
+            shares: vec![1.0],
+            errors: vec![0.01],
+            dominant: Some(9),
+            next: None,
+            z: None,
+            z_adjusted: None,
+            margin: Margin::Clear,
+        };
+        let evidence = evidence.with_tracts(vec![TractLengths {
+            onset: 19,
+            call_start: 10,
+            extent: 9,
+            window: 9 + downstream.len(),
+            run: 'C',
+            mark: None,
+            candidates: vec![StructureFit {
+                mark: None,
+                residual: 0.01,
+            }],
+            residual: 0.01,
+            sigma: 0.02,
+            autocorrelation: 0.0,
+            first: single.clone(),
+            total: single,
+            downstream: downstream.into(),
+            cleaned: None,
+        }])?;
+        let alignment = align_best(&evidence, reference, &alignment()?)?;
+        Ok(CalledRead {
+            input_name: "f".into(),
+            input_sha256: "f".into(),
+            reference_sha256: String::new(),
+            configuration_sha256: String::new(),
+            evidence,
+            alignment,
+            variants: VariantCallingResult::fixture(Vec::new(), Vec::new()),
+        })
+    }
+
+    // SRS-CONS-010
+    #[test]
+    fn a_decoded_downstream_sequence_confirms_the_reference()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let downstream = "ATGCTTAGTCGATTGAGCTGTACGATGTCTG";
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: format!("TTGACGTCAGCCCCCCCCC{downstream}GATTGATCCAGTCAGTCAGA"),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let decoded =
+            |downstream: &str| -> std::result::Result<Consensus, Box<dyn std::error::Error>> {
+                let read = decoded_read(&reference, downstream)?;
+                Ok(build(
+                    &[&read],
+                    &reference,
+                    &config()?,
+                    &config::tests::config(),
+                ))
+            };
+        // The masked calls after the tract show no base; the decode reads
+        // the reference with its flanks, so it confirms the reference there
+        // as `reference_only` (the last three lack a decoded right flank).
+        let confirmed = decoded(downstream)?;
+        let expected = (19..19 + downstream.len() - 3).collect::<BTreeSet<_>>();
+        assert!(
+            expected
+                .iter()
+                .filter(|&&position| !(25..=27).contains(&position))
+                .all(|position| confirmed.reference_only.contains(position))
+        );
+        assert!(
+            !confirmed
+                .reference_only
+                .contains(&(19 + downstream.len() - 1))
+        );
+        // A decode reading another base confirms nothing within its flank.
+        let mut differing = downstream.to_owned();
+        differing.replace_range(8..9, "A");
+        let opposed = decoded(&differing)?;
+        assert!((24..=30).all(|position| !opposed.reference_only.contains(&position)));
+        assert!(opposed.reference_only.contains(&20));
         Ok(())
     }
 
@@ -2958,6 +3108,7 @@ mod tests {
             seconds: BTreeMap::new(),
             unexplained: BTreeSet::new(),
             edges: BTreeMap::new(),
+            decoded: BTreeMap::new(),
             name: name.into(),
             positions,
             junctions,

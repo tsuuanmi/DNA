@@ -30,6 +30,16 @@ pub struct ConsensusConfig {
     /// strand reads the site cleanly at least this far from its own ends
     /// (SRS-CONS-011).
     pub(crate) dissent_edge: usize,
+    /// Bases on each side of a decoded downstream base that must read the
+    /// reference too for the base to confirm it (SRS-CONS-010).
+    pub(crate) downstream_flank: usize,
+    /// Fewest copies of a period-2 or period-3 tandem repeat in or beside
+    /// which a decoded downstream base confirms nothing (SRS-CONS-010).
+    pub(crate) downstream_repeat_copies: usize,
+    /// Residual sigmas of a read's tract decode by which its own call's
+    /// second peak may exceed the share the decoded mixture puts there, for
+    /// the decode to explain the call (SRS-CONS-010).
+    pub(crate) downstream_second_z: f64,
     /// The two-strand run-length rule's confidence level and replicate
     /// noise (PROP-0012 increment 4).
     pub(crate) length: RuleParams,
@@ -57,6 +67,9 @@ pub struct RawConsensusConfig {
     length_confidence: f64,
     length_noise_forward: [f64; 2],
     length_noise_reverse: [f64; 2],
+    downstream_flank: usize,
+    downstream_repeat_copies: usize,
+    downstream_second_z: f64,
 }
 
 impl RawConsensusConfig {
@@ -74,6 +87,17 @@ impl RawConsensusConfig {
         }
         if self.dissent_edge == 0 {
             return Err(ConfigError::Constraint("consensus.dissent_edge must be positive").into());
+        }
+        if self.downstream_flank == 0 {
+            return Err(
+                ConfigError::Constraint("consensus.downstream_flank must be positive").into(),
+            );
+        }
+        if self.downstream_repeat_copies < 2 {
+            return Err(ConfigError::Constraint(
+                "consensus.downstream_repeat_copies must be at least 2",
+            )
+            .into());
         }
         if self.minimum_resolved_bases == 0 {
             return Err(ConfigError::Constraint(
@@ -103,6 +127,12 @@ impl RawConsensusConfig {
         {
             bounds::finite_range("consensus.length_noise", *noise, 0.0, 0.5)?;
         }
+        if !(self.downstream_second_z.is_finite() && self.downstream_second_z >= 0.0) {
+            return Err(ConfigError::Constraint(
+                "consensus.downstream_second_z must be finite and non-negative",
+            )
+            .into());
+        }
         Ok(ConsensusConfig {
             length: RuleParams {
                 confidence: self.length_confidence,
@@ -116,6 +146,9 @@ impl RawConsensusConfig {
             site_gap_open_cost: self.site_gap_open_cost,
             site_gap_extension_cost: self.site_gap_extension_cost,
             dissent_edge: self.dissent_edge,
+            downstream_flank: self.downstream_flank,
+            downstream_repeat_copies: self.downstream_repeat_copies,
+            downstream_second_z: self.downstream_second_z,
         })
     }
 }
@@ -140,6 +173,9 @@ pub(crate) mod tests {
                 forward: [0.065, 0.111],
                 reverse: [0.111, 0.128],
             },
+            downstream_flank: 3,
+            downstream_repeat_copies: 3,
+            downstream_second_z: 2.0,
         }
     }
 
@@ -155,6 +191,9 @@ pub(crate) mod tests {
             length_confidence: 2.326,
             length_noise_forward: [0.065, 0.111],
             length_noise_reverse: [0.111, 0.128],
+            downstream_flank: 3,
+            downstream_repeat_copies: 3,
+            downstream_second_z: 2.0,
         }
     }
 
@@ -177,6 +216,18 @@ pub(crate) mod tests {
             },
             RawConsensusConfig {
                 dissent_edge: 0,
+                ..raw()
+            },
+            RawConsensusConfig {
+                downstream_flank: 0,
+                ..raw()
+            },
+            RawConsensusConfig {
+                downstream_repeat_copies: 1,
+                ..raw()
+            },
+            RawConsensusConfig {
+                downstream_second_z: f64::NAN,
                 ..raw()
             },
             // A two-base gap and a substitution would cost no more than two

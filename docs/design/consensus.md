@@ -130,6 +130,10 @@ The decided value never changes: a reference decision loses only reads
 against the reference, a contested site becomes called and a called one
 loses its dissent, and a called variant keeps the majority that called it.
 
+A read's decoded downstream sequence after a homopolymer tract adds
+reference confirmations where its own calls are masked (SRS-CONS-010): see
+[[design/length-mixture]] "Downstream confirmations".
+
 ## Step 2 — Stretches
 
 **Seeds.**

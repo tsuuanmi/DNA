@@ -10,7 +10,7 @@
       {
         "id": "sanger",
         "family": "modality",
-        "version": 19
+        "version": 20
       }
     ]
   },
@@ -171,6 +171,7 @@
           "z_adjusted": 10.1,
           "margin": "clear"
         },
+        "downstream": "T",
         "cleaned": {
           "leakage": [
             {
