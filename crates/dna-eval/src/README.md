@@ -5,12 +5,12 @@ The evaluation harness
 the `dna-eval` binary runs DNA over a test panel and compares the calls with
 reviewer truth. It is the only crate that reads truth formats or compares
 with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
-`sample_analysis` capability it runs, on `dna-align`, `dna-sample`,
-`dna-consensus`, and `dna-sanger` only to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` for the
-reference the haplotype measures apply alleles to and the profile, variant,
-and nucleotide types it reads, on `dna-trace` with its `simulate` feature to render the simulated bench's
-reads, and on `dna-normalize`
-to run the truth's calls through DNA's notation (`convention`); its tests use
+`sample_analysis` capability it runs, on `dna-align`, `dna-sample`, and
+`dna-consensus` only to name the evidence types the discrepancy causes read,
+on `dna-sanger` for the plugin version that keys the evidence cache, on
+`dna-kernel` for the reference the haplotype measures apply alleles to and
+the profile, variant, and nucleotide types it reads, and on `dna-trace` with
+its `simulate` feature to render the simulated bench's reads; its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
 
@@ -19,11 +19,13 @@ Output contract: `dna-eval run` writes
 which files a run directory holds, `run.json`, and every table's columns
 ([evaluation harness](../../../docs/validation/evaluation-harness.md#outputs),
 [PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
-The outputs of `approve` and `convention`, and the manifest `panel` writes,
-have no schema; the evaluation harness document describes them.
+The outputs of `diff`, `bench`, and `sim-bench`, and the manifests `panel`
+and `subset` write, have no schema; the evaluation harness document
+describes them.
 
-- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`, `bench`, `sim-bench`), run orchestration, output
-  directory, and the `run.json` header.
+- `main.rs` — command line (`run`, `diff`, `panel`, `subset`, `cache`,
+  `bench`, `sim-bench`), run orchestration, output directory, and the
+  `run.json` header.
 - `bench.rs` — `dna-eval bench`: the artefact regression bench. It parses a
   case list (adjudicated artefacts and truth errors, each with a span and
   the outcome DNA must keep there), judges each case from DNA's alleles,
@@ -47,9 +49,7 @@ have no schema; the evaluation harness document describes them.
   of a panel's recorded truth.
 - `runner.rs` — the scoped thread pool that removes repeated traces and runs
   DNA per sample, with typed failures, in sample order, and takes the
-  positions where a read shows a second base at the limit of detection; with `run --triage` it
-  also takes each sample's triage evidence, from the analysis even when the
-  call then fails, or from the rejected reads when none is admitted. With
+  positions where a read shows a second base at the limit of detection. With
   `run --run-signal` it first builds a run signal per batch and per batch
   month from every sample's admitted reads, then runs again with each
   sample's review judged against its group's signal. With `run
@@ -105,9 +105,10 @@ have no schema; the evaluation harness document describes them.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior), the zones a
   check item touches, and the zone instance that holds a position.
-- `baseline.rs` — the statuses of an earlier run and their classes.
-- `report.rs` — scores, estimates, anchors, the baseline diff, the
-  unreviewed blocks (`unreviewed.tsv`), and the Markdown summary.
+- `baseline.rs` — the statuses of a run's `scores.tsv`, which `diff`
+  compares, and their classes.
+- `report.rs` — scores, estimates, anchors, the unreviewed blocks
+  (`unreviewed.tsv`), and the Markdown summary.
 - `subset.rs` — `dna-eval subset`: a deterministic stratified quick subset
   of a panel as a manifest of its own, every stratum kept, for a first-pass
   `diff`; a pre-filter, never the gate.
@@ -118,21 +119,6 @@ have no schema; the evaluation harness document describes them.
   that gates a probe on non-het blocks in the current period alone (all
   samples when the runs record no current-data month); het blocks, the
   earlier period, and the sources are reported only.
-- `evidence.rs` — with `run --triage`, the compact triage evidence the
-  runner takes from each sample's analysis: per region position, the clean
-  strands, masked reads, and consensus marks; per trace, its primer, state,
-  and callable span. It names `dna_align`, `dna_sample`, `dna_consensus`, and `dna_sanger` evidence types
-  (`Orientation`, `SiteState`, `RunEvidence`, `ReadCallability`) that the
-  facade exposes only as fields. `evidence/minor.rs` adds each clean read's
-  minor channel per region position, read through `SampleAnalysis::observations`
-  ([minor evidence](evidence/README.md)).
-- `triage/` — the draft stage-1 triage of PROP-0004 phase 0 over that
-  evidence ([triage](triage/README.md)).
-- `approve/` — the pre-registered approval run on a hold-out panel and its
-  power projection ([approve](approve/README.md)).
-- `convention.rs` — `convention`: every IUPAC-free truth sample's calls
-  through DNA's normalization and nomenclature windows, and the change
-  patterns where DNA writes them differently.
 - `error.rs` — failures that stop a run.
 - `contract.rs` — test support: the `dna.eval_run/v1` schema, read so the
   tests check each table's header and cells, and `run.json`'s fields, as the

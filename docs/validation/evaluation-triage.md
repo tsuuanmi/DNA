@@ -1,4 +1,5 @@
 ---
+status: deprecated
 implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
 decided-by: [ADR-0065, ADR-0075, ADR-0076, ADR-0077]
 ---

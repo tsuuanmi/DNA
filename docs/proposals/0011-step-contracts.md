@@ -183,8 +183,7 @@ output of that step can be checked and the flow is clear".
   `dna-eval run` directory: which files a run writes, `run.json`, and every
   table's columns, formats, and meaning. `validate_result_schemas.py` checks
   the synthetic example and, with `--eval-run`, a run directory; dna-eval's
-  tests check the headers and enumerated cells it writes. The outputs of
-  `approve` and `convention` have no schema yet.
+  tests check the headers and enumerated cells it writes.
 - Increment 4 (contracts the next step reads): accepted by the user on 2026-10-19.
   4a, `dna analyze --evidence` (SRS-API-018), is byte-identical to `dna analyze <trace>`
   on 999 of 1,000 real traces; the remaining read is rejected by the Sanger plugin both

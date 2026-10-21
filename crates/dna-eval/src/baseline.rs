@@ -1,44 +1,29 @@
-//! Baseline runs: the per-sample statuses of an earlier run, for anchors and
-//! the diff.
+//! The per-sample statuses of a run's `scores.tsv`, which `dna-eval diff`
+//! compares.
 //!
-//! A baseline is the `scores.tsv` of an earlier run directory. The
-//! `sample_id` and `status` columns are required; `strict_status` and
-//! `iupac_compatible_status` are read when present. Statuses fall into
-//! classes, so a run that scored on the fair scale (`exact`, `error`) stays
-//! comparable with one that reports concordance (`concordant`, `discordant`).
-//! The review workload (`review_positions`, `unreviewed`) and the zones to
-//! check (`review_zone_count`) are read when present.
+//! The `sample_id` and `status` columns are required; every other measure's
+//! status column is read when present. Statuses fall into classes, so a run
+//! that scored on the fair scale (`exact`, `error`) stays comparable with one
+//! that reports concordance (`concordant`, `discordant`).
 
 use std::collections::BTreeMap;
 
 use crate::compare::Measure;
 use crate::error::BaselineError;
 
-/// The measures a baseline reports, and each sample's status under them.
+/// The measures a run reports, and each sample's status under them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Statuses {
     /// Measures with a status column, in [`Measure::ALL`] order.
     pub(crate) measures: Vec<Measure>,
     /// Each sample's status under every reported measure.
     pub(crate) samples: BTreeMap<String, BTreeMap<Measure, String>>,
-    /// Each sample's discrepancy class, when the baseline reports one.
-    pub(crate) classes: BTreeMap<String, String>,
-    /// Each sample's review workload, when the baseline reports one: its
-    /// positions to review and whether it has an unreviewed difference.
-    pub(crate) review: BTreeMap<String, (i64, bool)>,
-    /// Each sample's zones to check, when the baseline reports them.
-    pub(crate) zones: BTreeMap<String, usize>,
 }
 
 impl Statuses {
     /// The statuses of one sample.
     pub(crate) fn get(&self, sample: &str) -> Option<&BTreeMap<Measure, String>> {
         self.samples.get(sample)
-    }
-
-    /// Whether the baseline has a status column for `measure`.
-    pub(crate) fn reports(&self, measure: Measure) -> bool {
-        self.measures.contains(&measure)
     }
 }
 
@@ -98,15 +83,6 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
                 .map(|index| (measure, index))
         })
         .collect::<Vec<_>>();
-    let class = columns.iter().position(|name| *name == "class");
-    let review_columns = columns
-        .iter()
-        .position(|name| *name == "review_positions")
-        .zip(columns.iter().position(|name| *name == "unreviewed"));
-    let zone_count = columns.iter().position(|name| *name == "review_zone_count");
-    let mut review = BTreeMap::new();
-    let mut zones = BTreeMap::new();
-    let mut classes = BTreeMap::new();
     let mut samples = BTreeMap::new();
     for (offset, line) in lines.enumerate() {
         let line_number = offset + 2;
@@ -122,22 +98,6 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
             .iter()
             .map(|(measure, index)| (*measure, fields[*index].to_owned()))
             .collect();
-        if let Some(class) = class {
-            classes.insert(fields[sample].to_owned(), fields[class].to_owned());
-        }
-        if let Some((positions, unreviewed)) = review_columns
-            && let Ok(positions) = fields[positions].parse::<i64>()
-        {
-            review.insert(
-                fields[sample].to_owned(),
-                (positions, !fields[unreviewed].is_empty()),
-            );
-        }
-        if let Some(count) = zone_count
-            && let Ok(count) = fields[count].parse::<usize>()
-        {
-            zones.insert(fields[sample].to_owned(), count);
-        }
         if samples.insert(fields[sample].to_owned(), row).is_some() {
             return Err(BaselineError::DuplicateSample {
                 line: line_number,
@@ -148,9 +108,6 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<Statuses, BaselineError> {
     Ok(Statuses {
         measures: measures.iter().map(|(measure, _)| *measure).collect(),
         samples,
-        classes,
-        review,
-        zones,
     })
 }
 
@@ -168,7 +125,6 @@ mod tests {
         assert_eq!(statuses.samples["S1"][&Measure::Primary], "exact");
         assert!(!statuses.samples["S1"].contains_key(&Measure::Strict));
         assert_eq!(statuses.measures, [Measure::Primary]);
-        assert!(!statuses.reports(Measure::Strict));
         assert_eq!(
             Class::of(&statuses.samples["S2"][&Measure::Primary]),
             Class::Failed
