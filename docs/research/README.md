@@ -33,6 +33,7 @@ Open:
 <!-- docs:begin index:research:open -->
 - [unused ABIF tags](abif-metadata/README.md) — **Active**; Which ABIF tags beyond the five DNA reads (DATA.9-12, FWO_.1, PLOC.2, PBAS.2, PCON.2) could add evidence, and how many carry an instrument-side failure or run context.
 - [signal denoising and baseline correction](denoising/README.md) — **Active**; Does a conditioned projection of the instrument-analyzed channels improve re-calling or read callability on real traces?
+- [C-tract length heteroplasmy](length-heteroplasmy/README.md) — **Active**; How forensic practice records C-tract length heteroplasmy, how precise DNA's tract-length review items are per evidence state, and whether decode noise should be calibrated per laboratory batch.
 - [when may a region read by one strand pass?](one-strand/README.md) — **Active**; Evidence for the open question on whether a single strand can pass a region.
 - [how other systems decide pass, review, and rerun](review-triage/README.md) — **Active**; Evidence supporting the review triage proposal.
 <!-- docs:end index:research:open -->
