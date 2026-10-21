@@ -35,6 +35,7 @@ use dna_kernel::read_evidence::SecondBase;
 
 use crate::model::basecalls::{BaseCall, BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability};
+use crate::model::locus_evidence::channel_width;
 use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::model::signal::SignalAnalysis;
 use crate::signal_processing::SignalProcessingConfig;
@@ -167,12 +168,7 @@ fn wide(
 ) -> bool {
     let parameters = &config.second_cause;
     let width = |call: usize, channel: Nucleotide| {
-        signal
-            .loci
-            .get(call)
-            .filter(|locus| locus.call_index_0based == call)
-            .map(|locus| locus.channel_widths[channel.channel_index()])
-            .filter(|&width| width > 0)
+        channel_width(&signal.loci, call, channel.channel_index())
     };
     let Some(own) = width(index, second) else {
         return false;
