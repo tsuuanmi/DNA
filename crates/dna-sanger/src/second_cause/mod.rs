@@ -223,6 +223,11 @@ mod tests {
                 width_calls: 6,
             },
             decompose_unexplained_quantile: 0.99,
+            spike: crate::signal_processing::SpikeParameters {
+                height: 3.0,
+                span: 1.5,
+                level_calls: 6,
+            },
         }
     }
 
@@ -295,6 +300,7 @@ mod tests {
                 loci,
                 windows: Vec::new(),
                 noisy_regions: Vec::new(),
+                spikes: Vec::new(),
             },
             ReadCallability::in_phase(count),
         )

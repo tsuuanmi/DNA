@@ -27,7 +27,7 @@ use dna::sample_analysis::{
 use dna_consensus::model::consensus::SiteState;
 use sha2::{Digest, Sha256};
 
-use crate::cache::EvidenceCache;
+use crate::cache::Caches;
 use crate::cause::loci::{self, Loci};
 use crate::compare::{Allele, Failure};
 use crate::components;
@@ -215,7 +215,7 @@ pub(crate) fn run(
     threads: Threads,
     triage: bool,
     grouping: Option<Grouping>,
-    cache: Option<&EvidenceCache>,
+    cache: Option<&Caches>,
     report: &mut Vec<String>,
 ) -> Result<Vec<Outcome>> {
     let Some(grouping) = grouping else {
@@ -295,7 +295,7 @@ fn run_once<'s>(
     (reference, reference_sha256): (&Path, &str),
     config: &Path,
     threads: Threads,
-    (triage, cache): (bool, Option<&EvidenceCache>),
+    (triage, cache): (bool, Option<&Caches>),
     signal: &(dyn Fn(&Sample) -> Option<&'s RunSignal> + Sync),
 ) -> Result<Vec<Outcome>> {
     run_with(samples, threads, |sample, traces| {
@@ -440,7 +440,7 @@ pub(crate) fn analyse(
     traces: &[PathBuf],
     reference: &Path,
     config: &Path,
-    cache: Option<&EvidenceCache>,
+    cache: Option<&Caches>,
 ) -> std::result::Result<Analysed, Failure> {
     let failure = |error: dna::error::Error| Failure::Dna(error.to_string());
     let Some(cache) = cache else {
@@ -466,13 +466,25 @@ pub(crate) fn analyse(
                 path: trace.clone(),
                 message: error.to_string(),
             })?;
-            let document = cache
+            let name = trace.display().to_string();
+            let evidence = cache
+                .evidence
                 .document(&sha256, || recorded::read_evidence_document(trace, config))
                 .map_err(failure)?;
-            Ok((trace.display().to_string(), document))
+            let placed = cache
+                .placed
+                .document(&format!("{:x}", Sha256::digest(&evidence)), || {
+                    recorded::placed_read_document(&name, &evidence, reference, config)
+                })
+                .map_err(failure)?;
+            Ok(recorded::ReadDocuments {
+                name,
+                evidence,
+                placed: Some(placed),
+            })
         })
         .collect::<std::result::Result<Vec<_>, Failure>>()?;
-    match recorded::analyze_evidence_outcome(&documents, reference, config, NonZeroUsize::MIN)
+    match recorded::analyze_placed_outcome(&documents, reference, config, NonZeroUsize::MIN)
         .map_err(failure)?
     {
         EvidenceOutcome::Analyzed(analysis) => Ok(Analysed::Analyzed(analysis)),

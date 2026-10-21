@@ -8,6 +8,11 @@
 //! evidence document, the object being its git id at `HEAD`. It is empty when one
 //! of them differs from `HEAD` or without git, so the evidence cache is
 //! refused rather than keyed on code that is not the commit's.
+//!
+//! `DNA_EVAL_PLACEMENT_STAGE` records the placement stage's identity the
+//! same way: the sources from a read evidence document to its placed-read
+//! document (`dna.placed_read/v1`), so the placement cache misses when the
+//! placement's code changes.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -58,24 +63,42 @@ fn main() {
         "src/report/evidence.rs",
         "src/report/json.rs",
     ];
-    let pathspecs = read_stage
-        .iter()
-        .map(|path| format!(":(top){path}"))
-        .collect::<Vec<_>>();
-    let mut status = vec!["status", "--porcelain", "--untracked-files=no", "--"];
-    status.extend(pathspecs.iter().map(String::as_str));
-    let read_stage_clean = git(&status).is_some_and(|status| status.is_empty());
-    let identity = read_stage
-        .iter()
-        .map(|path| {
-            git(&["rev-parse", &format!("HEAD:{path}")])
-                .filter(|object| !object.is_empty())
-                .map(|object| format!("{path}={object};"))
-        })
-        .collect::<Option<String>>()
-        .filter(|_| read_stage_clean)
-        .unwrap_or_default();
+    let stage_identity = |paths: &[&str]| {
+        let pathspecs = paths
+            .iter()
+            .map(|path| format!(":(top){path}"))
+            .collect::<Vec<_>>();
+        let mut status = vec!["status", "--porcelain", "--untracked-files=no", "--"];
+        status.extend(pathspecs.iter().map(String::as_str));
+        let clean = git(&status).is_some_and(|status| status.is_empty());
+        paths
+            .iter()
+            .map(|path| {
+                git(&["rev-parse", &format!("HEAD:{path}")])
+                    .filter(|object| !object.is_empty())
+                    .map(|object| format!("{path}={object};"))
+            })
+            .collect::<Option<String>>()
+            .filter(|_| clean)
+            .unwrap_or_default()
+    };
+    let identity = stage_identity(&read_stage);
     println!("cargo:rustc-env=DNA_EVAL_READ_STAGE={identity}");
+    // The placement stage: the kernel and the aligner, and the facade's
+    // configuration, evidence document reading, and placed-read writer.
+    let placement_stage = [
+        "Cargo.lock",
+        "crates/dna-kernel",
+        "crates/dna-align",
+        "src/config",
+        "src/input/evidence.rs",
+        "src/input/mod.rs",
+        "src/recorded.rs",
+    ];
+    println!(
+        "cargo:rustc-env=DNA_EVAL_PLACEMENT_STAGE={}",
+        stage_identity(&placement_stage)
+    );
 
     // Record again when the commit, the index, or a source of the workspace
     // changes.

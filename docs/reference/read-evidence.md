@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CALL]
+implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-CONS]
 decided-by: [ADR-0069, ADR-0076, ADR-0080, ADR-0082, ADR-0084]
 ---
 
@@ -53,7 +53,9 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
   - `unreliable`: the spans of `calls` whose differences the modality
     asserts are not to stand unchecked, each with its `reason`:
     `poor_start_signal`, the read's start before its first run of sound calls
-    (SRS-CALL-024). The calls keep their verdicts.
+    (SRS-CALL-024). The calls keep their verdicts. The core reads the spans
+    only to end a region's analysed range (SRS-CONS-012) and to leave the
+    calls of a placement tie unplaced (SRS-ALN-006).
   - `tracts`: the homopolymer tracts the modality decodes from the read's own
     signal (SRS-CALL-025, [[PROP-0012]]), one per distinct first call, in
     onset order. Evidence only: the core reads none of it. Each tract has:
@@ -86,11 +88,13 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
   - `placement`: `kind` (`scored`, `anchoring`, `unresolved`) and, for a masked
     call, the modality's `reason`;
   - `identity` and `indel`: the modality's verdict on each use, `edge` and the
-    `withheld` reasons, verbatim;
+    `withheld` reasons, verbatim. A Sanger call inside an electrophoretic
+    spike is withheld for both with `signal_spike` (SRS-CALL-027);
   - `bound`: whether the call shows where a run of another base ends
     (`in_phase`, `anchored`, `withheld`), and `post_repeat` (ADR-0076). A
     Sanger call beside a junction whose spacing marks a missing peak is
-    `withheld` (SRS-CALL-026);
+    `withheld` (SRS-CALL-026), and so is a call inside a spike
+    (SRS-CALL-027);
   - `second`: the second base of the call's signal, its share in `[0, 0.5]`,
     and `stands_out` (the share exceeds `signal_processing.second_floor`);
   - `second_unexplained` and `reference_only` (ADR-0080).

@@ -1,6 +1,7 @@
 //! Forward/reverse profile alignment selection and circular coordinate projection.
 
 use std::cmp::Ordering;
+use std::ops::Range;
 
 use crate::AlignmentConfig;
 use crate::canonical;
@@ -20,11 +21,24 @@ struct Candidate {
     placements: Vec<RawAlignment>,
 }
 
+/// The selected orientation's outcome: one placement, or two equally scoring
+/// ones and the calls they place differently.
+enum Selection {
+    Unique(Alignment),
+    Tied(Vec<usize>),
+}
+
 /// Aligns both evidence-profile orientations and returns one unique selected result.
 ///
 /// The query is the read's informative calls. An unresolved masked call enters
 /// it as `N` without an evidence profile, so it neither scores nor counts as
 /// callable; an anchoring masked call keeps its base and profile.
+///
+/// When the selected orientation's two best placements tie, and every call
+/// from one end of the query to the farthest call they place differently is
+/// unreliable — inside one of the read's unreliable spans, or masked — those
+/// calls are left unplaced and the rest of the query is aligned again
+/// (SRS-ALN-006).
 ///
 /// # Errors
 ///
@@ -35,8 +49,57 @@ pub fn align_best(
     reference: &Reference,
     config: &AlignmentConfig,
 ) -> Result<Alignment> {
-    let calls = evidence.calls();
     let informative = evidence.informative();
+    let disputed = match align_calls(evidence, informative.clone(), reference, config)? {
+        Selection::Unique(alignment) => return Ok(alignment),
+        Selection::Tied(disputed) => disputed,
+    };
+    let kept =
+        placed_calls(evidence, informative, &disputed).ok_or(AlignmentError::AmbiguousPlacement)?;
+    match align_calls(evidence, kept, reference, config)? {
+        Selection::Unique(alignment) => Ok(alignment),
+        Selection::Tied(_) => Err(AlignmentError::AmbiguousPlacement.into()),
+    }
+}
+
+/// The calls a tie leaves placed: the query without the stretch from one of
+/// its ends to the farthest of the `disputed` calls, when every call of that
+/// stretch is unreliable (inside one of the read's unreliable spans, or
+/// masked) and some call remains. `None` otherwise.
+fn placed_calls(
+    evidence: &ReadEvidence,
+    query: Range<usize>,
+    disputed: &[usize],
+) -> Option<Range<usize>> {
+    let unreliable = |call: usize| {
+        evidence
+            .unreliable()
+            .iter()
+            .any(|span| span.calls.contains(&call))
+            || evidence
+                .calls()
+                .get(call)
+                .is_some_and(|call| call.placement != Placement::Scored)
+    };
+    let first = *disputed.iter().min()?;
+    let last = *disputed.iter().max()?;
+    if (query.start..=last).all(unreliable) && last + 1 < query.end {
+        return Some(last + 1..query.end);
+    }
+    if (first..query.end).all(unreliable) && query.start < first {
+        return Some(query.start..first);
+    }
+    None
+}
+
+/// Aligns the `query` calls in both orientations and selects one.
+fn align_calls(
+    evidence: &ReadEvidence,
+    informative: Range<usize>,
+    reference: &Reference,
+    config: &AlignmentConfig,
+) -> Result<Selection> {
+    let calls = evidence.calls();
     let retained = &calls[informative.clone()];
     let forward_query = retained
         .iter()
@@ -252,8 +315,39 @@ fn select_proven_candidate(
     }
 }
 
-/// Checks the selected placement and builds the alignment. On a vouched
-/// read, a deletion beside an `N` without evidence moves 3' across it
+/// The calls two placements of one orientation place at different reference
+/// positions (an inserted call at none), in query order.
+fn disputed_calls(
+    selected: &Candidate,
+    left: &RawAlignment,
+    right: &RawAlignment,
+    modulo_length: Option<usize>,
+) -> Vec<usize> {
+    let positions = |alignment: &RawAlignment| {
+        let mut positions = vec![None; selected.mapping.len()];
+        for column in &alignment.columns {
+            if let Some(query) = column.query_index
+                && let Some(slot) = positions.get_mut(query)
+            {
+                *slot = column
+                    .reference_index
+                    .map(|index| modulo_length.map_or(index, |length| index % length));
+            }
+        }
+        positions
+    };
+    positions(left)
+        .into_iter()
+        .zip(positions(right))
+        .zip(&selected.mapping)
+        .filter(|((left, right), _)| left != right)
+        .map(|(_, &call)| call)
+        .collect()
+}
+
+/// Checks the selected placement and builds the alignment, or reports the
+/// calls two equally scoring placements dispute. On a vouched read, a
+/// deletion beside an `N` without evidence moves 3' across it
 /// ([`canonical::cross_unresolved`]).
 fn finish_alignment(
     selected: &Candidate,
@@ -261,11 +355,23 @@ fn finish_alignment(
     config: &AlignmentConfig,
     calls: &[CallEvidence],
     vouched: bool,
-) -> Result<Alignment> {
-    if selected.placements.len() != 1 {
-        return Err(AlignmentError::AmbiguousPlacement.into());
-    }
-    let raw = &selected.placements[0];
+) -> Result<Selection> {
+    let modulo_length = match reference.topology {
+        ReferenceTopology::Linear => None,
+        ReferenceTopology::Circular => Some(reference.len()),
+    };
+    let raw = match selected.placements.as_slice() {
+        [raw] => raw,
+        [left, right] => {
+            return Ok(Selection::Tied(disputed_calls(
+                selected,
+                left,
+                right,
+                modulo_length,
+            )));
+        }
+        _ => return Err(AlignmentError::AmbiguousPlacement.into()),
+    };
     if raw.metrics.callable_columns < config.minimum_callable_bases {
         return Err(AlignmentError::TooFewCallableColumns {
             found: raw.metrics.callable_columns,
@@ -288,10 +394,6 @@ fn finish_alignment(
                 .get(query)
                 .and_then(|&call| calls.get(call))
                 .is_some_and(|call| call.base == 'N' && call.profile.is_none())
-        };
-        let modulo_length = match reference.topology {
-            ReferenceTopology::Linear => None,
-            ReferenceTopology::Circular => Some(reference.len()),
         };
         canonical::cross_unresolved(&mut raw, unevidenced, modulo_length);
     }
@@ -349,7 +451,7 @@ fn finish_alignment(
     let callable_segments = callable_segments(&columns, |column| {
         mask_of(column).is_none() && is_canonical(column.query_base)
     });
-    Ok(Alignment {
+    Ok(Selection::Unique(Alignment {
         orientation: selected.orientation,
         score: raw.score,
         reference_segments: segments,
@@ -357,7 +459,7 @@ fn finish_alignment(
         wraps_origin,
         metrics,
         columns,
-    })
+    }))
 }
 
 /// Reference segments observed by callable calls — unmasked calls that read
@@ -365,7 +467,7 @@ fn finish_alignment(
 /// column when the call columns on both sides are; runs of consecutive
 /// reference indexes form one segment. An unresolved call (`N`, or an IUPAC
 /// code a modality presents as `N`) observes no base, masked or not.
-fn callable_segments(
+pub(crate) fn callable_segments(
     columns: &[AlignmentColumn],
     callable: impl Fn(&AlignmentColumn) -> bool,
 ) -> Vec<ReferenceSegment> {
@@ -469,7 +571,7 @@ fn segments(alignment: &RawAlignment, reference: &Reference) -> (Vec<ReferenceSe
 mod tests {
     use crate::model::alignment::AlignmentMetrics;
     use dna_kernel::model::reference::ReferenceTopology;
-    use dna_kernel::read_evidence::EvidenceReason;
+    use dna_kernel::read_evidence::{EvidenceReason, UnreliableSpan};
 
     use super::*;
 
@@ -693,13 +795,16 @@ mod tests {
             },
             Ordering::Equal => return Err(AlignmentError::OrientationTie.into()),
         };
-        finish_alignment(
+        match finish_alignment(
             &selected,
             reference,
             config,
             evidence.calls(),
             evidence.ends() == ReadEnds::Vouched,
-        )
+        )? {
+            Selection::Unique(alignment) => Ok(alignment),
+            Selection::Tied(_) => Err(AlignmentError::AmbiguousPlacement.into()),
+        }
     }
 
     fn assert_matches_gotoh_selection(
@@ -976,6 +1081,101 @@ mod tests {
         let reverse = align_best(&reverse.clone().with_call(11, call), &reference, &config())?;
         assert_eq!(reverse.orientation, Orientation::Reverse);
         assert_eq!(inserted_after(&reverse), [10, 16]);
+        Ok(())
+    }
+
+    /// A read whose last three calls tie: two inserted A's beside a matched C
+    /// (the read ends at reference 25) or three substitutions (it ends at
+    /// reference 27). Both score 51 and agree on every earlier call.
+    fn tied_end() -> (Reference, ReadEvidence) {
+        let reference = Reference {
+            name: "ref".into(),
+            sequence: "TTGATTCAGCTAACGGTCATCAAACCATTTT".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        (reference, ReadEvidence::clean("GATTCAGCTAACGGTCATCAAAAAC"))
+    }
+
+    fn unreliable(evidence: ReadEvidence, calls: Range<usize>) -> Result<ReadEvidence> {
+        evidence.with_unreliable(vec![UnreliableSpan {
+            calls,
+            reason: EvidenceReason::new("poor_start_signal"),
+        }])
+    }
+
+    fn placed(alignment: &Alignment) -> Vec<usize> {
+        alignment
+            .columns
+            .iter()
+            .filter_map(|column| column.original_call_index_0based)
+            .collect()
+    }
+
+    fn ambiguous(result: Result<Alignment>) -> bool {
+        result.err().map(|error| error.to_string()).as_deref()
+            == Some(
+                "alignment failed: selected orientation has multiple equally scoring placements",
+            )
+    }
+
+    // SRS-ALN-006
+    #[test]
+    fn a_tie_outside_unreliable_calls_stays_rejected() -> Result<()> {
+        let (reference, evidence) = tied_end();
+        assert!(ambiguous(align_best(&evidence, &reference, &config())));
+        // A span that stops short of the first disputed call leaves a
+        // reliable call in dispute.
+        let short = unreliable(evidence, 23..25)?;
+        assert!(ambiguous(align_best(&short, &reference, &config())));
+        Ok(())
+    }
+
+    // SRS-ALN-006
+    #[test]
+    fn a_tie_confined_to_an_unreliable_span_leaves_its_calls_unplaced() -> Result<()> {
+        let (reference, evidence) = tied_end();
+        let alignment = align_best(&unreliable(evidence, 20..25)?, &reference, &config())?;
+        assert_eq!(alignment.orientation, Orientation::Forward);
+        assert_eq!(placed(&alignment), (0..22).collect::<Vec<_>>());
+        assert_eq!(
+            alignment.reference_segments,
+            [ReferenceSegment {
+                start_0based: 2,
+                end_0based_exclusive: 24,
+            }]
+        );
+        Ok(())
+    }
+
+    // SRS-ALN-006
+    #[test]
+    fn a_tie_confined_to_masked_calls_leaves_them_unplaced() -> Result<()> {
+        let (reference, mut evidence) = tied_end();
+        for index in 22..25 {
+            let call = evidence.calls()[index]
+                .masked(Placement::Anchoring(EvidenceReason::new("dephased_signal")));
+            evidence = evidence.with_call(index, call);
+        }
+        let alignment = align_best(&evidence, &reference, &config())?;
+        assert_eq!(placed(&alignment), (0..22).collect::<Vec<_>>());
+        Ok(())
+    }
+
+    // SRS-ALN-006
+    #[test]
+    fn a_reverse_read_leaves_its_unreliable_start_unplaced() -> Result<()> {
+        let (reference, evidence) = tied_end();
+        let read = evidence
+            .calls()
+            .iter()
+            .map(|call| call.base)
+            .collect::<String>();
+        let reverse = ReadEvidence::clean(&reverse_complement(&read));
+        assert!(ambiguous(align_best(&reverse, &reference, &config())));
+        let alignment = align_best(&unreliable(reverse, 0..5)?, &reference, &config())?;
+        assert_eq!(alignment.orientation, Orientation::Reverse);
+        assert_eq!(placed(&alignment), (3..25).rev().collect::<Vec<_>>());
         Ok(())
     }
 }
