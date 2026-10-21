@@ -424,6 +424,17 @@ impl<'a> Eligibility<'a> {
         self.trusted.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether the call at `index` shows its base: scored, trusted
+    /// ([`Self::trusted`]), and with no modality reason against its base. No
+    /// bounded-run exemption (ADR-0076) lifts `read_end` here.
+    #[must_use]
+    pub fn shows_base(&self, index: usize) -> bool {
+        self.trusted(index)
+            && self.evidence.calls().get(index).is_some_and(|call| {
+                call.placement == Placement::Scored && call.identity.withheld.is_empty()
+            })
+    }
+
     /// The exclusion reason of a masked call, or `None` for an unmasked one.
     pub(super) fn mask_reason(&self, index: usize) -> Option<VariantExclusionReason> {
         let reason = self.evidence.calls().get(index)?.placement.reason()?;
