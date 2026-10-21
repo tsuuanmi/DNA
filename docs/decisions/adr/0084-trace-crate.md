@@ -15,7 +15,7 @@ related: [ADR-0069, ADR-0070, ADR-0079, ADR-0082, ADR-0083, PROP-0012]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/length-mixture](../../design/length-mixture.md), [engineering/ci-cd](../../engineering/ci-cd.md), [reference/configuration](../../reference/configuration.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/callability](../../requirements/callability.md)
+- **Governs:** [design/length-mixture](../../design/length-mixture.md), [engineering/ci-cd](../../engineering/ci-cd.md), [reference/configuration](../../reference/configuration.md), [reference/read-evidence](../../reference/read-evidence.md), [reference/review](../../reference/review.md), [requirements/callability](../../requirements/callability.md), [validation/simulated-bench](../../validation/simulated-bench.md)
 <!-- docs:end backlinks -->
 
 ## Context
@@ -48,6 +48,9 @@ place in that graph.
   reference, alignment, or truth.
 - Its output is typed results. The modality turns them into kernel
   assertions (`PhaseMixture`, [[ADR-0082]]), and the core reads only those.
+- Its `simulate` feature holds the forward-model renderer of the simulated
+  tract-decode bench ([[PROP-0015]] increment 1). This is test support: only the
+  evaluation harness enables it, and no runtime path reaches it.
 - Its parameters belong to the modality's configuration, validated and
   recorded in provenance through the `sanger` plugin. Levels come from the
   read's or the run's own data wherever possible.

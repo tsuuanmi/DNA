@@ -10,7 +10,8 @@ member crate per plugin family or core step under ``crates/``:
   ``dna-consensus``);
 - ``dna-sanger``: the Sanger modality;
 - ``dna-trace``: trace signal engineering, a library only ``dna-sanger``
-  depends on (ADR-0084);
+  depends on (ADR-0084); the harness also uses its ``simulate`` feature, the
+  forward-model renderer of the simulated bench (PROP-0015);
 - ``dna-normalize``: post-calling representation, normalization, and
   nomenclature;
 - ``dna-empop``: post-calling notation conformance;
@@ -66,6 +67,7 @@ ALLOWED: dict[str, frozenset[str]] = {
             "sample",
             "consensus",
             "sanger",
+            "trace",
             "normalize",
             "empop",
         }
