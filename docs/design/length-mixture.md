@@ -165,7 +165,13 @@ most runs to one strand.
 A strand gives a run one clear length when all its reads agree with clear
 margins. A run is confirmed when both strands give the same length and it
 is DNA's call. Every other run a decode reaches is a check
-(`length_unconfirmed`). Where the profile leaves the window's run lengths
+(`length_unconfirmed`). Where a window position is not callable, DNA
+reports no length there: its decided length is an estimate, which confirms
+nothing and is not shown as a reading. The run then carries the reads'
+floor reading instead, the least length any read gives as its top or next
+(user decision 2026-10-21): on development panel v5 it matched the truth in
+87 % of such run 1s whose reads top at different lengths, the phase-loss
+estimate in 10 %. Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
 
 ## Decision (increment 4)

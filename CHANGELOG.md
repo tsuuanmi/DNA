@@ -622,6 +622,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review shows no length of DNA's for a run of an anchored repeat
+  window it does not report (a window position not callable): such a run's
+  `length_unconfirmed` (or `length_not_recorded`) `called` is null, the
+  estimate is not judged against the reads (a run both strands read alike is
+  `undecided_call`, no longer confirmed by the estimate), and it stays only in
+  `estimated_length` with its `length_evidence`. The run carries `floor`
+  instead, the reads' floor reading: the least length any read gives as its
+  top or next, a suggestion beside the near-equal pair's `convention`
+  (SRS-API-020, user decision 2026-10-21). On development panel v5 the
+  floor matched the truth in 354 of 406 current unreported HVS-II run 1s
+  whose reads top at different lengths, the phase-loss estimate in 41.
+  `dna.review/v1` gains the field in place (pre-release); plugin `review` 26.
+  Against `main` 60252579 the check items keep their positions (25 HVS-II
+  `estimated_length` items also carry `length_unconfirmed`), and the scores,
+  unreviewed blocks, and clear samples are byte-identical (diff gate pass).
+
 - A Sanger call before a run that closes a stop of the read's in-phase
   signal (the informative end, or a phase loss after a repeat run inside the
   interval) is judged against the medians of the last `end_norm_calls` (30)
