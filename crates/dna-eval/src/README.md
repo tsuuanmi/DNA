@@ -8,7 +8,8 @@ with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
 `sample_analysis` capability it runs, on `dna-align`, `dna-sample`,
 `dna-consensus`, and `dna-sanger` only to name the evidence types the draft triage and the discrepancy causes read, on `dna-kernel` for the
 reference the haplotype measures apply alleles to and the profile, variant,
-and nucleotide types it reads, and on `dna-normalize`
+and nucleotide types it reads, on `dna-trace` with its `simulate` feature to render the simulated bench's
+reads, and on `dna-normalize`
 to run the truth's calls through DNA's notation (`convention`); its tests use
 `dna-normalize`'s normalization and nomenclature as the oracle of sequence
 equivalence. No crate depends on it, and it is not part of the release.
@@ -21,7 +22,7 @@ which files a run directory holds, `run.json`, and every table's columns
 The outputs of `approve` and `convention`, and the manifest `panel` writes,
 have no schema; the evaluation harness document describes them.
 
-- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`, `bench`), run orchestration, output
+- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`, `bench`, `sim-bench`), run orchestration, output
   directory, and the `run.json` header.
 - `bench.rs` — `dna-eval bench`: the artefact regression bench. It parses a
   case list (adjudicated artefacts and truth errors, each with a span and
@@ -29,6 +30,15 @@ have no schema; the evaluation harness document describes them.
   check items, and callable intervals for its sample, and reports `BENCH
   FAIL` when a guarded case regresses; known failures are reported, not
   gated. The case list names samples, so it stays under `results/`.
+- `simbench.rs` — `dna-eval sim-bench`: the simulated tract-decode bench
+  ([PROP-0015](../../../docs/proposals/0015-forward-model-tract-decoder.md)).
+  It builds each case's templates from the reference, renders them
+  with `dna-trace`'s renderer, writes the read as ABIF, runs DNA's read
+  evidence stage on it, and scores the tract's decode against the simulated
+  truth. It reports the measures per tract and noise level against the
+  committed baseline of the set's size: `baselines/sim-bench.tsv` for the
+  gating set (60 reads per cell), `baselines/sim-bench-smoke.tsv` for the
+  smoke set (6).
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
 - `panel.rs` — a new panel version from a parent and the truth database.

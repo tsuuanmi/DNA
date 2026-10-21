@@ -3,6 +3,7 @@
 Engineering documentation owns the software-development and delivery process.
 
 - [Development](development.md)
+- [Improvement method](improvement-method.md)
 - [Testing](testing.md)
 - [CI/CD](ci-cd.md)
 - [Release engineering](release.md)

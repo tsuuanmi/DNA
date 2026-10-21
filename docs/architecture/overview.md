@@ -103,7 +103,8 @@ DNA is a Cargo workspace of plugin-family crates, with the core split by step
 - the `dna` facade at the repository root composes them;
 - `dna-eval` is the evaluation harness: it runs DNA over a test panel through
   the facade's library and compares the calls with reviewer truth
-  ([[ADR-0075]]). It is
+  ([[ADR-0075]]). It also renders the simulated tract-decode bench through
+  `dna-trace`'s `simulate` feature ([[validation/simulated-bench]]). It is
   not part of the `dna` binary or the release.
 
 ```mermaid

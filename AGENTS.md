@@ -36,6 +36,9 @@ choosing one.
   behavior, bounded resource use, and domain invariants.
 - Do not introduce speculative abstractions, unused configuration, or dependencies
   without a concrete requirement.
+- Change scientific behavior by the
+  [improvement method](docs/engineering/improvement-method.md): census first,
+  then fix the logic the census points to.
 - Research is non-normative until explicitly promoted into current requirements,
   decisions, design, reference, implementation, tests, and validation.
 

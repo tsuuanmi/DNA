@@ -52,6 +52,8 @@ splits calls, unlike the instrument's basecaller in mixed signal.
 | `bench.py` | The tract-decode benchmark grids (`main`, `ablation`, `smoke`, explicit cases) |
 | `replay.py` | Real decodes as simulated truth: residual structure, recovery |
 | `report.py` | Benchmark tables |
+| `table.py` | The aggregate parameter table of the Rust port (`dna-trace` feature `simulate`): per-primer quantiles and a Gaussian copula over fitted reads, no read's own values |
+| `port_check.py` | The Rust port against this simulator: the `sim-bench` case grid for `bench.py --cases`, realism on pure reads, and the bench measures side by side ([simulated bench](../../../../docs/validation/simulated-bench.md)) |
 
 ## Run
 

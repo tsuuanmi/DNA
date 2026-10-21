@@ -135,7 +135,9 @@ it must still pass `diff` on the full development panel before a pull
 request.**
 
 `bench` checks adjudicated artefact cases before any panel run:
-[[validation/artefact-bench]].
+[[validation/artefact-bench]]. `sim-bench` measures the tract decoder on
+simulated length mixtures against the committed baseline:
+[[validation/simulated-bench]].
 
 ## Approval
 
