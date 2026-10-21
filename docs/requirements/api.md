@@ -1,5 +1,5 @@
 ---
-implements: [SRS-CALL, SRS-CONS, SRS-IN, SRS-SAMPLE, SRS-VAR]
+implements: [SRS-ALN, SRS-CALL, SRS-CONS, SRS-IN, SRS-SAMPLE, SRS-VAR]
 decided-by: [ADR-0074, ADR-0080, ADR-0082]
 verified-by:
   - tests/evidence.rs

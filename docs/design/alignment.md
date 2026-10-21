@@ -178,7 +178,12 @@ ADR-0091, SRS-ALN-016):
    not join it.
 2. The stretch is considered only when all of these hold:
    - every read call in it is canonical;
-   - one of them is masked, or one of its columns is a substitution;
+   - one of them is masked, or one of its columns is a substitution and
+     every run whose length changes is two reference bases or more: a
+     substitution beside a gap there is a merged length change, while a
+     single base the read repeats is no slipped run (an AC-repeat read whose
+     own error reads an A as C keeps that substitution and its `AC`
+     insertion);
    - the read's run bases equal the reference's in order.
 3. From 5' to 3', each boundary between a shorter run and a longer
    neighbour moves as far as both changes allow: the shorter run's positions

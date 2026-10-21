@@ -78,6 +78,13 @@ It is modality-neutral, target-neutral, and has no parameter. It never changes
 a read without masked calls, so consensus calls from `dna call` stay
 identical.
 
+Amended 2026-10-21 by [[ADR-0091]] (proposed). A substitution also
+qualifies a stretch, where every run whose length changes is two reference
+bases or more. A shorter run beside a longer one moves their boundary by
+substitution before the length edits. Two stretches that share only their
+anchor columns are re-expressed separately. A clean read can now be
+changed, and so can a consensus record.
+
 ## Alternatives
 
 - **Aligning anchoring calls by a one-hot profile of their base.** This keeps
