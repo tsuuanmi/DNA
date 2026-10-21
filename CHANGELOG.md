@@ -675,7 +675,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `DuplicateReadName`. Two copies of one trace fail typed
   (`DuplicateTrace`), now also when every read is rejected. A consensus
   document read back by `dna call` maps its sites' read names to their
-  SHA-256. Plugins: `consensus` 21, `review` 30. Measured against `main`
+  SHA-256. Plugins: `consensus` 21, `review` 31. Measured against `main`
   ba0dc0a2 (diff gate PASS on both panels, no sample changed, artefact
   bench unchanged): the label adds no check; it marks 7 and 4 current
   items on development panel v5 and readiness-v2, all contested
