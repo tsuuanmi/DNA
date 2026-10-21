@@ -65,10 +65,19 @@ their directories alone, and gates it.
   digest, re-check list, current-data month, review window, and zone widths,
   each from a clean build. Otherwise `diff` refuses, or with `--force` it
   compares and warns at the top of the report.
+- **Reading.** It reads each run's `run.json`, `scores.tsv`, and
+  `unreviewed.tsv` strictly: a missing or unparsable header field, a table
+  without a column `diff` reads or with a column twice, a row of another
+  width, a sample scored twice, an unknown block class, or a block whose
+  `zone_checked` disagrees with its sample's `review_zones` stops the
+  comparison.
 - **Counting.** From each run's `scores.tsv` and `unreviewed.tsv`, it counts
-  the passes as the run's own summary does: a passed unit counts under its
-  most severe unreviewed block. It first checks that these counts equal the
-  ones the run's `run.json` records, and refuses a run whose files disagree.
+  the passes with the review workload's own counting, as the run's summary
+  does: a passed unit counts under its most severe unreviewed block. It
+  first checks that these counts equal the ones the run's `run.json`
+  records, the counted and auto-passed samples by class and every zone's
+  units, over all samples and over the current data, and refuses a run whose
+  files disagree.
 - **Groups.** Every count is given for all samples, by period (the
   manifest's `batch_date` against the current-data month), and by the
   manifest's `source` column when it has one.
