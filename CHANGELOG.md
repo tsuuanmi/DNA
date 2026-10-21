@@ -17,6 +17,24 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
+  bench.
+  - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,
+    `--reps 6`) renders a read through a C-tract as a known
+    length mixture, runs DNA's read evidence stage on it in process, and
+    scores the tract's decode against the truth: structure, dominant
+    length, `clear` margins, the neighbour ratio, and the tie direction, per
+    tract and noise level.
+  - It reports against the committed baseline of the current decoder for
+    each set size.
+  - The reads come from `dna-trace`'s new `simulate` feature, a port of the
+    research simulator that is test support only. Its read parameters are
+    an aggregate table (per-primer quantiles and a Gaussian copula over
+    fitted reads, no read's own values).
+  - It agrees with the research simulator: realism within 2.3 %, and the
+    decoder's measures within 3 points or within the research simulator's
+    own run-to-run spread.
+  - No DNA output changes.
 - `dna.run_context/v1` and `dna run-context <run-id> --traces|--evidence
   <list> --reference <fasta>` (PROP-0014 increment 1, SRS-API-021): a
   laboratory batch's own statistics, computed once from every read of the

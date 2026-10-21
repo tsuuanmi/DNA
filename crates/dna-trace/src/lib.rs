@@ -5,4 +5,6 @@
 
 pub mod decompose;
 pub mod locate;
+#[cfg(feature = "simulate")]
+pub mod simulate;
 pub mod tract;
