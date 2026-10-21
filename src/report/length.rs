@@ -21,7 +21,7 @@ use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
 use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
 use dna_kernel::read_evidence::{Margin, TractLengths};
 
-use crate::model::review_result::{LengthReadResult, LengthRunResult};
+use crate::model::review_result::{LengthConventionResult, LengthReadResult, LengthRunResult};
 use dna_align::model::alignment::Orientation;
 
 /// One anchored repeat window of the profile, 1-based and inclusive.
@@ -154,6 +154,34 @@ pub(super) fn two_strand_runs(runs: &[ConsensusRun], window: &LengthWindow) -> V
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// The shorter length of the adjacent pair `n`, `n + 1` both strands read a
+/// run as, when at least one read's top two are near-equal: every read with
+/// a next length holds the pair as its top two, and every other read gives
+/// one of the two. The lab reads such a run as its shorter member (the run
+/// ends at the first mixed call of the reverse read); DNA only shows it.
+fn near_equal_pair(reads: &[&Contribution]) -> Option<usize> {
+    let shorter = reads.iter().find_map(|contribution| {
+        let result = &contribution.result;
+        (result.margin == margin_label(Margin::NearEqual))
+            .then(|| result.next.map(|next| result.length.min(next)))
+            .flatten()
+    })?;
+    let pair = [shorter, shorter + 1];
+    let holds = reads.iter().all(|contribution| {
+        let result = &contribution.result;
+        pair.contains(&result.length)
+            && result
+                .next
+                .is_none_or(|next| pair.contains(&next) && next != result.length)
+    });
+    let strands = |forward: bool| {
+        reads
+            .iter()
+            .any(|contribution| (contribution.result.strand == Orientation::Forward) == forward)
+    };
+    (holds && strands(true) && strands(false)).then_some(shorter)
 }
 
 const fn complement(base: char) -> char {
@@ -357,6 +385,13 @@ pub(super) fn judge(
                 base: window.repeat,
                 called: called_length,
                 agreement,
+                convention: (!matches!(agreement, "confirmed" | "structure_differs"))
+                    .then(|| near_equal_pair(&reads))
+                    .flatten()
+                    .map(|shorter| LengthConventionResult {
+                        length: shorter,
+                        rule: "shorter_of_near_equal_pair",
+                    }),
                 reads: reads
                     .into_iter()
                     .map(|contribution| contribution.result.clone())
@@ -545,6 +580,75 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    // SRS-API-020
+    #[test]
+    fn suggests_the_shorter_member_of_a_near_equal_pair() {
+        let mut forward = tract('C', Some('T'), 8, 14, Margin::Clear);
+        forward.first = LengthMarginal {
+            lengths: vec![8, 9],
+            shares: vec![0.55, 0.45],
+            errors: vec![0.05, 0.05],
+            dominant: Some(8),
+            next: Some(9),
+            z: Some(0.7),
+            z_adjusted: Some(0.5),
+            margin: Margin::NearEqual,
+        };
+        let decodes = [Decode {
+            read: "F",
+            strand: Orientation::Forward,
+            reference: Some(303),
+            tract: &forward,
+        }];
+        let through = |length| {
+            [
+                ReadRun {
+                    base: 'C',
+                    length,
+                    in_phase: true,
+                },
+                ReadRun {
+                    base: 'T',
+                    length: 1,
+                    in_phase: true,
+                },
+                ReadRun {
+                    base: 'C',
+                    length: 5,
+                    in_phase: true,
+                },
+            ]
+        };
+        let judged = |length| {
+            let runs = through(length);
+            judge(
+                &HVS2,
+                Some(&[9, 5]),
+                &[],
+                &decodes,
+                &[InPhase {
+                    read: "R",
+                    strand: Orientation::Reverse,
+                    runs: &runs,
+                }],
+            )
+        };
+        // Both strands read C8/C9: the convention reads the shorter, as a
+        // suggestion beside DNA's own call, which stays unconfirmed.
+        let runs = judged(9);
+        assert_eq!(runs[0].agreement, "not_clear");
+        assert_eq!(
+            runs[0].convention,
+            Some(LengthConventionResult {
+                length: 8,
+                rule: "shorter_of_near_equal_pair",
+            })
+        );
+        assert_eq!(runs[0].called, Some(9));
+        // A read outside the pair leaves no suggestion.
+        assert_eq!(judged(10)[0].convention, None);
     }
 
     // SRS-API-020

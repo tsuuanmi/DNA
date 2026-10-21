@@ -258,7 +258,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 23)
+## Labels (rules version 24)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -354,6 +354,16 @@ exemption lifts the margin (ADR-0076).
   - `one_strand`: one strand gives no length;
   - `undecided_call`;
   - `differs_from_call`: both strands agree on another length than DNA's.
+
+  `convention` (rules version 24, user decision 2026-10-20) is the lab's
+  reading of a near-equal pair, a suggestion and never DNA's call:
+  `{length, rule: "shorter_of_near_equal_pair"}` when both strands read the
+  run as the adjacent pair `n`, `n + 1` and at least one read's top two are
+  near-equal (every read with a next length holds the pair as its top two,
+  and every other read gives one of the two), with `length` `n`; the lab
+  ends the run at the first mixed call of the reverse read. Null otherwise,
+  for a run whose structure differs from DNA's, and in `length_not_recorded`,
+  where the lab records no length.
 
   A run both strands give one clear length that is DNA's is confirmed and not
   listed. So is a run the consensus decided by the two-strand rule
