@@ -638,9 +638,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   floor matched the truth in 354 of 406 current unreported HVS-II run 1s
   whose reads top at different lengths, the phase-loss estimate in 41.
   `dna.review/v1` gains the field in place (pre-release); plugin `review` 27.
-  Against `main` 60252579 (before #204) the check items keep their positions (25 HVS-II
-  `estimated_length` items also carry `length_unconfirmed`), and the scores,
-  unreviewed blocks, and clear samples are byte-identical (diff gate pass).
+  On development panel v5 against `main` 1a26e698 the diff gate passes:
+  clear samples and unreviewed blocks are unchanged; 26 HVS-II items that
+  were already checks also carry `length_unconfirmed`, and three samples
+  that were not clear gain a `window@HV2` check, a run that one strand's
+  in-phase read had confirmed only against the estimate.
 
 - The review confirms an anchored window run that only one strand gives a
   length when that strand gives one clear length, DNA's call, and at least
