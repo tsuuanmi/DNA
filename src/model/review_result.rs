@@ -6,12 +6,12 @@ use crate::model::consensus_result::StretchResult;
 
 use crate::model::notation_result::EmpopResult;
 use crate::model::result::{
-    ColumnResult, IntervalResult, PluginResult, ProfileResult, ReferenceResult, ScopeResult,
+    ColumnResult, IntervalResult, PhaseStateResult, PluginResult, ProfileResult, ReferenceResult,
+    ScopeResult,
 };
 use crate::model::sample_result::{ConventionResult, ReadRejectionResult};
 use dna_align::model::alignment::Orientation;
 use dna_sample::model::sample_evidence::LocusState;
-use dna_sanger::model::callability::PhaseState;
 
 /// One sample's review document.
 #[derive(Debug, Serialize)]
@@ -153,7 +153,7 @@ pub(crate) struct ComparedResult {
 pub(crate) struct MaskedSpanResult {
     pub(crate) first: usize,
     pub(crate) last: usize,
-    pub(crate) state: PhaseState,
+    pub(crate) state: PhaseStateResult,
     pub(crate) after_repeat: bool,
 }
 

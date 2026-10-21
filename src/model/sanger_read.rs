@@ -7,7 +7,7 @@ use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::read_observation::{RejectedRead, RejectionCause};
 use crate::model::result::{
     CallabilityResult, CallabilitySegmentResult, IntervalResult, NoisyRegionResult,
-    SignalQualityResult, TraceIntegrityResult,
+    PhaseStateResult, SignalQualityResult, TraceIntegrityResult,
 };
 use crate::model::sample_result::ReadRejectionResult;
 use dna_call::read_call::PlacementRejection;
@@ -247,7 +247,7 @@ pub(crate) fn callability(callability: &ReadCallability) -> CallabilityResult {
                     start: segment.call_start_0based,
                     end: segment.call_end_0based_exclusive,
                 },
-                state: segment.state,
+                state: segment.state.into(),
                 after_repeat: segment.after_repeat,
                 shadow_offsets: segment
                     .shadow
@@ -319,5 +319,17 @@ pub(crate) fn warnings(
             .count(),
         ploc_vendor_length_mismatches: integrity.vendor_length_mismatch_count(),
         clipped_channel_samples: integrity.clipped_channel_samples,
+    }
+}
+
+impl From<PhaseState> for PhaseStateResult {
+    fn from(state: PhaseState) -> Self {
+        match state {
+            PhaseState::InPhase => Self::InPhase,
+            PhaseState::Dephased => Self::Dephased,
+            PhaseState::Mixed => Self::Mixed,
+            PhaseState::Weak => Self::Weak,
+            PhaseState::Irregular => Self::Irregular,
+        }
     }
 }
