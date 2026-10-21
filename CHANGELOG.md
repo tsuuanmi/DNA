@@ -682,6 +682,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A reference confirmation (ADR-0080) is no longer withdrawn because a read
+  of the other strand shows the confirming call's own second base standing
+  out when that read's modality explains its second too: the confirming
+  call's second is explained by construction, so neither strand shows an
+  unexplained second there (SRS-CONS-010). A second the other strand leaves
+  unexplained still withdraws it. Plugin: `consensus` 22. Measured against
+  `main` af0823d3 (diff gate PASS on both panels): clear development panel
+  v5 current 8,813 → 8,827, earlier 4,049 → 4,065; readiness-v2 current
+  15,158 → 15,165, earlier 2,011 → 2,024; no unreviewed block, status, or
+  coverage changes.
+
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on

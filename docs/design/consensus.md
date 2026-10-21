@@ -74,9 +74,11 @@ if the confirmation were not there. The confirmation is withdrawn:
   standing out, or with one that a read of the confirming strand shows
   standing out too: an unexplained second on one strand alone is not the
   two-strand signature of a second sequence, and the confirming strand reads
-  its base cleanly apart from an explained artefact;
-- where a read of the other strand shows the confirming call's own second
-  base standing out (`SecondBase.stands_out`);
+  its base cleanly apart from an explained artefact. The confirming call's
+  own second is explained, so a read of the other strand that shows the
+  same second base standing out withdraws it only when that read leaves its
+  second unexplained: the same explained artefact on both strands (a
+  neighbour's tail or a dye blob) is not a second sequence;
 - at or beside a position where any read observes something other than the
   reference, cleanly or not (a read shifted in a repeat shows the reference
   beside its own difference);
