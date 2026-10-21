@@ -9,6 +9,7 @@
 mod items;
 mod labels;
 mod lengths;
+mod mixtures;
 mod ranges;
 mod reads;
 mod second;
@@ -16,6 +17,8 @@ mod sites;
 #[cfg(test)]
 mod test_support;
 mod zones;
+
+pub(crate) use self::mixtures::mixtures;
 
 use self::labels::summarize;
 use self::ranges::{clip, inside, merge, segments, span};

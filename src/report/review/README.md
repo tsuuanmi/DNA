@@ -21,6 +21,10 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
   for the `estimated_length`, `length_unconfirmed`, `length_not_recorded`,
   and `tract_length` labels; a length tract's run is noted when its
   dominant length is determined (SRS-API-020).
+- `mixtures.rs` — each admitted read's phase mixtures (ADR-0082) as the
+  review reports them: the components by offset and fraction, an explained
+  mixture's placed components compared with the reference in the profile
+  notation the pipeline gives, and the unexplained calls' positions.
 - `ranges.rs` — reference ranges: 1-based inclusive `[first, last]` pairs
   from alignment segments, merged, clipped to the reportable regions, and
   tested for a position.

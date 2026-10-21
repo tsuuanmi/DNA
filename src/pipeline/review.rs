@@ -6,9 +6,7 @@ use std::time::Instant;
 
 use crate::error::Result;
 use crate::input::signal as input_signal;
-use crate::model::review_result::{
-    ComparedResult, ComponentResult, ItemKind, LabelResult, MixtureResult,
-};
+use crate::model::review_result::{ItemKind, LabelResult};
 use crate::operation_log::OperationLog;
 use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
@@ -114,7 +112,9 @@ fn review(
     let outcome = match outcome {
         Outcome::Rejected { rejections, .. } => Reviewed::Rejected(rejections),
         Outcome::Analyzed(analysis) => {
-            read_mixtures = mixtures(&analysis)?;
+            read_mixtures = report::review_mixtures(&analysis, |component| {
+                notation_texts(&analysis, component)
+            })?;
             let call = analysis.call(sample_id);
             if let Err(error) = &call {
                 tracing::warn!(event = "review_call_failed", error = ?error.to_string());
@@ -172,88 +172,6 @@ fn review(
     );
     log.sync()?;
     report::publish(&output, &bytes)
-}
-
-/// Each admitted read's phase mixtures (ADR-0082), by content SHA-256: every
-/// component placed and called as a read of its own, its eligible edits
-/// written in the profile notation over the reference interval it covers,
-/// and the reference positions of the calls the components do not explain.
-fn mixtures(analysis: &SampleAnalysis) -> Result<BTreeMap<String, Vec<MixtureResult>>> {
-    let mut found = BTreeMap::new();
-    for read in analysis.components() {
-        let positions = analysis
-            .called
-            .iter()
-            .find(|called| called.input_sha256 == read.sha256)
-            .map(|called| {
-                called
-                    .alignment
-                    .columns()
-                    .iter()
-                    .filter_map(|column| {
-                        Some((
-                            column.original_call_index_0based()?,
-                            column.reference_index_0based()? + 1,
-                        ))
-                    })
-                    .collect::<BTreeMap<_, _>>()
-            })
-            .unwrap_or_default();
-        let mixtures = read
-            .mixtures
-            .iter()
-            .map(|mixture| {
-                // Every component the modality asserts, by offset and
-                // fraction; an explained mixture's placed ones also compared
-                // with the reference.
-                let components = mixture
-                    .mixture
-                    .components
-                    .iter()
-                    .map(|component| {
-                        let compared = mixture
-                            .components
-                            .iter()
-                            .find(|placed| placed.offset == component.offset)
-                            .filter(|_| mixture.mixture.explained)
-                            .map(|placed| {
-                                Ok::<_, crate::error::Error>(ComparedResult {
-                                    first: placed.span[0],
-                                    last: placed.span[1],
-                                    sequence: placed.sequence.clone(),
-                                    calls: notation_texts(analysis, placed)?,
-                                })
-                            })
-                            .transpose()?;
-                        Ok(ComponentResult {
-                            offset: component.offset,
-                            fraction: round(component.fraction),
-                            compared,
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                Ok(MixtureResult {
-                    explained: mixture.mixture.explained,
-                    components,
-                    unexplained: mixture
-                        .mixture
-                        .unexplained
-                        .iter()
-                        .filter_map(|call| positions.get(call).copied())
-                        .collect::<std::collections::BTreeSet<_>>()
-                        .into_iter()
-                        .collect(),
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-        found.insert(read.sha256, mixtures);
-    }
-    Ok(found)
-}
-
-/// A fraction to three decimals, as every DNA document writes it.
-fn round(value: f64) -> f64 {
-    (value * 1000.0).round() / 1000.0
 }
 
 /// A component's eligible edits in the profile notation, as the read
