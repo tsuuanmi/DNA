@@ -93,6 +93,17 @@ pub struct NoisyRegion {
     pub minimum_primary_snr: f64,
 }
 
+/// An electrophoretic spike (SRS-SIG-012): all four channels peak within a
+/// call spacing, each far above the read's local level.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SignalSpike {
+    /// From the earliest apex's half-height start to the latest apex's
+    /// half-height end (0-based, half-open).
+    pub(crate) samples: std::ops::Range<usize>,
+    /// The calls whose event lies among those samples (0-based, half-open).
+    pub(crate) calls: std::ops::Range<usize>,
+}
+
 /// Complete observation-only signal analysis.
 #[derive(Debug, Clone)]
 pub struct SignalAnalysis {
@@ -102,6 +113,8 @@ pub struct SignalAnalysis {
     pub(crate) windows: Vec<SignalWindow>,
     /// Merged candidate-noisy regions, in call order.
     pub noisy_regions: Vec<NoisyRegion>,
+    /// Electrophoretic spikes, in sample order.
+    pub(crate) spikes: Vec<SignalSpike>,
 }
 
 impl SignalAnalysis {
@@ -119,5 +132,10 @@ impl SignalAnalysis {
             .iter()
             .map(|region| region.call_end_0based_exclusive - region.call_start_0based)
             .sum()
+    }
+
+    /// Number of calls inside an electrophoretic spike.
+    pub(crate) fn spike_call_count(&self) -> usize {
+        self.spikes.iter().map(|spike| spike.calls.len()).sum()
     }
 }

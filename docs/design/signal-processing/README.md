@@ -1,6 +1,6 @@
 ---
 implements: [SRS-SIG]
-decided-by: [ADR-0013, ADR-0028, ADR-0029, ADR-0031, ADR-0046, ADR-0067]
+decided-by: [ADR-0013, ADR-0028, ADR-0029, ADR-0031, ADR-0046, ADR-0067, ADR-0088]
 covers:
   - crates/dna-sanger/src/locus.rs
   - crates/dna-sanger/src/model/locus_evidence.rs
@@ -15,7 +15,7 @@ This is the canonical entry point for production signal-processing methods.
 
 DNA reads the analyzed ABIF `DATA.9`–`DATA.12` arrays in canonical A/C/G/T order. These are instrument-analyzed fluorescence channels, not raw detector channels. The current ABIF boundary does not retain a spectral matrix, mobility model, or raw-channel baseline metadata.
 
-The signal-processing stage is deliberately observational. It retains `dna.windowed_snr/v1` noisy-window behavior, derives internal basecall-independent `LocusEvidence` / `EvidenceProfile`, and derives concise whole-read Sanger integrity evidence. Public JSON emits Sanger-integrity observations plus merged candidate-noisy regions; signal processing itself does not smooth channels, re-call bases, trim internal sequence, mutate an alignment, classify dye blobs, or remove a variant. Labelling why a call shows a second peak, dye blobs included, belongs to the [second-peak cause](../second-peak-cause.md), which reads the basecalls as well. Reference alignment may consume the immutable evidence profile under ADR-0029, and [read callability](../callability.md) consumes the corrected locus amplitudes read-only under ADR-0067.
+The signal-processing stage is deliberately observational. It retains `dna.windowed_snr/v1` noisy-window behavior, derives internal basecall-independent `LocusEvidence` / `EvidenceProfile`, and derives concise whole-read Sanger integrity evidence. Public JSON emits Sanger-integrity observations plus merged candidate-noisy regions; signal processing itself does not smooth channels, re-call bases, trim internal sequence, mutate an alignment, classify dye blobs, or remove a variant. It finds one artefact from its own shape, the electrophoretic spike, whose calls the Sanger evidence withholds (ADR-0088). Labelling why a call shows a second peak, dye blobs included, belongs to the [second-peak cause](../second-peak-cause.md), which reads the basecalls as well. Reference alignment may consume the immutable evidence profile under ADR-0029, and [read callability](../callability.md) consumes the corrected locus amplitudes read-only under ADR-0067.
 
 ## Coordinate domains
 
@@ -29,6 +29,7 @@ Both are 0-based. Window and region intervals are half-open. Shared canonical lo
 - [Windowed SNR](windowed-snr.md): rolling local signal-quality observations and candidate-noisy regions.
 - [Trace integrity](trace-integrity.md): canonical-locus/vendor cardinality, spacing, clipping, and whole-read event-signal observations.
 - [Locus evidence](locus-evidence.md): basecall-independent per-locus A/C/G/T evidence and normalized evidence profiles.
+- [Electrophoretic spikes](spikes.md): narrow events in all four channels at once, and the calls they cover.
 
 ## Interpretation limits
 

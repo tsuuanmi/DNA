@@ -4,12 +4,14 @@ mod config;
 
 pub use config::{
     RawSignalProcessingConfig, RunSignalParameters, SecondCauseParameters, SignalProcessingConfig,
+    SpikeParameters,
 };
 
 mod features;
 mod integrity;
 mod locus_evidence;
 mod regions;
+mod spike;
 mod statistics;
 
 pub(crate) use statistics::round_metric;
@@ -40,7 +42,8 @@ pub(crate) fn check_length(call_count: usize, config: &SignalProcessingConfig) -
     Ok(())
 }
 
-/// Calculates rolling SNR features, basecall-independent locus evidence, and merged noisy regions.
+/// Calculates rolling SNR features, basecall-independent locus evidence,
+/// merged noisy regions, and electrophoretic spikes.
 ///
 /// Both feature windows and locus contexts estimate channel statistics over
 /// runs of whole locus windows; each distinct span is estimated once. The
@@ -55,11 +58,13 @@ pub(crate) fn analyze(
     let loci = locus_evidence::calculate(config, &mut estimates)?;
     let noisy_regions = regions::merge(&windows, config.minimum_noisy_windows);
     let integrity = integrity::assess(trace, &loci)?;
+    let spikes = spike::detect(trace, calls, integrity.median_locus_spacing, &config.spike);
     Ok(SignalAnalysis {
         integrity,
         loci,
         windows,
         noisy_regions,
+        spikes,
     })
 }
 
@@ -96,6 +101,11 @@ mod tests {
                 width_calls: 6,
             },
             decompose_unexplained_quantile: 0.99,
+            spike: SpikeParameters {
+                height: 3.0,
+                span: 1.5,
+                level_calls: 6,
+            },
         }
     }
 
