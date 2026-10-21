@@ -158,12 +158,13 @@ struct SimBenchArgs {
     #[arg(long)]
     output: PathBuf,
     /// An earlier `bench.tsv` to report the change from, in place of the
-    /// committed baseline.
+    /// committed baseline of the set's size.
     #[arg(long)]
     baseline: Option<PathBuf>,
-    /// Repetitions per cell; anything but the default is not the frozen
-    /// set, for validation runs only.
-    #[arg(long, default_value_t = simbench::FROZEN_REPS)]
+    /// Repetitions per cell: 60, the gating set (the default), or 6, the
+    /// smoke set, each with its committed baseline; any other size is a
+    /// validation run without one.
+    #[arg(long, default_value_t = simbench::GATE_REPS)]
     reps: usize,
     /// Keep the rendered traces in `<output>/traces`, for research checks of
     /// the renderer's realism.
@@ -185,10 +186,14 @@ fn sim_bench(args: &SimBenchArgs) -> Result<String> {
         Some(path) => {
             let text = String::from_utf8(read(path, "baseline", MAX_CASES_BYTES)?)
                 .map_err(|error| Error::SimBench(error.to_string()))?;
-            simbench::parse(&text)
-                .map_err(|message| Error::SimBench(format!("{}: {message}", path.display())))?
+            Some(
+                simbench::parse(&text)
+                    .map_err(|message| Error::SimBench(format!("{}: {message}", path.display())))?,
+            )
         }
-        None => simbench::parse(simbench::BASELINE)
+        None => simbench::baseline(args.reps)
+            .map(simbench::parse)
+            .transpose()
             .map_err(|message| Error::SimBench(format!("the committed baseline: {message}")))?,
     };
     prepare_output(&args.output)?;
@@ -220,7 +225,7 @@ fn sim_bench(args: &SimBenchArgs) -> Result<String> {
             None => " (dirty state unknown)",
         }
     );
-    let report = simbench::report(&revision, args.reps, &rows, &outcomes, &baseline);
+    let report = simbench::report(&revision, args.reps, &rows, &outcomes, baseline.as_ref());
     write(&args.output, "bench.md", &report)?;
     write(&args.output, "bench.tsv", &simbench::table(&rows))?;
     write(&args.output, "cases.tsv", &simbench::cases_table(&outcomes))?;

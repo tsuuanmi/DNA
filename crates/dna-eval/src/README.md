@@ -32,11 +32,13 @@ have no schema; the evaluation harness document describes them.
   gated. The case list names samples, so it stays under `results/`.
 - `simbench.rs` — `dna-eval sim-bench`: the simulated tract-decode bench
   ([PROP-0015](../../../docs/proposals/0015-forward-model-tract-decoder.md)).
-  It builds each frozen case's templates from the reference, renders them
+  It builds each case's templates from the reference, renders them
   with `dna-trace`'s renderer, writes the read as ABIF, runs DNA's read
   evidence stage on it, and scores the tract's decode against the simulated
   truth. It reports the measures per tract and noise level against the
-  committed baseline, `baselines/sim-bench.tsv`.
+  committed baseline of the set's size: `baselines/sim-bench.tsv` for the
+  gating set (60 reads per cell), `baselines/sim-bench-smoke.tsv` for the
+  smoke set (6).
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
 - `panel.rs` — a new panel version from a parent and the truth database.

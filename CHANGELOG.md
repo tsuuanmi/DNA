@@ -19,12 +19,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
-  - Each of 396 frozen cases renders a read through a C-tract as a known
+  - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,
+    `--reps 6`) renders a read through a C-tract as a known
     length mixture, runs DNA's read evidence stage on it in process, and
     scores the tract's decode against the truth: structure, dominant
     length, `clear` margins, the neighbour ratio, and the tie direction, per
     tract and noise level.
-  - It reports against the committed baseline of the current decoder.
+  - It reports against the committed baseline of the current decoder for
+    each set size.
   - The reads come from `dna-trace`'s new `simulate` feature, a port of the
     research simulator that is test support only. Its read parameters are
     an aggregate table (per-primer quantiles and a Gaussian copula over

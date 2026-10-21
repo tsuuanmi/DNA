@@ -26,20 +26,37 @@ use serde_json::Value;
 
 use crate::runner::Threads;
 
-/// The decoder's measures on the frozen set at the commit that introduced
+/// The decoder's measures on the gating set at the commit that introduced
 /// the bench (PROP-0015 increment 1): the baseline later decoder changes
-/// are reported against.
-pub(crate) const BASELINE: &str = include_str!("../baselines/sim-bench.tsv");
+/// are decided against.
+const BASELINE_GATE: &str = include_str!("../baselines/sim-bench.tsv");
+/// The same on the smoke set.
+const BASELINE_SMOKE: &str = include_str!("../baselines/sim-bench-smoke.tsv");
+
+/// The committed baseline for a run of `reps` repetitions per cell: the
+/// gating or the smoke set's; `None` for any other size.
+pub(crate) const fn baseline(reps: usize) -> Option<&'static str> {
+    match reps {
+        GATE_REPS => Some(BASELINE_GATE),
+        SMOKE_REPS => Some(BASELINE_SMOKE),
+        _ => None,
+    }
+}
 
 /// The frozen case set's version: raise it whenever the cases change.
 pub(crate) const CASES_VERSION: u32 = 1;
-/// Repetitions per cell of the frozen set.
-pub(crate) const FROZEN_REPS: usize = 6;
+/// Repetitions per cell of the gating set (3,960 reads): later decoder
+/// increments decide on it, a cell's 240-300 reads resolving a rate near
+/// 1 % (PROP-0015).
+pub(crate) const GATE_REPS: usize = 60;
+/// Repetitions per cell of the smoke set (396 reads), a quick check.
+pub(crate) const SMOKE_REPS: usize = 6;
 /// The pair family's neighbour ratios.
 const PAIR_VALUES: [f64; 5] = [0.5, 0.8, 0.9, 1.0, 1.25];
 /// Noise levels: the read's own, twice and four times it.
 const NOISE: [f64; 3] = [1.0, 2.0, 4.0];
-/// Pure reads (no neighbour) per tract and noise level.
+/// Pure reads (no neighbour) per tract and noise level in the smoke set;
+/// half the repetitions in any set.
 const PURE_REPS: usize = 3;
 
 /// Which marginal carries the varying run.
@@ -227,7 +244,7 @@ pub(crate) fn cases(reps: usize) -> Vec<Case> {
                     });
                 }
             }
-            for rep in 0..PURE_REPS * reps / FROZEN_REPS.max(1) {
+            for rep in 0..PURE_REPS * reps / SMOKE_REPS {
                 cases.push(Case {
                     tract,
                     value: 0.0,
@@ -844,7 +861,7 @@ pub(crate) fn report(
     reps: usize,
     rows: &[Row],
     outcomes: &[Outcome],
-    baseline: &Baseline,
+    baseline: Option<&Baseline>,
 ) -> String {
     let failed = outcomes
         .iter()
@@ -853,10 +870,10 @@ pub(crate) fn report(
     let mut text = format!(
         "# Simulated tract-decode bench\n\nRevision {revision}. Case set version {CASES_VERSION}, {} reps per cell{}: {} reads, {failed} without read evidence.\n\n",
         reps,
-        if reps == FROZEN_REPS {
-            " (the frozen set)"
-        } else {
-            " (not the frozen set)"
+        match reps {
+            GATE_REPS => " (the gating set)",
+            SMOKE_REPS => " (the smoke set)",
+            _ => " (a validation set, no committed baseline)",
         },
         outcomes.len(),
     );
@@ -875,7 +892,7 @@ pub(crate) fn report(
             // Compared as written, so the baseline's rounding is no change.
             let shown = cell(measure, value);
             let delta = baseline
-                .get(&(row.tract.clone(), row.noise.to_string()))
+                .and_then(|baseline| baseline.get(&(row.tract.clone(), row.noise.to_string())))
                 .and_then(|base| base.get(measure))
                 .zip(shown.parse::<f64>().ok())
                 .filter(|(base, _)| !base.is_nan())
@@ -937,9 +954,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_frozen_set_has_about_400_reads() {
-        let cases = cases(FROZEN_REPS);
-        assert_eq!(cases.len(), 4 * 3 * (5 * 6 + 3));
+    fn the_case_sets_have_their_sizes() {
+        assert_eq!(cases(SMOKE_REPS).len(), 396);
+        assert_eq!(cases(GATE_REPS).len(), 3_960);
+        let cases = cases(SMOKE_REPS);
         let ids = cases
             .iter()
             .map(Case::id)
@@ -949,14 +967,18 @@ mod tests {
 
     #[test]
     fn the_committed_baseline_covers_every_tract_and_noise_level() {
-        let baseline = parse(BASELINE).unwrap_or_else(|error| panic!("{error}"));
-        assert_eq!(baseline.len(), TRACTS.len() * NOISE.len());
-        for tract in TRACTS {
-            for noise in NOISE {
-                let row = &baseline[&(tract.name.to_owned(), noise.to_string())];
-                assert_eq!(row["reads"], (PAIR_VALUES.len() * FROZEN_REPS) as f64);
+        for reps in [GATE_REPS, SMOKE_REPS] {
+            let text = baseline(reps).unwrap_or_else(|| panic!("no baseline for {reps}"));
+            let baseline = parse(text).unwrap_or_else(|error| panic!("{error}"));
+            assert_eq!(baseline.len(), TRACTS.len() * NOISE.len());
+            for tract in TRACTS {
+                for noise in NOISE {
+                    let row = &baseline[&(tract.name.to_owned(), noise.to_string())];
+                    assert_eq!(row["reads"], (PAIR_VALUES.len() * reps) as f64);
+                }
             }
         }
+        assert!(baseline(7).is_none());
     }
 
     #[test]

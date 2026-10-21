@@ -312,6 +312,26 @@ only.
      cases, never fitted to them, and ρ is bounded as in item 6 of the
      design. Enabling it is the user's decision.
 
+### Bench resolution
+
+The bench thresholds are decided on the gating set ([[validation/simulated-bench]]).
+That set has 60 reads per tract, noise level, and ρ, or 3,960 reads in all;
+the smoke set has 6, and is a quick check only. Per tract and noise level,
+the gating set gives each threshold this confidence (binomial standard error
+at the threshold; zero errors bound a rate one-sidedly at 95 %):
+
+| Threshold | Reads per cell | Resolution |
+|---|---:|---|
+| Wrong structure ≤ 1 % (increment 2) | about 300 decodes | SE 0.6 points; no error bounds it below 1.0 % |
+| Wrong structure ≤ 5 % at ×2 | about 300 | SE 1.3 points |
+| `clear` but wrong ≤ 1 % (increment 5) | about 240 (ρ ≠ 1) | SE 0.6 points; no error bounds it below 1.25 % |
+| `clear` but wrong ≤ 5 % at ×4 | about 240 | SE 1.4 points |
+| ρ̂/ρ within 0.98-1.02 (increment 3) | 180 (ρ 0.5-0.9) | the median's SE about 0.003 on the HVS-II total and up to 0.009 on HVS-I |
+| Ties to the shorter length in 40-60 % (increment 4) | 60 (ρ 1) | SE 6.5 points per cell; judged pooled over the three noise levels (180, SE 3.7) |
+
+A threshold that a cell cannot resolve is judged on a larger validation
+run (`--reps 120`), reported beside it.
+
 ## Alternatives considered
 
 - **Keep one-hot profiles and divide by measured bias factors.** It is
@@ -414,6 +434,7 @@ Pending.
   - `dna-trace`'s `simulate` feature renders reads from an aggregate
     parameter table (`crates/dna-trace/tables/simulator-params.json`:
     per-primer quantiles and a Gaussian copula over the fitted reads).
-  - `dna-eval sim-bench` runs the frozen case set (version 1, 396 reads) and
-    reports against the committed baseline. See [[validation/simulated-bench]]
+  - `dna-eval sim-bench` runs the frozen case set (version 1): the gating set
+    of 3,960 reads, or the 396-read smoke set. It reports against the
+    committed baseline of each size. See [[validation/simulated-bench]]
     for the baseline and the agreement with the research simulator.

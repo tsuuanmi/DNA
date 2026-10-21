@@ -43,10 +43,18 @@ The scoring lives in the harness, never in a DNA crate.
 | HV1-R | HV1R | the same, read in reverse | one run, no mark |
 
 The frozen case set (version 1) has four tracts, three noise levels (×1, ×2
-and ×4 the read's own), and `rho` 0.5, 0.8, 0.9, 1 and 1.25, six reads per
-cell. It also has three pure reads per tract and noise level: 396 reads,
-which run in a few seconds on 100 threads. Each case's seed is a hash of its
-name, so a case renders the same in every run.
+and ×4 the read's own), and `rho` 0.5, 0.8, 0.9, 1 and 1.25, plus pure reads.
+It comes in two sizes:
+
+- **The gating set** (the default): 60 reads per cell and 30 pure reads per
+  tract and noise level, 3,960 reads in about 15 s on 100 threads. Decoder
+  increments decide on it; [[PROP-0015]] states the resolution each
+  threshold gets.
+- **The smoke set** (`--reps 6`): 396 reads in a few seconds, a quick
+  check.
+
+Each case's seed is a hash of its name, so a case renders the same in every
+run, and the smoke set's cases are the first of the gating set's.
 
 Measures, per tract and noise level (percentages):
 
@@ -62,39 +70,40 @@ Measures, per tract and noise level (percentages):
 | `pure_decoded` | pure reads (no neighbour) given a decode |
 
 `bench.md` reports the measures with their change from the committed
-baseline (`crates/dna-eval/baselines/sim-bench.tsv`) or from
-`--baseline`. `bench.tsv` holds the measures and `cases.tsv` every case.
-`--reps` runs a larger set for validation, where a cell's 30 reads are too
-few to read a percentage near 0 or 100.
+baseline of the set's size (`crates/dna-eval/baselines/sim-bench.tsv` for the
+gating set, `sim-bench-smoke.tsv` for the smoke set) or from `--baseline`.
+`bench.tsv` holds the measures and `cases.tsv` every case. Any other
+`--reps` is a validation run without a committed baseline.
 
 ## Baseline (increment 1)
 
-The current decoder on the frozen set, at the commit that introduced the
-bench (`crates/dna-eval/baselines/sim-bench.tsv`). These are the numbers later increments must
-beat.
+The current decoder on the gating set, at the commit that introduced the
+bench (`crates/dna-eval/baselines/sim-bench.tsv`). These are the numbers
+later increments must beat.
 
-| Tract | Noise | Structure right | Dominant right | Clear but wrong | `rho_ratio` | Tie → shorter |
-|---|---:|---:|---:|---:|---:|---:|
-| HV2-F | 1 | 96.7 | 95.8 | 4.2 | 0.963 | 0.0 |
-| HV2-F | 2 | 90.0 | 95.8 | 4.2 | 0.961 | 0.0 |
-| HV2-F | 4 | 89.3 | 82.6 | 13.0 | 0.907 | 40.0 |
-| HV2-R | 1 | 79.3 | 78.3 | 21.7 | 1.012 | 50.0 |
-| HV2-R | 2 | 80.0 | 70.8 | 29.2 | 1.027 | 33.3 |
-| HV2-R | 4 | 88.9 | 76.2 | 23.8 | 0.988 | 66.7 |
-| HV1-F | 1 | 96.7 | 95.8 | 0.0 | 0.965 | 16.7 |
-| HV1-F | 2 | 76.7 | 70.8 | 4.2 | 0.971 | 0.0 |
-| HV1-F | 4 | 33.3 | 31.6 | 21.1 | 0.910 | 20.0 |
-| HV1-R | 1 | 96.7 | 83.3 | 16.7 | 0.965 | 0.0 |
-| HV1-R | 2 | 90.0 | 87.5 | 8.3 | 0.986 | 33.3 |
-| HV1-R | 4 | 63.3 | 54.2 | 20.8 | 0.977 | 16.7 |
+| Tract | Noise | Structure right | Dominant right | Right given structure | Clear but wrong | `rho_ratio` | Tie → shorter |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| HV2-F | 1 | 97.7 | 96.2 | 99.1 | 3.8 | 0.953 | 16.7 |
+| HV2-F | 2 | 95.3 | 95.4 | 98.7 | 4.6 | 0.954 | 15.0 |
+| HV2-F | 4 | 76.1 | 65.5 | 83.7 | 32.3 | 0.943 | 20.7 |
+| HV2-R | 1 | 86.4 | 85.9 | 99.5 | 14.1 | 1.012 | 69.5 |
+| HV2-R | 2 | 84.3 | 80.9 | 96.9 | 19.1 | 1.008 | 54.4 |
+| HV2-R | 4 | 91.6 | 81.8 | 88.5 | 15.8 | 0.994 | 63.5 |
+| HV1-F | 1 | 95.3 | 95.0 | 100.0 | 3.3 | 0.950 | 13.3 |
+| HV1-F | 2 | 76.5 | 75.0 | 100.0 | 11.9 | 0.955 | 24.6 |
+| HV1-F | 4 | 36.2 | 35.5 | 98.6 | 16.7 | 0.940 | 17.6 |
+| HV1-R | 1 | 97.3 | 93.8 | 96.2 | 5.4 | 0.964 | 21.7 |
+| HV1-R | 2 | 89.9 | 87.3 | 97.2 | 8.4 | 0.965 | 21.7 |
+| HV1-R | 4 | 57.3 | 54.3 | 96.9 | 16.5 | 0.975 | 20.7 |
 
-On 7,920 reads (`--reps 120`), pooled over noise:
-
-- Structure is right in 91 % (HV2-F), 86 % (HV2-R), 69 % (HV1-F) and 81 %
-  (HV1-R) of decodes.
-- With the right structure, the dominant length is right in 93-100 %.
+- Structure choice is the main failure. HVS-I gains a spurious mark as the
+  noise rises, and HVS-II reverse loses its `A` mark in 8-16 %.
+- With the right structure, the dominant length is right in 84-100 %.
+- Clear but wrong reaches 14-19 % on HVS-II reverse at the reads' own noise
+  and twice it, and up to 32 % at four times it.
 - Near ties the decoder under-reads the shorter neighbour by about 5 %
-  (`rho_ratio` 0.95-0.97) on all but HV2-R (1.00).
+  (`rho_ratio` 0.94-0.98) on all but HVS-II reverse (0.99-1.01), and exact
+  ties go to the longer length except on HVS-II reverse.
 
 These are the research benchmark's findings.
 
