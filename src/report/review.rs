@@ -34,6 +34,7 @@ use crate::sample_analysis::{
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
+use dna_call::{Aligned, Eligibility};
 use dna_consensus::decided::not_analysed;
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
 use dna_consensus::runs::runs_of;
@@ -54,7 +55,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 33,
+    version: 34,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -1718,7 +1719,14 @@ impl<'a> Sample<'a> {
     /// The sequence one read shows over `first..=last`; see [`bounded`].
     fn shown(&self, index: usize, first: usize, last: usize) -> Option<String> {
         let read = self.reads.get(index)?;
-        bounded(read.columns, &read.trust, first, last)
+        let eligibility = Eligibility::new(read.evidence, &self.call_config.variant_calling);
+        bounded(
+            read.columns,
+            &read.trust,
+            &|call, aligned| eligibility.exempt_as(call, aligned),
+            first,
+            last,
+        )
     }
 
     /// Why call `call` of `read` shows a second peak: the modality's cause
@@ -2267,11 +2275,14 @@ fn in_phase_end(bases: impl IntoIterator<Item = Option<char>>, phase_run: usize)
 }
 
 /// Whether a call shows its base for `read_disagrees`: no modality reason
-/// against its base, and anchoring, or scored clear of the read's edges.
-fn shows(trust: &CallTrust) -> bool {
+/// against its base, and anchoring, or scored clear of the read's edges or
+/// lifted from them by a bounded-run exemption where it is aligned as the
+/// consensus lets the exemption lift it (`exempt`,
+/// [`Eligibility::exempt_as`]).
+fn shows(trust: &CallTrust, exempt: bool) -> bool {
     trust.vetoes.is_empty()
         && match trust.placement {
-            Placement::Scored => trust.trusted || trust.exempt,
+            Placement::Scored => trust.trusted || exempt,
             Placement::Anchoring(_) => true,
             Placement::Unresolved(_) => false,
         }
@@ -2281,20 +2292,23 @@ fn shows(trust: &CallTrust) -> bool {
 /// `first..=last` within one linear span of the reference, with every
 /// inserted call after a position of the item, masked ones included; `None`
 /// unless the read aligns every position of the item and reads the positions
-/// on both sides of it, each call a base that [`shows`] it by its `trust`,
-/// so that the read bounds what it shows.
+/// on both sides of it, each call a base that [`shows`] it by its `trust`
+/// and, for a call a bounded-run exemption covers, by `exempt` (the call and
+/// how it is aligned), so that the read bounds what it shows.
 fn bounded(
     columns: &[AlignmentColumn],
     trust: &[CallTrust],
+    exempt: &dyn Fn(usize, Aligned) -> bool,
     first: usize,
     last: usize,
 ) -> Option<String> {
     let shows_call = |column: &AlignmentColumn| {
         is_canonical(column.query_base())
-            && column
-                .original_call_index_0based()
-                .and_then(|call| trust.get(call))
-                .is_some_and(shows)
+            && column.original_call_index_0based().is_some_and(|call| {
+                trust
+                    .get(call)
+                    .is_some_and(|trust| shows(trust, exempt(call, Aligned::of(column))))
+            })
     };
     // 0-based reference indices of the flanks.
     let (before, after) = (first.checked_sub(2)?, last);
@@ -3141,28 +3155,40 @@ mod tests {
             scope: TrustScope::Full,
             second: None,
         };
-        assert!(shows(&trust(Placement::Scored, Vec::new(), true, false)));
-        assert!(shows(&trust(Placement::Scored, Vec::new(), false, true)));
-        assert!(!shows(&trust(Placement::Scored, Vec::new(), false, false)));
-        assert!(!shows(&trust(Placement::Scored, vec![MIXED], true, false)));
-        assert!(shows(&trust(
-            Placement::Anchoring(DEPHASED),
-            Vec::new(),
-            false,
+        // A scored call shows its base when trusted, or when the exemption
+        // lifts `read_end` from it as it is aligned; the flag alone does not.
+        assert!(shows(
+            &trust(Placement::Scored, Vec::new(), true, false),
             false
-        )));
-        assert!(!shows(&trust(
-            Placement::Anchoring(DEPHASED),
-            vec![MIXED],
-            false,
+        ));
+        assert!(shows(
+            &trust(Placement::Scored, Vec::new(), false, true),
+            true
+        ));
+        assert!(!shows(
+            &trust(Placement::Scored, Vec::new(), false, true),
             false
-        )));
-        assert!(!shows(&trust(
-            Placement::Unresolved(DEPHASED),
-            Vec::new(),
-            true,
+        ));
+        assert!(!shows(
+            &trust(Placement::Scored, Vec::new(), false, false),
             false
-        )));
+        ));
+        assert!(!shows(
+            &trust(Placement::Scored, vec![MIXED], true, false),
+            false
+        ));
+        assert!(shows(
+            &trust(Placement::Anchoring(DEPHASED), Vec::new(), false, false),
+            false
+        ));
+        assert!(!shows(
+            &trust(Placement::Anchoring(DEPHASED), vec![MIXED], false, false),
+            false
+        ));
+        assert!(!shows(
+            &trust(Placement::Unresolved(DEPHASED), Vec::new(), true, false),
+            true
+        ));
     }
 
     fn column(base: char, call: Option<usize>, reference: Option<usize>) -> AlignmentColumn {
@@ -3204,23 +3230,37 @@ mod tests {
         // The masked inserted call extends the run; the earlier insertion
         // belongs to the position before the item.
         assert_eq!(
-            bounded(&columns('G'), &trust, 11, 13).as_deref(),
+            bounded(&columns('G'), &trust, &|_, _| false, 11, 13).as_deref(),
             Some("CCCC")
         );
         // A flank the read deletes, or does not resolve, bounds nothing.
-        assert_eq!(bounded(&columns('-'), &trust, 11, 13), None);
-        assert_eq!(bounded(&columns('N'), &trust, 11, 13), None);
+        assert_eq!(bounded(&columns('-'), &trust, &|_, _| false, 11, 13), None);
+        assert_eq!(bounded(&columns('N'), &trust, &|_, _| false, 11, 13), None);
         // A flank or a call inside with a modality reason shows nothing.
         let mut vetoed = trust.clone();
         vetoed[6].vetoes = vec![DEPHASED];
-        assert_eq!(bounded(&columns('G'), &vetoed, 11, 13), None);
+        assert_eq!(bounded(&columns('G'), &vetoed, &|_, _| false, 11, 13), None);
         let mut inside = trust.clone();
         inside[3].trusted = false;
-        assert_eq!(bounded(&columns('G'), &inside, 11, 13), None);
+        assert_eq!(bounded(&columns('G'), &inside, &|_, _| false, 11, 13), None);
         // A read that does not reach a flank, or the reference's first
         // position, shows nothing.
-        assert_eq!(bounded(&columns('G')[2..], &trust, 11, 13), None);
-        assert_eq!(bounded(&columns('G'), &trust, 1, 3), None);
+        assert_eq!(
+            bounded(&columns('G')[2..], &trust, &|_, _| false, 11, 13),
+            None
+        );
+        assert_eq!(bounded(&columns('G'), &trust, &|_, _| false, 1, 3), None);
+        // A flank only the bounded-run exemption lifts from `read_end`
+        // shows its base where it reads the reference, as the consensus
+        // lets the exemption lift a bound, and not where it substitutes.
+        let mut lifted = trust.clone();
+        lifted[6].trusted = false;
+        let exempt = |call: usize, aligned: Aligned| call == 6 && aligned == Aligned::Match;
+        assert_eq!(bounded(&columns('G'), &lifted, &exempt, 11, 13), None);
+        assert_eq!(
+            bounded(&columns('C'), &lifted, &exempt, 11, 13).as_deref(),
+            Some("CCCC")
+        );
     }
 
     fn read(read: &str) -> String {

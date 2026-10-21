@@ -3,10 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use dna_align::model::alignment::Orientation;
-use dna_call::Eligibility;
 use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::variant::VariantKind;
+use dna_call::{Aligned, Eligibility};
 use dna_kernel::model::nucleotide::is_canonical;
 
 use crate::runs::reference_run;
@@ -167,27 +167,22 @@ pub(crate) fn observe(
     let calls = read.evidence.calls();
     let eligibility = Eligibility::new(&read.evidence, config);
     let orientation = read.alignment.orientation();
-    // Calls aligned as a match, and calls aligned as a match or inserted:
-    // the only bounds, and the only run calls, a bounded-run exemption may
-    // trust (ADR-0076); a substituted call keeps `read_end`.
-    let mut matches = vec![false; calls.len()];
-    let mut length_only = vec![false; calls.len()];
+    // How each call is aligned: a bounded-run exemption trusts only a run
+    // call aligned as a match or inserted, and a bound aligned as a match
+    // (ADR-0076).
+    let mut aligned = vec![Aligned::Other; calls.len()];
     for column in read.alignment.columns() {
         if let Some(call) = column.original_call_index_0based()
             && call < calls.len()
         {
-            let inserted = column.reference_index_0based().is_none();
-            matches[call] = !inserted && column.query_base() == column.reference_base();
-            length_only[call] = inserted || matches[call];
+            aligned[call] = Aligned::of(column);
         }
     }
     // Scored and trusted, whatever the modality's reasons against its base.
     let trusted_call = |index: usize| {
         calls.get(index).is_some_and(|call| {
             call.placement == Placement::Scored
-                && (eligibility.trusted(index)
-                    || (eligibility.run_exempt(index) && length_only[index])
-                    || (eligibility.bound_exempt(index) && matches[index]))
+                && (eligibility.trusted(index) || eligibility.exempt_as(index, aligned[index]))
         })
     };
     // Each use reads the modality's reasons for it, as variant calling does:
