@@ -21,8 +21,14 @@ which files a run directory holds, `run.json`, and every table's columns
 The outputs of `approve` and `convention`, and the manifest `panel` writes,
 have no schema; the evaluation harness document describes them.
 
-- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`), run orchestration, output
+- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`, `bench`), run orchestration, output
   directory, and the `run.json` header.
+- `bench.rs` — `dna-eval bench`: the artefact regression bench. It parses a
+  case list (adjudicated artefacts and truth errors, each with a span and
+  the outcome DNA must keep there), judges each case from DNA's alleles,
+  check items, and callable intervals for its sample, and reports `BENCH
+  FAIL` when a guarded case regresses; known failures are reported, not
+  gated. The case list names samples, so it stays under `results/`.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
 - `panel.rs` — a new panel version from a parent and the truth database.
