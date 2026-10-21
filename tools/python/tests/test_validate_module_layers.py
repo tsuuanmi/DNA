@@ -189,6 +189,29 @@ class CrateMapTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("crates/dna-ngs: unknown crate", result.stderr)
 
+    def test_rejects_a_neutral_facade_module_naming_a_modality(self) -> None:
+        result = self.run_map(
+            {
+                "Cargo.toml": '[dependencies]\ndna-sanger = "0"\n',
+                "src/input/consensus.rs": (
+                    "let reason = dna_sanger::read_processing::reason(label);\n"
+                ),
+                "src/model/review_result.rs": ("use dna_trace::tract::Tract;\n"),
+                "src/report/review/second.rs": "use dna_sanger::run_signal::Key;\n",
+                "src/input/evidence.rs": "use dna_sanger::read_processing::reason;\n",
+            }
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "src/input/consensus.rs:1: a modality-neutral facade module must not "
+            "name dna-sanger",
+            result.stderr,
+        )
+        self.assertIn("src/model/review_result.rs:1", result.stderr)
+        # The review's Sanger part and the Sanger evidence reader may.
+        self.assertNotIn("second.rs", result.stderr)
+        self.assertNotIn("evidence.rs", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

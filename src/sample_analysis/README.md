@@ -45,6 +45,16 @@ pipeline.
 
 It does not open logs, derive output paths, serialize JSON, or publish files.
 
+`mod.rs` re-exports the plugin types its public results carry, so a caller
+names them through `dna::sample_analysis` without depending on the plugin
+crates: the kernel's profile conventions and tract lengths, the core's
+trust and mixture components, the consensus, the sample evidence, the EMPOP
+export, and, because this capability is Sanger's (`analyze_sanger`), the
+Sanger plugin's `SangerAttachment`, `SangerRejection`, `RunSignal`, and
+`Contributions`. Those Sanger re-exports are the public face of the Sanger
+modality, not neutral records; the contracts never serialize them
+([Rust API](../../docs/reference/rust-api-sample.md#re-exported-plugin-types)).
+
 See [Rust API contract](../../docs/reference/rust-api-sample.md#sample-analysis),
 [pipeline method](../../docs/design/pipeline.md#sample-placement-pass), and
 [sample evidence requirements](../../docs/requirements/sample-evidence/README.md).
