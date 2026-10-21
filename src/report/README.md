@@ -21,7 +21,7 @@ Core records carry no Sanger evidence
 `call.rs` projects core-only calls into `dna.variants/v1`, `consensus.rs`
 projects a sample consensus into `dna.consensus/v1` and its FASTA (also
 rendered from the consensus alone, with the same record names),
-`review.rs` derives a sample's review items and labels from its analysis
+[`review`](review/README.md) derives a sample's review items and labels from its analysis
 and call (the `review` plugin it declares, whose version is the labelling
 rules') and projects `dna.review/v1`; `length.rs` judges the runs of the
 profile's anchored repeat windows from the reads' tract decodes and in-phase
