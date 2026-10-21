@@ -35,6 +35,7 @@ Open:
 - [signal denoising and baseline correction](denoising/README.md) — **Active**; Does a conditioned projection of the instrument-analyzed channels improve re-calling or read callability on real traces?
 - [when may a region read by one strand pass?](one-strand/README.md) — **Active**; Evidence for the open question on whether a single strand can pass a region.
 - [how other systems decide pass, review, and rerun](review-triage/README.md) — **Active**; Evidence supporting the review triage proposal.
+- [trace simulator and tract-decode benchmark](trace-simulator/README.md) — **Active**; A physical forward model of the electropherogram, fitted on real reads, and a simulator that benchmarks the tract decoder against known length mixtures.
 <!-- docs:end index:research:open -->
 
 Concluded:
