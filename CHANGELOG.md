@@ -626,6 +626,29 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review confirms an anchored window run that only one strand gives a
+  length when that strand gives one clear length, DNA's call, and at least
+  one of its reads shows the run in phase (SRS-API-020, ADR-0074): an
+  in-phase read shows the length directly, and the other strand having no
+  view is absence of evidence, not a contradiction. A run that only decodes
+  give still needs both strands, and a read whose structure differs from
+  DNA's still never confirms. Plugin `review` 26 (rules version 26).
+  - **Measured.** Against main 3cad890 (`dna-eval diff`, frozen re-check
+    list). Development panel v5, current data: window@HV2 checks
+    1,974 → 1,664, clear samples 7,728 → 7,824 of 10,695, no zone or
+    sample with a non-het block newly passed; GATE PASS. Readiness-v2 (now
+    development data), current data: window@HV2 checks 2,900 → 2,483, clear
+    13,383 → 13,511 of 17,307, passed non-het samples 11 → 11 and passed
+    window@HV2 zones with a non-het block 4 → 4. The six current samples
+    that newly pass with an unreviewed block that is not het hold only
+    `573.1C 573.2C` past the truth's HVS-III interval (truth N, #211); their
+    window@HV2 runs, now confirmed, match the truth.
+  - **Earlier data.** Readiness-v2 gains two window@HV2 zones with a
+    non-het block, both in one 2024-11 batch: DNA's `309.1C`, which the
+    truth lacks, is shown by eight clean, evenly spaced C peaks on HVS-II
+    forward (and on HVS-III reverse in one), so the truth is the likely
+    error; the diff gate fails on them.
+
 - `dna-eval` classes an unreviewed block whose every difference is an
   insertion past the truth's analysed interval (anchored at the last base of
   the truth's own interval, e.g. DNA's `573.1C 573.2C` where the truth's

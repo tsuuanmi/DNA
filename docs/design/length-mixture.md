@@ -164,7 +164,12 @@ most runs to one strand.
 
 A strand gives a run one clear length when all its reads agree with clear
 margins. A run is confirmed when both strands give the same length and it
-is DNA's call. Every other run a decode reaches is a check
+is DNA's call, or when one strand gives none and the other's one clear
+length, DNA's call, is shown in phase by at least one of its reads. An
+in-phase read shows the length directly; the other strand having no view
+is absence of evidence, not a contradiction. A decode is a model of a
+dephased tract, so a run that only decodes give still needs both strands.
+Every other run a decode reaches is a check
 (`length_unconfirmed`). Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
 
