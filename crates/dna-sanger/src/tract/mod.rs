@@ -149,3 +149,66 @@ fn marginal(marginal: &Marginal, near_equal_z: f64) -> Option<LengthMarginal> {
         },
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use dna_kernel::read_evidence::Margin;
+    use dna_trace::tract::Marginal;
+
+    use super::marginal;
+
+    fn decoded(shares: Vec<f64>, next: Option<usize>, z: f64, z_adjusted: f64) -> Marginal {
+        Marginal {
+            lengths: (8..8 + shares.len()).collect(),
+            errors: vec![0.01; shares.len()],
+            shares,
+            dominant: Some(8),
+            next,
+            z,
+            z_adjusted,
+        }
+    }
+
+    // SRS-CALL-025
+    #[test]
+    fn a_marginal_without_signal_is_left_out() {
+        let mut empty = decoded(vec![1.0], None, f64::INFINITY, f64::INFINITY);
+        empty.dominant = None;
+        assert_eq!(marginal(&empty, 2.0), None);
+    }
+
+    // SRS-CALL-025
+    #[test]
+    fn a_marginal_keeps_its_lengths_and_states_its_margin() {
+        // One length: an infinite margin is no margin, and it is clear.
+        let single = marginal(&decoded(vec![1.0], None, f64::INFINITY, f64::INFINITY), 2.0);
+        let single = single.as_ref();
+        assert_eq!(single.map(|kept| kept.margin), Some(Margin::Clear));
+        assert_eq!(
+            single.map(|kept| (kept.z, kept.z_adjusted)),
+            Some((None, None))
+        );
+        assert_eq!(single.map(|kept| kept.lengths.clone()), Some(vec![8]));
+        // Two lengths: below the level near-equal, at it clear, and without
+        // a finite deflated margin undefined.
+        for (z_adjusted, margin) in [
+            (1.9, Margin::NearEqual),
+            (2.0, Margin::Clear),
+            (f64::NAN, Margin::Undefined),
+            (f64::INFINITY, Margin::Undefined),
+        ] {
+            let two = marginal(&decoded(vec![0.7, 0.3], Some(9), 3.0, z_adjusted), 2.0);
+            assert_eq!(two.as_ref().map(|kept| kept.margin), Some(margin));
+            assert_eq!(two.as_ref().and_then(|kept| kept.z), Some(3.0));
+            assert_eq!(two.map(|kept| kept.next), Some(Some(9)));
+        }
+    }
+
+    // SRS-CALL-025
+    #[test]
+    fn a_share_rounded_past_its_bounds_is_clamped() {
+        let shares = vec![1.0 + f64::EPSILON, -f64::EPSILON, 0.0];
+        let kept = marginal(&decoded(shares, Some(9), 5.0, 5.0), 2.0);
+        assert_eq!(kept.map(|kept| kept.shares), Some(vec![1.0, 0.0, 0.0]));
+    }
+}
