@@ -622,6 +622,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A junction whose spacing marks an extra peak, a peak the basecaller called
+  twice, now withholds the two calls beside it like a missing peak's
+  junction does (SRS-CALL-026, plugin `sanger` 21): they place no indel and
+  show no run's end. It is the mirror of the missing-peak test on the same
+  measure and level: narrower than the local median by
+  `callability.spacing_defect` of it, and still so together with either
+  neighbouring junction, so a peak merely placed early is no extra peak. No
+  new configuration. Such a doubled call (4-6 scans after its neighbour
+  against a spacing of about 12) gave one-read insertions near read starts
+  that passed unflagged: `16049.1G`, `16025.1T`, `16042.1G`, `16060.1G`,
+  `16360.1C`, `560.1C`, `87.1A`. On development panel v5 against the
+  previous commit the diff gate passes: samples passed with a non-het
+  difference 23 → 19, passed non-het zones `start@HV1` 6 → 1, `end@HV1`
+  2 → 1, `end@HV3` 12 → 11 (one new: a one-read `563.1A` at an HVS-III
+  reverse read's irregular start); zones needing a check fall or hold
+  everywhere but `end@HV1` (+1); 9 more samples clear; primary concordance
+  14 samples better, 1 worse.
 - The review labels `reference_second` a position where a difference rests
   on one read whose call there reads another base than the reference while
   showing the reference base as its second peak above the call's

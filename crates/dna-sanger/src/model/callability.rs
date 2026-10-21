@@ -162,8 +162,8 @@ pub struct ReadCallability {
     pub callable_start_0based: usize,
     /// Call after the last unmasked call (0-based, exclusive).
     pub callable_end_0based_exclusive: usize,
-    /// The junctions whose spacing marks a missing peak, each by the call
-    /// before it (0-based), in call order.
+    /// The junctions whose spacing marks a missing or an extra peak, each by
+    /// the call before it (0-based), in call order.
     pub(crate) gaps: Vec<usize>,
 }
 

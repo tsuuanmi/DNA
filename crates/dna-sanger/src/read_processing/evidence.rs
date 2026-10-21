@@ -302,8 +302,9 @@ pub fn read_evidence(
                     .is_some_and(|segment| segment.after_repeat)
         })
         .collect::<Vec<_>>();
-    // A junction whose spacing marks a missing peak (SRS-CALL-026): a read
-    // that lost a peak there shows a deletion that is not in the template, so
+    // A junction whose spacing marks a missing or an extra peak
+    // (SRS-CALL-026): a read that lost a peak there, or called one twice,
+    // shows a deletion or an insertion that is not in the template, so
     // neither call beside it places an indel or shows a run's end.
     for &junction in &callability.gaps {
         for call in evidence.iter_mut().skip(junction).take(2) {

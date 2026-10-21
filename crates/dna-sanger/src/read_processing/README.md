@@ -38,8 +38,8 @@ modality-neutral core.
   - the read's phase mixtures (SRS-CALL-023, ADR-0082), as `dna-trace`
     asserted them, and its tract decodes (SRS-CALL-025), as
     [tract](../tract/README.md) turned them into `TractLengths`;
-  - the calls beside a junction whose spacing marks a missing peak
-    (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
+  - the calls beside a junction whose spacing marks a missing or an extra
+    peak (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
     they place no indel and show no run's end;
   - the calls of every electrophoretic spike signal processing finds
     (SRS-SIG-012), withheld for their base and for indels with

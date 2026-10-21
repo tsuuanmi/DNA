@@ -99,8 +99,8 @@ unresolved, or a read end (SRS-CALL-013). A difference therefore needs that
 many informative calls between it and the nearest place where the alignment
 has no information, at the read's ends and around internal masked segments
 alike. A call the modality vouches for by its base only (a leading call,
-SRS-CALL-014, or a call beside a junction whose spacing marks a missing
-peak, SRS-CALL-026) supports a substitution, but no insertion or deletion and no
+SRS-CALL-014, or a call beside a junction whose spacing marks a missing or
+an extra peak, SRS-CALL-026) supports a substitution, but no insertion or deletion and no
 run's end; and where one of its neighbours is masked, `N`, or vouched for
 by its base only, and its base is the reference base next to it, it may sit
 one position off, so it supports no substitution either (`unresolved_flank`,
