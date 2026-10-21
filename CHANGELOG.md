@@ -682,8 +682,31 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Consensus over N reads per site and strand (ADR-0090), step 2: the
+  review's one-strand gates count strands, not reads. `run_deletion`,
+  `run_indel` and `edge_deletion` fire when every supporting read lies on
+  one strand, however many, and carry `{strand, reads}` with every
+  supporting read in place of `{read}` (`dna.review/v1` schema updated);
+  `reference_second` judges every supporting read of a difference that
+  rests on one strand; `long_run` takes a length every read of one strand
+  shows as resting on that strand. `one_read` and `one_strand` are
+  unchanged. Plugin: `review` 33. Measured against `main` 95f2edf2 (diff
+  gate PASS on both panels, artefact bench unchanged: 53 pass, 2 known):
+  every added check is a `reference_second`, none over a DNA-truth
+  difference in the current period, and non-het unreviewed blocks are
+  unchanged (development panel v5 current 4 → 4, readiness-v2 current
+  1 → 1). Development panel v5 current: 8 new checks in 8 samples, all
+  re-sequenced (a rerun beside the first read of its strand), and one more
+  label on an existing check; clear 8,358 → 8,353.
+  Readiness-v2 current: 2 new checks, at samples whose HV1 forward read
+  reads through the origin into HVS-II beside the HV2 forward read, clear
+  14,408 → 14,406. Earlier periods: 7 new checks on each panel (4 and 5 at
+  re-sequenced samples, the rest HV1 read-through), clear −4 and −1; one
+  now covers a truth heteroplasmy that was unreviewed (204), and one a
+  difference where the truth leaves HVS-II unanalysed.
+
 - A read keeps its own anchor base in a re-expressed repeat stretch
-  (ADR-0091, proposed; SRS-ALN-016; plugin `core` 13, review rules 32).
+  (ADR-0091, accepted; SRS-ALN-016; plugin `core` 13, review rules 32).
   A clean reverse HVS-II read `C9 T C6` was aligned as `310C` with its T
   inserted: one gap opening costs more than a mismatch, and its last
   in-phase call reads `302` as C. Run-structure re-expression now also

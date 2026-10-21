@@ -94,13 +94,13 @@ impl RawNormalizationConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ReviewConfig {
     /// Fewest bases a decided run may exceed its reference run by before a
-    /// length that rests on an anchored end or a single read is a check.
+    /// length that rests on an anchored end or on one strand is a check.
     pub(crate) run_growth: usize,
     /// Positions from a reportable region's end that the call does not
     /// analyse within which any difference is a check.
     pub(crate) edge_zone: usize,
     /// Positions from a reportable region's first or last position within
-    /// which a deletion that rests on a single read is a check.
+    /// which a deletion that rests on one strand is a check.
     pub(crate) deletion_zone: usize,
     /// Equal bases in a row after which a read's in-phase end of an item no
     /// longer shows bases the review compares with the decision.
