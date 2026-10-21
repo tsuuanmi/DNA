@@ -682,6 +682,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review's label set, ranks, and checks are one table in DNA
+  (`LabelKind`): the summary counts every label exhaustively (a new label is
+  no longer counted as `poor_signal`). The `dna.review/v1` schema's
+  `summary.labels` carries the table as `x-rank` and `x-check` annotations,
+  which the review tests and the result validator read; the validator now
+  also accepts `note` items, ranks an `explained` possible heteroplasmy as
+  context, and checks that the reference's rank table and rules version, and
+  the example's, agree with DNA's. Review outputs are byte-identical.
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on

@@ -1962,106 +1962,157 @@
             "length_not_recorded",
             "tract_length"
           ],
+          "$comment": "The label table, in the order DNA counts the labels: each label's rank (x-rank; an item's priority is its labels' lowest rank, 5 without a label) and whether it makes its item a check (x-check). An explained possible_heteroplasmy has rank 4 and is no check; a poor_signal label makes an item with a difference a check. DNA's label table (LabelKind) must agree.",
           "properties": {
             "strands_disagree": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 0,
+              "x-check": true
             },
             "read_disagrees": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 0,
+              "x-check": true
             },
             "same_strand_dissent": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 0,
+              "x-check": true
             },
             "possible_heteroplasmy": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 1,
+              "x-check": true
             },
             "reference_second": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 1,
+              "x-check": true
             },
             "estimated_length": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "length_unconfirmed": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "undecided": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "not_called": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "long_run": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "edge_deletion": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "run_deletion": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "beside_not_analysed": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "one_read": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 3,
+              "x-check": false
             },
             "one_strand": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 3,
+              "x-check": false
             },
             "noisy_signal": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "not_covered": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": true
             },
             "phase_shift": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "dephased_end": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "read_edge": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "poor_signal": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "length_not_recorded": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "tract_length": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 4,
+              "x-check": false
             },
             "run_indel": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             },
             "one_strand_insertion": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
             }
           }
         },

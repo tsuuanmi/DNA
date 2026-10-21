@@ -254,7 +254,11 @@ site) is a one-position item of its own.
 
 Each label has a rank; an item's priority is the lowest rank of its labels,
 and `5` for a variant without a label. Items are ordered by priority, then
-`first` (position, then ordinal), then `last`.
+`first` (position, then ordinal), then `last`. The schema's `summary.labels`
+carries the same table, each label's `x-rank` and whether it makes its item
+a check (`x-check`). DNA's label table is checked against it, the tests and
+the result validator read it there, and the validator checks this table and
+the rules version below against DNA's.
 
 | Rank | Labels |
 |---:|---|
