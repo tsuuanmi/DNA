@@ -122,6 +122,12 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 sha256: sha256.clone(),
                 selection: signal.selection,
             }),
+        run_context: match &outcome {
+            Reviewed::Analyzed { analysis, .. } => analysis
+                .run_context()
+                .map(crate::model::run_context_result::ContextUseResult::of),
+            Reviewed::Rejected(_) => None,
+        },
     };
     let (analysis, call) = match outcome {
         Reviewed::Rejected(rejected) => {

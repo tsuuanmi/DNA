@@ -512,6 +512,7 @@ mod tests {
                 .collect(),
             components: Vec::new(),
             tracts: Vec::new(),
+            length_context: None,
         }
     }
 

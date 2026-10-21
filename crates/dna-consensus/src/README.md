@@ -9,7 +9,8 @@ sequence do a sample's reads agree on, stretch by stretch? It depends on
 Public surface: `build`, `read_runs_over` (each read's runs over a reference
 stretch as the consensus reads them, with whether each is in phase: the
 review's one source of in-phase run lengths, SRS-API-020), [length](length.rs)
-(the two-strand run-length rule), the `consensus`
+(the two-strand run-length rule), [noise](noise.rs) (a run's length noise
+statistics and the calibration of τ by them), the `consensus`
 plugin descriptor (it requires `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
 plugin descriptor), and the [model](model/README.md).
 
@@ -49,6 +50,11 @@ behind every non-trivial decision.
   decodes (direct, derived by NNLS deconvolution of the total, or in phase),
   and `decide`, which takes a length only when both strands put it on top
   beyond their own replicate noise.
+- `noise.rs`: a run's own length noise (PROP-0014, SRS-CONS-014):
+  `cross_strand`, a sample's pair of one run's views; `LengthStatistics`,
+  additive per-run pairs, `Σz²`, and histogram, with `with` and `without`
+  (leave-one-out) and `scale`, the empirical-Bayes shrunk scale of τ;
+  `RuleParams::calibrated`.
 - `lib.rs`: the entry point `build`, which handles stretches of whole
   reference runs (seeded by clean differences and by disputed runs no read
   bounds), segment assembly, and the `consensus` plugin descriptor.

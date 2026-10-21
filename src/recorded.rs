@@ -173,6 +173,7 @@ pub fn analyze_placed_outcome(
         config: inputs.config,
         profile: inputs.profile,
         reference: inputs.reference,
+        run_context: None,
     };
     Ok(
         match analyze(

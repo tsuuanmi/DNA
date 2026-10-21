@@ -370,6 +370,7 @@ that stage's own `#[non_exhaustive]` failure enum, re-exported from
 | `KernelError::Sequence` | `SequenceError` | `invalid sequence FASTA:` |
 | `KernelError::Variants` | `VariantsError` | `invalid variants document:` |
 | `KernelError::ConsensusDocument` | `ConsensusDocumentError` | `invalid consensus document:` |
+| `KernelError::RunContext` | `RunContextError` | `invalid run context:` |
 | `KernelError::Evidence` | `EvidenceError` | `read evidence failed:` |
 | `KernelError::Alignment` | `AlignmentError` | `alignment failed:` |
 | `KernelError::Variant` | `VariantError` | `variant calling failed:` |
@@ -406,7 +407,7 @@ anchoring failures.
 
 `KernelError::Path` reports a rejected path with a static reason. `Read`, `Log`, and
 `Output` keep the `std::io::Error` as their `source`. Third-party parser and serializer
-failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `ConsensusParse`, `Serialize`) are erased to `ForeignError`, so
+failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `ConsensusParse`, `RunContextParse`, `Serialize`) are erased to `ForeignError`, so
 dependency types never appear in the public API. Stage failures render inline,
 `"<prefix> <failure>"`, and are reached by matching rather than through
 `std::error::Error::source`.

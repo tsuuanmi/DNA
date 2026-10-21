@@ -14,7 +14,7 @@ Owns the facade's records:
   quality, integrity, warning counts, call signals, rejections) or read back
   from a read evidence document;
 - the serializable result contracts: `result` and `basecall_result` for
-  analysis and basecalls, `evidence_result` (`dna.read_evidence/v1`), `sample_result`, `run_signal_result` (`dna.signal/v1`), `variants_result`,
+  analysis and basecalls, `evidence_result` (`dna.read_evidence/v1`), `sample_result`, `run_signal_result` (`dna.signal/v1`), `run_context_result` (`dna.run_context/v1`, and the provenance record of its use; the in-memory `run_context`, which the input adapter reads back), `variants_result`,
   `notation_result`, `consensus_result`, and `review_result`. `result` also
   holds the records the other contracts share (intervals, identities,
   callability, a call's placement, reference column, and trust scope).

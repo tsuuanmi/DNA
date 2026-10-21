@@ -321,6 +321,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
             configuration_sha256: evidence.configuration_sha256,
             profile: project_profile(profile),
             plugins: project_plugins(plugins),
+            run_context: None,
         },
         reads,
         rejected_reads,

@@ -14,6 +14,11 @@ With `--evidence <read.evidence.json>...` in place of the traces, it starts
 from the reads' [[reference/read-evidence|read evidence documents]] and
 writes the same files (SRS-API-019).
 
+With `--run-context <file>`, the batch's [[reference/run-context|run
+context]] calibrates the two-strand rule's noise τ for the sample, its own
+pairs left out (SRS-CONS-014, SRS-API-021); without it the files are those
+of the configured τ.
+
 The authoritative schema is
 [`schemas/consensus-v1.schema.json`](schemas/consensus-v1.schema.json); the
 synthetic example is
@@ -23,7 +28,10 @@ The method is described in [[design/consensus|design]].
 ## Fields
 
 - **`provenance`**, as in [[reference/variants|variants]]. Its `plugins` are
-  `sanger`, `core`, and `consensus`.
+  `sanger`, `core`, and `consensus`. With `--run-context`, `run_context`
+  records the context's `run_id` and `sha256`, `left_out` (the sample's own
+  pairs were taken out), and `length_scale`, τ's scale for run 1 and run 2
+  (`null` where the batch's pairs were too few).
 - **`reads[]`:** the admitted reads in the sample's read order (content
   SHA-256), each with `name` (the trace stem) and `sha256`.
 - **`rejected_reads[]`:** reads set aside before the consensus, with `name`,

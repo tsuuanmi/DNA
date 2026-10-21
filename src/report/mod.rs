@@ -7,9 +7,10 @@ mod call;
 mod consensus;
 mod evidence;
 mod json;
-mod length;
+pub(crate) mod length;
 mod notation;
 mod review;
+mod run_context;
 mod run_signal;
 mod sample;
 mod sanger_call;
@@ -31,5 +32,6 @@ pub(crate) use notation::{
 pub(crate) use review::{
     CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review, list as review_list,
 };
+pub(crate) use run_context::{CompletedRunContext, Skipped, build as build_run_context};
 pub(crate) use run_signal::{CompletedRunSignal, build as build_run_signal};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

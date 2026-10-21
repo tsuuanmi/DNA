@@ -89,6 +89,14 @@ pub(super) fn review_output(sample_id: &str) -> Result<PathBuf> {
     Ok(output)
 }
 
+/// Returns and validates the deterministic CLI publication path for a run
+/// context (PROP-0014).
+pub(super) fn run_context_output(run_id: &str) -> Result<PathBuf> {
+    let output = PathBuf::from("results").join(format!("{run_id}.run_context.json"));
+    validate_output(&output)?;
+    Ok(output)
+}
+
 /// Returns and validates the deterministic CLI publication path for a run signal.
 pub(super) fn signal_output(run_id: &str) -> Result<PathBuf> {
     let output = PathBuf::from("results").join(format!("{run_id}.signal.json"));

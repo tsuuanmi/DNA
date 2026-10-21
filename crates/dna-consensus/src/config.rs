@@ -7,6 +7,7 @@ use dna_kernel::bounds;
 use dna_kernel::error::{ConfigError, Result};
 
 use crate::length::RuleParams;
+use crate::noise::Calibration;
 
 /// The consensus's own settings (SRS-CFG-009).
 #[derive(Debug, Clone)]
@@ -33,6 +34,9 @@ pub struct ConsensusConfig {
     /// The two-strand run-length rule's confidence level and replicate
     /// noise (PROP-0012 increment 4).
     pub(crate) length: RuleParams,
+    /// How a run context's length statistics rescale the rule's noise
+    /// (PROP-0014, SRS-CONS-014).
+    pub(crate) calibration: Calibration,
 }
 
 impl ConsensusConfig {
@@ -40,6 +44,22 @@ impl ConsensusConfig {
     #[must_use]
     pub const fn length_rule(&self) -> &RuleParams {
         &self.length
+    }
+
+    /// How a run context's length statistics rescale the rule's noise.
+    #[must_use]
+    pub const fn length_calibration(&self) -> &Calibration {
+        &self.calibration
+    }
+
+    /// This configuration with the two-strand rule's constants replaced:
+    /// the rule as a run context calibrates it.
+    #[must_use]
+    pub fn with_length_rule(&self, length: RuleParams) -> Self {
+        Self {
+            length,
+            ..self.clone()
+        }
     }
 }
 
@@ -57,6 +77,11 @@ pub struct RawConsensusConfig {
     length_confidence: f64,
     length_noise_forward: [f64; 2],
     length_noise_reverse: [f64; 2],
+    length_context_minimum_pairs: usize,
+    length_context_prior_pairs: [f64; 2],
+    length_context_reference: [f64; 2],
+    length_context_minimum_scale: f64,
+    length_context_edges: Vec<f64>,
 }
 
 impl RawConsensusConfig {
@@ -103,7 +128,45 @@ impl RawConsensusConfig {
         {
             bounds::finite_range("consensus.length_noise", *noise, 0.0, 0.5)?;
         }
+        if self.length_context_minimum_pairs == 0 {
+            return Err(ConfigError::Constraint(
+                "consensus.length_context_minimum_pairs must be positive",
+            )
+            .into());
+        }
+        for prior in self.length_context_prior_pairs {
+            bounds::positive_finite("consensus.length_context_prior_pairs", prior)?;
+        }
+        for reference in self.length_context_reference {
+            bounds::positive_finite("consensus.length_context_reference", reference)?;
+        }
+        bounds::positive_finite(
+            "consensus.length_context_minimum_scale",
+            self.length_context_minimum_scale,
+        )?;
+        if self.length_context_edges.is_empty()
+            || !self
+                .length_context_edges
+                .iter()
+                .all(|edge| edge.is_finite())
+            || !self
+                .length_context_edges
+                .windows(2)
+                .all(|pair| pair[0] < pair[1])
+        {
+            return Err(ConfigError::Constraint(
+                "consensus.length_context_edges must be finite and strictly ascending",
+            )
+            .into());
+        }
         Ok(ConsensusConfig {
+            calibration: Calibration {
+                minimum_pairs: self.length_context_minimum_pairs,
+                prior_pairs: self.length_context_prior_pairs,
+                reference: self.length_context_reference,
+                minimum_scale: self.length_context_minimum_scale,
+                edges: self.length_context_edges,
+            },
             length: RuleParams {
                 confidence: self.length_confidence,
                 forward: self.length_noise_forward,
@@ -140,6 +203,13 @@ pub(crate) mod tests {
                 forward: [0.065, 0.111],
                 reverse: [0.111, 0.128],
             },
+            calibration: Calibration {
+                minimum_pairs: 10,
+                prior_pairs: [6.0, 64.0],
+                reference: [0.4643, 0.0563],
+                minimum_scale: 1.0,
+                edges: vec![-2.0, -1.0, 0.0, 1.0, 2.0],
+            },
         }
     }
 
@@ -155,6 +225,11 @@ pub(crate) mod tests {
             length_confidence: 2.326,
             length_noise_forward: [0.065, 0.111],
             length_noise_reverse: [0.111, 0.128],
+            length_context_minimum_pairs: 10,
+            length_context_prior_pairs: [6.0, 64.0],
+            length_context_reference: [0.4643, 0.0563],
+            length_context_minimum_scale: 1.0,
+            length_context_edges: vec![-2.0, -1.0, 0.0, 1.0, 2.0],
         }
     }
 
@@ -177,6 +252,14 @@ pub(crate) mod tests {
             },
             RawConsensusConfig {
                 dissent_edge: 0,
+                ..raw()
+            },
+            RawConsensusConfig {
+                length_context_minimum_pairs: 0,
+                ..raw()
+            },
+            RawConsensusConfig {
+                length_context_edges: vec![1.0, 0.0],
                 ..raw()
             },
             // A two-base gap and a substitution would cost no more than two

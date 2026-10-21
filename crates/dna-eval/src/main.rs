@@ -87,6 +87,8 @@ const MAX_CASES_BYTES: u64 = 4 * 1024 * 1024;
 /// The header of `signals.tsv`.
 const SIGNALS_HEADER: &str =
     "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
+/// The header of `run_context.tsv`.
+const RUN_CONTEXT_HEADER: &str = "month\tsamples\tanalysed\twith_context\trun1_calibrated\trun2_calibrated\tbatches\trun1_pairs\trun2_pairs\n";
 /// The header of `checks.tsv`.
 const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
 /// The header of `notes.tsv`.
@@ -261,7 +263,7 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
         threads,
         false,
         None,
-        cache.as_ref(),
+        (cache.as_ref(), &runner::Contexts::new()),
         &mut Vec::new(),
     )?;
     let judged = cases
@@ -534,6 +536,13 @@ struct RunArgs {
     /// traces' own Sanger products.
     #[arg(long, conflicts_with = "triage")]
     evidence_cache: Option<PathBuf>,
+    /// A directory of run contexts (PROP-0014), one
+    /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
+    /// over the batches' full folders: a sample of a batch with one has its
+    /// consensus calibrated by it. `run_context.tsv` reports per batch month
+    /// how many samples a context calibrated.
+    #[arg(long)]
+    run_context: Option<PathBuf>,
     /// Review zones: positions on each side of a repeat window that follow
     /// it.
     #[arg(long, default_value_t = 20)]
@@ -737,6 +746,12 @@ fn run(cli: &RunArgs) -> Result<String> {
             })
         })
         .transpose()?;
+    let contexts = cli
+        .run_context
+        .as_deref()
+        .map(|directory| runner::contexts(directory, &manifest.samples))
+        .transpose()?
+        .unwrap_or_default();
     let mut signal_groups = Vec::new();
     let outcomes = runner::run(
         &manifest.samples,
@@ -750,7 +765,7 @@ fn run(cli: &RunArgs) -> Result<String> {
                 batch_reads: cli.run_signal_batch_reads,
             },
         }),
-        cache.as_ref(),
+        (cache.as_ref(), &contexts),
         &mut signal_groups,
     )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
@@ -838,6 +853,13 @@ fn run(cli: &RunArgs) -> Result<String> {
     header.recheck = recheck_header;
     header.evidence_cache = cache.as_ref().map(|cache| cache.evidence.usage());
     header.placement_cache = cache.as_ref().map(|cache| cache.placed.usage());
+    header.run_context = cli
+        .run_context
+        .as_deref()
+        .map(|directory| RunContextHeader {
+            directory: absolute(directory),
+            batches: contexts.len(),
+        });
     header.triage = triage.as_ref().map(|triage| TriageHeader {
         policy: triage
             .policy()
@@ -852,6 +874,13 @@ fn run(cli: &RunArgs) -> Result<String> {
         .chain(triage_files.into_iter().flatten())
     {
         write(&cli.output, name, &contents)?;
+    }
+    if cli.run_context.is_some() {
+        write(
+            &cli.output,
+            "run_context.tsv",
+            &context_coverage(&manifest.samples, &outcomes, &contexts),
+        )?;
     }
     if cli.run_signal.is_some() {
         let mut text = String::from(SIGNALS_HEADER);
@@ -1230,6 +1259,9 @@ struct Header {
     /// cache.
     #[serde(skip_serializing_if = "Option::is_none")]
     placement_cache: Option<cache::Usage>,
+    /// The run contexts the consensus was calibrated by.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_context: Option<RunContextHeader>,
     /// The widths that place the review zones, in positions.
     zones: ZoneHeader,
     /// The harness's own measurement constants.
@@ -1296,6 +1328,73 @@ impl Constants {
             triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
         }
     }
+}
+
+/// The run contexts' directory and how many of the panel's batches had one.
+#[derive(Debug, Serialize)]
+struct RunContextHeader {
+    directory: PathBuf,
+    batches: usize,
+}
+
+/// Run context coverage per batch month, then over all samples: of the
+/// analysed samples, how many had their batch's context and in how many it
+/// calibrated τ of run 1 and of run 2; the rest fail closed to the
+/// configured τ. With them, the batches that had a context and their pairs
+/// per run, which show why: a batch below the minimum pairs calibrates
+/// nothing.
+fn context_coverage(
+    samples: &[manifest::Sample],
+    outcomes: &[Outcome],
+    contexts: &runner::Contexts,
+) -> String {
+    let mut months = BTreeMap::<String, [usize; 8]>::new();
+    let mut counted = BTreeSet::<(&str, &str)>::new();
+    for (sample, outcome) in samples.iter().zip(outcomes) {
+        let month = sample
+            .batch_date
+            .as_deref()
+            .and_then(|date| date.get(..7))
+            .unwrap_or("unknown");
+        for key in [month, "all"] {
+            let counts = months.entry(key.to_owned()).or_default();
+            if let Some(context) = contexts.get(&sample.batch)
+                && counted.insert((key, &sample.batch))
+            {
+                counts[5] += 1;
+                counts[6] += context.length.runs[0].pairs;
+                counts[7] += context.length.runs[1].pairs;
+            }
+            counts[0] += 1;
+            if let Ok(called) = &outcome.result {
+                counts[1] += 1;
+                if let Some([run1, run2]) = called.length_context {
+                    counts[2] += 1;
+                    counts[3] += usize::from(run1);
+                    counts[4] += usize::from(run2);
+                }
+            }
+        }
+    }
+    let all = months.remove("all").unwrap_or_default();
+    let mut text = String::from(RUN_CONTEXT_HEADER);
+    for (month, counts) in months.iter().chain([(&"all".to_owned(), &all)]) {
+        let [
+            samples,
+            analysed,
+            context,
+            run1,
+            run2,
+            batches,
+            pairs1,
+            pairs2,
+        ] = counts;
+        let _ = writeln!(
+            text,
+            "{month}\t{samples}\t{analysed}\t{context}\t{run1}\t{run2}\t{batches}\t{pairs1}\t{pairs2}"
+        );
+    }
+    text
 }
 
 /// The re-check list: its path, its SHA-256, and its rows.
@@ -1454,6 +1553,7 @@ fn header(
         recheck: None,
         evidence_cache: None,
         placement_cache: None,
+        run_context: None,
         constants: Constants::current(),
         zones: ZoneHeader {
             after: cli.zone_after,
@@ -1676,6 +1776,7 @@ mod tests {
                 replaced: 0,
                 bytes: 90_000,
             }),
+            run_context: None,
             zones: ZoneHeader {
                 after: 20,
                 edge: 40,

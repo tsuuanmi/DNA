@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CALL, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
+implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
 decided-by: [ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079]
 covers:
   - crates/dna-kernel/src/variant.rs
@@ -230,6 +230,30 @@ content SHA-256, when none is admitted. Every other failure is the error
 `analyze_sanger` returns; `analyze_sanger` is this call with `Rejected` turned
 into that error. The two cases are complete, so the enum is not marked
 non-exhaustive.
+
+### Run context
+
+A batch's [[reference/run-context|run context]] calibrates an analysis's
+consensus in process as `dna consensus --run-context` does (SRS-CONS-014):
+
+```rust
+impl RunContext {
+    pub fn read(path: &Path) -> dna::error::Result<RunContext>;
+}
+
+impl SampleAnalysis {
+    pub fn with_run_context(self, context: RunContext) -> dna::error::Result<SampleAnalysis>;
+    pub const fn run_context(&self) -> Option<&ContextUse>;
+}
+```
+
+`with_run_context` rebuilds the consensus under the context, the sample's
+own pairs left out when all its admitted reads are among the context's, and
+fails as the command does for a context made against another reference,
+over other windows, or with other length parameters, or holding only some
+of its reads. `run_context` returns how the consensus used it: `run_id`,
+`sha256`, `left_out`, and `scale`, τ's scale per run (`None` where the
+batch's pairs were too few); `None` without a context.
 
 ### Consensus call
 

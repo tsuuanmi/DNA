@@ -17,6 +17,34 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna.run_context/v1` and `dna run-context <run-id> --traces|--evidence
+  <list> --reference <fasta>` (PROP-0014 increment 1, SRS-API-021): a
+  laboratory batch's own statistics, computed once from every read of the
+  batch (a `sample_id<TAB>path` list). Version 1 holds the `length`
+  section: per run of the profile's recorded anchored windows, the batch's
+  cross-strand pairs of the two-strand rule's views, the sum of their
+  squared normalised differences and of their fourth powers, and a
+  histogram over `consensus.length_context_edges`. A listed file that is
+  missing, empty, or unreadable is left out and recorded
+  (`provenance.skipped`); the sample's other reads still count.
+  - `dna consensus` and `dna review` take `--run-context <file>`. Leaving the
+    sample's own pairs out, the context rescales each run's τ, from
+    batches with at least `consensus.length_context_minimum_pairs` pairs,
+    shrunk towards the corpus (`length_context_prior_pairs`,
+    `length_context_reference`, `length_context_minimum_scale`;
+    SRS-CONS-014).
+  - Their provenance records `run_context` (run id, SHA-256, `left_out`,
+    `length_scale`).
+  - The command refuses a context made against another reference, over
+    other windows, or with another τ or other edges, and a context that
+    holds only some of the sample's reads. Without the flag the documents
+    are unchanged.
+  - In process, `RunContext::read` and `SampleAnalysis::with_run_context`.
+  - `dna-eval run --run-context <dir>` reads each batch's
+    `<batch>.run_context.json` (`run.json` `run_context`) and writes the
+    coverage per batch month (`run_context.tsv`), with the month's batches
+    and pairs that explain it.
+  - Configuration schema 24; plugin consensus 19.
 - `dna-eval bench --cases <tsv> --manifest <panel>…` runs DNA on the
   adjudicated artefact cases of a case list (extra peaks, electrophoretic
   spikes, dye blobs, truth errors where DNA is right) and checks the outcome

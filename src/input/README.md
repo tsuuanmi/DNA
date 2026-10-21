@@ -19,6 +19,11 @@ for bases, shared-weight profiles for IUPAC codes, no masks or vetoes, and
 vouched read ends. The configuration, profile, and reference loaders in
 `mod.rs` are shared by both adapters.
 
+[`run_context.rs`](run_context.rs) reads and validates a run context
+(`dna.run_context/v1`, PROP-0014): size, schema, the length method, noise,
+edges, windows, runs 1 and 2 with histograms that sum to their pairs, and
+read identities as SHA-256, recording the document's own SHA-256.
+
 [`consensus.rs`](consensus.rs) reads a `dna.consensus/v1` document for `call`
 (PROP-0006): the sample, the reference identity, the segments, and the sites
 with their runs, back into the core's consensus model, under the same

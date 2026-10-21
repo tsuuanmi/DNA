@@ -2,7 +2,7 @@
 
 Owns the kernel's typed `Error`, the shared `Result<T>` alias, and one failure
 vocabulary per modality-neutral stage (`FastaError`, `SequenceError`,
-`VariantsError`, `ConsensusDocumentError`, `ConfigError`, `ProfileError`,
+`VariantsError`, `ConsensusDocumentError`, `RunContextError`, `ConfigError`, `ProfileError`,
 `EvidenceError`, `AlignmentError`, `VariantError`, `SampleError`,
 `ReportError`, and the representation, normalization, and nomenclature
 errors), plus shared `LocusWindowError` and `CallEvidenceError`. The Sanger

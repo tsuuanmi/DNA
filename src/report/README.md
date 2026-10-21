@@ -10,7 +10,7 @@ to its step and command. The review list,
 [`dna.review/v1`](../../docs/reference/schemas/review-v1.schema.json), is
 derived here.
 
-Key children separate analysis (with `aligned_calls.rs`, each aligned call's reference column and the core's trust in it, `dna.analysis/v10`), basecall, read evidence (`evidence.rs`, `dna.read_evidence/v1`), sample, run signal (`run_signal.rs`, `dna.signal/v1`), variant,
+Key children separate analysis (with `aligned_calls.rs`, each aligned call's reference column and the core's trust in it, `dna.analysis/v10`), basecall, read evidence (`evidence.rs`, `dna.read_evidence/v1`), sample, run signal (`run_signal.rs`, `dna.signal/v1`), run context (`run_context.rs`, `dna.run_context/v1`), variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
 publication concerns. Every document's provenance records the workflow's
 plugins; analysis, sample, variants, notation, consensus, and review provenance

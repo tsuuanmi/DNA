@@ -12,6 +12,7 @@ This directory contains synthetic, non-identifying examples for the current publ
 - [consensus-v1.example.json](consensus-v1.example.json)
 - [review-v1.example.json](review-v1.example.json)
 - [signal-v1.example.json](signal-v1.example.json)
+- [run-context-v1.example.json](run-context-v1.example.json)
 - [eval-run-v1.example.json](eval-run-v1.example.json): a `dna-eval run` directory read as one instance, keyed by file name
 
 Examples illustrate valid shape; they do not override schemas or human-readable contract semantics.

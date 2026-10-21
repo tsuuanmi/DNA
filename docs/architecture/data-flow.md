@@ -162,6 +162,9 @@ flowchart LR
     vj -->|"dna notation"| nt["dna.notation/v1"]
     trace -->|"dna review"| rv["dna.review/v1"]
     sig -.->|"--signal"| rv
+    trace -->|"dna run-context (a batch)"| rc["dna.run_context/v1"]
+    rc -.->|"--run-context"| cj
+    rc -.->|"--run-context"| rv
 ```
 
 | Step (crate) | Input contract(s) | Output contract | Command | Schema |
@@ -175,6 +178,7 @@ flowchart LR
 | read assertion ([dna-call](../../crates/dna-call/src/README.md)) | `dna.read_evidence/v1` (in process or the file), `dna.analysis/v10` `alignment` | `dna.analysis/v10` `variants` and each call's `trust`; component calls: none yet ([PROP-0010](../proposals/0010-length-mixture-decomposition.md)) | `dna analyze`, `dna analyze --evidence` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
 | read assertion over reviewed sequences ([dna-call](../../crates/dna-call/src/README.md), facade `input::sequence`) | consensus FASTA | `dna.variants/v1` | `dna call <FASTA>...` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
 | sample evidence ([dna-sample](../../crates/dna-sample/src/README.md)) | the reads' `dna.read_evidence/v1` (in process from the traces, or the files with `--evidence`), reference FASTA | `dna.sample_evidence/v10` | `dna sample`, `dna sample --evidence` | [sample-evidence-v10](../reference/schemas/sample-evidence-v10.schema.json) |
+| run context ([dna-consensus](../../crates/dna-consensus/src/README.md) `noise`, assembled by the facade, [[PROP-0014]]) | a batch's reads (traces or `dna.read_evidence/v1`), reference FASTA | `dna.run_context/v1` | `dna run-context` | [run-context-v1](../reference/schemas/run-context-v1.schema.json) |
 | consensus ([dna-consensus](../../crates/dna-consensus/src/README.md) `build`) | the reads' `dna.read_evidence/v1` (in process or the files), reference FASTA | `dna.consensus/v1` and its FASTA | `dna consensus`, `dna consensus --evidence` | [consensus-v1](../reference/schemas/consensus-v1.schema.json) |
 | decided calls ([dna-consensus](../../crates/dna-consensus/src/README.md) `decided`) | `dna.consensus/v1` | `dna.variants/v1` | `dna call <consensus.json>` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
 | normalization and nomenclature ([dna-normalize](../../crates/dna-normalize/src/README.md)) | `dna.variants/v1` | `dna.notation/v1` `notation` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
