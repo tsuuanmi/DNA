@@ -31,6 +31,7 @@ mod recheck;
 mod report;
 mod rundiff;
 mod runner;
+mod subset;
 mod tracts;
 mod triage;
 mod truth;
@@ -102,6 +103,9 @@ enum Command {
     Run(RunArgs),
     /// Derives a new panel version against the truth database.
     Panel(PanelArgs),
+    /// Writes a quick stratified subset of a panel, for a first-pass `diff`
+    /// before the full panel: a pre-filter, never the gate.
+    Subset(SubsetArgs),
     /// Runs the pre-registered approval of triage pass rules on a hold-out
     /// panel, once.
     Approve(ApproveArgs),
@@ -114,8 +118,8 @@ enum Command {
     /// Manages a read evidence cache (`run --evidence-cache`).
     Cache(CacheArgs),
     /// Compares a run with a base run of the same panel and gates it: exits
-    /// 2 with `GATE FAIL` when more passed samples or zones carry a non-het
-    /// unreviewed block, or more samples carry an unreviewed block.
+    /// 2 with `GATE FAIL` when more samples, passed samples, or passed zones
+    /// carry a non-het unreviewed block; het blocks are reported, not gated.
     Diff(DiffArgs),
 }
 
@@ -269,6 +273,26 @@ struct PanelArgs {
     output: PathBuf,
 }
 
+/// Arguments of `dna-eval subset`.
+#[derive(Debug, Args)]
+struct SubsetArgs {
+    /// The parent panel manifest.
+    #[arg(long)]
+    manifest: PathBuf,
+    /// Rows to share among the strata, in proportion to their staying rows.
+    #[arg(long)]
+    rows: usize,
+    /// Fewest rows a stratum keeps (all of them when it has fewer).
+    #[arg(long)]
+    minimum: usize,
+    /// Salt of the deterministic order within a stratum.
+    #[arg(long)]
+    salt: String,
+    /// The new manifest file; it must not exist.
+    #[arg(long)]
+    output: PathBuf,
+}
+
 /// Arguments of `dna-eval run`.
 #[derive(Debug, Args)]
 struct RunArgs {
@@ -356,6 +380,7 @@ fn main() -> ExitCode {
         Command::Diff(args) => return diff(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
+        Command::Subset(args) => write_subset(&args),
         Command::Approve(args) => approve::approve(&args.prereg, &args.output, args.threads),
         Command::Power(args) => power(&args),
         Command::Convention(args) => convention(&args),
@@ -781,6 +806,45 @@ fn power(args: &PowerArgs) -> Result<String> {
 }
 
 /// `dna-eval panel`: writes the new manifest and returns its checksum line.
+fn write_subset(args: &SubsetArgs) -> Result<String> {
+    if args.salt.is_empty() || args.salt.contains(char::is_whitespace) {
+        return Err(Error::Argument {
+            name: "salt",
+            value: args.salt.clone(),
+        });
+    }
+    for (name, value) in [("rows", args.rows), ("minimum", args.minimum)] {
+        if value == 0 {
+            return Err(Error::Argument {
+                name,
+                value: value.to_string(),
+            });
+        }
+    }
+    let parent = manifest::parse(&read(&args.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
+    let quick = subset::subset(&parent, args.rows, args.minimum, &args.salt);
+    File::options()
+        .write(true)
+        .create_new(true)
+        .open(&args.output)
+        .and_then(|mut file| file.write_all(quick.text.as_bytes()))
+        .map_err(|source| Error::Write {
+            path: args.output.clone(),
+            source,
+        })?;
+    let strata = quick
+        .strata
+        .iter()
+        .map(|(stratum, (kept, of))| format!("{stratum} {kept}/{of}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Ok(format!(
+        "dna-eval: {} rows in {}; per stratum: {strata}",
+        quick.rows,
+        args.output.display()
+    ))
+}
+
 fn derive_panel(args: &PanelArgs) -> Result<String> {
     for (name, value) in [("version", &args.version), ("created", &args.created)] {
         if value.is_empty()

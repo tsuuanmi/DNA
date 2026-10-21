@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN]
-decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072, ADR-0087]
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072, ADR-0086, ADR-0087]
 covers:
   - crates/dna-align/src/
   - crates/dna-align/src/canonical.rs
@@ -128,6 +128,21 @@ reference segments, not the rows, operation runs, or score. When multiple paths 
 ### Substep 6.5 — Orientation selection
 
 The forward and reverse candidates are compared by fixed-point profile score only. The strictly better orientation is selected; an exact score tie is an error and primary-sequence exact/mismatch metrics do not break it. After placement, `callable_columns`, `callable_identity`, exact/mismatch counts, and unresolved-query count are still computed from the retained primary sequence on the selected traceback. The selected orientation must meet the existing `minimum_callable_bases` and `minimum_identity` primary-sequence admission gates, otherwise analysis fails.
+
+Two equally scoring placements of the selected orientation fail as a distinct
+placement, with one exception (SRS-ALN-006, [[ADR-0086]]). On development
+panel v5 every such read had placements that agree on all calls but the last
+3 to 15 at one end. There an insertion or deletion and a run of substitutions
+end at different reference positions with the same score: mostly an HV1R or
+HV3R read's poor start, and twice the dephased calls at the end of a C run.
+DNA marks as disputed the calls the two placements put at different positions,
+an inserted call counting as none. When every call from one end of the query
+to the farthest disputed call is unreliable, that stretch is left unplaced
+and the remaining calls are aligned again, once, through the same orientation
+selection, gates, and uniqueness check. A call is unreliable when it lies in
+one of the read's unreliable spans or is masked. The unplaced calls keep
+their evidence and verdicts, but have no column, so they observe nothing. A
+tie that disputes any other call still fails.
 
 On a read whose ends are vouched (a reviewed consensus record), a deletion
 next to an unresolved call without an evidence profile then moves 3' across

@@ -1,6 +1,6 @@
 ---
 id: ADR-0087
-status: proposed
+status: accepted
 date: 2026-10-21
 family: [alignment, evaluation]
 related: [ADR-0010, ADR-0029, ADR-0069, ADR-0075, PROP-0011]
