@@ -15,6 +15,9 @@ modality-neutral core.
   calls, locus profiles, callability, and trim start, and its tract decodes
   ([tract](../tract/README.md), SRS-CALL-025).
   Basecall and Variant Analysis both reuse it.
+- `stage_log.rs` emits each stage's completion event (`basecalling_completed`,
+  `signal_processing_completed`, `callability_completed`,
+  `quality_control_completed`): logging only, read by nothing.
 - [evidence](evidence/README.md) is the Sanger modality adapter
   ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
   It builds the per-read `ReadEvidence` that alignment and variant calling
