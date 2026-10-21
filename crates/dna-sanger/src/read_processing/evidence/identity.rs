@@ -3,6 +3,7 @@
 //! (SRS-CALL-018).
 
 use super::{DEPHASED_SIGNAL, POST_HOMOPOLYMER, placement};
+use crate::median;
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::ReadCallability;
 use crate::model::locus_evidence::{LocusEvidence, channel_width};
@@ -35,8 +36,7 @@ pub(super) fn leading_identity(
         .iter()
         .filter_map(primary_height)
         .collect::<Vec<_>>();
-    heights.sort_unstable();
-    let Some(&median) = heights.get(heights.len() / 2) else {
+    let Some(median) = median::upper(&mut heights, Ord::cmp) else {
         return Vec::new();
     };
     let start = callability.callable_start_0based.min(calls.calls.len());
@@ -55,11 +55,9 @@ pub(super) fn leading_identity(
         .collect()
 }
 
-/// The upper median of `values`: the middle value, the upper of the two
-/// middle ones for an even count; `None` for none.
-fn median(mut values: Vec<f64>) -> Option<f64> {
-    values.sort_by(f64::total_cmp);
-    values.get(values.len() / 2).copied()
+/// The upper median of `values` (`median::upper`).
+fn upper_median(mut values: Vec<f64>) -> Option<f64> {
+    median::upper(&mut values, f64::total_cmp)
 }
 
 /// The medians a call's own signal is judged against: primary peak, width,
@@ -85,20 +83,20 @@ impl Norms {
     /// order), and of the spacings between those of them that are adjacent.
     fn of(signal: Signal<'_>, indices: &[usize]) -> Option<Self> {
         Self::new(
-            median(
+            upper_median(
                 indices
                     .iter()
                     .filter_map(|&index| signal.calls.calls.get(index).and_then(primary_height))
                     .map(f64::from)
                     .collect(),
             ),
-            median(
+            upper_median(
                 indices
                     .iter()
                     .filter_map(|&index| signal.width(index))
                     .collect(),
             ),
-            median(
+            upper_median(
                 indices
                     .windows(2)
                     .filter(|pair| pair[1] == pair[0] + 1)
@@ -238,7 +236,7 @@ pub(super) fn edge_identity(
     let signal = Signal { calls, loci };
     let single = |index: usize| signal.single(index);
     let read_norms = Norms::new(
-        median(
+        upper_median(
             calls
                 .calls
                 .iter()
@@ -246,14 +244,14 @@ pub(super) fn edge_identity(
                 .map(f64::from)
                 .collect(),
         ),
-        median(
+        upper_median(
             informative
                 .clone()
                 .filter(|&index| single(index))
                 .filter_map(|index| signal.width(index))
                 .collect(),
         ),
-        median(
+        upper_median(
             loci.windows(2)
                 .map(|pair| {
                     pair[1].locus_position_0based as f64 - pair[0].locus_position_0based as f64
