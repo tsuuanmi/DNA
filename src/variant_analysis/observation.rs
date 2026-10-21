@@ -56,30 +56,20 @@ pub(crate) fn observe(
     config: &Config,
     profile: &Profile,
 ) -> Result<Observation> {
+    let stage = tracing::info_span!("read_evidence").entered();
+    let evidence = read_processing::read_evidence(&processed, &config.sanger.sanger_evidence)?;
+    record_evidence(&evidence, config);
+    drop(stage);
     let ProcessedRead {
         calls,
         signal,
         callability,
         quality,
         second,
-        mixtures,
-        tracts,
+        mixtures: _,
+        tracts: _,
         warnings: read_warnings,
     } = processed;
-
-    let stage = tracing::info_span!("read_evidence").entered();
-    let evidence = read_processing::read_evidence(
-        &calls,
-        &signal,
-        &callability,
-        &quality,
-        &second,
-        &mixtures,
-        &tracts,
-        &config.sanger.sanger_evidence,
-    )?;
-    record_evidence(&evidence, config);
-    drop(stage);
     let called = match place(
         ReadIdentity {
             input_name: trace.source_name.clone(),

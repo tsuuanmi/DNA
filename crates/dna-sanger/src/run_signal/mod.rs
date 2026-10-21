@@ -226,16 +226,7 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
     let Admission::Processed(processed) = read_processing::admit(trace, config)? else {
         return Ok(None);
     };
-    let evidence = read_processing::read_evidence(
-        &processed.calls,
-        &processed.signal,
-        &processed.callability,
-        &processed.quality,
-        &processed.second,
-        &processed.mixtures,
-        &processed.tracts,
-        &config.sanger_evidence,
-    )?;
+    let evidence = read_processing::read_evidence(&processed, &config.sanger_evidence)?;
     Ok(Some(contributions(
         &processed.calls.heights(),
         &evidence,
