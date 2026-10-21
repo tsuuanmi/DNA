@@ -1,6 +1,6 @@
 ---
 id: ADR-0086
-status: proposed
+status: accepted
 date: 2026-10-20
 family: [placement]
 related: [ADR-0029, ADR-0069, ADR-0085, PROP-0012]
