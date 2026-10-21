@@ -104,9 +104,9 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | `variant_calling` | `max_indel_length` | `50` | `1..=50` |
 | | `read_end_margin` | `12` | non-negative integer; `0` disables |
 | `consensus` | `seeded_run` | `4` | integer at least `2`: shortest disputed, unbounded homopolymer grown as one stretch (SRS-CONS-004) |
-| `review` | `run_growth` | `3` | positive: a decided run at least this many bases longer than its reference run is a check when its length rests on an anchored end or a single read |
+| `review` | `run_growth` | `3` | positive: a decided run at least this many bases longer than its reference run is a check when its length rests on an anchored end or on one strand, however many reads |
 | `review` | `edge_zone` | `40` | positions from a reportable region's end that the call does not analyse (SRS-CONS-012) within which any difference is a check (`beside_not_analysed`) |
-| `review` | `deletion_zone` | `20` | positions from a reportable region's first or last position within which a deletion resting on a single read is a check (`edge_deletion`) |
+| `review` | `deletion_zone` | `20` | positions from a reportable region's first or last position within which a deletion resting on one strand is a check (`edge_deletion`) |
 | `review` | `phase_run` | `4` | at least 2: equal bases in a row after which a read's in-phase end of an item is no longer compared with the decision for `read_disagrees` |
 | `consensus` | `maximum_undecided_gap` | `20` | non-negative integer: undecided positions kept inside a segment as `N` (SRS-CONS-006) |
 | | `minimum_resolved_bases` | `20` | positive: fewest resolved bases of a segment (SRS-CONS-006) |

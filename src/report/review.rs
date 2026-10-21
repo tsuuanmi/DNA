@@ -53,7 +53,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 32,
+    version: 33,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -1097,66 +1097,87 @@ impl<'a> Sample<'a> {
             labels.push(LabelResult::DephasedEnd { runs: anchored });
         }
         if !undecided(site) {
-            let growth = long_runs(site, self.config.run_growth);
+            let support = self.one_strand_support(site);
+            let growth = long_runs(site, support.is_some(), self.config.run_growth);
             if !growth.is_empty() {
                 labels.push(LabelResult::LongRun { runs: growth });
             }
-            if let Some(read) = self.run_deletion(site) {
-                labels.push(LabelResult::RunDeletion { read });
-            }
-            if let Some(read) = self.run_indel(site) {
-                labels.push(LabelResult::RunIndel { read });
-            }
-            if let Some(read) = self.edge_deletion(site) {
-                labels.push(LabelResult::EdgeDeletion { read });
+            if let Some((strand, reads)) = support {
+                if self.run_deletion(site) {
+                    labels.push(LabelResult::RunDeletion {
+                        strand,
+                        reads: reads.clone(),
+                    });
+                }
+                if self.run_indel(site) {
+                    labels.push(LabelResult::RunIndel {
+                        strand,
+                        reads: reads.clone(),
+                    });
+                }
+                if self.edge_deletion(site) {
+                    labels.push(LabelResult::EdgeDeletion { strand, reads });
+                }
             }
         }
         labels
     }
 
-    /// The single read a site rests on when its call is at least
-    /// `review.run_growth` bases shorter than its reference and the reference
-    /// holds a run of at least `review.phase_run` equal bases: a read that
-    /// loses or compresses part of a run aligns it as a long deletion, and
-    /// one read cannot assure that; `None` for any other site.
-    fn run_deletion(&self, site: &ConsensusSite) -> Option<String> {
-        let call = site.call.as_deref()?;
-        let [input] = site.supporting.as_slice() else {
-            return None;
-        };
-        let index = *self.by_id.get(input.as_str())?;
-        run_lost(
-            &site.reference,
-            call,
-            self.config.run_growth,
-            self.config.phase_run,
-        )
-        .then(|| self.reads[index].name.to_owned())
+    /// The strand every supporting read of `site` lies on, however many, and
+    /// their names in the site's order (ADR-0090); `None` without a
+    /// supporting read, with one the sample does not hold, or with
+    /// supporting reads on both strands. Reads of one strand share its
+    /// systematic errors, so their number does not assure what they show.
+    fn one_strand_support(&self, site: &ConsensusSite) -> Option<(Orientation, Vec<String>)> {
+        let reads = site
+            .supporting
+            .iter()
+            .map(|input| {
+                self.by_id
+                    .get(input.as_str())
+                    .map(|&index| &self.reads[index])
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let strand = one_strand(&reads.iter().map(|read| read.strand).collect::<Vec<_>>())?;
+        Some((
+            strand,
+            reads.iter().map(|read| read.name.to_owned()).collect(),
+        ))
     }
 
-    /// The single read a site rests on when its call changes the length of
-    /// a homopolymer run of its reference of at least `review.phase_run`
-    /// equal bases (inserts or deletes copies of the run's base, the runs'
-    /// bases unchanged) and the site lies outside every repeat window and
-    /// length tract of the profile; `None` for any other site. A read slips
-    /// on such a run, and the other strand often reads it only out of phase,
-    /// so one read cannot assure its length.
-    fn run_indel(&self, site: &ConsensusSite) -> Option<String> {
-        let call = site.call.as_deref()?;
-        let [input] = site.supporting.as_slice() else {
-            return None;
+    /// Whether a site that rests on one strand (its caller checks) has a
+    /// call at least `review.run_growth` bases shorter than its reference,
+    /// where the reference holds a run of at least `review.phase_run` equal
+    /// bases: a read that loses or compresses part of a run aligns it as a
+    /// long deletion, and reads of one strand cannot assure that.
+    fn run_deletion(&self, site: &ConsensusSite) -> bool {
+        site.call.as_deref().is_some_and(|call| {
+            run_lost(
+                &site.reference,
+                call,
+                self.config.run_growth,
+                self.config.phase_run,
+            )
+        })
+    }
+
+    /// Whether a site that rests on one strand (its caller checks) changes
+    /// the length of a homopolymer run of its reference of at least
+    /// `review.phase_run` equal bases (inserts or deletes copies of the run's
+    /// base, the runs' bases unchanged) and lies outside every repeat window
+    /// and length tract of the profile. A strand slips on such a run, and the
+    /// other strand often reads it only out of phase, so one strand cannot
+    /// assure its length.
+    fn run_indel(&self, site: &ConsensusSite) -> bool {
+        let Some(call) = site.call.as_deref() else {
+            return false;
         };
         let (first, last) = (site.first_0based + 1, site.last_0based + 1);
-        if self
+        !self
             .repeat_windows
             .iter()
             .any(|&[start, end]| start <= last && first <= end)
-        {
-            return None;
-        }
-        let index = *self.by_id.get(input.as_str())?;
-        run_length_change(&site.reference, call, self.config.phase_run)
-            .then(|| self.reads[index].name.to_owned())
+            && run_length_change(&site.reference, call, self.config.phase_run)
     }
 
     /// `one_strand_insertion` at a decided insertion (a notation call with
@@ -1251,25 +1272,20 @@ impl<'a> Sample<'a> {
         })
     }
 
-    /// The single read a deletion within `deletion_zone` positions of a
-    /// reportable region's first or last position rests on; `None` for any
-    /// other site.
-    fn edge_deletion(&self, site: &ConsensusSite) -> Option<String> {
-        let call = site.call.as_deref()?;
-        let [input] = site.supporting.as_slice() else {
-            return None;
-        };
-        if call.len() >= site.reference.len() {
-            return None;
-        }
-        let near = near_edge(
-            &self.reportable,
-            site.first_0based + 1,
-            site.last_0based + 1,
-            self.config.deletion_zone,
-        );
-        let index = *self.by_id.get(input.as_str())?;
-        near.then(|| self.reads[index].name.to_owned())
+    /// Whether a site that rests on one strand (its caller checks) is a
+    /// deletion within `deletion_zone` positions of a reportable region's
+    /// first or last position, where a strand's own read edge loses or
+    /// doubles a base.
+    fn edge_deletion(&self, site: &ConsensusSite) -> bool {
+        site.call
+            .as_deref()
+            .is_some_and(|call| call.len() < site.reference.len())
+            && near_edge(
+                &self.reportable,
+                site.first_0based + 1,
+                site.last_0based + 1,
+                self.config.deletion_zone,
+            )
     }
 
     /// Completes an item's calls, labels, and evidence; `None` for a site
@@ -1317,11 +1333,10 @@ impl<'a> Sample<'a> {
                 .iter()
                 .map(|&index| &self.reads[index])
                 .collect::<Vec<_>>();
-            if let ([index], [read]) = (indices.as_slice(), supporting.as_slice()) {
+            if let [read] = supporting.as_slice() {
                 labels.push(LabelResult::OneRead {
                     read: read.name.to_owned(),
                 });
-                labels.extend(self.reference_second(*index, first, last)?);
             }
             if let Some(strand) = one_strand(
                 &supporting
@@ -1333,6 +1348,9 @@ impl<'a> Sample<'a> {
                     strand,
                     reads: supporting.iter().map(|read| read.name.to_owned()).collect(),
                 });
+                for &index in &indices {
+                    labels.extend(self.reference_second(index, first, last)?);
+                }
                 if decided {
                     labels.extend(self.one_strand_insertion(site, first, last, strand, &indices));
                 }
@@ -1758,12 +1776,14 @@ impl<'a> Sample<'a> {
     }
 
     /// `reference_second` at each position of `first..=last` where read
-    /// `index`, the one read a difference rests on, reads another base than
-    /// the reference while its call shows the reference base as a second
-    /// peak above the call's threshold (SRS-CALL-020). One read cannot tell
-    /// that base from a broad peak of another dye over the reference's, nor
-    /// from a mixture; on development panel v5 most such bases at reverse
-    /// read starts were dye blobs over the reference (SRS-CALL-021).
+    /// `index`, one of the reads of the one strand a difference rests on,
+    /// reads another base than the reference while its call shows the
+    /// reference base as a second peak above the call's threshold
+    /// (SRS-CALL-020). One strand cannot tell that base from a broad peak of
+    /// another dye over the reference's, nor from a mixture, and its reruns
+    /// repeat a dye blob at its primer's start; on development panel v5 most
+    /// such bases at reverse read starts were dye blobs over the reference
+    /// (SRS-CALL-021).
     fn reference_second(
         &self,
         index: usize,
@@ -2002,7 +2022,8 @@ struct Clean {
 
 /// Whether a call reading another base than `reference` shows the
 /// reference base as a second peak above the call's threshold
-/// (SRS-CALL-020): `reference_second` when the difference rests on that read.
+/// (SRS-CALL-020): `reference_second` when the difference rests on that
+/// read's strand.
 fn reference_second(call: &Clean, reference: char) -> bool {
     call.second == reference && call.share > call.threshold.share
 }
@@ -2095,10 +2116,11 @@ fn one_strand(supporting: &[Orientation]) -> Option<Orientation> {
 }
 
 /// The runs of a decided site longer than their reference run by `growth`
-/// or more whose length rests on an anchored end or on a single read: the
-/// reference and the call must hold the same runs in the same order. A length
-/// both strands show in phase is assured, however long.
-fn long_runs(site: &ConsensusSite, growth: usize) -> Vec<GrowthResult> {
+/// or more whose length rests on an anchored end or on one strand
+/// (`one_strand`: every supporting read lies on one strand, however many):
+/// the reference and the call must hold the same runs in the same order. A
+/// length both strands show in phase is assured, however long.
+fn long_runs(site: &ConsensusSite, one_strand: bool, growth: usize) -> Vec<GrowthResult> {
     let Some(call) = site.call.as_deref() else {
         return Vec::new();
     };
@@ -2115,7 +2137,6 @@ fn long_runs(site: &ConsensusSite, growth: usize) -> Vec<GrowthResult> {
     // The consensus lists a run's evidence when it decided the site run by
     // run, in call order.
     let evidence = (site.runs.len() == called.len()).then_some(&site.runs);
-    let single = site.supporting.len() == 1;
     reference
         .iter()
         .zip(&called)
@@ -2124,7 +2145,7 @@ fn long_runs(site: &ConsensusSite, growth: usize) -> Vec<GrowthResult> {
         .filter_map(|(index, (base_run, call_run))| {
             let run = evidence.and_then(|runs| runs.get(index));
             let anchored = run.is_some_and(|run| run.evidence == RunEvidence::AnchoredEnd);
-            (anchored || single).then(|| GrowthResult {
+            (anchored || one_strand).then(|| GrowthResult {
                 base: call_run.0,
                 length: call_run.1,
                 reference_length: base_run.1,
@@ -2163,8 +2184,6 @@ fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> 
     })
 }
 
-/// Whether `call` is at least `growth` bases shorter than `reference` and the
-/// reference holds a run of at least `run` equal bases.
 /// Whether `call` changes only the length of runs of `reference` (the same
 /// bases in the same run order, another length), one of them a reference
 /// run of at least `run` equal bases.
@@ -2179,6 +2198,8 @@ fn run_length_change(reference: &str, call: &str, run: usize) -> bool {
             .any(|(left, right)| left.1 != right.1 && left.1 >= run)
 }
 
+/// Whether `call` is at least `growth` bases shorter than `reference` and the
+/// reference holds a run of at least `run` equal bases.
 fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
     call.len() + growth <= reference.len()
         && runs_of(reference).iter().any(|(_, length)| *length >= run)
@@ -2538,11 +2559,11 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
     let (position, read) = match label {
         LabelResult::PossibleHeteroplasmy { position, .. } => (*position, ""),
         LabelResult::ReferenceSecond { position, read, .. } => (*position, read.as_str()),
+        LabelResult::EdgeDeletion { reads, .. }
+        | LabelResult::RunDeletion { reads, .. }
+        | LabelResult::RunIndel { reads, .. } => (0, reads.first().map_or("", String::as_str)),
         LabelResult::OneRead { read }
         | LabelResult::ReadDisagrees { read, .. }
-        | LabelResult::EdgeDeletion { read }
-        | LabelResult::RunDeletion { read }
-        | LabelResult::RunIndel { read }
         | LabelResult::NoisySignal { read, .. }
         | LabelResult::PhaseShift { read, .. }
         | LabelResult::ReadEdge { read }
@@ -2944,7 +2965,7 @@ mod tests {
             run('T', 1, RunEvidence::InPhase),
             run('C', 5, RunEvidence::InPhase),
         ];
-        let flagged = long_runs(&site(reference, call, 2, anchored), 3);
+        let flagged = long_runs(&site(reference, call, 2, anchored), false, 3);
         assert_eq!(
             flagged,
             [GrowthResult {
@@ -2954,19 +2975,25 @@ mod tests {
                 length_evidence: Some("anchored_end"),
             }]
         );
-        // Shown in phase by two reads: assured.
+        // Shown in phase on both strands: assured.
         let in_phase = vec![
             run('C', 10, RunEvidence::InPhase),
             run('T', 1, RunEvidence::InPhase),
             run('C', 5, RunEvidence::InPhase),
         ];
-        assert!(long_runs(&site(reference, call, 2, in_phase.clone()), 3).is_empty());
-        // Resting on a single read: a check, however it is known.
-        assert_eq!(long_runs(&site(reference, call, 1, in_phase), 3).len(), 1);
+        assert!(long_runs(&site(reference, call, 2, in_phase.clone()), false, 3).is_empty());
+        // Resting on one strand: a check, however it is known and however
+        // many reads of the strand show it (ADR-0090).
+        for reads in 1..=3 {
+            assert_eq!(
+                long_runs(&site(reference, call, reads, in_phase.clone()), true, 3).len(),
+                1
+            );
+        }
         // Two more C stays below the growth.
-        assert!(long_runs(&site(reference, "CCCCCCCCCTCCCCC", 1, Vec::new()), 3).is_empty());
+        assert!(long_runs(&site(reference, "CCCCCCCCCTCCCCC", 1, Vec::new()), true, 3).is_empty());
         // A changed run structure is not a length.
-        assert!(long_runs(&site(reference, "CCCCCCCCCCCCCCCC", 1, Vec::new()), 3).is_empty());
+        assert!(long_runs(&site(reference, "CCCCCCCCCCCCCCCC", 1, Vec::new()), true, 3).is_empty());
     }
 
     #[test]
