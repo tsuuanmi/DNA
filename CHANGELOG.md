@@ -682,6 +682,49 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval`'s gate is hardened (user decisions 2026-10-21: the evaluation
+  reviewers' proposals approved; correctness audit F1, F2, F5, F6):
+  - **Set-based diff gate.** `dna-eval diff` compares, per zone kind in the
+    current period, the escapes of a gated class in a zone no check item
+    touches that the candidate adds (`b`) and removes (`c`), with the zones
+    it newly passes (`n_new`); it fails when `b > c` and lists every new
+    escape under **Verdict**. A swap no longer passes unseen, and an escape
+    that moves zone no longer fails alone. Passed samples with a non-het
+    block, samples with one, and zone counts are reported, not gated. The
+    gated classes are `--gate` (default `non_het`, `omitted_other`,
+    `omitted_not_analysed`); the gate is also reported without the re-check
+    list; a move of the clear samples or positions to review beyond
+    `--clear-tolerance` (0.01) or `--positions-tolerance` (0.05) and newly
+    uncovered truth alleles are warned of; samples counted on one side only
+    (failed, or a side without an allele) fail the gate.
+  - **Per-position review.** A difference block is reviewed only when a
+    check item touches each differing position (an indel's reference run);
+    its class is the most severe of its unreviewed positions, from the truth
+    there, and it counts in the zone of each. On development panel v5, 4
+    blocks a far check item reviewed become unreviewed.
+  - **Omitted truth alleles.** A truth allele outside DNA's callable
+    intervals that no check item touches is an unreviewed difference:
+    `omitted_not_analysed` (a stretch DNA did not analyse), `omitted_tract`
+    (under a tract note whose reading is the truth's length), `note_misread`
+    (one whose reading is not), or `omitted_other`. On development panel v5,
+    current data, 526 of 8,813 clear samples omit one: 117 not analysed
+    (mostly `73G`), 357 omitted tract and 48 misread notes (HVS-II), and 4
+    other. Whether such a sample may count as clear awaits the user.
+  - **Length notes** are a one-unit difference only; two or more is non-het.
+  - **Duplicate traces** fail the sample typed (`duplicate_trace`,
+    ADR-0090) instead of being dropped.
+  - **Run signal**: the first pass counts the samples it cannot use
+    (`run.json` `run_signal_failed`).
+  - **`bench`** takes `run`'s options for running DNA (`RunOptions`),
+    `--run-context` and `--run-signal` included.
+  - **`sim-bench`** reads its baseline strictly and gives a verdict,
+    `SIM-BENCH FAIL` with exit status 2 when a gated measure worsens beyond
+    `--tolerance` (default 0).
+  `dna.eval_run/v1` changes in place: `unreviewed.tsv` gains
+  `class_unlisted` and the omission classes and lists a block once per zone
+  of its unreviewed positions; `run.json` `workload` gains the omission
+  counts and `run_signal_failed`; a run that predates them reads with them
+  0 or absent.
 - `dna-eval` reads its geometry from the target profile (`geometry.rs`):
   the reportable regions (named `HV1`, `HV2`, `HV3` in the profile's
   order), the zones' repeat windows, and the windows a discordant position

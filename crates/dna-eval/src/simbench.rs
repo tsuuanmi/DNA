@@ -827,7 +827,9 @@ pub(crate) fn table(rows: &[Row]) -> String {
 /// A `bench.tsv` read back: (tract, noise) → measure → value.
 pub(crate) type Baseline = BTreeMap<(String, String), BTreeMap<String, f64>>;
 
-/// Reads a `bench.tsv` back.
+/// Reads a `bench.tsv` back: a cell is a finite number, or `-` where the
+/// bench had nothing to measure; a cell, a row, or a repeated row of
+/// another form is an error.
 pub(crate) fn parse(text: &str) -> Result<Baseline, String> {
     let mut lines = text.lines();
     if lines.next().map(|line| format!("{line}\n")) != Some(header()) {
@@ -835,23 +837,103 @@ pub(crate) fn parse(text: &str) -> Result<Baseline, String> {
     }
     let mut out = BTreeMap::new();
     for (number, line) in lines.enumerate() {
+        let number = number + 2;
         let fields = line.split('\t').collect::<Vec<_>>();
         if fields.len() != 3 + MEASURES.len() {
-            return Err(format!("line {} has {} fields", number + 2, fields.len()));
+            return Err(format!("line {number} has {} fields", fields.len()));
         }
         let values = MEASURES
             .iter()
             .zip(&fields[3..])
             .map(|(measure, value)| {
-                (
-                    (*measure).to_owned(),
-                    value.parse::<f64>().unwrap_or(f64::NAN),
-                )
+                let parsed = match *value {
+                    "-" => f64::NAN,
+                    value => value
+                        .parse::<f64>()
+                        .ok()
+                        .filter(|value| value.is_finite())
+                        .ok_or_else(|| {
+                            format!("line {number}: {measure} {value:?} is not a number")
+                        })?,
+                };
+                Ok(((*measure).to_owned(), parsed))
             })
-            .collect();
-        out.insert((fields[0].to_owned(), fields[2].to_owned()), values);
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
+        let key = (fields[0].to_owned(), fields[2].to_owned());
+        if out.insert(key, values).is_some() {
+            return Err(format!(
+                "line {number} repeats tract {} at noise {}",
+                fields[0], fields[2]
+            ));
+        }
     }
     Ok(out)
+}
+
+/// The measures that gate, each with whether a higher value is better.
+const GATED: [(&str, bool); 5] = [
+    ("decoded", true),
+    ("structure_right", true),
+    ("dominant_right", true),
+    ("right_given_structure", true),
+    ("clear_wrong", false),
+];
+
+/// The bench's verdict against `baseline`: every gated measure of a cell
+/// that worsens by more than `tolerance` points, a cell the baseline lacks
+/// or this run lacks, and reads without read evidence. Empty when it passes.
+pub(crate) fn verdict(
+    rows: &[Row],
+    outcomes: &[Outcome],
+    baseline: &Baseline,
+    tolerance: f64,
+) -> Vec<String> {
+    let mut failures = Vec::new();
+    let failed = outcomes
+        .iter()
+        .filter(|outcome| outcome.error.is_some())
+        .count();
+    if failed > 0 {
+        failures.push(format!("{failed} reads have no read evidence"));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for row in rows {
+        let key = (row.tract.clone(), row.noise.to_string());
+        let Some(base) = baseline.get(&key) else {
+            failures.push(format!(
+                "{} at noise {}: not in the baseline",
+                row.tract, row.noise
+            ));
+            continue;
+        };
+        seen.insert(key);
+        for (measure, higher) in GATED {
+            // Compared as written, as the report shows them.
+            let now = cell(measure, row.values[measure]).parse::<f64>().ok();
+            let before = base.get(measure).copied().filter(|value| !value.is_nan());
+            let worse = match (before, now) {
+                (Some(before), Some(now)) => {
+                    let change = if higher { before - now } else { now - before };
+                    change > tolerance + 1e-9
+                }
+                (Some(_), None) => true,
+                (None, _) => false,
+            };
+            if worse {
+                failures.push(format!(
+                    "{} at noise {}: {measure} {} against {}",
+                    row.tract,
+                    row.noise,
+                    now.map_or_else(|| "-".to_owned(), |now| now.to_string()),
+                    before.map_or_else(|| "-".to_owned(), |before| before.to_string()),
+                ));
+            }
+        }
+    }
+    for (tract, noise) in baseline.keys().filter(|key| !seen.contains(*key)) {
+        failures.push(format!("{tract} at noise {noise}: not measured"));
+    }
+    failures
 }
 
 /// `bench.md`: the measures, and in brackets their change from the
@@ -1005,5 +1087,60 @@ mod tests {
         assert_eq!(forward.edits(9)[&315], "CC");
         let reverse = &TRACTS[1];
         assert_eq!(reverse.marginals(9), (6, 16));
+    }
+
+    /// The committed baseline reads strictly, and the verdict fails a gated
+    /// measure that worsens, a cell gone, and nothing else.
+    #[test]
+    fn the_verdict_gates_a_worse_measure_against_the_baseline() {
+        let text = baseline(SMOKE_REPS).unwrap_or_else(|| panic!("no smoke baseline"));
+        let base = parse(text).unwrap_or_else(|error| panic!("{error}"));
+        let header = header();
+        let row = text.lines().nth(1).unwrap_or_default();
+        for (body, message) in [
+            (format!("{row}\n{row}\n"), "line 3 repeats tract"),
+            (
+                format!("{}\n", row.replacen("100.0", "x", 1)),
+                "is not a number",
+            ),
+            (
+                format!("{}\n", row.replacen("100.0", "NaN", 1)),
+                "is not a number",
+            ),
+        ] {
+            let error = parse(&format!("{header}{body}")).err().unwrap_or_default();
+            assert!(error.contains(message), "{error}");
+        }
+        // Rows equal to the baseline pass; a worse dominant or a higher
+        // clear_wrong fails; a better one passes.
+        let rows = base
+            .iter()
+            .map(|((tract, noise), values)| Row {
+                tract: tract.clone(),
+                marginal: "total".to_owned(),
+                noise: noise.parse().unwrap_or_default(),
+                values: MEASURES
+                    .iter()
+                    .map(|measure| (*measure, values[*measure]))
+                    .collect(),
+            })
+            .collect::<Vec<_>>();
+        assert!(verdict(&rows, &[], &base, 0.0).is_empty());
+        let mut worse = rows.clone();
+        if let Some(value) = worse[0].values.get_mut("dominant_right") {
+            *value -= 2.0;
+        }
+        if let Some(value) = worse[1].values.get_mut("clear_wrong") {
+            *value += 2.0;
+        }
+        let failures = verdict(&worse, &[], &base, 0.0);
+        assert_eq!(failures.len(), 2, "{failures:?}");
+        assert!(verdict(&worse, &[], &base, 2.0).is_empty());
+        let mut better = rows.clone();
+        if let Some(value) = better[0].values.get_mut("dominant_right") {
+            *value += 2.0;
+        }
+        assert!(verdict(&better, &[], &base, 0.0).is_empty());
+        assert_eq!(verdict(&rows[1..], &[], &base, 0.0).len(), 1);
     }
 }

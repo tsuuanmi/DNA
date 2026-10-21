@@ -12,8 +12,15 @@ regression bench of adjudicated cases, run before any panel run.
 cargo run --release -p dna-eval -- bench \
   --cases <cases.tsv> --manifest <panel.tsv> [--manifest <panel.tsv>...] \
   --config config/dna.toml --reference references/rCRS.fasta \
-  --threads <1-256> [--evidence-cache <dir>] [--output <new-directory>]
+  --threads <1-256> [--evidence-cache <dir>] [--run-context <dir>] \
+  [--run-signal batch|month [--run-signal-batch-reads <n>]] [--output <new-directory>]
 ```
+
+`bench` takes `run`'s options for running DNA, so a case is judged as a run
+with the same options judges its sample: with `--run-context`, its batch's
+context calibrates the consensus; with `--run-signal`, the signal is built
+from the cases' samples alone. A sample with two traces of one content fails
+(`duplicate_trace`), as in `run`.
 
 ## What it checks
 

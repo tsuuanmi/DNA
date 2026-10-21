@@ -39,6 +39,7 @@ mod workload;
 mod zones;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -145,10 +146,34 @@ struct SimBenchArgs {
     /// the renderer's realism.
     #[arg(long)]
     keep_traces: bool,
+    /// Points a gated measure may worsen by against the baseline before the
+    /// bench fails.
+    #[arg(long, default_value_t = conventions::SIM_BENCH_TOLERANCE)]
+    tolerance: f64,
 }
 
-/// Runs `dna-eval sim-bench` and prints its report.
-fn sim_bench(args: &SimBenchArgs) -> Result<String> {
+/// Runs `dna-eval sim-bench`: prints the report and exits 2 when a gated
+/// measure worsens against the baseline.
+fn sim_bench(args: &SimBenchArgs) -> ExitCode {
+    match run_sim_bench(args) {
+        Ok((report, failed)) => {
+            print!("{report}");
+            if failed {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(error) => {
+            eprintln!("dna-eval: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Runs the simulated bench, writes its files, and returns the report and
+/// whether it fails.
+fn run_sim_bench(args: &SimBenchArgs) -> Result<(String, bool)> {
     let threads = Threads::new(args.threads)?;
     let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
         .map_err(|error| Error::Reference {
@@ -200,11 +225,174 @@ fn sim_bench(args: &SimBenchArgs) -> Result<String> {
             None => " (dirty state unknown)",
         }
     );
-    let report = simbench::report(&revision, args.reps, &rows, &outcomes, baseline.as_ref());
+    let mut report = simbench::report(&revision, args.reps, &rows, &outcomes, baseline.as_ref());
+    let failures = baseline
+        .as_ref()
+        .map(|baseline| simbench::verdict(&rows, &outcomes, baseline, args.tolerance));
+    report.push_str("\n## Verdict\n\n");
+    match &failures {
+        None => report.push_str("NO BASELINE: a validation set, not gated\n"),
+        Some(failures) if failures.is_empty() => {
+            let _ = writeln!(
+                report,
+                "SIM-BENCH PASS (tolerance {} points)",
+                args.tolerance
+            );
+        }
+        Some(failures) => {
+            let _ = writeln!(
+                report,
+                "SIM-BENCH FAIL (tolerance {} points)\n",
+                args.tolerance
+            );
+            for failure in failures {
+                let _ = writeln!(report, "- {failure}");
+            }
+        }
+    }
     write(&args.output, "bench.md", &report)?;
     write(&args.output, "bench.tsv", &simbench::table(&rows))?;
     write(&args.output, "cases.tsv", &simbench::cases_table(&outcomes))?;
-    Ok(report)
+    Ok((
+        report,
+        failures.is_some_and(|failures| !failures.is_empty()),
+    ))
+}
+
+/// The options `run` and `bench` share: how DNA runs over the samples.
+#[derive(Debug, Args)]
+struct RunOptions {
+    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
+    #[arg(long)]
+    config: PathBuf,
+    /// Reference FASTA, as given to `dna --reference`.
+    #[arg(long)]
+    reference: PathBuf,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+    /// A read evidence cache: every read is analysed from its
+    /// `dna.read_evidence/v1` document, read from the directory or made and
+    /// stored there, so a run whose read stage is unchanged skips it. It
+    /// needs a harness built from committed read-stage sources; `run.json`
+    /// records its key and hits.
+    #[arg(long)]
+    evidence_cache: Option<PathBuf>,
+    /// A directory of run contexts (PROP-0014), one
+    /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
+    /// over the batches' full folders: a sample of a batch with one has its
+    /// consensus calibrated by it. `run_context.tsv` reports per batch month
+    /// how many samples a context calibrated.
+    #[arg(long)]
+    run_context: Option<PathBuf>,
+    /// Judge each review against a run signal (PROP-0009) built in process
+    /// from the samples: `batch` takes a sample's batch when it has at least
+    /// `--run-signal-batch-reads` reads, else its batch month; `month` takes
+    /// the month alone. DNA then runs twice.
+    #[arg(long, value_enum)]
+    run_signal: Option<SignalGrouping>,
+    /// Fewest reads of a batch for `--run-signal batch` to use it.
+    #[arg(long, default_value_t = conventions::RUN_SIGNAL_BATCH_READS)]
+    run_signal_batch_reads: usize,
+}
+
+/// What `run` and `bench` prepare from their shared options before DNA
+/// runs: the reference, the target profile and its geometry, the read
+/// evidence caches, and the run contexts with their digest.
+struct Prepared {
+    threads: Threads,
+    reference: dna_kernel::model::reference::Reference,
+    profile: dna_kernel::profile::Profile,
+    geometry: Geometry,
+    cache: Option<cache::Caches>,
+    contexts: runner::Contexts,
+    contexts_sha256: String,
+}
+
+impl RunOptions {
+    /// Loads what DNA runs on for `samples`; nothing is written.
+    fn prepare(&self, samples: &[manifest::Sample]) -> Result<Prepared> {
+        let threads = Threads::new(self.threads)?;
+        // The haplotype measures apply alleles to this sequence; a sample DNA
+        // analyses on another sequence fails.
+        let reference = dna_kernel::reference::load(&self.reference, ReferenceTopology::Linear)
+            .map_err(|error| Error::Reference {
+                path: self.reference.clone(),
+                message: error.to_string(),
+            })?;
+        let profile = target_profile(&self.config)?;
+        let geometry = Geometry::of(&profile);
+        let cache = self
+            .evidence_cache
+            .as_deref()
+            .map(|directory| {
+                Ok::<_, cache::CacheError>(cache::Caches {
+                    evidence: cache::EvidenceCache::open(directory, &self.config)?,
+                    placed: cache::EvidenceCache::open_placed(
+                        directory,
+                        &self.config,
+                        &reference.sequence_sha256,
+                    )?,
+                })
+            })
+            .transpose()?;
+        let (contexts, contexts_sha256) = self
+            .run_context
+            .as_deref()
+            .map(|directory| runner::contexts(directory, samples))
+            .transpose()?
+            .unwrap_or_default();
+        Ok(Prepared {
+            threads,
+            reference,
+            profile,
+            geometry,
+            cache,
+            contexts,
+            contexts_sha256,
+        })
+    }
+
+    /// Runs DNA over `samples` as `prepared`, and checks that every analysed
+    /// sample used the configuration's target profile.
+    fn run(
+        &self,
+        samples: &[manifest::Sample],
+        prepared: &Prepared,
+    ) -> Result<(Vec<Outcome>, Option<runner::SignalPass>)> {
+        let ran = runner::run(
+            samples,
+            &runner::Setup {
+                reference: &self.reference,
+                reference_sha256: &prepared.reference.sequence_sha256,
+                config: &self.config,
+                regions: &prepared.profile.regions,
+                threads: prepared.threads,
+                grouping: self.run_signal.map(|grouping| match grouping {
+                    SignalGrouping::Month => runner::Grouping::Month,
+                    SignalGrouping::Batch => runner::Grouping::Batch {
+                        batch_reads: self.run_signal_batch_reads,
+                    },
+                }),
+                cache: prepared.cache.as_ref(),
+                contexts: &prepared.contexts,
+            },
+        )?;
+        let analysed = &prepared.profile.identity().sha256;
+        if let Some(other) = ran
+            .0
+            .iter()
+            .filter_map(|outcome| outcome.result.as_ref().ok())
+            .map(|called| &called.identity.profile_sha256)
+            .find(|sha256| *sha256 != analysed)
+        {
+            return Err(Error::Profile {
+                path: self.config.clone(),
+                message: format!("DNA analysed with profile {other}, not {analysed}"),
+            });
+        }
+        Ok(ran)
+    }
 }
 
 /// Arguments of `dna-eval bench`.
@@ -217,21 +405,11 @@ struct BenchArgs {
     /// A panel manifest the cases name as `<panel>-<version>`; repeatable.
     #[arg(long, required = true)]
     manifest: Vec<PathBuf>,
-    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
-    #[arg(long)]
-    config: PathBuf,
-    /// Reference FASTA, as given to `dna --reference`.
-    #[arg(long)]
-    reference: PathBuf,
-    /// Worker threads that run DNA (1 to 256).
-    #[arg(long)]
-    threads: usize,
-    /// A read evidence cache, as for `run --evidence-cache`.
-    #[arg(long)]
-    evidence_cache: Option<PathBuf>,
     /// A new directory for `bench.md` and `bench.tsv`.
     #[arg(long)]
     output: Option<PathBuf>,
+    #[command(flatten)]
+    dna: RunOptions,
 }
 
 /// Runs `dna-eval bench`: prints the report, writes its files when asked,
@@ -255,7 +433,6 @@ fn bench(args: &BenchArgs) -> ExitCode {
 
 /// Runs DNA once on each sample the cases name and judges every case.
 fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
-    let threads = Threads::new(args.threads)?;
     let invalid = |message: String| Error::Cases {
         path: args.cases.clone(),
         message,
@@ -307,34 +484,8 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
         index.insert(key, samples.len());
         samples.push(sample.clone());
     }
-    let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
-        .map_err(|error| Error::Reference {
-            path: args.reference.clone(),
-            message: error.to_string(),
-        })?;
-    let cache = args
-        .evidence_cache
-        .as_deref()
-        .map(|directory| {
-            Ok::<_, cache::CacheError>(cache::Caches {
-                evidence: cache::EvidenceCache::open(directory, &args.config)?,
-                placed: cache::EvidenceCache::open_placed(
-                    directory,
-                    &args.config,
-                    &reference.sequence_sha256,
-                )?,
-            })
-        })
-        .transpose()?;
-    let outcomes = runner::run(
-        &samples,
-        (&args.reference, &reference.sequence_sha256),
-        &args.config,
-        threads,
-        None,
-        (cache.as_ref(), &runner::Contexts::new()),
-        &mut Vec::new(),
-    )?;
+    let prepared = args.dna.prepare(&samples)?;
+    let (outcomes, _) = args.dna.run(&samples, &prepared)?;
     let judged = cases
         .iter()
         .map(|case| {
@@ -383,6 +534,33 @@ struct DiffArgs {
     /// with a warning in the report.
     #[arg(long)]
     force: bool,
+    /// The classes whose escapes in a passed zone gate, comma-separated
+    /// (`unreviewed.tsv` labels).
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_parser = parse_class,
+        default_value = "non_het,omitted_other,omitted_not_analysed"
+    )]
+    gate: Vec<workload::Class>,
+    /// The share of the gated group's samples the clear samples may move by
+    /// before the report warns.
+    #[arg(long, default_value_t = conventions::CLEAR_TOLERANCE)]
+    clear_tolerance: f64,
+    /// The share of the base's positions to review they may move by before
+    /// the report warns.
+    #[arg(long, default_value_t = conventions::POSITIONS_TOLERANCE)]
+    positions_tolerance: f64,
+}
+
+/// A class of `unreviewed.tsv`, by its label.
+fn parse_class(label: &str) -> std::result::Result<workload::Class, String> {
+    workload::Class::parse(label).ok_or_else(|| {
+        format!(
+            "{label:?} is not a class; expected one of {}",
+            workload::Class::ALL.map(workload::Class::label).join(", ")
+        )
+    })
 }
 
 /// Arguments of `dna-eval cache`.
@@ -408,7 +586,12 @@ enum CacheAction {
 /// Runs `dna-eval diff`: prints the comparison, writes its files when asked,
 /// and exits 2 when the gate fails.
 fn diff(args: &DiffArgs) -> ExitCode {
-    let compared = rundiff::compare(&args.base, &args.run, args.force)
+    let policy = rundiff::Policy {
+        gated: args.gate.iter().copied().collect(),
+        clear_tolerance: args.clear_tolerance,
+        positions_tolerance: args.positions_tolerance,
+    };
+    let compared = rundiff::compare(&args.base, &args.run, args.force, &policy)
         .map_err(Error::from)
         .and_then(|comparison| {
             if let Some(output) = &args.output {
@@ -488,18 +671,9 @@ struct RunArgs {
     /// The lab's statistics database (`statistics.sqlite`), opened read-only.
     #[arg(long)]
     truth: PathBuf,
-    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
-    #[arg(long)]
-    config: PathBuf,
-    /// Reference FASTA, as given to `dna --reference`.
-    #[arg(long)]
-    reference: PathBuf,
     /// New or empty output directory.
     #[arg(long)]
     output: PathBuf,
-    /// Worker threads that run DNA (1 to 256).
-    #[arg(long)]
-    threads: usize,
     /// An earlier run's `forms.tsv` for the same truth database, read
     /// instead of indexing the whole database.
     #[arg(long)]
@@ -524,29 +698,6 @@ struct RunArgs {
     /// `diff` gates on them alone.
     #[arg(long)]
     current_since: Option<Month>,
-    /// Judge each review against a run signal (PROP-0009) built in process
-    /// from the panel: `batch` takes a sample's batch when it has at least
-    /// `--run-signal-batch-reads` reads, else its batch month; `month` takes
-    /// the month alone. The run takes two passes.
-    #[arg(long, value_enum)]
-    run_signal: Option<SignalGrouping>,
-    /// Fewest reads of a batch for `--run-signal batch` to use it.
-    #[arg(long, default_value_t = conventions::RUN_SIGNAL_BATCH_READS)]
-    run_signal_batch_reads: usize,
-    /// A read evidence cache: every read is analysed from its
-    /// `dna.read_evidence/v1` document, read from the directory or made and
-    /// stored there, so a run whose read stage is unchanged skips it. It
-    /// needs a harness built from committed read-stage sources; `run.json`
-    /// records its key and hits.
-    #[arg(long)]
-    evidence_cache: Option<PathBuf>,
-    /// A directory of run contexts (PROP-0014), one
-    /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
-    /// over the batches' full folders: a sample of a batch with one has its
-    /// consensus calibrated by it. `run_context.tsv` reports per batch month
-    /// how many samples a context calibrated.
-    #[arg(long)]
-    run_context: Option<PathBuf>,
     /// Review zones: positions on each side of a repeat window that follow
     /// it.
     #[arg(long, default_value_t = conventions::ZONE_AFTER)]
@@ -559,13 +710,15 @@ struct RunArgs {
     /// the window still counts for the window.
     #[arg(long, default_value_t = conventions::ZONE_OVERRUN)]
     zone_overrun: i64,
+    #[command(flatten)]
+    dna: RunOptions,
 }
 
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Diff(args) => return diff(&args),
         Command::Bench(args) => return bench(&args),
-        Command::SimBench(args) => sim_bench(&args),
+        Command::SimBench(args) => return sim_bench(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),
@@ -608,7 +761,6 @@ fn runnable(manifest: &Manifest) -> Result<()> {
 
 fn run(cli: &RunArgs) -> Result<String> {
     let started = Instant::now();
-    let threads = Threads::new(cli.threads)?;
     let manifest = manifest::parse(&read(&cli.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
     runnable(&manifest)?;
 
@@ -621,32 +773,25 @@ fn run(cli: &RunArgs) -> Result<String> {
         .map(|sample| sample.id.as_str())
         .collect::<BTreeSet<_>>();
     let truth = load_truth(&cli.truth, &wanted)?;
-    // The haplotype measures apply alleles to this sequence; a sample DNA
-    // analyses on another sequence fails.
-    let reference = dna_kernel::reference::load(&cli.reference, ReferenceTopology::Linear)
-        .map_err(|error| Error::Reference {
-            path: cli.reference.clone(),
-            message: error.to_string(),
-        })?;
+    let prepared = cli.dna.prepare(&manifest.samples)?;
+    let (reference, profile, geometry) =
+        (&prepared.reference, &prepared.profile, &prepared.geometry);
     // How the reviewers write each window sequence, over the whole truth,
     // for the cause of a representation discrepancy.
-    // The geometry the run compares and counts in, from the target profile.
-    let profile = target_profile(&cli.config)?;
-    let geometry = Geometry::of(&profile);
     let forms = if let Some(path) = &cli.forms {
         let text = read(path, "forms", MAX_FORMS_BYTES)?;
         let text = String::from_utf8(text).map_err(|error| Error::Forms {
             path: path.clone(),
             message: error.to_string(),
         })?;
-        Forms::parse(&text, &truth.sha256, &geometry).map_err(|message| Error::Forms {
+        Forms::parse(&text, &truth.sha256, geometry).map_err(|message| Error::Forms {
             path: path.clone(),
             message,
         })?
     } else {
         let corpus = truth::sample_ids(&cli.truth)?;
         let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
-        Forms::new(corpus.samples.values(), &reference.sequence, &geometry)
+        Forms::new(corpus.samples.values(), &reference.sequence, geometry)
     };
     if cli.review_window < 1 {
         return Err(Error::ReviewWindow {
@@ -703,54 +848,8 @@ fn run(cli: &RunArgs) -> Result<String> {
     }
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
-    let cache = cli
-        .evidence_cache
-        .as_deref()
-        .map(|directory| {
-            Ok::<_, cache::CacheError>(cache::Caches {
-                evidence: cache::EvidenceCache::open(directory, &cli.config)?,
-                placed: cache::EvidenceCache::open_placed(
-                    directory,
-                    &cli.config,
-                    &reference.sequence_sha256,
-                )?,
-            })
-        })
-        .transpose()?;
-    let contexts = cli
-        .run_context
-        .as_deref()
-        .map(|directory| runner::contexts(directory, &manifest.samples))
-        .transpose()?;
-    let (contexts, contexts_sha256) = contexts.unwrap_or_default();
-    let mut signal_groups = Vec::new();
-    let outcomes = runner::run(
-        &manifest.samples,
-        (&cli.reference, &reference.sequence_sha256),
-        &cli.config,
-        threads,
-        cli.run_signal.map(|grouping| match grouping {
-            SignalGrouping::Month => runner::Grouping::Month,
-            SignalGrouping::Batch => runner::Grouping::Batch {
-                batch_reads: cli.run_signal_batch_reads,
-            },
-        }),
-        (cache.as_ref(), &contexts),
-        &mut signal_groups,
-    )?;
+    let (outcomes, signal_pass) = cli.dna.run(&manifest.samples, &prepared)?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
-    let analysed = &profile.identity().sha256;
-    if let Some(other) = outcomes
-        .iter()
-        .filter_map(|outcome| outcome.result.as_ref().ok())
-        .map(|called| &called.identity.profile_sha256)
-        .find(|sha256| *sha256 != analysed)
-    {
-        return Err(Error::Profile {
-            path: cli.config.clone(),
-            message: format!("DNA analysed with profile {other}, not {analysed}"),
-        });
-    }
     let zones = zones::Zones::new(geometry.regions(), geometry.repeats(), widths);
 
     let rows = report::rows(
@@ -758,12 +857,12 @@ fn run(cli: &RunArgs) -> Result<String> {
         &outcomes,
         &truth.database.samples,
         &reference.sequence,
-        (&geometry, &profile.conventions),
+        (geometry, &profile.conventions),
     );
     let check = TruthCheck::new(&manifest, &truth.database);
     let report = Report::new(
         &rows,
-        (&geometry, &check),
+        (geometry, &check),
         (&forms, reference.sequence.as_str()),
     )
     .with_review(
@@ -796,32 +895,30 @@ fn run(cli: &RunArgs) -> Result<String> {
         },
     );
     header.recheck = recheck_header;
-    header.evidence_cache = cache.as_ref().map(|cache| cache.evidence.usage());
-    header.placement_cache = cache.as_ref().map(|cache| cache.placed.usage());
+    header.evidence_cache = prepared.cache.as_ref().map(|cache| cache.evidence.usage());
+    header.placement_cache = prepared.cache.as_ref().map(|cache| cache.placed.usage());
     header.run_context = cli
+        .dna
         .run_context
         .as_deref()
         .map(|directory| RunContextHeader {
             directory: absolute(directory),
-            batches: contexts.len(),
-            sha256: contexts_sha256.clone(),
+            batches: prepared.contexts.len(),
+            sha256: prepared.contexts_sha256.clone(),
         });
+    header.run_signal_failed = signal_pass.as_ref().map(|pass| pass.failed);
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
     }
-    if cli.run_context.is_some() {
+    if cli.dna.run_context.is_some() {
         write(
             &cli.output,
             rundir::RUN_CONTEXT,
-            &rundir::context_coverage(&manifest.samples, &outcomes, &contexts),
+            &rundir::context_coverage(&manifest.samples, &outcomes, &prepared.contexts),
         )?;
     }
-    if cli.run_signal.is_some() {
-        write(
-            &cli.output,
-            rundir::SIGNALS,
-            &rundir::signals(&signal_groups),
-        )?;
+    if let Some(pass) = &signal_pass {
+        write(&cli.output, rundir::SIGNALS, &rundir::signals(&pass.groups))?;
     }
     write(
         &cli.output,
@@ -1098,7 +1195,7 @@ fn header(
         harness: env!("CARGO_PKG_NAME").to_owned(),
         harness_version: env!("CARGO_PKG_VERSION").to_owned(),
         source: source(),
-        threads: cli.threads,
+        threads: cli.dna.threads,
         manifest: ManifestHeader {
             path: absolute(&cli.manifest),
             fields: manifest.header.clone(),
@@ -1115,13 +1212,14 @@ fn header(
             changed_samples: check.changed.len(),
             panel_samples_found: truth.database.samples.len(),
         },
-        configuration_path: absolute(&cli.config),
-        reference_path: absolute(&cli.reference),
+        configuration_path: absolute(&cli.dna.config),
+        reference_path: absolute(&cli.dna.reference),
         identities: identities.into_iter().collect(),
         review_window: cli.review_window,
-        run_signal: cli.run_signal,
-        run_signal_batch_reads: (cli.run_signal == Some(SignalGrouping::Batch))
-            .then_some(cli.run_signal_batch_reads),
+        run_signal: cli.dna.run_signal,
+        run_signal_batch_reads: (cli.dna.run_signal == Some(SignalGrouping::Batch))
+            .then_some(cli.dna.run_signal_batch_reads),
+        run_signal_failed: None,
         current_since: cli.current_since,
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         recheck: None,

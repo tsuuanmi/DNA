@@ -1,5 +1,5 @@
 ---
-implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
+implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-CONS, SRS-NOM, SRS-SAMPLE]
 decided-by: [ADR-0065, ADR-0075, ADR-0076, ADR-0077]
 ---
 
@@ -90,46 +90,75 @@ with an unreviewed block can outnumber the passed regions with one; and they
 count zones, where the zone kind table above counts blocks. A block outside
 every region counts for its sample only.
 
-Each unreviewed block has one class, the first that applies:
+**Unreviewed differences.** A difference block is decided per differing
+position: the rule positions of its `haplotype_lod` comparison inside it
+(correctness audit F2, approved 2026-10-21). A position is reviewed when a
+check item touches its reach: the position, or for an indel the reference
+run of its anchor base, where the indel may be written elsewhere. A block is
+unreviewed when any position is, and it counts once in the zone of each of
+its unreviewed positions, with the most severe class of those positions.
+Each unreviewed position takes the first class that applies:
 
 1. `re-check`: the re-check list (`--recheck`) names a span of its sample
-   that the block overlaps;
-2. `truth N`: the truth writes `N` in it (the reviewer abstained), or every
-   difference of the block is an insertion past the truth's analysed
-   interval: the block reaches the end of the truth's own interval, holds
-   only its last base, and one side reads that base as the other does, then
-   inserted bases the other has not (DNA's `573.1C 573.2C` where the truth's
-   HVS-III interval ends at 573). The truth records nothing past its
-   interval, and the allele measure leaves such an insertion uncompared too.
-   A block whose interval ends only where DNA's callable interval ends is not
-   this case;
+   that holds the position;
+2. `truth N`: every difference of the block is an insertion past the
+   truth's analysed interval: the block reaches the end of the truth's own
+   interval, holds only its last base, and one side reads that base as the
+   other does, then inserted bases the other has not (DNA's `573.1C
+   573.2C` where the truth's HVS-III interval ends at 573). The truth
+   records nothing past its interval, and the allele measure leaves such an
+   insertion uncompared too. A block whose interval ends only where DNA's
+   callable interval ends is not this case;
 3. `length note`: the block lies in a profile length tract
-   (`length_tracts`) and both sides read the same sequence once the tract's
-   base is taken out: only the homopolymer count differs, the structure
-   equal (user decision 2026-10-21). Forensic practice notes such a length
-   heteroplasmy and leaves it out of comparisons and searches (ISFG 2014
-   Rec. 10, 16), so it is reported in every table and never gated. A
-   structure difference (`T310C`, a `16189C` one side lacks) and `315.1C`,
-   outside HVS-II's tract, stay non-het;
-4. `het`: the truth writes an IUPAC code of two or three bases (`R`, `Y`,
-   `K`, `M`, `S`, `W`, `B`, `D`, `H`, `V`) in it;
-5. `non-het`: any other block, a DNA error that neither a heteroplasmy, a
-   truth `N`, a tract length, nor the re-check list explains.
+   (`length_tracts`), both sides read the same sequence once the tract's
+   base is taken out, and the count differs by one (user decisions
+   2026-10-21; validity review, recommendation 6). Forensic practice notes
+   such a length heteroplasmy and leaves it out of comparisons and searches
+   (ISFG 2014 Rec. 10, 16), so it is reported and never gated. A difference
+   of two or more (a homoplasmic C7 called C9 is DNA's error), a structure
+   difference (`T310C`, a `16189C` one side lacks), and `315.1C`, outside
+   HVS-II's tract, stay non-het;
+4. `truth N`: the truth writes `N` at the position (the reviewer
+   abstained);
+5. `het`: the truth writes an IUPAC code of two or three bases (`R`, `Y`,
+   `K`, `M`, `S`, `W`, `B`, `D`, `H`, `V`) at the position;
+6. `non-het`: any other, a DNA error that neither a heteroplasmy, a truth
+   `N`, a tract length, nor the re-check list explains.
 
-A passed sample, region, or zone with unreviewed blocks counts once, under
-its most severe block, in the order non-het, truth N, het, re-check, length
-note (`non_het`, `truth_n_only`, `het_only`, `recheck_only`,
-`length_note_only`): one non-het block makes it non-het, and it is re-check
-only when every block is on the list or a length note. The summary's
-"Length notes" table gives, per tract, the items the review notes and the
-unreviewed length-note blocks, split by the truth's length: the note's
-convention reading, DNA's length less one, or another (`notes.tsv` lists
-every noted run).
-The non-het count is the gate a change must not raise. Het is reported but
-counts as a pass, and the truth N and re-check units await a check of the
-truth, not of DNA. The sample measure "Samples with an unreviewed
+**Omitted truth alleles.** A truth allele inside the truth's analysed
+interval and outside DNA's callable intervals (the strict measure's
+`uncovered`) makes no block: the report omits it (correctness audit F1).
+When no check item touches its reach, it is an unreviewed difference of its
+own, in the zone of its anchor:
+
+- `omitted (not analysed)`: in a stretch at a region's end that DNA did not
+  analyse (SRS-CONS-012), mostly a poor read start (`73G`);
+- `omitted tract`: in a profile length tract under a `tract_length` note
+  whose reading (or, without one, the convention's reading) is the truth's
+  count of the tract's base there;
+- `note misread`: there, when the note's reading differs from the truth's
+  count, or the note gives none;
+- `omitted (other)`: anywhere else.
+
+The re-check list applies to an omission as to a position.
+
+A passed sample, region, or zone with unreviewed differences counts once,
+under its most severe one, in the order non-het, omitted (other), omitted
+(not analysed), truth N, het, re-check, note misread, omitted tract, length
+note (`non_het`, `omitted_other`, `omitted_not_analysed`, `truth_n_only`,
+`het_only`, `recheck_only`, `note_misread_only`, `omitted_tract_only`,
+`length_note_only`). `unreviewed.tsv` lists each difference with its class
+and its class without the re-check list (`class_unlisted`), so `diff` can
+report its gate both ways. The summary's "Length notes" table gives, per
+tract, the items the review notes and the unreviewed length-note blocks,
+split by the truth's length: the note's convention reading, DNA's length
+less one, or another (`notes.tsv` lists every noted run). The gated classes
+are `diff`'s option ([[validation/evaluation-harness#Comparing two runs]]):
+by default non-het and the omissions outside a noted tract. Het is reported
+but counts as a pass, and the truth N and re-check units await a check of
+the truth, not of DNA. The sample measure "Samples with an unreviewed
 difference" and the TSV tables (`unreviewed` in `scores.tsv`, `windows.tsv`)
-count every block whatever its class.
+count every unreviewed block whatever its class, and no omission.
 
 `--recheck <file.tsv>` names the difference blocks whose truth is under
 re-check: raw-trace adjudication found the truth wrong or questionable, or

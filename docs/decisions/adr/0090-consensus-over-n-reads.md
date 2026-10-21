@@ -15,7 +15,7 @@ related: [ADR-0069, ADR-0071, ADR-0074, ADR-0080, ADR-0083, ADR-0089]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [design/consensus](../../design/consensus.md), [design/sample-evidence](../../design/sample-evidence/README.md), [design/sample-evidence/read-registry](../../design/sample-evidence/read-registry.md), [engineering/improvement-method](../../engineering/improvement-method.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/consensus](../../reference/consensus.md), [reference/review](../../reference/review.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [requirements/consensus](../../requirements/consensus.md), [requirements/sample-evidence/core](../../requirements/sample-evidence/core.md)
+- **Governs:** [design/consensus](../../design/consensus.md), [design/sample-evidence](../../design/sample-evidence/README.md), [design/sample-evidence/read-registry](../../design/sample-evidence/read-registry.md), [engineering/improvement-method](../../engineering/improvement-method.md), [proposals/roadmap](../../proposals/roadmap.md), [reference/consensus](../../reference/consensus.md), [reference/review](../../reference/review.md), [reference/sample-evidence/reads-coverage](../../reference/sample-evidence/reads-coverage.md), [requirements/consensus](../../requirements/consensus.md), [requirements/sample-evidence/core](../../requirements/sample-evidence/core.md), [validation/evaluation-harness](../../validation/evaluation-harness.md)
 <!-- docs:end backlinks -->
 
 ## Context

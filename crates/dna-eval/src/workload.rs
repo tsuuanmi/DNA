@@ -17,14 +17,13 @@
 //! also counts a run's files with, so a run and its comparison count the
 //! same passes.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::compare;
 use crate::geometry::Span;
 use crate::haplotype::Block;
-use crate::recheck;
 use crate::zones::{Instance, Zones};
 
 /// One window of an HV region, 1-based and inclusive.
@@ -73,7 +72,7 @@ pub(crate) struct Workload {
     pub(crate) positions: i64,
     /// The same with every forced window reviewed.
     pub(crate) positions_forced: i64,
-    /// Difference blocks no check item overlaps.
+    /// Difference blocks with a differing position no check item reviews.
     pub(crate) unreviewed: Vec<String>,
     /// The same, also leaving out blocks a forced window overlaps.
     pub(crate) unreviewed_forced: Vec<String>,
@@ -87,46 +86,73 @@ pub(crate) struct Workload {
     pub(crate) zones: BTreeSet<Instance>,
     /// Check items that touch more than one zone instance.
     pub(crate) spanning: usize,
-    /// Each unreviewed block's zone instance and class.
+    /// Each unreviewed block's zones with their classes, and each
+    /// unreviewed omission.
     pub(crate) escapes: Vec<Escape>,
 }
 
-/// One unreviewed difference block, as the zone and pass measures count it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// One unreviewed difference: a block's unreviewed positions in one zone,
+/// or a truth allele the report omits, as the zone and pass measures count
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Escape {
-    /// The block's first and last anchors, 1-based.
+    /// The block's first and last anchors, or the omitted allele's anchor,
+    /// 1-based.
     pub(crate) first: i64,
     pub(crate) last: i64,
-    /// The zone instance that holds the block's first anchor, when one does.
+    /// The block's text, or the omitted allele's.
+    pub(crate) text: String,
+    /// The zone instance that holds these positions, when one does.
     pub(crate) zone: Option<Instance>,
-    /// What the block is, as the pass measures split it.
+    /// What it is, as the pass measures split it.
     pub(crate) class: Class,
+    /// What it would be without the re-check list.
+    pub(crate) unlisted: Class,
 }
 
-/// What an unreviewed difference block is, as the pass measures split it,
-/// from the least to the most severe. A block is `Recheck` when the re-check
-/// list names it, else `TruthN` when the truth writes `N` in it or every
-/// difference is an insertion past the truth's interval (the truth records
-/// nothing there, [`Block::past_interval`]), else `Het`
-/// when the truth writes a heteroplasmy in it ([`het`]), else `NonHet`: a
-/// DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list
-/// explains. A passed unit counts under its most severe block.
+/// What an unreviewed difference is, as the pass measures split it, from the
+/// least to the most severe; a passed unit counts under its most severe one.
+///
+/// A difference block is decided per differing position (a rule position of
+/// the `haplotype_lod` comparison inside it), and takes the most severe class
+/// of its unreviewed positions. A position the re-check list names is
+/// `Recheck`. Otherwise the whole block is `TruthN` when every difference is
+/// an insertion past the truth's interval ([`Block::past_interval`]), and
+/// `LengthNote` when it differs only in the length of a profile length tract,
+/// by one unit; else a position is `TruthN` where the truth writes `N`, `Het`
+/// where it writes a heteroplasmy, and `NonHet` anywhere else: a DNA error
+/// that neither explains.
+///
+/// A truth allele inside the truth's analysed interval that DNA's callable
+/// intervals leave out is omitted from the report: `OmittedNotAnalysed` in a
+/// stretch DNA did not analyse (a poor read start or end), `OmittedTract` in
+/// a profile length tract under a `tract_length` note whose reading is the
+/// truth's length, `NoteMisread` there when the reading differs, and
+/// `OmittedOther` anywhere else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Class {
     LengthNote,
+    OmittedTract,
+    NoteMisread,
     Recheck,
     Het,
     TruthN,
+    OmittedNotAnalysed,
+    OmittedOther,
     NonHet,
 }
 
 impl Class {
     /// Every class, from the least to the most severe.
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 9] = [
         Self::LengthNote,
+        Self::OmittedTract,
+        Self::NoteMisread,
         Self::Recheck,
         Self::Het,
         Self::TruthN,
+        Self::OmittedNotAnalysed,
+        Self::OmittedOther,
         Self::NonHet,
     ];
 
@@ -139,29 +165,63 @@ impl Class {
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::LengthNote => "length_note",
+            Self::OmittedTract => "omitted_tract",
+            Self::NoteMisread => "note_misread",
             Self::Recheck => "recheck",
             Self::Het => "het",
             Self::TruthN => "truth_n",
+            Self::OmittedNotAnalysed => "omitted_not_analysed",
+            Self::OmittedOther => "omitted_other",
             Self::NonHet => "non_het",
         }
     }
 
-    /// The class of `block`, listed when it overlaps one of `listed`, its
-    /// sample's spans on the re-check list, in the profile's length
-    /// `tracts`.
-    pub(crate) fn of(block: &Block, listed: &[(i64, i64)], tracts: &[Tract]) -> Self {
-        if recheck::listed(block, listed) {
-            Self::Recheck
-        } else if block.truth.contains('N') || block.past_interval() {
+    /// The class of a truth symbol at a differing position: `N` written
+    /// there, a heteroplasmy (an IUPAC code of two or three bases), or
+    /// anything else.
+    pub(crate) fn of_truth(symbols: &str) -> Self {
+        if symbols.contains('N') {
             Self::TruthN
-        } else if tracts.iter().any(|tract| tract.length_only(block)) {
-            Self::LengthNote
-        } else if het(block) {
+        } else if symbols.char_indices().any(|(index, symbol)| {
+            matches!(
+                compare::bases(&symbols[index..index + symbol.len_utf8()]).len(),
+                2 | 3
+            )
+        }) {
             Self::Het
         } else {
             Self::NonHet
         }
     }
+}
+
+/// One differing position of a block: its anchor, the reference stretch a
+/// check item must touch to review it (the anchor, or the reference run an
+/// indel there lies in), and the class of the truth's symbol there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Position {
+    pub(crate) anchor: i64,
+    pub(crate) reach: (i64, i64),
+    pub(crate) truth: Class,
+}
+
+/// A truth allele DNA's report omits: its text, anchor, the stretch a check
+/// item must touch to review it, and its omission class.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Omission {
+    pub(crate) text: String,
+    pub(crate) anchor: i64,
+    pub(crate) reach: (i64, i64),
+    pub(crate) class: Class,
+}
+
+/// What a sample's workload is measured on besides its check items: its
+/// `haplotype_lod` difference blocks with each one's differing positions,
+/// and the truth alleles its report omits.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Differences<'b> {
+    pub(crate) blocks: Vec<(&'b Block, Vec<Position>)>,
+    pub(crate) omissions: Vec<Omission>,
 }
 
 /// A homopolymer tract of the profile with length heteroplasmy, 1-based
@@ -242,24 +302,14 @@ impl Tract {
     }
 }
 
-/// Whether the truth writes a heteroplasmy in `block`: an IUPAC code of two
-/// or three bases (`R`, `Y`, `K`, `M`, `S`, `W`, `B`, `D`, `H`, `V`); `N`,
-/// any base, is not one.
-pub(crate) fn het(block: &Block) -> bool {
-    block.truth.char_indices().any(|(index, symbol)| {
-        matches!(
-            compare::bases(&block.truth[index..index + symbol.len_utf8()]).len(),
-            2 | 3
-        )
-    })
-}
-
 /// The workload of one sample from its check items (`first..=last`,
-/// 1-based), its `haplotype_lod` difference blocks, its spans on the
-/// re-check list, and the profile's length `tracts`.
+/// 1-based), its differences, its spans on the re-check list, and the
+/// profile's length `tracts`. A position or an omission is reviewed when a
+/// check item touches its reach; a block is unreviewed when any of its
+/// positions is, and counts once per zone that holds an unreviewed position.
 pub(crate) fn of(
     checks: &[(i64, i64)],
-    blocks: &[Block],
+    differences: &Differences<'_>,
     windows: &[Window],
     forced: &[(i64, i64)],
     zones: Option<&Zones>,
@@ -288,15 +338,76 @@ pub(crate) fn of(
         .filter(|(window, checked)| **checked || is_forced(window))
         .map(|(window, _)| window.length())
         .sum();
-    let reviewed = |block: &Block| {
-        checks
+    let reviewed =
+        |(first, last): (i64, i64)| checks.iter().any(|&(from, to)| from <= last && first <= to);
+    let on_list = |anchor: i64| {
+        listed
             .iter()
-            .any(|&(first, last)| block.overlaps(first, last))
+            .any(|&(first, last)| (first..=last).contains(&anchor))
     };
-    let unreviewed = blocks
-        .iter()
-        .filter(|block| !reviewed(block))
-        .collect::<Vec<_>>();
+    let zone_of = |anchor: i64| zones.and_then(|zones| zones.instance(anchor));
+    let mut differences_out = Vec::new();
+    let mut unreviewed = Vec::new();
+    for (block, block_positions) in &differences.blocks {
+        let open = block_positions
+            .iter()
+            .filter(|position| !reviewed(position.reach))
+            .collect::<Vec<_>>();
+        if open.is_empty() {
+            continue;
+        }
+        unreviewed.push(*block);
+        let whole = if block.past_interval() {
+            Some(Class::TruthN)
+        } else if tracts
+            .iter()
+            .any(|tract| tract.length_only(block) && tract.excess(block).abs() == 1)
+        {
+            Some(Class::LengthNote)
+        } else {
+            None
+        };
+        let mut by_zone = BTreeMap::<Option<Instance>, (Class, Class)>::new();
+        for position in open {
+            let unlisted = whole.unwrap_or(position.truth);
+            let class = if on_list(position.anchor) {
+                Class::Recheck
+            } else {
+                unlisted
+            };
+            let entry = by_zone
+                .entry(zone_of(position.anchor))
+                .or_insert((class, unlisted));
+            *entry = (entry.0.max(class), entry.1.max(unlisted));
+        }
+        for (zone, (class, unlisted)) in by_zone {
+            differences_out.push(Escape {
+                first: block.start,
+                last: block.end,
+                text: block.text(),
+                zone,
+                class,
+                unlisted,
+            });
+        }
+    }
+    for omission in &differences.omissions {
+        if reviewed(omission.reach) {
+            continue;
+        }
+        differences_out.push(Escape {
+            first: omission.anchor,
+            last: omission.anchor,
+            text: omission.text.clone(),
+            zone: zone_of(omission.anchor),
+            class: if on_list(omission.anchor) {
+                Class::Recheck
+            } else {
+                omission.class
+            },
+            unlisted: omission.class,
+        });
+    }
     let unreviewed_forced = unreviewed
         .iter()
         .filter(|block| {
@@ -334,15 +445,7 @@ pub(crate) fn of(
     Workload {
         zones: touched_zones.iter().flatten().copied().collect(),
         spanning: touched_zones.iter().filter(|zones| zones.len() > 1).count(),
-        escapes: unreviewed
-            .iter()
-            .map(|block| Escape {
-                first: block.start,
-                last: block.end,
-                zone: zones.and_then(|zones| zones.instance(block.start)),
-                class: Class::of(block, listed, tracts),
-            })
-            .collect(),
+        escapes: differences_out,
         checks: checks.len(),
         positions,
         positions_forced,
@@ -354,17 +457,28 @@ pub(crate) fn of(
     }
 }
 
-/// Passed samples, regions, or zones that carry an unreviewed block: in all,
-/// and by the most severe [`Class`] of their blocks: with a `NonHet` block,
-/// else with a truth `N`, else het only, else on the re-check list only,
-/// else noted tract lengths only.
+/// Passed samples, regions, or zones that carry an unreviewed difference:
+/// in all, and by the most severe [`Class`] of their differences: with a
+/// `NonHet` block, else with an omission elsewhere, else with an omission
+/// in a stretch DNA did not analyse, else with a truth `N`, else het only,
+/// else on the re-check list only, else a misread tract note, else omitted
+/// tract lengths only, else noted tract lengths only.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Escaped {
     pub(crate) total: usize,
     pub(crate) non_het: usize,
+    /// The omission classes are 0 in a run that predates them.
+    #[serde(default)]
+    pub(crate) omitted_other: usize,
+    #[serde(default)]
+    pub(crate) omitted_not_analysed: usize,
     pub(crate) het_only: usize,
     pub(crate) truth_n_only: usize,
     pub(crate) recheck_only: usize,
+    #[serde(default)]
+    pub(crate) note_misread_only: usize,
+    #[serde(default)]
+    pub(crate) omitted_tract_only: usize,
     pub(crate) length_note_only: usize,
 }
 
@@ -377,9 +491,13 @@ impl Escaped {
         self.total += 1;
         *match class {
             Class::NonHet => &mut self.non_het,
+            Class::OmittedOther => &mut self.omitted_other,
+            Class::OmittedNotAnalysed => &mut self.omitted_not_analysed,
             Class::TruthN => &mut self.truth_n_only,
             Class::Het => &mut self.het_only,
             Class::Recheck => &mut self.recheck_only,
+            Class::NoteMisread => &mut self.note_misread_only,
+            Class::OmittedTract => &mut self.omitted_tract_only,
             Class::LengthNote => &mut self.length_note_only,
         } += 1;
     }
@@ -389,9 +507,13 @@ impl Escaped {
         counts.into_iter().fold(Self::default(), |sum, count| Self {
             total: sum.total + count.total,
             non_het: sum.non_het + count.non_het,
+            omitted_other: sum.omitted_other + count.omitted_other,
+            omitted_not_analysed: sum.omitted_not_analysed + count.omitted_not_analysed,
             het_only: sum.het_only + count.het_only,
             truth_n_only: sum.truth_n_only + count.truth_n_only,
             recheck_only: sum.recheck_only + count.recheck_only,
+            note_misread_only: sum.note_misread_only + count.note_misread_only,
+            omitted_tract_only: sum.omitted_tract_only + count.omitted_tract_only,
             length_note_only: sum.length_note_only + count.length_note_only,
         })
     }
@@ -614,6 +736,27 @@ mod tests {
         Block::fixture(start, end, "A", "C")
     }
 
+    /// The blocks with one differing position each, at the block's first
+    /// anchor, of the class of the block's truth symbols.
+    fn differences(blocks: &[Block]) -> Differences<'_> {
+        Differences {
+            blocks: blocks
+                .iter()
+                .map(|block| {
+                    (
+                        block,
+                        vec![Position {
+                            anchor: block.start,
+                            reach: (block.start, block.start),
+                            truth: Class::of_truth(&block.truth),
+                        }],
+                    )
+                })
+                .collect(),
+            omissions: Vec::new(),
+        }
+    }
+
     #[test]
     fn windows_align_to_each_region_start_and_end_short() {
         let windows = windows(10, crate::geometry::tests::rcrs().regions());
@@ -649,9 +792,10 @@ mod tests {
                 overrun: 2,
             },
         );
+        let blocks = [block(16031, 16031), block(16040, 16041)];
         let workload = of(
             &[(16030, 16031)],
-            &[block(16031, 16031), block(16040, 16041)],
+            &differences(&blocks),
             &windows,
             &[],
             Some(&zones),
@@ -665,8 +809,10 @@ mod tests {
             [Escape {
                 first: 16040,
                 last: 16041,
+                text: "16040-16041:A/C".to_owned(),
                 zone: Some((0, Kind::Start)),
-                class: Class::NonHet
+                class: Class::NonHet,
+                unlisted: Class::NonHet,
             }]
         );
         assert_eq!(workload.positions, 10);
@@ -679,9 +825,10 @@ mod tests {
     #[test]
     fn forced_windows_count_as_reviewed() {
         let windows = windows(10, crate::geometry::tests::rcrs().regions());
+        let blocks = [block(16185, 16186)];
         let workload = of(
             &[],
-            &[block(16185, 16186)],
+            &differences(&blocks),
             &windows,
             &[(16184, 16193)],
             None,
@@ -701,10 +848,101 @@ mod tests {
     }
 
     #[test]
-    fn a_block_is_het_when_the_truth_writes_a_two_or_three_base_code() {
-        let het = |truth: &str| het(&Block::fixture(1, 1, "A", truth));
+    fn a_position_is_het_where_the_truth_writes_a_two_or_three_base_code() {
+        let het = |truth: &str| Class::of_truth(truth) == Class::Het;
         assert!(het("ACY") && het("R") && het("B") && het("V"));
         assert!(!het("ACGT") && !het("N") && !het(""));
+        assert_eq!(Class::of_truth("NY"), Class::TruthN);
+    }
+
+    /// A far check item no longer reviews an open block: each differing
+    /// position needs its own check, and the block counts in the zone of
+    /// every unreviewed position (correctness audit, F2).
+    #[test]
+    fn a_block_is_reviewed_position_by_position() {
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
+        let zones = Zones::new(
+            &crate::geometry::tests::spans(&[(438, 576)]),
+            &[(512, 524)],
+            crate::zones::Widths {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+        );
+        let open = Block::open_fixture(523, 576, "AC", "ACACAC");
+        let position = |anchor, truth| Position {
+            anchor,
+            reach: (anchor, anchor),
+            truth,
+        };
+        let differences = Differences {
+            blocks: vec![(
+                &open,
+                vec![position(523, Class::NonHet), position(560, Class::Het)],
+            )],
+            omissions: Vec::new(),
+        };
+        // A check over 554-560 reviews 560 only: 523 stays unreviewed, in
+        // the HVS-III window, and its class is its own position's.
+        let far = of(
+            &[(554, 560)],
+            &differences,
+            &windows,
+            &[],
+            Some(&zones),
+            (&[], &[]),
+        );
+        assert_eq!(far.unreviewed.len(), 1);
+        assert_eq!(
+            far.escapes
+                .iter()
+                .map(|escape| (escape.zone, escape.class))
+                .collect::<Vec<_>>(),
+            [(Some((0, Kind::Window)), Class::NonHet)]
+        );
+        // Both positions checked: reviewed.
+        let both = of(
+            &[(520, 525), (554, 560)],
+            &differences,
+            &windows,
+            &[],
+            Some(&zones),
+            (&[], &[]),
+        );
+        assert!(both.unreviewed.is_empty() && both.escapes.is_empty());
+        // Unchecked, the block counts in both zones, each with its class.
+        let none = of(&[], &differences, &windows, &[], Some(&zones), (&[], &[]));
+        assert_eq!(
+            none.escapes
+                .iter()
+                .map(|escape| (escape.zone, escape.class))
+                .collect::<Vec<_>>(),
+            [
+                (Some((0, Kind::Window)), Class::NonHet),
+                (Some((0, Kind::End)), Class::Het)
+            ]
+        );
+        // An omitted truth allele is an escape unless a check touches its
+        // reach.
+        let omitted = Differences {
+            blocks: Vec::new(),
+            omissions: vec![Omission {
+                text: "73G".to_owned(),
+                anchor: 73,
+                reach: (73, 73),
+                class: Class::OmittedNotAnalysed,
+            }],
+        };
+        let hv2 = windows.clone();
+        let flagged = of(&[(70, 80)], &omitted, &hv2, &[], None, (&[], &[]));
+        assert!(flagged.escapes.is_empty());
+        let silent = of(&[], &omitted, &hv2, &[(73, 73)], None, (&[(73, 73)], &[]));
+        assert_eq!(
+            (silent.escapes[0].class, silent.escapes[0].unlisted),
+            (Class::Recheck, Class::OmittedNotAnalysed)
+        );
+        assert!(silent.unreviewed.is_empty());
     }
 
     #[test]
@@ -721,7 +959,14 @@ mod tests {
             },
         );
         let of = |checks: &[(i64, i64)], blocks: &[Block]| {
-            of(checks, blocks, &windows, &[], Some(&zones), (&[], &[]))
+            of(
+                checks,
+                &differences(blocks),
+                &windows,
+                &[],
+                Some(&zones),
+                (&[], &[]),
+            )
         };
         let workloads = [
             // Auto-pass with a non-het block in HV1 and a het one in HV2.
@@ -765,8 +1010,7 @@ mod tests {
             non_het,
             het_only,
             truth_n_only,
-            recheck_only: 0,
-            length_note_only: 0,
+            ..Escaped::default()
         };
         assert_eq!(passes.samples, 5);
         assert_eq!(
@@ -827,11 +1071,25 @@ mod tests {
     #[test]
     fn a_block_takes_one_class_and_a_unit_its_most_severe() {
         use Class::{Het, NonHet, Recheck, TruthN};
-        let class = |truth: &str, listed: &[(i64, i64)]| {
-            Class::of(&Block::fixture(100, 101, "AC", truth), listed, &[])
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
+        let class_with = |block: Block, listed: &[(i64, i64)], tracts: &[Tract]| {
+            let blocks = [block];
+            of(
+                &[],
+                &differences(&blocks),
+                &windows,
+                &[],
+                None,
+                (listed, tracts),
+            )
+            .escapes[0]
+                .class
         };
-        // The re-check list comes first, then a truth `N`, then het.
-        assert_eq!(class("AC", &[(101, 105)]), Recheck);
+        let class = |truth: &str, listed: &[(i64, i64)]| {
+            class_with(Block::fixture(100, 101, "AC", truth), listed, &[])
+        };
+        // A listed position is re-check, then a truth `N`, then het.
+        assert_eq!(class("AC", &[(100, 105)]), Recheck);
         assert_eq!(class("NY", &[(90, 100)]), Recheck);
         assert_eq!(class("NY", &[(102, 105)]), TruthN);
         assert_eq!(class("AY", &[]), Het);
@@ -840,18 +1098,19 @@ mod tests {
         // there. A block that also differs at the last base, holds more than
         // it, or stays inside the interval is DNA's.
         let open = |start, dna: &str, truth: &str| {
-            Class::of(&Block::open_fixture(start, 573, dna, truth), &[], &[])
+            class_with(Block::open_fixture(start, 573, dna, truth), &[], &[])
         };
         assert_eq!(open(573, "CCC", "C"), TruthN);
         assert_eq!(open(573, "C", "CC"), TruthN);
         assert_eq!(open(573, "ACC", "C"), NonHet);
         assert_eq!(open(572, "CCCC", "CC"), NonHet);
         assert_eq!(
-            Class::of(&Block::fixture(573, 573, "CCC", "C"), &[], &[]),
+            class_with(Block::fixture(573, 573, "CCC", "C"), &[], &[]),
             NonHet
         );
-        // A length difference inside a length tract, the structure equal,
-        // is noted: never a T read as C, nor a length outside the tract.
+        // A length difference of one unit inside a length tract, the
+        // structure equal, is noted; two units, a T read as C, or a length
+        // outside the tract are not.
         let tracts = [Tract {
             name: "hvs2".to_owned(),
             first: 303,
@@ -859,9 +1118,10 @@ mod tests {
             base: 'C',
         }];
         let tract = |start, end, dna: &str, truth: &str| {
-            Class::of(&Block::fixture(start, end, dna, truth), &[], &tracts)
+            class_with(Block::fixture(start, end, dna, truth), &[], &tracts)
         };
         assert_eq!(tract(309, 309, "CC", "C"), Class::LengthNote);
+        assert_eq!(tract(309, 309, "CCC", "C"), NonHet);
         assert_eq!(tract(309, 310, "CCC", "CT"), NonHet);
         assert_eq!(tract(315, 315, "CC", "C"), NonHet);
         // A block that reaches past the tract: run 1 differs, or run 2.
@@ -877,7 +1137,7 @@ mod tests {
         );
         assert_eq!(tract(309, 309, "CC", "Y"), Het);
         assert_eq!(tracts[0].excess(&Block::fixture(309, 309, "CCC", "C")), 2);
-        // A passed unit counts once, under its most severe block.
+        // A passed unit counts once, under its most severe difference.
         let count = |classes: &[Class]| {
             let mut escaped = Escaped::default();
             escaped.add(classes.iter().copied());
@@ -889,15 +1149,37 @@ mod tests {
             het_only,
             truth_n_only,
             recheck_only,
-            length_note_only: 0,
+            ..Escaped::default()
         };
         assert_eq!(count(&[Recheck, Het, TruthN, NonHet]), only(1, 0, 0, 0));
         assert_eq!(count(&[Recheck, Het, TruthN]), only(0, 0, 1, 0));
         assert_eq!(count(&[Recheck, Het]), only(0, 1, 0, 0));
         assert_eq!(count(&[Recheck, Recheck]), only(0, 0, 0, 1));
         assert_eq!(count(&[]), Escaped::default());
-        // A noted tract length is the least severe.
+        // An omission elsewhere outranks every class but non-het; an omitted
+        // tract length and a noted one are the least severe.
+        assert_eq!(
+            count(&[TruthN, Class::OmittedOther]),
+            Escaped {
+                omitted_other: 1,
+                ..only(0, 0, 0, 0)
+            }
+        );
+        assert_eq!(
+            count(&[Class::OmittedNotAnalysed, Het]),
+            Escaped {
+                omitted_not_analysed: 1,
+                ..only(0, 0, 0, 0)
+            }
+        );
         assert_eq!(count(&[Class::LengthNote, Recheck]), only(0, 0, 0, 1));
+        assert_eq!(
+            count(&[Class::LengthNote, Class::OmittedTract]),
+            Escaped {
+                omitted_tract_only: 1,
+                ..only(0, 0, 0, 0)
+            }
+        );
         assert_eq!(
             count(&[Class::LengthNote]),
             Escaped {
@@ -905,17 +1187,37 @@ mod tests {
                 ..only(0, 0, 0, 0)
             }
         );
-        // A listed block passes as re-check only; unlisted it is non-het.
-        let windows = windows(10, crate::geometry::tests::rcrs().regions());
+        // A listed position passes as re-check only; unlisted it is non-het,
+        // and the escape keeps both classes.
         let block = [Block::fixture(573, 573, "CCCCCCCA", "CCCCCCA")];
-        let listed = of(&[], &block, &windows, &[], None, (&[(573, 573)], &[]));
-        let unlisted = of(&[], &block, &windows, &[], None, (&[(16057, 16057)], &[]));
-        assert_eq!(listed.escapes[0].class, Recheck);
+        let listed = of(
+            &[],
+            &differences(&block),
+            &windows,
+            &[],
+            None,
+            (&[(573, 573)], &[]),
+        );
+        let unlisted = of(
+            &[],
+            &differences(&block),
+            &windows,
+            &[],
+            None,
+            (&[(16057, 16057)], &[]),
+        );
+        assert_eq!(
+            (listed.escapes[0].class, listed.escapes[0].unlisted),
+            (Recheck, NonHet)
+        );
         assert_eq!(unlisted.escapes[0].class, NonHet);
         assert_eq!(listed.unreviewed, unlisted.unreviewed);
         let auto_pass = |workload: &Workload| passes([workload], None).auto_pass.unreviewed;
         assert_eq!(auto_pass(&listed), only(0, 0, 0, 1));
         assert_eq!(auto_pass(&unlisted), only(1, 0, 0, 0));
+        for class in Class::ALL {
+            assert_eq!(Class::parse(class.label()), Some(class));
+        }
     }
 
     #[test]

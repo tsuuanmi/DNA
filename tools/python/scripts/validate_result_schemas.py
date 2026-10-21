@@ -1863,23 +1863,43 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
         "changed_samples"
     ):
         errors.append(f"{label}: truth_changes.tsv disagrees with changed_samples")
+    unreviewed = document.get("unreviewed.tsv", {}).get("rows", [])
     validate_eval_passes(
-        header.get("workload", {}), "recheck" in header, scores, label, errors
+        header.get("workload", {}),
+        "recheck" in header,
+        scores,
+        unreviewed,
+        label,
+        errors,
     )
 
 
 # The classes that split the passed units with an unreviewed block.
-EVAL_ESCAPED_SPLIT = ("non_het", "truth_n_only", "het_only", "recheck_only")
+EVAL_ESCAPED_SPLIT = (
+    "non_het",
+    "omitted_other",
+    "omitted_not_analysed",
+    "truth_n_only",
+    "het_only",
+    "recheck_only",
+    "note_misread_only",
+    "omitted_tract_only",
+    "length_note_only",
+)
 
 
 def validate_eval_passes(
     workload: Any,
     recheck: bool,
     scores: list[dict[str, Any]],
+    unreviewed: list[dict[str, Any]],
     label: str,
     errors: list[str],
 ) -> None:
     """Check that `run.json` `workload` counts what `scores.tsv`'s review columns hold.
+
+    A clear sample passes with an unreviewed difference when `unreviewed.tsv`
+    lists one for it: a block, or a truth allele its report omits.
 
     Units split into `EVAL_ESCAPED_SPLIT`, which sum to `total`; without a
     re-check list (`recheck` false) no unit is re-check only.
@@ -1931,6 +1951,7 @@ def validate_eval_passes(
         and row.get("review_clear")
     ]
     clear = [row for row in counted if row.get("review_clear") == "Y"]
+    escaped = {row.get("sample_id") for row in unreviewed}
     zones = [set(row.get("review_zones", "").split()) for row in counted]
     regions = [{zone.split("@", 1)[1] for zone in found} for found in zones]
     by_region = passes.get("regions", {}).get("by_region", [])
@@ -1938,7 +1959,7 @@ def validate_eval_passes(
     expected = (
         len(counted),
         len(clear),
-        sum(1 for row in clear if row.get("unreviewed")),
+        sum(1 for row in clear if row.get("sample_id") in escaped),
         sum(len(found) for found in regions),
         sum(int(row.get("review_zone_count") or 0) for row in counted),
         [

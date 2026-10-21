@@ -75,6 +75,9 @@ pub(crate) struct Called {
     /// had one, calibrated τ for run 1 and run 2: it does not where the
     /// batch's pairs, the sample's own out, are too few.
     pub(crate) length_context: Option<[bool; 2]>,
+    /// The stretches at a region's ends DNA did not analyse, 1-based and
+    /// inclusive (SRS-CONS-012).
+    pub(crate) not_analysed: Vec<(i64, i64)>,
 }
 
 /// A sample's EMPOP query (PROP-0007), and the consensus decisions its
@@ -242,45 +245,61 @@ fn groups(sample: &Sample) -> [String; 2] {
     [format!("batch:{}", sample.batch), format!("month:{month}")]
 }
 
-/// Runs DNA over every sample with `threads` workers on `reference`, the
-/// FASTA path and the SHA-256 of the sequence the harness compares on (a
-/// sample DNA analyses on another sequence fails), with DNA's configuration,
-/// as [`run_once`] does; with a grouping, first builds each group's run
-/// signal from every sample's analysis, then runs again with each sample's
-/// review judged against its group's signal.
-#[allow(clippy::too_many_arguments)]
+/// What a run of DNA over a panel needs: the reference FASTA and the SHA-256
+/// of the sequence the harness compares on (a sample DNA analyses on another
+/// sequence fails), DNA's configuration, the target profile's reportable
+/// regions (1-based, for the stretches DNA does not analyse), the workers,
+/// the run signal grouping, the read evidence cache, and the batches' run
+/// contexts.
+pub(crate) struct Setup<'s> {
+    pub(crate) reference: &'s Path,
+    pub(crate) reference_sha256: &'s str,
+    pub(crate) config: &'s Path,
+    pub(crate) regions: &'s [[usize; 2]],
+    pub(crate) threads: Threads,
+    pub(crate) grouping: Option<Grouping>,
+    pub(crate) cache: Option<&'s Caches>,
+    pub(crate) contexts: &'s Contexts,
+}
+
+/// What a run signal's first pass built: one `signals.tsv` line per group,
+/// and the samples whose analysis failed or rejected every read, which add
+/// nothing to any signal.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct SignalPass {
+    pub(crate) groups: Vec<String>,
+    pub(crate) failed: usize,
+}
+
+/// Runs DNA over every sample as [`run_once`] does; with a grouping, first
+/// builds each group's run signal from every sample's analysis, then runs
+/// again with each sample's review judged against its group's signal.
 pub(crate) fn run(
     samples: &[Sample],
-    (reference, reference_sha256): (&Path, &str),
-    config: &Path,
-    threads: Threads,
-    grouping: Option<Grouping>,
-    (cache, contexts): (Option<&Caches>, &Contexts),
-    report: &mut Vec<String>,
-) -> Result<Vec<Outcome>> {
-    let Some(grouping) = grouping else {
-        return run_once(
-            samples,
-            (reference, reference_sha256),
-            config,
-            threads,
-            (cache, contexts),
-            &|_| None,
-        );
+    setup: &Setup<'_>,
+) -> Result<(Vec<Outcome>, Option<SignalPass>)> {
+    let Some(grouping) = setup.grouping else {
+        return Ok((run_once(samples, setup, &|_| None)?, None));
     };
     let signals = std::sync::Mutex::new(BTreeMap::<String, RunSignal>::new());
-    run_with(samples, threads, |sample, traces| {
-        if let Ok(Analysed::Analyzed(analysis)) = analyse(traces, reference, config, cache) {
-            let (reads, contributions) = analysis.signal_contributions();
-            let count = reads.len();
-            let mut signals = signals
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            for group in groups(sample) {
-                signals
-                    .entry(group.clone())
-                    .or_insert_with(|| analysis.run_signal(group))
-                    .include(reads.clone(), count, &contributions);
+    let failed = AtomicUsize::new(0);
+    run_with(samples, setup.threads, |sample, traces| {
+        match analyse(traces, setup.reference, setup.config, setup.cache) {
+            Ok(Analysed::Analyzed(analysis)) => {
+                let (reads, contributions) = analysis.signal_contributions();
+                let count = reads.len();
+                let mut signals = signals
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                for group in groups(sample) {
+                    signals
+                        .entry(group.clone())
+                        .or_insert_with(|| analysis.run_signal(group))
+                        .include(reads.clone(), count, &contributions);
+                }
+            }
+            Ok(Analysed::Rejected { .. }) | Err(_) => {
+                failed.fetch_add(1, Ordering::Relaxed);
             }
         }
         Err(Failure::Panic)
@@ -288,26 +307,30 @@ pub(crate) fn run(
     let signals = signals
         .into_inner()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    *report = signals
-        .iter()
-        .map(|(group, signal)| {
-            let counts = signal
-                .keys
-                .values()
-                .map(|shares| shares.values().sum::<u64>())
-                .collect::<Vec<_>>();
-            let at_least = |minimum: u64| counts.iter().filter(|&&calls| calls >= minimum).count();
-            format!(
-                "{group}\t{}\t{}\t{}\t{}\t{}\t{}",
-                signal.reads,
-                signal.calls,
-                counts.len(),
-                at_least(20),
-                at_least(40),
-                at_least(100)
-            )
-        })
-        .collect();
+    let pass = SignalPass {
+        groups: signals
+            .iter()
+            .map(|(group, signal)| {
+                let counts = signal
+                    .keys
+                    .values()
+                    .map(|shares| shares.values().sum::<u64>())
+                    .collect::<Vec<_>>();
+                let at_least =
+                    |minimum: u64| counts.iter().filter(|&&calls| calls >= minimum).count();
+                format!(
+                    "{group}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    signal.reads,
+                    signal.calls,
+                    counts.len(),
+                    at_least(20),
+                    at_least(40),
+                    at_least(100)
+                )
+            })
+            .collect(),
+        failed: failed.into_inner(),
+    };
     let choose = |sample: &Sample| {
         let [batch, month] = groups(sample);
         match grouping {
@@ -318,14 +341,7 @@ pub(crate) fn run(
             Grouping::Month => signals.get(&month),
         }
     };
-    run_once(
-        samples,
-        (reference, reference_sha256),
-        config,
-        threads,
-        (cache, contexts),
-        &choose,
-    )
+    Ok((run_once(samples, setup, &choose)?, Some(pass)))
 }
 
 /// Runs DNA over every sample once, with its consensus calibrated by its
@@ -333,32 +349,29 @@ pub(crate) fn run(
 /// signal `signal` chooses for it, if any.
 fn run_once<'s>(
     samples: &[Sample],
-    (reference, reference_sha256): (&Path, &str),
-    config: &Path,
-    threads: Threads,
-    (cache, contexts): (Option<&Caches>, &Contexts),
+    setup: &Setup<'_>,
     signal: &(dyn Fn(&Sample) -> Option<&'s RunSignal> + Sync),
 ) -> Result<Vec<Outcome>> {
-    run_with(samples, threads, |sample, traces| {
-        let analysis = match analyse(traces, reference, config, cache) {
+    run_with(samples, setup.threads, |sample, traces| {
+        let analysis = match analyse(traces, setup.reference, setup.config, setup.cache) {
             Ok(Analysed::Analyzed(analysis)) => analysis,
             Ok(Analysed::Rejected { reads }) => return Err(Failure::Rejected { reads }),
             Err(failure) => return Err(failure),
         };
-        let analysis = match contexts.get(&sample.batch) {
+        let analysis = match setup.contexts.get(&sample.batch) {
             Some(context) => match analysis.with_run_context(context.clone()) {
                 Ok(analysis) => Box::new(analysis),
                 Err(error) => return Err(Failure::Dna(error.to_string())),
             },
             None => analysis,
         };
-        if analysis.reference.sha256 != reference_sha256 {
+        if analysis.reference.sha256 != setup.reference_sha256 {
             return Err(Failure::Reference {
                 analysed: analysis.reference.sha256.clone(),
-                compared: reference_sha256.to_owned(),
+                compared: setup.reference_sha256.to_owned(),
             });
         }
-        call(&analysis, &sample.id, signal(sample))
+        call(&analysis, &sample.id, signal(sample), setup.regions)
     })
 }
 
@@ -368,6 +381,7 @@ fn call(
     analysis: &SampleAnalysis,
     sample_id: &str,
     signal: Option<&RunSignal>,
+    regions: &[[usize; 2]],
 ) -> std::result::Result<Called, Failure> {
     let result = analysis
         .call(sample_id)
@@ -447,6 +461,15 @@ fn call(
         notes: review.notes,
         components: components::rows(analysis),
         tracts: tracts::rows(analysis),
+        not_analysed: dna_consensus::decided::not_analysed(&analysis.consensus, regions)
+            .iter()
+            .filter_map(|stretch| {
+                Some((
+                    i64::try_from(stretch.first_0based).ok()? + 1,
+                    i64::try_from(stretch.last_0based).ok()? + 1,
+                ))
+            })
+            .collect(),
         length_context: analysis
             .run_context()
             .map(|used| used.scale.map(|scale| scale.is_some())),
@@ -529,7 +552,7 @@ pub(crate) fn analyse(
     }
 }
 
-/// Runs `call` over every sample's distinct traces with `threads` workers.
+/// Runs `call` over every sample's traces with `threads` workers.
 pub(crate) fn run_with<F>(samples: &[Sample], threads: Threads, call: F) -> Result<Vec<Outcome>>
 where
     F: Fn(&Sample, &[PathBuf]) -> Ran + Sync,
@@ -574,10 +597,10 @@ where
 {
     let started = Instant::now();
     let (traces, result) = match distinct(&sample.traces) {
-        Ok(traces) => {
-            let ran = panic::catch_unwind(AssertUnwindSafe(|| call(sample, &traces)))
+        Ok(()) => {
+            let ran = panic::catch_unwind(AssertUnwindSafe(|| call(sample, &sample.traces)))
                 .unwrap_or(Err(Failure::Panic));
-            (Some(traces.len()), ran)
+            (Some(sample.traces.len()), ran)
         }
         Err(failure) => (None, Err(failure)),
     };
@@ -588,20 +611,21 @@ where
     }
 }
 
-/// The traces with distinct content, in their first order.
-fn distinct(traces: &[PathBuf]) -> std::result::Result<Vec<PathBuf>, Failure> {
+/// Checks that no two traces have one content: two inputs of one content
+/// are one trace given twice, and the sample fails typed (ADR-0090), rather
+/// than counting it twice or dropping a copy silently.
+fn distinct(traces: &[PathBuf]) -> std::result::Result<(), Failure> {
     let mut seen = BTreeSet::new();
-    let mut kept = Vec::with_capacity(traces.len());
     for path in traces {
         let digest = sha256_file(path).map_err(|error| Failure::Trace {
             path: path.clone(),
             message: error.to_string(),
         })?;
-        if seen.insert(digest) {
-            kept.push(path.clone());
+        if !seen.insert(digest) {
+            return Err(Failure::DuplicateTrace { path: path.clone() });
         }
     }
-    Ok(kept)
+    Ok(())
 }
 
 /// The SHA-256 of a file, read in a stream with bounded memory.
@@ -694,14 +718,20 @@ mod tests {
     }
 
     #[test]
-    fn removes_repeated_trace_content_and_keeps_order()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn a_trace_given_twice_fails_the_sample() -> std::result::Result<(), Box<dyn std::error::Error>>
+    {
         let directory = tempfile::tempdir()?;
         let paths = ["b", "a", "copy-of-b"].map(|name| directory.path().join(name));
         fs::write(&paths[0], b"trace one")?;
         fs::write(&paths[1], b"trace two")?;
         fs::write(&paths[2], b"trace one")?;
-        assert_eq!(distinct(&paths)?, [paths[0].clone(), paths[1].clone()]);
+        assert_eq!(distinct(&paths[..2]), Ok(()));
+        assert_eq!(
+            distinct(&paths),
+            Err(Failure::DuplicateTrace {
+                path: paths[2].clone()
+            })
+        );
         let missing = directory.path().join("missing");
         assert!(matches!(distinct(&[missing]), Err(Failure::Trace { .. })));
         Ok(())
@@ -712,9 +742,11 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
         let trace = directory.path().join("trace");
+        let other = directory.path().join("other");
         fs::write(&trace, b"trace")?;
+        fs::write(&other, b"other")?;
         let samples = (0..40)
-            .map(|index| sample(&format!("S{index:02}"), vec![trace.clone(), trace.clone()]))
+            .map(|index| sample(&format!("S{index:02}"), vec![trace.clone(), other.clone()]))
             .collect::<Vec<_>>();
         let called = |sample: &Sample, traces: &[PathBuf]| {
             let index = sample.id[1..]
@@ -734,6 +766,7 @@ mod tests {
                     components: Vec::new(),
                     tracts: Vec::new(),
                     length_context: None,
+                    not_analysed: Vec::new(),
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),
@@ -751,13 +784,13 @@ mod tests {
         let one = strip(run_with(&samples, Threads::new(1)?, call)?);
         let many = strip(run_with(&samples, Threads::new(7)?, call)?);
         assert_eq!(one, many);
-        assert_eq!(one[0].1, Err(Failure::Dna("fails with 1 traces".into())));
+        assert_eq!(one[0].1, Err(Failure::Dna("fails with 2 traces".into())));
         assert_eq!(one[1].1, Err(Failure::Panic));
         assert_eq!(
             one[2].1.as_ref().map(|called| called.alleles.clone()),
             Ok(vec![Allele::new("02", "A", "G")])
         );
-        assert_eq!(one[0].0, Some(1));
+        assert_eq!(one[0].0, Some(2));
         Ok(())
     }
 

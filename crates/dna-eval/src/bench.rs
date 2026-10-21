@@ -513,6 +513,7 @@ mod tests {
             components: Vec::new(),
             tracts: Vec::new(),
             length_context: None,
+            not_analysed: Vec::new(),
         }
     }
 

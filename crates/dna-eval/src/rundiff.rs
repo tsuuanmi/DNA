@@ -19,14 +19,20 @@
 //!
 //! The gate reads one group: the current period, the samples whose manifest
 //! `batch_date` is in or after the runs' current-data month, or all samples
-//! when the runs record no such month. It fails when, in that group, more
-//! passed samples or more passed zones of any zone carry a non-het
-//! unreviewed block, or more samples carry a non-het unreviewed block, or
-//! when the two runs failed to score different samples of it. The earlier
-//! period and the sources, which mix periods, are reported in full and never
-//! gated (user decision 2026-10-21: the LAB keeps improving, so recent data
-//! decides). Heteroplasmy is optional (user decision): het-only, truth `N`,
-//! and re-check moves are reported, never gated.
+//! when the runs record no such month (user decision 2026-10-21: the LAB
+//! keeps improving, so recent data decides). It compares sets, not counts
+//! (evaluation validity review, recommendation 1): per zone kind, the
+//! escapes of a gated class in a passed zone that the candidate adds (`b`)
+//! and removes (`c`), and the zones it newly passes (`n_new`). It fails when
+//! `Σb > Σc`, and lists every new escape; it also fails when the samples the
+//! runs could not count (failed, or one side without an allele) differ in
+//! that group. The gated classes are an option of the comparison, by default
+//! non-het blocks and the truth alleles the report omits outside a noted
+//! tract (`omitted_other`, `omitted_not_analysed`). The same gate is reported
+//! without the re-check list, from each escape's class without it; the
+//! sample-level counts, a move of the clear samples or the positions to
+//! review beyond a tolerance, newly uncovered truth alleles, the earlier
+//! period, and the sources are reported, never gated.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -51,11 +57,14 @@ fn failure(path: &Path, message: impl std::fmt::Display) -> DiffError {
     }
 }
 
-/// One unreviewed block of a sample, as `unreviewed.tsv` writes it.
+/// One unreviewed difference of a sample, as `unreviewed.tsv` writes it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Escape {
     block: String,
     class: Class,
+    /// Its class without the re-check list; `None` for a run that predates
+    /// the column.
+    unlisted: Option<Class>,
     zone: Option<String>,
     zone_checked: bool,
 }
@@ -65,8 +74,6 @@ struct Escape {
 struct Sample {
     /// Counted by the pass measures: compared under `haplotype_lod`.
     counted: bool,
-    /// The harness could not score it (`status` `failed`).
-    failed: bool,
     positions: i64,
     /// The sample as the pass measures count it, its zones by label.
     pass: PassSample<String>,
@@ -91,8 +98,10 @@ const SCORE_COLUMNS: [&str; 5] = [
     "uncovered",
 ];
 
-/// The `unreviewed.tsv` columns `diff` reads.
+/// The `unreviewed.tsv` columns `diff` reads; `class_unlisted` is optional,
+/// for a run that predates it.
 const UNREVIEWED_COLUMNS: [&str; 5] = ["sample_id", "block", "class", "zone", "zone_checked"];
+const UNREVIEWED_OPTIONAL: [&str; 1] = ["class_unlisted"];
 
 impl Run {
     fn read(directory: &Path) -> Result<Self, DiffError> {
@@ -103,7 +112,7 @@ impl Run {
             .chain(Measure::ALL.map(Measure::column))
             .collect::<Vec<_>>();
         let mut samples = BTreeMap::new();
-        for line in rundir::read_table(directory, rundir::SCORES, &columns)? {
+        for line in rundir::read_table(directory, rundir::SCORES, &columns, &[])? {
             let invalid =
                 |message: &str| failure(&scores_path, format!("line {}: {message}", line.number));
             let [id, clear, positions, zones, uncovered] =
@@ -131,7 +140,6 @@ impl Run {
             };
             let sample = Sample {
                 counted,
-                failed: statuses[&Measure::Primary] == "failed",
                 positions,
                 pass: PassSample {
                     clear,
@@ -147,12 +155,23 @@ impl Run {
             }
         }
         let unreviewed_path = directory.join(rundir::UNREVIEWED);
-        for line in rundir::read_table(directory, rundir::UNREVIEWED, &UNREVIEWED_COLUMNS)? {
+        for line in rundir::read_table(
+            directory,
+            rundir::UNREVIEWED,
+            &UNREVIEWED_COLUMNS,
+            &UNREVIEWED_OPTIONAL,
+        )? {
             let invalid = |message: &str| {
                 failure(&unreviewed_path, format!("line {}: {message}", line.number))
             };
             let [id, block, class, zone, zone_checked] = [0, 1, 2, 3, 4].map(|at| &line.cells[at]);
             let class = Class::parse(class).ok_or_else(|| invalid("an unknown class"))?;
+            let unlisted = line.optional[0]
+                .as_deref()
+                .map(|label| {
+                    Class::parse(label).ok_or_else(|| invalid("an unknown class_unlisted"))
+                })
+                .transpose()?;
             let zone = Some(zone.as_str())
                 .filter(|zone| *zone != ".")
                 .map(str::to_owned);
@@ -177,6 +196,7 @@ impl Run {
             sample.escapes.push(Escape {
                 block: block.clone(),
                 class,
+                unlisted,
                 zone,
                 zone_checked,
             });
@@ -188,11 +208,12 @@ impl Run {
         })
     }
 
-    /// The samples the harness could not score.
-    fn failed(&self) -> BTreeSet<&str> {
+    /// The samples the pass measures could not count: failed, or compared
+    /// with one side without an allele.
+    fn uncounted(&self) -> BTreeSet<&str> {
         self.samples
             .iter()
-            .filter(|(_, sample)| sample.failed)
+            .filter(|(_, sample)| !sample.counted)
             .map(|(id, _)| id.as_str())
             .collect()
     }
@@ -474,6 +495,17 @@ fn split(run: &Run) -> Result<(Labels, Labels), DiffError> {
     Ok((periods, sources))
 }
 
+/// How `diff` gates: the classes whose escapes in a passed zone gate, and
+/// the tolerances beyond which a move of the clear samples (a share of the
+/// group's samples) or of the positions to review (a share of the base's)
+/// is warned of.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Policy {
+    pub(crate) gated: BTreeSet<Class>,
+    pub(crate) clear_tolerance: f64,
+    pub(crate) positions_tolerance: f64,
+}
+
 /// The comparison: the report, the per-sample change table, the status
 /// change table, and whether the gate fails.
 pub(crate) struct Comparison {
@@ -483,14 +515,157 @@ pub(crate) struct Comparison {
     pub(crate) gate_failed: bool,
 }
 
-/// Compares the run at `run` against the base run at `base`.
+/// One gated escape: a sample's difference of a gated class in a zone no
+/// check item touches.
+type Key = (String, String, String, Class);
+
+/// The zone kind of a zone label (`after@HV2` is `after`); `none` outside
+/// every zone.
+fn kind(zone: &str) -> &str {
+    zone.split_once('@').map_or("none", |(kind, _)| kind)
+}
+
+/// The set-based gate of one side of a comparison: per zone kind, the new,
+/// removed, and carried escapes, and the zones the run newly passes.
+#[derive(Debug, Default)]
+struct Gate {
+    added: BTreeMap<String, Vec<Key>>,
+    removed: BTreeMap<String, usize>,
+    carried: BTreeMap<String, usize>,
+    newly_passed: BTreeMap<String, usize>,
+}
+
+impl Gate {
+    fn added(&self) -> usize {
+        self.added.values().map(Vec::len).sum()
+    }
+
+    fn removed(&self) -> usize {
+        self.removed.values().sum()
+    }
+
+    fn failed(&self) -> bool {
+        self.added() > self.removed()
+    }
+}
+
+/// The gated escapes of `run` in the samples of `group`, by the class
+/// `class` reads.
+fn escapes(
+    run: &Run,
+    group: &dyn Fn(&str) -> bool,
+    gated: &BTreeSet<Class>,
+    class: &dyn Fn(&Escape) -> Class,
+) -> BTreeSet<Key> {
+    run.samples
+        .iter()
+        .filter(|(id, sample)| sample.counted && group(id))
+        .flat_map(|(id, sample)| {
+            sample
+                .escapes
+                .iter()
+                .filter(|escape| !escape.zone_checked && gated.contains(&class(escape)))
+                .map(|escape| {
+                    (
+                        id.clone(),
+                        escape.zone.clone().unwrap_or_else(|| ".".to_owned()),
+                        escape.block.clone(),
+                        class(escape),
+                    )
+                })
+        })
+        .collect()
+}
+
+/// The gate of `run` against `base` over the samples of `group`, both
+/// counted on each side.
+fn gate(
+    (base, run): (&Run, &Run),
+    group: &dyn Fn(&str) -> bool,
+    names: &BTreeSet<String>,
+    gated: &BTreeSet<Class>,
+    class: &dyn Fn(&Escape) -> Class,
+) -> Gate {
+    let both = |id: &str| {
+        group(id)
+            && base.samples.get(id).is_some_and(|sample| sample.counted)
+            && run.samples.get(id).is_some_and(|sample| sample.counted)
+    };
+    let before = escapes(base, &both, gated, class);
+    let after = escapes(run, &both, gated, class);
+    let mut gate = Gate::default();
+    for key in after.difference(&before) {
+        gate.added
+            .entry(kind(&key.1).to_owned())
+            .or_default()
+            .push(key.clone());
+    }
+    for key in before.difference(&after) {
+        *gate.removed.entry(kind(&key.1).to_owned()).or_default() += 1;
+    }
+    for key in before.intersection(&after) {
+        *gate.carried.entry(kind(&key.1).to_owned()).or_default() += 1;
+    }
+    for (id, sample) in run.samples.iter().filter(|(id, _)| both(id)) {
+        let Some(old) = base.samples.get(id) else {
+            continue;
+        };
+        for name in names {
+            if !sample.pass.zones.contains(name) && old.pass.zones.contains(name) {
+                *gate.newly_passed.entry(kind(name).to_owned()).or_default() += 1;
+            }
+        }
+    }
+    gate
+}
+
+/// The gate's table: per zone kind, `n_new`, `b`, `c`, and the carried
+/// escapes.
+fn gate_table(report: &mut String, gate: &Gate) {
+    let kinds = gate
+        .added
+        .keys()
+        .chain(gate.removed.keys())
+        .chain(gate.carried.keys())
+        .chain(gate.newly_passed.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    report.push_str(
+        "| Zone kind | Newly passed zones (n_new) | New escapes (b) | Removed escapes (c) | Carried |\n|---|---:|---:|---:|---:|\n",
+    );
+    for kind in &kinds {
+        let _ = writeln!(
+            report,
+            "| {kind} | {} | {} | {} | {} |",
+            gate.newly_passed.get(kind).copied().unwrap_or_default(),
+            gate.added.get(kind).map_or(0, Vec::len),
+            gate.removed.get(kind).copied().unwrap_or_default(),
+            gate.carried.get(kind).copied().unwrap_or_default(),
+        );
+    }
+    let _ = writeln!(
+        report,
+        "| all | {} | {} | {} | {} |",
+        gate.newly_passed.values().sum::<usize>(),
+        gate.added(),
+        gate.removed(),
+        gate.carried.values().sum::<usize>(),
+    );
+}
+
+/// Compares the run at `run` against the base run at `base` under `policy`.
 ///
 /// # Errors
 ///
 /// Returns [`DiffError`] when a run file cannot be read, or when the runs
 /// measure different things and `force` is not set.
 #[allow(clippy::too_many_lines)]
-pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison, DiffError> {
+pub(crate) fn compare(
+    base: &Path,
+    run: &Path,
+    force: bool,
+    policy: &Policy,
+) -> Result<Comparison, DiffError> {
     let base = Run::read(base)?;
     let run = Run::read(run)?;
     let mismatched = mismatches(&base, &run);
@@ -498,8 +673,8 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         return Err(DiffError::Mismatch(mismatched.join("; ")));
     }
     let (periods, sources) = split(&base)?;
-    let gate = gated(&base);
-    let in_gate = |id: &str| groups(id, &periods, &sources).contains(&gate);
+    let group = gated(&base);
+    let in_gate = |id: &str| groups(id, &periods, &sources).contains(&group);
     let names = base
         .zone_names()
         .into_iter()
@@ -507,8 +682,8 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         .collect::<BTreeSet<_>>();
     let before = tally(&base, &periods, &sources, &names);
     let after = tally(&run, &periods, &sources, &names);
-    consistent(&base, &before, &gate)?;
-    consistent(&run, &after, &gate)?;
+    consistent(&base, &before, &group)?;
+    consistent(&run, &after, &group)?;
     let mut report = String::from("# Run comparison\n\n");
     let revision = |run: &Run| {
         run.header
@@ -526,23 +701,37 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         run.directory.display(),
         revision(&run)
     );
+    let _ = writeln!(
+        report,
+        "Gated classes: {}. Tolerances: clear samples {}, positions to review {}.\n",
+        policy
+            .gated
+            .iter()
+            .map(|class| format!("`{}`", class.label()))
+            .collect::<Vec<_>>()
+            .join(", "),
+        policy.clear_tolerance,
+        policy.positions_tolerance
+    );
     for mismatch in &mismatched {
         let _ = writeln!(report, "**WARNING, not comparable:** {mismatch}.\n");
     }
     let mut failures = Vec::new();
-    // A sample that failed on one side only is compared against nothing: the
-    // two runs no longer cover the same samples, whether the failure is the
-    // change's or a transient read error. Only the gated group's samples gate.
-    let (failed_before, failed_after) = (base.failed(), run.failed());
-    if failed_before != failed_after {
-        let one_side = failed_before
-            .symmetric_difference(&failed_after)
+    let mut warnings = Vec::new();
+    // A sample counted on one side only is compared against nothing: the
+    // two runs no longer cover the same samples, whether the change made it
+    // fail or lose every allele on one side, or a read error was transient.
+    // Only the gated group's samples gate.
+    let (uncounted_before, uncounted_after) = (base.uncounted(), run.uncounted());
+    if uncounted_before != uncounted_after {
+        let one_side = uncounted_before
+            .symmetric_difference(&uncounted_after)
             .collect::<Vec<_>>();
         let differing = one_side.iter().filter(|id| in_gate(id)).count();
         let message = format!(
-            "failed samples differ: {} in the base, {} in the run, {} in one only ({differing} in {gate}); rerun a side that failed transiently, or see the run's failures",
-            failed_before.len(),
-            failed_after.len(),
+            "samples not counted (failed, or a side without an allele) differ: {} in the base, {} in the run, {} in one only ({differing} in {group}); rerun a side that failed transiently, or see the run's failures",
+            uncounted_before.len(),
+            uncounted_after.len(),
             one_side.len()
         );
         let _ = writeln!(report, "**WARNING:** {message}.\n");
@@ -553,15 +742,15 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
 
     let _ = writeln!(
         report,
-        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe block. Only the non-het counts of {gate} gate; the other groups are reported.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Passed length-note only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe difference. Reported, never gated.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed omitted (other) | Passed omitted (not analysed) | Passed truth-N | Passed het only | Passed re-check only | Passed note misread only | Passed omitted tract only | Passed length-note only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     );
-    let names = before
+    let groups_seen = before
         .counts
         .keys()
         .chain(after.counts.keys())
         .cloned()
         .collect::<BTreeSet<_>>();
-    for name in &names {
+    for name in &groups_seen {
         let old = before.counts.get(name).copied().unwrap_or_default();
         let new = after.counts.get(name).copied().unwrap_or_default();
         let (passed_old, passed_new) = (old.auto_pass.unreviewed, new.auto_pass.unreviewed);
@@ -574,15 +763,22 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         };
         let _ = writeln!(
             report,
-            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             cell(old.samples, new.samples),
             cell(old.auto_pass.samples, new.auto_pass.samples),
             cell(old.unreviewed_non_het, new.unreviewed_non_het),
             cell(old.unreviewed_het_only, new.unreviewed_het_only),
             cell(passed_old.non_het, passed_new.non_het),
+            cell(passed_old.omitted_other, passed_new.omitted_other),
+            cell(
+                passed_old.omitted_not_analysed,
+                passed_new.omitted_not_analysed
+            ),
             cell(passed_old.truth_n_only, passed_new.truth_n_only),
             cell(passed_old.het_only, passed_new.het_only),
             cell(passed_old.recheck_only, passed_new.recheck_only),
+            cell(passed_old.note_misread_only, passed_new.note_misread_only),
+            cell(passed_old.omitted_tract_only, passed_new.omitted_tract_only),
             cell(passed_old.length_note_only, passed_new.length_note_only),
             if old.positions == new.positions {
                 old.positions.to_string()
@@ -590,19 +786,33 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
                 format!("{} → {}", old.positions, new.positions)
             },
         );
-        if *name != gate {
+        if *name != group || old.samples == 0 {
             continue;
         }
-        if passed_new.non_het > passed_old.non_het {
-            failures.push(format!(
-                "passed samples with a non-het block rise in {name}: {} → {}",
-                passed_old.non_het, passed_new.non_het
+        // A large move of the workload is worth a look, whichever way.
+        #[allow(clippy::cast_precision_loss)]
+        let clear_move =
+            new.auto_pass.samples.abs_diff(old.auto_pass.samples) as f64 / old.samples as f64;
+        if clear_move > policy.clear_tolerance {
+            warnings.push(format!(
+                "clear samples move by {:.2} % of the {} samples of {name} ({} → {}), beyond the tolerance of {:.2} %",
+                100.0 * clear_move,
+                old.samples,
+                old.auto_pass.samples,
+                new.auto_pass.samples,
+                100.0 * policy.clear_tolerance
             ));
         }
-        if new.unreviewed_non_het > old.unreviewed_non_het {
-            failures.push(format!(
-                "samples with a non-het unreviewed block rise in {name}: {} → {}",
-                old.unreviewed_non_het, new.unreviewed_non_het
+        #[allow(clippy::cast_precision_loss)]
+        let positions_move =
+            (new.positions - old.positions).abs() as f64 / old.positions.max(1) as f64;
+        if positions_move > policy.positions_tolerance {
+            warnings.push(format!(
+                "positions to review move by {:.2} % in {name} ({} → {}), beyond the tolerance of {:.2} %",
+                100.0 * positions_move,
+                old.positions,
+                new.positions,
+                100.0 * policy.positions_tolerance
             ));
         }
     }
@@ -634,16 +844,47 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             "| {} | {} | {old_checked} → {new_checked} | {old_non_het} → {new_non_het} |",
             key.0, key.1
         );
-        if key.0 == gate && new_non_het > old_non_het {
-            failures.push(format!(
-                "passed {} zones with a non-het block rise in {}: {old_non_het} → {new_non_het}",
-                key.1, key.0
-            ));
-        }
+    }
+
+    // The set-based gate, with the re-check list and without it.
+    let listed = gate(
+        (&base, &run),
+        &in_gate,
+        &names,
+        &policy.gated,
+        &|escape: &Escape| escape.class,
+    );
+    let unlisted_known = [&base, &run].iter().all(|run| {
+        run.samples
+            .values()
+            .flat_map(|sample| &sample.escapes)
+            .all(|escape| escape.unlisted.is_some())
+    });
+    let unlisted = unlisted_known.then(|| {
+        gate(
+            (&base, &run),
+            &in_gate,
+            &names,
+            &policy.gated,
+            &|escape: &Escape| escape.unlisted.unwrap_or(escape.class),
+        )
+    });
+    let _ = writeln!(
+        report,
+        "\n## Gate\n\nEscapes of a gated class in a zone no check item touches, in {group}, over the samples both runs count: those the run adds (b) and removes (c) per zone kind, and the zones it newly passes (n_new). The gate fails when b > c summed over the zone kinds.\n"
+    );
+    gate_table(&mut report, &listed);
+    report.push_str(
+        "\nThe same without the re-check list, from each escape's class without it (reported, not gated):\n\n",
+    );
+    match &unlisted {
+        Some(unlisted) => gate_table(&mut report, unlisted),
+        None => report.push_str("Not available: a run predates `class_unlisted`.\n"),
     }
 
     // Uncovered truth alleles that are new or gone, by allele.
     let mut uncovered = BTreeMap::<String, (usize, usize)>::new();
+    let mut newly_uncovered = 0;
     for (id, sample) in &run.samples {
         let old = base
             .samples
@@ -653,10 +894,16 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             .unwrap_or_default();
         for allele in sample.uncovered.difference(&old) {
             uncovered.entry(allele.clone()).or_default().0 += 1;
+            newly_uncovered += usize::from(in_gate(id));
         }
         for allele in old.difference(&sample.uncovered) {
             uncovered.entry(allele.clone()).or_default().1 += 1;
         }
+    }
+    if newly_uncovered > 0 {
+        warnings.push(format!(
+            "{newly_uncovered} truth alleles in {group} are newly uncovered (outside DNA's callable intervals); those no check item flags are `omitted` escapes above"
+        ));
     }
     let _ = writeln!(
         report,
@@ -710,10 +957,10 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         );
     }
 
-    // Per-sample changes of the unreviewed blocks or the clear state.
+    // Per-sample changes of the unreviewed differences or the clear state.
     let mut samples =
         String::from("sample_id\tperiod\tsource\tclear_before\tclear_after\tgone\tnew\n");
-    let mut listed = Vec::new();
+    let mut listed_rows = Vec::new();
     for (id, sample) in &run.samples {
         let Some(old) = base.samples.get(id) else {
             continue;
@@ -747,18 +994,25 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             flag(sample.pass.clear),
         );
         let _ = writeln!(samples, "{row}");
-        listed.push(row);
+        listed_rows.push(row);
     }
     let _ = writeln!(
         report,
-        "\n## Samples that changed\n\n{} samples changed their unreviewed blocks or their clear state; the first {} (all in `samples.tsv`):\n\n```",
-        listed.len(),
-        listed.len().min(SHOWN)
+        "\n## Samples that changed\n\n{} samples changed their unreviewed differences or their clear state; the first {} (all in `samples.tsv`):\n\n```",
+        listed_rows.len(),
+        listed_rows.len().min(SHOWN)
     );
-    for row in listed.iter().take(SHOWN) {
+    for row in listed_rows.iter().take(SHOWN) {
         let _ = writeln!(report, "{row}");
     }
-    let _ = write!(report, "```\n\n## Verdict\n\nGated on {gate}.\n\n");
+    if listed.failed() {
+        failures.push(format!(
+            "new gated escapes outnumber removed ones in {group}: b = {} > c = {}",
+            listed.added(),
+            listed.removed()
+        ));
+    }
+    let _ = write!(report, "```\n\n## Verdict\n\nGated on {group}.\n\n");
     if failures.is_empty() {
         report.push_str("GATE PASS\n");
     } else {
@@ -766,6 +1020,35 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         for failure in &failures {
             let _ = writeln!(report, "- {failure}");
         }
+    }
+    let new_escapes = listed.added.values().flatten().collect::<Vec<_>>();
+    let _ = writeln!(
+        report,
+        "\nNew gated escapes (b = {}, c = {}); each is adjudicated before a merge:\n",
+        listed.added(),
+        listed.removed()
+    );
+    if new_escapes.is_empty() {
+        report.push_str("- none\n");
+    }
+    for (sample, zone, block, class) in new_escapes {
+        let _ = writeln!(report, "- {sample} {zone} {block} {}", class.label());
+    }
+    if let Some(unlisted) = &unlisted {
+        let _ = writeln!(
+            report,
+            "\nWithout the re-check list: b = {}, c = {}, {}.",
+            unlisted.added(),
+            unlisted.removed(),
+            if unlisted.failed() {
+                "it would fail"
+            } else {
+                "it would pass"
+            }
+        );
+    }
+    for warning in &warnings {
+        let _ = writeln!(report, "\n**WARNING:** {warning}.");
     }
     Ok(Comparison {
         report,
@@ -859,13 +1142,32 @@ mod tests {
             text.push('\n');
         }
         std::fs::write(directory.join("scores.tsv"), text)?;
+        // A row of seven cells takes its class as its class without the
+        // re-check list.
         let mut text = String::from(crate::report::UNREVIEWED_HEADER);
         for row in unreviewed {
-            text.push_str(row);
+            let mut cells = row.split('\t').collect::<Vec<_>>();
+            if cells.len() == 7 {
+                cells.insert(5, cells[4]);
+            }
+            text.push_str(&cells.join("\t"));
             text.push('\n');
         }
         std::fs::write(directory.join("unreviewed.tsv"), text)?;
         Ok(directory)
+    }
+
+    /// The default policy: non-het and omissions outside a noted tract gate.
+    fn policy() -> Policy {
+        Policy {
+            gated: BTreeSet::from([
+                Class::NonHet,
+                Class::OmittedOther,
+                Class::OmittedNotAnalysed,
+            ]),
+            clear_tolerance: 1.0,
+            positions_tolerance: 1.0,
+        }
     }
 
     /// Records `since` as the run's current-data month.
@@ -900,7 +1202,7 @@ mod tests {
             (2, 1, 0),
         )?;
         dated(&earlier, "2026-01")?;
-        let comparison = compare(&base, &earlier, false)?;
+        let comparison = compare(&base, &earlier, false, &policy())?;
         assert!(!comparison.gate_failed);
         assert!(
             comparison
@@ -929,12 +1231,16 @@ mod tests {
             (2, 1, 0),
         )?;
         dated(&current, "2026-01")?;
-        let comparison = compare(&base, &current, false)?;
+        let comparison = compare(&base, &current, false, &policy())?;
         assert!(comparison.gate_failed);
         assert!(comparison.report.contains(
-            "- passed samples with a non-het block rise in period current (≥ 2026-01): 0 → 1"
+            "- new gated escapes outnumber removed ones in period current (≥ 2026-01): b = 1 > c = 0"
         ));
-        assert!(!comparison.report.contains("rise in all"));
+        assert!(
+            comparison
+                .report
+                .contains("- S2 window@HV2 309-309+:CC/C non_het\n")
+        );
         let lost = run(
             root.path(),
             "lost",
@@ -947,10 +1253,10 @@ mod tests {
             (1, 0, 0),
         )?;
         dated(&lost, "2026-01")?;
-        let comparison = compare(&base, &lost, false)?;
+        let comparison = compare(&base, &lost, false, &policy())?;
         assert!(!comparison.gate_failed);
         assert!(comparison.report.contains(
-            "failed samples differ: 0 in the base, 1 in the run, 1 in one only (0 in period current"
+            "samples not counted (failed, or a side without an allele) differ: 0 in the base, 1 in the run, 1 in one only (0 in period current"
         ));
         Ok(())
     }
@@ -984,7 +1290,7 @@ mod tests {
             ],
             (1, 1, 0),
         )?;
-        let comparison = compare(&base, &candidate, false)?;
+        let comparison = compare(&base, &candidate, false, &policy())?;
         assert!(comparison.gate_failed);
         assert!(comparison.report.contains("GATE FAIL"));
         assert!(
@@ -1008,7 +1314,7 @@ mod tests {
                 .samples
                 .contains("S1\t\t\tY\tY\t\t309-309+:CC/C non_het window@HV2")
         );
-        let same = compare(&base, &base, false)?;
+        let same = compare(&base, &base, false, &policy())?;
         assert!(!same.gate_failed);
         assert!(same.report.contains("GATE PASS"));
         Ok(())
@@ -1035,13 +1341,13 @@ mod tests {
             &["S1\t461\t461\t461-461:C/S\thet\twindow@HV2\tno"],
             (1, 0, 1),
         )?;
-        let comparison = compare(&base, &candidate, false)?;
+        let comparison = compare(&base, &candidate, false, &policy())?;
         assert!(!comparison.gate_failed);
         assert!(comparison.report.contains("GATE PASS"));
         assert!(
             comparison
                 .report
-                .contains("| all | 1 | 1 | 0 | 0 → 1 | 0 | 0 | 0 → 1 |")
+                .contains("| all | 1 | 1 | 0 | 0 → 1 | 0 | 0 | 0 | 0 | 0 → 1 |")
         );
         Ok(())
     }
@@ -1053,11 +1359,11 @@ mod tests {
         let base = run(root.path(), "base", false, &rows, &[], (1, 0, 0))?;
         let dirty = run(root.path(), "dirty", true, &rows, &[], (1, 0, 0))?;
         assert!(matches!(
-            compare(&base, &dirty, false),
+            compare(&base, &dirty, false, &policy()),
             Err(DiffError::Mismatch(_))
         ));
         assert!(
-            compare(&base, &dirty, true)?
+            compare(&base, &dirty, true, &policy())?
                 .report
                 .contains("WARNING, not comparable")
         );
@@ -1067,7 +1373,7 @@ mod tests {
         header.identities[0].profile_sha256 = "another".to_owned();
         std::fs::write(profile.join(rundir::RUN_JSON), header.text()?)?;
         assert!(matches!(
-            compare(&base, &profile, false),
+            compare(&base, &profile, false, &policy()),
             Err(DiffError::Mismatch(message)) if message.starts_with("profile differs")
         ));
         let edited = run(root.path(), "edited", false, &rows, &[], (1, 0, 0))?;
@@ -1075,12 +1381,12 @@ mod tests {
         header.manifest.body_sha256 = "c".repeat(64);
         std::fs::write(edited.join(rundir::RUN_JSON), header.text()?)?;
         assert!(matches!(
-            compare(&edited, &edited, false),
+            compare(&edited, &edited, false, &policy()),
             Err(DiffError::Run { message, .. }) if message.contains("the run recorded cccc")
         ));
         let miscounted = run(root.path(), "miscounted", false, &rows, &[], (0, 0, 0))?;
         assert!(matches!(
-            compare(&base, &miscounted, false),
+            compare(&base, &miscounted, false, &policy()),
             Err(DiffError::Inconsistent(..))
         ));
         Ok(())
@@ -1098,14 +1404,110 @@ mod tests {
             "S2\tfailed\tfailed\tN\t0\t\t",
         ];
         let flaky = run(root.path(), "flaky", false, &lost, &[], (1, 0, 0))?;
-        let comparison = compare(&base, &flaky, false)?;
+        let comparison = compare(&base, &flaky, false, &policy())?;
         assert!(comparison.gate_failed);
+        assert!(comparison.report.contains(
+            "samples not counted (failed, or a side without an allele) differ: 0 in the base, 1 in the run"
+        ));
+        assert!(!compare(&flaky, &flaky, false, &policy())?.gate_failed);
+        Ok(())
+    }
+
+    /// The gate compares sets: a swap (one escape fixed, another made) has
+    /// b = c and passes, with the new escape listed; a sample that moves to
+    /// a checked zone removes its escape; the gate without the re-check list
+    /// is reported; a sample one side cannot count fails; a large move of the
+    /// clear samples is warned of.
+    #[test]
+    fn gates_on_sets_of_escapes() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let scores = [
+            "S1\tdiscordant\tdiscordant\tY\t0\t\t",
+            "S2\tdiscordant\tdiscordant\tY\t0\t\t",
+        ];
+        let base = run(
+            root.path(),
+            "base",
+            false,
+            &scores,
+            &["S1\t100\t100\t100-100:A/C\tnon_het\tinterior@HV2\tno"],
+            (2, 1, 0),
+        )?;
+        let swap = run(
+            root.path(),
+            "swap",
+            false,
+            &scores,
+            &["S2\t200\t200\t200-200:A/C\tnon_het\tinterior@HV2\tno"],
+            (2, 1, 0),
+        )?;
+        let comparison = compare(&base, &swap, false, &policy())?;
+        assert!(!comparison.gate_failed, "{}", comparison.report);
+        assert!(comparison.report.contains("| interior | 0 | 1 | 1 | 0 |"));
         assert!(
             comparison
                 .report
-                .contains("failed samples differ: 0 in the base, 1 in the run")
+                .contains("- S2 interior@HV2 200-200:A/C non_het\n")
         );
-        assert!(!compare(&flaky, &flaky, false)?.gate_failed);
+        // An omission outside a noted tract gates like a non-het block; a
+        // listed one passes unless the re-check list is left out.
+        let omitted = run(
+            root.path(),
+            "omitted",
+            false,
+            &scores,
+            &[
+                "S1\t100\t100\t100-100:A/C\tnon_het\tinterior@HV2\tno",
+                "S2\t73\t73\t73G\trecheck\tomitted_not_analysed\tstart@HV2\tno",
+            ],
+            (2, 1, 0),
+        )?;
+        let mut header = RunHeader::read(&omitted)?;
+        header.workload.all.auto_pass.unreviewed.recheck_only = 1;
+        header.workload.all.auto_pass.unreviewed.total = 2;
+        std::fs::write(omitted.join(rundir::RUN_JSON), header.text()?)?;
+        let comparison = compare(&base, &omitted, false, &policy())?;
+        assert!(!comparison.gate_failed, "{}", comparison.report);
+        assert!(
+            comparison
+                .report
+                .contains("Without the re-check list: b = 1, c = 0, it would fail.")
+        );
+        // A sample that loses every allele on one side is no longer counted.
+        let lost = run(
+            root.path(),
+            "lost",
+            false,
+            &[
+                "S1\tdiscordant\tdiscordant\tY\t0\t\t",
+                "S2\tnot_applicable\tnot_applicable\tY\t0\t\t",
+            ],
+            &["S1\t100\t100\t100-100:A/C\tnon_het\tinterior@HV2\tno"],
+            (1, 1, 0),
+        )?;
+        assert!(compare(&base, &lost, false, &policy())?.gate_failed);
+        // A move of the clear samples beyond the tolerance is warned of.
+        let flagged = run(
+            root.path(),
+            "flagged",
+            false,
+            &[
+                "S1\tdiscordant\tdiscordant\tN\t10\tinterior@HV2\t",
+                "S2\tdiscordant\tdiscordant\tY\t0\t\t",
+            ],
+            &["S1\t100\t100\t100-100:A/C\tnon_het\tinterior@HV2\tyes"],
+            (1, 0, 0),
+        )?;
+        let strict = Policy {
+            clear_tolerance: 0.1,
+            ..policy()
+        };
+        let comparison = compare(&base, &flagged, false, &strict)?;
+        assert!(!comparison.gate_failed, "{}", comparison.report);
+        assert!(comparison.report.contains("| interior | 0 | 0 | 1 | 0 |"));
+        assert!(comparison.report.contains(
+            "**WARNING:** clear samples move by 50.00 % of the 2 samples of all (2 → 1)"
+        ));
         Ok(())
     }
 
@@ -1185,6 +1587,7 @@ mod tests {
                         components: Vec::new(),
                         tracts: Vec::new(),
                         length_context: None,
+                        not_analysed: Vec::new(),
                     }),
                     millis: 0,
                 }
@@ -1235,7 +1638,7 @@ mod tests {
         header.workload = rundir::WorkloadHeader { all, current };
         std::fs::write(directory.join(rundir::RUN_JSON), header.text()?)?;
 
-        let comparison = compare(&directory, &directory, false)?;
+        let comparison = compare(&directory, &directory, false, &policy())?;
         assert!(!comparison.gate_failed, "{}", comparison.report);
         assert!(
             comparison
@@ -1251,7 +1654,7 @@ mod tests {
         }
         std::fs::write(directory.join(rundir::RUN_JSON), miscounted.text()?)?;
         assert!(matches!(
-            compare(&directory, &directory, false),
+            compare(&directory, &directory, false, &policy()),
             Err(DiffError::Inconsistent(..))
         ));
         Ok(())
@@ -1267,7 +1670,7 @@ mod tests {
         ];
         let twice = run(root.path(), "twice", false, &rows, &[], (2, 0, 0))?;
         assert!(matches!(
-            compare(&twice, &twice, false),
+            compare(&twice, &twice, false, &policy()),
             Err(DiffError::Run { message, .. }) if message.contains("sample S1 appears twice")
         ));
         let once = run(root.path(), "once", false, &rows[..1], &[], (1, 0, 0))?;
@@ -1275,7 +1678,7 @@ mod tests {
         let text = std::fs::read_to_string(&scores)?.replace("review_zones", "zones");
         std::fs::write(&scores, text)?;
         assert!(matches!(
-            compare(&once, &once, false),
+            compare(&once, &once, false, &policy()),
             Err(DiffError::Run { message, .. }) if message == "no column review_zones"
         ));
         Ok(())
