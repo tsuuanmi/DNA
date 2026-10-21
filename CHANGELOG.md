@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval bench --cases <tsv> --manifest <panel>…` runs DNA on the
+  adjudicated artefact cases of a case list (extra peaks, electrophoretic
+  spikes, dye blobs, truth errors where DNA is right) and checks the outcome
+  each must keep over its span: its alleles, no indel, a check (with a
+  label), or a called or withheld span. It exits 2 with `BENCH FAIL` when a
+  guarded case regresses; known failures are reported, not gated. The case
+  list names samples and stays under `results/`. On 55 cases it runs in
+  about 4 s with the evidence cache, passes on main except 3 known failures,
+  and fails on the #209 + #203 pair by the false deletion at 16166 that
+  neither change makes alone.
 - `dna.placed_read/v1` (ADR-0087, **proposed**): one read's placement as
   `dna-align` selected it, which `dna-align` alone writes and reads back,
   re-checking it against the read's evidence and the reference (PROP-0011).

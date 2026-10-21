@@ -133,6 +133,9 @@ the base and the candidate on the same subset and compare them with `diff`.
 it must still pass `diff` on the full development panel before a pull
 request.**
 
+`bench` checks adjudicated artefact cases before any panel run:
+[[validation/artefact-bench]].
+
 ## Approval
 
 `dna-eval approve` is the single approval run of the [approval
