@@ -344,14 +344,15 @@ pub struct Window {
     pub anchor_base: char,
 }
 
-const fn complement(base: char) -> char {
-    match base {
-        'A' => 'T',
-        'T' => 'A',
-        'C' => 'G',
-        'G' => 'C',
-        other => other,
-    }
+/// A reference-strand base on a read's strand: a reverse read's canonical
+/// base is complemented, which is its own inverse.
+const fn on_strand(base: char, forward: bool) -> char {
+    let orientation = if forward {
+        Orientation::Forward
+    } else {
+        Orientation::Reverse
+    };
+    orientation.reference_base(base)
 }
 
 /// The reference position (1-based) a read's call `call` is aligned to, or,
@@ -382,11 +383,7 @@ pub fn entered(
     tract: &TractLengths,
     single: bool,
 ) -> Option<usize> {
-    let run_base = if forward {
-        window.repeat
-    } else {
-        complement(window.repeat)
-    };
+    let run_base = on_strand(window.repeat, forward);
     let position = reference?;
     if tract.run != run_base
         || position < window.first
@@ -405,11 +402,7 @@ pub fn entered(
 /// The anchor base on a read's strand.
 #[must_use]
 pub const fn anchor_on(window: &Window, forward: bool) -> char {
-    if forward {
-        window.anchor_base
-    } else {
-        complement(window.anchor_base)
-    }
+    on_strand(window.anchor_base, forward)
 }
 
 /// The rule's views of a two-run window's runs (run 1 first) from the

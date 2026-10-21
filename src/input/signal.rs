@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use crate::error::{KernelError, Result, RunSignalError};
 use dna_kernel::checksum::hex_sha256;
+use dna_kernel::model::nucleotide::is_canonical;
 use dna_sanger::run_signal::{Histogram, Key, RunSignal, SELECTION};
 
 use super::require_regular_file;
@@ -94,15 +95,14 @@ fn parse(bytes: &[u8], path: &Path) -> std::result::Result<RunSignal, RunSignalE
     let RawProvenance {
         flank, resolution, ..
     } = raw.provenance;
-    let canonical = |base: char| matches!(base, 'A' | 'C' | 'G' | 'T');
     let mut keys = BTreeMap::new();
     let mut total = 0_u64;
     for key in raw.keys {
         let context = key.context.chars().collect::<Vec<_>>();
         if context.len() != 2 * flank + 1
-            || !context.iter().all(|&base| canonical(base))
+            || !context.iter().all(|&base| is_canonical(base))
             || context[flank] != key.base
-            || !canonical(key.second)
+            || !is_canonical(key.second)
             || key.second == key.base
         {
             return Err(RunSignalError::Key {

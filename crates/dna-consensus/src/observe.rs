@@ -7,7 +7,7 @@ use dna_call::Eligibility;
 use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::variant::VariantKind;
-use dna_kernel::model::nucleotide::reverse_complement;
+use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{CallEvidence, EvidenceReason, Placement};
 
 /// What one read contributes at one reference position or junction.
@@ -194,7 +194,7 @@ pub(super) fn observe(
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
         trust: match calls.get(call) {
-            _ if !canonical(base) || !interval.contains(&call) => Trust::Nothing,
+            _ if !is_canonical(base) || !interval.contains(&call) => Trust::Nothing,
             Some(evidence) => match evidence.placement {
                 Placement::Scored if position.is_some() && clean_call(call) => Trust::Clean,
                 Placement::Scored if position.is_none() && inserted_call(call) => Trust::Clean,
@@ -275,14 +275,6 @@ pub(super) fn observe(
     let mut junctions = BTreeMap::new();
     let mut seconds = BTreeMap::new();
     let mut unexplained = BTreeSet::new();
-    // A read-strand base on the reference strand.
-    let on_reference = |base: char| match orientation {
-        Orientation::Forward => base,
-        Orientation::Reverse => reverse_complement(&base.to_string())
-            .chars()
-            .next()
-            .unwrap_or('N'),
-    };
     let mut edges = BTreeMap::new();
     // Calls between `call` and the nearer end of the informative interval.
     let edge = |call: usize| {
@@ -322,7 +314,7 @@ pub(super) fn observe(
             let clean = !unbounded
                 && inserted
                     .iter()
-                    .all(|(base, call)| canonical(*base) && inserted_clean(*call))
+                    .all(|(base, call)| is_canonical(*base) && inserted_clean(*call))
                 && bounded(before[previous_column], after[offset]);
             junctions.insert(
                 previous_position,
@@ -372,10 +364,10 @@ pub(super) fn observe(
                     unexplained.insert(position);
                 }
                 if let Some(second) = evidence.second.filter(|second| second.stands_out) {
-                    seconds.insert(position, on_reference(second.base));
+                    seconds.insert(position, orientation.reference_base(second.base));
                 }
             }
-            let clean = canonical(column.query_base())
+            let clean = is_canonical(column.query_base())
                 && !shifted
                 && column.original_call_index_0based().is_some_and(clean_call);
             // A call reading the reference's base confirms the reference at
@@ -387,7 +379,7 @@ pub(super) fn observe(
             // out or left unexplained. The margin keeps an indel or a run's
             // end from resting there; a confirmation shows neither.
             let confirms = !clean
-                && canonical(column.query_base())
+                && is_canonical(column.query_base())
                 && !shifted
                 && reference_at(position) == Some(column.query_base())
                 && call.is_some_and(|(call, evidence)| {
@@ -563,7 +555,7 @@ impl ReadObservations {
             let [char] = observation.chars.as_slice() else {
                 break;
             };
-            if !observation.clean || !char.clean() || !canonical(char.base) {
+            if !observation.clean || !char.clean() || !is_canonical(char.base) {
                 break;
             }
             bases.push(char.base);
@@ -654,8 +646,4 @@ pub(super) fn unreliable_only(
     }
     unreliable.retain(|position, _| !sound.contains(position));
     unreliable
-}
-
-const fn canonical(base: char) -> bool {
-    matches!(base, 'A' | 'C' | 'G' | 'T')
 }

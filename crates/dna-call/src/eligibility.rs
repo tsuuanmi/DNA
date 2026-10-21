@@ -308,7 +308,7 @@ impl<'a> Eligibility<'a> {
             calls
                 .get(index)
                 .map(|call| call.base)
-                .filter(|base| matches!(base, 'A' | 'C' | 'G' | 'T'))
+                .filter(|&base| dna_kernel::model::nucleotide::is_canonical(base))
         };
         let Some(period) = (1..=length).find(|period| {
             length % period == 0
