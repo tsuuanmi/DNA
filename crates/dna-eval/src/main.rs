@@ -114,8 +114,8 @@ enum Command {
     /// Manages a read evidence cache (`run --evidence-cache`).
     Cache(CacheArgs),
     /// Compares a run with a base run of the same panel and gates it: exits
-    /// 2 with `GATE FAIL` when more passed samples or zones carry a non-het
-    /// unreviewed block, or more samples carry an unreviewed block.
+    /// 2 with `GATE FAIL` when more samples, passed samples, or passed zones
+    /// carry a non-het unreviewed block; het blocks are reported, not gated.
     Diff(DiffArgs),
 }
 

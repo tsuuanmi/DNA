@@ -91,7 +91,7 @@ have no schema; the evaluation harness document describes them.
   panel, from their directories alone. It refuses runs that measure
   different things or whose files disagree with their `run.json`, counts the
   passes per group (all, period, source) and zone, and gives the verdict
-  that gates a probe.
+  that gates a probe on non-het blocks; het blocks are reported only.
 - `evidence.rs` — with `run --triage`, the compact triage evidence the
   runner takes from each sample's analysis: per region position, the clean
   strands, masked reads, and consensus marks; per trace, its primer, state,
