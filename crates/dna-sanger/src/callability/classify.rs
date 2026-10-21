@@ -1,6 +1,7 @@
 //! Segment classification: the phase state of every masked run of positions
 //! and whether it follows a repeat run.
 
+use dna_kernel::model::runs::maximal_runs;
 use std::ops::Range;
 
 use crate::model::callability::{
@@ -24,29 +25,21 @@ pub(super) struct Context<'a> {
 /// Turns per-position callable flags into ordered segments, classifying every
 /// masked run by its dominant defect class.
 pub(super) fn segments(callable: &[bool], context: &Context<'_>) -> Vec<PhaseSegment> {
-    let mut segments = Vec::new();
-    let mut start = 0;
-    while start < callable.len() {
-        let flag = callable[start];
-        let end = start
-            + callable[start..]
-                .iter()
-                .take_while(|&&next| next == flag)
-                .count();
-        segments.push(if flag {
-            PhaseSegment {
-                call_start_0based: start,
-                call_end_0based_exclusive: end,
-                state: PhaseState::InPhase,
-                after_repeat: false,
-                shadow: None,
+    maximal_runs(callable, |flag| *flag)
+        .map(|run| {
+            if callable[run.start] {
+                PhaseSegment {
+                    call_start_0based: run.start,
+                    call_end_0based_exclusive: run.end,
+                    state: PhaseState::InPhase,
+                    after_repeat: false,
+                    shadow: None,
+                }
+            } else {
+                classify(run, context)
             }
-        } else {
-            classify(start..end, context)
-        });
-        start = end;
-    }
-    segments
+        })
+        .collect()
 }
 
 /// Classifies one masked run.
