@@ -622,6 +622,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review labels `reference_second` a position where a difference rests
+  on one read whose call there reads another base than the reference while
+  showing the reference base as its second peak above the call's
+  second-channel threshold (SRS-CALL-020): a check, decision unchanged
+  (rules version 25, plugin `review` 25). No new configuration. On
+  development panel v5 such bases were mostly dye blobs over the
+  reference's peak at reverse read starts (`527A`, `530G`, `16326G`,
+  `16328G`). Against 85cab63 the diff gate passes: samples passed with a
+  non-het difference 18 → 15 (`after@HV3` 2 → 0, `end@HV1` 2 → 1, all
+  earlier data), het-only 340 → 338, unreviewed samples 618 → 581, no status
+  or coverage changes; 25 more zones need a check (13 current) and 6 samples
+  lose their clear state (2 current), one of them for a correct call.
 - The review's `length_unconfirmed` runs carry `convention` (null in
   `length_not_recorded`): when both strands read a run as a near-equal adjacent pair
   `n`, `n + 1`, the lab's reading `n` (the shorter member, the run ending at
