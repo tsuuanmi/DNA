@@ -250,15 +250,15 @@ length_context_edges = [-3.0, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 3
 
 [review]
 # A decided run longer than its reference run by at least `run_growth` bases
-# is a check when its length rests on an anchored end or a single read: both
-# strands must show it in phase to assure it.
+# is a check when its length rests on an anchored end or on one strand, however
+# many reads: both strands must show it in phase to assure it.
 run_growth = 3
 # When a reportable region's end is not analysed (SRS-CONS-012), any
 # difference within `edge_zone` positions of it is a check: its reads there
 # sit right after their poor start.
 edge_zone = 40
-# A deletion that rests on a single read within `deletion_zone` positions of a
-# reportable region's first or last position is a check: the read's own edge
+# A deletion that rests on one strand within `deletion_zone` positions of a
+# reportable region's first or last position is a check: the reads' own edge
 # is where a lost or doubled base looks like a deletion.
 deletion_zone = 20
 # A read reads the end of an item that its strand reaches first in phase, up to

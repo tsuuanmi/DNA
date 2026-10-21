@@ -689,7 +689,7 @@
               "$ref": "#/$defs/strand"
             },
             "share": {
-              "description": "The share of the reference base's second peak (SRS-CALL-015) under the one supporting read's other base, above its threshold.",
+              "description": "The share of the reference base's second peak (SRS-CALL-015) under the supporting read's other base, above its threshold; the difference rests on that read's strand alone.",
               "type": "number",
               "minimum": 0,
               "maximum": 0.5
@@ -825,52 +825,81 @@
           "additionalProperties": false,
           "required": [
             "label",
-            "read"
+            "strand",
+            "reads"
           ],
           "properties": {
             "label": {
               "const": "edge_deletion"
             },
-            "read": {
-              "type": "string",
-              "minLength": 1
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "reads": {
+              "description": "Every supporting read, all on `strand`, in the site's order.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
-          }
+          },
+          "description": "A decided deletion within review.deletion_zone positions of a reportable region's first or last position whose supporting reads all lie on one strand, however many (rules version 32): a check."
         },
         {
           "type": "object",
           "additionalProperties": false,
           "required": [
             "label",
-            "read"
+            "strand",
+            "reads"
           ],
           "properties": {
             "label": {
               "const": "run_deletion"
             },
-            "read": {
-              "type": "string",
-              "minLength": 1
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "reads": {
+              "description": "Every supporting read, all on `strand`, in the site's order.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
-          }
+          },
+          "description": "A decided site at least review.run_growth bases shorter than its reference, which holds a run of at least review.phase_run equal bases, whose supporting reads all lie on one strand, however many (rules version 32): a check."
         },
         {
           "type": "object",
           "additionalProperties": false,
           "required": [
             "label",
-            "read"
+            "strand",
+            "reads"
           ],
           "properties": {
             "label": {
               "const": "run_indel"
             },
-            "read": {
-              "type": "string",
-              "minLength": 1
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "reads": {
+              "description": "Every supporting read, all on `strand`, in the site's order.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           },
-          "description": "A decided site outside every repeat window and length tract that rests on one read and changes a homopolymer run's length: a check."
+          "description": "A decided site outside every repeat window and length tract that changes a homopolymer run's length and whose supporting reads all lie on one strand, however many (rules version 32): a check."
         },
         {
           "type": "object",

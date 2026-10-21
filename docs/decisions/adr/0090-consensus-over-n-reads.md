@@ -162,6 +162,35 @@ clean support and dissent lie on one strand, so the label is a guard for
 re-sequenced and NGS samples. No panel sample has two traces of one file
 stem, so read identity changes no output today; it removes the failure.
 
+Step 2: plugin `review` 32. `run_deletion`, `run_indel`, `edge_deletion`
+and `reference_second` gate on all support lying on one strand, the first
+three labels carry `{strand, reads}`, and `long_run` counts strands.
+Measured against `main` `95f2edf2` with the evidence cache and the frozen
+re-check list, the `dna-eval diff` gate passed on both panels and the
+artefact bench is unchanged (53 pass, 2 known). Every added check is a
+`reference_second`; none in the current period lies over a difference
+between DNA and the truth, and the non-het unreviewed blocks are
+unchanged.
+
+- **Development panel v5, current period:** 8 new checks in 8 samples,
+  all re-sequenced, 5 of them in the HVS-II C tract where the forward read
+  loses phase and a reverse rerun stands beside the first reverse read;
+  one existing check gains the label. Clear 8,358 → 8,353; non-het
+  unreviewed 4 → 4.
+- **Readiness-v2, current period:** 2 new checks at samples without a
+  rerun: an HV1 forward read reads through the origin into HVS-II, so its
+  tail and the HV2 forward read are the support of one strand, and the
+  tail shows the reference second (`249DEL`, `151T`, DNA right). Clear
+  14,408 → 14,406; non-het unreviewed 1 → 1.
+- **Earlier periods:** 7 new checks on each panel, 4 (development panel
+  v5) and 5 (readiness-v2) at re-sequenced samples and the others by HV1
+  read-through. One now covers a truth heteroplasmy at 204 that was
+  unreviewed (het-only unreviewed 194 → 193), and one a difference where
+  the truth leaves HVS-II unanalysed. Clear −4 and −1.
+
+So a second read of a strand is not only a rerun: an amplicon that reads
+into the next region adds one too, and the rule treats it alike.
+
 ## Alternatives
 
 - **Generalise `read_disagrees` to opposing reads.** `read_disagrees`

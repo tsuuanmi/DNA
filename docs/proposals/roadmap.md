@@ -11,6 +11,7 @@ decided-by:
   - ADR-0076
   - ADR-0079
   - ADR-0090
+  - ADR-0091
 ---
 
 # DNA Roadmap
@@ -88,7 +89,7 @@ The following remain outside the current production interpretation boundary unti
 - consensus refinements beyond [[PROP-0003]] and [[ADR-0074]]:
   - run lengths that no read reads;
   - contested sites decided by richer evidence than the one-read reference tie-break;
-  - run ends that the aligner writes as mismatches inside a run exempt from `read_end` ([[ADR-0076]]), for example `309.1C 315.1C` aligned as a C over T310 and a T over C311 (about 9 development-panel samples): re-expressing such stretches needs the exemption inside alignment, because re-expressing every unmasked stretch measured 14 regressions and new false alleles. Its HVS-I `16193.1C` gains come from the enriched length stratum, and become moot if a profile policy for the unrecorded HVS-I C-tract length lands;
+  - run ends that the aligner writes as mismatches inside a run exempt from `read_end` ([[ADR-0076]]), for example `309.1C 315.1C` aligned as a C over T310 and a T over C311: a clean read's substitution in repeat runs is now re-expressed ([[ADR-0091]]); what remains is a read whose dephased end is placed one base shifted beside the stretch (126 development-panel samples keep a C at 310 that way). Re-expressing every unmasked stretch measured 14 regressions and new false alleles (2026-10-16). Its HVS-I `16193.1C` gains come from the enriched length stratum, and become moot if a profile policy for the unrecorded HVS-I C-tract length lands;
   - a post-calling profile policy that classifies, never drops, length calls the target's convention does not record (the HVS-I C-tract is noted as length heteroplasmy in the `C5TC4` frame);
 - the Sanger mixed verdict judged against the run signal ([[PROP-0009]] increment (iii)): a run signal can only lift a mixed verdict, and lifting every one on development panel v5 raised current samples with an unreviewed difference from 4.13 to 6.02 % and made 584 `haplotype_lod` statuses worse, for at most 41 samples it could help; deferred (2026-10-19, user);
 - quantitative heteroplasmy, and point-heteroplasmy evidence as labelled IUPAC sites; this first needs accurate primary calls, a shadow-corrected minor channel, and cross-strand confirmation ([research](../research/point-heteroplasmy/README.md));
