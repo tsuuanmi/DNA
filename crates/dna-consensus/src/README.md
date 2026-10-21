@@ -52,7 +52,10 @@ behind every non-trivial decision.
   increment 4): each strand's view of a window's run from the reads' tract
   decodes (direct, derived by NNLS deconvolution of the total, or in phase),
   and `decide`, which takes a length only when both strands put it on top
-  beyond their own replicate noise.
+  beyond their own replicate noise; and `two_strand`, the pass that applies
+  it to the decided stretches: in a stretch with two runs of one base
+  around a single-base anchor, a run left as an estimate takes the length
+  the rule decides.
 - `insertion.rs`: insertions both strands must show (SRS-CONS-015,
   ADR-0089): each read's view of a site decided with an insertion
   (`not_covered`, `read_end`, `unresolved`, `reads_through`, `shows`), the
@@ -64,20 +67,29 @@ behind every non-trivial decision.
   additive per-run pairs, `Σz²`, and histogram, with `with` and `without`
   (leave-one-out) and `scale`, the empirical-Bayes shrunk scale of τ;
   `RuleParams::calibrated`.
-- `lib.rs`: the entry point `build`, which handles stretches of whole
-  reference runs (seeded by clean differences and by disputed runs no read
-  bounds), segment assembly, and the `consensus` plugin descriptor.
-  Each stretch is decided by its run structure (ADR-0074): composition, then
-  lengths with their evidence (`in_phase`, `anchored_end`, `confirmed_end`,
-  `phase_loss`, `reference_frame`), or position by position. Reference
-  confirmations are withdrawn where a second sequence may hide (an
-  unexplained second on the other strand alone hides none) or beside a
-  differing site, and dissent from a reference decision that a clean read of
-  the other strand contradicts is set aside, as is a run-length dissent with
-  an explained second peak from a called variant, with the positions decided
-  again (SRS-CONS-010, SRS-CONS-011). In a stretch with two runs of one
-  base around a single-base anchor, a run left as an estimate takes the
-  length the two-strand rule decides (`two_strand`, SRS-CONS-013).
+- `lib.rs`: the entry point `build`, which runs the passes in order
+  (observe, withdraw confirmations, decide, then withdraw and set aside
+  until nothing changes, contest one-strand insertions, the two-strand
+  rule, assemble), `decide_positions`, `read_runs_over`, and the
+  `consensus` plugin descriptor.
+- `confirm.rs`: the reference confirmations withdrawn (ADR-0080,
+  SRS-CONS-010): where a second sequence may hide (an unexplained second on
+  the other strand alone hides none), at or beside an observed or a decided
+  difference, and in a run across a junction no read observes cleanly; and
+  the positions only confirmations decide.
+- `dissent.rs`: dissent from a reference decision that a clean read of the
+  other strand contradicts is set aside, as is a run-length dissent with an
+  explained second peak from a called variant (SRS-CONS-011).
+- `stretch.rs`: stretches of whole reference runs, seeded by clean
+  differences and by disputed runs no read bounds, each decided by its run
+  structure (ADR-0074): composition, then lengths with their evidence
+  (`in_phase`, `anchored_end`, `confirmed_end`, `phase_loss`,
+  `reference_frame`), or position by position.
+- `unplace.rs`: a decided length change that nothing beside it places is
+  left undecided (SRS-CONS-009).
+- `segments.rs`: the decided sites split into pieces and assembled as
+  segments with their sites and counts.
+- `tests.rs`: the crate's unit tests over `build` and its passes.
 
 The module reads only `CalledRead` records, so it is modality-neutral
 (ADR-0069). It uses no profile window or filename: a read is its input's
