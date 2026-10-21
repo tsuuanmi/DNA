@@ -95,7 +95,13 @@ pub fn build(
     // An insertion into a short repeat that a read of the other strand reads
     // through without is decided by neither strand (SRS-CONS-015).
     insertion::contest_one_strand(&mut decided, &observed, bases, consensus_config.seeded_run);
-    two_strand(&mut decided, reads, reference, config, consensus_config);
+    two_strand(
+        &mut decided,
+        reads,
+        bases,
+        consensus_config.length_rule(),
+        |first, last| read_runs_over(reads, reference, config, consensus_config, first, last),
+    );
     let reference_only = confirmed_only(&observed);
 
     let mut consensus = Consensus {
