@@ -1,5 +1,5 @@
 ---
-decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0072, ADR-0086]
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0072, ADR-0086, ADR-0091]
 ---
 
 # Alignment canonicality Invariants
@@ -15,6 +15,6 @@ These invariants are part of the canonical [system invariant set](README.md).
 
 - **INV-ALN-006:** Score-bounded seeded pruning is complete with respect to its proven threshold: every placement that can tie or exceed that threshold must be represented by at least one certified seed window. A candidate locator may provide a lower bound, but it cannot by itself exclude any placement, orientation, repeat-equivalent optimum, or circular-seam case.
 
-- **INV-ALN-007:** Run-structure re-expression (ADR-0072) runs only after placement selection and admission. It keeps the selected placement, its span and score, and every column outside a rewritten stretch. It rewrites only a stretch that holds a masked call and whose read calls spell the reference's runs with every changed run longer, or every changed run shorter; a read without masked calls is never changed.
+- **INV-ALN-007:** Run-structure re-expression (ADR-0072) runs only after placement selection and admission. It keeps the selected placement, its span and score, and every column outside a rewritten stretch. It rewrites only a stretch that holds a masked call or a substitution, whose read calls spell the reference's runs, and whose run-length changes reduce to one direction once each boundary between a shorter and a longer run has moved by substitution (ADR-0091). The read's calls and the reference positions of a stretch are never changed, only how they pair; a stretch without a masked call or a substitution is never changed.
 
 - **INV-ALN-008:** A placement tie never chooses between explanations. It either fails, or leaves unplaced a stretch at one end of the read whose every call the read asserts unreliable, and places the rest by its own unique optimum (ADR-0086).

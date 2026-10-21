@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN]
-decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072, ADR-0086, ADR-0087]
+decided-by: [ADR-0010, ADR-0029, ADR-0047, ADR-0059, ADR-0069, ADR-0072, ADR-0086, ADR-0087, ADR-0091]
 covers:
   - crates/dna-align/src/
   - crates/dna-align/src/canonical.rs
@@ -159,9 +159,12 @@ consensus must not take as placed evidence.
 
 Dephased calls anchor the alignment with their mixed profiles (SRS-ALN-015),
 so the optimal path can split one run-length change into a substitution next
-to an insertion, or merge two of them into one gap. After the admission gates,
-the selected alignment's masked repeat stretches are therefore re-expressed
-(ADR-0072, SRS-ALN-016):
+to an insertion, or merge two of them into one gap. A clean read is merged the
+same way: one gap opening (−10) costs more than a mismatch and a lost match
+(−5 − 3), so a read `C9 T C6` over HVS-II's `C7 T C5` scores best as `310C`
+with `TCC` inserted, though it shows the T. After the admission gates, the
+selected alignment's repeat stretches are therefore re-expressed (ADR-0072,
+ADR-0091, SRS-ALN-016):
 
 1. Each maximal block of columns that are not exact canonical matches grows
    to whole reference runs (a run may be one base). It keeps growing run by
@@ -169,19 +172,29 @@ the selected alignment's masked repeat stretches are therefore re-expressed
    the read's adjacent call inside the stretch does not repeat. A stretch
    never crosses the circular origin or exceeds `alignment.max_stretch` (64)
    reference bases; growth
-   that reaches the alignment end leaves the block unchanged.
-2. The stretch is rewritten only when all of these hold:
+   that reaches the alignment end leaves the block unchanged. Two stretches
+   whose anchors are each other's first and last columns share no other
+   column and stay separate, so a disturbed read end beside a repeat does
+   not join it.
+2. The stretch is considered only when all of these hold:
    - every read call in it is canonical;
-   - one of them is masked;
-   - the read's run bases equal the reference's in order;
-   - the changed runs are all longer or all shorter.
-3. Each run becomes its paired matches followed by one length edit at its 3'
-   end.
+   - one of them is masked, or one of its columns is a substitution;
+   - the read's run bases equal the reference's in order.
+3. From 5' to 3', each boundary between a shorter run and a longer
+   neighbour moves as far as both changes allow: the shorter run's positions
+   beside the boundary become substitutions by the neighbour's base
+   (`16182C 16183C`). When the remaining changes still both lengthen and
+   shorten runs, the stretch is kept.
+4. Otherwise each run becomes its moved boundary, its paired matches, and
+   one length edit at its 3' end: a reverse HVS-II read whose last in-phase
+   call reads `302` as C becomes `302C 309.1C 309.2C 315.1C`, with T310
+   matched.
 
 The placement, its span and score, and every column outside the stretch are
-kept, and the metrics are recomputed from the rewritten columns. A read
-without masked calls, such as a reviewed consensus sequence, is never
-changed.
+kept, and the metrics are recomputed from the rewritten columns. The read's
+calls and the stretch's reference positions are never changed, only how they
+pair. A stretch without a masked call or a substitution, such as one merged
+gap that is already a pure length change, is never changed.
 
 ### Substep 6.7 — Reference segments
 

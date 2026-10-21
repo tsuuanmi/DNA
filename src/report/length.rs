@@ -67,8 +67,8 @@ pub(super) fn called_runs(haplotype: &str, window: &LengthWindow) -> Option<Vec<
 }
 
 /// One read's tract decode, with the reference position its first call is
-/// aligned to (the nearest aligned call before it in the read's order when
-/// it sits on an inserted column).
+/// aligned to (on an inserted column, the position the insertion follows on
+/// the reference).
 #[derive(Clone)]
 pub(super) struct Decode<'a> {
     pub(super) read: &'a str,
