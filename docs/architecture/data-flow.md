@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API]
-decided-by: [ADR-0060, ADR-0069, ADR-0078]
+decided-by: [ADR-0060, ADR-0069, ADR-0078, ADR-0087]
 ---
 
 # Data Flow
@@ -171,6 +171,7 @@ flowchart LR
 | per-call evidence ([dna-sanger](../../crates/dna-sanger/src/README.md) → `ReadEvidence`, phase mixtures by [dna-trace](../../crates/dna-trace/src/README.md)) | ABIF trace | `dna.read_evidence/v1` | `dna evidence` | [read-evidence-v1](../reference/schemas/read-evidence-v1.schema.json) |
 | run signal ([dna-sanger](../../crates/dna-sanger/src/README.md) `run_signal`) | a run's ABIF traces | `dna.signal/v1` | `dna signal` | [signal-v1](../reference/schemas/signal-v1.schema.json) |
 | placement ([dna-align](../../crates/dna-align/src/README.md)) | `dna.read_evidence/v1` (in process from a trace, or the file with `--evidence`), reference FASTA | `dna.analysis/v10` `alignment` and each call's `column` | `dna analyze`, `dna analyze --evidence` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
+| placed reads ([dna-align](../../crates/dna-align/src/README.md) `placed`, [[ADR-0087]], proposed) | `dna.read_evidence/v1`, reference FASTA | `dna.placed_read/v1` | none yet; `dna-eval`'s placement cache (`dna::recorded::placed_read_document`) | [placed-read-v1](../reference/schemas/placed-read-v1.schema.json) |
 | read assertion ([dna-call](../../crates/dna-call/src/README.md)) | `dna.read_evidence/v1` (in process or the file), `dna.analysis/v10` `alignment` | `dna.analysis/v10` `variants` and each call's `trust`; component calls: none yet ([PROP-0010](../proposals/0010-length-mixture-decomposition.md)) | `dna analyze`, `dna analyze --evidence` | [analysis-v10](../reference/schemas/analysis-v10.schema.json) |
 | read assertion over reviewed sequences ([dna-call](../../crates/dna-call/src/README.md), facade `input::sequence`) | consensus FASTA | `dna.variants/v1` | `dna call <FASTA>...` | [variants-v1](../reference/schemas/variants-v1.schema.json) |
 | sample evidence ([dna-sample](../../crates/dna-sample/src/README.md)) | the reads' `dna.read_evidence/v1` (in process from the traces, or the files with `--evidence`), reference FASTA | `dna.sample_evidence/v10` | `dna sample`, `dna sample --evidence` | [sample-evidence-v10](../reference/schemas/sample-evidence-v10.schema.json) |

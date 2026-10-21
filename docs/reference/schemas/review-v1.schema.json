@@ -1048,6 +1048,7 @@
                   "base",
                   "called",
                   "agreement",
+                  "convention",
                   "reads"
                 ],
                 "properties": {
@@ -1080,6 +1081,31 @@
                       "not_clear",
                       "disagree",
                       "structure_differs"
+                    ]
+                  },
+                  "convention": {
+                    "description": "The lab's convention reading of a near-equal pair (both strands read the run as an adjacent pair n, n + 1, at least one read near-equal): the shorter member. A suggestion only, never DNA's call; null otherwise, for a run whose structure differs, and in length_not_recorded.",
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "length",
+                          "rule"
+                        ],
+                        "properties": {
+                          "length": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "rule": {
+                            "const": "shorter_of_near_equal_pair"
+                          }
+                        }
+                      }
                     ]
                   },
                   "reads": {
@@ -1168,6 +1194,7 @@
                   "base",
                   "called",
                   "agreement",
+                  "convention",
                   "reads"
                 ],
                 "properties": {
@@ -1200,6 +1227,31 @@
                       "not_clear",
                       "disagree",
                       "structure_differs"
+                    ]
+                  },
+                  "convention": {
+                    "description": "The lab's convention reading of a near-equal pair (both strands read the run as an adjacent pair n, n + 1, at least one read near-equal): the shorter member. A suggestion only, never DNA's call; null otherwise, for a run whose structure differs, and in length_not_recorded.",
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "length",
+                          "rule"
+                        ],
+                        "properties": {
+                          "length": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "rule": {
+                            "const": "shorter_of_near_equal_pair"
+                          }
+                        }
+                      }
                     ]
                   },
                   "reads": {

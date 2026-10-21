@@ -1,5 +1,6 @@
 ---
 implements: [SRS-OUT]
+decided-by: [ADR-0087]
 covers: [src/operation_log.rs, src/pipeline/, src/report/]
 ---
 
@@ -31,6 +32,7 @@ This directory is the canonical reference for public, machine-visible, configura
   - [Analysis JSON Schema](schemas/analysis-v10.schema.json)
 - [Basecall JSON Schema](schemas/basecalls-v3.schema.json)
 - [Read evidence JSON Schema](schemas/read-evidence-v1.schema.json)
+- [Placed read JSON Schema](schemas/placed-read-v1.schema.json): `dna.placed_read/v1`, one read's placement as `dna-align` selected it ([[ADR-0087]], proposed), written and read back by `dna-align` alone.
 - [Sample evidence JSON Schema](schemas/sample-evidence-v10.schema.json)
 - [Variants JSON Schema](schemas/variants-v1.schema.json)
 - [Notation JSON Schema](schemas/notation-v1.schema.json)

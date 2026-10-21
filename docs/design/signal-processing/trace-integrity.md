@@ -31,7 +31,8 @@ maximum_to_median_event_signal_ratio =
 using the existing six-decimal metric rounding. This ratio is deliberately not
 thresholded into a dye-blob/high-amplitude-artifact label. It is evidence for
 validation and review until a classifier has its own specification and truth
-data.
+data. The [spike detector](spikes.md) is such a classifier for one artefact; it
+reads the channels, not this ratio.
 
 Trace-integrity observations never change calls, SNR windows, quality, trim,
 alignment, or variants.

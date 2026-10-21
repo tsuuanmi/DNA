@@ -5,13 +5,19 @@ Owns placement, the core's first step
 [ADR-0079](../../../docs/decisions/adr/0079-core-crates-by-step.md)): where
 does a read lie on the reference? It depends only on `dna-kernel`.
 
-Public surface: `align_best`, the `[alignment]` section (`AlignmentConfig`,
+Public surface: `align_best`, [placed](placed.rs) (the `dna.placed_read/v1`
+contract: `write` and `read`, which re-checks a placement against the read's
+evidence and the reference, [ADR-0087](../../../docs/decisions/adr/0087-placed-read-contract.md),
+proposed), the `[alignment]` section (`AlignmentConfig`,
 `RawAlignmentConfig`), and the [model](model/README.md): a read-only `Alignment`,
 columns included, whose callable segments only its own methods narrow, so
 `dna-align` is its only writer. `Alignment::placed` is the second producer
 of alignments, for a source that places a read itself (the consensus's
 decided reads): it checks the invariants `align_best` guarantees and
-computes the metrics from the columns. The `test-support` feature adds
+computes the metrics from the columns. `placed::read` is the third: it
+reads back a placement `align_best` selected and `placed::write` wrote, and
+re-checks it against the read's evidence and the reference. The
+`test-support` feature adds
 `Alignment::fixture` for the guards of downstream crates.
 
 Output contract: the `alignment` and each call's `column` of
@@ -38,7 +44,10 @@ unchanged (SRS-ALN-012). Before that, on a read whose ends are vouched (a
 consensus record), `canonical.rs` moves a deletion beside an `N` without
 evidence 3' across it (SRS-ALN-017), and `runs.rs` re-expresses masked
 repeat stretches of the selected alignment as one length edit per run
-(ADR-0072).
+(ADR-0072). When the selected orientation's two best placements tie only on
+calls at one end of the query that the read asserts unreliable (inside
+`ReadEvidence::unreliable`, or masked), `orient.rs` leaves those calls
+unplaced and aligns the rest again (SRS-ALN-006, ADR-0086).
 
 This module does not extract variants or mutate upstream signal evidence.
 

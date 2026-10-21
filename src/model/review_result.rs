@@ -389,7 +389,17 @@ pub(crate) struct LengthRunResult {
     pub(crate) base: char,
     pub(crate) called: Option<usize>,
     pub(crate) agreement: &'static str,
+    /// The lab's convention reading of a near-equal pair, a suggestion only:
+    /// never DNA's call.
+    pub(crate) convention: Option<LengthConventionResult>,
     pub(crate) reads: Vec<LengthReadResult>,
+}
+
+/// A run length a reporting convention would read, with the convention.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct LengthConventionResult {
+    pub(crate) length: usize,
+    pub(crate) rule: &'static str,
 }
 
 /// One read's length of a run: decoded from its first-run marginal

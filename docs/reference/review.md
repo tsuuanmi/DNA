@@ -258,7 +258,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 23)
+## Labels (rules version 25)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -322,7 +322,7 @@ exemption lifts the margin (ADR-0076).
   a difference from the decision, against 92 % heteroplasmies among the
   flags whose qualifying reads all show a `second_template` peak.
 - `reference_second` `{position, read, strand, share, threshold, calls?}`
-  (rules version 23): at a difference that rests on one read (`one_read`), a
+  (rules version 25): at a difference that rests on one read (`one_read`), a
   position where that read reads another base than the reference while its
   call shows the reference base as its second peak, with a share above the
   call's second-channel threshold (SRS-CALL-020, as for
@@ -370,8 +370,21 @@ exemption lifts the margin (ADR-0076).
   - `undecided_call`;
   - `differs_from_call`: both strands agree on another length than DNA's.
 
+  `convention` (rules version 24, user decision 2026-10-20) is the lab's
+  reading of a near-equal pair, a suggestion and never DNA's call:
+  `{length, rule: "shorter_of_near_equal_pair"}` when both strands read the
+  run as the adjacent pair `n`, `n + 1` and at least one read's top two are
+  near-equal (every read with a next length holds the pair as its top two,
+  and every other read gives one of the two), with `length` `n`; the lab
+  ends the run at the first mixed call of the reverse read. Null otherwise,
+  for a run whose structure differs from DNA's, and in `length_not_recorded`,
+  where the lab records no length.
+
   A run both strands give one clear length that is DNA's is confirmed and not
-  listed. The label is a check: the decodes do not assure DNA's length.
+  listed. So is a run the consensus decided by the two-strand rule
+  (`length_evidence` `two_strand`, SRS-CONS-013, rules version 23), unless
+  its structure differs. The label is a check: the decodes do not assure
+  DNA's length.
 - `length_not_recorded` `{runs: [...]}` (rules version 21): the same runs, as
   `length_unconfirmed` lists them, confirmed ones included, of an anchored
   window over which the profile's report convention leaves the run lengths

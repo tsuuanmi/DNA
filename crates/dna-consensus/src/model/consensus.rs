@@ -54,6 +54,11 @@ pub enum RunEvidence {
     /// reference positions between those ends. It assumes no length change
     /// and is not observed.
     ReferenceFrame,
+    /// No read shows both ends, but reads of both strands decode the run's
+    /// length from their own signal, each beyond the strands' spread and
+    /// its strand's replicate noise (PROP-0012 increment 4): the length
+    /// replaces an estimate, never a length a read shows.
+    TwoStrand,
 }
 
 impl RunEvidence {
@@ -66,6 +71,7 @@ impl RunEvidence {
             Self::PhaseLoss => "phase_loss",
             Self::ConfirmedEnd => "confirmed_end",
             Self::ReferenceFrame => "reference_frame",
+            Self::TwoStrand => "two_strand",
         }
     }
 }

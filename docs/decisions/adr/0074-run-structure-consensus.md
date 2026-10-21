@@ -130,12 +130,32 @@ Two rules refine these ends:
      phase. Within a length mixture this lies near the dominant length, so it
      is an estimate.
    - Otherwise the run is undecided.
+5. **Amendment (2026-10-20, [[PROP-0012]] increment 4): `two_strand`.**
+   Where a stretch's call keeps the reference's run composition and splits
+   two runs of one base by a single-base anchor, a run left as
+   `anchored_end`, `phase_loss`, or `reference_frame` takes the length the
+   reads' tract decodes put on top on both strands. Every read's share of
+   that length must clear the strands' spread and their replicate noise by
+   `consensus.length_confidence` standard errors (SRS-CONS-013). An
+   `in_phase` or `confirmed_end` run keeps its length; the review flags a
+   disagreement instead.
+   - The decodes see the length mixture a read loses phase in, which no run
+     end shows. Each strand gives one marginal directly (the run its tract
+     starts in) and the other by deconvolving its total, so both strands view
+     both runs.
+   - The rule refuses a near-equal mixture: there the length is a mixture,
+     not a call. On development panel v5 that was 61 of the 69 phase-lost
+     HVS-II run 1s the review flagged; the rule changed one call (a truth
+     `N`) and introduced no error.
+   - The pattern is the stretch's own structure, taken from the stretch, and
+     each tract is credited to the run its start's reference position falls
+     in. The profile does not enter the decision.
 
 ### Reporting
 
 Every run of a stretch decided this way is published with its
 `length_evidence`: `in_phase`, `anchored_end`, `confirmed_end`,
-`phase_loss`, or `reference_frame`. The summary counts `phase_loss` and `reference_frame` runs.
+`phase_loss`, `reference_frame`, or `two_strand`. The summary counts `phase_loss` and `reference_frame` runs.
 The FASTA carries only the sequence.
 
 No position, target, or region enters the rule (ADR-0021). A profile

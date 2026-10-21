@@ -9,6 +9,7 @@ pub mod bounds;
 pub mod checksum;
 pub mod error;
 pub mod model;
+pub mod nnls;
 pub mod plugin;
 pub mod profile;
 pub mod read_evidence;

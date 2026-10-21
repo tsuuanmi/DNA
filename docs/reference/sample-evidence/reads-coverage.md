@@ -1,5 +1,5 @@
 ---
-implements: [SRS-SAMPLE]
+implements: [SRS-ALN, SRS-SAMPLE]
 decided-by: [ADR-0067]
 ---
 
@@ -75,7 +75,9 @@ following:
   below `alignment.minimum_identity`. Also carries `identity` and
   `minimum_identity`.
 - `ambiguous_placement`: the selected orientation has more than one best
-  placement.
+  placement, and they dispute a call outside the read's unreliable end
+  (SRS-ALN-006). A tie confined to that end leaves its calls unplaced and
+  the read placed.
 - `orientation_tie`: forward and reverse orientations score equally.
 
 The last four are placement failures (SRS-SAMPLE-029); any other failure,

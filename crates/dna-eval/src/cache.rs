@@ -14,6 +14,14 @@
 //! identity, and the cache is refused: a plugin version does not move on a
 //! work-in-progress commit, and a stale document would fake a measurement.
 //!
+//! The same directory holds the placement cache: each read evidence
+//! document's `dna.placed_read/v1` document, keyed by the evidence
+//! document's SHA-256 under a generation named for the configuration, the
+//! placement stage's code identity (the sources from an evidence document to
+//! its placed-read document), and the reference. A run whose placement stage
+//! is unchanged skips the aligner's search; `dna-align` re-checks every
+//! document it reads back against the read's evidence and the reference.
+//!
 //! Entries are gzip-compressed and written to a temporary file then renamed,
 //! so a concurrent run never reads half an entry. An entry that does not
 //! decompress, is not JSON, or names another trace is a miss: it is
@@ -35,6 +43,9 @@ use sha2::{Digest, Sha256};
 /// its commit or without git.
 const CODE: &str = env!("DNA_EVAL_READ_STAGE");
 
+/// The placement stage's code identity, as [`CODE`] for the read stage.
+const PLACEMENT_CODE: &str = env!("DNA_EVAL_PLACEMENT_STAGE");
+
 /// An entry's file name suffix.
 const SUFFIX: &str = ".json.gz";
 
@@ -44,7 +55,7 @@ pub(crate) enum CacheError {
     /// The harness was built from read-stage sources that differ from their
     /// commit, or without git.
     #[error(
-        "--evidence-cache needs a build from committed read-stage sources; this build has no read-stage code identity"
+        "--evidence-cache needs a build from committed read-stage and placement-stage sources; this build has no code identity for one of them"
     )]
     NoCodeIdentity,
     /// The cache directory cannot be created or read.
@@ -97,6 +108,13 @@ pub(crate) struct Usage {
     pub(crate) bytes: u64,
 }
 
+/// A run's caches: read evidence documents, and the placed-read documents
+/// of those documents.
+pub(crate) struct Caches {
+    pub(crate) evidence: EvidenceCache,
+    pub(crate) placed: EvidenceCache,
+}
+
 /// One generation of the cache, filled and read by a run.
 pub(crate) struct EvidenceCache {
     root: PathBuf,
@@ -118,6 +136,28 @@ impl EvidenceCache {
     /// directory cannot be created or the configuration read.
     pub(crate) fn open(root: &Path, config: &Path) -> Result<Self, CacheError> {
         Self::with_code(root, config, CODE)
+    }
+
+    /// Opens the placement cache's generation of `root` for the
+    /// configuration at `config` and the reference whose sequence SHA-256 is
+    /// `reference_sha256`, under this build's placement stage.
+    ///
+    /// # Errors
+    ///
+    /// As [`open`](Self::open), without a placement-stage code identity.
+    pub(crate) fn open_placed(
+        root: &Path,
+        config: &Path,
+        reference_sha256: &str,
+    ) -> Result<Self, CacheError> {
+        if PLACEMENT_CODE.is_empty() {
+            return Err(CacheError::NoCodeIdentity);
+        }
+        Self::with_code(
+            root,
+            config,
+            &format!("placement;{PLACEMENT_CODE}reference={reference_sha256};"),
+        )
     }
 
     fn with_code(root: &Path, config: &Path, code: &str) -> Result<Self, CacheError> {

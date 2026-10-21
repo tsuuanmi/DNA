@@ -19,7 +19,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `20` | exactly 20 |
+| root | `schema_version` | `21` | exactly 21 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
@@ -38,6 +38,9 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `second_cause_blob_width` | `1.8` | finite and positive: multiple of the neighbouring calls' median primary width from which a centred second peak is a `dye_blob` |
 | | `decompose_unexplained_quantile` | `0.99` | finite, in `(0, 1)`: nearest-rank quantile of a read's own in-phase residuals above which a call of a phase mixture is unexplained (SRS-CALL-023) |
 | | `second_cause_width_calls` | `6` | integer at least `1`: calls on each side whose primary widths give that median |
+| | `spike_height` | `3.0` | finite, at least `1`: multiple of the local level, the median primary peak of the neighbouring calls, that every channel's apex of an electrophoretic spike reaches (SRS-SIG-012) |
+| | `spike_span` | `1.5` | finite and positive: median call spacings within which a spike's four apexes lie |
+| | `spike_level_calls` | `6` | integer at least `1`: calls on each side whose primary peaks give the local level |
 | `callability` | `window_calls` | `16` | integer `8..=64` |
 | | `onset_defect_fraction` | `0.375` | finite `(0,1]` |
 | | `exit_defect_fraction` | `0.125` | finite `[0,1]`, below `onset_defect_fraction` |
@@ -109,6 +112,9 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `site_gap_open_cost` | `3` | positive: opening an insertion or deletion when a decided site's call is aligned to its interval |
 | | `site_gap_extension_cost` | `2` | positive: extending one |
 | | `dissent_edge` | `40` | positive: calls from a read's ends within which its insertion or deletion against a reference decision is set aside, when a read of the other strand reads the site cleanly at least this far from its own ends (SRS-CONS-011) |
+| | `length_confidence` | `2.326` | finite and positive: standard errors by which every read's share of a window run's length must clear the strands' spread and noise for the two-strand rule to decide it (SRS-CONS-013; one-sided 1 %) |
+| | `length_noise_forward` | `[0.065, 0.111]` | two values in `0..=0.5`, runs 1 and 2: the forward strand's replicate noise τ in a read's share (SRS-CONS-013) |
+| | `length_noise_reverse` | `[0.111, 0.128]` | two values in `0..=0.5`, runs 1 and 2: the reverse strand's (SRS-CONS-013) |
 
 Each section is owned by one plugin of the static registry
 ([[ADR-0069]]):
@@ -130,7 +136,7 @@ core alone (SRS-CFG-009).
 
 For a uniquely strongest basecalling peak, `secondary_peak_ratio` applies both to each channel's selected peak relative to that primary peak and to the channel signal sampled at the primary peak position. Both comparisons are inclusive; this prevents a remote maximum elsewhere in the same PLOC window from qualifying as ambiguity evidence.
 
-`basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 19 remain in the strict TOML selected for the run; the local path is omitted.
+`basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and configuration schema version 22 remain in the strict TOML selected for the run; the local path is omitted.
 
 `read_end_margin` (ADR-0062) makes a variant ineligible when any of its mapped calls lies within that many calls of an uninformative call (`read_end`): beyond the trim interval, which is the callable span plus at most `trim_context_margin` dephased context calls per side, or inside a masked segment that aligns as unresolved. Masked evidence calls add the reason of their phase segment (ADR-0067). These rules use only the read's own calls and signal; no primer or file-name knowledge is involved.
 
