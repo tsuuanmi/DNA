@@ -170,9 +170,19 @@ in-phase read shows the length directly; the other strand having no view
 is absence of evidence, not a contradiction. A decode is a model of a
 dephased tract, so a run that only decodes give still needs both strands.
 Every other run a decode reaches is a check
-(`length_unconfirmed`). Where a window position is not callable, DNA
-reports no length there: its decided length is an estimate, which confirms
-nothing and is not shown as a reading. The run then carries the reads'
+(`length_unconfirmed`). Where a position DNA must show to measure a run is
+not callable, DNA reports no length for that run: its decided length is an
+estimate, which confirms nothing and is not shown as a reading. When DNA's
+calls in the window change only the runs' lengths (insertions or deletions
+of the repeat base, none at the anchor), the two runs lie around the anchor
+and each is measured between its bounds: run 1 from the position before the
+window to the anchor, run 2 from the anchor to the position after the
+window. A run 1 whose 3' end the consensus only estimates then leaves run 2
+reported while the anchor stays callable (rules version 30). Otherwise (one
+run, or a call such as `T310C` or `16189C` that moves the structure) every
+run needs the whole window callable, as rules version 27 required of all
+runs; that left run 2 unconfirmed beside every estimated run 1, 611 of the
+current period's window checks on development panel v5. The run then carries the reads'
 floor reading instead, the least length any read gives as its top or next
 (user decision 2026-10-21): on development panel v5 it matched the truth in
 87 % of such run 1s whose reads top at different lengths, the phase-loss

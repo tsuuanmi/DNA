@@ -53,7 +53,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 29,
+    version: 30,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -829,13 +829,25 @@ impl<'a> Sample<'a> {
                 })
                 .map(|site| length::two_strand_runs(&site.runs, window))
                 .unwrap_or_default();
-            // DNA reports the window's lengths only where it is callable
-            // throughout; elsewhere its decided lengths are estimates.
-            let reported = (first..=last).all(|position| inside(self.callable, position));
+            // DNA reports a run's length only where the run and the
+            // positions that bound it are callable; elsewhere its decided
+            // length is an estimate. Without DNA's calls in the profile's
+            // notation, its runs are not known to lie around the anchor.
+            let anchored = self.notation && length::anchored(window, self.calls);
+            let reported = length::run_spans(window, called.as_deref(), anchored)
+                .into_iter()
+                .enumerate()
+                .filter(|&(_, [start, end])| {
+                    within(self.regions, start, end).is_some_and(|[start, end]| {
+                        (start..=end).all(|position| inside(self.callable, position))
+                    })
+                })
+                .map(|(index, _)| index + 1)
+                .collect::<Vec<_>>();
             let judged = length::judge(
                 window,
                 called.as_deref(),
-                reported,
+                &reported,
                 &two_strand,
                 &decodes,
                 &in_phase,
@@ -881,8 +893,9 @@ impl<'a> Sample<'a> {
                         let judged_run = judged.iter().find(|judged| judged.result.run == run);
                         // An estimate no read reaches is unconfirmed; one the
                         // reads judge moves only when they determine it.
-                        let determined = judged_run
-                            .map_or(!reported, |judged| length::status(&judged.result).is_some());
+                        let determined = judged_run.map_or(!reported.contains(&run), |judged| {
+                            length::status(&judged.result).is_some()
+                        });
                         if determined {
                             noted.insert(run);
                             moved.push((base, length));
@@ -930,7 +943,13 @@ impl<'a> Sample<'a> {
                     .iter()
                     .map(|&run| {
                         let judged_run = judged.iter().find(|judged| judged.result.run == run);
-                        tract_run(run, window, called.as_deref(), reported, judged_run)
+                        tract_run(
+                            run,
+                            window,
+                            called.as_deref(),
+                            reported.contains(&run),
+                            judged_run,
+                        )
                     })
                     .collect();
                 labels.push(LabelResult::TractLength {

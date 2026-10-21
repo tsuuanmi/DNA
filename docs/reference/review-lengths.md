@@ -37,8 +37,14 @@ version 21): runs of an anchored repeat window (on the human profile, HVS-II
 
 `run` is 1 before the anchor and 2 after it (1 alone when DNA calls one
 run). `called` is DNA's length, null when DNA reports none: its call holds an
-`N`, or (rules version 27) a window position is not callable, so its decided
-length is an estimate, kept only in `estimated_length`. Each read gives a
+`N`, or (rules version 30) a position DNA must show to measure the run is
+not callable, so its decided length is an estimate, kept only in
+`estimated_length`. When DNA's calls in the window only insert or delete
+the repeat base, none at the anchor, run 1 is measured from the position
+before the window to the anchor and run 2 from the anchor to the position
+after the window; otherwise (one run, or a call that changes another base
+of the window, such as `T310C`) every run needs every window position
+callable, as rules version 27 required of all runs. Each read gives a
 length with its `source`:
 
 - `decode`, the first-run marginal of the run the read enters first (a
@@ -109,7 +115,8 @@ says how, and `reading` is the length a reviewer would record:
   the structure shown as for `dominant`;
 - `confirmed`: the reads confirm DNA's length (listed only for an
   `estimated_length` or `long_run` run the note takes over);
-- `unconfirmed`: DNA reports no length (the window is not callable);
+- `unconfirmed`: DNA reports no length (a position DNA must show to measure
+  the run is not callable);
   `reading` is the reads' floor reading, never DNA's estimate.
 
 Each run also gives the reads' `agreement` (as `length_unconfirmed` gives
