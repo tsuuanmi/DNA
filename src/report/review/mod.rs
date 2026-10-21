@@ -60,6 +60,14 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 
 /// The review list: items and labels over the consensus, the call, and the
 /// reads (PROP-0004). Its version is the labelling rules' version.
+///
+/// It reads each read's evidence and placed calls (alignment columns and the
+/// core's trust in each call), the consensus, and the called variants. Its
+/// Sanger part (`second`) also reads the Sanger plugin's own records of each
+/// call (scan position, relative quality, second peak and its cause) and,
+/// when given, the run signal: modality records no kernel contract names, so
+/// the review composes only after the Sanger plugin, as every review
+/// workflow does.
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
@@ -67,6 +75,7 @@ pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
+        Contract::CalledReads,
         Contract::Consensus,
         Contract::CalledVariants,
     ],
