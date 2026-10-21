@@ -101,6 +101,25 @@ pub(super) struct Observation {
     pub(super) chars: Vec<Char>,
 }
 
+impl Observation {
+    /// Clean by the read's own calls, not only as a reference confirmation.
+    pub(super) const fn clean_call(&self) -> bool {
+        self.clean && !self.confirms
+    }
+
+    /// A junction where the read inserts bases.
+    pub(super) fn inserts(&self) -> bool {
+        matches!(&self.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
+    }
+}
+
+/// The junctions inside the 0-based stretch `first..=last` and at its two
+/// edges, each keyed by the position before it, on a reference of `length`
+/// positions whose origin wraps.
+pub(super) fn junctions(first: usize, last: usize, length: usize) -> impl Iterator<Item = usize> {
+    std::iter::once((first + length - 1) % length).chain(first..=last)
+}
+
 /// Every observation of one read, keyed by 0-based reference position; a
 /// junction is keyed by the position before it.
 #[derive(Debug, Clone)]

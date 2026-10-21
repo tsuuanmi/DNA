@@ -32,7 +32,7 @@ use dna_call::read_call::CallConfig;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
-use observe::{Char, Observation, ReadObservations, SiteValue, Trust, observe};
+use observe::{Char, Observation, ReadObservations, SiteValue, Trust, junctions, observe};
 
 pub use config::{ConsensusConfig, RawConsensusConfig};
 pub use insertion::{InsertionView, insertion_views};
@@ -156,10 +156,7 @@ pub fn read_runs_over(
                     .map(|run| ReadRun {
                         base: run.base,
                         length: run.length,
-                        in_phase: run.clean
-                            && run.counted
-                            && run.left == End::InPhase
-                            && run.right == End::InPhase,
+                        in_phase: run.clean && run.counted && run.ends_in_phase(),
                     })
                     .collect(),
             )
@@ -278,13 +275,7 @@ fn decide_positions(
     // A stretch is decided without reference confirmations, by position as
     // well: a confirmation shows a base, not a length or a composition.
     let mut strict = observed.to_vec();
-    for read in &mut strict {
-        for observation in read.positions.values_mut() {
-            if observation.confirms {
-                withdraw(observation);
-            }
-        }
-    }
+    withdraw_confirmations(&mut strict, |_| true);
     let mut decided: BTreeMap<usize, (usize, Decision)> = BTreeMap::new();
     for (first, last) in stretches(&strict, bases, seeded_run) {
         decided.insert(first, (last, decide_stretch(&strict, first, last, bases)));
@@ -386,23 +377,15 @@ fn withdraw_beside_observed_differences(observed: &mut [ReadObservations], bases
             }
         }
         for (&position, observation) in &read.junctions {
-            if matches!(&observation.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
-            {
+            if observation.inserts() {
                 differing.insert(position);
                 differing.insert(position + 1);
             }
         }
     }
-    let near = |position: usize| {
+    withdraw_confirmations(observed, |position| {
         (position.saturating_sub(1)..=position + 1).any(|at| differing.contains(&at))
-    };
-    for read in observed.iter_mut() {
-        for (position, observation) in &mut read.positions {
-            if observation.confirms && near(*position) {
-                withdraw(observation);
-            }
-        }
-    }
+    });
 }
 
 /// Withdraws the confirmations of a position no read observes cleanly
@@ -429,13 +412,7 @@ fn withdraw_unobserved_run_junctions(
         }
         last + 1 - first
     };
-    let observed_cleanly = |position: usize| {
-        observed.iter().any(|read| {
-            read.positions
-                .get(&position)
-                .is_some_and(|observation| observation.clean && !observation.confirms)
-        })
-    };
+    let observed_cleanly = |position: usize| clean_call_at(observed, position);
     let junction_clean = |before: usize| {
         observed.iter().any(|read| {
             read.junctions
@@ -448,16 +425,7 @@ fn withdraw_unobserved_run_junctions(
             && bases.get(left) == bases.get(right)
             && run_length(left) >= seeded_run
     };
-    let confirmed = observed
-        .iter()
-        .flat_map(|read| {
-            read.positions
-                .iter()
-                .filter(|(_, observation)| observation.confirms)
-                .map(|(position, _)| *position)
-        })
-        .collect::<BTreeSet<_>>();
-    let open = confirmed
+    let open = confirmed(observed)
         .into_iter()
         .filter(|&position| !observed_cleanly(position))
         .filter(|&position| {
@@ -468,13 +436,7 @@ fn withdraw_unobserved_run_junctions(
             left || right
         })
         .collect::<BTreeSet<_>>();
-    for read in observed.iter_mut() {
-        for (position, observation) in &mut read.positions {
-            if observation.confirms && open.contains(position) {
-                withdraw(observation);
-            }
-        }
-    }
+    withdraw_confirmations(observed, |position| open.contains(&position));
 }
 
 /// Withdraws every reference confirmation within or beside a decided site
@@ -500,16 +462,9 @@ fn withdraw_near_differences(
         })
         .map(|(&first, (last, _))| first.saturating_sub(1)..=last + 1)
         .collect::<Vec<_>>();
-    let mut withdrawn = false;
-    for read in observed {
-        for (position, observation) in &mut read.positions {
-            if observation.confirms && differing.iter().any(|near| near.contains(position)) {
-                withdraw(observation);
-                withdrawn = true;
-            }
-        }
-    }
-    withdrawn
+    withdraw_confirmations(observed, |position| {
+        differing.iter().any(|near| near.contains(&position))
+    })
 }
 
 /// Sets aside the dissent from a reference decision that a read of the other
@@ -575,8 +530,6 @@ fn set_aside_dissent(
             continue;
         }
         let positions = || first..=last;
-        // The junctions inside the site and at its two edges.
-        let junctions = || std::iter::once((first + length - 1) % length).chain(positions());
         let anchored = |needed: usize| {
             supporting.iter().any(|&read| {
                 let read = &observed[read];
@@ -586,7 +539,7 @@ fn set_aside_dissent(
                     && positions().all(|position| {
                         read.positions
                             .get(&position)
-                            .is_some_and(|observation| observation.clean && !observation.confirms)
+                            .is_some_and(Observation::clean_call)
                             && !read.seconds.contains_key(&position)
                             && read
                                 .edges
@@ -614,10 +567,12 @@ fn set_aside_dissent(
                     _ => {}
                 }
             }
-            for junction in junctions() {
-                if read.junctions.get(&junction).is_some_and(|observation| {
-                    matches!(&observation.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
-                }) {
+            for junction in junctions(first, last, length) {
+                if read
+                    .junctions
+                    .get(&junction)
+                    .is_some_and(Observation::inserts)
+                {
                     indels.push(junction);
                 }
             }
@@ -678,7 +633,7 @@ fn set_aside_dissent(
                 set_aside(observation);
             }
         }
-        for junction in std::iter::once((first + length - 1) % length).chain(first..=last) {
+        for junction in junctions(first, last, length) {
             if let Some(observation) = read.junctions.get_mut(&junction) {
                 set_aside(observation);
             }
@@ -694,9 +649,24 @@ fn withdraw(observation: &mut Observation) {
     observation.confirms = false;
 }
 
-/// The positions only reference confirmations observe cleanly.
-fn confirmed_only(observed: &[ReadObservations]) -> BTreeSet<usize> {
-    let confirmed = observed
+/// Withdraws every reference confirmation at a position `near` accepts.
+/// Whether any was withdrawn.
+fn withdraw_confirmations(observed: &mut [ReadObservations], near: impl Fn(usize) -> bool) -> bool {
+    let mut withdrawn = false;
+    for read in observed {
+        for (&position, observation) in &mut read.positions {
+            if observation.confirms && near(position) {
+                withdraw(observation);
+                withdrawn = true;
+            }
+        }
+    }
+    withdrawn
+}
+
+/// The positions a reference confirmation observes.
+fn confirmed(observed: &[ReadObservations]) -> BTreeSet<usize> {
+    observed
         .iter()
         .flat_map(|read| {
             read.positions
@@ -704,16 +674,23 @@ fn confirmed_only(observed: &[ReadObservations]) -> BTreeSet<usize> {
                 .filter(|(_, observation)| observation.confirms)
                 .map(|(position, _)| *position)
         })
-        .collect::<BTreeSet<_>>();
-    confirmed
+        .collect()
+}
+
+/// Some read observes `position` cleanly by its own call.
+fn clean_call_at(observed: &[ReadObservations], position: usize) -> bool {
+    observed.iter().any(|read| {
+        read.positions
+            .get(&position)
+            .is_some_and(Observation::clean_call)
+    })
+}
+
+/// The positions only reference confirmations observe cleanly.
+fn confirmed_only(observed: &[ReadObservations]) -> BTreeSet<usize> {
+    confirmed(observed)
         .into_iter()
-        .filter(|position| {
-            !observed.iter().any(|read| {
-                read.positions
-                    .get(position)
-                    .is_some_and(|observation| observation.clean && !observation.confirms)
-            })
-        })
+        .filter(|&position| !clean_call_at(observed, position))
         .collect()
 }
 
@@ -841,6 +818,11 @@ struct RunView {
 }
 
 impl RunView {
+    /// The read shows both of the run's ends in phase.
+    fn ends_in_phase(&self) -> bool {
+        self.left == End::InPhase && self.right == End::InPhase
+    }
+
     /// The read shows the run's length: unmasked calls, both ends shown
     /// (ADR-0071).
     fn bounded(&self) -> bool {
@@ -1304,24 +1286,10 @@ fn decide_stretch(
         decision.runs = runs_of(value.chars())
             .into_iter()
             .enumerate()
-            .map(|(index, (base, length))| {
-                let in_phase = mapped.iter().any(|(name, views)| {
-                    decision.supporting.iter().any(|read| read == name)
-                        && views.iter().any(|(mapped, view)| {
-                            *mapped == index
-                                && view.left == End::InPhase
-                                && view.right == End::InPhase
-                        })
-                });
-                ConsensusRun {
-                    base,
-                    length,
-                    evidence: if in_phase {
-                        RunEvidence::InPhase
-                    } else {
-                        RunEvidence::AnchoredEnd
-                    },
-                }
+            .map(|(index, (base, length))| ConsensusRun {
+                base,
+                length,
+                evidence: bounded_evidence(&mapped, &decision.supporting, index),
             })
             .collect();
         return with_composition(decision, &composition, &names().collect::<Vec<_>>());
@@ -1346,17 +1314,7 @@ fn decide_stretch(
                 String::new()
             };
             let decision = decide(&observations, &reference);
-            let in_phase = mapped.iter().any(|(name, views)| {
-                decision.supporting.iter().any(|read| read == name)
-                    && views.iter().any(|(mapped, view)| {
-                        *mapped == index && view.left == End::InPhase && view.right == End::InPhase
-                    })
-            });
-            let evidence = if in_phase {
-                RunEvidence::InPhase
-            } else {
-                RunEvidence::AnchoredEnd
-            };
+            let evidence = bounded_evidence(&mapped, &decision.supporting, index);
             (base, decision, evidence)
         })
         .collect::<Vec<_>>();
@@ -1464,6 +1422,27 @@ fn decide_stretch(
     with_composition(combined, &composition, &names().collect::<Vec<_>>())
 }
 
+/// The evidence of run `index`'s length voted from reads that show both of
+/// its ends: `in_phase` when a `supporting` read shows both in phase,
+/// `anchored_end` otherwise.
+fn bounded_evidence(
+    mapped: &[(&str, Vec<(usize, RunView)>)],
+    supporting: &[String],
+    index: usize,
+) -> RunEvidence {
+    let in_phase = mapped.iter().any(|(name, views)| {
+        supporting.iter().any(|read| read == name)
+            && views
+                .iter()
+                .any(|(mapped, view)| *mapped == index && view.ends_in_phase())
+    });
+    if in_phase {
+        RunEvidence::InPhase
+    } else {
+        RunEvidence::AnchoredEnd
+    }
+}
+
 /// Adds a stretch's composition decision to its length decision: reads that
 /// disagree on the composition oppose the stretch, reads that only showed the
 /// composition support it, and a contested composition contests the stretch.
@@ -1515,13 +1494,11 @@ fn by_position<'a>(
             read.positions.get(&position).is_none_or(|observation| {
                 observation.value != SiteValue::Deletion || !observation.clean
             })
-        }) && std::iter::once((first + length - 1) % length)
-            .chain(first..=last)
-            .all(|position| {
-                read.junctions
-                    .get(&position)
-                    .is_none_or(|observation| observation.chars.iter().all(|char| !char.clean()))
-            })
+        }) && junctions(first, last, length).all(|position| {
+            read.junctions
+                .get(&position)
+                .is_none_or(|observation| observation.chars.iter().all(|char| !char.clean()))
+        })
     };
     let decisions = (first..=last)
         .map(|position| {
