@@ -31,12 +31,21 @@ use crate::model::consensus::RunEvidence;
 use crate::read_runs_over;
 use crate::runs::{anchored_pair, runs_of};
 
-/// Lengths a derived run may take: the shifts the deconvolution fits.
-const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
-/// Most columns the deconvolution's NNLS lets enter (a computation cap).
-const DECONVOLUTION_ITERATIONS: usize = 200;
-/// Derived shares at or below this, after normalising, are dropped.
-const SHARE_FLOOR: f64 = 1e-9;
+/// Lengths a derived run may take: the shifts the deconvolution fits. A
+/// method constant of the rule's model (SRS-CONS-013), the research
+/// reference's, not a level: the runs it derives are a few calls long.
+pub const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
+/// Most columns the deconvolution's NNLS lets enter: a computation cap
+/// (SRS-CONS-013).
+pub const DECONVOLUTION_ITERATIONS: usize = 200;
+/// Derived shares at or below this, after normalising, are dropped: a
+/// numeric tolerance (SRS-CONS-013).
+pub const SHARE_FLOOR: f64 = 1e-9;
+/// The largest replicate noise τ: a view's share `p` of its top two lengths
+/// is at most 1, so `p − ½` never clears more than ½, and a larger τ would
+/// decide nothing (SRS-CONS-013, SRS-CONS-014). The configured τ and the run
+/// context's calibrated τ are held to it.
+pub const MAXIMUM_NOISE: f64 = 0.5;
 
 /// The rule's constants: the confidence level `k` and each strand's
 /// replicate excess noise per run.

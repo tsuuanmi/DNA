@@ -10,7 +10,7 @@
 //! subtracting what it gives (leave-one-out). Without statistics, or below
 //! the minimum pairs, τ is the configured one.
 
-use crate::length::{RuleParams, Run, Source, View};
+use crate::length::{MAXIMUM_NOISE, RuleParams, Run, Source, View};
 
 /// One sample's strand difference over one run of a window: each strand
 /// decodes the run once (direct or derived), with the same top, a next
@@ -198,14 +198,14 @@ impl LengthStatistics {
 
 impl RuleParams {
     /// The rule's constants for a run whose statistics give `scale`: τ of
-    /// each run with a scale multiplied by it, at most one half.
+    /// each run with a scale multiplied by it, at most [`MAXIMUM_NOISE`].
     #[must_use]
     pub fn calibrated(&self, scale: [Option<f64>; 2]) -> Self {
         let mut params = *self;
         for (index, scale) in scale.iter().enumerate() {
             if let Some(scale) = scale {
-                params.forward[index] = (self.forward[index] * scale).min(0.5);
-                params.reverse[index] = (self.reverse[index] * scale).min(0.5);
+                params.forward[index] = (self.forward[index] * scale).min(MAXIMUM_NOISE);
+                params.reverse[index] = (self.reverse[index] * scale).min(MAXIMUM_NOISE);
             }
         }
         params
