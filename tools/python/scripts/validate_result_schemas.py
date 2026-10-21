@@ -1096,7 +1096,9 @@ def review_rules_errors() -> list[str]:
     # The reference's rank table lists every label at the schema's rank.
     listed: dict[str, int] = {}
     for rank, cell in RANK_ROW.findall(REVIEW_REFERENCE.read_text(encoding="utf-8")):
-        for name in re.findall(r"^`([a-z_]+)`$", cell.replace(", ", "\n"), re.M):
+        for name in re.findall(
+            r"^`([a-z_]+)`$", cell.replace(", ", "\n"), re.MULTILINE
+        ):
             listed[name] = int(rank)
     ranks = {
         name: rank for name, (rank, _) in review_label_table(REVIEW_SCHEMA).items()
