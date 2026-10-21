@@ -312,10 +312,8 @@ pub struct ReadEvidence {
 
 /// The modality's assertion that, over a span of calls, the read's signal is
 /// too poor for a difference it shows to stand unchecked (PROP-0012): the
-/// calls keep their verdicts. The core decides from it only which calls of a
-/// tied placement stay unplaced (`dna-align`, SRS-ALN-006) and which
-/// reportable positions at a region's end are not analysed
-/// (`dna-consensus`, SRS-CONS-012). A report shows it with its reason.
+/// calls keep their verdicts, and nothing in the core decides from it. A
+/// report shows it with its reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnreliableSpan {
     /// The calls of the span (0-based, end exclusive).
@@ -399,13 +397,8 @@ pub struct CleanedLengths {
 /// from the read's own signal (PROP-0012). Over `window` calls from
 /// `call_start`, the read is a mixture of molecules `run^a mark run^b D` (or
 /// `run^L D` without a mark) sharing one downstream sequence `D`. Only the
-/// first run's and the total's marginals are identifiable. No verdict, mask,
-/// or call of the read reads it: the consensus's two-strand run-length rule
-/// (`dna-consensus`, SRS-CONS-013) reads the tract's start, run base, mark,
-/// and marginals, and the review judges a window's runs from them
-/// (SRS-API-020). The candidates, `sigma`, `autocorrelation`, and the
-/// cleaned refit are the decoder's diagnostics: the evidence document
-/// records them, and no rule reads them.
+/// first run's and the total's marginals are identifiable. It decides
+/// nothing: the core reads none of it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TractLengths {
     /// The call where the modality sees the read leave phase, after the
