@@ -695,6 +695,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `NotPositive` (from `dna_kernel::bounds::count_range`, `count_at_least`,
   and `positive_count`) instead of `Constraint`, with the same messages;
   most validated Sanger configuration fields become crate-private.
+- **Breaking (Rust API):** Sanger identifiers use `Params` and US spelling:
+  `RunSignalParams`, `SecondCauseParams`, `SpikeParams`, and
+  `SecondCause::{NeighborTail, OffCenter}`. The labels (`neighbour_tail`,
+  `off_centre`) and every document are unchanged.
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on

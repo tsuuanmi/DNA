@@ -5,8 +5,8 @@ mod config;
 #[cfg(test)]
 pub(crate) use config::fixture;
 pub use config::{
-    RawSignalProcessingConfig, RunSignalParameters, SecondCauseParameters, SignalProcessingConfig,
-    SpikeParameters,
+    RawSignalProcessingConfig, RunSignalParams, SecondCauseParams, SignalProcessingConfig,
+    SpikeParams,
 };
 
 mod features;

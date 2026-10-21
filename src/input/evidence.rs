@@ -428,8 +428,10 @@ impl RawPeaks {
 #[serde(rename_all = "snake_case")]
 enum RawCause {
     Noise,
-    NeighbourTail,
-    OffCentre,
+    #[serde(rename = "neighbour_tail")]
+    NeighborTail,
+    #[serde(rename = "off_centre")]
+    OffCenter,
     DyeBlob,
     PhaseShift,
     SecondTemplate,
@@ -961,8 +963,8 @@ fn second_peak(second: Option<RawSecond>, cause: Option<RawCause>) -> Result<Opt
     };
     let cause = match cause {
         RawCause::Noise => SecondCause::Noise,
-        RawCause::NeighbourTail => SecondCause::NeighbourTail,
-        RawCause::OffCentre => SecondCause::OffCentre,
+        RawCause::NeighborTail => SecondCause::NeighborTail,
+        RawCause::OffCenter => SecondCause::OffCenter,
         RawCause::DyeBlob => SecondCause::DyeBlob,
         RawCause::PhaseShift => SecondCause::PhaseShift,
         RawCause::SecondTemplate => SecondCause::SecondTemplate,
@@ -1268,7 +1270,7 @@ mod tests {
                 second.second.stands_out,
                 second.cause,
             ),
-            ('A', 168.0 / 808.0, true, SecondCause::NeighbourTail)
+            ('A', 168.0 / 808.0, true, SecondCause::NeighborTail)
         );
         assert_eq!(example.sanger.calls[0].second, None);
         // A call masked as mixed whose own second peak is small.

@@ -12,7 +12,7 @@ use crate::model::basecalls::{BaseCall, BaseCalls};
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalSpike;
 
-use super::SpikeParameters;
+use super::SpikeParams;
 
 /// The read's spikes, in sample order: within `span` median spacings, every
 /// channel has a local maximum at least `height` times the local level, the
@@ -25,7 +25,7 @@ pub(super) fn detect(
     trace: &Chromatogram,
     calls: &BaseCalls,
     median_spacing: Option<f64>,
-    parameters: &SpikeParameters,
+    parameters: &SpikeParams,
 ) -> Vec<SignalSpike> {
     let calls = &calls.calls;
     let Some(spacing) = median_spacing.filter(|spacing| *spacing > 0.0) else {
@@ -158,8 +158,8 @@ mod tests {
 
     const SPACING: usize = 12;
 
-    fn parameters() -> SpikeParameters {
-        SpikeParameters {
+    fn parameters() -> SpikeParams {
+        SpikeParams {
             height: 3.0,
             span: 1.5,
             level_calls: 6,
@@ -173,22 +173,22 @@ mod tests {
         let mut channels: [Vec<i32>; 4] = std::array::from_fn(|_| vec![0; samples]);
         let mut calls = Vec::new();
         for index in 0..count {
-            let centre = index * SPACING + SPACING / 2;
+            let center = index * SPACING + SPACING / 2;
             let primary = index % 4;
             for (offset, value) in [500, 380, 260, 140, 20].into_iter().enumerate() {
-                channels[primary][centre + offset] = value;
-                channels[primary][centre - offset] = value;
+                channels[primary][center + offset] = value;
+                channels[primary][center - offset] = value;
             }
             let base = Nucleotide::ALL[primary];
             calls.push(BaseCall {
                 index_0based: index,
-                locus_position_0based: centre,
+                locus_position_0based: center,
                 window_start_0based: index * SPACING,
                 window_end_0based_exclusive: (index + 1) * SPACING,
                 peaks: std::array::from_fn(|channel| ChannelPeak {
                     base: Nucleotide::ALL[channel],
                     height: if channel == primary { 500 } else { 0 },
-                    position_0based: centre,
+                    position_0based: center,
                     source: PeakSource::LocalMaximum,
                 }),
                 primary_peak_evidence: None,
@@ -236,14 +236,14 @@ mod tests {
     #[test]
     fn finds_a_spike_in_all_four_channels() {
         let (mut trace, calls) = read(40);
-        let centre = 20 * SPACING + SPACING / 2;
+        let center = 20 * SPACING + SPACING / 2;
         for (channel, offset) in [(3, 0), (0, 5), (1, 6), (2, 12)] {
-            add(&mut trace, channel, centre - 6 + offset, 4000);
+            add(&mut trace, channel, center - 6 + offset, 4000);
         }
         let spikes = detect(&trace, &calls, Some(12.0), &parameters());
         assert_eq!(spikes.len(), 1);
         assert_eq!(spikes[0].calls, 20..21);
-        assert!(spikes[0].samples.contains(&centre));
+        assert!(spikes[0].samples.contains(&center));
     }
 
     // SRS-SIG-012
@@ -252,25 +252,25 @@ mod tests {
     /// without a median spacing.
     #[test]
     fn ignores_three_channels_a_wide_spread_and_a_low_event() {
-        let centre = 20 * SPACING + SPACING / 2;
+        let center = 20 * SPACING + SPACING / 2;
         let (mut three, calls) = read(40);
         for channel in 0..3 {
-            add(&mut three, channel, centre, 4000);
+            add(&mut three, channel, center, 4000);
         }
         assert!(detect(&three, &calls, Some(12.0), &parameters()).is_empty());
         let (mut wide, _) = read(40);
         for (channel, offset) in [(0, 0), (1, 6), (2, 12), (3, 30)] {
-            add(&mut wide, channel, centre - 12 + offset, 4000);
+            add(&mut wide, channel, center - 12 + offset, 4000);
         }
         assert!(detect(&wide, &calls, Some(12.0), &parameters()).is_empty());
         let (mut low, _) = read(40);
         for channel in 0..4 {
-            add(&mut low, channel, centre, 1000);
+            add(&mut low, channel, center, 1000);
         }
         assert!(detect(&low, &calls, Some(12.0), &parameters()).is_empty());
         let (mut tall, _) = read(40);
         for channel in 0..4 {
-            add(&mut tall, channel, centre, 4000);
+            add(&mut tall, channel, center, 4000);
         }
         assert_eq!(detect(&tall, &calls, Some(12.0), &parameters()).len(), 1);
         assert!(detect(&tall, &calls, None, &parameters()).is_empty());

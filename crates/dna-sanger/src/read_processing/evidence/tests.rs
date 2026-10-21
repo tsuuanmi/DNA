@@ -268,7 +268,7 @@ fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
     // A neighbour's tail: withheld as mixed all the same, its run role
     // unchanged, and reference-only; its second base stands out and is
     // explained.
-    let tail = evidence(&calls, &peak(SecondCause::NeighbourTail))?;
+    let tail = evidence(&calls, &peak(SecondCause::NeighborTail))?;
     let call = tail.calls()[2];
     assert!(call.reference_only && !call.second_unexplained);
     assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
@@ -287,7 +287,7 @@ fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
     assert!(!crowded.calls()[2].reference_only);
     // A mixed neighbour whose own second peak is a neighbour's tail or a
     // dye blob shows one base all the same: a blob is wider than one call.
-    let neighbour = |cause| {
+    let neighbor = |cause| {
         let mut second = peak(SecondCause::DyeBlob);
         second[3] = Some(SecondPeak {
             second: SecondBase {
@@ -299,16 +299,16 @@ fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
         });
         second
     };
-    for cause in [SecondCause::NeighbourTail, SecondCause::DyeBlob] {
-        let blob = evidence(&calls, &neighbour(cause))?;
+    for cause in [SecondCause::NeighborTail, SecondCause::DyeBlob] {
+        let blob = evidence(&calls, &neighbor(cause))?;
         assert!(blob.calls()[2].reference_only, "{cause:?}");
     }
     for cause in [
         SecondCause::SecondTemplate,
         SecondCause::PhaseShift,
-        SecondCause::OffCentre,
+        SecondCause::OffCenter,
     ] {
-        let other = evidence(&calls, &neighbour(cause))?;
+        let other = evidence(&calls, &neighbor(cause))?;
         assert!(!other.calls()[2].reference_only, "{cause:?}");
     }
     Ok(())
@@ -316,9 +316,9 @@ fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
 
 /// The causes whose stand-out second peak the call's own signal explains,
 /// and those it does not.
-const EXPLAINED: [SecondCause; 2] = [SecondCause::NeighbourTail, SecondCause::DyeBlob];
+const EXPLAINED: [SecondCause; 2] = [SecondCause::NeighborTail, SecondCause::DyeBlob];
 const UNEXPLAINED: [SecondCause; 3] = [
-    SecondCause::OffCentre,
+    SecondCause::OffCenter,
     SecondCause::SecondTemplate,
     SecondCause::PhaseShift,
 ];
@@ -468,25 +468,25 @@ fn a_quality_withheld_mixed_tail_call_is_reference_only() -> Result<()> {
     // Below the peak floor as well: reference-only all the same.
     let (mut low, _, _, clear) = products(&[300, 300, 100, 300, 300], &[40; 5]);
     low.calls[2].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
-    let call = evidence(&low, &callability, &clear, SecondCause::NeighbourTail)?.calls()[2];
+    let call = evidence(&low, &callability, &clear, SecondCause::NeighborTail)?.calls()[2];
     assert!(call.reference_only && call.identity.withheld.contains(PEAK_BELOW_MINIMUM));
     // A neighbour masked as weak before the trim interval, the read's
     // untrimmed start, still lets it confirm the reference.
     callability.mask[1] = Some(PhaseState::Weak);
     quality.trim_start_0based = 2;
     quality.retained_sequence = "A".repeat(3);
-    let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
+    let call = evidence(&calls, &callability, &quality, SecondCause::NeighborTail)?.calls()[2];
     assert!(call.reference_only);
     // Masked as weak inside the trim interval, or masked for another
     // reason before it, the neighbour does not.
     quality.trim_start_0based = 0;
     quality.retained_sequence = "A".repeat(5);
-    let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
+    let call = evidence(&calls, &callability, &quality, SecondCause::NeighborTail)?.calls()[2];
     assert!(!call.reference_only);
     callability.mask[1] = Some(PhaseState::Mixed);
     quality.trim_start_0based = 2;
     quality.retained_sequence = "A".repeat(3);
-    let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
+    let call = evidence(&calls, &callability, &quality, SecondCause::NeighborTail)?.calls()[2];
     assert!(!call.reference_only);
     Ok(())
 }

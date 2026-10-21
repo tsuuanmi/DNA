@@ -28,14 +28,14 @@ pub struct SignalProcessingConfig {
     /// Lowest second-channel threshold, on the peak scale (PROP-0009).
     pub(crate) second_floor: f64,
     /// How a key's run level is taken from its run's signal (PROP-0009).
-    pub run_signal: RunSignalParameters,
+    pub run_signal: RunSignalParams,
     /// How a call's second peak is labelled with its cause (SRS-CALL-021).
-    pub(crate) second_cause: SecondCauseParameters,
+    pub(crate) second_cause: SecondCauseParams,
     /// Nearest-rank quantile of a read's in-phase residuals above which a
     /// call of a phase mixture is unexplained (SRS-CALL-023).
     pub(crate) decompose_unexplained_quantile: f64,
     /// How an electrophoretic spike is found (SRS-SIG-012).
-    pub(crate) spike: SpikeParameters,
+    pub(crate) spike: SpikeParams,
 }
 
 /// How an electrophoretic spike is found (SRS-SIG-012): every channel peaks
@@ -43,7 +43,7 @@ pub struct SignalProcessingConfig {
 /// local level, the median primary height of the `level_calls` calls on each
 /// side.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SpikeParameters {
+pub struct SpikeParams {
     /// Multiple of the local level every channel's apex reaches.
     pub(crate) height: f64,
     /// Median call spacings within which the four apexes lie.
@@ -54,7 +54,7 @@ pub struct SpikeParameters {
 
 /// How a call's second peak is labelled with its cause (SRS-CALL-021).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SecondCauseParameters {
+pub struct SecondCauseParams {
     /// Below this multiple of the call's lowest channel a second peak is
     /// noise.
     pub(crate) noise_ratio: f64,
@@ -74,7 +74,7 @@ pub struct SecondCauseParameters {
 /// key's shares, when the run has at least `minimum_reads` reads and the key
 /// at least `minimum_calls` calls once the sample's own are taken out.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct RunSignalParameters {
+pub struct RunSignalParams {
     /// Calls on each side of a call that form its key's context.
     pub flank: usize,
     /// Steps of a share from 0 to 1 that a run signal counts.
@@ -204,7 +204,7 @@ impl RawSignalProcessingConfig {
             minimum_noisy_windows: self.minimum_noisy_windows,
             minimum_noise_sigma: self.minimum_noise_sigma,
             second_floor: self.second_floor,
-            run_signal: RunSignalParameters {
+            run_signal: RunSignalParams {
                 flank: self.run_signal_flank,
                 resolution: self.run_signal_resolution,
                 minimum_reads: self.run_signal_minimum_reads,
@@ -212,14 +212,14 @@ impl RawSignalProcessingConfig {
                 margin: self.run_signal_margin,
                 mad_factor: self.run_signal_mad_factor,
             },
-            second_cause: SecondCauseParameters {
+            second_cause: SecondCauseParams {
                 noise_ratio: self.second_cause_noise_ratio,
                 tail_offset: self.second_cause_tail_offset,
                 blob_width: self.second_cause_blob_width,
                 width_calls: self.second_cause_width_calls,
             },
             decompose_unexplained_quantile: self.decompose_unexplained_quantile,
-            spike: SpikeParameters {
+            spike: SpikeParams {
                 height: self.spike_height,
                 span: self.spike_span,
                 level_calls: self.spike_level_calls,
@@ -238,7 +238,7 @@ pub(crate) fn fixture(window_size_bases: usize) -> SignalProcessingConfig {
         minimum_noisy_windows: 2,
         minimum_noise_sigma: 1.0,
         second_floor: 0.21,
-        run_signal: RunSignalParameters {
+        run_signal: RunSignalParams {
             flank: 2,
             resolution: 1000,
             minimum_reads: 40,
@@ -246,14 +246,14 @@ pub(crate) fn fixture(window_size_bases: usize) -> SignalProcessingConfig {
             margin: 0.05,
             mad_factor: 4.0,
         },
-        second_cause: SecondCauseParameters {
+        second_cause: SecondCauseParams {
             noise_ratio: 3.0,
             tail_offset: 0.4,
             blob_width: 1.8,
             width_calls: 6,
         },
         decompose_unexplained_quantile: 0.99,
-        spike: SpikeParameters {
+        spike: SpikeParams {
             height: 3.0,
             span: 1.5,
             level_calls: 6,

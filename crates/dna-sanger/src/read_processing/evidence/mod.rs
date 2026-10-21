@@ -309,10 +309,7 @@ pub fn read_evidence(read: &ProcessedRead, config: &SangerEvidenceConfig) -> Res
 /// Whether a second peak's cause is the call's own signal: a neighbour's tail
 /// or a dye blob (SRS-CALL-021).
 fn explained(peak: SecondPeak) -> bool {
-    matches!(
-        peak.cause,
-        SecondCause::NeighbourTail | SecondCause::DyeBlob
-    )
+    matches!(peak.cause, SecondCause::NeighborTail | SecondCause::DyeBlob)
 }
 
 /// The verdict on a call its own signal vouches for: off the edge, and
