@@ -381,8 +381,9 @@ pub(crate) struct RunResult {
 }
 
 /// One run of an anchored repeat window: which run (1 before the anchor, 2
-/// after it, 1 alone when the anchor is lost), its base, DNA's length, how
-/// the reads' decodes agree, and each read's length.
+/// after it, 1 alone when the anchor is lost), its base, DNA's length (none
+/// when DNA does not report it), how the reads' decodes agree, and each
+/// read's length.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct LengthRunResult {
     pub(crate) run: usize,
@@ -392,6 +393,9 @@ pub(crate) struct LengthRunResult {
     /// The lab's convention reading of a near-equal pair, a suggestion only:
     /// never DNA's call.
     pub(crate) convention: Option<LengthConventionResult>,
+    /// The reads' floor reading of a run DNA reports no length for: the
+    /// least length any read gives as its top or next. A suggestion only.
+    pub(crate) floor: Option<usize>,
     pub(crate) reads: Vec<LengthReadResult>,
 }
 

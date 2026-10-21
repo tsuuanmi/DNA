@@ -1049,6 +1049,7 @@
                   "called",
                   "agreement",
                   "convention",
+                  "floor",
                   "reads"
                 ],
                 "properties": {
@@ -1066,6 +1067,7 @@
                     ]
                   },
                   "called": {
+                    "description": "DNA's length; null when DNA reports none: its call holds an N, or a position of the window is not callable, so its decided length is an estimate.",
                     "type": [
                       "integer",
                       "null"
@@ -1107,6 +1109,14 @@
                         }
                       }
                     ]
+                  },
+                  "floor": {
+                    "description": "For a run DNA reports no length for (called null), the reads' floor reading: the least length any read gives as its top or next. A suggestion only, never DNA's call; null for a reported run and in length_not_recorded.",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
                   },
                   "reads": {
                     "type": "array",
@@ -1195,6 +1205,7 @@
                   "called",
                   "agreement",
                   "convention",
+                  "floor",
                   "reads"
                 ],
                 "properties": {
@@ -1212,6 +1223,7 @@
                     ]
                   },
                   "called": {
+                    "description": "DNA's length; null when DNA reports none: its call holds an N, or a position of the window is not callable, so its decided length is an estimate.",
                     "type": [
                       "integer",
                       "null"
@@ -1253,6 +1265,14 @@
                         }
                       }
                     ]
+                  },
+                  "floor": {
+                    "description": "For a run DNA reports no length for (called null), the reads' floor reading: the least length any read gives as its top or next. A suggestion only, never DNA's call; null for a reported run and in length_not_recorded.",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
                   },
                   "reads": {
                     "type": "array",

@@ -49,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 26,
+    version: 27,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -766,8 +766,17 @@ impl<'a> Sample<'a> {
                 })
                 .map(|site| length::two_strand_runs(&site.runs, window))
                 .unwrap_or_default();
-            let mut runs =
-                length::judge(window, called.as_deref(), &two_strand, &decodes, &in_phase);
+            // DNA reports the window's lengths only where it is callable
+            // throughout; elsewhere its decided lengths are estimates.
+            let reported = (first..=last).all(|position| inside(self.callable, position));
+            let mut runs = length::judge(
+                window,
+                called.as_deref(),
+                reported,
+                &two_strand,
+                &decodes,
+                &in_phase,
+            );
             let label = if window.recorded {
                 runs.retain(|run| run.agreement != "confirmed");
                 LabelResult::LengthUnconfirmed { runs }
@@ -775,6 +784,7 @@ impl<'a> Sample<'a> {
                 // The lab records no length here, so no reading of it.
                 for run in &mut runs {
                     run.convention = None;
+                    run.floor = None;
                 }
                 LabelResult::LengthNotRecorded { runs }
             };

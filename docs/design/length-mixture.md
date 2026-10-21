@@ -170,7 +170,13 @@ in-phase read shows the length directly; the other strand having no view
 is absence of evidence, not a contradiction. A decode is a model of a
 dephased tract, so a run that only decodes give still needs both strands.
 Every other run a decode reaches is a check
-(`length_unconfirmed`). Where the profile leaves the window's run lengths
+(`length_unconfirmed`). Where a window position is not callable, DNA
+reports no length there: its decided length is an estimate, which confirms
+nothing and is not shown as a reading. The run then carries the reads'
+floor reading instead, the least length any read gives as its top or next
+(user decision 2026-10-21): on development panel v5 it matched the truth in
+87 % of such run 1s whose reads top at different lengths, the phase-loss
+estimate in 10 %. Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
 
 ## Decision (increment 4)
