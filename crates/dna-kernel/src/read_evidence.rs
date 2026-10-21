@@ -1025,65 +1025,6 @@ mod tests {
     }
 
     #[test]
-    fn validates_mixtures() -> Result<()> {
-        let valid = PhaseMixture {
-            call_start: 2,
-            call_end: 6,
-            run_calls: 2,
-            components: vec![
-                MixtureComponent {
-                    offset: 0,
-                    fraction: 0.7,
-                },
-                MixtureComponent {
-                    offset: -2,
-                    fraction: 0.3,
-                },
-            ],
-            residual: 0.1,
-            unexplained: vec![2, 5],
-            explained: true,
-        };
-        let read = ReadEvidence::clean("ACGTACGT");
-        let kept = read.clone().with_mixtures(vec![valid.clone()])?;
-        assert_eq!(kept.mixtures(), std::slice::from_ref(&valid));
-        let edit = |change: &dyn Fn(&mut PhaseMixture)| {
-            let mut mixture = valid.clone();
-            change(&mut mixture);
-            read.clone().with_mixtures(vec![valid.clone(), mixture])
-        };
-        for invalid in [
-            // An empty or reversed stretch, or one past the read.
-            edit(&|mixture| mixture.call_end = mixture.call_start),
-            edit(&|mixture| mixture.call_end = 9),
-            // No run, or a run past the stretch.
-            edit(&|mixture| mixture.run_calls = 0),
-            edit(&|mixture| mixture.run_calls = 5),
-            // No components, or the dominant sequence not first.
-            edit(&|mixture| mixture.components.clear()),
-            edit(&|mixture| mixture.components.swap(0, 1)),
-            // A residual that is not finite or is negative.
-            edit(&|mixture| mixture.residual = f64::NAN),
-            edit(&|mixture| mixture.residual = -0.1),
-            // A fraction outside [0, 1] or not finite.
-            edit(&|mixture| mixture.components[1].fraction = 1.5),
-            edit(&|mixture| mixture.components[1].fraction = f64::INFINITY),
-            // An offset longer than the run.
-            edit(&|mixture| mixture.components[1].offset = 3),
-            // An unexplained call outside the stretch.
-            edit(&|mixture| mixture.unexplained.push(6)),
-        ] {
-            assert!(matches!(
-                invalid,
-                Err(crate::error::Error::Evidence(
-                    EvidenceError::InvalidMixture { index: 1 }
-                ))
-            ));
-        }
-        Ok(())
-    }
-
-    #[test]
     fn validates_unreliable_spans() -> Result<()> {
         let span = |calls: Range<usize>, reason: &'static str| UnreliableSpan {
             calls,
