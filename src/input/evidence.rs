@@ -20,6 +20,7 @@ use crate::model::result::{
 };
 use crate::model::sample_result::ReadRejectionResult;
 use crate::model::sanger_read::{RejectedSanger, Rejection, SangerCallSignal, SangerRead};
+use dna_align::model::alignment::Alignment;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::PluginDescriptor;
 use dna_kernel::profile::Profile;
@@ -78,6 +79,8 @@ pub(crate) struct RecordedRead {
     pub(crate) evidence: ReadEvidence,
     /// The read's Sanger evidence as the documents report it.
     pub(crate) sanger: SangerRead,
+    /// The read's placement, when a `dna.placed_read/v1` document gives it.
+    pub(crate) placed: Option<Alignment>,
 }
 
 /// What a document must have been written under: the loaded
@@ -613,6 +616,7 @@ fn parse(bytes: &[u8], path: &Path, expected: &Expected<'_>) -> Result<Recorded>
                 input_sha256: sha256,
                 evidence,
                 sanger,
+                placed: None,
             })))
         }
         (None, None, None, None, Some(rejection)) => {

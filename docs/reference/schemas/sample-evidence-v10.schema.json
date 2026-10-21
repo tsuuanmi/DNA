@@ -576,6 +576,7 @@
         "peak_below_minimum",
         "relative_quality_not_above_threshold",
         "mixed_supporting_dna",
+        "signal_spike",
         "read_end",
         "base_only",
         "run_boundary",

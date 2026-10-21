@@ -1,5 +1,5 @@
 ---
-implements: [SRS-ALN, SRS-VAR]
+implements: [SRS-ALN, SRS-CALL, SRS-VAR]
 decided-by: [ADR-0037, ADR-0062, ADR-0067, ADR-0068, ADR-0071, ADR-0076]
 ---
 
@@ -95,12 +95,12 @@ given fabricated peaks.
 
 An eligible support has an empty exclusion list. An ineligible support retains one
 or more reasons such as `outside_target_region`, `peak_below_minimum`,
-`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `read_end`, `run_boundary`,
+`relative_quality_not_above_threshold`, `mixed_supporting_dna`, `signal_spike`, `read_end`, `run_boundary`,
 `unresolved_flank`, `post_homopolymer`, `dephased_signal`, `mixed_signal`, `weak_signal`, or
 `irregular_spacing`.
 `mixed_supporting_dna` means an SNV's supporting call retained more than one
 co-localized qualifying channel under the authoritative basecalling rule; the
-normalized observation remains evidence, but it is not presented as a clean SNV. The latter name remains explicit because
+normalized observation remains evidence, but it is not presented as a clean SNV. `signal_spike` means a supporting call lies inside an electrophoretic spike, a narrow event in all four channels that is not DNA (SRS-CALL-027). The latter name remains explicit because
 the configured gate still operates on the internal relative-quality method even
 though the public numeric field is simply `quality`.
 

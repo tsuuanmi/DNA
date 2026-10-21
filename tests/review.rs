@@ -144,10 +144,11 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 20] = [
+const RANKS: [(&str, u64); 21] = [
     ("strands_disagree", 0),
     ("read_disagrees", 0),
     ("possible_heteroplasmy", 1),
+    ("reference_second", 1),
     ("estimated_length", 2),
     ("length_unconfirmed", 2),
     ("undecided", 2),
@@ -171,7 +172,7 @@ const RANKS: [(&str, u64); 20] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 22);
+    assert_eq!(value["provenance"]["rules"], 25);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {

@@ -17,6 +17,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna.placed_read/v1` (ADR-0087, **proposed**): one read's placement as
+  `dna-align` selected it, which `dna-align` alone writes and reads back,
+  re-checking it against the read's evidence and the reference (PROP-0011).
+  `dna_call::read_call::call_read_placed` starts the core from it;
+  `dna::recorded::placed_read_document` and `analyze_placed_outcome` write
+  and read it in memory. `dna-eval --evidence-cache` also keeps a placement
+  cache keyed by the placement stage's code identity and the reference
+  (`run.json` `placement_cache`). On development panel v5 every table is
+  byte-identical with and without it, and a consensus-only probe takes
+  29-36 % less CPU.
+- `dna-eval subset --manifest <panel> --rows <n> --minimum <n> --salt <s>
+  --output <file>` writes a deterministic stratified quick subset of a
+  panel, every stratum kept, as a manifest of its own, for a first-pass
+  `dna-eval diff` before the full panel. Its verdict is a pre-filter, never
+  the gate. Development panel v5's 2,111-row subset (`--rows 2000 --minimum
+  30`) runs in about 29 s on a warm cache against about 75 s for the panel
+  on the same loaded machine.
 - `dna-eval diff --base <run> --run <run>` compares a run with a base run of
   the same panel from their directories alone, and gates it.
   - **Comparability:** it refuses runs with another manifest, truth, re-check
@@ -29,7 +46,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     per measure; and the changed samples, in `samples.tsv` and
     `statuses.tsv`.
   - **Verdict:** it exits 2 with `GATE FAIL` when non-het escapes or
-    unreviewed samples rise anywhere.
+    unreviewed samples rise anywhere, or when the samples the harness could
+    not score differ between the runs: the runs then compare different
+    samples (2026-10-21: transient trace-read failures under load cost one
+    run 47 samples and went unnoticed).
   - **New table:** `dna-eval run` writes `unreviewed.tsv`, one row per
     unreviewed block with its class, zone, and whether a check touches the
     zone (`dna.eval_run/v1`, in place, pre-release).
@@ -604,7 +624,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 - A junction whose spacing marks an extra peak, a peak the basecaller called
   twice, now withholds the two calls beside it like a missing peak's
-  junction does (SRS-CALL-026, plugin `sanger` 20): they place no indel and
+  junction does (SRS-CALL-026, plugin `sanger` 21): they place no indel and
   show no run's end. It is the mirror of the missing-peak test on the same
   measure and level: narrower than the local median by
   `callability.spacing_defect` of it, and still so together with either
@@ -619,6 +639,92 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   reverse read's irregular start); zones needing a check fall or hold
   everywhere but `end@HV1` (+1); 9 more samples clear; primary concordance
   14 samples better, 1 worse.
+- The review labels `reference_second` a position where a difference rests
+  on one read whose call there reads another base than the reference while
+  showing the reference base as its second peak above the call's
+  second-channel threshold (SRS-CALL-020): a check, decision unchanged
+  (rules version 25, plugin `review` 25). No new configuration. On
+  development panel v5 such bases were mostly dye blobs over the
+  reference's peak at reverse read starts (`527A`, `530G`, `16326G`,
+  `16328G`). Against 85cab63 the diff gate passes: samples passed with a
+  non-het difference 18 → 15 (`after@HV3` 2 → 0, `end@HV1` 2 → 1, all
+  earlier data), het-only 340 → 338, unreviewed samples 618 → 581, no status
+  or coverage changes; 25 more zones need a check (13 current) and 6 samples
+  lose their clear state (2 current), one of them for a correct call.
+- The review's `length_unconfirmed` runs carry `convention` (null in
+  `length_not_recorded`): when both strands read a run as a near-equal adjacent pair
+  `n`, `n + 1`, the lab's reading `n` (the shorter member, the run ending at
+  the reverse read's first mixed call), as a suggestion beside DNA's call,
+  never applied (SRS-API-020, user decision 2026-10-20). No decision, label,
+  or kind changes. `dna.review/v1` gains the field in place (pre-release);
+  plugin `review` 24.
+- The consensus decides a run it would leave as an estimate
+  (`anchored_end`, `phase_loss`, or `reference_frame`) when the reads' tract
+  decodes on both strands put one length on top beyond the strands' spread
+  and replicate noise (SRS-CONS-013, ADR-0074 amendment, PROP-0012
+  increment 4). This applies to either of two runs of one base around a
+  single-base anchor, in a stretch whose call keeps that reference
+  composition. The window comes from the stretch's own structure, not from
+  the profile.
+  - **Evidence.** Such a run carries `length_evidence` `two_strand`
+    (`dna.consensus/v1`, in place, pre-release). It is observed, so its 3'
+    end stays callable. An `in_phase` or `confirmed_end` length is never
+    replaced.
+  - **Review.** A `two_strand` run counts as confirmed in
+    `length_unconfirmed`, unless a read's structure differs from DNA's.
+  - **Configuration.** The constants are new `[consensus]` keys
+    `length_confidence` (2.326), `length_noise_forward` ([0.065, 0.111]),
+    and `length_noise_reverse` ([0.111, 0.128]): replicate noise per strand
+    and run, from 743 re-sequenced samples
+    (`docs/design/length-mixture.md`). Configuration schema 22 (21 is taken by `signal_spike`, merged first).
+  - **Shared code.** The non-negative least squares solver moves from
+    `dna-trace` to `dna_kernel::nnls`, unchanged.
+  - **Measured.** On development panel v5 against increment 3
+    (`dna-eval diff`, GATE PASS), the effect is near zero:
+    - one call changes (a C8 at 303-309 where truth has `N`), and no error
+      is introduced;
+    - window@HV2 checks go from 3,073 to 3,072;
+    - 31 more run 1s become `two_strand` at the length DNA already had, but
+      none of their checks goes, because run 2 stays one-strand there.
+    Most flagged run 1s are a real C8/C9 mix (61 of 69 near-equal on both
+    strands), which the rule refuses.
+  - Plugins `consensus` 18 and `review` 23 (rules 23).
+
+- A Sanger call inside an electrophoretic spike shows no base (SRS-SIG-012,
+  SRS-CALL-027, ADR-0088, plugin `sanger` 20). A spike is a narrow event in
+  all four analysed channels at once, each far above the read's signal and
+  staggered by the dyes' mobility offsets; the call whose primary peak lies
+  in it reads the spike's channel. Signal processing finds the spikes from
+  the read's own channels and calls; the Sanger evidence withholds their
+  calls for the base and for indels (`signal_spike`), with no run's end and
+  no reference confirmation. New keys `spike_height` (3.0), `spike_span`
+  (1.5), and `spike_level_calls` (6) in `[signal_processing]`.
+  **Breaking:** configuration schema 21; `signal_spike` joins the
+  `dna.sample_evidence/v10` exclusion reasons (in place, pre-release). On
+  development panel v5 against `main` 85cab63 the diff gate passes: the one
+  unflagged non-het error it targets (`186T` in 2538054, `interior@HV2`)
+  becomes an undecided check, samples with an unreviewed block 618 → 617,
+  passed non-het units unchanged in every other zone and period, five more
+  samples clear (current 7,646 → 7,651), positions to review 164,199 →
+  164,139, no coverage change, and one sample concordant under every
+  measure.
+- A read whose two best placements tie only on calls at one end that the
+  read itself asserts unreliable (inside an unreliable span, or masked) is
+  no longer rejected as `ambiguous_placement`: those calls are left unplaced
+  and the rest of the read is aligned again (SRS-ALN-006, ADR-0086, plugin
+  `core` 12). A tie that disputes any other call is still rejected. On
+  development panel v5 all 31 such reads are placed (23 current: HV1R and
+  HV3R poor starts, two dephased C-run ends). Against `main` 85cab63 the
+  diff gate passes: non-het passed zones and unreviewed samples unchanged in
+  every period, 11 more samples clear (current 7,646 → 7,654), positions to
+  review 164,199 → 162,335, and 20 truth alleles newly covered, 19 called
+  as the truth holds; `16192Y` in one sample is called `16192T`, inside a
+  check.
+- `dna-eval diff` gates on non-het blocks only: more samples with a
+  non-het unreviewed block fail it, while samples whose only unreviewed
+  blocks are het are reported in their own column and never gate
+  (heteroplasmy is optional, user decision). The `Unreviewed` column splits
+  into `Unreviewed non-het` and `Unreviewed het only`.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than

@@ -8,7 +8,8 @@ sequence do a sample's reads agree on, stretch by stretch? It depends on
 
 Public surface: `build`, `read_runs_over` (each read's runs over a reference
 stretch as the consensus reads them, with whether each is in phase: the
-review's one source of in-phase run lengths, SRS-API-020), the `consensus`
+review's one source of in-phase run lengths, SRS-API-020), [length](length.rs)
+(the two-strand run-length rule), the `consensus`
 plugin descriptor (it requires `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
 plugin descriptor), and the [model](model/README.md).
 
@@ -43,6 +44,11 @@ behind every non-trivial decision.
   reportable region's ends that only reads' unreliable spans observe, up to
   the last position not settled as the reference, left out of the callable
   segments with their changes excluded (SRS-CONS-012).
+- `length.rs`: the two-strand run-length rule (SRS-CONS-013, PROP-0012
+  increment 4): each strand's view of a window's run from the reads' tract
+  decodes (direct, derived by NNLS deconvolution of the total, or in phase),
+  and `decide`, which takes a length only when both strands put it on top
+  beyond their own replicate noise.
 - `lib.rs`: the entry point `build`, which handles stretches of whole
   reference runs (seeded by clean differences and by disputed runs no read
   bounds), segment assembly, and the `consensus` plugin descriptor.
@@ -54,7 +60,9 @@ behind every non-trivial decision.
   differing site, and dissent from a reference decision that a clean read of
   the other strand contradicts is set aside, as is a run-length dissent with
   an explained second peak from a called variant, with the positions decided
-  again (SRS-CONS-010, SRS-CONS-011).
+  again (SRS-CONS-010, SRS-CONS-011). In a stretch with two runs of one
+  base around a single-base anchor, a run left as an estimate takes the
+  length the two-strand rule decides (`two_strand`, SRS-CONS-013).
 
 The module reads only `CalledRead` records, so it is modality-neutral
 (ADR-0069). It uses no profile window or filename. `decided.rs` turns its

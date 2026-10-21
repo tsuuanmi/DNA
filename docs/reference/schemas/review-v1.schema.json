@@ -663,6 +663,51 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "position",
+            "read",
+            "strand",
+            "share",
+            "threshold"
+          ],
+          "properties": {
+            "label": {
+              "const": "reference_second"
+            },
+            "position": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            },
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "share": {
+              "description": "The share of the reference base's second peak (SRS-CALL-015) under the one supporting read's other base, above its threshold.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "threshold": {
+              "description": "The share the second base had to exceed (SRS-CALL-020).",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "calls": {
+              "description": "The key's calls in the run signal, the sample's own taken out, when its run level was usable.",
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "runs"
           ],
           "properties": {
@@ -1003,6 +1048,7 @@
                   "base",
                   "called",
                   "agreement",
+                  "convention",
                   "reads"
                 ],
                 "properties": {
@@ -1035,6 +1081,31 @@
                       "not_clear",
                       "disagree",
                       "structure_differs"
+                    ]
+                  },
+                  "convention": {
+                    "description": "The lab's convention reading of a near-equal pair (both strands read the run as an adjacent pair n, n + 1, at least one read near-equal): the shorter member. A suggestion only, never DNA's call; null otherwise, for a run whose structure differs, and in length_not_recorded.",
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "length",
+                          "rule"
+                        ],
+                        "properties": {
+                          "length": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "rule": {
+                            "const": "shorter_of_near_equal_pair"
+                          }
+                        }
+                      }
                     ]
                   },
                   "reads": {
@@ -1123,6 +1194,7 @@
                   "base",
                   "called",
                   "agreement",
+                  "convention",
                   "reads"
                 ],
                 "properties": {
@@ -1155,6 +1227,31 @@
                       "not_clear",
                       "disagree",
                       "structure_differs"
+                    ]
+                  },
+                  "convention": {
+                    "description": "The lab's convention reading of a near-equal pair (both strands read the run as an adjacent pair n, n + 1, at least one read near-equal): the shorter member. A suggestion only, never DNA's call; null otherwise, for a run whose structure differs, and in length_not_recorded.",
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "length",
+                          "rule"
+                        ],
+                        "properties": {
+                          "length": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "rule": {
+                            "const": "shorter_of_near_equal_pair"
+                          }
+                        }
+                      }
                     ]
                   },
                   "reads": {
@@ -1412,6 +1509,7 @@
             "strands_disagree",
             "read_disagrees",
             "possible_heteroplasmy",
+            "reference_second",
             "estimated_length",
             "length_unconfirmed",
             "undecided",
@@ -1440,6 +1538,10 @@
               "minimum": 0
             },
             "possible_heteroplasmy": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reference_second": {
               "type": "integer",
               "minimum": 0
             },

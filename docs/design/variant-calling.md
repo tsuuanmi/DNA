@@ -10,6 +10,7 @@ decided-by:
   - ADR-0069
   - ADR-0071
   - ADR-0076
+  - ADR-0088
 covers:
   - crates/dna-call/src/
   - crates/dna-call/src/model/variant.rs
@@ -141,8 +142,10 @@ The region gate, `indel_length_exceeded`, `non_canonical_allele`,
 core rules. Everything else arrives from the modality as data:
 - the Sanger adapter (`read_processing::evidence`) raises the support vetoes
   `peak_below_minimum` and `relative_quality_not_above_threshold`, which apply
-  to SNVs and insertions, and `mixed_supporting_dna`, which applies to SNVs
-  only;
+  to SNVs and insertions, `mixed_supporting_dna`, which applies to SNVs
+  only, and `signal_spike`, which withholds a call inside an
+  electrophoretic spike for its base and for indels alike, its run end
+  withheld too (SRS-CALL-027, [[ADR-0088]]);
 - it labels masked calls with their segment reason.
 
 An insertion whose inserted calls extend a repeat of their unit in the read,

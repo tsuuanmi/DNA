@@ -2,13 +2,13 @@
 
 use std::collections::BTreeSet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use dna_kernel::error::{AlignmentError, Result};
 use dna_kernel::model::nucleotide::is_canonical;
 
 /// Query orientation relative to the supplied reference strand.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Orientation {
     /// Native retained query matches the reference strand.
@@ -135,7 +135,9 @@ impl AlignmentColumn {
 /// Selected alignment and both orientation summaries.
 #[derive(Debug, Clone)]
 ///
-/// Only [`align_best`](crate::align_best) and [`Alignment::placed`] build one,
+/// Only [`align_best`](crate::align_best), [`Alignment::placed`], and the
+/// placed-read contract's reader ([`placed::read`](crate::placed::read), of a
+/// document [`align_best`](crate::align_best)'s caller wrote) build one,
 /// and only its own methods narrow its callable segments, so its invariants
 /// hold wherever it is read.
 pub struct Alignment {
