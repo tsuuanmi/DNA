@@ -12,6 +12,7 @@
 
 mod approve;
 mod baseline;
+mod bench;
 mod cache;
 mod cause;
 mod classes;
@@ -80,6 +81,8 @@ const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FORCED_BYTES: u64 = 1024 * 1024;
 /// Largest accepted re-check list.
 const MAX_RECHECK_BYTES: u64 = 16 * 1024 * 1024;
+/// Largest accepted bench case list.
+const MAX_CASES_BYTES: u64 = 4 * 1024 * 1024;
 
 /// The header of `signals.tsv`.
 const SIGNALS_HEADER: &str =
@@ -121,6 +124,170 @@ enum Command {
     /// 2 with `GATE FAIL` when more samples, passed samples, or passed zones
     /// carry a non-het unreviewed block; het blocks are reported, not gated.
     Diff(DiffArgs),
+    /// Runs DNA on the adjudicated artefact cases of a case list and checks
+    /// each expected outcome: exits 2 with `BENCH FAIL` when a guarded case
+    /// regresses or its sample cannot be analysed.
+    Bench(BenchArgs),
+}
+
+/// Arguments of `dna-eval bench`.
+#[derive(Debug, Args)]
+struct BenchArgs {
+    /// The case list (TSV: `case`, `sample_id`, `panel`, `reads`, `class`,
+    /// `first`, `last`, `expect`, `status`, `source`).
+    #[arg(long)]
+    cases: PathBuf,
+    /// A panel manifest the cases name as `<panel>-<version>`; repeatable.
+    #[arg(long, required = true)]
+    manifest: Vec<PathBuf>,
+    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
+    #[arg(long)]
+    config: PathBuf,
+    /// Reference FASTA, as given to `dna --reference`.
+    #[arg(long)]
+    reference: PathBuf,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+    /// A read evidence cache, as for `run --evidence-cache`.
+    #[arg(long)]
+    evidence_cache: Option<PathBuf>,
+    /// A new directory for `bench.md` and `bench.tsv`.
+    #[arg(long)]
+    output: Option<PathBuf>,
+}
+
+/// Runs `dna-eval bench`: prints the report, writes its files when asked,
+/// and exits 2 when a guarded case fails.
+fn bench(args: &BenchArgs) -> ExitCode {
+    match run_bench(args) {
+        Ok(report) => {
+            print!("{}", report.text);
+            if report.failed {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(error) => {
+            eprintln!("dna-eval: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Runs DNA once on each sample the cases name and judges every case.
+fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
+    let threads = Threads::new(args.threads)?;
+    let invalid = |message: String| Error::Cases {
+        path: args.cases.clone(),
+        message,
+    };
+    let text = String::from_utf8(read(&args.cases, "case list", MAX_CASES_BYTES)?)
+        .map_err(|error| invalid(error.to_string()))?;
+    let cases = bench::parse(&text).map_err(invalid)?;
+    let mut panels = BTreeMap::new();
+    for path in &args.manifest {
+        let manifest = manifest::parse(&read(path, "manifest", MAX_MANIFEST_BYTES)?)?;
+        runnable(&manifest)?;
+        let (Some(panel), Some(version)) =
+            (manifest.header.get("panel"), manifest.header.get("version"))
+        else {
+            return Err(invalid(format!(
+                "manifest {} declares no panel and version",
+                path.display()
+            )));
+        };
+        let label = format!("{panel}-{version}");
+        if panels.insert(label.clone(), manifest).is_some() {
+            return Err(invalid(format!("two manifests are panel {label}")));
+        }
+    }
+    // Each sample runs once, however many cases read it.
+    let mut samples = Vec::new();
+    let mut index = BTreeMap::new();
+    for case in &cases {
+        let key = (case.panel.as_str(), case.sample.as_str());
+        if index.contains_key(&key) {
+            continue;
+        }
+        let manifest = panels.get(&case.panel).ok_or_else(|| {
+            invalid(format!(
+                "case {} names panel {}, which no --manifest is",
+                case.name, case.panel
+            ))
+        })?;
+        let sample = manifest
+            .samples
+            .iter()
+            .find(|sample| sample.id == case.sample)
+            .ok_or_else(|| {
+                invalid(format!(
+                    "case {}: panel {} has no sample {}",
+                    case.name, case.panel, case.sample
+                ))
+            })?;
+        index.insert(key, samples.len());
+        samples.push(sample.clone());
+    }
+    let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
+        .map_err(|error| Error::Reference {
+            path: args.reference.clone(),
+            message: error.to_string(),
+        })?;
+    let cache = args
+        .evidence_cache
+        .as_deref()
+        .map(|directory| {
+            Ok::<_, cache::CacheError>(cache::Caches {
+                evidence: cache::EvidenceCache::open(directory, &args.config)?,
+                placed: cache::EvidenceCache::open_placed(
+                    directory,
+                    &args.config,
+                    &reference.sequence_sha256,
+                )?,
+            })
+        })
+        .transpose()?;
+    let outcomes = runner::run(
+        &samples,
+        (&args.reference, &reference.sequence_sha256),
+        &args.config,
+        threads,
+        false,
+        None,
+        cache.as_ref(),
+        &mut Vec::new(),
+    )?;
+    let judged = cases
+        .iter()
+        .map(|case| {
+            let result = &outcomes[index[&(case.panel.as_str(), case.sample.as_str())]].result;
+            let (verdict, observed) = bench::judge(case, result);
+            (
+                verdict,
+                observed,
+                result.as_ref().err().map(ToString::to_string),
+            )
+        })
+        .collect::<Vec<_>>();
+    let source = source();
+    let revision = format!(
+        "{}{}",
+        source.revision.as_deref().unwrap_or("unknown revision"),
+        match source.dirty {
+            Some(true) => " (dirty)",
+            Some(false) => "",
+            None => " (dirty state unknown)",
+        }
+    );
+    let report = bench::report(&revision, &cases, &judged);
+    if let Some(output) = &args.output {
+        prepare_output(output)?;
+        write(output, "bench.md", &report.text)?;
+        write(output, "bench.tsv", &report.table)?;
+    }
+    Ok(report)
 }
 
 /// Arguments of `dna-eval diff`.
@@ -378,6 +545,7 @@ struct RunArgs {
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Diff(args) => return diff(&args),
+        Command::Bench(args) => return bench(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),
