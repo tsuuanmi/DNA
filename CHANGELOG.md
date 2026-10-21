@@ -682,6 +682,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The two-strand rule reads each read's runs as the confirmation and
+  set-aside passes leave them, so a read set aside at a stretch
+  (SRS-CONS-011) gives no in-phase view of its runs; it read the reads'
+  first observations before. Plugin: `consensus` 24. Measured against the
+  previous change: every table byte-identical on development panel v5 and
+  readiness-v2; artefact bench unchanged.
 - The consensus's two late passes now pass the rules before them
   (SRS-CONS-009, SRS-CONS-010): after the one-strand insertion contest and
   the two-strand rule, confirmations beside a site they made differ are
