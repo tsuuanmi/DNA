@@ -149,7 +149,7 @@ pub fn read_runs_over(
             if chars.iter().any(|char| char.base == 'N') {
                 return None;
             }
-            let runs = read_runs(&observed.name, left, &resolved(&chars), right, true);
+            let runs = read_runs(&observed.id, left, &resolved(&chars), right, true);
             Some(
                 runs.runs
                     .iter()
@@ -306,7 +306,7 @@ fn decide_positions(
                         SiteValue::Base(base) => base.to_string(),
                         SiteValue::Deletion | SiteValue::Insertion(_) => String::new(),
                     };
-                    (read.name.as_str(), observation.clean.then_some(sequence))
+                    (read.id.as_str(), observation.clean.then_some(sequence))
                 })
             })
             .collect::<Vec<_>>();
@@ -564,7 +564,7 @@ fn set_aside_dissent(
         if !at_reference && decision.state != SiteState::Called {
             continue;
         }
-        let index = |name: &String| observed.iter().position(|read| &read.name == name);
+        let index = |name: &String| observed.iter().position(|read| &read.id == name);
         let opposing = decision
             .opposing
             .iter()
@@ -868,7 +868,8 @@ impl RunView {
 
 /// One read's runs over a stretch, and the clean parts at its two ends.
 struct ReadRuns<'a> {
-    name: &'a str,
+    /// The read's identity, its input's content SHA-256.
+    id: &'a str,
     runs: Vec<RunView>,
     /// No call over the stretch is unresolved (`N`).
     complete: bool,
@@ -962,7 +963,7 @@ impl ReadRuns<'_> {
 
 /// A read's runs over a stretch from its framed observation.
 fn read_runs<'a>(
-    name: &'a str,
+    id: &'a str,
     left: Option<Char>,
     chars: &[Char],
     right: Option<Char>,
@@ -1042,7 +1043,7 @@ fn read_runs<'a>(
         suffix = 0;
     }
     ReadRuns {
-        name,
+        id,
         runs,
         complete,
         prefix: prefix.min(groups.len()),
@@ -1185,15 +1186,15 @@ fn decide_stretch(
         .filter_map(|read| {
             read.span(first, last, length).map(|(left, chars, right)| {
                 let complete = chars.iter().all(|char| char.base != 'N');
-                read_runs(read.name.as_str(), left, &resolved(&chars), right, complete)
+                read_runs(read.id.as_str(), left, &resolved(&chars), right, complete)
             })
         })
         .collect::<Vec<_>>();
-    let names = || reads.iter().map(|read| read.name);
+    let names = || reads.iter().map(|read| read.id);
     let fallback = || by_position(observed, first, last, bases, names());
     let whole = reads
         .iter()
-        .map(|read| (read.name, read.whole().then(|| ReadRuns::bases(&read.runs))))
+        .map(|read| (read.id, read.whole().then(|| ReadRuns::bases(&read.runs))))
         .collect::<Vec<_>>();
     let composition = if whole.iter().any(|(_, bases)| bases.is_some()) {
         let composition = decide(&whole, &reference_composition);
@@ -1207,7 +1208,7 @@ fn decide_stretch(
                 .filter(|read| {
                     !whole
                         .iter()
-                        .any(|(name, bases)| *name == read.name && bases.is_some())
+                        .any(|(name, bases)| *name == read.id && bases.is_some())
                 })
                 .filter(|read| {
                     let edge = |from_end| {
@@ -1220,7 +1221,7 @@ fn decide_stretch(
                     (!prefix.is_empty() && !value.starts_with(&prefix))
                         || (!suffix.is_empty() && !value.ends_with(&suffix))
                 })
-                .map(|read| read.name.as_str())
+                .map(|read| read.id.as_str())
                 .collect::<Vec<_>>()
         });
         if contradicting.is_empty() {
@@ -1246,7 +1247,7 @@ fn decide_stretch(
                     joined
                         .entry(bases)
                         .or_default()
-                        .extend([start.name, finish.name]);
+                        .extend([start.id, finish.id]);
                 }
             }
         }
@@ -1258,12 +1259,7 @@ fn decide_stretch(
                 let (bases, supporting) = joined.into_iter().next().unwrap_or_default();
                 let observations = reads
                     .iter()
-                    .map(|read| {
-                        (
-                            read.name,
-                            supporting.contains(read.name).then(|| bases.clone()),
-                        )
-                    })
+                    .map(|read| (read.id, supporting.contains(read.id).then(|| bases.clone())))
                     .collect::<Vec<_>>();
                 decide(&observations, &bases)
             }
@@ -1289,7 +1285,7 @@ fn decide_stretch(
 
     let mut mapped = reads
         .iter()
-        .map(|read| (read.name, read.mapped(&runs)))
+        .map(|read| (read.id, read.mapped(&runs)))
         .collect::<Vec<_>>();
     let count = runs.chars().count();
     reconcile(&mut mapped, count);
@@ -1548,7 +1544,7 @@ fn by_position<'a>(
                             }
                             _ => None,
                         };
-                        (read.name.as_str(), call)
+                        (read.id.as_str(), call)
                     })
                 })
                 .collect::<Vec<_>>();
@@ -1952,7 +1948,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 20,
+    version: 21,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2529,6 +2525,41 @@ mod tests {
         Ok(())
     }
 
+    // SRS-CONS-002
+    #[test]
+    fn reads_of_one_file_name_count_by_content()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // Three reads of one strand and one file name: two substitute G>T at
+        // 13, one reads the reference. Each counts once, by its content.
+        let substituted = "TTGACGTCAGTACTATCGTACCTGAGTACGAGGACT";
+        let mut reads = vec![
+            placed("sha-1", substituted, &[])?,
+            placed("sha-2", substituted, &[])?,
+            placed("sha-3", REFERENCE, &[])?,
+        ];
+        for read in &mut reads {
+            read.input_name = "read.ab1".into();
+        }
+        let consensus = build(
+            &reads.iter().collect::<Vec<_>>(),
+            &reference(),
+            &config()?,
+            &config::tests::config(),
+        );
+        let site = consensus
+            .sites
+            .iter()
+            .find(|site| site.first_0based <= 13 && 13 <= site.last_0based)
+            .ok_or("the substitution must be a site")?;
+        assert_eq!(
+            site.call.as_deref().map(|call| call.contains('T')),
+            Some(true)
+        );
+        assert_eq!(site.supporting, ["sha-1", "sha-2"]);
+        assert_eq!(site.opposing, ["sha-3"]);
+        Ok(())
+    }
+
     /// `sequence` placed with the calls at `edges` at a signal edge and
     /// reference-only: confirmations the modality's edge does not stop.
     fn at_edges(
@@ -2964,7 +2995,7 @@ mod tests {
             seconds: BTreeMap::new(),
             unexplained: BTreeSet::new(),
             edges: BTreeMap::new(),
-            name: name.into(),
+            id: name.into(),
             positions,
             junctions,
         }

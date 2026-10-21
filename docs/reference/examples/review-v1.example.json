@@ -55,7 +55,7 @@
         "version": 26
       }
     ],
-    "rules": 30
+    "rules": 31
   },
   "reads": [
     {
@@ -1402,6 +1402,7 @@
     "labels": {
       "strands_disagree": 1,
       "read_disagrees": 0,
+      "same_strand_dissent": 0,
       "possible_heteroplasmy": 1,
       "reference_second": 0,
       "estimated_length": 1,

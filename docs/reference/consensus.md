@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080, ADR-0089]
+decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080, ADR-0089, ADR-0090]
 ---
 
 # DNA Consensus JSON
@@ -33,7 +33,11 @@ The method is described in [[design/consensus|design]].
   pairs were taken out), and `length_scale`, τ's scale for run 1 and run 2
   (`null` where the batch's pairs were too few).
 - **`reads[]`:** the admitted reads in the sample's read order (content
-  SHA-256), each with `name` (the trace stem) and `sha256`.
+  SHA-256), each with `name` (the trace stem, made unique as in the
+  [[reference/sample-evidence/reads-coverage|sample read registry]]) and
+  `sha256`. The consensus knows a read by its `sha256` ([[ADR-0090]]); a
+  site's read lists give the `name`, and `dna call` over the document maps
+  each back to the `sha256` this list gives it.
 - **`rejected_reads[]`:** reads set aside before the consensus, with `name`,
   `sha256`, and `rejection` as in the
   [[reference/sample-evidence/reads-coverage|sample read registry]].

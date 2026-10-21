@@ -45,6 +45,7 @@ struct RawDocument {
     schema_version: String,
     sample_id: String,
     provenance: RawProvenance,
+    reads: Vec<RawRead>,
     segments: Vec<RawSegment>,
     sites: Vec<RawSite>,
     reference_only: Vec<usize>,
@@ -66,6 +67,12 @@ struct RawProvenance {
 
 #[derive(Deserialize)]
 struct RawReference {
+    sha256: String,
+}
+
+#[derive(Deserialize)]
+struct RawRead {
+    name: String,
     sha256: String,
 }
 
@@ -186,6 +193,25 @@ fn parse(bytes: &[u8], path: &Path, sample_id: &str, reference: &Reference) -> R
     if raw.provenance.reference.sha256 != reference.sequence_sha256 {
         return Err(ConsensusDocumentError::ReferenceMismatch.into());
     }
+    // Sites name their reads; the core knows a read by its content SHA-256.
+    let identities = raw
+        .reads
+        .iter()
+        .map(|read| (read.name.as_str(), read.sha256.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let identify = |names: Vec<String>| {
+        names
+            .iter()
+            .map(|name| {
+                identities
+                    .get(name.as_str())
+                    .map(|&sha256| sha256.to_owned())
+                    .ok_or(ConsensusDocumentError::Inconsistent(
+                        "a site names a read the document does not list",
+                    ))
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()
+    };
     let length = reference.len();
     let segments = raw
         .segments
@@ -222,9 +248,9 @@ fn parse(bytes: &[u8], path: &Path, sample_id: &str, reference: &Reference) -> R
                 reference: site.reference,
                 call: site.call,
                 state: state(&site.state).ok_or_else(unknown)?,
-                supporting: site.supporting_reads,
-                opposing: site.opposing_reads,
-                uninformative: site.uninformative_reads,
+                supporting: identify(site.supporting_reads)?,
+                opposing: identify(site.opposing_reads)?,
+                uninformative: identify(site.uninformative_reads)?,
                 runs: site
                     .runs
                     .into_iter()

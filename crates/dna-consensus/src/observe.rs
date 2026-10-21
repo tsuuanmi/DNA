@@ -105,7 +105,9 @@ pub(super) struct Observation {
 /// junction is keyed by the position before it.
 #[derive(Debug, Clone)]
 pub(super) struct ReadObservations {
-    pub(super) name: String,
+    /// The read's identity, its input's content SHA-256: never its file
+    /// name, which two inputs can share.
+    pub(super) id: String,
     /// The read is placed on the reference strand.
     pub(super) forward: bool,
     pub(super) positions: BTreeMap<usize, Observation>,
@@ -465,7 +467,7 @@ pub(super) fn observe(
         }
     }
     ReadObservations {
-        name: read.input_name.clone(),
+        id: read.input_sha256.clone(),
         forward: orientation == Orientation::Forward,
         positions,
         junctions,

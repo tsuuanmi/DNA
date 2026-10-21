@@ -55,7 +55,7 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
         .reads
         .iter()
         .zip(&names)
-        .map(|(read, name)| (read.input_name.clone(), name.clone()))
+        .map(|(read, name)| (read.input_sha256.clone(), name.clone()))
         .collect::<BTreeMap<_, _>>();
     let rename = |reads: &[String]| -> Result<Vec<String>> {
         reads

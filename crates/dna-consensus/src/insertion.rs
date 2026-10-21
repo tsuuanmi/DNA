@@ -159,7 +159,7 @@ pub(crate) fn contest_one_strand(
 ) {
     let forward = observed
         .iter()
-        .map(|read| (read.name.as_str(), read.forward))
+        .map(|read| (read.id.as_str(), read.forward))
         .collect::<BTreeMap<_, _>>();
     for (&first, (last, decision)) in decided.iter_mut() {
         let Some(call) = decision.value.as_deref() else {
@@ -192,7 +192,7 @@ pub(crate) fn contest_one_strand(
         let through = views
             .iter()
             .filter(|(_, view)| *view == InsertionView::ReadsThrough)
-            .map(|(read, _)| read.name.clone())
+            .map(|(read, _)| read.id.clone())
             .collect::<Vec<_>>();
         if through.is_empty() {
             continue;
@@ -208,7 +208,7 @@ pub(crate) fn contest_one_strand(
         decision
             .uninformative
             .retain(|name| !through.contains(name));
-        opposing.sort_by_key(|name| observed.iter().position(|read| &read.name == name));
+        opposing.sort_by_key(|name| observed.iter().position(|read| &read.id == name));
         decision.value = Some(reference);
         decision.state = SiteState::Contested;
         decision.supporting = through;

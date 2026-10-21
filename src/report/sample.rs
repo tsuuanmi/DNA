@@ -340,31 +340,74 @@ pub(super) fn reviewer_read_names(evidence: &SampleEvidence) -> Result<(Vec<Stri
         evidence
             .reads
             .iter()
-            .map(|read| read.input_name.as_str())
+            .map(|read| (read.input_name.as_str(), read.input_sha256.as_str()))
             .chain(
                 evidence
                     .rejected_reads
                     .iter()
-                    .map(|read| read.input_name.as_str()),
+                    .map(|read| (read.input_name.as_str(), read.input_sha256.as_str())),
             ),
     )?;
     let rejected = names.split_off(evidence.reads.len());
     Ok((names, rejected))
 }
 
-/// Reviewer-facing names (the trace stems) of reads given by input name,
-/// unique across them.
-pub(super) fn reviewer_names<'a>(inputs: impl IntoIterator<Item = &'a str>) -> Result<Vec<String>> {
-    let mut unique = BTreeSet::new();
-    inputs
+/// Shortest prefix of a read's content SHA-256 that a shared trace stem
+/// carries.
+const SHARED_STEM_PREFIX: usize = 8;
+
+/// Reviewer-facing names of reads given by input name and content SHA-256,
+/// unique across them: each read's trace stem, or, for reads that share a
+/// stem (traces of one name from different folders, such as a re-sequenced
+/// read), the stem, `@`, and the shortest prefix of the read's content
+/// SHA-256, at least eight characters, that tells those reads apart. A name
+/// is for display only; a read's identity is its content SHA-256.
+pub(super) fn reviewer_names<'a>(
+    inputs: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<Vec<String>> {
+    let reads = inputs
         .into_iter()
-        .map(|input_name| {
-            let name = Path::new(input_name)
+        .map(|(input_name, sha256)| {
+            let stem = Path::new(input_name)
                 .file_stem()
                 .and_then(|value| value.to_str())
                 .filter(|value| !value.is_empty())
-                .ok_or(ReportError::InvalidReadName)?
-                .to_owned();
+                .ok_or(ReportError::InvalidReadName)?;
+            Ok((stem, sha256))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut shared = BTreeMap::<&str, Vec<&str>>::new();
+    for &(stem, sha256) in &reads {
+        shared.entry(stem).or_default().push(sha256);
+    }
+    // Per shared stem, the prefix width that tells its reads apart. Reads of
+    // one content never share a sample (`SampleError::DuplicateTrace`).
+    let widths = shared
+        .iter()
+        .filter(|(_, reads)| reads.len() > 1)
+        .map(|(&stem, reads)| {
+            let longest = reads.iter().map(|sha256| sha256.len()).max().unwrap_or(0);
+            let width = (SHARED_STEM_PREFIX..=longest)
+                .find(|&width| {
+                    reads
+                        .iter()
+                        .map(|sha256| sha256.get(..width).unwrap_or(sha256))
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        == reads.len()
+                })
+                .unwrap_or(longest);
+            (stem, width)
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut unique = BTreeSet::new();
+    reads
+        .into_iter()
+        .map(|(stem, sha256)| {
+            let name = match widths.get(stem) {
+                Some(&width) => format!("{stem}@{}", sha256.get(..width).unwrap_or(sha256)),
+                None => stem.to_owned(),
+            };
             if !unique.insert(name.clone()) {
                 return Err(ReportError::DuplicateReadName { name }.into());
             }
@@ -395,4 +438,35 @@ fn read_name(read_names: &[String], index: usize) -> Result<&str> {
         .get(index)
         .map(String::as_str)
         .ok_or(ReportError::MissingRead { index })?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reviewer_names;
+
+    #[test]
+    fn a_shared_stem_gains_the_shortest_telling_prefix_of_its_content() {
+        let names = reviewer_names([
+            ("a/read.ab1", "0123456789abcdef"),
+            ("b/read.ab1", "0123456789fedcba"),
+            ("other.ab1", "ffffffffffffffff"),
+            ("c/read.ab1", "fedcba9876543210"),
+        ]);
+        assert_eq!(
+            names.ok(),
+            Some(vec![
+                "read@0123456789a".to_owned(),
+                "read@0123456789f".to_owned(),
+                "other".to_owned(),
+                "read@fedcba98765".to_owned(),
+            ])
+        );
+        // A stem of its own keeps its name.
+        assert_eq!(
+            reviewer_names([("a/read.ab1", "00000000")]).ok(),
+            Some(vec!["read".to_owned()])
+        );
+        // One content twice cannot be told apart.
+        assert!(reviewer_names([("a/read.ab1", "00000000"), ("b/read.ab1", "00000000")]).is_err());
+    }
 }

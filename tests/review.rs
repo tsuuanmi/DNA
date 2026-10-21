@@ -10,8 +10,8 @@ use serde_json::Value;
 use tempfile::tempdir;
 
 use support::{
-    write_abif, write_abif_with_incoherent_doubles, write_abif_with_secondary_signal, write_config,
-    write_reference,
+    write_abif, write_abif_with_incoherent_doubles, write_abif_with_peak_heights,
+    write_abif_with_secondary_signal, write_config, write_reference,
 };
 
 const QUERY: &str = "ACGTCAGTACGATCGTACCTGAGTACGA";
@@ -144,9 +144,10 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 24] = [
+const RANKS: [(&str, u64); 25] = [
     ("strands_disagree", 0),
     ("read_disagrees", 0),
+    ("same_strand_dissent", 0),
     ("possible_heteroplasmy", 1),
     ("reference_second", 1),
     ("estimated_length", 2),
@@ -175,7 +176,7 @@ const RANKS: [(&str, u64); 24] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 30);
+    assert_eq!(value["provenance"]["rules"], 31);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
@@ -304,9 +305,14 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
             "{order:?}"
         );
         previous = Some(order);
+        // An item without calls is a check; one with calls is a variant
+        // unless a label leaves it unassured.
         let calls = item["calls"].as_array().ok_or("calls must be an array")?;
-        let kind = if calls.is_empty() { "check" } else { "variant" };
-        assert_eq!(item["kind"], kind);
+        let kind = item["kind"].as_str().ok_or("kind")?;
+        assert!(
+            kind == "check" || (kind == "variant" && !calls.is_empty()),
+            "{item}"
+        );
         if kind == "check" {
             checks += 1;
             assert!(!names.is_empty());
@@ -466,6 +472,130 @@ fn reads_that_disagree_across_strands_come_first() -> Result<(), Box<dyn std::er
         ])
     );
     assert_eq!(value["summary"]["clear"], false);
+    Ok(())
+}
+
+/// A trace whose calls are `sequence`, with every peak `height` high, so that
+/// reads with the same calls have different content.
+fn write_read(path: &Path, sequence: &str, height: i16) -> Result<(), Box<dyn std::error::Error>> {
+    write_abif_with_peak_heights(path, sequence, vec![height; sequence.len()])
+}
+
+/// Two forward reads against a third forward read: the majority decides,
+/// and the clean dissent of the supporting strand is a
+/// `same_strand_dissent` check that lists every read (ADR-0090).
+// SRS-API-014
+#[test]
+fn a_clean_read_against_its_own_strand_is_a_check() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (reference, config) = inputs(directory.path())?;
+    let first = directory.path().join("read-a.ab1");
+    let second = directory.path().join("read-b.ab1");
+    let third = directory.path().join("read-c.ab1");
+    write_read(&first, &alternate(), 1000)?;
+    write_read(&second, &alternate(), 1001)?;
+    write_read(&third, QUERY, 1002)?;
+
+    run(
+        &[&first, &second, &third],
+        &reference,
+        &config,
+        directory.path(),
+    )
+    .success();
+
+    let value = document(directory.path())?;
+    assert_consistent(&value)?;
+    let first = &items(&value)?[0];
+    assert_eq!(first["kind"], "check");
+    assert_eq!(first["sequence"], "AA");
+    assert_eq!(label_names(first)[0], "same_strand_dissent");
+    let mut sides = first["labels"][0]["reads"]
+        .as_array()
+        .ok_or("reads must be an array")?
+        .iter()
+        .map(|side| {
+            (
+                side["read"].as_str().unwrap_or_default(),
+                side["strand"].as_str().unwrap_or_default(),
+                side["role"].as_str().unwrap_or_default(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(sides.pop(), Some(("read-c", "forward", "opposing")));
+    sides.sort_unstable();
+    assert_eq!(
+        sides,
+        [
+            ("read-a", "forward", "supporting"),
+            ("read-b", "forward", "supporting")
+        ]
+    );
+    assert!(!label_names(first).contains(&"strands_disagree"));
+    assert_eq!(value["summary"]["labels"]["same_strand_dissent"], 1);
+    assert_eq!(value["summary"]["clear"], false);
+    Ok(())
+}
+
+/// Six traces of one file name from six folders, three per strand, are six
+/// reads: each is known by its content, and its name gains the prefix of its
+/// content SHA-256 that tells it from the others. Two copies of one trace are
+/// refused.
+// SRS-API-014
+#[test]
+fn traces_of_one_name_are_told_apart_by_content() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (reference, config) = inputs(directory.path())?;
+    let mut traces = Vec::new();
+    for (index, folder) in ["a", "b", "c", "d", "e", "f"].into_iter().enumerate() {
+        let folder = directory.path().join(folder);
+        fs::create_dir(&folder)?;
+        let trace = folder.join("read.ab1");
+        let sequence = if index < 3 {
+            alternate()
+        } else {
+            reverse_complement(&alternate())
+        };
+        write_read(&trace, &sequence, 1000 + i16::try_from(index)?)?;
+        traces.push(trace);
+    }
+
+    let workdir = directory.path().join("run");
+    fs::create_dir(&workdir)?;
+    run(
+        &traces.iter().collect::<Vec<_>>(),
+        &reference,
+        &config,
+        &workdir,
+    )
+    .success();
+
+    let value = document(&workdir)?;
+    assert_consistent(&value)?;
+    let reads = value["reads"].as_array().ok_or("reads must be an array")?;
+    assert_eq!(reads.len(), 6);
+    for read in reads {
+        let sha256 = read["sha256"].as_str().ok_or("sha256")?;
+        assert_eq!(read["name"], format!("read@{}", &sha256[..8]));
+    }
+    let strands = reads
+        .iter()
+        .filter(|read| read["strand"] == "forward")
+        .count();
+    assert_eq!(strands, 3);
+    let variant = items(&value)?
+        .iter()
+        .find(|item| item["kind"] == "variant")
+        .ok_or("the substitution must be an item")?;
+    assert_eq!(variant["calls"], serde_json::json!(["15A"]));
+    assert_eq!(variant["evidence"].as_array().map(Vec::len), Some(6));
+
+    let copies = directory.path().join("copies");
+    fs::create_dir(&copies)?;
+    run(&[&traces[0], &traces[0]], &reference, &config, &copies)
+        .failure()
+        .stderr(predicates::str::contains("duplicate input trace content"));
+    assert!(!output(&copies).exists());
     Ok(())
 }
 

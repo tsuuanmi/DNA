@@ -355,21 +355,20 @@ pub(crate) fn build(
             span: spans.get(read.input_sha256.as_str()).copied(),
         });
     }
-    // Consensus sites name their reads; several admitted reads can share a
-    // name, so each name keeps the strands of all its reads.
-    let mut strands = BTreeMap::<&str, Vec<Strand>>::new();
-    for read in reads {
-        strands
-            .entry(read.input_name.as_str())
-            .or_default()
-            .push(Strand::of(read.alignment.orientation));
-    }
+    // Consensus sites name their reads by content SHA-256, which is unique.
+    let strands = reads
+        .iter()
+        .map(|read| {
+            (
+                read.input_sha256.as_str(),
+                Strand::of(read.alignment.orientation),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     for site in &consensus.sites {
         let marks = site_causes(site);
         let observed = observers(&strands, &site.supporting, &site.opposing);
-        let masked = observed
-            .masked
-            .saturating_add(u8::try_from(site.uninformative.len()).unwrap_or(u8::MAX));
+        let masked = u8::try_from(site.uninformative.len()).unwrap_or(u8::MAX);
         for region in &mut regions {
             let range = region.overlap(site.first_0based, site.last_0based + 1);
             for position in &mut region.positions[range] {
@@ -421,44 +420,21 @@ fn site_causes(site: &ConsensusSite) -> Vec<Cause> {
 struct Observers {
     forward: u8,
     reverse: u8,
-    /// Clean observations whose strand cannot be told, counted as masked.
-    masked: u8,
 }
 
-/// Counts a site's clean observers (its supporting and opposing reads) by
-/// strand. A name shared by reads of both strands is resolved only when the
-/// site names every read of that name; otherwise its observations count as
-/// masked, so an ambiguous name never adds a strand.
+/// Counts a site's clean observers (its supporting and opposing reads, by
+/// content SHA-256) by strand.
 fn observers(
-    strands: &BTreeMap<&str, Vec<Strand>>,
+    strands: &BTreeMap<&str, Strand>,
     supporting: &[String],
     opposing: &[String],
 ) -> Observers {
-    let mut named = BTreeMap::<&str, usize>::new();
-    for name in supporting.iter().chain(opposing) {
-        *named.entry(name.as_str()).or_default() += 1;
-    }
     let mut observed = Observers::default();
-    let add = |count: &mut u8, by: usize| {
-        *count = count.saturating_add(u8::try_from(by).unwrap_or(u8::MAX));
-    };
-    for (name, count) in named {
-        let of = strands.get(name).map_or(&[][..], Vec::as_slice);
-        let first = of.first().copied();
-        if count == of.len() {
-            for strand in of {
-                match strand {
-                    Strand::Forward => add(&mut observed.forward, 1),
-                    Strand::Reverse => add(&mut observed.reverse, 1),
-                }
-            }
-        } else if let Some(strand) = first.filter(|first| of.iter().all(|other| other == first)) {
-            match strand {
-                Strand::Forward => add(&mut observed.forward, count),
-                Strand::Reverse => add(&mut observed.reverse, count),
-            }
-        } else {
-            add(&mut observed.masked, count);
+    for read in supporting.iter().chain(opposing) {
+        match strands.get(read.as_str()) {
+            Some(Strand::Forward) => observed.forward = observed.forward.saturating_add(1),
+            Some(Strand::Reverse) => observed.reverse = observed.reverse.saturating_add(1),
+            None => {}
         }
     }
     observed
@@ -557,7 +533,7 @@ pub(crate) mod tests {
         uninformative: &[&str],
         runs: &[RunEvidence],
     ) -> ConsensusSite {
-        let names = |names: &[&str]| names.iter().map(|name| (*name).to_owned()).collect();
+        let names = |names: &[&str]| names.iter().map(|name| format!("sha-{name}")).collect();
         ConsensusSite {
             first_0based: first,
             last_0based: last,
@@ -690,43 +666,19 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_shared_read_name_adds_a_strand_only_when_it_is_unambiguous() {
-        let names = |names: &[&str]| {
-            names
-                .iter()
-                .map(|name| (*name).to_owned())
-                .collect::<Vec<_>>()
-        };
+    fn reads_of_one_name_count_by_their_own_strands() {
+        let ids = |ids: &[&str]| ids.iter().map(|id| (*id).to_owned()).collect::<Vec<_>>();
+        // Three reads that share a trace name, told apart by content.
         let strands = BTreeMap::from([
-            ("both", vec![Strand::Forward, Strand::Reverse]),
-            ("twice", vec![Strand::Reverse, Strand::Reverse]),
-            ("one", vec![Strand::Forward]),
+            ("a1", Strand::Forward),
+            ("a2", Strand::Reverse),
+            ("a3", Strand::Reverse),
         ]);
-        // Every read of a shared name observes: both strands are known.
         assert_eq!(
-            observers(&strands, &names(&["both", "one"]), &names(&["both"])),
+            observers(&strands, &ids(&["a1", "a2"]), &ids(&["a3"])),
             Observers {
-                forward: 2,
-                reverse: 1,
-                masked: 0
-            }
-        );
-        // One of two reads of different strands: its strand is unknown.
-        assert_eq!(
-            observers(&strands, &names(&["both"]), &[]),
-            Observers {
-                forward: 0,
-                reverse: 0,
-                masked: 1
-            }
-        );
-        // One of two reads of the same strand.
-        assert_eq!(
-            observers(&strands, &[], &names(&["twice"])),
-            Observers {
-                forward: 0,
-                reverse: 1,
-                masked: 0
+                forward: 1,
+                reverse: 2,
             }
         );
     }

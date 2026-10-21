@@ -48,6 +48,7 @@ REVIEW_UNASSURED = frozenset(
     {
         "strands_disagree",
         "read_disagrees",
+        "same_strand_dissent",
         "possible_heteroplasmy",
         "reference_second",
         "estimated_length",
@@ -67,6 +68,7 @@ REVIEW_UNASSURED = frozenset(
 REVIEW_LABELS = {
     "strands_disagree": 0,
     "read_disagrees": 0,
+    "same_strand_dissent": 0,
     "possible_heteroplasmy": 1,
     "reference_second": 1,
     "estimated_length": 2,

@@ -544,28 +544,7 @@
               "type": "array",
               "minItems": 2,
               "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "read",
-                  "strand",
-                  "role"
-                ],
-                "properties": {
-                  "read": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "strand": {
-                    "$ref": "#/$defs/strand"
-                  },
-                  "role": {
-                    "enum": [
-                      "supporting",
-                      "opposing"
-                    ]
-                  }
-                }
+                "$ref": "#/$defs/side"
               }
             }
           }
@@ -593,6 +572,27 @@
             "sequence": {
               "type": "string",
               "pattern": "^[ACGT]*$"
+            }
+          }
+        },
+        {
+          "description": "Rules version 30 (ADR-0090): the site's supporting and opposing reads all lie on one strand. Lists the supporting, then the opposing reads.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "reads"
+          ],
+          "properties": {
+            "label": {
+              "const": "same_strand_dissent"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "$ref": "#/$defs/side"
+              }
             }
           }
         },
@@ -1696,6 +1696,31 @@
         }
       ]
     },
+    "side": {
+      "description": "A read on one side of a site's dissent: a supporting or an opposing read with its strand.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "strand",
+        "role"
+      ],
+      "properties": {
+        "read": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strand": {
+          "$ref": "#/$defs/strand"
+        },
+        "role": {
+          "enum": [
+            "supporting",
+            "opposing"
+          ]
+        }
+      }
+    },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
@@ -1884,6 +1909,7 @@
           "required": [
             "strands_disagree",
             "read_disagrees",
+            "same_strand_dissent",
             "possible_heteroplasmy",
             "reference_second",
             "estimated_length",
@@ -1913,6 +1939,10 @@
               "minimum": 0
             },
             "read_disagrees": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "same_strand_dissent": {
               "type": "integer",
               "minimum": 0
             },

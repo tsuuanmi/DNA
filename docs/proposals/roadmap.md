@@ -10,6 +10,7 @@ decided-by:
   - ADR-0074
   - ADR-0076
   - ADR-0079
+  - ADR-0090
 ---
 
 # DNA Roadmap
@@ -92,6 +93,7 @@ The following remain outside the current production interpretation boundary unti
 - the Sanger mixed verdict judged against the run signal ([[PROP-0009]] increment (iii)): a run signal can only lift a mixed verdict, and lifting every one on development panel v5 raised current samples with an unreviewed difference from 4.13 to 6.02 % and made 584 `haplotype_lod` statuses worse, for at most 41 samples it could help; deferred (2026-10-19, user);
 - quantitative heteroplasmy, and point-heteroplasmy evidence as labelled IUPAC sites; this first needs accurate primary calls, a shadow-corrected minor channel, and cross-strand confirmation ([research](../research/point-heteroplasmy/README.md));
 - mixed-template or length-mixture decomposition, including a dominant run length where a read loses the poly-C anchor base among several length populations (HVS-II 303–315; few samples, needs its own decision under ADR-0009; see [[validation/known-limitations|known limitations]]). A run-exit annotation on `ReadEvidence` from the trace's exit survival curve ([research](../research/phase-recovery/README.md)) would turn `phase_loss` estimates into measured dominant lengths;
+- an NGS modality: the kernel's read evidence, the consensus, and the review still carry Sanger vocabulary (in-phase bounds, phase mixtures, second bases, anchored ends, run-length evidence, `PhaseState`), which must move behind the modality boundary of [[ADR-0069]]. Handling any number of reads per site and strand is in progress under [[ADR-0090]]; moving the vocabulary is not started;
 - haplogroup-based QC or inference;
 - calibrated quality/error probabilities;
 - ML-based calling, correction, or training export;

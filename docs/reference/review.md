@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084, ADR-0089]
+decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084, ADR-0089, ADR-0090]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -57,9 +57,10 @@ document lists the reads with their causes and has no items), or
 the failure text, and the items are those of the consensus and the reads,
 without calls).
 
-An unreadable input, an invalid configuration, two traces with the same
-reviewer-facing name (the same file stem in two directories), or an existing
-target still fails the command without output.
+An unreadable input, an invalid configuration, two copies of one trace (the
+same content SHA-256), or an existing target still fails the command without
+output. Traces of one file name from different folders are different reads
+([[ADR-0090]]).
 
 ## Fields
 
@@ -76,7 +77,9 @@ target still fails the command without output.
   - `signal` (with `--signal`): the run signal's `run_id`, file `sha256`, and
     `selection` version.
 - `reads`: the admitted reads in the sample's read order (content SHA-256),
-  each with `name` (the trace stem), `sha256`, `strand` (`forward` or
+  each with `name` (the trace stem, made unique as in the
+  [[reference/sample-evidence/reads-coverage|sample read registry]]),
+  `sha256`, `strand` (`forward` or
   `reverse`, its placement), `admitted: true`, and `masked`; then the
   rejected reads with `name`, `sha256`, `admitted: false`, and `rejection`
   as in [[reference/consensus|`dna.consensus/v1`]]. `masked` lists, in reference
@@ -178,7 +181,8 @@ the clipped columns, what most of its supporting reads show there). It has:
   ordinals are `0`, and an item holds the insertions after its last position
   (`315.1C` in `303`–`315`).
 - `kind`: `check` when a label leaves the item unassured
-  (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
+  (`strands_disagree`, `read_disagrees`, `same_strand_dissent`,
+  `possible_heteroplasmy` unless
   `explained`, `reference_second`, `estimated_length`, `length_unconfirmed`, `undecided`,
   `not_called`, `long_run`, `edge_deletion`, `run_deletion`, `run_indel`,
   `one_strand_insertion`, `beside_not_analysed`, `not_covered`), whatever its
@@ -254,13 +258,13 @@ and `5` for a variant without a label. Items are ordered by priority, then
 
 | Rank | Labels |
 |---:|---|
-| 0 | `strands_disagree`, `read_disagrees` |
+| 0 | `read_disagrees`, `same_strand_dissent`, `strands_disagree` |
 | 1 | `possible_heteroplasmy`, `reference_second` |
 | 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `one_strand_insertion`, `run_deletion`, `run_indel`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 30)
+## Labels (rules version 31)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -275,7 +279,16 @@ exemption lifts the margin (ADR-0076).
   clipped decision over the reportable columns no longer opposes the item:
   its difference lies outside the regions. The label stays while an opposing
   read that may differ there, or that does not bound those columns, remains
-  on another strand than a supporting one.
+  on another strand than a supporting one; when only opposing reads of the
+  supporting strand remain, the label is `same_strand_dissent`.
+- `same_strand_dissent` `{reads: [{read, strand, role}]}` (rules version 31,
+  [[ADR-0090]]): the site has supporting and opposing reads, and all of them
+  lie on one strand, however many: a clean read of a strand disagrees with
+  other reads of that strand, as when a re-sequenced trace disagrees with
+  the first. Their count alone does not settle the site, so it is a check.
+  Lists the supporting, then the opposing reads; a clipped site keeps it as
+  `strands_disagree` does. Before, such a site got only `one_strand` as
+  context.
 - `read_disagrees` `{read, strand, sequence}`: at a decided site that is not
   clipped, a supporting or uninformative read shows the whole item as another
   sequence than the decision. The read's sequence comes from its own
@@ -285,7 +298,8 @@ exemption lifts the margin (ADR-0076).
   sides of it, so that it bounds what it shows; each of those calls, and
   each call inside the item, must be A/C/G/T without a modality reason
   against its base, and either anchoring or scored and trusted or exempt.
-  One label per such read. Opposing reads are `strands_disagree`'s.
+  One label per such read. Opposing reads are `strands_disagree`'s or
+  `same_strand_dissent`'s.
   A read also disagrees through one end of an item it does not show whole
   (rules version 8): at a decided item without a length change, from the
   end its strand reaches first (a forward read's first position, a reverse
@@ -416,7 +430,8 @@ exemption lifts the margin (ADR-0076).
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
   lie on one strand. It describes the support of the call, so it can come
-  with `strands_disagree` when the opposing reads lie on the other strand.
+  with `strands_disagree` when the opposing reads lie on the other strand, or
+  with `same_strand_dissent` when they lie on the same one.
 - For every admitted read covering a position of the item whose call there is
   not clean, one label per label and read:
   - `phase_shift` `{read, from}`: the call is masked but still anchors the

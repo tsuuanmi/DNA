@@ -260,6 +260,13 @@ pub(crate) enum LabelResult {
         strand: Orientation,
         sequence: String,
     },
+    /// A site whose supporting and opposing reads all lie on one strand
+    /// (rules version 30, ADR-0090): clean reads of one strand disagree, and
+    /// their count alone cannot settle it; a check. Lists the supporting,
+    /// then the opposing reads.
+    SameStrandDissent {
+        reads: Vec<SideResult>,
+    },
     NotCalled,
     LongRun {
         runs: Vec<GrowthResult>,
@@ -581,6 +588,7 @@ pub(crate) struct ZoneCounts {
 pub(crate) struct LabelCounts {
     pub(crate) strands_disagree: usize,
     pub(crate) read_disagrees: usize,
+    pub(crate) same_strand_dissent: usize,
     pub(crate) possible_heteroplasmy: usize,
     pub(crate) reference_second: usize,
     pub(crate) estimated_length: usize,

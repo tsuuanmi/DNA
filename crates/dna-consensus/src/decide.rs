@@ -16,7 +16,7 @@ pub(super) struct Decision {
     pub(super) runs: Vec<ConsensusRun>,
 }
 
-/// Decides over clean observations only; each observation is a read's name
+/// Decides over clean observations only; each observation is a read's identity
 /// and its sequence, `None` when it is not clean:
 ///
 /// 1. all agree: that sequence;
