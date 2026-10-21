@@ -622,6 +622,17 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval` classes an unreviewed block whose every difference is an
+  insertion past the truth's analysed interval (anchored at the last base of
+  the truth's own interval, e.g. DNA's `573.1C 573.2C` where the truth's
+  HVS-III interval ends at 573) as `truth_n`, not `non_het`: the truth records
+  nothing there, and the allele measure already leaves it uncompared (user
+  decision 2026-10-21). A block that ends only where DNA's callable interval
+  ends stays `non_het`. On development panel v5 against main 60252579, 27
+  blocks move (25 at 573, 2 at 309); non-het unreviewed blocks fall 71 → 44
+  (current 34 → 20), passed samples with a non-het block 24 → 12 (current
+  8 → 2), and `end@HV3` passed non-het zones 24 → 1. DNA's output is
+  unchanged.
 - A Sanger call before a run that closes a stop of the read's in-phase
   signal (the informative end, or a phase loss after a repeat run inside the
   interval) is judged against the medians of the last `end_norm_calls` (30)

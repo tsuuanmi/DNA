@@ -102,7 +102,9 @@ pub(crate) struct Escape {
 
 /// What an unreviewed difference block is, as the pass measures split it,
 /// from the least to the most severe. A block is `Recheck` when the re-check
-/// list names it, else `TruthN` when the truth writes `N` in it, else `Het`
+/// list names it, else `TruthN` when the truth writes `N` in it or every
+/// difference is an insertion past the truth's interval (the truth records
+/// nothing there, [`Block::past_interval`]), else `Het`
 /// when the truth writes a heteroplasmy in it ([`het`]), else `NonHet`: a
 /// DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list
 /// explains. A passed unit counts under its most severe block.
@@ -130,7 +132,7 @@ impl Class {
     pub(crate) fn of(block: &Block, listed: &[(i64, i64)]) -> Self {
         if recheck::listed(block, listed) {
             Self::Recheck
-        } else if block.truth.contains('N') {
+        } else if block.truth.contains('N') || block.past_interval() {
             Self::TruthN
         } else if het(block) {
             Self::Het
@@ -696,6 +698,20 @@ mod tests {
         assert_eq!(class("NY", &[(102, 105)]), TruthN);
         assert_eq!(class("AY", &[]), Het);
         assert_eq!(class("GG", &[]), NonHet);
+        // An insertion past the truth's interval: the truth records nothing
+        // there. A block that also differs at the last base, holds more than
+        // it, or stays inside the interval is DNA's.
+        let open = |start, dna: &str, truth: &str| {
+            Class::of(&Block::open_fixture(start, 573, dna, truth), &[])
+        };
+        assert_eq!(open(573, "CCC", "C"), TruthN);
+        assert_eq!(open(573, "C", "CC"), TruthN);
+        assert_eq!(open(573, "ACC", "C"), NonHet);
+        assert_eq!(open(572, "CCCC", "CC"), NonHet);
+        assert_eq!(
+            Class::of(&Block::fixture(573, 573, "CCC", "C"), &[]),
+            NonHet
+        );
         // A passed unit counts once, under its most severe block.
         let escape = |class| Escape {
             first: 1,

@@ -1190,7 +1190,7 @@
       }
     },
     "escaped": {
-      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it, else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only`; the four sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
+      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it or every difference is an insertion past the truth's analysed interval (anchored at its last base), else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only`; the four sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
       "type": "object",
       "additionalProperties": false,
       "required": [
