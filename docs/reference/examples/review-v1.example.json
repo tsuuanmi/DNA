@@ -52,10 +52,10 @@
       {
         "id": "review",
         "family": "post_calling",
-        "version": 23
+        "version": 26
       }
     ],
-    "rules": 23
+    "rules": 26
   },
   "reads": [
     {
@@ -1399,6 +1399,7 @@
       "strands_disagree": 1,
       "read_disagrees": 0,
       "possible_heteroplasmy": 1,
+      "reference_second": 0,
       "estimated_length": 1,
       "length_unconfirmed": 0,
       "undecided": 0,

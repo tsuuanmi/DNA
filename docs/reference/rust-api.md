@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
-decided-by: [ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079]
+decided-by: [ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079, ADR-0087]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -45,7 +45,11 @@ facade re-exports exactly these public items from them:
 - `profile` exposes `Profile` and `ProfileIdentity`;
 - `recorded` makes a trace's `dna.read_evidence/v1` document in memory and
   analyses a sample from such documents, returning `EvidenceOutcome`
-  ([[reference/rust-api-sample|sample analysis]]);
+  ([[reference/rust-api-sample|sample analysis]]). `placed_read_document`
+  makes a read's `dna.placed_read/v1` document, and `analyze_placed_outcome`
+  analyses a sample from `ReadDocuments` (evidence, with a placed read when
+  given) without searching the given placements again ([[ADR-0087]],
+  proposed);
 - `sample_analysis` exposes `SampleEvidence` (`dna-sample`) and `Consensus` (`dna-consensus`) and
   `SangerAttachment` and `SangerRejection` (`dna-sanger`), the records of a
   [sample analysis](#sample-analysis);

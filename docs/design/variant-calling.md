@@ -10,6 +10,7 @@ decided-by:
   - ADR-0069
   - ADR-0071
   - ADR-0076
+  - ADR-0088
 covers:
   - crates/dna-call/src/
   - crates/dna-call/src/model/variant.rs
@@ -98,8 +99,8 @@ unresolved, or a read end (SRS-CALL-013). A difference therefore needs that
 many informative calls between it and the nearest place where the alignment
 has no information, at the read's ends and around internal masked segments
 alike. A call the modality vouches for by its base only (a leading call,
-SRS-CALL-014, or a call beside a junction whose spacing marks a missing
-peak, SRS-CALL-026) supports a substitution, but no insertion or deletion and no
+SRS-CALL-014, or a call beside a junction whose spacing marks a missing or
+an extra peak, SRS-CALL-026) supports a substitution, but no insertion or deletion and no
 run's end; and where one of its neighbours is masked, `N`, or vouched for
 by its base only, and its base is the reference base next to it, it may sit
 one position off, so it supports no substitution either (`unresolved_flank`,
@@ -141,8 +142,10 @@ The region gate, `indel_length_exceeded`, `non_canonical_allele`,
 core rules. Everything else arrives from the modality as data:
 - the Sanger adapter (`read_processing::evidence`) raises the support vetoes
   `peak_below_minimum` and `relative_quality_not_above_threshold`, which apply
-  to SNVs and insertions, and `mixed_supporting_dna`, which applies to SNVs
-  only;
+  to SNVs and insertions, `mixed_supporting_dna`, which applies to SNVs
+  only, and `signal_spike`, which withholds a call inside an
+  electrophoretic spike for its base and for indels alike, its run end
+  withheld too (SRS-CALL-027, [[ADR-0088]]);
 - it labels masked calls with their segment reason.
 
 An insertion whose inserted calls extend a repeat of their unit in the read,

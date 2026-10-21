@@ -1,6 +1,6 @@
 ---
-implements: [SRS-CALL]
-decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076]
+implements: [SRS-CALL, SRS-SIG]
+decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076, ADR-0088]
 covers:
   - crates/dna-sanger/src/callability/
   - crates/dna-sanger/src/callability/sanger.rs
@@ -60,14 +60,16 @@ For position `i` with amplitudes `a` and total `T = Σ a`:
 Every value is rounded to six decimals before storage or comparison. Fewer than
 two positions is a typed failure.
 
-The same measure marks the junctions where the read missed a peak
-(`gaps`, SRS-CALL-026). With `M` the median spacing of the window at the
-position before a junction, the junction is a gap when `Δ − M`, and
-`Δ + Δ' − 2M` for each neighbouring junction's `Δ'`, are each at least
-`spacing_defect × M`. A missing peak leaves a gap about `2M` and the ladder a
-call behind; a peak placed late is followed by a short spacing that makes up
-for it (`Δ + Δ' ≈ 2M`) and is no gap. Gaps mask nothing: the Sanger evidence
-vouches for the two calls beside each by their bases only (see
+The same measure marks the junctions where the read missed a peak or called
+one twice (`gaps`, SRS-CALL-026). With `M` the median spacing of the window at
+the position before a junction, the junction marks a missing peak when
+`Δ − M`, and `Δ + Δ' − 2M` for each neighbouring junction's `Δ'`, are each at
+least `spacing_defect × M`, and an extra peak when `M − Δ` and `2M − Δ − Δ'`
+are. A missing peak leaves a gap about `2M` and the ladder a call behind; a
+peak called twice leaves two calls a fraction of `M` apart and the ladder a
+call ahead; a peak placed late or early is followed by a spacing that makes up
+for it (`Δ + Δ' ≈ 2M`) and marks nothing. Gaps mask nothing: the Sanger
+evidence vouches for the two calls beside each by their bases only (see
 [Consumers](#consumers)).
 
 ### Substep 4.2 — Repeat runs
@@ -198,9 +200,38 @@ The core caller does not read callability directly. The Sanger adapter
   forward read dephased after the tract nobody read 16194-16205 cleanly; on
   development panel v5 against `main` 20fc7ca this cleared 33 more samples
   (77 of 1,107 such check items), with samples with an unreviewed or non-het
-  difference unchanged and no status change under any measure. A read that
-  physically ends inside the tract (a weak mask, not a phase loss) keeps its
-  edge. Its indel verdict keeps the edge and its bound is
+  difference unchanged and no status change under any measure. A call
+  before a run that closes a stop of the in-phase signal (the informative
+  end, or a call masked `post_homopolymer` right after a run of two calls or
+  more inside the interval) is judged against the medians of the last
+  `end_norm_calls` (30) scored single-channel calls before that stop and
+  needs `end_height_fraction` (0.3) of their peak. A read's signal decays
+  over its last calls and its peaks vary with their dye context: a `G`
+  after an `A` stands near half its neighbours, and of 581,243 clean
+  in-phase calls off the edge in 2,195 development-panel reads, 36 stand
+  below 0.3 of the median of their 30 preceding calls and 8,486 below 0.5.
+  So a reverse read that physically ends a few calls past the HVS-I
+  C-tract (a weak mask beyond the run, not a phase loss), or that regains
+  phase after the tract's phase loss, reads 16194-16205 again. A call
+  reading its outer neighbour's base qualifies there only inside a run that
+  a vouched call of another base closes before the stop (`TT` at
+  16198-16199 in the reverse read, closed by 16197): a run the stop closes
+  may hold one call too many. A call further in than the run's bound
+  (the call right before the run) qualifies only behind a vouched bound:
+  without it, the forward HVS-II read had its 560-566 vouched behind an
+  ambiguous `567` (a second `C` at 0.12 of the peak, the run's leak), the
+  consensus then completed the site `566-573` from the reverse HVS-III
+  read's start, which reads the run some calls too long, and called `567C`
+  in five samples, each inside a check item. On development panel v5
+  against `main` 85cab63 the diff gate passes: unreviewed samples (618) and
+  passed samples with a non-het block unchanged in every period and source,
+  current `after@HV1` checks 254 → 88 (578 → 189 overall), and 131 more
+  samples clear (current 71.49 → 72.13 %). Three samples gain a call the
+  truth lacks, each inside a check item: `573.1C`-`573.3C` (2), where the
+  forward HVS-II read and the reverse HVS-III read both show the longer run
+  and the truth's HVS-III interval stops at `573`, and `309DEL` (1); `310C`
+  in one more sample changes only the primary measure. Its
+  indel verdict keeps the edge and its bound is
   unchanged, so it still counts towards runs: as a base-only call it would
   stop counting, and run lengths the consensus estimated from it (`315.1C`)
   were lost. On development panel v5 against the rule's absence: `315.1C`
@@ -240,7 +271,26 @@ The core caller does not read callability directly. The Sanger adapter
   scans) left `16036` undecided in about 170 samples. Against the previous
   commit: unreviewed 668 → 667, non-het passed zones unchanged, 22 more
   samples clear (current 76.06 → 76.19 %), 63 checks removed and 17 added,
-  and four samples concordant under every measure that were discordant;
+  and four samples concordant under every measure that were discordant.
+  The same holds for the two calls beside an extra peak's junction: a peak
+  called twice makes the read show an insertion the template does not hold.
+  On development panel v5 such one-read insertions at junctions 4-6 scans
+  wide, against a read spacing of about 12, passed unflagged near read
+  starts (`16049.1G`, `16025.1T`, `560.1C`, `16360.1C` and others); with
+  them withheld, samples passed with a non-het difference fall 23 → 19 and
+  9 more samples are clear;
+- every call of an electrophoretic spike ([spikes](signal-processing/spikes.md),
+  SRS-SIG-012) is withheld for its base and for indels with the reason
+  `signal_spike`, shows no run's end, and confirms no reference
+  (SRS-CALL-027). It is applied after the vouching and edge rules above, so
+  none of them lifts it. A spike's leading edge reads its first channel
+  cleanly: in 2538054 HV2F the T edge read `186T` with a second share of 0.04
+  where the truth has the reference C, and passed unflagged. Against `main`
+  85cab63 on development panel v5 the diff gate passes: that `186T` becomes
+  an undecided check, samples with an unreviewed block 618 → 617, no other
+  zone's passed non-het units change, five samples whose spiked read
+  disagreed with the other strand become clear (current 7,646 → 7,651), and
+  no coverage changes;
 - the read's poor start is asserted as an unreliable span (SRS-CALL-024):
   from its first call to its first run of `start_identity_margin` (12)
   consecutive sound calls, the vouching rules above having judged each call

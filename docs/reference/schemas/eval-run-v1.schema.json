@@ -576,6 +576,70 @@
             }
           }
         },
+        "placement_cache": {
+          "description": "With `--evidence-cache`: the placement cache the run read and filled, in the same directory. Every read was placed from its `dna.placed_read/v1` document, made or read here; the key names the generation, which holds documents made under this configuration by this placement-stage code for this reference.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directory",
+            "key",
+            "hits",
+            "misses",
+            "replaced",
+            "bytes"
+          ],
+          "properties": {
+            "directory": {
+              "description": "The cache directory, absolute.",
+              "type": "string",
+              "minLength": 1
+            },
+            "key": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sanger",
+                "configuration_sha256",
+                "code_sha256"
+              ],
+              "properties": {
+                "sanger": {
+                  "description": "The `sanger` plugin version.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "configuration_sha256": {
+                  "description": "The configuration file's SHA-256.",
+                  "$ref": "#/$defs/sha256"
+                },
+                "code_sha256": {
+                  "description": "The SHA-256 of the placement stage's code identity (the git object ids of every source from a read evidence document to its placed-read document, at the harness's commit) and the reference's sequence SHA-256.",
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "hits": {
+              "description": "Traces read from the cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "misses": {
+              "description": "Traces processed and stored: absent or unreadable entries.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "replaced": {
+              "description": "Of the misses, entries present but unreadable, replaced.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "description": "Bytes of the generation's entries after the run.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
         "zones": {
           "description": "The widths that place the review zones, in positions.",
           "type": "object",
@@ -1126,7 +1190,7 @@
       }
     },
     "escaped": {
-      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it, else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only`; the four sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
+      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it or every difference is an insertion past the truth's analysed interval (anchored at its last base), else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only`; the four sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
       "type": "object",
       "additionalProperties": false,
       "required": [

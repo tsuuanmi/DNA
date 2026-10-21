@@ -44,20 +44,24 @@ pub(crate) const WEAK_SIGNAL: EvidenceReason = EvidenceReason::new("weak_signal"
 pub(crate) const IRREGULAR_SPACING: EvidenceReason = EvidenceReason::new("irregular_spacing");
 /// The read's start, before its signal settles (SRS-CALL-024).
 pub(crate) const POOR_START_SIGNAL: EvidenceReason = EvidenceReason::new("poor_start_signal");
+/// A call inside an electrophoretic spike (SRS-CALL-027).
+pub(crate) const SIGNAL_SPIKE: EvidenceReason = EvidenceReason::new("signal_spike");
 
 /// The Sanger verdict reasons, in reporting order.
-const REASON_ORDER: [EvidenceReason; 3] = [
+const REASON_ORDER: [EvidenceReason; 4] = [
     PEAK_BELOW_MINIMUM,
     RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
     MIXED_SUPPORTING_DNA,
+    SIGNAL_SPIKE,
 ];
 
 /// Every reason label the Sanger modality raises: the verdict reasons, then
 /// the mask labels.
-const REASONS: [EvidenceReason; 9] = [
+const REASONS: [EvidenceReason; 10] = [
     PEAK_BELOW_MINIMUM,
     RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
     MIXED_SUPPORTING_DNA,
+    SIGNAL_SPIKE,
     POST_HOMOPOLYMER,
     DEPHASED_SIGNAL,
     MIXED_SIGNAL,
@@ -275,6 +279,21 @@ pub fn read_evidence(
             withheld,
         };
     }
+    // A call inside an electrophoretic spike reads the spike's channel, not
+    // the template's base (SRS-CALL-027): it shows no base, places no indel,
+    // shows no run's end, and confirms nothing. No earlier rule lifts this.
+    for spike in &signal.spikes {
+        for call in evidence
+            .iter_mut()
+            .take(spike.calls.end)
+            .skip(spike.calls.start)
+        {
+            call.identity.withheld.insert(SIGNAL_SPIKE)?;
+            call.indel.withheld.insert(SIGNAL_SPIKE)?;
+            call.bound = Bound::Withheld;
+            call.reference_only = false;
+        }
+    }
     let after_repeat = (0..count)
         .map(|index| {
             evidence[index].placement != Placement::Scored
@@ -283,8 +302,9 @@ pub fn read_evidence(
                     .is_some_and(|segment| segment.after_repeat)
         })
         .collect::<Vec<_>>();
-    // A junction whose spacing marks a missing peak (SRS-CALL-026): a read
-    // that lost a peak there shows a deletion that is not in the template, so
+    // A junction whose spacing marks a missing or an extra peak
+    // (SRS-CALL-026): a read that lost a peak there, or called one twice,
+    // shows a deletion or an insertion that is not in the template, so
     // neither call beside it places an indel or shows a run's end.
     for &junction in &callability.gaps {
         for call in evidence.iter_mut().skip(junction).take(2) {
@@ -563,22 +583,51 @@ fn leading_identity(
         .collect()
 }
 
-/// The calls at a signal edge of the read's informative ends that their own
-/// signal vouches for by their base (SRS-CALL-017): scored, with a canonical
-/// primary and no other qualifying channel, a primary peak at least the read's
-/// median times `edge_height_fraction`, a second-channel share below
-/// `edge_second_share`, a primary peak no wider than `edge_width_factor`
-/// times the read's median width, and a spacing to each neighbour within
-/// `edge_spacing_minimum` to `edge_spacing_maximum` times the read's median.
-/// Only calls within `edge_identity_margin` of an informative end qualify,
-/// with every call between them and that end and every call within that
-/// margin on their inner side scored, and no call within it beyond that end
-/// masked where the read loses phase (`dephased_signal`, `post_homopolymer`),
-/// unless the informative interval ends with a run of one base, at least two
-/// calls, that starts after the call, and the first call beyond that end is
-/// masked `post_homopolymer`: the read loses phase after that run, and
-/// before it every molecule shows the same sequence. The rule judges each
-/// call against its own read only, never a position.
+/// The medians a call's own signal is judged against: primary peak, width,
+/// and spacing.
+#[derive(Debug, Clone, Copy)]
+struct Norms {
+    height: f64,
+    width: f64,
+    spacing: f64,
+}
+
+/// The calls at a signal edge that their own signal vouches for by their
+/// base (SRS-CALL-017): scored, with a canonical primary and no other
+/// qualifying channel, a second-channel share below `edge_second_share`, a
+/// primary peak no wider than `edge_width_factor` times the median width,
+/// and a spacing to each neighbour within `edge_spacing_minimum` to
+/// `edge_spacing_maximum` times the median. Only calls within
+/// `edge_identity_margin` of a stop of the read's in-phase signal qualify,
+/// with every call between them and that stop and every call within that
+/// margin on their inner side scored:
+///
+/// - at either informative end, against the read's medians, with a peak of
+///   at least `edge_height_fraction` of its median, and not reading the base
+///   of its neighbour towards that end (that neighbour's signal one position
+///   off);
+/// - before a run of one base, at least two calls, that closes a stop and
+///   that the call precedes, against the medians of the last
+///   `end_norm_calls` scored single-channel calls before that stop, with a
+///   peak of at least `end_height_fraction` of that median: a read's signal
+///   decays over its last calls, and its peaks vary with their dye context.
+///   The stops are the informative end and every call masked
+///   `post_homopolymer` right after such a run inside the interval: every
+///   molecule shows the same sequence before a run the read loses phase
+///   after. The call right before the run (its bound) must be vouched for
+///   itself before any call further in qualifies: an ambiguous bound leaves
+///   the read's phase at the run in doubt. Judged from the stop inwards, a
+///   call reading the base of its
+///   neighbour towards the stop qualifies only inside a run that a vouched
+///   call of another base closes before the stop, behind a vouched
+///   neighbour: a run that the stop or an unvouched call closes may hold
+///   one call too many.
+///
+/// At the informative end no call within the margin beyond it may be masked
+/// where the read loses phase (`dephased_signal`, `post_homopolymer`), unless
+/// the interval ends with a run that starts after the call and the first
+/// call beyond it is masked `post_homopolymer`. The rule judges each call
+/// against its own read only, never a position.
 fn edge_identity(
     calls: &BaseCalls,
     loci: &[crate::model::locus_evidence::LocusEvidence],
@@ -604,7 +653,20 @@ fn edge_identity(
             .get(index)
             .is_some_and(|call| is_canonical(call.primary) && call.qualifying_channels.len() == 1)
     };
-    let (Some(height), Some(median_width), Some(spacing)) = (
+    let gap = |left: usize, right: usize| {
+        Some(
+            loci.get(right)?.locus_position_0based as f64
+                - loci.get(left)?.locus_position_0based as f64,
+        )
+    };
+    let norms = |height: Option<f64>, width: Option<f64>, spacing: Option<f64>| {
+        Some(Norms {
+            height: height?,
+            width: width?,
+            spacing: spacing?,
+        })
+    };
+    let read_norms = norms(
         median(
             calls
                 .calls
@@ -627,8 +689,31 @@ fn edge_identity(
                 })
                 .collect(),
         ),
-    ) else {
-        return Vec::new();
+    );
+    // The norms of the signal before a stop: its last scored single-channel
+    // calls.
+    let stop_norms = |stop: usize| {
+        let mut last = (informative.start..stop)
+            .rev()
+            .filter(|&index| evidence[index].placement == Placement::Scored && single(index))
+            .take(config.end_norm_calls)
+            .collect::<Vec<_>>();
+        last.reverse();
+        norms(
+            median(
+                last.iter()
+                    .filter_map(|&index| calls.calls.get(index).and_then(primary_height))
+                    .map(f64::from)
+                    .collect(),
+            ),
+            median(last.iter().filter_map(|&index| width(index)).collect()),
+            median(
+                last.windows(2)
+                    .filter(|pair| pair[1] == pair[0] + 1)
+                    .filter_map(|pair| gap(pair[0], pair[1]))
+                    .collect(),
+            ),
+        )
     };
     let scored = |range: std::ops::Range<usize>| {
         range
@@ -643,19 +728,13 @@ fn edge_identity(
             )
         })
     };
-    // The read loses phase right after a repeat run that the call precedes:
-    // the informative interval ends with a run of one base, at least two
-    // calls, starting after the call, and the first call beyond its end is
-    // masked where the read loses phase after a repeat run. Every molecule
-    // shows the same sequence before the run, so the call's signal is in
-    // phase.
-    let run_start = {
-        let end = informative.end;
-        let base = end
+    // The first call of the run of one base that ends right before `stop`.
+    let run_start = |stop: usize| {
+        let base = stop
             .checked_sub(1)
             .and_then(|last| calls.calls.get(last))
             .map(|call| call.primary);
-        let mut first = end;
+        let mut first = stop;
         while first > informative.start
             && base.is_some_and(|base| {
                 calls
@@ -668,67 +747,135 @@ fn edge_identity(
         }
         first
     };
-    let before_phase_loss = |index: usize| {
+    // The read loses phase right after a repeat run that the call precedes:
+    // a run of one base, at least two calls, ending at `stop`, starting
+    // after the call, with the first call at `stop` masked where the read
+    // loses phase after a repeat run. Every molecule shows the same
+    // sequence before the run, so the call's signal is in phase.
+    let before_phase_loss = |stop: usize, index: usize| {
+        let first = run_start(stop);
         evidence
-            .get(informative.end)
+            .get(stop)
             .is_some_and(|beyond| beyond.placement.reason() == Some(POST_HOMOPOLYMER))
-            && index < run_start
-            && informative.end - run_start >= 2
+            && index < first
+            && stop - first >= 2
     };
-    let spaced = |index: usize, other: usize| {
-        let (Some(left), Some(right)) = (loci.get(index.min(other)), loci.get(index.max(other)))
-        else {
-            return true;
-        };
-        let gap = right.locus_position_0based as f64 - left.locus_position_0based as f64;
-        gap >= config.edge_spacing_minimum * spacing && gap <= config.edge_spacing_maximum * spacing
-    };
-    informative
-        .clone()
-        .filter(|&index| {
-            let call = &evidence[index];
-            let leading = index < informative.start + margin;
-            let trailing = index + margin >= informative.end;
-            let ends = (!leading
-                || (scored(informative.start..index)
-                    && scored(index + 1..index + 1 + margin)
-                    && !phase_loss(informative.start.saturating_sub(margin)..informative.start)))
-                && (!trailing
-                    || (scored(index + 1..informative.end)
-                        && scored(index.saturating_sub(margin)..index)
-                        && (!phase_loss(informative.end..informative.end + margin)
-                            || before_phase_loss(index))));
-            // A call reading the base of its neighbour towards the read's
-            // end may be that neighbour's signal one position off.
-            let outer_same = |outer: Option<usize>| {
-                outer
-                    .and_then(|outer| calls.calls.get(outer))
-                    .zip(calls.calls.get(index))
-                    .is_some_and(|(outer, call)| outer.primary == call.primary)
-            };
-            call.placement == Placement::Scored
-                && call.identity.edge
-                && (leading || trailing)
-                && !(leading && outer_same(index.checked_sub(1)))
-                && !(trailing && outer_same(Some(index + 1)))
-                && ends
-                && single(index)
-                && calls
-                    .calls
-                    .get(index)
-                    .and_then(primary_height)
-                    .is_some_and(|primary| {
-                        f64::from(primary) >= config.edge_height_fraction * height
-                    })
-                && call
-                    .second
-                    .is_none_or(|second| second.share < config.edge_second_share)
-                && width(index)
-                    .is_some_and(|width| width <= config.edge_width_factor * median_width)
-                && (index == 0 || spaced(index, index - 1))
-                && (index + 1 >= count || spaced(index, index + 1))
+    let spaced = |index: usize, other: usize, spacing: f64| {
+        gap(index.min(other), index.max(other)).is_none_or(|gap| {
+            gap >= config.edge_spacing_minimum * spacing
+                && gap <= config.edge_spacing_maximum * spacing
         })
-        .collect()
+    };
+    let unambiguous = |index: usize, norms: Norms, height_fraction: f64| {
+        single(index)
+            && calls
+                .calls
+                .get(index)
+                .and_then(primary_height)
+                .is_some_and(|primary| f64::from(primary) >= height_fraction * norms.height)
+            && evidence[index]
+                .second
+                .is_none_or(|second| second.share < config.edge_second_share)
+            && width(index).is_some_and(|width| width <= config.edge_width_factor * norms.width)
+            && (index == 0 || spaced(index, index - 1, norms.spacing))
+            && (index + 1 >= count || spaced(index, index + 1, norms.spacing))
+    };
+    // A call reading the base of its neighbour towards a stop may be that
+    // neighbour's signal one position off.
+    let same_base = |index: usize, outer: Option<usize>| {
+        outer
+            .and_then(|outer| calls.calls.get(outer))
+            .zip(calls.calls.get(index))
+            .is_some_and(|(outer, call)| outer.primary == call.primary)
+    };
+    let edge_call = |index: usize| {
+        evidence[index].placement == Placement::Scored && evidence[index].identity.edge
+    };
+    // At the informative start, against the read's norms.
+    let start_side = |index: usize| {
+        index >= informative.start + margin
+            || (scored(informative.start..index)
+                && scored(index + 1..index + 1 + margin)
+                && !phase_loss(informative.start.saturating_sub(margin)..informative.start)
+                && !same_base(index, index.checked_sub(1))
+                && read_norms
+                    .is_some_and(|norms| unambiguous(index, norms, config.edge_height_fraction)))
+    };
+    let trailing_from = informative
+        .start
+        .max(informative.end.saturating_sub(margin));
+    let mut accepted = (informative.start..trailing_from)
+        .filter(|&index| {
+            index < informative.start + margin && edge_call(index) && start_side(index)
+        })
+        .collect::<Vec<_>>();
+    // The stops: the informative end, and every post-repeat phase loss
+    // inside the interval right after a run of two calls or more.
+    let mut stops = vec![informative.end];
+    stops.extend(informative.clone().filter(|&index| {
+        index > informative.start
+            && evidence[index].placement.reason() == Some(POST_HOMOPOLYMER)
+            && evidence[index - 1].placement == Placement::Scored
+            && index - run_start(index) >= 2
+    }));
+    let mut vouched = evidence
+        .iter()
+        .map(|call| call.placement == Placement::Scored && !call.identity.edge)
+        .collect::<Vec<_>>();
+    // A call reading its outer neighbour's base, inside a run that a call of
+    // another base closes before the stop: both that call and the outer
+    // neighbour are vouched for, so the peaks read the run's calls. A run
+    // the stop or an unvouched call closes may hold one call too many.
+    let bounded_run = |index: usize, stop: usize, vouched: &[bool]| {
+        let base = calls.calls.get(index).map(|call| call.primary);
+        vouched.get(index + 1).copied().unwrap_or(false)
+            && (index + 1..stop)
+                .find(|&outer| calls.calls.get(outer).map(|call| call.primary) != base)
+                .is_some_and(|outer| vouched[outer])
+    };
+    for stop in stops {
+        let norms = stop_norms(stop);
+        let interior = stop < informative.end;
+        // The stop closes a run of one base, two calls or more, that the
+        // call precedes.
+        let first = run_start(stop);
+        let before_run = |index: usize| index < first && stop - first >= 2;
+        let from = informative.start.max(stop.saturating_sub(margin));
+        for index in (from..stop).rev() {
+            let placed = edge_call(index)
+                && start_side(index)
+                && scored(index + 1..stop)
+                && scored(index.saturating_sub(margin)..index)
+                && if interior {
+                    before_phase_loss(stop, index)
+                } else {
+                    !phase_loss(stop..stop + margin) || before_phase_loss(stop, index)
+                };
+            // At the informative end against the read's norms, never
+            // reading the outer neighbour's base; before a run that closes
+            // the stop, behind the run's vouched bound (the call right
+            // before it: an ambiguous bound leaves the read's phase at the
+            // run in doubt), against the stop's own norms.
+            let qualifies = placed
+                && ((!interior
+                    && !same_base(index, Some(index + 1))
+                    && read_norms.is_some_and(|norms| {
+                        unambiguous(index, norms, config.edge_height_fraction)
+                    }))
+                    || (before_run(index)
+                        && (index + 1 == first || vouched[first - 1])
+                        && (!same_base(index, Some(index + 1))
+                            || bounded_run(index, stop, &vouched))
+                        && norms.is_some_and(|norms| {
+                            unambiguous(index, norms, config.end_height_fraction)
+                        })));
+            if qualifies {
+                vouched[index] = true;
+                accepted.push(index);
+            }
+        }
+    }
+    accepted
 }
 
 /// The calls at a signal edge of the read's start that their own signal
@@ -920,6 +1067,8 @@ mod tests {
             edge_spacing_maximum: 1.5,
             start_identity_margin: margin,
             start_norm_calls: 30,
+            end_norm_calls: 30,
+            end_height_fraction: 0.5,
             start_height_fraction: 0.5,
             start_second_share: 0.10,
         }
@@ -1013,6 +1162,7 @@ mod tests {
                 loci,
                 windows: Vec::new(),
                 noisy_regions: Vec::new(),
+                spikes: Vec::new(),
             },
             ReadCallability::in_phase(count),
             quality,
@@ -1346,6 +1496,36 @@ mod tests {
         quality.retained_sequence = "A".repeat(3);
         let call = evidence(&calls, &callability, &quality, SecondCause::NeighbourTail)?.calls()[2];
         assert!(!call.reference_only);
+        Ok(())
+    }
+
+    // SRS-CALL-027
+    /// The calls inside a spike show no base, place no indel, show no run's
+    /// end, and confirm nothing; the calls beside it keep their verdicts.
+    #[test]
+    fn the_calls_inside_a_spike_show_nothing() -> Result<()> {
+        let (calls, mut signal, callability, quality) = products(&[300; 8], &[40; 8]);
+        signal.spikes = vec![crate::model::signal::SignalSpike {
+            samples: 0..1,
+            calls: 3..5,
+        }];
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &[],
+            &config(0),
+        )?;
+        for (index, call) in evidence.calls().iter().enumerate() {
+            let inside = (3..5).contains(&index);
+            assert_eq!(call.identity.withheld.contains(SIGNAL_SPIKE), inside);
+            assert_eq!(call.indel.withheld.contains(SIGNAL_SPIKE), inside);
+            assert_eq!(call.bound == Bound::Withheld, inside);
+            assert!(!call.reference_only);
+        }
         Ok(())
     }
 
@@ -1745,6 +1925,164 @@ mod tests {
         Ok(())
     }
 
+    /// Sanger products of single-channel calls of `bases` at `heights`, each
+    /// call's own channel 4 wide.
+    fn based_products(
+        bases: &[char],
+        heights: &[i32],
+    ) -> (
+        BaseCalls,
+        SignalAnalysis,
+        ReadCallability,
+        QualityControlResult,
+    ) {
+        let (mut calls, mut signal, callability, quality) =
+            products(heights, &vec![40; heights.len()]);
+        for ((call, &base), &height) in calls.calls.iter_mut().zip(bases).zip(heights) {
+            let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
+            call.primary = base;
+            call.ambiguity = base;
+            call.qualifying_channels = vec![Nucleotide::ALL[channel]];
+            for (index, peak) in call.peaks.iter_mut().enumerate() {
+                peak.height = if index == channel { height } else { 0 };
+            }
+        }
+        for (locus, &base) in signal.loci.iter_mut().zip(bases) {
+            let channel = Nucleotide::from_char(base).map_or(0, Nucleotide::channel_index);
+            locus.channel_widths =
+                std::array::from_fn(|index| if index == channel { 4 } else { 0 });
+        }
+        (calls, signal, callability, quality)
+    }
+
+    // SRS-CALL-017
+    #[test]
+    fn judges_calls_before_a_closing_run_against_the_ends_own_norms() -> Result<()> {
+        // Twenty calls; the trim ends at 16, so with a margin of 6 calls
+        // 10-15 sit at the trailing edge. The read's signal decays: calls
+        // 10-19 stand at half the read's median.
+        let mut heights = [400; 20];
+        heights[10..].fill(200);
+        let lifted = |bases: &[char], fraction: f64, broad: Option<usize>| -> Result<Vec<bool>> {
+            let (calls, mut signal, callability, mut quality) = based_products(bases, &heights);
+            if let Some(broad) = broad {
+                signal.loci[broad].channel_widths = [10; 4];
+            }
+            quality.trim_end_0based_exclusive = 16;
+            quality.retained_sequence = "A".repeat(16);
+            let config = SangerEvidenceConfig {
+                end_norm_calls: 6,
+                end_height_fraction: fraction,
+                ..config(6)
+            };
+            let evidence = read_evidence(
+                &calls,
+                &signal,
+                &callability,
+                &quality,
+                &[],
+                &[],
+                &[],
+                &config,
+            )?;
+            Ok(evidence.calls()[10..16]
+                .iter()
+                .map(|call| !call.identity.edge)
+                .collect())
+        };
+        // The interval ends with the run `GG` (14-15): the calls before it
+        // reach half the end's median, and `TT` (10-11) is read behind the
+        // vouched `A` (12) that closes it; the run's own calls stay at the
+        // edge.
+        let closed = [
+            'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'T', 'T', 'A', 'C', 'G', 'G', 'G',
+            'G', 'T', 'A',
+        ];
+        assert_eq!(
+            lifted(&closed, 0.5, None)?,
+            [true, true, true, true, false, false]
+        );
+        // Below the end's height fraction, nothing is lifted.
+        assert_eq!(lifted(&closed, 1.5, None)?, [false; 6]);
+        // A run's bound (13) as broad as a dye blob holds back every call
+        // before it; a broad call further in (11) holds back only itself
+        // and the run behind it.
+        assert_eq!(lifted(&closed, 0.5, Some(13))?, [false; 6]);
+        assert_eq!(
+            lifted(&closed, 0.5, Some(11))?,
+            [false, false, true, true, false, false]
+        );
+        // An interval that no run closes keeps the read's norms, which these
+        // decayed calls do not reach.
+        let open = [
+            'A', 'C', 'G', 'T', 'A', 'C', 'G', 'T', 'A', 'C', 'T', 'G', 'A', 'C', 'G', 'T', 'G',
+            'G', 'T', 'A',
+        ];
+        assert_eq!(lifted(&open, 0.5, None)?, [false; 6]);
+        Ok(())
+    }
+
+    // SRS-CALL-017
+    #[test]
+    fn vouches_for_a_call_before_a_run_the_read_loses_phase_after_inside_the_read() -> Result<()> {
+        // Twenty-four calls in the trim; the run `GGG` (10-12) is followed by
+        // calls masked after the repeat run (13-16), and the read regains
+        // phase at 17. With a margin of 4, calls 9-12 and 17-20 sit at an edge.
+        let bases = [
+            'A', 'C', 'G', 'T', 'A', 'C', 'A', 'T', 'C', 'A', 'G', 'G', 'G', 'T', 'T', 'A', 'C',
+            'A', 'C', 'T', 'A', 'C', 'G', 'T',
+        ];
+        let (calls, signal, mut callability, quality) = based_products(&bases, &[200; 24]);
+        callability.segments = vec![
+            PhaseSegment {
+                call_start_0based: 0,
+                call_end_0based_exclusive: 13,
+                state: PhaseState::InPhase,
+                after_repeat: false,
+                shadow: None,
+            },
+            PhaseSegment {
+                call_start_0based: 13,
+                call_end_0based_exclusive: 17,
+                state: PhaseState::Mixed,
+                after_repeat: true,
+                shadow: None,
+            },
+            PhaseSegment {
+                call_start_0based: 17,
+                call_end_0based_exclusive: 24,
+                state: PhaseState::InPhase,
+                after_repeat: false,
+                shadow: None,
+            },
+        ];
+        callability.mask[13..17].fill(Some(PhaseState::Mixed));
+        let evidence = read_evidence(
+            &calls,
+            &signal,
+            &callability,
+            &quality,
+            &[],
+            &[],
+            &[],
+            &config(4),
+        )?;
+        let lifted = evidence.calls()[8..22]
+            .iter()
+            .map(|call| call.placement == Placement::Scored && !call.identity.edge)
+            .collect::<Vec<_>>();
+        // The call before the run is in phase; the run, the masked calls,
+        // and the calls after the loss keep their verdicts.
+        assert_eq!(
+            lifted,
+            [
+                true, true, false, false, false, false, false, false, false, false, false, false,
+                false, true
+            ]
+        );
+        Ok(())
+    }
+
     /// Sanger products of single-channel calls of `bases` at `heights`, all
     /// four channels narrow, whose calls 0-3 are weak start noise before the
     /// callable span, which starts at 4.
@@ -1986,6 +2324,7 @@ mod tests {
             PEAK_BELOW_MINIMUM,
             RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD,
             MIXED_SUPPORTING_DNA,
+            SIGNAL_SPIKE,
             POST_HOMOPOLYMER,
             DEPHASED_SIGNAL,
             MIXED_SIGNAL,
@@ -1999,6 +2338,7 @@ mod tests {
                 "peak_below_minimum",
                 "relative_quality_not_above_threshold",
                 "mixed_supporting_dna",
+                "signal_spike",
                 "post_homopolymer",
                 "dephased_signal",
                 "mixed_signal",

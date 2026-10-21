@@ -47,7 +47,9 @@ have no schema; the evaluation harness document describes them.
 - `haplotype.rs` — the haplotype equivalence of two edit sets: both applied
   to the reference over each comparable interval and cut into blocks where
   their lengths agree;
-  built once per sample and read under exact or compatible symbols.
+  built once per sample and read under exact or compatible symbols. An open
+  block knows whether its interval ends where the truth's does, so an
+  insertion past the truth's interval is truth N (`Block::past_interval`).
 - `classes.rs` — the discrepancy class of a sample from its statuses: the
   part of DNA that owns its difference from the truth.
 - `cause/` — the cause of a sample's discrepancy (DNA, the lab, or the
@@ -87,11 +89,14 @@ have no schema; the evaluation harness document describes them.
 - `baseline.rs` — the statuses of an earlier run and their classes.
 - `report.rs` — scores, estimates, anchors, the baseline diff, the
   unreviewed blocks (`unreviewed.tsv`), and the Markdown summary.
+- `subset.rs` — `dna-eval subset`: a deterministic stratified quick subset
+  of a panel as a manifest of its own, every stratum kept, for a first-pass
+  `diff`; a pre-filter, never the gate.
 - `rundiff.rs` — `dna-eval diff`: a run against a base run of the same
   panel, from their directories alone. It refuses runs that measure
   different things or whose files disagree with their `run.json`, counts the
   passes per group (all, period, source) and zone, and gives the verdict
-  that gates a probe.
+  that gates a probe on non-het blocks; het blocks are reported only.
 - `evidence.rs` — with `run --triage`, the compact triage evidence the
   runner takes from each sample's analysis: per region position, the clean
   strands, masked reads, and consensus marks; per trace, its primer, state,

@@ -23,8 +23,8 @@ modality-neutral core.
   - per call: the primary base, the locus evidence profile, the mask, and the
     support vetoes;
   - the Sanger support vetoes: `peak_below_minimum`,
-    `relative_quality_not_above_threshold`, and `mixed_supporting_dna`
-    (SNVs only);
+    `relative_quality_not_above_threshold`, `mixed_supporting_dna`
+    (SNVs only), and `signal_spike`;
   - the second-peak assertions (SRS-CALL-022, ADR-0080): whether each
     call's second base stands out, whether its second peak is unexplained,
     and whether a call is `reference_only`: a mixed call whose peak is a
@@ -38,9 +38,13 @@ modality-neutral core.
   - the read's phase mixtures (SRS-CALL-023, ADR-0082), as `dna-trace`
     asserted them, and its tract decodes (SRS-CALL-025), as
     [tract](../tract/README.md) turned them into `TractLengths`;
-  - the calls beside a junction whose spacing marks a missing peak
-    (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
+  - the calls beside a junction whose spacing marks a missing or an extra
+    peak (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
     they place no indel and show no run's end;
+  - the calls of every electrophoretic spike signal processing finds
+    (SRS-SIG-012), withheld for their base and for indels with
+    `signal_spike` after every vouching and edge rule (SRS-CALL-027): no
+    run's end, no reference confirmation;
   - the Sanger mask labels: `post_homopolymer`, or else the phase-state label.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.
@@ -48,9 +52,11 @@ modality-neutral core.
   - the signal-edge verdict of every call (SRS-CALL-013), the leading calls
     vouched for by their base only (SRS-CALL-014; start noise, never a call
     masked after a repeat run), the edge calls whose own
-    signal takes their base off the edge (SRS-CALL-017, and at the read's
-    start against the start's own norms, SRS-CALL-018; using the peak widths
-    signal processing measures), and every call's second base (SRS-CALL-015,
+    signal takes their base off the edge (SRS-CALL-017: at an informative
+    end against the read's norms, and before a run that closes the
+    informative end or a phase loss inside it against the norms of the calls
+    before that stop; and at the read's start against the start's own norms,
+    SRS-CALL-018; using the peak widths signal processing measures), and every call's second base (SRS-CALL-015,
     computed by [second_cause](../second_cause/README.md)'s `second_base`).
 
   This file is the only place where Sanger peaks, relative quality,

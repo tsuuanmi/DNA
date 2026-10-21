@@ -49,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 23,
+    version: 26,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -758,11 +758,24 @@ impl<'a> Sample<'a> {
                     })
                 })
                 .collect::<Vec<_>>();
-            let mut runs = length::judge(window, called.as_deref(), &decodes, &in_phase);
+            let two_strand = self
+                .sites
+                .iter()
+                .find(|site| {
+                    site.first_0based < window.first && window.last <= site.last_0based + 1
+                })
+                .map(|site| length::two_strand_runs(&site.runs, window))
+                .unwrap_or_default();
+            let mut runs =
+                length::judge(window, called.as_deref(), &two_strand, &decodes, &in_phase);
             let label = if window.recorded {
                 runs.retain(|run| run.agreement != "confirmed");
                 LabelResult::LengthUnconfirmed { runs }
             } else {
+                // The lab records no length here, so no reading of it.
+                for run in &mut runs {
+                    run.convention = None;
+                }
                 LabelResult::LengthNotRecorded { runs }
             };
             if matches!(
@@ -987,16 +1000,20 @@ impl<'a> Sample<'a> {
             labels.extend(ends);
         }
         if let (true, Some(site)) = (differs, site) {
-            let supporting = site
+            let indices = site
                 .supporting
                 .iter()
-                .filter_map(|input| self.by_input.get(input.as_str()))
+                .filter_map(|input| self.by_input.get(input.as_str()).copied())
+                .collect::<Vec<_>>();
+            let supporting = indices
+                .iter()
                 .map(|&index| &self.reads[index])
                 .collect::<Vec<_>>();
-            if let [read] = supporting.as_slice() {
+            if let ([index], [read]) = (indices.as_slice(), supporting.as_slice()) {
                 labels.push(LabelResult::OneRead {
                     read: read.name.to_owned(),
                 });
+                labels.extend(self.reference_second(*index, first, last)?);
             }
             if let Some(strand) = one_strand(
                 &supporting
@@ -1422,6 +1439,54 @@ impl<'a> Sample<'a> {
         })
     }
 
+    /// `reference_second` at each position of `first..=last` where read
+    /// `index`, the one read a difference rests on, reads another base than
+    /// the reference while its call shows the reference base as a second
+    /// peak above the call's threshold (SRS-CALL-020). One read cannot tell
+    /// that base from a broad peak of another dye over the reference's, nor
+    /// from a mixture; on development panel v5 most such bases at reverse
+    /// read starts were dye blobs over the reference (SRS-CALL-021).
+    fn reference_second(
+        &self,
+        index: usize,
+        first: usize,
+        last: usize,
+    ) -> Result<Vec<LabelResult>> {
+        let read = self.read(index)?;
+        let mut labels = Vec::new();
+        for position in first..=last {
+            let Some(observation) = self.observation(index, position) else {
+                continue;
+            };
+            let reference = self.base(position);
+            if observation.state != LocusState::Alternate
+                || observation.base.is_none_or(|base| base == reference)
+            {
+                continue;
+            }
+            let Some(call) = observation.call_index_0based else {
+                continue;
+            };
+            let trust = read.trust.get(call).ok_or(ReportError::Inconsistent(
+                "review observation lacks the trust of its call",
+            ))?;
+            let Some(judged) = self.judged(position, index, call, trust) else {
+                continue;
+            };
+            if reference_second(&judged, reference) {
+                labels.push(LabelResult::ReferenceSecond {
+                    position,
+                    read: read.name.to_owned(),
+                    strand: read.strand,
+                    share: round(judged.share),
+                    threshold: round(judged.threshold.share),
+                    calls: judged.threshold.calls,
+                });
+            }
+        }
+        Ok(labels)
+    }
+
     /// `possible_heteroplasmy` at one position, when it fires.
     fn heteroplasmy(&self, position: usize) -> Option<LabelResult> {
         let locus = self.loci.get(&position)?;
@@ -1564,6 +1629,13 @@ struct Clean {
     /// Whether the modality explains the call's second peak by the signal's
     /// own shape (SRS-CALL-022: not `second_unexplained`).
     explained: bool,
+}
+
+/// Whether a call reading another base than `reference` shows the
+/// reference base as a second peak above the call's threshold
+/// (SRS-CALL-020): `reference_second` when the difference rests on that read.
+fn reference_second(call: &Clean, reference: char) -> bool {
+    call.second == reference && call.share > call.threshold.share
 }
 
 /// Whether a `possible_heteroplasmy`'s qualifying reads leave one strand
@@ -1880,6 +1952,7 @@ const fn unassured(label: &LabelResult) -> bool {
                 explained: false,
                 ..
             }
+            | LabelResult::ReferenceSecond { .. }
             | LabelResult::EstimatedLength { .. }
             | LabelResult::LengthUnconfirmed { .. }
             | LabelResult::Undecided
@@ -1898,7 +1971,8 @@ const fn rank(label: &LabelResult) -> u8 {
         LabelResult::StrandsDisagree { .. } | LabelResult::ReadDisagrees { .. } => 0,
         LabelResult::PossibleHeteroplasmy {
             explained: false, ..
-        } => 1,
+        }
+        | LabelResult::ReferenceSecond { .. } => 1,
         LabelResult::EstimatedLength { .. }
         | LabelResult::LengthUnconfirmed { .. }
         | LabelResult::Undecided
@@ -1931,6 +2005,7 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::EdgeDeletion { .. } => "edge_deletion",
         LabelResult::RunDeletion { .. } => "run_deletion",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
+        LabelResult::ReferenceSecond { .. } => "reference_second",
         LabelResult::EstimatedLength { .. } => "estimated_length",
         LabelResult::LengthUnconfirmed { .. } => "length_unconfirmed",
         LabelResult::LengthNotRecorded { .. } => "length_not_recorded",
@@ -2051,6 +2126,7 @@ fn masked_spans(
 fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
     let (position, read) = match label {
         LabelResult::PossibleHeteroplasmy { position, .. } => (*position, ""),
+        LabelResult::ReferenceSecond { position, read, .. } => (*position, read.as_str()),
         LabelResult::OneRead { read }
         | LabelResult::ReadDisagrees { read, .. }
         | LabelResult::EdgeDeletion { read }
@@ -2159,6 +2235,7 @@ fn summarize(
                 "run_deletion" => &mut labels.run_deletion,
                 "beside_not_analysed" => &mut labels.beside_not_analysed,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
+                "reference_second" => &mut labels.reference_second,
                 "estimated_length" => &mut labels.estimated_length,
                 "length_unconfirmed" => &mut labels.length_unconfirmed,
                 "length_not_recorded" => &mut labels.length_not_recorded,
@@ -2337,6 +2414,26 @@ mod tests {
             clean(3, R, 'C', 0.2),
         ];
         assert_eq!(heteroplasmy(&even).map(|(base, _)| base), Some('C'));
+    }
+
+    #[test]
+    fn a_reference_second_needs_the_reference_base_above_the_threshold() {
+        // One reverse read reads A where the reference is C, a C under it.
+        assert!(reference_second(&clean(0, R, 'C', 0.39), 'C'));
+        // Another second base, or one at the threshold, is no such label;
+        // neighbours do not matter: a blob covers them too.
+        assert!(!reference_second(&clean(0, R, 'G', 0.39), 'C'));
+        assert!(!reference_second(&clean(0, R, 'C', 0.12), 'C'));
+        let mut beside = clean(0, F, 'C', 0.4);
+        beside.neighbours = [Some('C'), None];
+        assert!(reference_second(&beside, 'C'));
+        // A run level above the share holds it back.
+        let mut raised = clean(0, R, 'C', 0.3);
+        raised.threshold = Threshold {
+            share: 0.35,
+            calls: Some(40),
+        };
+        assert!(!reference_second(&raised, 'C'));
     }
 
     #[test]

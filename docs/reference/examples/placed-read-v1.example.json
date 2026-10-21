@@ -1,0 +1,90 @@
+{
+  "schema_version": "dna.placed_read/v1",
+  "provenance": {
+    "input": {
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "reference_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "configuration_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "alignment": {
+    "orientation": "forward",
+    "score": 42,
+    "wraps_origin": false,
+    "reference_segments": [
+      [
+        0,
+        8
+      ]
+    ],
+    "callable_segments": [
+      [
+        0,
+        4
+      ],
+      [
+        5,
+        8
+      ]
+    ],
+    "metrics": {
+      "exact_matches": 6,
+      "mismatches": 0,
+      "gap_opens": 1,
+      "callable_columns": 6,
+      "callable_identity": 1.0,
+      "unresolved_query_bases": 0,
+      "masked_query_bases": 1
+    },
+    "columns": [
+      [
+        "T",
+        "T",
+        0,
+        0
+      ],
+      [
+        "T",
+        "T",
+        1,
+        1
+      ],
+      [
+        "G",
+        "G",
+        2,
+        2
+      ],
+      [
+        "A",
+        "A",
+        3,
+        3
+      ],
+      [
+        "C",
+        "C",
+        4,
+        4
+      ],
+      [
+        "-",
+        "G",
+        null,
+        5
+      ],
+      [
+        "T",
+        "T",
+        5,
+        6
+      ],
+      [
+        "C",
+        "C",
+        6,
+        7
+      ]
+    ]
+  }
+}

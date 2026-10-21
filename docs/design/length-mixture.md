@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CALL, SRS-VAR]
+implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
 decided-by: [ADR-0074, ADR-0082, ADR-0084]
 ---
 
@@ -173,8 +173,68 @@ Every other run a decode reaches is a check
 (`length_unconfirmed`). Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
 
-Increment 4 replaces "clear" with the data-derived decision rule, one
-function the consensus uses to decide and the review uses to confirm.
+## Decision (increment 4)
+
+The consensus decides a run's length from the decodes on both strands
+(SRS-CONS-013, ADR-0074 step 5), with one function,
+`dna_consensus::length::decide`. It applies wherever a stretch's call keeps
+the reference's composition of two runs of one base around a single-base
+anchor. The window is taken from the stretch itself, never from the profile.
+The review confirms the runs it decides.
+
+**Views.** Each read gives each run a view: its top length, the next one,
+the top's share `p` of the two, and `p`'s standard error `SE`.
+- A run a tract starts in gives a `direct` view from the first-run
+  marginal.
+- With the anchor as its mark, the read also gives the other run a
+  `derived` view. Its total marginal is deconvolved by non-negative least
+  squares (`dna_kernel::nnls`) with the direct run, and `SE` is the total's.
+- Only where a strand has no such view, a read in phase through the run
+  gives `p` = 1, `SE` = 0.
+
+**Rule.** Length `n` is decided only when both strands view the run, every
+view's top is `n`, and every view satisfies
+`(p − ½) − max(d, τ) ≥ k · SE`.
+- `d` is the largest `|p_F − p_R|` between the strands.
+- `τ` is the strand's replicate noise for the run.
+- `k` is `consensus.length_confidence` (2.326, one-sided 1 %).
+
+Otherwise the outcome is `near_equal` (every view's top two are `n` and
+`n + 1`), `strands_differ`, or `one_strand`, and the run keeps its evidence.
+Twelve reference vectors from the research implementation check every view
+and outcome (`crates/dna-consensus/tests/rule_a.rs`).
+
+**Noise τ.** τ measures how far `p` moves between independent sequencing
+reads of the same sample beyond what the decode's own `SE` explains. It is
+estimated without truth from 743 re-sequenced samples, HV2F or HV3R read at
+least twice, mostly on another date:
+- `SD² = mean(Δp²) / 2` over read pairs;
+- `τ = √max(0, SD² − mean SE²)`.
+
+| Strand | Run | Read pairs | τ | 95 % CI |
+|---|---|---:|---:|---|
+| forward | 1 (direct) | 306 | 0.065 | 0.000-0.106 |
+| forward | 2 (derived) | 229 | 0.111 | 0.066-0.150 |
+| reverse | 1 (derived) | 184 | 0.111 | 0.071-0.147 |
+| reverse | 2 (direct) | 62 | 0.128 | 0.000-0.201 |
+
+The root-mean-square estimator is kept over the median one. Replicates are
+heavy-tailed: 4-11 % of pairs differ by more than 0.2, and that tail is the
+between-run variability a decision must not be fooled by.
+
+Re-estimate τ, and re-run the rule's evaluation, when any of these change:
+- the chemistry, polymer, instrument, or basecaller;
+- the HV2F or HV3R primers or the PCR;
+- the decode (`[trace]`), or the deconvolution.
+
+**Effect.** On development panel v5 (against increment 3), the rule changed
+one call, a C8 at 303-309 where truth has `N`, and introduced no error. It
+decided 32 run 1s; 31 of them at the length DNA already had. No check was
+removed: in each of those samples run 2 stays one-strand.
+
+The flagged phase-lost run 1s are mostly a real C8/C9 mix: for 61 of 69,
+both strands put `p` near 0.5. The rule refuses them, as it should. Run 2 is
+almost always read in phase, and an `in_phase` length is never replaced.
 
 ## Evaluation
 

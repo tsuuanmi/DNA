@@ -229,6 +229,13 @@ stretch's start, and a clean end likewise.
     read cleanly by some read.
   - `phase_loss`: otherwise, the longest run read in phase by a read that
     shows one end and loses phase at the other.
+- **Two strands** (SRS-CONS-013). After every stretch is decided, where
+  its call keeps the reference's run composition, each pair of runs of one
+  base around a single-base anchor is a window taken from the stretch
+  itself. A run of it still `anchored_end`, `phase_loss`, or
+  `reference_frame` takes the length the reads' tract decodes put on top on
+  both strands, as `two_strand`, when `length::decide` decides it
+  ([[design/length-mixture]]).
 - **Undecided runs.**
   - At the reference composition, an undecided run is written as `N` over its
     reference length.

@@ -148,6 +148,7 @@ fn analyze_evidence(
             declared: None,
         },
         read.evidence,
+        None,
         &inputs.reference,
         &inputs.config,
         &inputs.profile,

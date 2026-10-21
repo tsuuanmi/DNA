@@ -74,9 +74,32 @@ pub(crate) struct Block {
     truth_written: Vec<bool>,
     /// The block reaches the end of its interval with unequal lengths.
     pub(crate) open: bool,
+    /// That end is where the truth's analysed interval ends, not only DNA's
+    /// callable one.
+    truth_end: bool,
 }
 
 impl Block {
+    /// Whether every difference of the block is an insertion past its
+    /// interval: it reaches the interval's end, holds only the interval's
+    /// last base, and one side reads that base as the other does, then
+    /// inserted bases the other side has not. The truth records nothing past
+    /// its interval, so the insertion is uncompared there, as the allele
+    /// measure leaves it.
+    pub(crate) fn past_interval(&self) -> bool {
+        let (shorter, longer) = if self.dna.len() < self.truth.len() {
+            (&self.dna, &self.truth)
+        } else {
+            (&self.truth, &self.dna)
+        };
+        self.open
+            && self.truth_end
+            && self.start == self.end
+            && !shorter.is_empty()
+            && shorter.len() < longer.len()
+            && longer.starts_with(shorter.as_str())
+    }
+
     /// `start-end:dna/truth`, `+` after `end` when open, `-` for an empty
     /// sequence, and a sequence over 24 symbols as its first and last 10 and
     /// its length: `CCCTCCCCCC..TTCTGGCCAC(40)`.
@@ -131,10 +154,12 @@ pub(crate) struct Haplotypes {
 
 impl Haplotypes {
     /// Builds both sides over each of `intervals` (closed, 1-based, disjoint,
-    /// in order) on `reference`.
+    /// in order) on `reference`; `truth_ends` are the last positions of the
+    /// truth's analysed intervals, where an open block's end is the truth's.
     pub(crate) fn new(
         reference: &str,
         intervals: &[(i64, i64)],
+        truth_ends: &[i64],
         dna: &[Edit<'_>],
         truth: &[Edit<'_>],
     ) -> Self {
@@ -144,7 +169,10 @@ impl Haplotypes {
                 let within = |edit: &&Edit<'_>| (start..=end).contains(&edit.base);
                 let dna = dna.iter().filter(within).copied().collect::<Vec<_>>();
                 let truth = truth.iter().filter(within).copied().collect::<Vec<_>>();
-                let blocks = pieces(reference, (start, end), [&dna, &truth])?;
+                let mut blocks = pieces(reference, (start, end), [&dna, &truth])?;
+                if let Some(last) = blocks.last_mut().filter(|block| block.open) {
+                    last.truth_end = truth_ends.contains(&end);
+                }
                 Some(Interval { start, end, blocks })
             })
             .collect();
@@ -332,6 +360,17 @@ impl Block {
             truth: truth.to_owned(),
             truth_written: vec![false; truth.len()],
             open: false,
+            truth_end: false,
+        }
+    }
+
+    /// As [`fixture`](Self::fixture), reaching its interval's end.
+    #[cfg(test)]
+    pub(crate) fn open_fixture(start: i64, end: i64, dna: &str, truth: &str) -> Self {
+        Self {
+            open: true,
+            truth_end: true,
+            ..Self::fixture(start, end, dna, truth)
         }
     }
 
@@ -343,6 +382,7 @@ impl Block {
             truth: truth.text.clone(),
             truth_written: truth.written.clone(),
             open,
+            truth_end: false,
         }
     }
 }
@@ -396,7 +436,7 @@ mod tests {
     }
 
     fn haplotypes(dna: &[&'static str], truth: &[&'static str]) -> Haplotypes {
-        Haplotypes::new(REFERENCE, &[(1, 8)], &edits(dna), &edits(truth))
+        Haplotypes::new(REFERENCE, &[(1, 8)], &[], &edits(dna), &edits(truth))
     }
 
     /// The block texts of the first way, exactly or IUPAC-compatibly.
@@ -454,14 +494,14 @@ mod tests {
             symbols: Some("AT"),
             lenient: true,
         };
-        let equivalence =
-            Haplotypes::new(REFERENCE, &[(1, 8)], &[mnv], &edits(&["7A", "8T"])).equivalence(None);
+        let equivalence = Haplotypes::new(REFERENCE, &[(1, 8)], &[], &[mnv], &edits(&["7A", "8T"]))
+            .equivalence(None);
         assert_eq!(equivalence.blocks().count(), 0);
         assert!(equivalence.explains(7, 8));
         // An edit leaving the interval is not applied.
         let past = Edit { base: 8, ..mnv };
         assert_eq!(
-            Haplotypes::new(REFERENCE, &[(1, 8)], &[past], &[]),
+            Haplotypes::new(REFERENCE, &[(1, 8)], &[], &[past], &[]),
             Haplotypes::default()
         );
     }
@@ -501,12 +541,12 @@ mod tests {
             lenient: true,
         };
         assert_eq!(
-            Haplotypes::new(REFERENCE, &[(1, 8)], &[unusable], &[]),
+            Haplotypes::new(REFERENCE, &[(1, 8)], &[], &[unusable], &[]),
             Haplotypes::default()
         );
         // An interval past the reference end.
         assert_eq!(
-            Haplotypes::new(REFERENCE, &[(7, 9)], &[], &[]),
+            Haplotypes::new(REFERENCE, &[(7, 9)], &[], &[], &[]),
             Haplotypes::default()
         );
         assert!(!Equivalence::default().explains(3, 3));
@@ -529,7 +569,24 @@ mod tests {
             truth: String::new(),
             truth_written: Vec::new(),
             open: true,
+            truth_end: false,
         };
         assert_eq!(block.text(), "1-30+:AAAAAAAAAA..AAAAAAAAAA(30)/-");
+    }
+
+    #[test]
+    fn an_insertion_past_the_truths_end_is_past_its_interval() {
+        // DNA inserts after base 8, the interval's last base.
+        let past = |truth_ends: &[i64]| {
+            Haplotypes::new(REFERENCE, &[(1, 8)], truth_ends, &edits(&["8.1C"]), &[])
+                .equivalence(None)
+                .blocks()
+                .map(Block::past_interval)
+                .collect::<Vec<_>>()
+        };
+        // Where the truth's interval ends there, the truth records nothing
+        // past it; where only DNA's callable interval ends, it does.
+        assert_eq!(past(&[8]), [true]);
+        assert_eq!(past(&[12]), [false]);
     }
 }

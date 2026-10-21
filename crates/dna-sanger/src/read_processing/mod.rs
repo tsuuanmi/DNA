@@ -234,6 +234,8 @@ pub fn prepare(trace: &Chromatogram, config: &SangerConfig) -> Result<PreparedRe
         noisy_windows = signal.noisy_window_count(),
         noisy_regions = signal.noisy_regions.len(),
         noisy_calls = signal.noisy_call_count(),
+        spikes = signal.spikes.len(),
+        spike_calls = signal.spike_call_count(),
         window_size_bases = config.signal_processing.window_size_bases,
         minimum_noisy_windows = config.signal_processing.minimum_noisy_windows,
         minimum_primary_snr = %format_args!("{:.4}", config.signal_processing.minimum_primary_snr),
@@ -431,7 +433,7 @@ pub fn finish(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "sanger",
     family: PluginFamily::Modality,
-    version: 19,
+    version: 22,
     provides: &[Contract::ReadEvidence],
     requires: &[],
     config_sections: &[

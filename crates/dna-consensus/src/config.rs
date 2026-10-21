@@ -3,7 +3,10 @@
 
 use serde::Deserialize;
 
+use dna_kernel::bounds;
 use dna_kernel::error::{ConfigError, Result};
+
+use crate::length::RuleParams;
 
 /// The consensus's own settings (SRS-CFG-009).
 #[derive(Debug, Clone)]
@@ -27,6 +30,17 @@ pub struct ConsensusConfig {
     /// strand reads the site cleanly at least this far from its own ends
     /// (SRS-CONS-011).
     pub(crate) dissent_edge: usize,
+    /// The two-strand run-length rule's confidence level and replicate
+    /// noise (PROP-0012 increment 4).
+    pub(crate) length: RuleParams,
+}
+
+impl ConsensusConfig {
+    /// The two-strand run-length rule's constants.
+    #[must_use]
+    pub const fn length_rule(&self) -> &RuleParams {
+        &self.length
+    }
 }
 
 /// The `[consensus]` section as written in the configuration.
@@ -40,6 +54,9 @@ pub struct RawConsensusConfig {
     site_gap_open_cost: u32,
     site_gap_extension_cost: u32,
     dissent_edge: usize,
+    length_confidence: f64,
+    length_noise_forward: [f64; 2],
+    length_noise_reverse: [f64; 2],
 }
 
 impl RawConsensusConfig {
@@ -78,7 +95,20 @@ impl RawConsensusConfig {
             )
             .into());
         }
+        bounds::positive_finite("consensus.length_confidence", self.length_confidence)?;
+        for noise in self
+            .length_noise_forward
+            .iter()
+            .chain(&self.length_noise_reverse)
+        {
+            bounds::finite_range("consensus.length_noise", *noise, 0.0, 0.5)?;
+        }
         Ok(ConsensusConfig {
+            length: RuleParams {
+                confidence: self.length_confidence,
+                forward: self.length_noise_forward,
+                reverse: self.length_noise_reverse,
+            },
             seeded_run: self.seeded_run,
             maximum_undecided_gap: self.maximum_undecided_gap,
             minimum_resolved_bases: self.minimum_resolved_bases,
@@ -105,6 +135,11 @@ pub(crate) mod tests {
             site_gap_open_cost: 3,
             site_gap_extension_cost: 2,
             dissent_edge: 40,
+            length: RuleParams {
+                confidence: 2.326,
+                forward: [0.065, 0.111],
+                reverse: [0.111, 0.128],
+            },
         }
     }
 
@@ -117,6 +152,9 @@ pub(crate) mod tests {
             site_gap_open_cost: 3,
             site_gap_extension_cost: 2,
             dissent_edge: 40,
+            length_confidence: 2.326,
+            length_noise_forward: [0.065, 0.111],
+            length_noise_reverse: [0.111, 0.128],
         }
     }
 

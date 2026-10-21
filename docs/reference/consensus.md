@@ -73,6 +73,11 @@ The method is described in [[design/consensus|design]].
       the reference and read every base between cleanly. The length is the
       number of reference positions between them. It assumes no length
       change and is not observed.
+    - `two_strand`: one of two runs of one base around a single-base anchor,
+      otherwise `anchored_end`, `phase_loss`, or `reference_frame`, whose
+      length the reads' tract decodes on both strands put on top beyond the
+      strands' spread and replicate noise (SRS-CONS-013). It is observed,
+      not an estimate.
 - **`reference_only`:** reference positions (1-based, increasing) that only
   reference confirmations decided (ADR-0080). They read the reference, and
   when the decisions are called (`dna call` of this document) they bound no
