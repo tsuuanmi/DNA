@@ -40,7 +40,7 @@ constants), and the modality's plugin version covers its output.
   the evaluation harness enables and no runtime path reaches. `render` draws
   a read's peaks from templates and fractions and calls it with an
   oracle-grid basecaller. `Table` draws a read's parameters through a
-  Gaussian copula from `params.json`: per-primer quantiles over fitted
+  Gaussian copula from `tables/simulator-params.json`: per-primer quantiles over fitted
   reads, built by the research script `table.py`, aggregates only.
   `random` holds a deterministic generator and the research simulator's
   BLAKE2b-hashed sequence patterns.

@@ -10,7 +10,7 @@ use serde::Deserialize;
 use super::{Params, Rng};
 
 /// The committed table.
-const POOLED: &str = include_str!("params.json");
+const POOLED: &str = include_str!("../../tables/simulator-params.json");
 
 /// A table that cannot be read.
 #[derive(Debug, thiserror::Error)]

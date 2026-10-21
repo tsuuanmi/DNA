@@ -29,7 +29,7 @@ use crate::runner::Threads;
 /// The decoder's measures on the frozen set at the commit that introduced
 /// the bench (PROP-0015 increment 1): the baseline later decoder changes
 /// are reported against.
-pub(crate) const BASELINE: &str = include_str!("simbench_baseline.tsv");
+pub(crate) const BASELINE: &str = include_str!("../baselines/sim-bench.tsv");
 
 /// The frozen case set's version: raise it whenever the cases change.
 pub(crate) const CASES_VERSION: u32 = 1;

@@ -16,7 +16,7 @@ It ports the research simulator
   slowly varying floor, white noise, a noisy read start, and optional spike,
   blob, and noise artefacts. It then calls the result with the oracle-grid
   basecaller (`basecall`).
-- `table.rs`: `Table`, the committed parameter table `params.json`. It holds
+- `table.rs`: `Table`, the committed parameter table `crates/dna-trace/tables/simulator-params.json`. It holds
   per-primer quantiles over fitted reads of each read parameter, and a
   Gaussian copula (the parameters' normal-score correlation), which draws a
   read's parameters together. It holds aggregates only and is built by the

@@ -1,7 +1,7 @@
 ---
 implements: [SRS-CALL]
 decided-by: [ADR-0074, ADR-0075, ADR-0084]
-covers: [crates/dna-eval/src/simbench.rs, crates/dna-trace/src/simulate/]
+covers: [crates/dna-eval/src/simbench.rs, crates/dna-eval/baselines/, crates/dna-trace/src/simulate/, crates/dna-trace/tables/]
 ---
 
 # Simulated tract-decode bench
@@ -62,7 +62,7 @@ Measures, per tract and noise level (percentages):
 | `pure_decoded` | pure reads (no neighbour) given a decode |
 
 `bench.md` reports the measures with their change from the committed
-baseline (`crates/dna-eval/src/simbench_baseline.tsv`) or from
+baseline (`crates/dna-eval/baselines/sim-bench.tsv`) or from
 `--baseline`. `bench.tsv` holds the measures and `cases.tsv` every case.
 `--reps` runs a larger set for validation, where a cell's 30 reads are too
 few to read a percentage near 0 or 100.
@@ -70,7 +70,7 @@ few to read a percentage near 0 or 100.
 ## Baseline (increment 1)
 
 The current decoder on the frozen set, at the commit that introduced the
-bench (`simbench_baseline.tsv`). These are the numbers later increments must
+bench (`crates/dna-eval/baselines/sim-bench.tsv`). These are the numbers later increments must
 beat.
 
 | Tract | Noise | Structure right | Dominant right | Clear but wrong | `rho_ratio` | Tie → shorter |
@@ -134,7 +134,7 @@ decodes.
 ## Data
 
 The renderer reads read parameters from
-`crates/dna-trace/src/simulate/params.json`. It holds aggregates only:
+`crates/dna-trace/tables/simulator-params.json`. It holds aggregates only:
 
 - per primer, quantiles over the fitted reads (levels 0.025 to 0.975) of
   each read parameter;

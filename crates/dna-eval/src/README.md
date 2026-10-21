@@ -36,7 +36,7 @@ have no schema; the evaluation harness document describes them.
   with `dna-trace`'s renderer, writes the read as ABIF, runs DNA's read
   evidence stage on it, and scores the tract's decode against the simulated
   truth. It reports the measures per tract and noise level against the
-  committed baseline, `simbench_baseline.tsv`.
+  committed baseline, `baselines/sim-bench.tsv`.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
 - `panel.rs` — a new panel version from a parent and the truth database.
