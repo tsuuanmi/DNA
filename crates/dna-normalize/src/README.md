@@ -11,6 +11,7 @@ Output contract: the `notation` of
 carried by `dna.sample_evidence/v10` and `dna.variants/v1` when the profile
 declares notation.
 
+- `length_convention.rs` — the optional, labelled "shortest dominant" reporting policy for a homopolymer length distribution (ISFG 2014 3.3.2), which the review applies as a suggestion and never as a call.
 - `variant_representation.rs` — haplotype-preserving edit conversion, application, and rendering support.
 - [variant_normalization](variant_normalization/README.md) — optional sequence-equivalent normalization.
 - [variant_nomenclature](variant_nomenclature/README.md) — profile-driven window representation.

@@ -10,6 +10,7 @@ use dna_kernel::reference;
 
 pub(crate) mod consensus;
 pub(crate) mod evidence;
+pub(crate) mod run_context;
 pub(crate) mod sanger;
 pub(crate) mod sequence;
 pub(crate) mod signal;

@@ -19,7 +19,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Variants result](variants.md): `dna.variants/v1`.
 - [Notation result](notation.md): `dna.notation/v1`.
 - [Consensus result](consensus.md): `dna.consensus/v1` and its FASTA.
-- [Review list](review.md): `dna.review/v1`.
+- [Review list](review.md): `dna.review/v1`; its run-length labels in [review length labels](review-lengths.md).
 - [Run signal](signal.md): `dna.signal/v1`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
@@ -39,6 +39,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Consensus JSON Schema](schemas/consensus-v1.schema.json)
 - [Review JSON Schema](schemas/review-v1.schema.json)
 - [Run signal JSON Schema](schemas/signal-v1.schema.json)
+- [Run context JSON Schema](schemas/run-context-v1.schema.json): `dna.run_context/v1`, a batch's own statistics ([run context](run-context.md))
 - [Evaluation run JSON Schema](schemas/eval-run-v1.schema.json): `dna.eval_run/v1`, the evaluation harness output, described in [validation](../validation/evaluation-harness.md#outputs)
 - [Synthetic examples](examples/README.md)
 

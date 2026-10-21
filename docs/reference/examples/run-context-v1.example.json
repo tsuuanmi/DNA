@@ -1,0 +1,124 @@
+{
+  "schema_version": "dna.run_context/v1",
+  "run_id": "RUN_2026_03_31",
+  "provenance": {
+    "reference": {
+      "name": "rCRS",
+      "topology": "circular",
+      "sha256": "f156ff3f65bbcc80c7ebb9936dceb96b1477b4f8f535c4e1dbe7baea225cbc66"
+    },
+    "configuration_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "profile": {
+      "id": "human-mtdna-rcrs",
+      "sha256": "c6633953a531187793ce19219449758e7c45a6580d4285e40e6d8304bea5f05e"
+    },
+    "plugins": [
+      {
+        "id": "sanger",
+        "family": "modality",
+        "version": 22
+      },
+      {
+        "id": "core",
+        "family": "core",
+        "version": 12
+      },
+      {
+        "id": "consensus",
+        "family": "core",
+        "version": 19
+      }
+    ],
+    "skipped": [
+      {
+        "sample_id": "S2",
+        "name": "G10_S2_HV2F.ab1",
+        "reason": "empty"
+      }
+    ]
+  },
+  "reads": [
+    "10b49999d4b921cd89921b52883b1aecc4c613aaef49fb08c6fffdc3d8369649",
+    "159bf6f401a133a99413268ed3a2d633251a3ca95cb12694516472954ebe2c44",
+    "41d8ef79f82a67775322aae8a896258dc78970cbae1d2c827e4c082826f548bc",
+    "531ebce2f048bc5f1ba411c7065b43f26fdd3dd14b5ce7bc588a86df34c7d366",
+    "6746d193711d82a6aa6ae0e49496dc643b10eeefc40d797611a7b20271d8c64d",
+    "731e22382e9647fccef4aba33674ad79fe58ec6c6490932ad5db99ac60ac6c9b",
+    "b133891df62f2b2a4d62cdd54d7b4cc2a4fc05d7a0e5d27e38dacbb0d0bbda8a",
+    "bf2b6b5d9fe219c20638f7c12aaf65cb0ac08922e08cf9783edf1e99051cfc97"
+  ],
+  "rejected_reads": 1,
+  "samples": 2,
+  "length": {
+    "method": 1,
+    "windows": [
+      [
+        303,
+        315
+      ]
+    ],
+    "noise_forward": [
+      0.065,
+      0.111
+    ],
+    "noise_reverse": [
+      0.111,
+      0.128
+    ],
+    "edges": [
+      -3.0,
+      -2.0,
+      -1.5,
+      -1.0,
+      -0.5,
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      3.0
+    ],
+    "runs": [
+      {
+        "run": 1,
+        "pairs": 2,
+        "sum_z2": 0.625,
+        "sum_z4": 0.3203125,
+        "histogram": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "run": 2,
+        "pairs": 1,
+        "sum_z2": 0.04,
+        "sum_z4": 0.0016,
+        "histogram": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}

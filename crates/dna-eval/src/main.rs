@@ -12,6 +12,7 @@
 
 mod approve;
 mod baseline;
+mod bench;
 mod cache;
 mod cause;
 mod classes;
@@ -80,12 +81,19 @@ const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FORCED_BYTES: u64 = 1024 * 1024;
 /// Largest accepted re-check list.
 const MAX_RECHECK_BYTES: u64 = 16 * 1024 * 1024;
+/// Largest accepted bench case list.
+const MAX_CASES_BYTES: u64 = 4 * 1024 * 1024;
 
 /// The header of `signals.tsv`.
 const SIGNALS_HEADER: &str =
     "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
+/// The header of `run_context.tsv`.
+const RUN_CONTEXT_HEADER: &str = "month\tsamples\tanalysed\twith_context\trun1_calibrated\trun2_calibrated\tbatches\trun1_pairs\trun2_pairs\n";
 /// The header of `checks.tsv`.
 const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
+/// The header of `notes.tsv`.
+const NOTES_HEADER: &str =
+    "sample_id\tfirst\tlast\ttract\trun\tstatus\tcalled\treading\tconvention\n";
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -118,9 +126,175 @@ enum Command {
     /// Manages a read evidence cache (`run --evidence-cache`).
     Cache(CacheArgs),
     /// Compares a run with a base run of the same panel and gates it: exits
-    /// 2 with `GATE FAIL` when more samples, passed samples, or passed zones
-    /// carry a non-het unreviewed block; het blocks are reported, not gated.
+    /// 2 with `GATE FAIL` when, in the current period (all samples without
+    /// `--current-since`), more samples, passed samples, or passed zones
+    /// carry a non-het unreviewed block; het blocks and the earlier period
+    /// are reported, not gated.
     Diff(DiffArgs),
+    /// Runs DNA on the adjudicated artefact cases of a case list and checks
+    /// each expected outcome: exits 2 with `BENCH FAIL` when a guarded case
+    /// regresses or its sample cannot be analysed.
+    Bench(BenchArgs),
+}
+
+/// Arguments of `dna-eval bench`.
+#[derive(Debug, Args)]
+struct BenchArgs {
+    /// The case list (TSV: `case`, `sample_id`, `panel`, `reads`, `class`,
+    /// `first`, `last`, `expect`, `status`, `source`).
+    #[arg(long)]
+    cases: PathBuf,
+    /// A panel manifest the cases name as `<panel>-<version>`; repeatable.
+    #[arg(long, required = true)]
+    manifest: Vec<PathBuf>,
+    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
+    #[arg(long)]
+    config: PathBuf,
+    /// Reference FASTA, as given to `dna --reference`.
+    #[arg(long)]
+    reference: PathBuf,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+    /// A read evidence cache, as for `run --evidence-cache`.
+    #[arg(long)]
+    evidence_cache: Option<PathBuf>,
+    /// A new directory for `bench.md` and `bench.tsv`.
+    #[arg(long)]
+    output: Option<PathBuf>,
+}
+
+/// Runs `dna-eval bench`: prints the report, writes its files when asked,
+/// and exits 2 when a guarded case fails.
+fn bench(args: &BenchArgs) -> ExitCode {
+    match run_bench(args) {
+        Ok(report) => {
+            print!("{}", report.text);
+            if report.failed {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(error) => {
+            eprintln!("dna-eval: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Runs DNA once on each sample the cases name and judges every case.
+fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
+    let threads = Threads::new(args.threads)?;
+    let invalid = |message: String| Error::Cases {
+        path: args.cases.clone(),
+        message,
+    };
+    let text = String::from_utf8(read(&args.cases, "case list", MAX_CASES_BYTES)?)
+        .map_err(|error| invalid(error.to_string()))?;
+    let cases = bench::parse(&text).map_err(invalid)?;
+    let mut panels = BTreeMap::new();
+    for path in &args.manifest {
+        let manifest = manifest::parse(&read(path, "manifest", MAX_MANIFEST_BYTES)?)?;
+        runnable(&manifest)?;
+        let (Some(panel), Some(version)) =
+            (manifest.header.get("panel"), manifest.header.get("version"))
+        else {
+            return Err(invalid(format!(
+                "manifest {} declares no panel and version",
+                path.display()
+            )));
+        };
+        let label = format!("{panel}-{version}");
+        if panels.insert(label.clone(), manifest).is_some() {
+            return Err(invalid(format!("two manifests are panel {label}")));
+        }
+    }
+    // Each sample runs once, however many cases read it.
+    let mut samples = Vec::new();
+    let mut index = BTreeMap::new();
+    for case in &cases {
+        let key = (case.panel.as_str(), case.sample.as_str());
+        if index.contains_key(&key) {
+            continue;
+        }
+        let manifest = panels.get(&case.panel).ok_or_else(|| {
+            invalid(format!(
+                "case {} names panel {}, which no --manifest is",
+                case.name, case.panel
+            ))
+        })?;
+        let sample = manifest
+            .samples
+            .iter()
+            .find(|sample| sample.id == case.sample)
+            .ok_or_else(|| {
+                invalid(format!(
+                    "case {}: panel {} has no sample {}",
+                    case.name, case.panel, case.sample
+                ))
+            })?;
+        index.insert(key, samples.len());
+        samples.push(sample.clone());
+    }
+    let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
+        .map_err(|error| Error::Reference {
+            path: args.reference.clone(),
+            message: error.to_string(),
+        })?;
+    let cache = args
+        .evidence_cache
+        .as_deref()
+        .map(|directory| {
+            Ok::<_, cache::CacheError>(cache::Caches {
+                evidence: cache::EvidenceCache::open(directory, &args.config)?,
+                placed: cache::EvidenceCache::open_placed(
+                    directory,
+                    &args.config,
+                    &reference.sequence_sha256,
+                )?,
+            })
+        })
+        .transpose()?;
+    let outcomes = runner::run(
+        &samples,
+        (&args.reference, &reference.sequence_sha256),
+        &args.config,
+        threads,
+        false,
+        None,
+        (cache.as_ref(), &runner::Contexts::new()),
+        &mut Vec::new(),
+    )?;
+    let judged = cases
+        .iter()
+        .map(|case| {
+            let result = &outcomes[index[&(case.panel.as_str(), case.sample.as_str())]].result;
+            let (verdict, observed) = bench::judge(case, result);
+            (
+                verdict,
+                observed,
+                result.as_ref().err().map(ToString::to_string),
+            )
+        })
+        .collect::<Vec<_>>();
+    let source = source();
+    let revision = format!(
+        "{}{}",
+        source.revision.as_deref().unwrap_or("unknown revision"),
+        match source.dirty {
+            Some(true) => " (dirty)",
+            Some(false) => "",
+            None => " (dirty state unknown)",
+        }
+    );
+    let report = bench::report(&revision, &cases, &judged);
+    if let Some(output) = &args.output {
+        prepare_output(output)?;
+        write(output, "bench.md", &report.text)?;
+        write(output, "bench.tsv", &report.table)?;
+    }
+    Ok(report)
 }
 
 /// Arguments of `dna-eval diff`.
@@ -341,7 +515,8 @@ struct RunArgs {
     #[arg(long)]
     recheck: Option<PathBuf>,
     /// First batch month (`YYYY-MM`) of the current data: the summary reports
-    /// the samples whose manifest `batch_date` is in or after it first.
+    /// the samples whose manifest `batch_date` is in or after it first, and
+    /// `diff` gates on them alone.
     #[arg(long)]
     current_since: Option<String>,
     /// Judge each review against a run signal (PROP-0009) built in process
@@ -361,6 +536,13 @@ struct RunArgs {
     /// traces' own Sanger products.
     #[arg(long, conflicts_with = "triage")]
     evidence_cache: Option<PathBuf>,
+    /// A directory of run contexts (PROP-0014), one
+    /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
+    /// over the batches' full folders: a sample of a batch with one has its
+    /// consensus calibrated by it. `run_context.tsv` reports per batch month
+    /// how many samples a context calibrated.
+    #[arg(long)]
+    run_context: Option<PathBuf>,
     /// Review zones: positions on each side of a repeat window that follow
     /// it.
     #[arg(long, default_value_t = 20)]
@@ -378,6 +560,7 @@ struct RunArgs {
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Diff(args) => return diff(&args),
+        Command::Bench(args) => return bench(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),
@@ -563,6 +746,12 @@ fn run(cli: &RunArgs) -> Result<String> {
             })
         })
         .transpose()?;
+    let contexts = cli
+        .run_context
+        .as_deref()
+        .map(|directory| runner::contexts(directory, &manifest.samples))
+        .transpose()?
+        .unwrap_or_default();
     let mut signal_groups = Vec::new();
     let outcomes = runner::run(
         &manifest.samples,
@@ -576,7 +765,7 @@ fn run(cli: &RunArgs) -> Result<String> {
                 batch_reads: cli.run_signal_batch_reads,
             },
         }),
-        cache.as_ref(),
+        (cache.as_ref(), &contexts),
         &mut signal_groups,
     )?;
     let dna_seconds = dna_started.elapsed().as_secs_f64();
@@ -626,7 +815,22 @@ fn run(cli: &RunArgs) -> Result<String> {
         &check,
         (&forms, reference.sequence.as_str()),
     )
-    .with_review(cli.review_window, forced, Some(zones), recheck)
+    .with_review(
+        cli.review_window,
+        forced,
+        Some(zones),
+        recheck,
+        profile
+            .length_tracts
+            .iter()
+            .map(|tract| workload::Tract {
+                name: tract.name.clone(),
+                first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
+                last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
+                base: char::from(tract.base),
+            })
+            .collect(),
+    )
     .with_current_since(cli.current_since.clone());
     let triage_started = Instant::now();
     let triage = cli
@@ -649,6 +853,13 @@ fn run(cli: &RunArgs) -> Result<String> {
     header.recheck = recheck_header;
     header.evidence_cache = cache.as_ref().map(|cache| cache.evidence.usage());
     header.placement_cache = cache.as_ref().map(|cache| cache.placed.usage());
+    header.run_context = cli
+        .run_context
+        .as_deref()
+        .map(|directory| RunContextHeader {
+            directory: absolute(directory),
+            batches: contexts.len(),
+        });
     header.triage = triage.as_ref().map(|triage| TriageHeader {
         policy: triage
             .policy()
@@ -663,6 +874,13 @@ fn run(cli: &RunArgs) -> Result<String> {
         .chain(triage_files.into_iter().flatten())
     {
         write(&cli.output, name, &contents)?;
+    }
+    if cli.run_context.is_some() {
+        write(
+            &cli.output,
+            "run_context.tsv",
+            &context_coverage(&manifest.samples, &outcomes, &contexts),
+        )?;
     }
     if cli.run_signal.is_some() {
         let mut text = String::from(SIGNALS_HEADER);
@@ -681,6 +899,31 @@ fn run(cli: &RunArgs) -> Result<String> {
         }
     }
     write(&cli.output, "checks.tsv", &checks)?;
+    let mut notes = String::from(NOTES_HEADER);
+    let cell =
+        |value: Option<usize>| value.map_or_else(|| ".".to_owned(), |value| value.to_string());
+    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
+        if let Ok(called) = &outcome.result {
+            for note in &called.notes {
+                for run in &note.runs {
+                    let _ = writeln!(
+                        notes,
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        sample.id,
+                        note.first,
+                        note.last,
+                        note.tract,
+                        run.run,
+                        run.status,
+                        cell(run.called),
+                        cell(run.reading),
+                        cell(run.convention),
+                    );
+                }
+            }
+        }
+    }
+    write(&cli.output, "notes.tsv", &notes)?;
     let mut table = String::from(components::HEADER);
     for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
         if let Ok(called) = &outcome.result {
@@ -1016,6 +1259,9 @@ struct Header {
     /// cache.
     #[serde(skip_serializing_if = "Option::is_none")]
     placement_cache: Option<cache::Usage>,
+    /// The run contexts the consensus was calibrated by.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_context: Option<RunContextHeader>,
     /// The widths that place the review zones, in positions.
     zones: ZoneHeader,
     /// The harness's own measurement constants.
@@ -1082,6 +1328,73 @@ impl Constants {
             triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
         }
     }
+}
+
+/// The run contexts' directory and how many of the panel's batches had one.
+#[derive(Debug, Serialize)]
+struct RunContextHeader {
+    directory: PathBuf,
+    batches: usize,
+}
+
+/// Run context coverage per batch month, then over all samples: of the
+/// analysed samples, how many had their batch's context and in how many it
+/// calibrated τ of run 1 and of run 2; the rest fail closed to the
+/// configured τ. With them, the batches that had a context and their pairs
+/// per run, which show why: a batch below the minimum pairs calibrates
+/// nothing.
+fn context_coverage(
+    samples: &[manifest::Sample],
+    outcomes: &[Outcome],
+    contexts: &runner::Contexts,
+) -> String {
+    let mut months = BTreeMap::<String, [usize; 8]>::new();
+    let mut counted = BTreeSet::<(&str, &str)>::new();
+    for (sample, outcome) in samples.iter().zip(outcomes) {
+        let month = sample
+            .batch_date
+            .as_deref()
+            .and_then(|date| date.get(..7))
+            .unwrap_or("unknown");
+        for key in [month, "all"] {
+            let counts = months.entry(key.to_owned()).or_default();
+            if let Some(context) = contexts.get(&sample.batch)
+                && counted.insert((key, &sample.batch))
+            {
+                counts[5] += 1;
+                counts[6] += context.length.runs[0].pairs;
+                counts[7] += context.length.runs[1].pairs;
+            }
+            counts[0] += 1;
+            if let Ok(called) = &outcome.result {
+                counts[1] += 1;
+                if let Some([run1, run2]) = called.length_context {
+                    counts[2] += 1;
+                    counts[3] += usize::from(run1);
+                    counts[4] += usize::from(run2);
+                }
+            }
+        }
+    }
+    let all = months.remove("all").unwrap_or_default();
+    let mut text = String::from(RUN_CONTEXT_HEADER);
+    for (month, counts) in months.iter().chain([(&"all".to_owned(), &all)]) {
+        let [
+            samples,
+            analysed,
+            context,
+            run1,
+            run2,
+            batches,
+            pairs1,
+            pairs2,
+        ] = counts;
+        let _ = writeln!(
+            text,
+            "{month}\t{samples}\t{analysed}\t{context}\t{run1}\t{run2}\t{batches}\t{pairs1}\t{pairs2}"
+        );
+    }
+    text
 }
 
 /// The re-check list: its path, its SHA-256, and its rows.
@@ -1240,6 +1553,7 @@ fn header(
         recheck: None,
         evidence_cache: None,
         placement_cache: None,
+        run_context: None,
         constants: Constants::current(),
         zones: ZoneHeader {
             after: cli.zone_after,
@@ -1462,6 +1776,7 @@ mod tests {
                 replaced: 0,
                 bytes: 90_000,
             }),
+            run_context: None,
             zones: ZoneHeader {
                 after: 20,
                 edge: 40,
@@ -1512,6 +1827,7 @@ mod tests {
         };
         contract::check_document("run.json", &serde_json::to_value(&bare)?)?;
         contract::check_table("checks.tsv", CHECKS_HEADER)?;
+        contract::check_table("notes.tsv", NOTES_HEADER)?;
         contract::check_table("signals.tsv", SIGNALS_HEADER)
     }
 

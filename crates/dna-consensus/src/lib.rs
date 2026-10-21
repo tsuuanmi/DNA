@@ -16,6 +16,7 @@ pub mod model;
 mod decide;
 pub mod decided;
 pub mod length;
+pub mod noise;
 mod observe;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1946,7 +1947,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 18,
+    version: 19,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],

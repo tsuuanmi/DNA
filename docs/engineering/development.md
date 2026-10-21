@@ -64,13 +64,20 @@ and a warm run took a fifth of the CPU. The cache needs a harness built from
 committed read-stage sources, since a plugin version does not move on a
 work-in-progress commit; `run.json` records its key and hits. Compare a probe with its base run with
 `dna-eval diff --base <run> --run <run>`: it refuses runs that measure
-different things, and exits 2 with `GATE FAIL` when more samples, passed
-samples, or passed zones carry a non-het unreviewed block, or when the two
-runs failed on different samples (rerun a side that failed transiently); het
-blocks are reported, not gated. Keep one cache
+different things, and exits 2 with `GATE FAIL` when, in the current period
+(`--current-since`), more samples, passed samples, or passed zones carry a
+non-het unreviewed block, or when the two runs failed on different current
+samples (rerun a side that failed transiently); het blocks and the earlier
+period are reported, not gated. Keep one cache
 directory per machine, and remove old generations with
 `dna-eval cache prune --dir <dir> --keep <n>` (about 3 GB per generation for
 panel v5).
+Before any panel run, run the artefact bench on the probe
+(`dna-eval bench --cases <cases.tsv> --manifest <panel.tsv>…`, with the same
+cache): it runs DNA on the adjudicated artefact cases alone, in seconds, and
+exits 2 with `BENCH FAIL` when a probe breaks one. Every signal change keeps
+it passing; add a case for each newly adjudicated artefact, and promote a
+known failure to a guard once it passes.
 For a first pass, run the base and the probe on a quick subset
 (`dna-eval subset`, [[validation/evaluation-harness]]); a subset verdict is a
 pre-filter only, and a candidate must still pass `diff` on the full panel.

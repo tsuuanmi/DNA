@@ -42,13 +42,15 @@ pub enum Command {
     /// Aggregate independently analyzed AB1 traces, or their recorded evidence, into sample evidence.
     Sample(SampleArgs),
     /// Adjudicate a sample's AB1 traces, or their recorded evidence, into a consensus sequence.
-    Consensus(SampleArgs),
+    Consensus(ConsensusArgs),
     /// List the positions of a sample a reviewer should look at, with their evidence.
     Review(ReviewArgs),
     /// Call variants from reviewed consensus sequences with the core alone.
     Call(CallArgs),
     /// Record the second-channel signal a run's AB1 traces share.
     Signal(SignalArgs),
+    /// Record what a laboratory batch's samples give each of them: the run context.
+    RunContext(RunContextArgs),
     /// Derive notation and conformance findings from a variants document.
     Notation(NotationArgs),
 }
@@ -99,6 +101,54 @@ pub struct SampleArgs {
     pub reference: PathBuf,
 }
 
+/// Arguments for a sample consensus: the sample's traces, or their
+/// `dna.read_evidence/v1` documents, never both.
+#[derive(Debug, Args)]
+#[command(group(ArgGroup::new("reads").required(true).args(["traces", "evidence"])))]
+pub struct ConsensusArgs {
+    /// Stable sample identifier used only for result/log naming and provenance.
+    pub sample_id: String,
+
+    /// Independently processed ABIF/AB1 traces belonging to the sample.
+    pub traces: Vec<PathBuf>,
+
+    /// The reads' evidence (`dna.read_evidence/v1`, written by `evidence`),
+    /// in place of their traces (PROP-0011).
+    #[arg(long, num_args = 1..)]
+    pub evidence: Vec<PathBuf>,
+
+    /// Single-contig reference FASTA shared by every trace.
+    #[arg(long)]
+    pub reference: PathBuf,
+
+    /// The run context (`dna.run_context/v1`, written by `run-context`) of
+    /// the sample's batch, to calibrate the length rule by (PROP-0014).
+    #[arg(long)]
+    pub run_context: Option<PathBuf>,
+}
+
+/// Arguments for a run context over one laboratory batch: a tab-separated
+/// list of `sample_id` and read path, one read per line, of traces or of
+/// their `dna.read_evidence/v1` documents, never both.
+#[derive(Debug, Args)]
+#[command(group(ArgGroup::new("reads").required(true).args(["traces", "evidence"])))]
+pub struct RunContextArgs {
+    /// Stable batch identifier used for result/log naming and provenance.
+    pub run_id: String,
+
+    /// The batch's ABIF/AB1 traces, as `sample_id<TAB>path` lines.
+    #[arg(long)]
+    pub traces: Option<PathBuf>,
+
+    /// The batch's read evidence documents, as `sample_id<TAB>path` lines.
+    #[arg(long)]
+    pub evidence: Option<PathBuf>,
+
+    /// Single-contig reference FASTA shared by every read.
+    #[arg(long)]
+    pub reference: PathBuf,
+}
+
 /// Arguments for a sample review: the sample's traces, or their
 /// `dna.read_evidence/v1` documents, never both.
 #[derive(Debug, Args)]
@@ -123,6 +173,11 @@ pub struct ReviewArgs {
     /// bases against (PROP-0009).
     #[arg(long)]
     pub signal: Option<PathBuf>,
+
+    /// The run context (`dna.run_context/v1`, written by `run-context`) of
+    /// the sample's batch, to calibrate the length rule by (PROP-0014).
+    #[arg(long)]
+    pub run_context: Option<PathBuf>,
 }
 
 /// Arguments for a run signal over one run's traces.

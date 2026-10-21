@@ -14,7 +14,7 @@ use crate::pipeline::path;
 use crate::pipeline::plugins as plugin;
 use crate::pipeline::represent;
 use crate::report::{self, CompletedReview, Reviewed};
-use crate::sample_analysis::{self, ConsensusCall, Outcome, ReviewCheck, SampleAnalysis};
+use crate::sample_analysis::{self, ConsensusCall, Outcome, ReviewList, SampleAnalysis};
 use dna_call::components::ComponentCall;
 use dna_kernel::variant::Variant;
 use dna_sanger::run_signal::RunSignal;
@@ -28,6 +28,7 @@ pub(crate) fn run(
     input: SampleInput<'_>,
     reference: &Path,
     signal: Option<&Path>,
+    run_context: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
     validate_sample_id(sample_id)?;
@@ -46,7 +47,10 @@ pub(crate) fn run(
             sample_id,
             input,
             reference,
-            signal,
+            Contexts {
+                signal,
+                run_context,
+            },
             config_path,
             log,
             started,
@@ -54,20 +58,30 @@ pub(crate) fn run(
     })
 }
 
+/// The run-level documents a review reads besides its sample's reads.
+struct Contexts<'a> {
+    signal: Option<&'a Path>,
+    run_context: Option<&'a Path>,
+}
+
 fn review(
     sample_id: &str,
     input: SampleInput<'_>,
     reference: &Path,
-    signal: Option<&Path>,
+    Contexts {
+        signal,
+        run_context,
+    }: Contexts<'_>,
     config_path: &Path,
     log: &OperationLog,
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
     let super::LoadedSample {
-        loaded: inputs,
+        loaded: mut inputs,
         reads,
     } = super::load_sample(input, reference, config_path)?;
+    inputs.run_context = super::load_run_context(run_context)?;
     let signal = signal.map(input_signal::load).transpose()?;
     if let Some((signal, sha256)) = &signal {
         tracing::info!(
@@ -277,27 +291,20 @@ fn notation_texts(analysis: &SampleAnalysis, component: &ComponentCall) -> Resul
 }
 
 impl SampleAnalysis {
-    /// The items of this analysis's review list that a reviewer must look at
-    /// (`check` items), given the call of its consensus and the run signal
-    /// it is judged against, if any, by the rules `dna review` applies,
-    /// without building or publishing the document.
+    /// This analysis's review list as `dna review` builds it, given the
+    /// call of its consensus and the run signal it is judged against, if
+    /// any, without building or publishing the document: the items a
+    /// reviewer must look at (`check` items) and the length tracts it notes.
     ///
     /// # Errors
     ///
     /// Returns [`ReportError`](crate::error::ReportError) when the analysis's
     /// records disagree, as `dna review` would.
-    pub fn review_checks(
+    pub fn review_list(
         &self,
         call: &ConsensusCall,
         signal: Option<&RunSignal>,
-    ) -> Result<Vec<ReviewCheck>> {
-        Ok(report::review_checks(self, call, signal)?
-            .into_iter()
-            .map(|(first, last, labels)| ReviewCheck {
-                first,
-                last,
-                labels,
-            })
-            .collect())
+    ) -> Result<ReviewList> {
+        report::review_list(self, call, signal)
     }
 }

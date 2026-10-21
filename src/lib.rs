@@ -88,6 +88,7 @@ pub fn run(cli: Cli) -> Result<()> {
             &args.sample_id,
             sample_input(&args.traces, &args.evidence)?,
             &args.reference,
+            args.run_context.as_deref(),
             &config_path,
         ),
         Command::Review(args) => pipeline::review(
@@ -95,6 +96,13 @@ pub fn run(cli: Cli) -> Result<()> {
             sample_input(&args.traces, &args.evidence)?,
             &args.reference,
             args.signal.as_deref(),
+            args.run_context.as_deref(),
+            &config_path,
+        ),
+        Command::RunContext(args) => pipeline::run_context(
+            &args.run_id,
+            (args.traces.as_deref(), args.evidence.as_deref()),
+            &args.reference,
             &config_path,
         ),
         Command::Signal(args) => pipeline::signal(&args.run_id, &args.traces, &config_path),

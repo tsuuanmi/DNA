@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:run_context:v1",
+  "title": "DNA run context v1",
+  "description": "A laboratory batch's own statistics (PROP-0014), computed once from all of the batch's reads: additive sections a consumer leaves the sample out of itself. Version 1 holds the length section (SRS-CONS-014).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "provenance",
+    "reads",
+    "rejected_reads",
+    "samples",
+    "length"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "dna.run_context/v1"
+    },
+    "run_id": {
+      "description": "The caller's batch identifier.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "configuration_sha256",
+        "profile",
+        "plugins",
+        "skipped"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "urn:signal:schema:consensus:v1#/$defs/reference"
+        },
+        "configuration_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile": {
+          "$ref": "urn:signal:schema:consensus:v1#/$defs/profile"
+        },
+        "plugins": {
+          "$ref": "urn:signal:schema:consensus:v1#/$defs/plugins"
+        },
+        "skipped": {
+          "description": "Listed input files the command left out, in list order: each fails every sample command, so its sample's other reads count without it.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sample_id",
+              "name",
+              "reason"
+            ],
+            "properties": {
+              "sample_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "description": "The file name.",
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "enum": [
+                  "missing",
+                  "not_a_file",
+                  "empty",
+                  "unreadable"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "reads": {
+      "description": "Content SHA-256 of every read that contributed, sorted and distinct: a consumer leaves its sample out by these identities.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/sha256"
+      }
+    },
+    "rejected_reads": {
+      "description": "Reads set aside before or at placement.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "samples": {
+      "description": "Samples that contributed reads.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "length": {
+      "description": "Cross-strand pairs of the two-strand rule's views over the profile's recorded anchored windows (owner dna-consensus).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "windows",
+        "noise_forward",
+        "noise_reverse",
+        "edges",
+        "runs"
+      ],
+      "properties": {
+        "method": {
+          "description": "Version of the pair selection and statistics; a consumer refuses another.",
+          "const": 1
+        },
+        "windows": {
+          "description": "The profile's recorded anchored windows the pairs come from, each [first, last] (1-based, inclusive), in order.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "integer",
+                "minimum": 1
+              }
+            ],
+            "items": false,
+            "minItems": 2
+          }
+        },
+        "noise_forward": {
+          "description": "The forward strand's τ for run 1 and run 2 the differences were normalised with (consensus.length_noise_forward).",
+          "$ref": "#/$defs/noise"
+        },
+        "noise_reverse": {
+          "description": "The reverse strand's (consensus.length_noise_reverse).",
+          "$ref": "#/$defs/noise"
+        },
+        "edges": {
+          "description": "The normalised differences' bin edges, strictly ascending (consensus.length_context_edges).",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number"
+          }
+        },
+        "runs": {
+          "description": "Run 1 (before the anchor) and run 2.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "run",
+              "pairs",
+              "sum_z2",
+              "sum_z4",
+              "histogram"
+            ],
+            "properties": {
+              "run": {
+                "enum": [
+                  1,
+                  2
+                ]
+              },
+              "pairs": {
+                "description": "Cross-strand pairs.",
+                "type": "integer",
+                "minimum": 0
+              },
+              "sum_z2": {
+                "description": "Sum of the pairs' squared normalised differences d² / (SE_F² + SE_R² + τ_F² + τ_R²).",
+                "type": "number",
+                "minimum": 0
+              },
+              "sum_z4": {
+                "description": "Sum of the pairs' normalised differences to the fourth power: with sum_z2, the variance of z², for a batch dispersion's sampling variance.",
+                "type": "number",
+                "minimum": 0
+              },
+              "histogram": {
+                "description": "Pairs by normalised difference: below the first edge, between each two edges, and from the last edge on; it sums to pairs.",
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "noise": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "use": {
+      "description": "How an analysis used a run context (SRS-API-021).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "sha256",
+        "left_out",
+        "length_scale"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "description": "The context document's SHA-256.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "left_out": {
+          "description": "Whether the sample's own pairs were taken out (all its reads were among the context's).",
+          "type": "boolean"
+        },
+        "length_scale": {
+          "description": "τ's scale for run 1 and run 2; null where the batch's pairs, the sample's own out, were fewer than consensus.length_context_minimum_pairs.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            {
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          ],
+          "items": false,
+          "minItems": 2
+        }
+      }
+    }
+  }
+}

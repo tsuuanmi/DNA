@@ -49,6 +49,27 @@ pub struct Profile {
     pub conventions: Vec<Convention>,
     /// Whether the `notation` workflow exports an EMPOP query (`[empop]`).
     pub empop: bool,
+    /// Homopolymer tracts whose length varies within a sample (length
+    /// heteroplasmy), in reference order without overlap.
+    pub length_tracts: Vec<LengthTract>,
+}
+
+/// A homopolymer tract whose length the target's practice treats as length
+/// heteroplasmy: a length there is information, noted rather than decided
+/// when its dominant is determined, and searches disregard its length
+/// variants (ISFG 2014 Rec. 10, 11, 16; SWGDAM 2024 5.1.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LengthTract {
+    /// Tract name, unique within the profile.
+    pub name: String,
+    /// Inclusive 1-based reference positions of the tract's runs.
+    pub window: [usize; 2],
+    /// The tract's repeat base, as an ASCII byte.
+    pub base: u8,
+    /// Inclusive 1-based window over which a database search disregards
+    /// length variants (EMPOP), holding the window's last position, where a
+    /// length variant is written.
+    pub search: [usize; 2],
 }
 
 /// A report convention: rendered calls of one kind in one window that the

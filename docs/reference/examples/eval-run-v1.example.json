@@ -45,6 +45,33 @@
       }
     ]
   },
+  "notes.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "first",
+      "last",
+      "tract",
+      "run",
+      "status",
+      "called",
+      "reading",
+      "convention"
+    ],
+    "rows": [
+      {
+        "sample_id": "S01",
+        "first": "303",
+        "last": "315",
+        "tract": "hvs2_c_tract",
+        "run": "1",
+        "status": "convention",
+        "called": "9",
+        "reading": "8",
+        "convention": "8"
+      }
+    ]
+  },
   "components.tsv": {
     "comments": [],
     "columns": [
@@ -490,7 +517,8 @@
             "non_het": 1,
             "het_only": 0,
             "truth_n_only": 0,
-            "recheck_only": 0
+            "recheck_only": 0,
+            "length_note_only": 0
           }
         },
         "regions": {
@@ -501,7 +529,8 @@
             "non_het": 1,
             "het_only": 0,
             "truth_n_only": 0,
-            "recheck_only": 0
+            "recheck_only": 0,
+            "length_note_only": 0
           },
           "by_region": [
             {
@@ -513,7 +542,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -525,7 +555,8 @@
                 "non_het": 1,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -537,7 +568,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             }
           ]
@@ -550,7 +582,8 @@
             "non_het": 1,
             "het_only": 0,
             "truth_n_only": 0,
-            "recheck_only": 0
+            "recheck_only": 0,
+            "length_note_only": 0
           },
           "by_zone": [
             {
@@ -562,7 +595,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -574,7 +608,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -586,7 +621,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -598,7 +634,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -610,7 +647,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -622,7 +660,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -634,7 +673,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -646,7 +686,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -658,7 +699,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -670,7 +712,8 @@
                 "non_het": 1,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -682,7 +725,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -694,7 +738,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -706,7 +751,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -718,7 +764,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -730,7 +777,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             }
           ]
@@ -745,7 +793,8 @@
             "non_het": 1,
             "het_only": 0,
             "truth_n_only": 0,
-            "recheck_only": 0
+            "recheck_only": 0,
+            "length_note_only": 0
           }
         },
         "regions": {
@@ -756,7 +805,8 @@
             "non_het": 1,
             "het_only": 0,
             "truth_n_only": 0,
-            "recheck_only": 0
+            "recheck_only": 0,
+            "length_note_only": 0
           },
           "by_region": [
             {
@@ -768,7 +818,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -780,7 +831,8 @@
                 "non_het": 1,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -792,7 +844,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             }
           ]
@@ -805,7 +858,8 @@
             "non_het": 1,
             "het_only": 0,
             "truth_n_only": 0,
-            "recheck_only": 0
+            "recheck_only": 0,
+            "length_note_only": 0
           },
           "by_zone": [
             {
@@ -817,7 +871,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -829,7 +884,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -841,7 +897,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -853,7 +910,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -865,7 +923,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -877,7 +936,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -889,7 +949,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -901,7 +962,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -913,7 +975,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -925,7 +988,8 @@
                 "non_het": 1,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -937,7 +1001,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -949,7 +1014,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -961,7 +1027,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -973,7 +1040,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             },
             {
@@ -985,7 +1053,8 @@
                 "non_het": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
-                "recheck_only": 0
+                "recheck_only": 0,
+                "length_note_only": 0
               }
             }
           ]

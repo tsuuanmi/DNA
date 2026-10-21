@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CALL, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
+implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
 decided-by: [ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079]
 covers:
   - crates/dna-kernel/src/variant.rs
@@ -231,6 +231,30 @@ content SHA-256, when none is admitted. Every other failure is the error
 into that error. The two cases are complete, so the enum is not marked
 non-exhaustive.
 
+### Run context
+
+A batch's [[reference/run-context|run context]] calibrates an analysis's
+consensus in process as `dna consensus --run-context` does (SRS-CONS-014):
+
+```rust
+impl RunContext {
+    pub fn read(path: &Path) -> dna::error::Result<RunContext>;
+}
+
+impl SampleAnalysis {
+    pub fn with_run_context(self, context: RunContext) -> dna::error::Result<SampleAnalysis>;
+    pub const fn run_context(&self) -> Option<&ContextUse>;
+}
+```
+
+`with_run_context` rebuilds the consensus under the context, the sample's
+own pairs left out when all its admitted reads are among the context's, and
+fails as the command does for a context made against another reference,
+over other windows, or with other length parameters, or holding only some
+of its reads. `run_context` returns how the consensus used it: `run_id`,
+`sha256`, `left_out`, and `scale`, τ's scale per run (`None` where the
+batch's pairs were too few); `None` without a context.
+
 ### Consensus call
 
 `SampleAnalysis::call` completes the recommended per-sample workflow,
@@ -239,7 +263,17 @@ non-exhaustive.
 ```rust
 impl SampleAnalysis {
     pub fn call(&self, sample_id: &str) -> dna::error::Result<ConsensusCall>;
-    pub fn review_checks(&self, call: &ConsensusCall) -> dna::error::Result<Vec<ReviewCheck>>;
+    pub fn review_list(
+        &self,
+        call: &ConsensusCall,
+        signal: Option<&RunSignal>,
+    ) -> dna::error::Result<ReviewList>;
+}
+
+#[non_exhaustive]
+pub struct ReviewList {
+    pub checks: Vec<ReviewCheck>,
+    pub notes: Vec<TractNote>,
 }
 
 #[non_exhaustive]
@@ -248,13 +282,33 @@ pub struct ReviewCheck {
     pub last: usize,
     pub labels: Vec<&'static str>,
 }
+
+#[non_exhaustive]
+pub struct TractNote {
+    pub first: usize,
+    pub last: usize,
+    pub tract: String,
+    pub runs: Vec<TractNoteRun>,
+}
+
+#[non_exhaustive]
+pub struct TractNoteRun {
+    pub run: usize,
+    pub called: Option<usize>,
+    pub status: &'static str,
+    pub reading: Option<usize>,
+    pub convention: Option<usize>,
+}
 ```
 
-`review_checks` returns the `check` items of the review list `dna review`
-would write for the analysis and that call (SRS-API-015), built by the same
-rules: each item's first and last reference positions (1-based, inclusive)
-and its label names, sorted. It writes nothing. The evaluation harness reads
-it to measure the review workload.
+`review_list` returns the review list `dna review` would write for the
+analysis and that call, judged against the run signal when one is given
+(SRS-API-015), built by the same rules, without the document: the `check`
+items, each with its first and last reference positions (1-based,
+inclusive) and its label names, sorted; and each `tract_length` label
+([[reference/review-lengths]]) with its item's span and its noted runs. It
+writes nothing. The evaluation harness reads it to measure the review
+workload.
 
 It validates the sample identifier and calls the consensus's decided edits as
 `dna call` calls the consensus document `dna consensus` would publish for that

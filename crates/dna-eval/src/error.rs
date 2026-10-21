@@ -44,12 +44,19 @@ pub(crate) enum Error {
     /// malformed.
     #[error("forms {path}: {message}")]
     Forms { path: PathBuf, message: String },
+    /// A batch's run context (`--run-context`) cannot be read.
+    #[error("run context {path}: {message}")]
+    RunContext { path: PathBuf, message: String },
     /// The forced-window list is invalid.
     #[error("invalid forced windows {path}: {message}")]
     ForcedWindows { path: PathBuf, message: String },
     /// The re-check list is invalid.
     #[error("invalid re-check list {path}: {message}")]
     Recheck { path: PathBuf, message: String },
+    /// The bench case list is invalid, or names a panel or sample that no
+    /// manifest holds.
+    #[error("invalid bench case list {path}: {message}")]
+    Cases { path: PathBuf, message: String },
     /// The current-data month is not `YYYY-MM`.
     #[error("invalid current-data month {value:?}: expected YYYY-MM")]
     CurrentSince { value: String },

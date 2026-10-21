@@ -9,11 +9,16 @@
 //! check item touches it, and a passed unit counts under its most severe
 //! unreviewed block (non-het, then truth `N`, then het, then re-check).
 //!
-//! The gate fails when, in any period or source, more passed samples or
-//! more passed zones of any zone carry a non-het unreviewed block, or more
-//! samples carry a non-het unreviewed block. Heteroplasmy is optional (user
-//! decision): het-only, truth `N`, and re-check moves are reported, never
-//! gated.
+//! The gate reads one group: the current period, the samples whose manifest
+//! `batch_date` is in or after the runs' current-data month, or all samples
+//! when the runs record no such month. It fails when, in that group, more
+//! passed samples or more passed zones of any zone carry a non-het
+//! unreviewed block, or more samples carry a non-het unreviewed block, or
+//! when the two runs failed to score different samples of it. The earlier
+//! period and the sources, which mix periods, are reported in full and never
+//! gated (user decision 2026-10-21: the LAB keeps improving, so recent data
+//! decides). Heteroplasmy is optional (user decision): het-only, truth `N`,
+//! and re-check moves are reported, never gated.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -48,6 +53,7 @@ struct Escape {
 /// The pass measures' classes, from the least to the most severe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Severity {
+    LengthNote,
     Recheck,
     Het,
     TruthN,
@@ -57,6 +63,7 @@ enum Severity {
 impl Severity {
     fn parse(label: &str) -> Option<Self> {
         Some(match label {
+            "length_note" => Self::LengthNote,
             "recheck" => Self::Recheck,
             "het" => Self::Het,
             "truth_n" => Self::TruthN,
@@ -67,6 +74,7 @@ impl Severity {
 
     const fn label(self) -> &'static str {
         match self {
+            Self::LengthNote => "length_note",
             Self::Recheck => "recheck",
             Self::Het => "het",
             Self::TruthN => "truth_n",
@@ -256,6 +264,9 @@ struct Counts {
     passed_truth_n: usize,
     passed_het_only: usize,
     passed_recheck_only: usize,
+    /// Passed samples whose only unreviewed blocks are noted tract lengths:
+    /// reported, never gated.
+    passed_length_note_only: usize,
     positions: i64,
 }
 
@@ -314,6 +325,7 @@ fn tally(
                     Some(Severity::TruthN) => count.passed_truth_n += 1,
                     Some(Severity::Het) => count.passed_het_only += 1,
                     Some(Severity::Recheck) => count.passed_recheck_only += 1,
+                    Some(Severity::LengthNote) => count.passed_length_note_only += 1,
                     None => {}
                 }
             }
@@ -390,11 +402,25 @@ fn consistent(run: &Run, tally: &Tally) -> Result<(), DiffError> {
     }
 }
 
-/// Each sample's period, by its manifest `batch_date` against the run's
-/// current-data month, and its source, when the manifest has the column.
 /// Each sample's label in one split.
 type Labels = BTreeMap<String, String>;
 
+/// The label of the current period from `since`.
+fn current(since: &str) -> String {
+    format!("current (≥ {since})")
+}
+
+/// The group the gate reads: the current period when the run records a
+/// current-data month, else all samples.
+fn gated(run: &Run) -> String {
+    run.field("/current_since").as_str().map_or_else(
+        || "all".to_owned(),
+        |since| format!("period {}", current(since)),
+    )
+}
+
+/// Each sample's period, by its manifest `batch_date` against the run's
+/// current-data month, and its source, when the manifest has the column.
 fn split(run: &Run) -> Result<(Labels, Labels), DiffError> {
     let path = PathBuf::from(run.field("/manifest/path").as_str().unwrap_or_default());
     let bytes = std::fs::read(&path).map_err(|error| failure(&path, error))?;
@@ -406,7 +432,7 @@ fn split(run: &Run) -> Result<(Labels, Labels), DiffError> {
     for sample in &manifest.samples {
         if let (Some(since), Some(date)) = (&since, &sample.batch_date) {
             let period = if date.as_str() >= since.as_str() {
-                format!("current (≥ {since})")
+                current(since)
             } else {
                 format!("earlier (< {since})")
             };
@@ -443,6 +469,8 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         return Err(DiffError::Mismatch(mismatched.join("; ")));
     }
     let (periods, sources) = split(&base)?;
+    let gate = gated(&base);
+    let in_gate = |id: &str| groups(id, &periods, &sources).contains(&gate);
     let before = tally(&base, &periods, &sources);
     let after = tally(&run, &periods, &sources);
     consistent(&base, &before)?;
@@ -468,22 +496,28 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
     let mut failures = Vec::new();
     // A sample that failed on one side only is compared against nothing: the
     // two runs no longer cover the same samples, whether the failure is the
-    // change's or a transient read error.
+    // change's or a transient read error. Only the gated group's samples gate.
     let (failed_before, failed_after) = (base.failed(), run.failed());
     if failed_before != failed_after {
+        let one_side = failed_before
+            .symmetric_difference(&failed_after)
+            .collect::<Vec<_>>();
+        let differing = one_side.iter().filter(|id| in_gate(id)).count();
         let message = format!(
-            "failed samples differ: {} in the base, {} in the run, {} in one only; rerun a side that failed transiently, or see the run's failures",
+            "failed samples differ: {} in the base, {} in the run, {} in one only ({differing} in {gate}); rerun a side that failed transiently, or see the run's failures",
             failed_before.len(),
             failed_after.len(),
-            failed_before.symmetric_difference(&failed_after).count()
+            one_side.len()
         );
         let _ = writeln!(report, "**WARNING:** {message}.\n");
-        failures.push(message);
+        if differing > 0 {
+            failures.push(message);
+        }
     }
 
     let _ = writeln!(
         report,
-        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe block. Only non-het counts gate.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe block. Only the non-het counts of {gate} gate; the other groups are reported.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Passed length-note only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     );
     let names = before
         .counts
@@ -503,7 +537,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         };
         let _ = writeln!(
             report,
-            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             cell(old.samples, new.samples),
             cell(old.clear, new.clear),
             cell(old.unreviewed_non_het, new.unreviewed_non_het),
@@ -512,12 +546,16 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             cell(old.passed_truth_n, new.passed_truth_n),
             cell(old.passed_het_only, new.passed_het_only),
             cell(old.passed_recheck_only, new.passed_recheck_only),
+            cell(old.passed_length_note_only, new.passed_length_note_only),
             if old.positions == new.positions {
                 old.positions.to_string()
             } else {
                 format!("{} → {}", old.positions, new.positions)
             },
         );
+        if *name != gate {
+            continue;
+        }
         if new.passed_non_het > old.passed_non_het {
             failures.push(format!(
                 "passed samples with a non-het block rise in {name}: {} → {}",
@@ -553,7 +591,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             "| {} | {} | {} → {} | {} → {} |",
             key.0, key.1, old.checked, new.checked, old.passed_non_het, new.passed_non_het
         );
-        if new.passed_non_het > old.passed_non_het {
+        if key.0 == gate && new.passed_non_het > old.passed_non_het {
             failures.push(format!(
                 "passed {} zones with a non-het block rise in {}: {} → {}",
                 key.1, key.0, old.passed_non_het, new.passed_non_het
@@ -677,7 +715,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
     for row in listed.iter().take(SHOWN) {
         let _ = writeln!(report, "{row}");
     }
-    report.push_str("```\n\n## Verdict\n\n");
+    let _ = write!(report, "```\n\n## Verdict\n\nGated on {gate}.\n\n");
     if failures.is_empty() {
         report.push_str("GATE PASS\n");
     } else {
@@ -698,8 +736,9 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
 mod tests {
     use super::*;
 
-    /// Writes a run directory: its manifest, its `run.json` with the passes
-    /// `workload` records, its scores, and its unreviewed blocks.
+    /// Writes a run directory: its manifest (S1 from an earlier batch, S2
+    /// from a current one), its `run.json` with the passes `workload`
+    /// records, its scores, and its unreviewed blocks.
     fn run(
         root: &Path,
         name: &str,
@@ -711,12 +750,13 @@ mod tests {
         let directory = root.join(name);
         std::fs::create_dir_all(&directory)?;
         let manifest = root.join("panel.tsv");
+        let body = "S1\tb1\t2025-06-01\tclean\t1\t1\t0\t/t/a.ab1\nS2\tb2\t2026-02-01\tclean\t1\t1\t0\t/t/b.ab1\n";
         std::fs::write(
             &manifest,
-            manifest::tests::manifest(&[
-                "S1\tb1\tclean\t1\t1\t0\t/t/a.ab1",
-                "S2\tb1\tclean\t1\t1\t0\t/t/b.ab1",
-            ]),
+            format!(
+                "# body_sha256={:x}\nsample_id\tbatch\tbatch_date\tstratum\tweight\tweight_corpus\tanchor_candidate\ttrace_paths\n{body}",
+                <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
+            ),
         )?;
         let header = serde_json::json!({
             "source": {"revision": "0".repeat(40), "dirty": dirty},
@@ -747,6 +787,95 @@ mod tests {
         Ok(directory)
     }
 
+    /// Records `since` as the run's current-data month.
+    fn dated(directory: &Path, since: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let path = directory.join("run.json");
+        let mut header = serde_json::from_slice::<Value>(&std::fs::read(&path)?)?;
+        header["current_since"] = Value::from(since);
+        std::fs::write(path, serde_json::to_vec(&header)?)?;
+        Ok(())
+    }
+
+    // With a current-data month, only the current period gates: a non-het
+    // rise or a lost sample in the earlier period is reported and passes,
+    // a non-het rise in the current period fails.
+    #[test]
+    fn gates_the_current_period_only() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let clear = [
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+            "S2\tconcordant\tconcordant\tY\t0\t\t",
+        ];
+        let base = run(root.path(), "base", false, &clear, &[], (2, 0, 0))?;
+        dated(&base, "2026-01")?;
+        let earlier = run(
+            root.path(),
+            "earlier",
+            false,
+            &[
+                "S1\tdiscordant\tdiscordant\tY\t0\t\t",
+                "S2\tconcordant\tconcordant\tY\t0\t\t",
+            ],
+            &["S1\t309\t309\t309-309+:CC/C\tnon_het\twindow@HV2\tno"],
+            (2, 1, 0),
+        )?;
+        dated(&earlier, "2026-01")?;
+        let comparison = compare(&base, &earlier, false)?;
+        assert!(!comparison.gate_failed);
+        assert!(
+            comparison
+                .report
+                .contains("Gated on period current (≥ 2026-01).\n\nGATE PASS")
+        );
+        assert!(
+            comparison
+                .report
+                .contains("| period earlier (< 2026-01) | 1 | 1 | 0 → 1 | 0 | 0 → 1 |")
+        );
+        assert!(
+            comparison
+                .report
+                .contains("| all | window@HV2 | 0 → 0 | 0 → 1 |")
+        );
+        let current = run(
+            root.path(),
+            "current",
+            false,
+            &[
+                "S1\tconcordant\tconcordant\tY\t0\t\t",
+                "S2\tdiscordant\tdiscordant\tY\t0\t\t",
+            ],
+            &["S2\t309\t309\t309-309+:CC/C\tnon_het\twindow@HV2\tno"],
+            (2, 1, 0),
+        )?;
+        dated(&current, "2026-01")?;
+        let comparison = compare(&base, &current, false)?;
+        assert!(comparison.gate_failed);
+        assert!(comparison.report.contains(
+            "- passed samples with a non-het block rise in period current (≥ 2026-01): 0 → 1"
+        ));
+        assert!(!comparison.report.contains("rise in all"));
+        let lost = run(
+            root.path(),
+            "lost",
+            false,
+            &[
+                "S1\tfailed\tfailed\tN\t0\t\t",
+                "S2\tconcordant\tconcordant\tY\t0\t\t",
+            ],
+            &[],
+            (1, 0, 0),
+        )?;
+        dated(&lost, "2026-01")?;
+        let comparison = compare(&base, &lost, false)?;
+        assert!(!comparison.gate_failed);
+        assert!(comparison.report.contains(
+            "failed samples differ: 0 in the base, 1 in the run, 1 in one only (0 in period current"
+        ));
+        Ok(())
+    }
+
+    // Without a current-data month, every sample gates.
     #[test]
     fn gates_a_new_non_het_escape() -> Result<(), Box<dyn std::error::Error>> {
         let root = tempfile::tempdir()?;

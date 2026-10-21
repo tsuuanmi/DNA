@@ -56,6 +56,10 @@ pub(crate) struct SampleProvenanceResult {
     pub(crate) configuration_sha256: String,
     pub(crate) profile: ProfileResult,
     pub(crate) plugins: Vec<PluginResult>,
+    /// The run context the consensus calibrated its length rule by
+    /// (PROP-0014); only a consensus document records one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) run_context: Option<super::run_context_result::ContextUseResult>,
 }
 
 /// One independently processed sample read with reviewer-facing provenance.

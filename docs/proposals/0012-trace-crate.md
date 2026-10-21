@@ -3,6 +3,7 @@ id: PROP-0012
 status: draft
 created: 2026-10-20
 summary: "a library crate `dna-trace` re-processes the trace windows the Sanger plugin flags after a repeat run: it models the read's own base signatures and leakage, decodes the length mixture, and gives each run's components with fractions and a margin; the consensus decides a run's length only when the decode is clear and both strands agree, and otherwise flags it with the components, so no length is passed unflagged on a weak signal."
+evidence: [RES-length-heteroplasmy]
 ---
 
 # Proposal: Trace signal engineering in its own crate
@@ -122,6 +123,9 @@ So:
     - the dominant length is read from a marker after the tract;
     - labs legitimately differ in the length they record;
     - shares are signal, not heteroplasmy levels.
+- [[RES-length-heteroplasmy]]: the field's length conventions and methods,
+  the precision of tract-length review items per evidence state, and
+  per-batch decode noise.
 - Planned research experiments, measured per strand and on the two-strand
   rule:
   - E1: empirical signature and leakage null;
@@ -222,7 +226,10 @@ turns it into development data.
    unflagged errors: a run that passes with no check today becomes a check
    whenever its decode is not "clear, and both strands agree with DNA's
    call", that is, when the strands disagree, the top two are near-equal,
-   or only one strand decodes it. Expect more checks. The gate wants
+   or only one strand decodes it. A read of that one strand that shows the
+   run in phase ([[ADR-0074]]) shows its length directly, so it confirms
+   without the other strand (review rules 26, measured 2026-10-21); decodes
+   alone on one strand never do. Expect more checks. The gate wants
    unflagged non-het blocks in the HVS-II polyC window to fall from 30, with
    precision unchanged. Reported: runs newly flagged, and
    how many of them hold a truth difference. No decision changes yet.

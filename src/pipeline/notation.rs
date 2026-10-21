@@ -117,13 +117,24 @@ fn notation(
                 position: call.position,
                 ordinal: call.ordinal,
                 text: &call.text,
+                indel: match (call.reference, call.alternate) {
+                    (None, base) | (base, None) => base,
+                    _ => None,
+                },
             })
+            .collect::<Vec<_>>();
+        let search = inputs
+            .profile
+            .length_tracts
+            .iter()
+            .map(|tract| (tract.search, char::from(tract.base)))
             .collect::<Vec<_>>();
         let exported = export::export(
             &inputs.profile.regions,
             &records,
             &calls,
             &inputs.document.not_analysed,
+            &search,
         );
         tracing::info!(
             event = "empop_completed",

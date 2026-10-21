@@ -26,6 +26,9 @@ pub(crate) struct EmpopResult {
     pub(crate) ranges: Vec<[usize; 2]>,
     pub(crate) ranges_text: String,
     pub(crate) mitotype: String,
+    /// The mitotype's length variants EMPOP's standard query disregards
+    /// (the profile's length tracts' search windows).
+    pub(crate) ignored_in_search: Vec<String>,
     pub(crate) cut: Vec<CutResult>,
 }
 

@@ -79,6 +79,7 @@ kernel_failures!(
     SequenceError,
     VariantsError,
     ConsensusDocumentError,
+    RunContextError,
     EvidenceError,
     AlignmentError,
     VariantError,

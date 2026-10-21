@@ -21,8 +21,14 @@ which files a run directory holds, `run.json`, and every table's columns
 The outputs of `approve` and `convention`, and the manifest `panel` writes,
 have no schema; the evaluation harness document describes them.
 
-- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`), run orchestration, output
+- `main.rs` — command line (`run`, `panel`, `approve`, `power`, `convention`, `bench`), run orchestration, output
   directory, and the `run.json` header.
+- `bench.rs` — `dna-eval bench`: the artefact regression bench. It parses a
+  case list (adjudicated artefacts and truth errors, each with a span and
+  the outcome DNA must keep there), judges each case from DNA's alleles,
+  check items, and callable intervals for its sample, and reports `BENCH
+  FAIL` when a guarded case regresses; known failures are reported, not
+  gated. The case list names samples, so it stays under `results/`.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired` and `truth_digest` columns.
 - `panel.rs` — a new panel version from a parent and the truth database.
@@ -36,7 +42,10 @@ have no schema; the evaluation harness document describes them.
   call then fails, or from the rejected reads when none is admitted. With
   `run --run-signal` it first builds a run signal per batch and per batch
   month from every sample's admitted reads, then runs again with each
-  sample's review judged against its group's signal.
+  sample's review judged against its group's signal. With `run
+  --run-context` it reads each batch's `dna.run_context/v1` from the
+  directory (`contexts`) and rebuilds each sample's consensus under its
+  batch's context; `main.rs` writes the coverage (`run_context.tsv`).
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary
   (the lab's rules), strict, IUPAC-compatible, haplotype, and haplotype LoD
   measures, and the comparable intervals and edits of the haplotype measures.
@@ -58,7 +67,7 @@ have no schema; the evaluation harness document describes them.
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `workload.rs` — the review workload: windows over the HV regions, each
   sample's positions to review and unreviewed difference blocks from `dna
-  review`'s check items (`SampleAnalysis::review_checks`), forced-window
+  review`'s check items (`SampleAnalysis::review_list`), forced-window
   lists, the Wilson bound of `windows.tsv`, and what passes without review
   (samples, regions, and zones no check item touches, and the passed ones
   with an unreviewed block by the class of their blocks: non-het, truth N,
@@ -96,7 +105,9 @@ have no schema; the evaluation harness document describes them.
   panel, from their directories alone. It refuses runs that measure
   different things or whose files disagree with their `run.json`, counts the
   passes per group (all, period, source) and zone, and gives the verdict
-  that gates a probe on non-het blocks; het blocks are reported only.
+  that gates a probe on non-het blocks in the current period alone (all
+  samples when the runs record no current-data month); het blocks, the
+  earlier period, and the sources are reported only.
 - `evidence.rs` — with `run --triage`, the compact triage evidence the
   runner takes from each sample's analysis: per region position, the clean
   strands, masked reads, and consensus marks; per trace, its primer, state,

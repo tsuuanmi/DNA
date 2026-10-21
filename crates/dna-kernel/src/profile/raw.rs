@@ -7,7 +7,7 @@ use serde::Deserialize;
 use super::window::{Anchor, NomenclatureWindow, WindowRule};
 use super::{
     Conformance, ConformanceRule, Convention, ConventionKind, ConventionLabel, IndelPlacement,
-    Notation, NotationStyle, Profile, ProfileIdentity,
+    LengthTract, Notation, NotationStyle, Profile, ProfileIdentity,
 };
 use crate::error::{ProfileError, Result};
 use crate::model::nucleotide::{Nucleotide, is_canonical};
@@ -31,6 +31,19 @@ pub(super) struct RawProfile {
     notation: Option<RawNotation>,
     conformance: Option<RawConformance>,
     empop: Option<RawEmpop>,
+    #[serde(default)]
+    length_tracts: Vec<RawLengthTract>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawLengthTract {
+    name: String,
+    /// Inclusive 1-based window of the tract's runs.
+    window: [usize; 2],
+    base: char,
+    /// Inclusive 1-based window searches disregard length variants in.
+    search: [usize; 2],
 }
 
 /// `[empop]` takes no keys: declaring it turns the export on.
@@ -267,6 +280,7 @@ impl RawProfile {
             conformance,
             conventions,
             empop: self.empop.is_some(),
+            length_tracts: validate_length_tracts(self.length_tracts)?,
         })
     }
 }
@@ -373,6 +387,52 @@ fn validate_conventions(raw: Vec<RawConvention>) -> Result<Vec<Convention>> {
         });
     }
     Ok(conventions)
+}
+
+fn validate_length_tracts(raw: Vec<RawLengthTract>) -> Result<Vec<LengthTract>> {
+    let mut tracts: Vec<LengthTract> = Vec::with_capacity(raw.len());
+    for tract in raw {
+        let RawLengthTract {
+            name,
+            window,
+            base,
+            search,
+        } = tract;
+        let invalid = |reason| ProfileError::InvalidLengthTract {
+            tract: name.clone(),
+            reason,
+        };
+        if name.trim().is_empty() {
+            return Err(ProfileError::Constraint("length tract names must not be empty").into());
+        }
+        let [start, end] = window;
+        if start == 0 || start >= end || end > MAX_REFERENCE_LENGTH {
+            return Err(
+                invalid("window must satisfy 1 <= start < end within the reference").into(),
+            );
+        }
+        // A length variant is written at the tract's 3' end, so the search
+        // window holds that end.
+        if !(search[0] <= search[1] && search[0] <= end && end <= search[1]) {
+            return Err(invalid("search must hold the window's last position").into());
+        }
+        if let Some(previous) = tracts.last()
+            && search[0] <= previous.search[1]
+        {
+            return Err(invalid("length tracts must be in reference order without overlap").into());
+        }
+        if tracts.iter().any(|other| other.name == name) {
+            return Err(invalid("length tract names must be unique").into());
+        }
+        let base = base_byte(base).ok_or_else(|| invalid("base must be A/C/G/T"))?;
+        tracts.push(LengthTract {
+            name,
+            window,
+            base,
+            search,
+        });
+    }
+    Ok(tracts)
 }
 
 fn validate_window(window: RawWindow) -> Result<NomenclatureWindow> {
@@ -787,6 +847,67 @@ rules = ["motif_shift"]
             validated(&without_notation)?,
             Err(Error::Profile(ProfileError::Constraint(_)))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn validates_length_tracts() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let tract = |name: &str, window: &str, base: &str, search: &str| {
+            format!(
+                "[[length_tracts]]\nname = \"{name}\"\nwindow = {window}\nbase = \"{base}\"\n\
+                 search = {search}\n"
+            )
+        };
+        let declared = format!(
+            "{VALID}{}{}",
+            tract("g-run", "[11, 13]", "G", "[10, 14]"),
+            tract("c-run", "[30, 35]", "C", "[29, 36]")
+        );
+        let tracts = validated(&declared)??.length_tracts;
+        assert_eq!(
+            tracts
+                .iter()
+                .map(|tract| (tract.name.as_str(), tract.window, tract.base, tract.search))
+                .collect::<Vec<_>>(),
+            [
+                ("g-run", [11, 13], b'G', [10, 14]),
+                ("c-run", [30, 35], b'C', [29, 36]),
+            ]
+        );
+        assert!(validated(VALID)??.length_tracts.is_empty());
+        let reason = |text: &str| match validated(text) {
+            Ok(Err(Error::Profile(ProfileError::InvalidLengthTract { reason, .. }))) => {
+                Some(reason)
+            }
+            _ => None,
+        };
+        let with = |tracts: &[String]| format!("{VALID}{}", tracts.concat());
+        assert_eq!(
+            reason(&with(&[tract("a", "[11, 13]", "G", "[14, 16]")])),
+            Some("search must hold the window's last position")
+        );
+        assert_eq!(
+            reason(&with(&[tract("a", "[13, 11]", "G", "[10, 14]")])),
+            Some("window must satisfy 1 <= start < end within the reference")
+        );
+        assert_eq!(
+            reason(&with(&[tract("a", "[11, 13]", "N", "[10, 14]")])),
+            Some("base must be A/C/G/T")
+        );
+        assert_eq!(
+            reason(&with(&[
+                tract("a", "[11, 13]", "G", "[10, 14]"),
+                tract("b", "[15, 18]", "G", "[14, 19]"),
+            ])),
+            Some("length tracts must be in reference order without overlap")
+        );
+        assert!(
+            parse(&with(&[format!(
+                "{}extra = 1\n",
+                tract("a", "[11, 13]", "G", "[10, 14]")
+            )]))
+            .is_err()
+        );
         Ok(())
     }
 
