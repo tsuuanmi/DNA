@@ -687,9 +687,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   first call sits on an inserted column to the position the insertion
   follows, on either strand, as the review has since ADR-0091; the review
   calls the consensus's `length::start_reference` and its copy is gone.
-  Plugin: `consensus` 22. Measured against `main` a55370c4 (diff gate PASS
+  Plugin: `consensus` 22. Measured against `main` af0823d3 (diff gate PASS
   on both panels, artefact bench unchanged): the rule now decides the
-  HVS-II 303-316 window in 35 more samples of development panel v5 and 50
+  HVS-II 303-316 window in 35 more samples of development panel v5 and 47
   of readiness-v2, whose window items lose `dephased_end` (and, in two,
   `estimated_length`) and keep their other labels, so no check, clear
   state, or non-het block moves. In readiness-v2 the two samples whose
