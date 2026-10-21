@@ -664,6 +664,29 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Insertions need both strands (SRS-CONS-015, ADR-0089, user decision
+  2026-10-21). The consensus decides a short insertion as the reference,
+  `contested`, when its clean support lies on one strand and a read of the
+  other strand reads the site through without it. That read may be masked
+  but anchoring, or vetoed, but it must show a base at every call. A short
+  insertion is one block into a run or tandem repeat of fewer than
+  `consensus.seeded_run` copies, in a site without a long homopolymer. The
+  review makes a one-strand insertion outside the repeat windows and length
+  tracts a check, `one_strand_insertion` (rank 2). The label names the other
+  strand's best view of the site (`not_covered`, `read_end`, `unresolved`,
+  `reads_through`) and gives `from_start`, the supporting read's distance
+  from its first call. `dna_consensus::insertion_views` gives the views.
+  Plugins: `consensus` 20, `review` 29. Measured against `main` 3ca9580e
+  (diff gate PASS on both panels):
+  - **Development panel v5, current data:** non-het unreviewed blocks
+    4 → 4, clear 8,071 → 8,066.
+  - **Development panel v5, earlier data:** non-het unreviewed 13 → 12. The
+    artefact bench's known case `16025.1T` of `2547034` is fixed.
+  - **Readiness-v2, current data:** non-het unreviewed 2 → 1, clear
+    14,119 → 14,117.
+  - **Readiness-v2, earlier data:** non-het unreviewed 14 → 11 (`93.1A`,
+    `82.1A`, `16025.1T`).
+
 - The review notes C-tract length heteroplasmy whose dominant length the
   reads determine instead of checking it (SRS-API-020, user decision
   2026-10-21, after ISFG 2014 Rec. 10, 11, 16, SWGDAM 2024 5.1.1, and EMPOP's

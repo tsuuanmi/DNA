@@ -34,9 +34,9 @@ use crate::sample_analysis::{
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
-use dna_consensus::ConsensusConfig;
 use dna_consensus::decided::not_analysed;
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
+use dna_consensus::{ConsensusConfig, InsertionView};
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
@@ -53,7 +53,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 28,
+    version: 29,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -1145,6 +1145,98 @@ impl<'a> Sample<'a> {
             .then(|| self.reads[index].name.to_owned())
     }
 
+    /// `one_strand_insertion` at a decided insertion (a notation call with
+    /// an ordinal over `first..=last`, or a decision longer than its
+    /// reference without notation) outside every repeat window and length
+    /// tract, whose supporting reads `supporting` all lie on `strand`, when
+    /// no read of the other strand shows it by the consensus's reading
+    /// (SRS-CONS-015): the other strand does not reach the site, ends in it,
+    /// shows no base there, or reads it through without the insertion where
+    /// the consensus leaves a long repeat's length to its run rules. One
+    /// strand cannot assure an insertion; on development panel v5 such
+    /// insertions near a read's start were often its own artefacts.
+    fn one_strand_insertion(
+        &self,
+        site: &ConsensusSite,
+        first: usize,
+        last: usize,
+        strand: Orientation,
+        supporting: &[usize],
+    ) -> Option<LabelResult> {
+        let call = site.call.as_deref()?;
+        let inserts = if self.notation {
+            self.calls.iter().any(|notation| {
+                notation.ordinal > 0 && first <= notation.position && notation.position <= last
+            })
+        } else {
+            call.len() > site.reference.len()
+        };
+        if !inserts
+            || self
+                .repeat_windows
+                .iter()
+                .any(|&[start, end]| start <= last && first <= end)
+        {
+            return None;
+        }
+        let called = self
+            .reads
+            .iter()
+            .map(|read| read.called)
+            .collect::<Vec<_>>();
+        let views = dna_consensus::insertion_views(
+            &called,
+            self.reference,
+            self.call_config,
+            self.consensus_config,
+            site.first_0based,
+            site.last_0based,
+            call,
+        );
+        let other = self
+            .reads
+            .iter()
+            .zip(&views)
+            .filter(|(read, _)| read.strand != strand)
+            .map(|(_, view)| *view)
+            .max()
+            .unwrap_or(InsertionView::NotCovered);
+        if other == InsertionView::Shows {
+            return None;
+        }
+        // The fewest calls from a supporting read's first call to its first
+        // call over the site.
+        let from_start = supporting
+            .iter()
+            .filter_map(|&index| {
+                // A call aligned over the site, or inserted after a
+                // position of it.
+                let mut within = false;
+                self.reads[index]
+                    .columns
+                    .iter()
+                    .filter(|column| {
+                        if let Some(reference) = column.reference_index_0based() {
+                            within =
+                                site.first_0based <= reference && reference <= site.last_0based;
+                        }
+                        within
+                    })
+                    .filter_map(AlignmentColumn::original_call_index_0based)
+                    .min()
+            })
+            .min()?;
+        Some(LabelResult::OneStrandInsertion {
+            strand,
+            reads: supporting
+                .iter()
+                .map(|&index| self.reads[index].name.to_owned())
+                .collect(),
+            other: other.label(),
+            from_start,
+        })
+    }
+
     /// The single read a deletion within `deletion_zone` positions of a
     /// reportable region's first or last position rests on; `None` for any
     /// other site.
@@ -1227,6 +1319,9 @@ impl<'a> Sample<'a> {
                     strand,
                     reads: supporting.iter().map(|read| read.name.to_owned()).collect(),
                 });
+                if decided {
+                    labels.extend(self.one_strand_insertion(site, first, last, strand, &indices));
+                }
             }
         }
         if differs
@@ -2228,6 +2323,7 @@ const fn unassured(label: &LabelResult) -> bool {
             | LabelResult::EdgeDeletion { .. }
             | LabelResult::RunDeletion { .. }
             | LabelResult::RunIndel { .. }
+            | LabelResult::OneStrandInsertion { .. }
             | LabelResult::NotCovered
             | LabelResult::BesideNotAnalysed
     )
@@ -2249,6 +2345,7 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::EdgeDeletion { .. }
         | LabelResult::RunDeletion { .. }
         | LabelResult::RunIndel { .. }
+        | LabelResult::OneStrandInsertion { .. }
         | LabelResult::BesideNotAnalysed => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
         LabelResult::PossibleHeteroplasmy {
@@ -2275,6 +2372,7 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::EdgeDeletion { .. } => "edge_deletion",
         LabelResult::RunDeletion { .. } => "run_deletion",
         LabelResult::RunIndel { .. } => "run_indel",
+        LabelResult::OneStrandInsertion { .. } => "one_strand_insertion",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
         LabelResult::ReferenceSecond { .. } => "reference_second",
         LabelResult::EstimatedLength { .. } => "estimated_length",
@@ -2507,6 +2605,7 @@ fn summarize(
                 "edge_deletion" => &mut labels.edge_deletion,
                 "run_deletion" => &mut labels.run_deletion,
                 "run_indel" => &mut labels.run_indel,
+                "one_strand_insertion" => &mut labels.one_strand_insertion,
                 "beside_not_analysed" => &mut labels.beside_not_analysed,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "reference_second" => &mut labels.reference_second,
@@ -3160,6 +3259,18 @@ mod tests {
         assert!(!unassured(&LabelResult::ReadEdge {
             read: "r".to_owned()
         }));
+        // SRS-CONS-015: one strand cannot assure an insertion.
+        let insertion = LabelResult::OneStrandInsertion {
+            strand: F,
+            reads: vec!["r".to_owned()],
+            other: "not_covered",
+            from_start: 25,
+        };
+        assert!(unassured(&insertion));
+        assert_eq!(
+            (rank(&insertion), name(&insertion)),
+            (2, "one_strand_insertion")
+        );
     }
 
     // SRS-API-014

@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080]
+decided-by: [ADR-0073, ADR-0074, ADR-0078, ADR-0080, ADR-0089]
 ---
 
 # DNA Consensus JSON
@@ -56,11 +56,15 @@ The method is described in [[design/consensus|design]].
     nothing was decided. `N` marks an undecided run or position.
   - `state`:
     - `called`: agreement or a strict majority;
-    - `contested`: a tie, with the reference taken for one read against one;
+    - `contested`: a tie, with the reference taken for one read against one,
+      or a short insertion resting on one strand that a read of the other
+      strand reads through without, decided as the reference (SRS-CONS-015);
     - `unresolved`: no clean observation.
   - `supporting_reads`, `opposing_reads`, `uninformative_reads`: reads whose
     clean sequence matches the call, whose clean sequence differs, and that
-    cover the interval without a clean sequence.
+    cover the interval without a clean sequence. At an insertion contested
+    by strand (SRS-CONS-015), the reads of the other strand that read the
+    site through support the reference, and the insertion's reads oppose it.
   - `runs`: for a stretch decided by its run structure
     ([[ADR-0074]]), the call's
     runs in order, each with `base`, `length`, and `length_evidence`. The list

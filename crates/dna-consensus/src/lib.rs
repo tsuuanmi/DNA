@@ -15,6 +15,7 @@ pub mod model;
 
 mod decide;
 pub mod decided;
+mod insertion;
 pub mod length;
 pub mod noise;
 mod observe;
@@ -34,6 +35,7 @@ use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use observe::{Char, Observation, ReadObservations, SiteValue, Trust, observe};
 
 pub use config::{ConsensusConfig, RawConsensusConfig};
+pub use insertion::{InsertionView, insertion_views};
 
 /// Builds the consensus of the sample's admitted reads.
 ///
@@ -80,6 +82,9 @@ pub fn build(
     {
         decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     }
+    // An insertion into a short repeat that a read of the other strand reads
+    // through without is decided by neither strand (SRS-CONS-015).
+    insertion::contest_one_strand(&mut decided, &observed, bases, consensus_config.seeded_run);
     two_strand(&mut decided, reads, reference, config, consensus_config);
     let reference_only = confirmed_only(&observed);
 
@@ -1947,7 +1952,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 19,
+    version: 20,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2982,6 +2987,124 @@ mod tests {
     fn decided_at(observed: &[ReadObservations], position: usize) -> Decision {
         let decided = decide_positions(observed, b"ACGTACGTAC", 4);
         decided
+            .range(..=position)
+            .next_back()
+            .map_or_else(|| decide(&[], "A"), |(_, (_, decision))| decision.clone())
+    }
+
+    /// The decision of the stretch holding `position` once one-strand
+    /// insertions are contested (SRS-CONS-015).
+    fn contested_at(observed: &[ReadObservations], bases: &[u8], position: usize) -> Decision {
+        let mut decided = decide_positions(observed, bases, 4);
+        insertion::contest_one_strand(&mut decided, observed, bases, 4);
+        decided
+            .range(..=position)
+            .next_back()
+            .map_or_else(|| decide(&[], "A"), |(_, (_, decision))| decision.clone())
+    }
+
+    // SRS-CONS-015
+    #[test]
+    fn a_short_insertion_the_other_strand_reads_through_is_contested() {
+        const SHORT: &str = "ACGATTCAGC";
+        let reads = |aligned: &str, reverse: &str, kinds: &str| {
+            let forward = rows("f", 0, "ACGATT-CAGC", "ACGATTTCAGC", "ccccccccccc");
+            let mut other = rows("r", 0, aligned, reverse, kinds);
+            other.forward = false;
+            vec![forward, other]
+        };
+        // The reverse read reads TT C masked but anchoring: not clean, and
+        // showing no run's length, but it reads the site through without the
+        // inserted T.
+        let through = reads(SHORT, SHORT, "cccaaaaccc");
+        let before = decided_at_with(&through, SHORT.as_bytes(), 5);
+        assert_eq!(
+            (before.value.as_deref(), before.state),
+            (Some("TTTC"), SiteState::Called)
+        );
+        let after = contested_at(&through, SHORT.as_bytes(), 5);
+        assert_eq!(
+            (after.value.as_deref(), after.state),
+            (Some("TTC"), SiteState::Contested)
+        );
+        assert_eq!(
+            (after.supporting, after.opposing),
+            (vec!["r".to_owned()], vec!["f".to_owned()])
+        );
+        assert!(after.runs.is_empty());
+        // A reverse read that shows the insertion, even masked, confirms it.
+        let shows = reads("ACGATT-CAGC", "ACGATTTCAGC", "cccaaaaaccc");
+        assert_eq!(
+            contested_at(&shows, SHORT.as_bytes(), 5).value.as_deref(),
+            Some("TTTC")
+        );
+        // An unresolved call there gives the reverse strand no view.
+        let unresolved = reads(SHORT, "ACGATNCAGC", "cccaaaaccc");
+        assert_eq!(
+            contested_at(&unresolved, SHORT.as_bytes(), 5)
+                .value
+                .as_deref(),
+            Some("TTTC")
+        );
+        // A read of the same strand reading it through does not contest it.
+        let mut same_strand = reads(SHORT, SHORT, "cccaaaaccc");
+        same_strand[1].forward = true;
+        assert_eq!(
+            contested_at(&same_strand, SHORT.as_bytes(), 5)
+                .value
+                .as_deref(),
+            Some("TTTC")
+        );
+    }
+
+    // SRS-CONS-015
+    #[test]
+    fn a_read_views_an_insertion_site_by_what_it_shows() {
+        const SITE: &str = "ACGATTCAGC";
+        let view = |first: usize, aligned: &str, read: &str, kinds: &str| {
+            let observed = rows("r", first, aligned, read, kinds);
+            insertion::view(&observed, 4, 6, "TTTC", SITE.len())
+        };
+        assert_eq!(
+            view(0, "ACGATT-CAGC", "ACGATTTCAGC", "aaaaaaaaaaa"),
+            InsertionView::Shows
+        );
+        assert_eq!(
+            view(0, SITE, SITE, "cccaaaaccc"),
+            InsertionView::ReadsThrough
+        );
+        // An unresolved call, or one outside the informative interval, shows
+        // no base.
+        assert_eq!(
+            view(0, SITE, "ACGATNCAGC", "cccaaaaccc"),
+            InsertionView::Unresolved
+        );
+        // Reaching the site but not the position after it.
+        assert_eq!(
+            view(0, "ACGATT", "ACGATT", "cccccc"),
+            InsertionView::ReadEnd
+        );
+        // Ending before the site.
+        assert_eq!(view(0, "ACG", "ACG", "ccc"), InsertionView::NotCovered);
+    }
+
+    // SRS-CONS-015
+    #[test]
+    fn an_insertion_into_a_long_run_is_left_to_the_run_rules() {
+        const LONG: &str = "ACGTTTTTCAGC";
+        let forward = rows("f", 0, "ACGTTTTT-CAGC", "ACGTTTTTTCAGC", "ccccccccccccc");
+        let mut other = rows("r", 0, LONG, LONG, "cccaaaaaaccc");
+        other.forward = false;
+        let observed = vec![forward, other];
+        assert_eq!(
+            contested_at(&observed, LONG.as_bytes(), 5).value.as_deref(),
+            Some("TTTTTTC")
+        );
+    }
+
+    /// The decision of the site or stretch holding `position` over `bases`.
+    fn decided_at_with(observed: &[ReadObservations], bases: &[u8], position: usize) -> Decision {
+        decide_positions(observed, bases, 4)
             .range(..=position)
             .next_back()
             .map_or_else(|| decide(&[], "A"), |(_, (_, decision))| decision.clone())

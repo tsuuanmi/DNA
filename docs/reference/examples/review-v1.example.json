@@ -1412,6 +1412,7 @@
       "edge_deletion": 0,
       "run_deletion": 0,
       "run_indel": 0,
+      "one_strand_insertion": 0,
       "beside_not_analysed": 0,
       "one_read": 2,
       "one_strand": 2,
