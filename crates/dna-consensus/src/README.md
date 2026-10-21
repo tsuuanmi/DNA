@@ -96,7 +96,8 @@ behind every non-trivial decision.
   left undecided (SRS-CONS-009).
 - `segments.rs`: the decided sites split into pieces and assembled as
   segments with their sites and counts.
-- `tests.rs`: the crate's unit tests over `build` and its passes.
+- `tests.rs`: the crate's unit tests over `build` and its passes, with
+  [tests](tests/README.md) for N reads per strand.
 
 The module reads only `CalledRead` records, so it is modality-neutral
 (ADR-0069). It uses no profile window or filename: a read is its input's
