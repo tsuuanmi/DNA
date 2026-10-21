@@ -247,13 +247,15 @@ pub struct ReviewCheck {
     pub first: usize,
     pub last: usize,
     pub labels: Vec<&'static str>,
+    pub fast: bool,
 }
 ```
 
 `review_checks` returns the `check` items of the review list `dna review`
 would write for the analysis and that call (SRS-API-015), built by the same
 rules: each item's first and last reference positions (1-based, inclusive)
-and its label names, sorted. It writes nothing. The evaluation harness reads
+its label names, sorted, and whether it is a fast check, one with a
+`confirm` answer ([[reference/review]]). It writes nothing. The evaluation harness reads
 it to measure the review workload.
 
 It validates the sample identifier and calls the consensus's decided edits as

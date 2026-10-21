@@ -34,14 +34,16 @@
       "sample_id",
       "first",
       "last",
-      "labels"
+      "labels",
+      "tier"
     ],
     "rows": [
       {
         "sample_id": "S01",
         "first": "16184",
         "last": "16193",
-        "labels": "long_run one_strand"
+        "labels": "long_run one_strand",
+        "tier": "full"
       }
     ]
   },
@@ -1062,7 +1064,9 @@
       "unreviewed",
       "unreviewed_forced",
       "review_zones",
-      "review_zone_count"
+      "review_zone_count",
+      "review_fast_checks",
+      "review_fast_zones"
     ],
     "rows": [
       {
@@ -1118,7 +1122,9 @@
         "unreviewed": "",
         "unreviewed_forced": "",
         "review_zones": "",
-        "review_zone_count": ""
+        "review_zone_count": "",
+        "review_fast_checks": "0",
+        "review_fast_zones": ""
       },
       {
         "sample_id": "S01",
@@ -1173,7 +1179,9 @@
         "unreviewed": "",
         "unreviewed_forced": "",
         "review_zones": "window@HV1",
-        "review_zone_count": "1"
+        "review_zone_count": "1",
+        "review_fast_checks": "0",
+        "review_fast_zones": ""
       },
       {
         "sample_id": "S02",
@@ -1228,7 +1236,9 @@
         "unreviewed": "",
         "unreviewed_forced": "",
         "review_zones": "",
-        "review_zone_count": ""
+        "review_zone_count": "",
+        "review_fast_checks": "",
+        "review_fast_zones": ""
       },
       {
         "sample_id": "S03",
@@ -1283,7 +1293,9 @@
         "unreviewed": "",
         "unreviewed_forced": "",
         "review_zones": "",
-        "review_zone_count": ""
+        "review_zone_count": "",
+        "review_fast_checks": "0",
+        "review_fast_zones": ""
       },
       {
         "sample_id": "S04",
@@ -1338,7 +1350,9 @@
         "unreviewed": "150-150:T/C",
         "unreviewed_forced": "",
         "review_zones": "",
-        "review_zone_count": ""
+        "review_zone_count": "",
+        "review_fast_checks": "0",
+        "review_fast_zones": ""
       },
       {
         "sample_id": "S09",
@@ -1393,7 +1407,9 @@
         "unreviewed": "",
         "unreviewed_forced": "",
         "review_zones": "",
-        "review_zone_count": ""
+        "review_zone_count": "",
+        "review_fast_checks": "",
+        "review_fast_zones": ""
       }
     ]
   },

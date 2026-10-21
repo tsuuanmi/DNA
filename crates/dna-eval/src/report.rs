@@ -25,7 +25,7 @@ use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::unrecorded;
 use crate::workload::{self, Class as BlockClass, Escaped, Passes, Unit, Window, Workload};
-use crate::zones::{Kind, Zones};
+use crate::zones::{Instance, Kind, Zones};
 use dna_kernel::profile::Convention;
 
 /// One compared panel sample.
@@ -390,6 +390,7 @@ impl Review {
                 let comparison = row.comparison(Measure::HaplotypeLod).ok()?;
                 Some(workload::of(
                     &called.checks,
+                    &called.fast,
                     &comparison.blocks,
                     &windows,
                     forced.as_deref().unwrap_or_default(),
@@ -616,7 +617,7 @@ impl<'a> Report<'a> {
              callable_yield\t\
              traces\trejected_traces\tfailure\t\
              review_checks\treview_positions\treview_clear\tunreviewed\tunreviewed_forced\t\
-             review_zones\treview_zone_count\n",
+             review_zones\treview_zone_count\treview_fast_checks\treview_fast_zones\n",
         );
         for ((row, cause), workload) in self
             .rows
@@ -626,24 +627,27 @@ impl<'a> Report<'a> {
         {
             let sample = row.sample;
             let review = workload.as_ref().map_or_else(
-                || "\t\t\t\t\t\t".to_owned(),
+                || "\t\t\t\t\t\t\t\t".to_owned(),
                 |workload| {
-                    let (zones, count) = self.review.zones.as_ref().map_or_else(
-                        || (String::new(), String::new()),
-                        |zones| {
-                            (
-                                workload
-                                    .zones
+                    let labels = |instances: &BTreeSet<Instance>| {
+                        self.review
+                            .zones
+                            .as_ref()
+                            .map_or_else(String::new, |zones| {
+                                instances
                                     .iter()
                                     .map(|&instance| zones.label(instance))
                                     .collect::<Vec<_>>()
-                                    .join(" "),
-                                workload.zones.len().to_string(),
-                            )
-                        },
-                    );
+                                    .join(" ")
+                            })
+                    };
+                    let count = self
+                        .review
+                        .zones
+                        .as_ref()
+                        .map_or_else(String::new, |_| workload.zones.len().to_string());
                     format!(
-                        "{}\t{}\t{}\t{}\t{}\t{zones}\t{count}",
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{count}\t{}\t{}",
                         workload.checks,
                         workload.positions,
                         if workload.checks == 0 { "Y" } else { "N" },
@@ -653,6 +657,9 @@ impl<'a> Report<'a> {
                         } else {
                             String::new()
                         },
+                        labels(&workload.zones),
+                        workload.fast,
+                        labels(&workload.fast_zones),
                     )
                 },
             );
@@ -1331,27 +1338,55 @@ impl<'a> Report<'a> {
                 );
             }
         }
-        text.push_str("\n| Zone | Samples with a check | Share |\n|---|---:|---:|\n");
+        let fast = samples
+            .iter()
+            .map(|(_, workload)| workload.fast)
+            .sum::<usize>();
+        let _ = writeln!(
+            text,
+            "| Fast check items (an answer to confirm in one step) | {fast} of {items} |"
+        );
+        text.push_str(
+            "\n| Zone | Samples with a check | Share | Fast checks only |\n|---|---:|---:|---:|\n",
+        );
         for instance in zones.instances() {
             let count = samples
                 .iter()
                 .filter(|(_, workload)| workload.zones.contains(&instance))
                 .count();
+            let fast = samples
+                .iter()
+                .filter(|(_, workload)| workload.fast_zones.contains(&instance))
+                .count();
             let _ = writeln!(
                 text,
-                "| {} | {count} | {:.2} % |",
+                "| {} | {count} | {:.2} % | {fast} |",
                 zones.label(instance),
                 100.0 * count as f64 / n
             );
         }
         text.push_str(
-            "\n| Zone kind | Samples with a check | Share | Unreviewed blocks |\n\
-             |---|---:|---:|---:|\n",
+            "\n| Zone kind | Samples with a check | Share | Fast checks only | Unreviewed blocks |\n\
+             |---|---:|---:|---:|---:|\n",
         );
         for kind in Kind::ALL {
+            let of_kind = |instances: &BTreeSet<Instance>| {
+                instances
+                    .iter()
+                    .filter(|&&(_, found)| found == kind)
+                    .count()
+            };
             let checked = samples
                 .iter()
-                .filter(|(_, workload)| workload.zones.iter().any(|&(_, found)| found == kind))
+                .filter(|(_, workload)| of_kind(&workload.zones) > 0)
+                .count();
+            // Every zone of the kind the sample's checks touch is fast.
+            let fast = samples
+                .iter()
+                .filter(|(_, workload)| {
+                    let touched = of_kind(&workload.zones);
+                    touched > 0 && of_kind(&workload.fast_zones) == touched
+                })
                 .count();
             let blocks = samples
                 .iter()
@@ -1360,7 +1395,7 @@ impl<'a> Report<'a> {
                 .count();
             let _ = writeln!(
                 text,
-                "| {} | {checked} | {:.2} % | {blocks} |",
+                "| {} | {checked} | {:.2} % | {fast} | {blocks} |",
                 kind.label(),
                 100.0 * checked as f64 / n
             );
@@ -2230,6 +2265,7 @@ mod tests {
                 empop: None,
                 checks: Vec::new(),
                 check_labels: Vec::new(),
+                fast: Vec::new(),
                 signals: lod::Signals::default(),
                 loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {

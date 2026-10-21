@@ -55,7 +55,7 @@
         "version": 23
       }
     ],
-    "rules": 25
+    "rules": 26
   },
   "reads": [
     {
@@ -1394,6 +1394,7 @@
   "summary": {
     "items": 8,
     "checks": 4,
+    "fast": 0,
     "variants": 4,
     "labels": {
       "strands_disagree": 1,

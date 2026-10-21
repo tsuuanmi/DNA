@@ -21,7 +21,9 @@ use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
 use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
 use dna_kernel::read_evidence::{Margin, TractLengths};
 
-use crate::model::review_result::{LengthConventionResult, LengthReadResult, LengthRunResult};
+use crate::model::review_result::{
+    ConfirmResult, ConfirmRunResult, LengthConventionResult, LengthReadResult, LengthRunResult,
+};
 use dna_align::model::alignment::Orientation;
 
 /// One anchored repeat window of the profile, 1-based and inclusive.
@@ -182,6 +184,70 @@ fn near_equal_pair(reads: &[&Contribution]) -> Option<usize> {
             .any(|contribution| (contribution.result.strand == Orientation::Forward) == forward)
     };
     (holds && strands(true) && strands(false)).then_some(shorter)
+}
+
+/// The answer a reviewer confirms in one step over a window DNA reports,
+/// from every run it judged, confirmed ones included: when every run DNA
+/// calls has reads and none of another structure, and either
+/// - every read gives each run DNA's length and each run is confirmed or
+///   read on one strand with a read in phase (`in_phase`), or
+/// - every read of each run gives DNA's length `c` or `c + 1` as its top
+///   and next, at least one `c`, and some run is a near-equal pair whose
+///   shorter member is `c` (`near_equal_pair`).
+///
+/// `None` otherwise. On development panel v5 no such item's length differed
+/// from the truth in 458 (`in_phase`), and 1 in 92 did (`near_equal_pair`),
+/// too many to pass unreviewed.
+pub(super) fn confirm(called: &[usize], runs: &[LengthRunResult]) -> Option<ConfirmResult> {
+    let judged = (1..=called.len())
+        .map(|run| runs.iter().find(|judged| judged.run == run))
+        .collect::<Option<Vec<_>>>()?;
+    let lengths = judged
+        .iter()
+        .map(|run| run.called.filter(|_| run.agreement != "structure_differs"))
+        .collect::<Option<Vec<_>>>()?;
+    let in_phase = |run: &LengthRunResult| run.reads.iter().any(|read| read.source == "in_phase");
+    let agree = judged.iter().zip(&lengths).all(|(run, &length)| {
+        run.reads.iter().all(|read| read.length == length)
+            && (run.agreement == "confirmed" || run.agreement == "one_strand" && in_phase(run))
+    });
+    let floor = judged.iter().zip(&lengths).all(|(run, &length)| {
+        let pair = [length, length + 1];
+        run.reads.iter().all(|read| {
+            pair.contains(&read.length) && read.next.is_none_or(|next| pair.contains(&next))
+        }) && run.reads.iter().any(|read| read.length == length)
+    });
+    let pair = judged.iter().zip(&lengths).any(|(run, &length)| {
+        run.convention
+            .as_ref()
+            .is_some_and(|convention| convention.length == length)
+    });
+    let reason = if agree {
+        "in_phase"
+    } else if floor && pair {
+        "near_equal_pair"
+    } else {
+        return None;
+    };
+    Some(ConfirmResult {
+        reason,
+        runs: judged
+            .iter()
+            .zip(lengths)
+            .map(|(run, length)| ConfirmRunResult {
+                run: run.run,
+                base: run.base,
+                length,
+                in_phase: run
+                    .reads
+                    .iter()
+                    .filter(|read| read.source == "in_phase" && read.length == length)
+                    .map(|read| read.read.clone())
+                    .collect(),
+                convention: run.convention.as_ref().map(|convention| convention.length),
+            })
+            .collect(),
+    })
 }
 
 const fn complement(base: char) -> char {
@@ -649,6 +715,120 @@ mod tests {
         assert_eq!(runs[0].called, Some(9));
         // A read outside the pair leaves no suggestion.
         assert_eq!(judged(10)[0].convention, None);
+    }
+
+    // SRS-API-020
+    #[test]
+    fn a_fast_check_needs_reads_that_support_dna_s_lengths() {
+        let read_run = |base, length, in_phase| ReadRun {
+            base,
+            length,
+            in_phase,
+        };
+        let forward = tract('C', Some('T'), 8, 14, Margin::Clear);
+        let decodes = [Decode {
+            read: "F",
+            strand: Orientation::Forward,
+            reference: Some(303),
+            tract: &forward,
+        }];
+        let forward_runs = [
+            read_run('C', 8, true),
+            read_run('T', 1, true),
+            read_run('C', 5, false),
+        ];
+        let reverse_runs = [
+            read_run('C', 8, false),
+            read_run('T', 1, true),
+            read_run('C', 5, true),
+        ];
+        let in_phase = [
+            InPhase {
+                read: "F",
+                strand: Orientation::Forward,
+                runs: &forward_runs,
+            },
+            InPhase {
+                read: "R",
+                strand: Orientation::Reverse,
+                runs: &reverse_runs,
+            },
+        ];
+        // Run 1 rests on the forward strand, read in phase; run 2 is
+        // confirmed: every read gives DNA's C8 and C5.
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &in_phase);
+        assert_eq!(runs[0].agreement, "one_strand");
+        let fast = confirm(&[8, 5], &runs);
+        assert_eq!(fast.as_ref().map(|fast| fast.reason), Some("in_phase"));
+        assert_eq!(
+            fast.map(|fast| fast.runs),
+            Some(vec![
+                ConfirmRunResult {
+                    run: 1,
+                    base: 'C',
+                    length: 8,
+                    in_phase: vec!["F".to_owned()],
+                    convention: None,
+                },
+                ConfirmRunResult {
+                    run: 2,
+                    base: 'C',
+                    length: 5,
+                    in_phase: vec!["R".to_owned()],
+                    convention: None,
+                },
+            ])
+        );
+        // A call the reads do not give is no fast check.
+        let runs = judge(&HVS2, Some(&[9, 5]), &[], &decodes, &in_phase);
+        assert_eq!(confirm(&[9, 5], &runs), None);
+        // Nor is a run no read reaches.
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &in_phase[..1]);
+        assert_eq!(confirm(&[8, 5], &runs), None);
+
+        // A near-equal pair C8/C9 over both strands whose shorter member is
+        // DNA's call, the floor of every read.
+        let mut near = tract('C', Some('T'), 8, 14, Margin::Clear);
+        near.first = LengthMarginal {
+            lengths: vec![8, 9],
+            shares: vec![0.55, 0.45],
+            errors: vec![0.05, 0.05],
+            dominant: Some(8),
+            next: Some(9),
+            z: Some(0.7),
+            z_adjusted: Some(0.5),
+            margin: Margin::NearEqual,
+        };
+        let decodes = [Decode {
+            read: "F",
+            strand: Orientation::Forward,
+            reference: Some(303),
+            tract: &near,
+        }];
+        let through = [
+            read_run('C', 9, true),
+            read_run('T', 1, true),
+            read_run('C', 5, true),
+        ];
+        let in_phase = [InPhase {
+            read: "R",
+            strand: Orientation::Reverse,
+            runs: &through,
+        }];
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &in_phase);
+        let fast = confirm(&[8, 5], &runs);
+        assert_eq!(
+            fast.as_ref().map(|fast| fast.reason),
+            Some("near_equal_pair")
+        );
+        assert_eq!(
+            fast.as_ref()
+                .map(|fast| (fast.runs[0].length, fast.runs[0].convention)),
+            Some((8, Some(8)))
+        );
+        // DNA's call the longer member: no fast check.
+        let runs = judge(&HVS2, Some(&[9, 5]), &[], &decodes, &in_phase);
+        assert_eq!(confirm(&[9, 5], &runs), None);
     }
 
     // SRS-API-020

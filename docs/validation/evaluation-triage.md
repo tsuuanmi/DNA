@@ -61,7 +61,12 @@ summary gives:
 - zones per sample (mean, median, 90th percentile);
 - the samples with none;
 - the check items that touch more than one zone;
-- the samples with a check in each zone;
+- the fast check items, those with a `confirm` answer a reviewer confirms in
+  one step ([[reference/review]]), of all check items;
+- the samples with a check in each zone, and those of them whose checks in
+  the zone are all fast (`scores.tsv` `review_fast_checks`,
+  `review_fast_zones`; `checks.tsv` `tier`), so the reviewer's workload by
+  tier is tracked;
 - the unreviewed blocks by the zone kind of their first position;
 - with a baseline that reports zones, its zones per sample on the same
   samples.

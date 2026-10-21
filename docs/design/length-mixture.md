@@ -168,6 +168,17 @@ is DNA's call. Every other run a decode reaches is a check
 (`length_unconfirmed`). Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
 
+A check whose only doubt is such a run, over a window DNA reports, is a
+fast check (`confirm`, user decision 2026-10-21) when its reads support
+DNA's lengths: every read gives each run DNA's length with a read in phase
+(class A), or DNA's length is every read's floor and the shorter member of
+a near-equal pair (class B). On development panel v5 no class A length
+differed from the truth in 458 truth-covered items (95 % upper bound
+0.65 %), and 1 of 92 class B lengths did. Neither is near the auto-pass
+rate (about 0.01 %), and the class A rule failed the readiness-v2 gate as a
+pass (#204), so both stay checks; the answer only saves the reviewer the
+reading.
+
 ## Decision (increment 4)
 
 The consensus decides a run's length from the decodes on both strands

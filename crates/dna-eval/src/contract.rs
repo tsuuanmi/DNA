@@ -211,9 +211,9 @@ fn check_fields(schema: &Value, node: &Value, fields: &Map<String, Value>, at: &
 /// The checks reject what the contract does not describe.
 #[test]
 fn rejects_what_the_contract_does_not_describe() -> Checked {
-    let header = "sample_id\tfirst\tlast\tlabels\n";
+    let header = "sample_id\tfirst\tlast\tlabels\ttier\n";
     check_table("checks.tsv", header)?;
-    check_table("checks.tsv", &format!("{header}S1\t1\t2\tone_read\n"))?;
+    check_table("checks.tsv", &format!("{header}S1\t1\t2\tone_read\tfull\n"))?;
     let windows = "region\tstart\tend\tsamples\tchecked\tunreviewed\tunreviewed_share\t\
                    unreviewed_upper95\n";
     check_table(
@@ -222,8 +222,9 @@ fn rejects_what_the_contract_does_not_describe() -> Checked {
     )?;
     for (name, text) in [
         ("notes.tsv", header.to_owned()),
-        ("checks.tsv", "sample_id\tfirst\tlast\n".to_owned()),
-        ("checks.tsv", format!("{header}S1\t1\t2\n")),
+        ("checks.tsv", "sample_id\tfirst\tlast\tlabels\n".to_owned()),
+        ("checks.tsv", format!("{header}S1\t1\t2\tone_read\n")),
+        ("checks.tsv", format!("{header}S1\t1\t2\tone_read\tquick\n")),
         ("checks.tsv", format!("# note\n{header}")),
         ("checks.tsv", header.trim_end().to_owned()),
         (

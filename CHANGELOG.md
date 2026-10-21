@@ -622,6 +622,27 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A review check item whose only doubt is a `length_unconfirmed` run of an
+  anchored repeat window DNA reports is a fast check when its reads support
+  DNA's lengths: it carries `confirm` `{reason, runs: [{run, base, length,
+  in_phase, convention}]}`, the answer a reviewer confirms in one step
+  (SRS-API-020, user decision 2026-10-21). `reason` is `in_phase` (class A:
+  every read gives each run DNA's length, each run confirmed or one-strand
+  with a read in phase) or `near_equal_pair` (class B: DNA's length is every
+  read's floor and the shorter member of a near-equal pair). It stays a
+  check: on development panel v5, 0 of 458 class A and 1 of 92 class B
+  lengths differed from the truth, short of the auto-pass rate, and class A
+  as a pass failed the readiness-v2 gate (#204). `dna.review/v1` gains
+  `confirm` and `summary.fast` in place (pre-release); plugin `review` 26.
+  `SampleAnalysis::review_checks` gives `ReviewCheck::fast`. `dna-eval run`
+  writes `checks.tsv` `tier` (`fast`/`full`) and `scores.tsv`
+  `review_fast_checks` and `review_fast_zones`; the summary counts the fast
+  check items and, per zone and zone kind, the samples whose checks there
+  are all fast; `dna-eval diff` shows each changed zone's fast-only units.
+  On development panel v5 against `main` 3cad8903, 367 of 7,103 current
+  check items are fast (all HVS-II; 367 `window@HV2` zones need fast checks
+  only), and checks, clear samples, and unreviewed blocks are unchanged.
+
 - `dna-eval` classes an unreviewed block whose every difference is an
   insertion past the truth's analysed interval (anchored at the last base of
   the truth's own interval, e.g. DNA's `573.1C 573.2C` where the truth's

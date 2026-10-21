@@ -85,7 +85,7 @@ const MAX_RECHECK_BYTES: u64 = 16 * 1024 * 1024;
 const SIGNALS_HEADER: &str =
     "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
 /// The header of `checks.tsv`.
-const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
+const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\ttier\n";
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -675,8 +675,13 @@ fn run(cli: &RunArgs) -> Result<String> {
     let mut checks = String::from(CHECKS_HEADER);
     for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
         if let Ok(called) = &outcome.result {
-            for (first, last, labels) in &called.check_labels {
-                let _ = writeln!(checks, "{}\t{first}\t{last}\t{labels}", sample.id);
+            for (index, (first, last, labels)) in called.check_labels.iter().enumerate() {
+                let tier = if called.fast.get(index).copied().unwrap_or(false) {
+                    "fast"
+                } else {
+                    "full"
+                };
+                let _ = writeln!(checks, "{}\t{first}\t{last}\t{labels}\t{tier}", sample.id);
             }
         }
     }

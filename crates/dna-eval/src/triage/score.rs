@@ -1755,6 +1755,7 @@ mod tests {
                 empop: None,
                 checks: Vec::new(),
                 check_labels: Vec::new(),
+                fast: Vec::new(),
                 intervals: vec![(16024, 16365)],
                 signals: crate::lod::Signals::default(),
                 loci: crate::cause::loci::Loci::default(),

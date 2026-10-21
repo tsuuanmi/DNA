@@ -291,13 +291,6 @@ impl SampleAnalysis {
         call: &ConsensusCall,
         signal: Option<&RunSignal>,
     ) -> Result<Vec<ReviewCheck>> {
-        Ok(report::review_checks(self, call, signal)?
-            .into_iter()
-            .map(|(first, last, labels)| ReviewCheck {
-                first,
-                last,
-                labels,
-            })
-            .collect())
+        report::review_checks(self, call, signal)
     }
 }

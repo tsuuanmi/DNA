@@ -216,7 +216,39 @@ pub(crate) struct ItemResult {
     pub(crate) sequence: Option<String>,
     pub(crate) calls: Vec<String>,
     pub(crate) labels: Vec<LabelResult>,
+    /// A fast check: the answer a reviewer confirms in one step, when the
+    /// item's only doubt is a run length its reads support; only on a
+    /// `check` item.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) confirm: Option<ConfirmResult>,
     pub(crate) evidence: Vec<EvidenceReadResult>,
+}
+
+/// The pre-filled answer of a fast check over an anchored repeat window
+/// (SRS-API-020): DNA's length of every run, which the reads support by
+/// `reason`, with the reads that show each run in phase and the lab's
+/// convention reading of a near-equal pair.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct ConfirmResult {
+    /// `in_phase`: every read gives each run DNA's length, at least one in
+    /// phase; `near_equal_pair`: DNA's length is the floor of every run's
+    /// reads and the shorter member of a near-equal pair.
+    pub(crate) reason: &'static str,
+    pub(crate) runs: Vec<ConfirmRunResult>,
+}
+
+/// One run of a fast check's answer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct ConfirmRunResult {
+    pub(crate) run: usize,
+    pub(crate) base: char,
+    /// DNA's length, the answer to confirm.
+    pub(crate) length: usize,
+    /// The reads that show the run in phase at that length.
+    pub(crate) in_phase: Vec<String>,
+    /// The lab's convention reading of the run's near-equal pair, when it
+    /// is one.
+    pub(crate) convention: Option<usize>,
 }
 
 /// Whether DNA calls a difference in the item.
@@ -458,6 +490,9 @@ pub(crate) struct SecondResult {
 pub(crate) struct SummaryResult {
     pub(crate) items: usize,
     pub(crate) checks: usize,
+    /// The `check` items with a `confirm`, which a reviewer confirms in one
+    /// step.
+    pub(crate) fast: usize,
     pub(crate) variants: usize,
     pub(crate) labels: LabelCounts,
     /// Reportable positions, and those a `check` item holds.

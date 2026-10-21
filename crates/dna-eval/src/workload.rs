@@ -66,6 +66,9 @@ pub(crate) fn windows(size: i64) -> Vec<Window> {
 pub(crate) struct Workload {
     /// Check items in the review list.
     pub(crate) checks: usize,
+    /// The fast ones among them: a reviewer confirms their answer in one
+    /// step (`confirm`).
+    pub(crate) fast: usize,
     /// Positions of the windows a check item touches.
     pub(crate) positions: i64,
     /// The same with every forced window reviewed.
@@ -82,6 +85,8 @@ pub(crate) struct Workload {
     pub(crate) regions: Vec<&'static str>,
     /// The zone instances a check item touches.
     pub(crate) zones: BTreeSet<Instance>,
+    /// The zone instances among them that only fast check items touch.
+    pub(crate) fast_zones: BTreeSet<Instance>,
     /// Check items that touch more than one zone instance.
     pub(crate) spanning: usize,
     /// Each unreviewed block's zone instance and class.
@@ -155,10 +160,12 @@ pub(crate) fn het(block: &Block) -> bool {
 }
 
 /// The workload of one sample from its check items (`first..=last`,
-/// 1-based), its `haplotype_lod` difference blocks, and its spans on the
-/// re-check list.
+/// 1-based) with whether each is a fast check (`fast`, in the same order; a
+/// missing entry is a full check), its `haplotype_lod` difference blocks,
+/// and its spans on the re-check list.
 pub(crate) fn of(
     checks: &[(i64, i64)],
+    fast: &[bool],
     blocks: &[Block],
     windows: &[Window],
     forced: &[(i64, i64)],
@@ -231,8 +238,22 @@ pub(crate) fn of(
                 .unwrap_or_default()
         })
         .collect::<Vec<_>>();
+    let is_fast = |index: usize| fast.get(index).copied().unwrap_or(false);
+    let full_zones = touched_zones
+        .iter()
+        .enumerate()
+        .filter(|&(index, _)| !is_fast(index))
+        .flat_map(|(_, zones)| zones)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let touched = touched_zones
+        .iter()
+        .flatten()
+        .copied()
+        .collect::<BTreeSet<_>>();
     Workload {
-        zones: touched_zones.iter().flatten().copied().collect(),
+        fast_zones: touched.difference(&full_zones).copied().collect(),
+        zones: touched,
         spanning: touched_zones.iter().filter(|zones| zones.len() > 1).count(),
         escapes: unreviewed
             .iter()
@@ -244,6 +265,7 @@ pub(crate) fn of(
             })
             .collect(),
         checks: checks.len(),
+        fast: (0..checks.len()).filter(|&index| is_fast(index)).count(),
         positions,
         positions_forced,
         unreviewed: unreviewed.iter().map(|block| block.text()).collect(),
@@ -514,6 +536,7 @@ mod tests {
         );
         let workload = of(
             &[(16030, 16031)],
+            &[],
             &[block(16031, 16031), block(16040, 16041)],
             &windows,
             &[],
@@ -537,12 +560,25 @@ mod tests {
         assert_eq!(workload.regions, ["HV1"]);
         assert!(workload.checked[0] && !workload.escaped[0]);
         assert!(workload.escaped[1] && !workload.checked[1]);
+        assert_eq!((workload.fast, workload.fast_zones.len()), (0, 0));
+        // A zone only fast check items touch is a fast zone; one a full
+        // check item touches too is not.
+        let fast = |checks: &[(i64, i64)], fast: &[bool]| {
+            of(checks, fast, &[], &windows, &[], Some(&zones), &[])
+        };
+        let workload = fast(&[(16030, 16031)], &[true]);
+        assert_eq!(workload.fast, 1);
+        assert_eq!(workload.fast_zones, BTreeSet::from([(0, Kind::Start)]));
+        let workload = fast(&[(16030, 16031), (16035, 16035)], &[true, false]);
+        assert_eq!(workload.fast, 1);
+        assert!(workload.fast_zones.is_empty());
     }
 
     #[test]
     fn forced_windows_count_as_reviewed() {
         let windows = windows(10);
         let workload = of(
+            &[],
             &[],
             &[block(16185, 16186)],
             &windows,
@@ -584,7 +620,7 @@ mod tests {
             },
         );
         let of = |checks: &[(i64, i64)], blocks: &[Block]| {
-            of(checks, blocks, &windows, &[], Some(&zones), &[])
+            of(checks, &[], blocks, &windows, &[], Some(&zones), &[])
         };
         let workloads = [
             // Auto-pass with a non-het block in HV1 and a het one in HV2.
@@ -739,8 +775,8 @@ mod tests {
         // A listed block passes as re-check only; unlisted it is non-het.
         let windows = windows(10);
         let block = [Block::fixture(573, 573, "CCCCCCCA", "CCCCCCA")];
-        let listed = of(&[], &block, &windows, &[], None, &[(573, 573)]);
-        let unlisted = of(&[], &block, &windows, &[], None, &[(16057, 16057)]);
+        let listed = of(&[], &[], &block, &windows, &[], None, &[(573, 573)]);
+        let unlisted = of(&[], &[], &block, &windows, &[], None, &[(16057, 16057)]);
         assert_eq!(listed.escapes[0].class, Recheck);
         assert_eq!(unlisted.escapes[0].class, NonHet);
         assert_eq!(listed.unreviewed, unlisted.unreviewed);

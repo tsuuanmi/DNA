@@ -85,6 +85,9 @@ struct Sample {
     clear: bool,
     positions: i64,
     zones: BTreeSet<String>,
+    /// The zones only fast check items touch; none in a run from before the
+    /// column.
+    fast_zones: BTreeSet<String>,
     escapes: Vec<Escape>,
     statuses: BTreeMap<Measure, String>,
     uncovered: BTreeSet<String>,
@@ -146,6 +149,10 @@ impl Run {
                 clear: cell("review_clear") == "Y",
                 positions: cell("review_positions").parse().unwrap_or(0),
                 zones: cell("review_zones")
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect(),
+                fast_zones: cell("review_fast_zones")
                     .split_whitespace()
                     .map(str::to_owned)
                     .collect(),
@@ -259,11 +266,13 @@ struct Counts {
     positions: i64,
 }
 
-/// One zone's counts in one group: units needing a check, and passed units
-/// with a non-het unreviewed block.
+/// One zone's counts in one group: units needing a check, those of them
+/// only fast check items touch, and passed units with a non-het unreviewed
+/// block.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct ZoneCounts {
     checked: usize,
+    fast: usize,
     passed_non_het: usize,
 }
 
@@ -318,10 +327,9 @@ fn tally(
                 }
             }
             for zone in &sample.zones {
-                zones
-                    .entry((group.clone(), zone.clone()))
-                    .or_default()
-                    .checked += 1;
+                let entry = zones.entry((group.clone(), zone.clone())).or_default();
+                entry.checked += 1;
+                entry.fast += usize::from(sample.fast_zones.contains(zone));
             }
             for (zone, severity) in &passed_zones {
                 let entry = zones
@@ -534,7 +542,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
 
     let _ = writeln!(
         report,
-        "\n## Zones\n\nZones that changed: units needing a check, and passed units with a non-het unreviewed block.\n\n| Group | Zone | Needing a check | Passed non-het |\n|---|---|---:|---:|"
+        "\n## Zones\n\nZones that changed: units needing a check, those of them only fast check items touch (an answer a reviewer confirms in one step), and passed units with a non-het unreviewed block.\n\n| Group | Zone | Needing a check | Fast checks only | Passed non-het |\n|---|---|---:|---:|---:|"
     );
     let keys = before
         .zones
@@ -550,8 +558,15 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         }
         let _ = writeln!(
             report,
-            "| {} | {} | {} → {} | {} → {} |",
-            key.0, key.1, old.checked, new.checked, old.passed_non_het, new.passed_non_het
+            "| {} | {} | {} → {} | {} → {} | {} → {} |",
+            key.0,
+            key.1,
+            old.checked,
+            new.checked,
+            old.fast,
+            new.fast,
+            old.passed_non_het,
+            new.passed_non_het
         );
         if new.passed_non_het > old.passed_non_het {
             failures.push(format!(
@@ -786,7 +801,7 @@ mod tests {
         assert!(
             comparison
                 .report
-                .contains("| all | window@HV2 | 0 → 0 | 0 → 1 |")
+                .contains("| all | window@HV2 | 0 → 0 | 0 → 0 | 0 → 1 |")
         );
         assert!(comparison.report.contains("| 73G | 1 | 0 |"));
         assert!(
@@ -802,6 +817,21 @@ mod tests {
         let same = compare(&base, &base, false)?;
         assert!(!same.gate_failed);
         assert!(same.report.contains("GATE PASS"));
+        // A zone only fast check items touch counts as fast; a run from
+        // before the column has none.
+        std::fs::write(
+            candidate.join("scores.tsv"),
+            "sample_id\tstatus\thaplotype_lod_status\treview_clear\treview_positions\t\
+             review_zones\tuncovered\treview_fast_zones\n\
+             S1\tdiscordant\tdiscordant\tY\t0\t\t73G\t\n\
+             S2\tdiscordant\tdiscordant\tN\t10\tstart@HV2\t\tstart@HV2\n",
+        )?;
+        let comparison = compare(&base, &candidate, false)?;
+        assert!(
+            comparison
+                .report
+                .contains("| all | start@HV2 | 0 → 1 | 0 → 1 | 0 → 0 |")
+        );
         Ok(())
     }
 

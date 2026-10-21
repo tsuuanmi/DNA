@@ -15,10 +15,10 @@ use crate::model::result::{
     CallabilitySegmentResult, ColumnResult, IntervalResult, ReferenceResult, ScopeResult,
 };
 use crate::model::review_result::{
-    Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
-    LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
-    ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
-    SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
+    ConfirmResult, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
+    ItemResult, LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts,
+    ReviewCallResult, ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role,
+    RunResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
     UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
@@ -27,7 +27,9 @@ use crate::report::json::{project_plugins, project_profile};
 use crate::report::length;
 use crate::report::notation::project_empop;
 use crate::report::sample::{reviewer_names, reviewer_read_names};
-use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
+use crate::sample_analysis::{
+    CallTrust, ConsensusCall, NotationCall, ReviewCheck, SampleAnalysis, TrustScope,
+};
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
@@ -49,7 +51,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 25,
+    version: 26,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -324,12 +326,13 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
 
 /// The review list's check items of an analysed sample whose consensus was
 /// called, by the rules of `dna review`: each item's first and last
-/// reference positions (1-based) and its label names.
+/// reference positions (1-based), its label names, and whether it is a fast
+/// check.
 pub(crate) fn checks(
     analysis: &SampleAnalysis,
     call: &ConsensusCall,
     signal: Option<&RunSignal>,
-) -> Result<Vec<(usize, usize, Vec<&'static str>)>> {
+) -> Result<Vec<ReviewCheck>> {
     let reference = &analysis.loaded.reference;
     let regions = clip(&analysis.loaded.profile.regions, reference.len());
     let (names, _) = reviewer_read_names(&analysis.evidence)?;
@@ -351,13 +354,17 @@ pub(crate) fn checks(
     Ok(items
         .into_iter()
         .filter(|item| item.kind == ItemKind::Check)
-        .map(|item| {
-            let labels = item.labels.iter().map(name).collect::<BTreeSet<_>>();
-            (
-                item.first.position,
-                item.last.position,
-                labels.into_iter().collect(),
-            )
+        .map(|item| ReviewCheck {
+            first: item.first.position,
+            last: item.last.position,
+            labels: item
+                .labels
+                .iter()
+                .map(name)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+            fast: item.confirm.is_some(),
         })
         .collect())
 }
@@ -503,6 +510,8 @@ struct Draft<'a> {
     /// Whether the consensus decided the item without an `N`.
     decided: bool,
     labels: Vec<LabelResult>,
+    /// The answer of a fast check, when the item's run lengths qualify.
+    confirm: Option<ConfirmResult>,
 }
 
 impl<'a> Sample<'a> {
@@ -628,6 +637,7 @@ impl<'a> Sample<'a> {
                     sequence,
                     decided: site.call.as_ref().is_some_and(|call| !call.contains('N')),
                     labels,
+                    confirm: None,
                 });
             }
         }
@@ -660,6 +670,7 @@ impl<'a> Sample<'a> {
                     sequence: Some(self.base(position).to_string()),
                     decided: true,
                     labels: vec![label],
+                    confirm: None,
                 });
             }
         }
@@ -690,6 +701,7 @@ impl<'a> Sample<'a> {
                 sequence: None,
                 decided: true,
                 labels: Vec::new(),
+                confirm: None,
             });
         }
 
@@ -768,6 +780,13 @@ impl<'a> Sample<'a> {
                 .unwrap_or_default();
             let mut runs =
                 length::judge(window, called.as_deref(), &two_strand, &decodes, &in_phase);
+            // A fast check only where DNA reports the window's lengths: every
+            // position of it callable.
+            let reported = (first..=last).all(|position| inside(self.callable, position));
+            let confirm = called
+                .as_deref()
+                .filter(|_| window.recorded && reported)
+                .and_then(|called| length::confirm(called, &runs));
             let label = if window.recorded {
                 runs.retain(|run| run.agreement != "confirmed");
                 LabelResult::LengthUnconfirmed { runs }
@@ -789,7 +808,10 @@ impl<'a> Sample<'a> {
                 .iter_mut()
                 .find(|draft| draft.first <= last && first <= draft.last)
             {
-                Some(draft) => draft.labels.push(label),
+                Some(draft) => {
+                    draft.labels.push(label);
+                    draft.confirm = confirm;
+                }
                 None => drafts.push(Draft {
                     first,
                     last,
@@ -797,6 +819,7 @@ impl<'a> Sample<'a> {
                     decided: haplotype.as_deref().is_some_and(|text| !text.contains('N')),
                     sequence: haplotype,
                     labels: vec![label],
+                    confirm,
                 }),
             }
         }
@@ -844,6 +867,7 @@ impl<'a> Sample<'a> {
             } else {
                 LabelResult::NotCovered
             }],
+            confirm: None,
         }
     }
 
@@ -974,6 +998,7 @@ impl<'a> Sample<'a> {
             sequence,
             decided,
             mut labels,
+            confirm,
         } = draft;
         let calls = self
             .calls
@@ -1065,6 +1090,14 @@ impl<'a> Sample<'a> {
             (true, false, true) => ItemKind::Note,
             (true, false, false) => return Ok(None),
         };
+        // A fast check: the run lengths are the item's only doubt.
+        let confirm = confirm.filter(|_| {
+            kind == ItemKind::Check
+                && !(differs && poor)
+                && labels.iter().filter(|label| unassured(label)).all(|label| {
+                    matches!(label, LabelResult::LengthUnconfirmed { runs } if !runs.is_empty())
+                })
+        });
         labels.sort_by(|left, right| key(left).cmp(&key(right)));
         labels.dedup();
         let callable = (first..=last)
@@ -1091,6 +1124,7 @@ impl<'a> Sample<'a> {
             sequence,
             calls,
             labels,
+            confirm,
             evidence,
         }))
     }
@@ -2266,6 +2300,7 @@ fn summarize(
     SummaryResult {
         items: items.len(),
         checks,
+        fast: items.iter().filter(|item| item.confirm.is_some()).count(),
         variants: items
             .iter()
             .filter(|item| item.kind == ItemKind::Variant)
@@ -2834,6 +2869,7 @@ mod tests {
             sequence: None,
             calls: Vec::new(),
             labels,
+            confirm: None,
             evidence: Vec::new(),
         }
     }

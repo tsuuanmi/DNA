@@ -65,6 +65,9 @@ pub(crate) struct Called {
     pub(crate) checks: Vec<(i64, i64)>,
     /// The same with each item's label names, space-separated.
     pub(crate) check_labels: Vec<(i64, i64, String)>,
+    /// Per check item, in the same order, whether it is a fast check: one
+    /// with an answer a reviewer confirms in one step (`confirm`).
+    pub(crate) fast: Vec<bool>,
     /// Every read's phase-mixture components (ADR-0082).
     pub(crate) components: Vec<components::Row>,
     /// Every read's tract decodes (PROP-0012).
@@ -373,7 +376,7 @@ fn call(
         .empop
         .as_ref()
         .map(|export| Empop::of(export, &analysis.consensus));
-    let check_labels = analysis
+    let review = analysis
         .review_checks(&result, signal)
         .map_err(|error| Failure::Dna(error.to_string()))?
         .iter()
@@ -382,8 +385,14 @@ fn call(
                 i64::try_from(check.first).ok()?,
                 i64::try_from(check.last).ok()?,
                 check.labels.join(" "),
+                check.fast,
             ))
         })
+        .collect::<Vec<_>>();
+    let fast = review.iter().map(|&(_, _, _, fast)| fast).collect();
+    let check_labels = review
+        .into_iter()
+        .map(|(first, last, labels, _)| (first, last, labels))
         .collect::<Vec<_>>();
     let checks = check_labels
         .iter()
@@ -405,6 +414,7 @@ fn call(
         loci,
         checks,
         check_labels,
+        fast,
         components: components::rows(analysis),
         tracts: tracts::rows(analysis),
         identity: Identity {
@@ -695,6 +705,7 @@ mod tests {
                     empop: None,
                     checks: Vec::new(),
                     check_labels: Vec::new(),
+                    fast: Vec::new(),
                     components: Vec::new(),
                     tracts: Vec::new(),
                     intervals: Vec::new(),

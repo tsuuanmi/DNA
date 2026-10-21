@@ -1290,7 +1290,9 @@
             "unreviewed",
             "unreviewed_forced",
             "review_zones",
-            "review_zone_count"
+            "review_zone_count",
+            "review_fast_checks",
+            "review_fast_zones"
           ]
         },
         "rows": {
@@ -1351,7 +1353,9 @@
               "unreviewed",
               "unreviewed_forced",
               "review_zones",
-              "review_zone_count"
+              "review_zone_count",
+              "review_fast_checks",
+              "review_fast_zones"
             ],
             "properties": {
               "sample_id": {
@@ -1565,6 +1569,14 @@
               "review_zone_count": {
                 "description": "The number of `review_zones`.",
                 "$ref": "#/$defs/optional_count"
+              },
+              "review_fast_checks": {
+                "description": "The fast check items among `review_checks`: those with a `dna.review/v1` `confirm` answer a reviewer confirms in one step.",
+                "$ref": "#/$defs/optional_count"
+              },
+              "review_fast_zones": {
+                "description": "The `review_zones` that only fast check items touch, space-separated.",
+                "$ref": "#/$defs/zones"
               }
             }
           }
@@ -1995,7 +2007,8 @@
             "sample_id",
             "first",
             "last",
-            "labels"
+            "labels",
+            "tier"
           ]
         },
         "rows": {
@@ -2007,7 +2020,8 @@
               "sample_id",
               "first",
               "last",
-              "labels"
+              "labels",
+              "tier"
             ],
             "properties": {
               "sample_id": {
@@ -2025,6 +2039,13 @@
               "labels": {
                 "description": "The item's `dna.review/v1` label names, space-separated.",
                 "$ref": "#/$defs/words"
+              },
+              "tier": {
+                "description": "`fast` when the item carries a `confirm` answer a reviewer confirms in one step, else `full`.",
+                "enum": [
+                  "fast",
+                  "full"
+                ]
               }
             }
           }

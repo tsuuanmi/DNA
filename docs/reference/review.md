@@ -49,14 +49,12 @@ sample's admitted traces is another run's and fails the command without
 output, as does one made with another `flank` or `resolution` than the
 configuration's. Without it, the configured floor alone sets the threshold.
 
-Every sample gets a document. `status` says how far it got:
-
-- `called`: the analysis and the call succeeded;
-- `rejected`: every read was rejected; the document lists the reads with their
-  causes and has no items;
-- `call_failed`: the analysis succeeded but the call failed; `error` carries
-  the failure text, and the items are those of the consensus and the reads,
-  without calls.
+Every sample gets a document. `status` says how far it got: `called` (the
+analysis and the call succeeded), `rejected` (every read was rejected; the
+document lists the reads with their causes and has no items), or
+`call_failed` (the analysis succeeded but the call failed; `error` carries
+the failure text, and the items are those of the consensus and the reads,
+without calls).
 
 An unreadable input, an invalid configuration, two traces with the same
 reviewer-facing name (the same file stem in two directories), or an existing
@@ -152,7 +150,7 @@ target still fails the command without output.
 - `items`: the review items, in priority order (below).
 - `summary`:
   - `items`, `checks`, `variants`: item counts (`items` includes the
-    `note` items);
+    `note` items); `fast` (rules version 26): the checks with `confirm`;
   - `labels`: for every label, the number of items carrying it, zeros
     included, in the label order below;
   - `positions`: `reportable`, the positions of the profile's reportable
@@ -199,6 +197,15 @@ the clipped columns, what most of its supporting reads show there). It has:
   `first.position`..`last.position`.
 - `labels`: the evidence labels, ordered by rank, then name, then position or
   read.
+- `confirm` (rules version 26, user decision 2026-10-21): only on a fast
+  check, whose one unassuring label is `length_unconfirmed` over a window
+  DNA reports (every position callable): the answer a reviewer confirms in
+  one step, `{reason, runs: [{run, base, length, in_phase, convention}]}`,
+  per run DNA's `length`, the reads showing it in phase, and its
+  `convention`. `reason` is `in_phase` (every read gives each run DNA's
+  length, each run confirmed or one-strand with a read in phase) or
+  `near_equal_pair` (every read's top and next are DNA's `c` or `c + 1`, at
+  least one `c`, and a run's `convention` is `c`).
 - `evidence`: for every admitted read that covers a position of the item, in
   read order: `read`, `sha256`, `strand`, and `positions`, one per covered
   reference position in order:
@@ -258,7 +265,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 25)
+## Labels (rules version 26)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -362,13 +369,11 @@ exemption lifts the margin (ADR-0076).
 
   Each also carries its `share`, `next` length, and `margin`. `agreement`
   says why the run is not confirmed, the first that applies:
-  - `structure_differs`: a read sees two runs where DNA calls one, or the
-    reverse;
-  - `disagree`: the strands give different clear lengths;
-  - `not_clear`: a strand's lengths are not all clear and equal;
-  - `one_strand`: one strand gives no length;
-  - `undecided_call`;
-  - `differs_from_call`: both strands agree on another length than DNA's.
+  `structure_differs` (a read sees two runs where DNA calls one, or the
+  reverse), `disagree` (the strands give different clear lengths),
+  `not_clear` (a strand's lengths are not all clear and equal), `one_strand`
+  (one strand gives no length), `undecided_call` (both strands give one
+  length, DNA none), `differs_from_call` (both give another than DNA's).
 
   `convention` (rules version 24, user decision 2026-10-20) is the lab's
   reading of a near-equal pair, a suggestion and never DNA's call:

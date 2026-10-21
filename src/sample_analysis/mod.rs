@@ -309,6 +309,9 @@ pub struct ReviewCheck {
     pub last: usize,
     /// The item's label names, sorted.
     pub labels: Vec<&'static str>,
+    /// A fast check: the item carries the answer a reviewer confirms in one
+    /// step (`confirm`, SRS-API-020).
+    pub fast: bool,
 }
 
 /// Typed result of calling a sample's consensus (SRS-API-012).
