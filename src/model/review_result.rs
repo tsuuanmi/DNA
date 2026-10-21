@@ -261,7 +261,7 @@ pub(crate) enum LabelResult {
         sequence: String,
     },
     /// A site whose supporting and opposing reads all lie on one strand
-    /// (rules version 30, ADR-0090): clean reads of one strand disagree, and
+    /// (rules version 31, ADR-0090): clean reads of one strand disagree, and
     /// their count alone cannot settle it; a check. Lists the supporting,
     /// then the opposing reads.
     SameStrandDissent {
