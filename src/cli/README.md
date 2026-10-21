@@ -1,7 +1,9 @@
 # CLI
 
 Owns command-line syntax and typed arguments for `analyze`, `basecall`, `evidence`, `signal`,
-`sample`, `consensus`, `review`, `call`, and `notation`.
+`sample`, `consensus`, `review`, `run-context`, `call`, and `notation`.
+`run-context` takes a batch's read list as exactly one of `--traces` and
+`--evidence`; `consensus` and `review` take `--run-context`.
 
 `analyze` takes a trace or, with `--evidence`, the read's evidence document,
 exactly one of them (a `clap` argument group); `sample`, `consensus`, and

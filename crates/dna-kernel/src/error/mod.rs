@@ -18,6 +18,7 @@ mod locus;
 mod profile;
 mod report;
 mod representation;
+mod run_context;
 mod sample;
 mod sequence;
 mod variant;
@@ -35,6 +36,7 @@ pub use locus::LocusWindowError;
 pub use profile::ProfileError;
 pub use report::ReportError;
 pub use representation::{NomenclatureError, NormalizationError, RepresentationError};
+pub use run_context::RunContextError;
 pub use sample::SampleError;
 pub use sequence::SequenceError;
 pub use variant::VariantError;
@@ -128,6 +130,18 @@ pub enum Error {
     /// A consensus document cannot be called.
     #[error("invalid consensus document: {0}")]
     ConsensusDocument(ConsensusDocumentError),
+    /// Run-context bytes were not valid JSON of the expected shape.
+    #[error("invalid run context {path}: {source}")]
+    RunContextParse {
+        /// The run context document.
+        path: PathBuf,
+        /// Underlying JSON parse failure.
+        #[source]
+        source: ForeignError,
+    },
+    /// A run context cannot be made or used.
+    #[error("invalid run context: {0}")]
+    RunContext(RunContextError),
     /// A modality's per-read evidence could not enter the core.
     #[error("read evidence failed: {0}")]
     Evidence(EvidenceError),
@@ -192,6 +206,7 @@ stage_failures!(
     Sequence(SequenceError),
     Variants(VariantsError),
     ConsensusDocument(ConsensusDocumentError),
+    RunContext(RunContextError),
     Evidence(EvidenceError),
     Alignment(AlignmentError),
     Variant(VariantError),

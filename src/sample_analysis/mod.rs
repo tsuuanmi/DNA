@@ -43,6 +43,11 @@ pub use crate::variant_analysis::ReferenceSegment;
 
 use reads::{PlacedReads, ReadScope, Reads};
 
+mod run_context;
+pub use run_context::{ContextUse, LENGTH_METHOD, RunContext};
+pub(crate) mod windows;
+pub(crate) use windows::{recorded_windows, sample_pairs};
+
 /// Typed result of one sample analysis: the sample evidence and the consensus
 /// of one placement pass.
 #[derive(Debug, Clone)]
@@ -80,9 +85,75 @@ pub struct SampleAnalysis {
     /// Each rejected read as the documents report it, by read content
     /// SHA-256; complete as [`Self::sanger`] is.
     pub(crate) rejections: BTreeMap<String, Rejection>,
+    /// How the consensus used a run context, when it was given one.
+    pub(crate) context: Option<ContextUse>,
 }
 
 impl SampleAnalysis {
+    /// The cross-strand pairs this sample gives its batch's run context
+    /// (PROP-0014): over the profile's recorded anchored windows, per run,
+    /// the two-strand rule's forward and reverse decodes' difference and its
+    /// variance.
+    #[must_use]
+    pub(crate) fn length_pairs(&self) -> Vec<dna_consensus::noise::CrossStrand> {
+        sample_pairs(
+            &self.loaded.profile,
+            &self.loaded.reference,
+            &self.loaded.config,
+            &ordered(&self.called, &self.evidence),
+        )
+    }
+
+    /// Empty length statistics under this analysis's configuration: the
+    /// run context's length section before any sample's pairs join.
+    #[must_use]
+    pub(crate) fn empty_length_statistics(&self) -> dna_consensus::noise::LengthStatistics {
+        let consensus = &self.loaded.config.consensus;
+        dna_consensus::noise::LengthStatistics::empty(
+            consensus.length_rule(),
+            &consensus.length_calibration().edges,
+        )
+    }
+
+    /// The content SHA-256 of the admitted reads: what a run context lists
+    /// of this sample.
+    #[must_use]
+    pub(crate) fn read_identities(&self) -> Vec<String> {
+        self.called
+            .iter()
+            .map(|read| read.input_sha256.clone())
+            .collect()
+    }
+
+    /// How the consensus used a run context, when it was given one.
+    #[must_use]
+    pub const fn run_context(&self) -> Option<&ContextUse> {
+        self.context.as_ref()
+    }
+
+    /// This analysis with its consensus rebuilt under `context`, the run
+    /// context of the sample's batch (PROP-0014): the in-process counterpart
+    /// of `--run-context`.
+    ///
+    /// # Errors
+    ///
+    /// As `dna consensus --run-context`: a context made against another
+    /// reference, over other windows, or with other length parameters, or
+    /// one holding only some of the sample's reads.
+    pub fn with_run_context(mut self, context: RunContext) -> Result<Self> {
+        self.loaded.run_context = Some(context);
+        let (consensus, used) = build_consensus(&self.called, &self.evidence, &self.loaded)?;
+        self.consensus = consensus;
+        self.context = used;
+        Ok(self)
+    }
+
+    /// Reads set aside or not placed.
+    #[must_use]
+    pub(crate) fn rejected_reads(&self) -> usize {
+        self.rejections.len()
+    }
+
     /// An empty run signal of `run_id`, made with the flank and resolution of
     /// this analysis's configuration, for its reads' contributions to join.
     #[must_use]
@@ -250,6 +321,9 @@ pub(crate) struct Loaded {
     pub(crate) config: Config,
     pub(crate) profile: Profile,
     pub(crate) reference: Reference,
+    /// The run context the consensus calibrates its length rule by, when
+    /// one is given (PROP-0014).
+    pub(crate) run_context: Option<RunContext>,
 }
 
 /// One admitted read's phase mixtures, each component compared with the
@@ -465,6 +539,7 @@ pub fn analyze_sanger_outcome(
         config,
         profile,
         reference,
+        run_context: None,
     };
     Ok(
         match analyze(
@@ -520,7 +595,7 @@ pub(crate) fn analyze(
         });
     }
     let evidence = aggregate(&placed, &loaded.config)?;
-    let consensus = build_consensus(&placed, &evidence, &loaded.reference, &loaded.config);
+    let (consensus, context) = build_consensus(&placed.called, &evidence, &loaded)?;
     Ok(Outcome::Analyzed(Box::new(SampleAnalysis {
         reference: loaded.reference.identity(),
         profile: loaded.profile.identity().clone(),
@@ -532,6 +607,7 @@ pub(crate) fn analyze(
         called: placed.called,
         sanger: placed.sanger,
         rejections: by_identity(placed.rejected),
+        context,
     })))
 }
 
@@ -554,24 +630,61 @@ pub(crate) fn aggregate(placed: &PlacedReads, config: &Config) -> Result<SampleE
     )?)
 }
 
-/// Builds the consensus of the admitted reads in the evidence's read order.
-pub(crate) fn build_consensus(
-    placed: &PlacedReads,
-    evidence: &SampleEvidence,
-    reference: &Reference,
-    config: &Config,
-) -> Consensus {
-    let by_identity = placed
-        .called
+/// The admitted reads in the evidence's read order.
+fn ordered<'a>(called: &'a [CalledRead], evidence: &SampleEvidence) -> Vec<&'a CalledRead> {
+    let by_identity = called
         .iter()
         .map(|read| (read.input_sha256.as_str(), read))
         .collect::<BTreeMap<_, _>>();
-    let ordered = evidence
+    evidence
         .reads
         .iter()
         .filter_map(|read| by_identity.get(read.input_sha256.as_str()).copied())
-        .collect::<Vec<_>>();
-    dna_consensus::build(&ordered, reference, &config.core, &config.consensus)
+        .collect()
+}
+
+/// Builds the consensus of the admitted reads in the evidence's read order,
+/// with the two-strand rule calibrated by the run context when one is given
+/// (PROP-0014), and how it was used.
+///
+/// # Errors
+///
+/// As [`run_context::calibrate`] when a run context is given.
+pub(crate) fn build_consensus(
+    called: &[CalledRead],
+    evidence: &SampleEvidence,
+    loaded: &Loaded,
+) -> Result<(Consensus, Option<ContextUse>)> {
+    let reads = ordered(called, evidence);
+    let (consensus_config, context) = match &loaded.run_context {
+        Some(context) => {
+            let (config, used) = run_context::calibrate(
+                context,
+                &loaded.profile,
+                &loaded.reference,
+                &loaded.config,
+                &reads,
+            )?;
+            tracing::info!(
+                event = "run_context_applied",
+                context_run_id = ?used.run_id,
+                left_out = used.left_out,
+                run1_scale = ?used.scale[0],
+                run2_scale = ?used.scale[1],
+            );
+            (config, Some(used))
+        }
+        None => (loaded.config.consensus.clone(), None),
+    };
+    Ok((
+        dna_consensus::build(
+            &reads,
+            &loaded.reference,
+            &loaded.config.core,
+            &consensus_config,
+        ),
+        context,
+    ))
 }
 
 /// Rejected reads keyed by read content identity.

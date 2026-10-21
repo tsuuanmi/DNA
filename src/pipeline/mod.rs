@@ -10,6 +10,7 @@ mod path;
 pub(crate) mod plugins;
 mod represent;
 mod review;
+mod run_context;
 mod sample;
 mod sample_call;
 mod sample_metrics;
@@ -91,6 +92,7 @@ fn load_sample(
                     config: inputs.config,
                     profile: inputs.profile,
                     reference: inputs.reference,
+                    run_context: None,
                 },
                 reads: LoadedReads::Traces(inputs.traces),
             }
@@ -103,11 +105,30 @@ fn load_sample(
                     config: inputs.config,
                     profile: inputs.profile,
                     reference: inputs.reference,
+                    run_context: None,
                 },
                 reads: LoadedReads::Recorded(inputs.reads),
             }
         }
     })
+}
+
+/// The run context at `path`, when one is given (PROP-0014), with its
+/// identity logged.
+fn load_run_context(path: Option<&Path>) -> Result<Option<crate::sample_analysis::RunContext>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let context = crate::input::run_context::load(path)?;
+    tracing::info!(
+        event = "run_context_loaded",
+        context_run_id = ?context.run_id,
+        sha256 = ?context.sha256,
+        reads = context.reads.len(),
+        run1_pairs = context.length.runs[0].pairs,
+        run2_pairs = context.length.runs[1].pairs,
+    );
+    Ok(Some(context))
 }
 
 /// The read evidence document of one trace, in memory (PROP-0011).
@@ -144,9 +165,32 @@ pub(crate) fn consensus(
     sample_id: &str,
     input: SampleInput<'_>,
     reference: &Path,
+    run_context: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
-    consensus::run(sample_id, input, reference, config_path)
+    consensus::run(sample_id, input, reference, run_context, config_path)
+}
+
+/// Runs one run context operation over a laboratory batch (PROP-0014), from
+/// its list of traces or of read evidence documents (exactly one).
+pub(crate) fn run_context(
+    run_id: &str,
+    (traces, evidence): (Option<&Path>, Option<&Path>),
+    reference: &Path,
+    config_path: &Path,
+) -> Result<()> {
+    let list = match (traces, evidence) {
+        (Some(list), None) => run_context::List::Traces(list),
+        (None, Some(list)) => run_context::List::Evidence(list),
+        _ => {
+            return Err(crate::error::RunContextError::ReadList {
+                line: 0,
+                reason: "give exactly one of --traces and --evidence",
+            }
+            .into());
+        }
+    };
+    run_context::run(run_id, list, reference, config_path)
 }
 
 /// Runs one core-only call over consensus sequences.
@@ -180,9 +224,17 @@ pub(crate) fn review(
     input: SampleInput<'_>,
     reference: &Path,
     signal: Option<&Path>,
+    run_context: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
-    review::run(sample_id, input, reference, signal, config_path)
+    review::run(
+        sample_id,
+        input,
+        reference,
+        signal,
+        run_context,
+        config_path,
+    )
 }
 
 /// Runs one multi-read sample evidence operation.

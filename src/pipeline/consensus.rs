@@ -18,6 +18,7 @@ pub(crate) fn run(
     sample_id: &str,
     input: SampleInput<'_>,
     reference: &Path,
+    run_context: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
     validate_sample_id(sample_id)?;
@@ -31,22 +32,34 @@ pub(crate) fn run(
             reference_path = ?reference.display().to_string(),
         );
     })?
-    .run(|log, started| build(sample_id, input, reference, config_path, log, started))
+    .run(|log, started| {
+        build(
+            sample_id,
+            input,
+            reference,
+            run_context,
+            config_path,
+            log,
+            started,
+        )
+    })
 }
 
 fn build(
     sample_id: &str,
     input: SampleInput<'_>,
     reference: &Path,
+    run_context: Option<&Path>,
     config_path: &Path,
     log: &OperationLog,
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
     let super::LoadedSample {
-        loaded: inputs,
+        loaded: mut inputs,
         reads,
     } = super::load_sample(input, reference, config_path)?;
+    inputs.run_context = super::load_run_context(run_context)?;
     let (document, fasta) = path::consensus_outputs(sample_id)?;
     tracing::info!(
         event = "consensus_inputs_loaded",
@@ -71,8 +84,8 @@ fn build(
     let stage = tracing::info_span!("consensus").entered();
     let stage_started = Instant::now();
     let evidence = sample_analysis::aggregate(&placed, &inputs.config)?;
-    let consensus =
-        sample_analysis::build_consensus(&placed, &evidence, &inputs.reference, &inputs.config);
+    let (consensus, run_context) =
+        sample_analysis::build_consensus(&placed.called, &evidence, &inputs)?;
     tracing::info!(
         event = "consensus_completed",
         elapsed_ms = stage_started.elapsed().as_millis(),
@@ -95,6 +108,7 @@ fn build(
         rejected: sample_analysis::by_identity(placed.rejected),
         consensus,
         plugins: plugin::CONSENSUS,
+        run_context,
     })?;
     let records = report::consensus_fasta(&result);
     let bytes = report::serialize(&result)?;

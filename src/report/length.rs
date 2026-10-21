@@ -27,7 +27,6 @@
 
 use dna_consensus::ReadRun;
 use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
-use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
 use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
 use dna_normalize::length_convention::{RULE as CONVENTION_RULE, ShortestDominant};
 
@@ -35,145 +34,8 @@ use crate::model::review_result::{
     LengthConventionResult, LengthReadResult, LengthRunResult, MarginalResult, StrandsResult,
     TractReadResult,
 };
+pub(super) use crate::sample_analysis::windows::{LengthWindow, windows};
 use dna_align::model::alignment::Orientation;
-
-/// One repeat window of the profile whose run lengths the review judges,
-/// 1-based and inclusive: an anchored window, or a length tract outside
-/// every anchored window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct LengthWindow {
-    pub(super) first: usize,
-    pub(super) last: usize,
-    pub(super) repeat: char,
-    /// The anchor's reference position and base; `None` for a plain run.
-    pub(super) anchor: Option<(usize, char)>,
-    /// Whether the profile records the window's run lengths: a run-length
-    /// convention of its repeat base over it leaves them unrecorded, so the
-    /// decodes are context there, never a check.
-    pub(super) recorded: bool,
-    /// The profile's length tract over the window, and which runs it holds.
-    pub(super) tract: Option<TractRuns>,
-}
-
-/// Which runs of a window lie in its length tract.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct TractRuns {
-    /// Index of the tract in the profile's `length_tracts`.
-    pub(super) index: usize,
-    /// Whether run 1 and run 2 lie in the tract.
-    pub(super) runs: [bool; 2],
-    /// Whether the one run left where the anchor is lost lies in it.
-    pub(super) single: bool,
-}
-
-impl LengthWindow {
-    /// Whether run `run` lies in the window's length tract, when DNA calls
-    /// one run (`single`) or two.
-    pub(super) fn in_tract(&self, run: usize, single: bool) -> bool {
-        self.tract.is_some_and(|tract| {
-            if single {
-                run == 1 && tract.single
-            } else {
-                run.checked_sub(1)
-                    .and_then(|index| tract.runs.get(index))
-                    .copied()
-                    .unwrap_or(false)
-            }
-        })
-    }
-}
-
-/// The profile's judged windows, in reference order: its anchored repeat
-/// windows (whose rules split two runs of one base by an anchor base), each
-/// with whether the profile records its run lengths and the length tract it
-/// holds, and each length tract no anchored window holds, as one plain run.
-pub(super) fn windows(profile: &Profile) -> Vec<LengthWindow> {
-    let inside =
-        |span: [usize; 2], window: [usize; 2]| window[0] <= span[0] && span[1] <= window[1];
-    let mut windows = profile
-        .windows
-        .iter()
-        .filter_map(|window| {
-            let anchor = window.rules.iter().find_map(|rule| match rule {
-                WindowRule::AnchoredRunLengths(anchor)
-                | WindowRule::AnchorDuplication(anchor)
-                | WindowRule::AnchorDeletion(anchor)
-                | WindowRule::TerminalRepeatInsertion(anchor)
-                | WindowRule::AnchoredTract { anchor, .. } => Some(*anchor),
-                WindowRule::CanonicalHaplotype(_) | WindowRule::MotifShift { .. } => None,
-            })?;
-            let first = window.start + 1;
-            let last = window.end();
-            let recorded = !profile.conventions.iter().any(|convention| {
-                let ConventionKind::RunLength { base, .. } = convention.kind;
-                convention.label == ConventionLabel::NotRecorded
-                    && base == anchor.repeat
-                    && convention.window[0] <= last
-                    && first <= convention.window[1]
-            });
-            // Each run's reference span: the repeat bases on either side of
-            // the anchor in the window's reference sequence.
-            let bases = window.sequence.as_bytes();
-            let mut start = anchor.index;
-            while start > 0 && bases.get(start - 1) == Some(&anchor.repeat) {
-                start -= 1;
-            }
-            let mut end = anchor.index + 1;
-            while bases.get(end) == Some(&anchor.repeat) {
-                end += 1;
-            }
-            let run1 = [first + start, first + anchor.index - 1];
-            let run2 = [first + anchor.index + 1, first + end - 1];
-            let tract = profile
-                .length_tracts
-                .iter()
-                .position(|tract| {
-                    tract.base == anchor.repeat
-                        && tract.window[0] <= last
-                        && first <= tract.window[1]
-                })
-                .map(|index| {
-                    let span = profile.length_tracts[index].window;
-                    TractRuns {
-                        index,
-                        runs: [inside(run1, span), inside(run2, span)],
-                        single: inside([run1[0], run2[1]], span),
-                    }
-                });
-            Some(LengthWindow {
-                first,
-                last,
-                repeat: char::from(anchor.repeat),
-                anchor: Some((first + anchor.index, char::from(anchor.base))),
-                recorded,
-                tract,
-            })
-        })
-        .collect::<Vec<_>>();
-    for (index, tract) in profile.length_tracts.iter().enumerate() {
-        let [first, last] = tract.window;
-        if windows
-            .iter()
-            .any(|window| window.first <= last && first <= window.last)
-        {
-            continue;
-        }
-        windows.push(LengthWindow {
-            first,
-            last,
-            repeat: char::from(tract.base),
-            anchor: None,
-            recorded: true,
-            tract: Some(TractRuns {
-                index,
-                runs: [true, false],
-                single: true,
-            }),
-        });
-    }
-    windows.sort_by_key(|window| window.first);
-    windows
-}
 
 /// DNA's run lengths in a window from the decided `haplotype` over it: the
 /// two runs of the repeat base on each side of the first anchor base between
@@ -654,6 +516,7 @@ pub(super) fn status(run: &LengthRunResult) -> Option<(&'static str, Option<usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sample_analysis::windows::TractRuns;
     use dna_kernel::read_evidence::{LengthMarginal, StructureFit};
 
     const HVS2: LengthWindow = LengthWindow {

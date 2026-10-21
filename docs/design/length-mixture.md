@@ -268,6 +268,20 @@ Re-estimate τ, and re-run the rule's evaluation, when any of these change:
 - the HV2F or HV3R primers or the PCR;
 - the decode (`[trace]`), or the deconvolution.
 
+**Per-batch noise ([[PROP-0014]], SRS-CONS-014).** τ is a corpus-wide
+estimate, but run 1's strand dispersion varies between batches (between-batch
+sd 0.31 of the corpus level; research note `run-calibrated-length`,
+2026-10-21). With a [[reference/run-context|run context]], each run's τ is
+rescaled by the batch's own cross-strand pairs, the sample's own taken out:
+`τ · max(m, √(φ̃ / φ_ref))`, with `φ̃` the batch's mean `z²` shrunk towards the
+corpus's `φ_ref` (run 1 0.4577, run 2 0.0542, over every read of the dev
+batches' folders) by `n0` pseudo-pairs (4.3 and 64: by the method of
+moments from the contexts' `Σz²` and `Σz⁴` for run 1; run 2's batch
+differences are sampling noise, so its weight stays the research's 64).
+The floor `m` = 1 keeps τ at least the replicate estimate, and below 10 pairs
+τ stays the configured one. On development panel v5, rule A's decisions sit
+far from the τ boundary, and the calibration changes no decision.
+
 **Effect.** On development panel v5 (against increment 3), the rule changed
 one call, a C8 at 303-309 where truth has `N`, and introduced no error. It
 decided 32 run 1s; 31 of them at the length DNA already had. No check was

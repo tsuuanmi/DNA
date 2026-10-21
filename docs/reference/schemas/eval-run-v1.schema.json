@@ -56,6 +56,9 @@
     "signals.tsv": {
       "$ref": "#/$defs/signals"
     },
+    "run_context.tsv": {
+      "$ref": "#/$defs/run_context"
+    },
     "components.tsv": {
       "$ref": "#/$defs/components"
     },
@@ -180,6 +183,33 @@
             {
               "required": [
                 "signals.tsv"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run.json": {
+            "required": [
+              "run_context"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "run_context.tsv"
+        ]
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "run_context.tsv"
               ]
             }
           ]
@@ -639,6 +669,25 @@
             },
             "bytes": {
               "description": "Bytes of the generation's entries after the run.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "run_context": {
+          "description": "With `--run-context`: the directory of run contexts (`<batch>.run_context.json`, PROP-0014) the consensus was calibrated by, absolute, and how many of the panel's batches had one.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directory",
+            "batches"
+          ],
+          "properties": {
+            "directory": {
+              "type": "string",
+              "minLength": 1
+            },
+            "batches": {
               "type": "integer",
               "minimum": 0
             }
@@ -2189,6 +2238,92 @@
               },
               "keys_100_calls": {
                 "description": "Keys with at least 100 calls.",
+                "$ref": "#/$defs/count"
+              }
+            }
+          }
+        }
+      }
+    },
+    "run_context": {
+      "description": "With `--run-context`: run context coverage (PROP-0014), one row per batch month, then `all`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comments",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "comments": {
+          "$ref": "#/$defs/no_comments"
+        },
+        "columns": {
+          "const": [
+            "month",
+            "samples",
+            "analysed",
+            "with_context",
+            "run1_calibrated",
+            "run2_calibrated",
+            "batches",
+            "run1_pairs",
+            "run2_pairs"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "month",
+              "samples",
+              "analysed",
+              "with_context",
+              "run1_calibrated",
+              "run2_calibrated",
+              "batches",
+              "run1_pairs",
+              "run2_pairs"
+            ],
+            "properties": {
+              "month": {
+                "description": "Batch month (`batch_date`'s first seven characters, `unknown` without one), in order; the last row, `all`, covers every sample.",
+                "type": "string",
+                "minLength": 1
+              },
+              "samples": {
+                "description": "Panel samples.",
+                "$ref": "#/$defs/count"
+              },
+              "analysed": {
+                "description": "Samples DNA analysed.",
+                "$ref": "#/$defs/count"
+              },
+              "with_context": {
+                "description": "Analysed samples whose batch had a run context.",
+                "$ref": "#/$defs/count"
+              },
+              "run1_calibrated": {
+                "description": "Of those, samples whose run-1 τ the context rescaled: the batch's pairs, the sample's own out, reached consensus.length_context_minimum_pairs; the rest fail closed to the configured τ.",
+                "$ref": "#/$defs/count"
+              },
+              "run2_calibrated": {
+                "description": "The same for run 2.",
+                "$ref": "#/$defs/count"
+              },
+              "batches": {
+                "description": "The panel's batches of the month that had a run context.",
+                "$ref": "#/$defs/count"
+              },
+              "run1_pairs": {
+                "description": "Their run-1 cross-strand pairs, summed: a batch below consensus.length_context_minimum_pairs calibrates none of its samples.",
+                "$ref": "#/$defs/count"
+              },
+              "run2_pairs": {
+                "description": "The same for run 2.",
                 "$ref": "#/$defs/count"
               }
             }

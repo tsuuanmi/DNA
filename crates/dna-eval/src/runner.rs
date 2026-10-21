@@ -20,6 +20,7 @@ use std::time::Instant;
 use std::num::NonZeroUsize;
 
 use dna::recorded::{self, EvidenceOutcome};
+use dna::sample_analysis::RunContext;
 use dna::sample_analysis::{
     self, Consensus, ConventionLabel, EmpopExport, NotationCall, RejectedRead, RunSignal,
     SampleAnalysis, SampleOutcome, TractNote,
@@ -71,6 +72,10 @@ pub(crate) struct Called {
     pub(crate) components: Vec<components::Row>,
     /// Every read's tract decodes (PROP-0012).
     pub(crate) tracts: Vec<tracts::Row>,
+    /// Whether the run context of the sample's batch (PROP-0014), when it
+    /// had one, calibrated τ for run 1 and run 2: it does not where the
+    /// batch's pairs, the sample's own out, are too few.
+    pub(crate) length_context: Option<[bool; 2]>,
 }
 
 /// A sample's EMPOP query (PROP-0007), and the consensus decisions its
@@ -196,6 +201,38 @@ pub(crate) enum Grouping {
     Month,
 }
 
+/// Each batch's run context (`--run-context`, PROP-0014), by batch.
+pub(crate) type Contexts = BTreeMap<String, RunContext>;
+
+/// Reads `<directory>/<batch>.run_context.json` for every batch of
+/// `samples` that has one, as `dna run-context` writes them over the
+/// batches' full folders: a panel holds too few of a batch's samples to
+/// build its context in process.
+pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts> {
+    let mut contexts = Contexts::new();
+    for batch in samples.iter().map(|sample| &sample.batch) {
+        if contexts.contains_key(batch) {
+            continue;
+        }
+        let path = directory.join(format!("{batch}.run_context.json"));
+        if !path.is_file() {
+            continue;
+        }
+        let context = RunContext::read(&path).map_err(|error| Error::RunContext {
+            path: path.clone(),
+            message: error.to_string(),
+        })?;
+        if context.run_id != *batch {
+            return Err(Error::RunContext {
+                path,
+                message: format!("its run_id is {:?}, not the batch", context.run_id),
+            });
+        }
+        contexts.insert(batch.clone(), context);
+    }
+    Ok(contexts)
+}
+
 /// A sample's run signal groups: its batch's and its month's.
 fn groups(sample: &Sample) -> [String; 2] {
     let month = sample
@@ -217,7 +254,7 @@ pub(crate) fn run(
     threads: Threads,
     triage: bool,
     grouping: Option<Grouping>,
-    cache: Option<&Caches>,
+    (cache, contexts): (Option<&Caches>, &Contexts),
     report: &mut Vec<String>,
 ) -> Result<Vec<Outcome>> {
     let Some(grouping) = grouping else {
@@ -226,7 +263,7 @@ pub(crate) fn run(
             (reference, reference_sha256),
             config,
             threads,
-            (triage, cache),
+            (triage, cache, contexts),
             &|_| None,
         );
     };
@@ -285,19 +322,20 @@ pub(crate) fn run(
         (reference, reference_sha256),
         config,
         threads,
-        (triage, cache),
+        (triage, cache, contexts),
         &choose,
     )
 }
 
-/// Runs DNA over every sample once, judging each review against the run
+/// Runs DNA over every sample once, with its consensus calibrated by its
+/// batch's run context, if any, and each review judged against the run
 /// signal `signal` chooses for it, if any.
 fn run_once<'s>(
     samples: &[Sample],
     (reference, reference_sha256): (&Path, &str),
     config: &Path,
     threads: Threads,
-    (triage, cache): (bool, Option<&Caches>),
+    (triage, cache, contexts): (bool, Option<&Caches>, &Contexts),
     signal: &(dyn Fn(&Sample) -> Option<&'s RunSignal> + Sync),
 ) -> Result<Vec<Outcome>> {
     run_with(samples, threads, |sample, traces| {
@@ -312,6 +350,13 @@ fn run_once<'s>(
                 );
             }
             Err(failure) => return (Err(failure), None),
+        };
+        let analysis = match contexts.get(&sample.batch) {
+            Some(context) => match analysis.with_run_context(context.clone()) {
+                Ok(analysis) => Box::new(analysis),
+                Err(error) => return (Err(Failure::Dna(error.to_string())), None),
+            },
+            None => analysis,
         };
         if analysis.reference.sha256 != reference_sha256 {
             return (
@@ -412,6 +457,9 @@ fn call(
         notes: review.notes,
         components: components::rows(analysis),
         tracts: tracts::rows(analysis),
+        length_context: analysis
+            .run_context()
+            .map(|used| used.scale.map(|scale| scale.is_some())),
         identity: Identity {
             configuration_sha256: analysis.evidence.configuration_sha256.clone(),
             reference_name: analysis.reference.name.clone(),
@@ -704,6 +752,7 @@ mod tests {
                     notes: Vec::new(),
                     components: Vec::new(),
                     tracts: Vec::new(),
+                    length_context: None,
                     intervals: Vec::new(),
                     signals: lod::Signals::default(),
                     loci: Loci::default(),

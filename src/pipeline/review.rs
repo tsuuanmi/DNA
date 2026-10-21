@@ -28,6 +28,7 @@ pub(crate) fn run(
     input: SampleInput<'_>,
     reference: &Path,
     signal: Option<&Path>,
+    run_context: Option<&Path>,
     config_path: &Path,
 ) -> Result<()> {
     validate_sample_id(sample_id)?;
@@ -46,7 +47,10 @@ pub(crate) fn run(
             sample_id,
             input,
             reference,
-            signal,
+            Contexts {
+                signal,
+                run_context,
+            },
             config_path,
             log,
             started,
@@ -54,20 +58,30 @@ pub(crate) fn run(
     })
 }
 
+/// The run-level documents a review reads besides its sample's reads.
+struct Contexts<'a> {
+    signal: Option<&'a Path>,
+    run_context: Option<&'a Path>,
+}
+
 fn review(
     sample_id: &str,
     input: SampleInput<'_>,
     reference: &Path,
-    signal: Option<&Path>,
+    Contexts {
+        signal,
+        run_context,
+    }: Contexts<'_>,
     config_path: &Path,
     log: &OperationLog,
     started: Instant,
 ) -> Result<()> {
     let stage = tracing::info_span!("input_loading").entered();
     let super::LoadedSample {
-        loaded: inputs,
+        loaded: mut inputs,
         reads,
     } = super::load_sample(input, reference, config_path)?;
+    inputs.run_context = super::load_run_context(run_context)?;
     let signal = signal.map(input_signal::load).transpose()?;
     if let Some((signal, sha256)) = &signal {
         tracing::info!(

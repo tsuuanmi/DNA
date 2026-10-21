@@ -48,6 +48,7 @@ judge each call against its key's run level (SRS-CALL-020). A run signal that ho
 sample's admitted traces is another run's and fails the command without
 output, as does one made with another `flank` or `resolution` than the
 configuration's. Without it, the configured floor alone sets the threshold.
+`--run-context` names the batch's [[reference/run-context|run context]], which calibrates the consensus the review reads as `dna consensus --run-context` does (SRS-CONS-014); `provenance.run_context` records its use.
 
 Every sample gets a document. `status` says how far it got: `called` (the
 analysis and the call succeeded), `rejected` (every read was rejected; the

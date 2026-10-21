@@ -44,6 +44,9 @@ pub(crate) enum Error {
     /// malformed.
     #[error("forms {path}: {message}")]
     Forms { path: PathBuf, message: String },
+    /// A batch's run context (`--run-context`) cannot be read.
+    #[error("run context {path}: {message}")]
+    RunContext { path: PathBuf, message: String },
     /// The forced-window list is invalid.
     #[error("invalid forced windows {path}: {message}")]
     ForcedWindows { path: PathBuf, message: String },

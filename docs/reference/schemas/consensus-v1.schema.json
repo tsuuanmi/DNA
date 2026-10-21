@@ -211,6 +211,10 @@
         },
         "plugins": {
           "$ref": "#/$defs/plugins"
+        },
+        "run_context": {
+          "description": "The run context (dna.run_context/v1) the two-strand rule's noise was calibrated by, when one was given (SRS-CONS-014, SRS-API-021).",
+          "$ref": "urn:signal:schema:run_context:v1#/$defs/use"
         }
       }
     },

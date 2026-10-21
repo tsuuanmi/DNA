@@ -74,6 +74,10 @@ pub(crate) struct ReviewProvenanceResult {
     /// The run signal the calls were judged against, when one was given.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) signal: Option<SignalProvenanceResult>,
+    /// The run context the consensus calibrated its length rule by, when
+    /// one was given (PROP-0014).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) run_context: Option<super::run_context_result::ContextUseResult>,
 }
 
 /// The identity of a run signal a review read.
