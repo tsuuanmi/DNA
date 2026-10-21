@@ -96,7 +96,7 @@ fn writes_deterministic_compact_sample_evidence_v9() -> Result<(), Box<dyn std::
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 21},
+            {"id": "sanger", "family": "modality", "version": 22},
             {"id": "core", "family": "core", "version": 12},
         ])
     );
@@ -355,7 +355,7 @@ fn publishes_mtdna_notation_against_the_rcrs() -> Result<(), Box<dyn std::error:
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 21},
+            {"id": "sanger", "family": "modality", "version": 22},
             {"id": "core", "family": "core", "version": 12},
             {"id": "normalization", "family": "post_calling", "version": 3},
             {"id": "nomenclature", "family": "post_calling", "version": 3},

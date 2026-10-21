@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 22
+schema_version = 23
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -141,10 +141,20 @@ post_repeat_minimum_calls = 2
 # `start_norm_calls` calls), a second-channel share below
 # `edge_second_share` (`start_second_share` at the start), a peak no wider than
 # `edge_width_factor` times the median width, and a spacing to each neighbour
-# between the spacing minimum and maximum times the median spacing. A start
-# call reads its predecessor's base only behind a vouched call.
+# between the spacing minimum and maximum times the median spacing. A call
+# before a run that closes the informative end, or a phase loss after a
+# repeat run inside it, is judged against the medians of the last
+# `end_norm_calls` scored single-channel calls before that stop and needs
+# `end_height_fraction` of their peak: a read's signal decays over its last
+# calls, and its peaks vary with their dye context (of 581,243 clean
+# in-phase calls off the edge in 2,195 development-panel reads, 36 stand
+# below 0.3 of the median of their 30 preceding calls, 8,486 below 0.5). A
+# start call reads its predecessor's base, and such a call its outer
+# neighbour's, only behind a vouched call.
 edge_identity_margin = 12
 edge_height_fraction = 1.0
+end_norm_calls = 30
+end_height_fraction = 0.3
 start_identity_margin = 12
 start_norm_calls = 30
 start_height_fraction = 0.5
