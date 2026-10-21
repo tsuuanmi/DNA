@@ -55,9 +55,17 @@ pub(super) fn leading_identity(
         .collect()
 }
 
-/// The upper median of `values` (`median::upper`).
+/// The upper median of `values` (`median::upper`): the norm of primary
+/// peaks and widths.
 fn upper_median(mut values: Vec<f64>) -> Option<f64> {
     median::upper(&mut values, f64::total_cmp)
+}
+
+/// The median of spacings: the midpoint median, as signal processing
+/// measures the read's spacing (`median_locus_spacing`) and callability its
+/// local spacing.
+fn spacing_median(mut values: Vec<f64>) -> Option<f64> {
+    median::midpoint(&mut values)
 }
 
 /// The medians a call's own signal is judged against: primary peak, width,
@@ -96,7 +104,7 @@ impl Norms {
                     .filter_map(|&index| signal.width(index))
                     .collect(),
             ),
-            upper_median(
+            spacing_median(
                 indices
                     .windows(2)
                     .filter(|pair| pair[1] == pair[0] + 1)
@@ -251,7 +259,7 @@ pub(super) fn edge_identity(
                 .filter_map(|index| signal.width(index))
                 .collect(),
         ),
-        upper_median(
+        spacing_median(
             loci.windows(2)
                 .map(|pair| {
                     pair[1].locus_position_0based as f64 - pair[0].locus_position_0based as f64
