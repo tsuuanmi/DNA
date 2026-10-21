@@ -167,5 +167,5 @@ pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     version: 3,
     provides: &[Contract::NormalizedVariants],
     requires: &[Contract::CalledVariants],
-    config_sections: &[],
+    config_sections: &["normalization"],
 };

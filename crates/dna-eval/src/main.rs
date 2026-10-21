@@ -89,6 +89,9 @@ const SIGNALS_HEADER: &str =
     "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
 /// The header of `checks.tsv`.
 const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
+/// The header of `notes.tsv`.
+const NOTES_HEADER: &str =
+    "sample_id\tfirst\tlast\ttract\trun\tstatus\tcalled\treading\tconvention\n";
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -797,7 +800,22 @@ fn run(cli: &RunArgs) -> Result<String> {
         &check,
         (&forms, reference.sequence.as_str()),
     )
-    .with_review(cli.review_window, forced, Some(zones), recheck)
+    .with_review(
+        cli.review_window,
+        forced,
+        Some(zones),
+        recheck,
+        profile
+            .length_tracts
+            .iter()
+            .map(|tract| workload::Tract {
+                name: tract.name.clone(),
+                first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
+                last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
+                base: char::from(tract.base),
+            })
+            .collect(),
+    )
     .with_current_since(cli.current_since.clone());
     let triage_started = Instant::now();
     let triage = cli
@@ -852,6 +870,31 @@ fn run(cli: &RunArgs) -> Result<String> {
         }
     }
     write(&cli.output, "checks.tsv", &checks)?;
+    let mut notes = String::from(NOTES_HEADER);
+    let cell =
+        |value: Option<usize>| value.map_or_else(|| ".".to_owned(), |value| value.to_string());
+    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
+        if let Ok(called) = &outcome.result {
+            for note in &called.notes {
+                for run in &note.runs {
+                    let _ = writeln!(
+                        notes,
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                        sample.id,
+                        note.first,
+                        note.last,
+                        note.tract,
+                        run.run,
+                        run.status,
+                        cell(run.called),
+                        cell(run.reading),
+                        cell(run.convention),
+                    );
+                }
+            }
+        }
+    }
+    write(&cli.output, "notes.tsv", &notes)?;
     let mut table = String::from(components::HEADER);
     for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
         if let Ok(called) = &outcome.result {
@@ -1683,6 +1726,7 @@ mod tests {
         };
         contract::check_document("run.json", &serde_json::to_value(&bare)?)?;
         contract::check_table("checks.tsv", CHECKS_HEADER)?;
+        contract::check_table("notes.tsv", NOTES_HEADER)?;
         contract::check_table("signals.tsv", SIGNALS_HEADER)
     }
 

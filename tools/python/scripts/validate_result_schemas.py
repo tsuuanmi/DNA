@@ -55,6 +55,7 @@ REVIEW_UNASSURED = frozenset(
         "long_run",
         "edge_deletion",
         "run_deletion",
+        "run_indel",
         "beside_not_analysed",
         "not_covered",
     }
@@ -72,6 +73,7 @@ REVIEW_LABELS = {
     "long_run": 2,
     "edge_deletion": 2,
     "run_deletion": 2,
+    "run_indel": 2,
     "beside_not_analysed": 2,
     "one_read": 3,
     "one_strand": 3,
@@ -82,6 +84,7 @@ REVIEW_LABELS = {
     "read_edge": 4,
     "poor_signal": 4,
     "length_not_recorded": 4,
+    "tract_length": 4,
 }
 # Priority of a variant item without a label.
 UNLABELLED = 5

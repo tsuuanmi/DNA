@@ -82,9 +82,25 @@ impl SampleAnalysis {
                         position: call.position,
                         ordinal: call.ordinal,
                         text: &call.text,
+                        indel: match (call.reference, call.alternate) {
+                            (None, base) | (base, None) => base,
+                            _ => None,
+                        },
                     })
                     .collect::<Vec<_>>();
-                export::export(&loaded.profile.regions, &records, &calls, &not_analysed)
+                let search = loaded
+                    .profile
+                    .length_tracts
+                    .iter()
+                    .map(|tract| (tract.search, char::from(tract.base)))
+                    .collect::<Vec<_>>();
+                export::export(
+                    &loaded.profile.regions,
+                    &records,
+                    &calls,
+                    &not_analysed,
+                    &search,
+                )
             });
         Ok(ConsensusCall {
             callable_segments: reads

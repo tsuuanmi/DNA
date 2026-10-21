@@ -42,6 +42,14 @@ pub enum ProfileError {
         /// The violated rule.
         reason: &'static str,
     },
+    /// A length tract definition is inconsistent.
+    #[error("length tract {tract}: {reason}")]
+    InvalidLengthTract {
+        /// Tract name as declared by the profile.
+        tract: String,
+        /// The violated rule.
+        reason: &'static str,
+    },
     /// A report convention definition is inconsistent.
     #[error("nomenclature convention {convention}: {reason}")]
     InvalidConvention {

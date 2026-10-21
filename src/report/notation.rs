@@ -153,6 +153,7 @@ pub(super) fn project_empop(export: Export) -> EmpopResult {
         ranges_text: export.ranges_text(),
         mitotype: export.mitotype_text(),
         ranges: export.ranges,
+        ignored_in_search: export.ignored,
         cut: export
             .cut
             .into_iter()

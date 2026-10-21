@@ -250,3 +250,15 @@ deletion_zone = 20
 # differs from the decision makes the item a check. The far end of the run is
 # a length question that dephasing leaves open, so it is not compared.
 phase_run = 4
+
+[normalization]
+# The "shortest dominant" length convention for a homopolymer length
+# heteroplasmy (ISFG, Parson et al. 2014, 3.3.2; EMPOP): where the next-shorter
+# length's share in a read's tract decode is at least this fraction of the
+# dominant length's, the convention reads the shorter one. A labelled
+# suggestion beside DNA's call, never the call; remove the section to report
+# the dominant length only. 0.6 from the tract decoder spike of 2026-10-19: on
+# development panel v5 the 53 confident HVS-II run-1 disagreements with the
+# truth all had the truth at the mode - 1, where the shorter share was at
+# least 0.6 of the mode's (research note length-heteroplasmy).
+shortest_dominant_ratio = 0.6

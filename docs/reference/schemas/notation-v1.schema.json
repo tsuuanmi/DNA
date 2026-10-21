@@ -272,6 +272,7 @@
         "ranges",
         "ranges_text",
         "mitotype",
+        "ignored_in_search",
         "cut"
       ],
       "properties": {
@@ -302,6 +303,15 @@
           "description": "The rCRS-coded calls inside the ranges, distinct, by position and then insertion ordinal, space-separated.",
           "type": "string",
           "pattern": "^(?:(?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGTRYSWKMBDHVN]|[1-9][0-9]*(?:[ACGTRYSWKMBDHVN]|DEL))(?: (?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGTRYSWKMBDHVN]|[1-9][0-9]*(?:[ACGTRYSWKMBDHVN]|DEL)))*)?$"
+        },
+        "ignored_in_search": {
+          "description": "The mitotype's insertions and deletions of a profile length tract's base inside the tract's search window, where EMPOP's standard query disregards length variants: written, but ignored in a search. Empty without length tracts.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(?:(?:0|[1-9][0-9]*)\\.[1-9][0-9]*[ACGT]|[1-9][0-9]*DEL)$"
+          }
         },
         "cut": {
           "description": "Positions inside a profile region and a record that no range covers, 1-based inclusive, and why.",

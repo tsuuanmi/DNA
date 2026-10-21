@@ -29,7 +29,7 @@ pub(crate) use notation::{
     calls as notation_calls,
 };
 pub(crate) use review::{
-    CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review, checks as review_checks,
+    CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review, list as review_list,
 };
 pub(crate) use run_signal::{CompletedRunSignal, build as build_run_signal};
 pub(crate) use sample::{CompletedSampleEvidence, SangerSampleEvidence, build as build_sample};

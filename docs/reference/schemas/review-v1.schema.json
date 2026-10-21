@@ -859,6 +859,24 @@
           ],
           "properties": {
             "label": {
+              "const": "run_indel"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "description": "A decided site outside every repeat window and length tract that rests on one read and changes a homopolymer run's length: a check."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
               "const": "one_read"
             },
             "read": {
@@ -1086,7 +1104,7 @@
                     ]
                   },
                   "convention": {
-                    "description": "The lab's convention reading of a near-equal pair (both strands read the run as an adjacent pair n, n + 1, at least one read near-equal): the shorter member. A suggestion only, never DNA's call; null otherwise, for a run whose structure differs, and in length_not_recorded.",
+                    "description": "The length convention's reading (the [normalization] shortest-dominant policy, ISFG 2014 3.3.2): when every read's reading (its in-phase length, or the policy's reading of its decode) falls in one adjacent pair n, n + 1, n. A suggestion only, never DNA's call; null otherwise, without the policy, for a run whose structure differs, and in length_not_recorded.",
                     "oneOf": [
                       {
                         "type": "null"
@@ -1104,7 +1122,7 @@
                             "minimum": 1
                           },
                           "rule": {
-                            "const": "shorter_of_near_equal_pair"
+                            "const": "shortest_dominant"
                           }
                         }
                       }
@@ -1242,7 +1260,7 @@
                     ]
                   },
                   "convention": {
-                    "description": "The lab's convention reading of a near-equal pair (both strands read the run as an adjacent pair n, n + 1, at least one read near-equal): the shorter member. A suggestion only, never DNA's call; null otherwise, for a run whose structure differs, and in length_not_recorded.",
+                    "description": "The length convention's reading (the [normalization] shortest-dominant policy, ISFG 2014 3.3.2): when every read's reading (its in-phase length, or the policy's reading of its decode) falls in one adjacent pair n, n + 1, n. A suggestion only, never DNA's call; null otherwise, without the policy, for a run whose structure differs, and in length_not_recorded.",
                     "oneOf": [
                       {
                         "type": "null"
@@ -1260,7 +1278,7 @@
                             "minimum": 1
                           },
                           "rule": {
-                            "const": "shorter_of_near_equal_pair"
+                            "const": "shortest_dominant"
                           }
                         }
                       }
@@ -1328,6 +1346,299 @@
                             "decode",
                             "derived",
                             "in_phase"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "Runs of a profile length tract (length_tracts) whose dominant length the reads determine, or that DNA does not report: a length heteroplasmy noted, context and never a check (SRS-API-020).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "tract",
+            "ignored_in_search",
+            "runs"
+          ],
+          "properties": {
+            "label": {
+              "const": "tract_length"
+            },
+            "tract": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ignored_in_search": {
+              "description": "The window over which a database search (EMPOP) disregards the tract's length variants, 1-based inclusive.",
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "runs": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "run",
+                  "base",
+                  "called",
+                  "status",
+                  "reading",
+                  "agreement",
+                  "strands",
+                  "in_phase",
+                  "floor",
+                  "convention",
+                  "reads"
+                ],
+                "properties": {
+                  "run": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2
+                  },
+                  "base": {
+                    "enum": [
+                      "A",
+                      "C",
+                      "G",
+                      "T"
+                    ]
+                  },
+                  "called": {
+                    "description": "DNA's reported length; null when DNA reports none.",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "status": {
+                    "description": "confirmed (the reads confirm DNA's length), dominant (every read tops at it, the structure shown by a read in phase or decodes on both strands), convention (the reads hold a pair n, n + 1 the length convention reads as n, DNA's length one of them), or unconfirmed (DNA reports no length).",
+                    "enum": [
+                      "confirmed",
+                      "dominant",
+                      "convention",
+                      "unconfirmed"
+                    ]
+                  },
+                  "reading": {
+                    "description": "The length a reviewer would record: DNA's, the convention's, or the floor reading when unconfirmed; null where the profile records no length or no read reaches the run.",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "agreement": {
+                    "description": "How the reads' lengths agree, as length_unconfirmed gives it; null when no read reaches the run.",
+                    "enum": [
+                      null,
+                      "confirmed",
+                      "differs_from_call",
+                      "undecided_call",
+                      "one_strand",
+                      "not_clear",
+                      "disagree",
+                      "structure_differs"
+                    ]
+                  },
+                  "strands": {
+                    "description": "Each strand's one clear length, when it gives one.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "forward",
+                      "reverse"
+                    ],
+                    "properties": {
+                      "forward": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
+                      },
+                      "reverse": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 1
+                      }
+                    }
+                  },
+                  "in_phase": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "floor": {
+                    "description": "The reads' floor reading, for a run DNA reports no length for.",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "convention": {
+                    "description": "The length convention's reading (the [normalization] shortest-dominant policy, ISFG 2014 3.3.2): when every read's reading (its in-phase length, or the policy's reading of its decode) falls in one adjacent pair n, n + 1, n. A suggestion only, never DNA's call; null otherwise, without the policy, for a run whose structure differs, and in length_not_recorded.",
+                    "oneOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "length",
+                          "rule"
+                        ],
+                        "properties": {
+                          "length": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "rule": {
+                            "const": "shortest_dominant"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "reads": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "read",
+                        "strand",
+                        "length",
+                        "source",
+                        "first",
+                        "total"
+                      ],
+                      "properties": {
+                        "read": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "strand": {
+                          "enum": [
+                            "forward",
+                            "reverse"
+                          ]
+                        },
+                        "length": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "source": {
+                          "enum": [
+                            "decode",
+                            "derived",
+                            "in_phase"
+                          ]
+                        },
+                        "first": {
+                          "description": "The decode's first-run length distribution (signal shares, never heteroplasmy levels) and its margin z; null for a read in phase.",
+                          "oneOf": [
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "lengths",
+                                "shares",
+                                "z"
+                              ],
+                              "properties": {
+                                "lengths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  }
+                                },
+                                "shares": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  }
+                                },
+                                "z": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "total": {
+                          "description": "The decode's total length distribution; null for a read in phase.",
+                          "oneOf": [
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "lengths",
+                                "shares",
+                                "z"
+                              ],
+                              "properties": {
+                                "lengths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  }
+                                },
+                                "shares": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  }
+                                },
+                                "z": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                }
+                              }
+                            }
                           ]
                         }
                       }
@@ -1537,6 +1848,7 @@
             "long_run",
             "edge_deletion",
             "run_deletion",
+            "run_indel",
             "beside_not_analysed",
             "one_read",
             "one_strand",
@@ -1546,7 +1858,8 @@
             "dephased_end",
             "read_edge",
             "poor_signal",
-            "length_not_recorded"
+            "length_not_recorded",
+            "tract_length"
           ],
           "properties": {
             "strands_disagree": {
@@ -1630,6 +1943,14 @@
               "minimum": 0
             },
             "length_not_recorded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tract_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "run_indel": {
               "type": "integer",
               "minimum": 0
             }

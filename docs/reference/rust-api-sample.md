@@ -239,7 +239,17 @@ non-exhaustive.
 ```rust
 impl SampleAnalysis {
     pub fn call(&self, sample_id: &str) -> dna::error::Result<ConsensusCall>;
-    pub fn review_checks(&self, call: &ConsensusCall) -> dna::error::Result<Vec<ReviewCheck>>;
+    pub fn review_list(
+        &self,
+        call: &ConsensusCall,
+        signal: Option<&RunSignal>,
+    ) -> dna::error::Result<ReviewList>;
+}
+
+#[non_exhaustive]
+pub struct ReviewList {
+    pub checks: Vec<ReviewCheck>,
+    pub notes: Vec<TractNote>,
 }
 
 #[non_exhaustive]
@@ -248,13 +258,33 @@ pub struct ReviewCheck {
     pub last: usize,
     pub labels: Vec<&'static str>,
 }
+
+#[non_exhaustive]
+pub struct TractNote {
+    pub first: usize,
+    pub last: usize,
+    pub tract: String,
+    pub runs: Vec<TractNoteRun>,
+}
+
+#[non_exhaustive]
+pub struct TractNoteRun {
+    pub run: usize,
+    pub called: Option<usize>,
+    pub status: &'static str,
+    pub reading: Option<usize>,
+    pub convention: Option<usize>,
+}
 ```
 
-`review_checks` returns the `check` items of the review list `dna review`
-would write for the analysis and that call (SRS-API-015), built by the same
-rules: each item's first and last reference positions (1-based, inclusive)
-and its label names, sorted. It writes nothing. The evaluation harness reads
-it to measure the review workload.
+`review_list` returns the review list `dna review` would write for the
+analysis and that call, judged against the run signal when one is given
+(SRS-API-015), built by the same rules, without the document: the `check`
+items, each with its first and last reference positions (1-based,
+inclusive) and its label names, sorted; and each `tract_length` label
+([[reference/review-lengths]]) with its item's span and its noted runs. It
+writes nothing. The evaluation harness reads it to measure the review
+workload.
 
 It validates the sample identifier and calls the consensus's decided edits as
 `dna call` calls the consensus document `dna consensus` would publish for that

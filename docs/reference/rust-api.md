@@ -334,6 +334,12 @@ the facade does not re-export: it also keeps the normalized form of a window
 whose representation would place a call outside the read's callable
 reference intervals, or would rest on a decisive base the read does not read
 (SRS-NOM-010).
+`dna_normalize::length_convention::ShortestDominant` is the optional
+"shortest dominant" length convention (ISFG 2014 3.3.2): from a length
+distribution it reads the dominant length, or the next-shorter one when its
+share is at least the configured ratio of the dominant's (`[normalization]`,
+at most `MAX_RATIO`, 0.85). The review applies it as a labelled suggestion
+([[reference/review-lengths]]); the facade does not re-export it.
 Decimal strings such as `309.1C` remain an outer notation concern. Sanger
 artifact interpretation, sample reconciliation, and NGS-specific behavior are
 not implemented by this API.

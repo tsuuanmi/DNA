@@ -81,3 +81,29 @@ minimum_run_length = 4
 # an omission inside a range as the reference, so a range never covers a
 # position DNA left undecided or excluded (PROP-0007). It takes no keys.
 [empop]
+
+# C tracts with length heteroplasmy: the homopolymer length varies within a
+# sample (polymerase slippage and true length heteroplasmy cannot be told
+# apart in Sanger signal). A length there whose dominant the reads determine
+# is noted, not checked, and searches disregard length variants over
+# `search` (ISFG, Parson et al. 2014, Rec. 10, 11, 16; SWGDAM 2024 5.1.1;
+# EMPOP standard query windows). The tracts' composition (16189C, T310C) and
+# 315.1C, a phylogenetically stable insertion, are called and checked as
+# usual: HVS-II's tract is its first run only. In reference order.
+[[length_tracts]]
+name = "hvs2_c_tract"
+window = [303, 309]
+base = "C"
+search = [302, 316]
+
+[[length_tracts]]
+name = "hvs3_c_tract"
+window = [568, 573]
+base = "C"
+search = [567, 574]
+
+[[length_tracts]]
+name = "hvs1_c_tract"
+window = [16184, 16193]
+base = "C"
+search = [16189, 16194]

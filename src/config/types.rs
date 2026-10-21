@@ -10,6 +10,7 @@ use dna_align::RawAlignmentConfig;
 use dna_call::RawVariantCallingConfig;
 use dna_call::read_call::{CallConfig, RawCallConfig};
 use dna_consensus::{ConsensusConfig, RawConsensusConfig};
+use dna_normalize::length_convention::ShortestDominant;
 use dna_sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use dna_sanger::basecalling::RawBasecallingConfig;
 use dna_sanger::callability::RawCallabilityConfig;
@@ -36,6 +37,9 @@ pub(crate) struct Config {
     pub(crate) sample: SampleReconciliationConfig,
     /// The review plugin's `[review]` section.
     pub(crate) review: ReviewConfig,
+    /// The normalization plugin's optional length convention
+    /// (`[normalization]`): `None` reports the dominant length only.
+    pub(crate) length_convention: Option<ShortestDominant>,
     pub(crate) source_path: PathBuf,
     pub(crate) source_sha256: String,
 }
@@ -57,6 +61,32 @@ pub(super) struct RawConfig {
     variant_calling: RawVariantCallingConfig,
     consensus: RawConsensusConfig,
     review: RawReviewConfig,
+    /// Optional: without it, no length convention applies.
+    #[serde(default)]
+    normalization: Option<RawNormalizationConfig>,
+}
+
+/// The `[normalization]` section as written: the "shortest dominant" length
+/// convention (ISFG 2014 3.3.2), labelled wherever it reads a length.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RawNormalizationConfig {
+    shortest_dominant_ratio: f64,
+}
+
+impl RawNormalizationConfig {
+    fn validate(self) -> Result<ShortestDominant> {
+        ShortestDominant::new(self.shortest_dominant_ratio)
+            .filter(|_| self.shortest_dominant_ratio.is_finite())
+            .ok_or_else(|| {
+                ConfigError::NotFiniteInRange {
+                    key: "normalization.shortest_dominant_ratio",
+                    minimum: 0.0,
+                    maximum: dna_normalize::length_convention::MAX_RATIO,
+                }
+                .into()
+            })
+    }
 }
 
 /// The review plugin's thresholds for a decision that one strand or an
@@ -133,6 +163,10 @@ impl RawConfig {
         let sample = self.sample_reconciliation.validate()?;
         let consensus = self.consensus.validate()?;
         let review = self.review.validate()?;
+        let length_convention = self
+            .normalization
+            .map(RawNormalizationConfig::validate)
+            .transpose()?;
         let profile_path = source_path
             .parent()
             .unwrap_or_else(|| Path::new(""))
@@ -144,6 +178,7 @@ impl RawConfig {
             consensus,
             sample,
             review,
+            length_convention,
             source_path,
             source_sha256,
         })

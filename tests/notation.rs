@@ -115,7 +115,7 @@ fn derives_the_in_process_notation_and_reports_conformance()
             {"id": "normalization", "family": "post_calling", "version": 3},
             {"id": "nomenclature", "family": "post_calling", "version": 3},
             {"id": "conformance", "family": "post_calling", "version": 1},
-            {"id": "empop", "family": "post_calling", "version": 2},
+            {"id": "empop", "family": "post_calling", "version": 3},
         ])
     );
     assert_eq!(
@@ -124,6 +124,7 @@ fn derives_the_in_process_notation_and_reports_conformance()
             "ranges": [[73, 340]],
             "ranges_text": "73-340",
             "mitotype": "73G 309.1C 309.2C 313.1G",
+            "ignored_in_search": ["309.1C", "309.2C"],
             "cut": [],
         })
     );

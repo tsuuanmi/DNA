@@ -61,6 +61,13 @@ positions that DNA decided:
   ([[reference/sample-evidence/notation|report convention]]) is written too: the
   query must not misstate the sequence, and EMPOP's standard query disregards
   hotspot length differences anyway.
+- `ignored_in_search` (empop version 3): the mitotype's insertions and
+  deletions of a profile length tract's base inside the tract's `search`
+  window ([[reference/profiles|profiles]]), which EMPOP's standard query
+  disregards (16189-16194, 302-316, 567-574 on the human profile): written,
+  but ignored in a search. The field documents EMPOP's search behaviour, not
+  DNA's confidence in a call: `315.1C` is listed because the 302-316 window
+  holds it, and it is still called and checked normally.
 - `cut`: positions inside a profile region and a record that no range
   covers, as `start`, `end`, and `reason`:
   - `unresolved`: the record does not call it (`N`);

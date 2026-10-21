@@ -636,6 +636,69 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review notes C-tract length heteroplasmy whose dominant length the
+  reads determine instead of checking it (SRS-API-020, user decision
+  2026-10-21, after ISFG 2014 Rec. 10, 11, 16, SWGDAM 2024 5.1.1, and EMPOP's
+  query windows). The profile declares `[[length_tracts]]` (`hvs2_c_tract`
+  303-309, `hvs3_c_tract` 568-573, `hvs1_c_tract` 16184-16193, each with its
+  EMPOP search window). A tract run is noted in the new context label
+  `tract_length` (rank 4; a no-call item becomes a `note`) when every read
+  tops at DNA's length (`dominant`) or the reads hold one adjacent pair the
+  length convention reads as its shorter member (`convention`), in both
+  cases with the structure shown by a read in phase or decodes on both
+  strands, or when DNA reports no length there (`unconfirmed`, with the
+  reads' floor reading, never the estimate); an `estimated_length` or
+  `long_run` run of the tract moves to the note. A structure that differs
+  (`T310C`, a mark against `16189C`), decodes on one strand alone (the
+  trace-simulator benchmark found spurious or dropped marks in 6-13 % of
+  simulated reads and over-confident margins under noise), and reads no
+  convention resolves stay checks; `315.1C` and composition changes are
+  checked as usual, and HVS-I's note gives no reading. The note carries per
+  run the strands' lengths, the reads in phase, the floor and convention
+  readings, and each read's first-run and total distributions (shares, z).
+  The length convention `shortest_dominant` moves to `dna-normalize`
+  (`length_convention`): an optional, labelled `[normalization]` policy,
+  `shortest_dominant_ratio` 0.6 (capped at 0.85), replacing the
+  `shorter_of_near_equal_pair` rule as `length_unconfirmed`'s `convention`.
+  The EMPOP query lists a tract's length variants inside its search window
+  as `ignored_in_search` (empop plugin 3). `SampleAnalysis::review_list`
+  (checks and notes) replaces `review_checks`. `dna-eval` classes an
+  unreviewed block that differs only in a tract's length, the structure
+  equal, as `length_note` (reported in every table, never gated), writes
+  `notes.tsv`, counts `length_note_only` passes, and gives a "Length notes"
+  table split into convention, mode - 1, and other. Plugin `review` 28.
+  **Breaking:** `dna.review/v1` (`tract_length`, `summary.labels`,
+  `convention.rule`), `dna.notation/v1` (`empop.ignored_in_search`), profile
+  schema 2 (`length_tracts`), configuration schema 23 (`[normalization]`),
+  and `dna.eval_run/v1` (`notes.tsv`, `length_note`, `length_note_only`) are
+  revised in place (pre-release).
+  - **Measured, development panel v5** against main 1a26e698 (diff gate
+    PASS), with `run_indel` below. Current data: clear 7,824 -> 8,071 of
+    10,695; check items over 303-315 1,714 -> 1,514, over 568-576 316 -> 220,
+    over 16180-16193 495 -> 450; noted runs 1,165 / 106 / 53 (HVS-II / III /
+    I); no new non-het block; 29 length-note blocks (17 newly unreviewed, 12
+    formerly non-het): HVS-II 1 convention, 2 mode - 1, 11 other (DNA
+    reports no length, the truth longer); HVS-I 13 mode - 1, 2 other.
+    Earlier data: clear 3,655 -> 3,755.
+  - **Measured, readiness-v2** (development data) against main 1a26e698
+    (diff gate PASS). Current data: clear 13,511 -> 14,119 of 17,307; checks
+    over the tracts 2,538 -> 2,062, 332 -> 158, 497 -> 421; non-het
+    unreviewed blocks 29 -> 2; 54 length-note blocks (HVS-II 8 convention, 5
+    mode - 1, 15 other; HVS-III 2 mode - 1; HVS-I 22 mode - 1, 2 other).
+    Earlier data: clear 1,821 -> 1,884.
+- The review labels `run_indel` (a check, rank 2, rules version 28) a
+  decided site outside every nomenclature window and length tract that
+  rests on one read and changes the length of a reference run of at least
+  `review.phase_run` equal bases. Such a site had been reviewed only when a
+  nearby length check covered it: on readiness-v2, LN_26_AE3814's one-read
+  `291DEL` (A6 read as A5, the reverse read dephased after the C tract)
+  passed once the HVS-II length check became a note. Shorter runs are left
+  out: one-read `249DEL` (`AA` to `A`) is a common true deletion (814 items
+  on readiness-v2, none against the truth). It makes 8 items checks on
+  development panel v5 (1 over a truth difference) and 12 on readiness-v2
+  (2: the `291DEL` and a one-read `16166` change), costing 1 and 7 current
+  clear samples.
+
 - The review shows no length of DNA's for a run of an anchored repeat
   window it does not report (a window position not callable): such a run's
   `length_unconfirmed` (or `length_not_recorded`) `called` is null, the

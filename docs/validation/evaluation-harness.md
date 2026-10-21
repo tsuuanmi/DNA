@@ -89,7 +89,8 @@ The report (`diff.md`) shows, before and after:
 
 - **Samples:** samples, clear samples, samples with a non-het unreviewed
   block and those whose only unreviewed blocks are het, passed samples by
-  their most severe block, and positions to review.
+  their most severe block (length notes reported, never gated), and
+  positions to review.
 - **Zones:** for every zone that changed, the units needing a check and the
   passed units with a non-het block.
 - **Coverage:** the truth alleles DNA's callable intervals newly leave out
@@ -444,7 +445,8 @@ or to which files a run writes, is a new contract version
 | `components.tsv` | always | per phase-mixture component (ADR-0082) and reference run cluster it covers: the run it enters in phase against the truth's |
 | `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
-| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
+| `notes.tsv` | always | per sample, `dna review` item, and run its `tract_length` label notes: the tract, the run, its status, DNA's length, the reading, and the convention's reading |
+| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check, length note), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure, against the baseline |

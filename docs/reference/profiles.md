@@ -33,6 +33,7 @@ SHA-256 of the file bytes in `provenance.profile`.
 | `conformance` | `rules` | with `notation` | non-empty, without repetition: `insertion_at_run_end`, `insertion_matches_run` ([notation result](notation.md#rules)) |
 | | `minimum_run_length` | with `rules` | at least `2`: the shortest reference homopolymer the rules apply to |
 | `empop` | (none) | no, with `notation` | an empty table: `notation` exports an EMPOP query ([notation result](notation.md#empop-query)) |
+| `length_tracts` | (array) | no | array of tables, in reference order without overlap: homopolymer tracts with length heteroplasmy (below) |
 
 `normalization` and `notation` form the notation chain of `sample`, `call`, and
 `notation`, and are declared together or not at all. `conformance` declares the
@@ -86,3 +87,27 @@ counting a deleted base in the run it shortens. A substitution is never
 covered. The shipped human-mtDNA profile declares `hvs1_c_length`
 (`16180-16193`, `C`, `10`): the reviewers do not record the length of the
 uninterrupted HVS-I C run that `16189C` creates.
+
+Each `[[length_tracts]]` table (user decision 2026-10-21) declares a
+homopolymer tract whose length varies within a sample: polymerase slippage
+and true length heteroplasmy cannot be told apart in Sanger signal, and
+forensic practice records the dominant length, notes the heteroplasmy, and
+leaves the length out of searches (ISFG, Parson et al. 2014, Rec. 10, 11, 16;
+SWGDAM 2024 5.1.1). The review notes a tract run whose dominant length the
+reads determine instead of checking it
+([[reference/review-lengths#tract_length|`tract_length`]]), and the EMPOP
+query lists the tract's length variants inside `search` as
+`ignored_in_search`.
+
+| Key | Validation |
+|---|---|
+| `name` | non-empty, unique |
+| `window` | `[start, end]`, inclusive 1-based positions with `1 <= start < end`: the tract's runs |
+| `base` | A/C/G/T: the tract's base |
+| `search` | `[start, end]` holding the window's last position, where a length variant is written: the window EMPOP's standard query disregards length variants in |
+
+The shipped human-mtDNA profile declares `hvs2_c_tract` (`303-309`, `C`,
+search `302-316`), `hvs3_c_tract` (`568-573`, `C`, `567-574`), and
+`hvs1_c_tract` (`16184-16193`, `C`, `16189-16194`), EMPOP's standard query
+windows. HVS-II's tract is its first run only: `315.1C` is a
+phylogenetically stable insertion, called and checked as usual.

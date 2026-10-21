@@ -22,7 +22,7 @@ use std::num::NonZeroUsize;
 use dna::recorded::{self, EvidenceOutcome};
 use dna::sample_analysis::{
     self, Consensus, ConventionLabel, EmpopExport, NotationCall, RejectedRead, RunSignal,
-    SampleAnalysis, SampleOutcome,
+    SampleAnalysis, SampleOutcome, TractNote,
 };
 use dna_consensus::model::consensus::SiteState;
 use sha2::{Digest, Sha256};
@@ -65,6 +65,8 @@ pub(crate) struct Called {
     pub(crate) checks: Vec<(i64, i64)>,
     /// The same with each item's label names, space-separated.
     pub(crate) check_labels: Vec<(i64, i64, String)>,
+    /// The review list's noted length tracts (`tract_length`).
+    pub(crate) notes: Vec<TractNote>,
     /// Every read's phase-mixture components (ADR-0082).
     pub(crate) components: Vec<components::Row>,
     /// Every read's tract decodes (PROP-0012).
@@ -373,9 +375,11 @@ fn call(
         .empop
         .as_ref()
         .map(|export| Empop::of(export, &analysis.consensus));
-    let check_labels = analysis
-        .review_checks(&result, signal)
-        .map_err(|error| Failure::Dna(error.to_string()))?
+    let review = analysis
+        .review_list(&result, signal)
+        .map_err(|error| Failure::Dna(error.to_string()))?;
+    let check_labels = review
+        .checks
         .iter()
         .filter_map(|check| {
             Some((
@@ -405,6 +409,7 @@ fn call(
         loci,
         checks,
         check_labels,
+        notes: review.notes,
         components: components::rows(analysis),
         tracts: tracts::rows(analysis),
         identity: Identity {
@@ -622,6 +627,7 @@ mod tests {
             ranges: vec![[11, 30], [32, 41], [50, 50]],
             mitotype: Vec::new(),
             cut: Vec::new(),
+            ignored: Vec::new(),
         };
         let empop = Empop::of(&export, &consensus);
         assert_eq!((empop.undecided, empop.ties), (2, 1));
@@ -695,6 +701,7 @@ mod tests {
                     empop: None,
                     checks: Vec::new(),
                     check_labels: Vec::new(),
+                    notes: Vec::new(),
                     components: Vec::new(),
                     tracts: Vec::new(),
                     intervals: Vec::new(),
