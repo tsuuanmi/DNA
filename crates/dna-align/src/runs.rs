@@ -282,17 +282,9 @@ fn rebuild(
         .iter()
         .filter_map(|column| column.query_index.map(|index| (index, column.query_base)))
         .collect::<Vec<_>>();
-    // In a stretch whose read spells the reference's runs, a substitution is
-    // a run-length change the affine optimum merged into a neighbouring gap.
-    let substituted = inside.iter().any(|column| {
-        column.query_index.is_some()
-            && column.reference_index.is_some()
-            && column.query_base != column.reference_base
-    });
     if !calls
         .iter()
         .all(|(_, call)| matches!(call, 'A' | 'C' | 'G' | 'T'))
-        || !(substituted || calls.iter().any(|(index, _)| masked(*index)))
     {
         return None;
     }
@@ -305,6 +297,22 @@ fn rebuild(
             .zip(&expected)
             .any(|(observed, wanted)| observed.0 != wanted.0)
     {
+        return None;
+    }
+    // Where every run whose length changes is a repeat of the reference (two
+    // bases or more), a substitution beside a gap is a run-length change the
+    // affine optimum merged into it. A single base the read repeats is no
+    // slipped run: there the substitution may be the read's own error.
+    let substituted = inside.iter().any(|column| {
+        column.query_index.is_some()
+            && column.reference_index.is_some()
+            && column.query_base != column.reference_base
+    });
+    let repeats = read
+        .iter()
+        .zip(&expected)
+        .all(|(observed, wanted)| observed.1 == wanted.1 || wanted.1 >= 2);
+    if !((substituted && repeats) || calls.iter().any(|(index, _)| masked(*index))) {
         return None;
     }
     let lengths = |runs: &[(char, usize)]| runs.iter().map(|run| run.1).collect::<Vec<_>>();
@@ -470,6 +478,24 @@ mod tests {
         );
         assert_eq!(raw.metrics.mismatches, 0);
         assert_eq!(raw.metrics.gap_opens, 2);
+    }
+
+    #[test]
+    fn keeps_an_unmasked_substitution_beside_a_single_base_run() {
+        // An AC repeat read `ACACAC CC AC CG` where the reference reads
+        // `ACACAC AC CG`: one C run of the reference grows from 1 to 3. A
+        // single C is no slipped run, so the read's own `C` over `A` and its
+        // `AC` insertion stay; masked, the stretch is re-expressed.
+        let raw = reexpressed("GCACACACAC--CGC", "GCACACACCCACCGC", &[]);
+        assert_eq!(
+            rows(&raw),
+            ("GCACACACAC--CGC".to_owned(), "GCACACACCCACCGC".to_owned())
+        );
+        let masked = reexpressed("GCACACACAC--CGC", "GCACACACCCACCGC", &[8]);
+        assert_eq!(
+            rows(&masked),
+            ("GCACACAC--ACCGC".to_owned(), "GCACACACCCACCGC".to_owned())
+        );
     }
 
     #[test]
