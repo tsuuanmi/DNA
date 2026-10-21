@@ -682,6 +682,20 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- One decode credit for the two-strand rule and the review (ADR-0091,
+  SRS-CONS-013): the consensus's two-strand rule credits a decode whose
+  first call sits on an inserted column to the position the insertion
+  follows, on either strand, as the review has since ADR-0091; the review
+  calls the consensus's `length::start_reference` and its copy is gone.
+  Plugin: `consensus` 22. Measured against `main` a55370c4 (diff gate PASS
+  on both panels, artefact bench unchanged): the rule now decides the
+  HVS-II 303-316 window in 35 more samples of development panel v5 and 50
+  of readiness-v2, whose window items lose `dephased_end` (and, in two,
+  `estimated_length`) and keep their other labels, so no check, clear
+  state, or non-het block moves. In readiness-v2 the two samples whose
+  item lost `estimated_length` now call `309.1C 309.2C` with 309-310
+  callable, and become strict-concordant (`hv2_309_2C` strict discordant
+  1,019 → 1,017).
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on
