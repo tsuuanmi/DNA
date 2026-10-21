@@ -664,6 +664,24 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review reports each run of an anchored repeat window on its own
+  (SRS-API-020, rules version 30). Where DNA's calls in the window only
+  insert or delete the repeat base, none at the anchor, run 1 is DNA's
+  reading when the positions from the one before the window to the anchor
+  are callable, and run 2 when those from the anchor to the one after the
+  window are. Rules version 27 required the whole window callable for
+  every run, so a run 1 whose 3' end the consensus only estimates (a
+  length mixture, noted in `tract_length`) left run 2 `undecided_call`, a
+  check, even where a read shows it in phase at DNA's length. Any other
+  structure (one run, or a call such as `T310C` that moves the anchor)
+  keeps the window-wide rule. Plugin `review` 30. Measured against `main`
+  ba0dc0a2 (diff gate PASS on both panels, `failed` equal):
+  - development panel v5, current period: clear 8,066 → 8,358, window@HV2
+    checks 1,464 → 1,054, unreviewed non-het 4 → 4, unreviewed het-only
+    370 → 370;
+  - readiness panel v2, current period: clear 14,117 → 14,408,
+    window@HV2 checks 2,009 → 1,659, unreviewed non-het 1 → 1, unreviewed
+    het-only 741 → 741.
 - Insertions need both strands (SRS-CONS-015, ADR-0089, user decision
   2026-10-21). The consensus decides a short insertion as the reference,
   `contested`, when its clean support lies on one strand and a read of the
