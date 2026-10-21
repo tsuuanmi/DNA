@@ -53,8 +53,7 @@ behind every non-trivial decision.
   reportable region's ends that only reads' unreliable spans observe, up to
   the last position not settled as the reference, left out of the callable
   segments with their changes excluded (SRS-CONS-012).
-- `length.rs`: the two-strand run-length rule (SRS-CONS-013, PROP-0012
-  increment 4): each strand's view of a window's run (`Run`, the one before
+- `length.rs`: the two-strand run-length rule (SRS-CONS-013): each strand's view of a window's run (`Run`, the one before
   or after the anchor) from the reads' tract
   decodes (direct, derived by NNLS deconvolution of the total, or in phase),
   and `decide`, which takes a length only when both strands put it on top

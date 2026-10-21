@@ -14,7 +14,7 @@ use dna_kernel::read_evidence::{CallEvidence, EvidenceReason, Placement};
 
 /// What one read contributes at one reference position or junction.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum SiteValue {
+pub(crate) enum SiteValue {
     /// A base at a reference position.
     Base(char),
     /// A deleted reference position.
@@ -39,7 +39,7 @@ pub(super) enum SiteValue {
 /// base only: whatever its level, it neither counts towards a run nor shows
 /// a run's end (`Char::base_only`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum Trust {
+pub(crate) enum Trust {
     /// Nothing: a non-canonical or uninformative call, or one beside an
     /// unresolved call.
     Nothing,
@@ -56,61 +56,61 @@ pub(super) enum Trust {
 
 /// One observed base: a call aligned to a position or inserted at a junction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct Char {
-    pub(super) base: char,
-    pub(super) trust: Trust,
+pub(crate) struct Char {
+    pub(crate) base: char,
+    pub(crate) trust: Trust,
     /// The reference position the base is aligned to; `None` for an inserted
     /// base.
-    pub(super) position: Option<usize>,
+    pub(crate) position: Option<usize>,
     /// One unresolved call separates the base from a run where the read
     /// loses phase: the base shows that run's end only as `anchored_end`, the
     /// run being as long as its in-phase calls or one longer (ADR-0074).
-    pub(super) beside_unresolved: bool,
+    pub(crate) beside_unresolved: bool,
     /// The modality vouches for the call's base only: it neither counts
     /// towards a run nor shows a run's end.
-    pub(super) base_only: bool,
+    pub(crate) base_only: bool,
 }
 
 impl Char {
     /// The call shows its base.
-    pub(super) fn clean(self) -> bool {
+    pub(crate) fn clean(self) -> bool {
         self.trust == Trust::Clean
     }
 
     /// The call shows where a neighbouring run ends.
-    pub(super) fn resolving(self) -> bool {
+    pub(crate) fn resolving(self) -> bool {
         self.trust >= Trust::Anchoring && !self.base_only
     }
 
     /// The call counts towards its run.
-    pub(super) fn unmasked(self) -> bool {
+    pub(crate) fn unmasked(self) -> bool {
         self.trust >= Trust::Unmasked && !self.base_only
     }
 }
 
 /// One read's value at one site, and whether it may decide the site.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Observation {
-    pub(super) value: SiteValue,
+pub(crate) struct Observation {
+    pub(crate) value: SiteValue,
     /// The calls behind the value are unmasked, trusted (`read_end`), and
     /// raise no support veto.
-    pub(super) clean: bool,
+    pub(crate) clean: bool,
     /// Clean only because a reference-only call confirms the reference here
     /// (ADR-0080).
-    pub(super) confirms: bool,
+    pub(crate) confirms: bool,
     /// The observed bases: one for a base, none for a deletion, the inserted
     /// ones at a junction.
-    pub(super) chars: Vec<Char>,
+    pub(crate) chars: Vec<Char>,
 }
 
 impl Observation {
     /// Clean by the read's own calls, not only as a reference confirmation.
-    pub(super) const fn clean_call(&self) -> bool {
+    pub(crate) const fn clean_call(&self) -> bool {
         self.clean && !self.confirms
     }
 
     /// A junction where the read inserts bases.
-    pub(super) fn inserts(&self) -> bool {
+    pub(crate) fn inserts(&self) -> bool {
         matches!(&self.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
     }
 }
@@ -118,31 +118,31 @@ impl Observation {
 /// The junctions inside the 0-based stretch `first..=last` and at its two
 /// edges, each keyed by the position before it, on a reference of `length`
 /// positions whose origin wraps.
-pub(super) fn junctions(first: usize, last: usize, length: usize) -> impl Iterator<Item = usize> {
+pub(crate) fn junctions(first: usize, last: usize, length: usize) -> impl Iterator<Item = usize> {
     std::iter::once((first + length - 1) % length).chain(first..=last)
 }
 
 /// Every observation of one read, keyed by 0-based reference position; a
 /// junction is keyed by the position before it.
 #[derive(Debug, Clone)]
-pub(super) struct ReadObservations {
+pub(crate) struct ReadObservations {
     /// The read's identity, its input's content SHA-256: never its file
     /// name, which two inputs can share.
-    pub(super) id: String,
+    pub(crate) id: String,
     /// The read is placed on the reference strand.
-    pub(super) forward: bool,
-    pub(super) positions: BTreeMap<usize, Observation>,
-    pub(super) junctions: BTreeMap<usize, Observation>,
+    pub(crate) forward: bool,
+    pub(crate) positions: BTreeMap<usize, Observation>,
+    pub(crate) junctions: BTreeMap<usize, Observation>,
     /// The second base, on the reference strand, of each position whose call
     /// shows one standing out (ADR-0080).
-    pub(super) seconds: BTreeMap<usize, char>,
+    pub(crate) seconds: BTreeMap<usize, char>,
     /// Positions whose call shows a second peak its modality does not explain
     /// (ADR-0080).
-    pub(super) unexplained: BTreeSet<usize>,
+    pub(crate) unexplained: BTreeSet<usize>,
     /// Per covered position, the calls between it and the nearer end of the
     /// read's informative interval, through the nearer of the calls on both
     /// sides of a deleted position or a junction after it (SRS-CONS-011).
-    pub(super) edges: BTreeMap<usize, usize>,
+    pub(crate) edges: BTreeMap<usize, usize>,
 }
 
 /// Walks the read's alignment columns in reference order.
@@ -157,7 +157,7 @@ pub(super) struct ReadObservations {
 /// reference's makes its position's base observation clean as a
 /// confirmation of the reference (ADR-0080), and nothing else: its run role
 /// stays its call's.
-pub(super) fn observe(
+pub(crate) fn observe(
     read: &CalledRead,
     config: &VariantCallingConfig,
     bases: &[u8],
@@ -488,7 +488,7 @@ impl ReadObservations {
     /// edges and inside included, framed by the bases at the two neighbouring
     /// positions (`None` in the frame for a deleted neighbour); `None` when
     /// the read does not cover the stretch and both its neighbours.
-    pub(super) fn span(
+    pub(crate) fn span(
         &self,
         first: usize,
         last: usize,
@@ -551,7 +551,7 @@ impl ReadObservations {
     /// inwards, in reference order: from `first` when `from_end` is false,
     /// from `last` otherwise, one clean canonical call per position, until a
     /// position it does not read cleanly or an insertion.
-    pub(super) fn clean_edge(
+    pub(crate) fn clean_edge(
         &self,
         first: usize,
         last: usize,
@@ -604,7 +604,7 @@ impl ReadObservations {
 /// spans, by a call aligned there that is scored, trusted, and withheld for
 /// nothing on its base. Each with the reason of the first read's span there.
 /// A deleted position lies in a span when the calls on both sides of it do.
-pub(super) fn unreliable_only(
+pub(crate) fn unreliable_only(
     reads: &[&CalledRead],
     config: &VariantCallingConfig,
 ) -> BTreeMap<usize, EvidenceReason> {

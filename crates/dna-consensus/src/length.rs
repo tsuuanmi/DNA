@@ -1,5 +1,5 @@
-//! The two-strand run-length rule (PROP-0012 increment 4, "rule A",
-//! SRS-CONS-013): it decides the length of a run of one base beside a
+//! The two-strand run-length rule (SRS-CONS-013, from PROP-0012
+//! increment 4): it decides the length of a run of one base beside a
 //! single-base anchor in a length mixture, from the reads' tract decodes on
 //! both strands. The review confirms the runs it decides.
 //!
@@ -527,8 +527,8 @@ pub fn views(
     runs
 }
 
-/// Decides by the two-strand rule over the reads' tract decodes (SRS-CONS-013,
-/// PROP-0012 increment 4) the runs a stretch's decision left as an estimate
+/// Decides by the two-strand rule over the reads' tract decodes (SRS-CONS-013)
+/// the runs a stretch's decision left as an estimate
 /// (an anchored end, a phase loss, or the reference frame), in every pair of
 /// runs of one base the stretch splits by a single-base anchor, where its
 /// call keeps the reference's run composition. A run the rule decides takes

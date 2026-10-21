@@ -1,5 +1,5 @@
-//! The two-strand run-length rule against the research reference's vectors
-//! (PROP-0012 increment 4): twelve HVS-II runs from development panel v5,
+//! The two-strand run-length rule (SRS-CONS-013) against the research
+//! reference's vectors: twelve HVS-II runs from development panel v5,
 //! with every view's top, next, `p`, and standard error, the strands'
 //! spread, and the outcome.
 
@@ -51,7 +51,7 @@ fn close(actual: f64, expected: f64, what: &str, case: &str) {
 // SRS-CONS-013
 #[test]
 fn decides_the_reference_runs() -> Result<(), Box<dyn std::error::Error>> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/rule_a");
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/two_strand");
     let mut files = std::fs::read_dir(&directory)?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .collect::<Vec<_>>();

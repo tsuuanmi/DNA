@@ -56,7 +56,7 @@ pub enum RunEvidence {
     ReferenceFrame,
     /// No read shows both ends, but reads of both strands decode the run's
     /// length from their own signal, each beyond the strands' spread and
-    /// its strand's replicate noise (PROP-0012 increment 4): the length
+    /// its strand's replicate noise (SRS-CONS-013): the length
     /// replaces an estimate, never a length a read shows.
     TwoStrand,
 }
