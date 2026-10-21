@@ -859,6 +859,24 @@
           ],
           "properties": {
             "label": {
+              "const": "run_indel"
+            },
+            "read": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "description": "A decided site outside every repeat window and length tract that rests on one read and changes a homopolymer run's length: a check."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "read"
+          ],
+          "properties": {
+            "label": {
               "const": "one_read"
             },
             "read": {
@@ -1830,6 +1848,7 @@
             "long_run",
             "edge_deletion",
             "run_deletion",
+            "run_indel",
             "beside_not_analysed",
             "one_read",
             "one_strand",
@@ -1928,6 +1947,10 @@
               "minimum": 0
             },
             "tract_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "run_indel": {
               "type": "integer",
               "minimum": 0
             }

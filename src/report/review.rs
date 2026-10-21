@@ -503,6 +503,9 @@ struct Sample<'a> {
     length_windows: Vec<length::LengthWindow>,
     /// The profile's length tracts.
     length_tracts: &'a [LengthTract],
+    /// The profile's nomenclature windows and length tracts, 1-based and
+    /// inclusive: where a run's length is judged by its own rules.
+    repeat_windows: Vec<[usize; 2]>,
     /// The length convention, when configured (`[normalization]`).
     length_convention: Option<ShortestDominant>,
     /// The reference and the core's and the consensus's configuration, for
@@ -631,6 +634,21 @@ impl<'a> Sample<'a> {
             second: &analysis.loaded.config.sanger.signal_processing,
             length_windows: length::windows(&analysis.loaded.profile),
             length_tracts: &analysis.loaded.profile.length_tracts,
+            repeat_windows: analysis
+                .loaded
+                .profile
+                .windows
+                .iter()
+                .map(|window| [window.start + 1, window.end()])
+                .chain(
+                    analysis
+                        .loaded
+                        .profile
+                        .length_tracts
+                        .iter()
+                        .map(|tract| tract.window),
+                )
+                .collect(),
             length_convention: analysis.loaded.config.length_convention,
             reference,
             call_config: &analysis.loaded.config.core,
@@ -1066,6 +1084,9 @@ impl<'a> Sample<'a> {
             if let Some(read) = self.run_deletion(site) {
                 labels.push(LabelResult::RunDeletion { read });
             }
+            if let Some(read) = self.run_indel(site) {
+                labels.push(LabelResult::RunIndel { read });
+            }
             if let Some(read) = self.edge_deletion(site) {
                 labels.push(LabelResult::EdgeDeletion { read });
             }
@@ -1091,6 +1112,31 @@ impl<'a> Sample<'a> {
             self.config.phase_run,
         )
         .then(|| self.reads[index].name.to_owned())
+    }
+
+    /// The single read a site rests on when its call changes the length of
+    /// a homopolymer run of its reference of at least `review.phase_run`
+    /// equal bases (inserts or deletes copies of the run's base, the runs'
+    /// bases unchanged) and the site lies outside every repeat window and
+    /// length tract of the profile; `None` for any other site. A read slips
+    /// on such a run, and the other strand often reads it only out of phase,
+    /// so one read cannot assure its length.
+    fn run_indel(&self, site: &ConsensusSite) -> Option<String> {
+        let call = site.call.as_deref()?;
+        let [input] = site.supporting.as_slice() else {
+            return None;
+        };
+        let (first, last) = (site.first_0based + 1, site.last_0based + 1);
+        if self
+            .repeat_windows
+            .iter()
+            .any(|&[start, end]| start <= last && first <= end)
+        {
+            return None;
+        }
+        let index = *self.by_input.get(input.as_str())?;
+        run_length_change(&site.reference, call, self.config.phase_run)
+            .then(|| self.reads[index].name.to_owned())
     }
 
     /// The single read a deletion within `deletion_zone` positions of a
@@ -1983,6 +2029,20 @@ fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> 
 
 /// Whether `call` is at least `growth` bases shorter than `reference` and the
 /// reference holds a run of at least `run` equal bases.
+/// Whether `call` changes only the length of runs of `reference` (the same
+/// bases in the same run order, another length), one of them a reference
+/// run of at least `run` equal bases.
+fn run_length_change(reference: &str, call: &str, run: usize) -> bool {
+    let (from, to) = (runs_of(reference), runs_of(call));
+    call.len() != reference.len()
+        && from.len() == to.len()
+        && from.iter().zip(&to).all(|(left, right)| left.0 == right.0)
+        && from
+            .iter()
+            .zip(&to)
+            .any(|(left, right)| left.1 != right.1 && left.1 >= run)
+}
+
 fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
     call.len() + growth <= reference.len()
         && runs_of(reference).iter().any(|(_, length)| *length >= run)
@@ -2161,6 +2221,7 @@ const fn unassured(label: &LabelResult) -> bool {
             | LabelResult::LongRun { .. }
             | LabelResult::EdgeDeletion { .. }
             | LabelResult::RunDeletion { .. }
+            | LabelResult::RunIndel { .. }
             | LabelResult::NotCovered
             | LabelResult::BesideNotAnalysed
     )
@@ -2181,6 +2242,7 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::LongRun { .. }
         | LabelResult::EdgeDeletion { .. }
         | LabelResult::RunDeletion { .. }
+        | LabelResult::RunIndel { .. }
         | LabelResult::BesideNotAnalysed => 2,
         LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
         LabelResult::PossibleHeteroplasmy {
@@ -2206,6 +2268,7 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::LongRun { .. } => "long_run",
         LabelResult::EdgeDeletion { .. } => "edge_deletion",
         LabelResult::RunDeletion { .. } => "run_deletion",
+        LabelResult::RunIndel { .. } => "run_indel",
         LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
         LabelResult::ReferenceSecond { .. } => "reference_second",
         LabelResult::EstimatedLength { .. } => "estimated_length",
@@ -2334,6 +2397,7 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
         | LabelResult::ReadDisagrees { read, .. }
         | LabelResult::EdgeDeletion { read }
         | LabelResult::RunDeletion { read }
+        | LabelResult::RunIndel { read }
         | LabelResult::NoisySignal { read, .. }
         | LabelResult::PhaseShift { read, .. }
         | LabelResult::ReadEdge { read }
@@ -2436,6 +2500,7 @@ fn summarize(
                 "long_run" => &mut labels.long_run,
                 "edge_deletion" => &mut labels.edge_deletion,
                 "run_deletion" => &mut labels.run_deletion,
+                "run_indel" => &mut labels.run_indel,
                 "beside_not_analysed" => &mut labels.beside_not_analysed,
                 "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
                 "reference_second" => &mut labels.reference_second,
@@ -2803,6 +2868,21 @@ mod tests {
         assert!(!run_lost("CCCCCTCCCC", "CCCCCCCC", 3, 4));
         // No run of four in the reference: a deletion elsewhere.
         assert!(!run_lost("CCGGAGCACCC", "CCCCC", 3, 4));
+    }
+
+    // SRS-API-014
+    #[test]
+    fn a_one_read_run_length_change_is_a_run_indel() {
+        // LN_26_AE3814's 291DEL: A6 read as A5.
+        assert!(run_length_change("AAAAAA", "AAAAA", 4));
+        assert!(run_length_change("GCCCCA", "GCCCCCA", 4));
+        // A run shorter than `phase_run` (249DEL in AA, 82.1A) is not.
+        assert!(!run_length_change("AA", "A", 4));
+        assert!(!run_length_change("AT", "AAT", 4));
+        // A substitution, or a deletion that removes a whole run, is not.
+        assert!(!run_length_change("CCTCC", "CCCCC", 4));
+        assert!(!run_length_change("CCCCTC", "CCCCC", 4));
+        assert!(!run_length_change("AAAAAA", "AAAAAA", 4));
     }
 
     #[test]

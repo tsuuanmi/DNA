@@ -266,6 +266,11 @@ pub(crate) enum LabelResult {
     RunDeletion {
         read: String,
     },
+    /// A decided site outside every repeat window that rests on one read
+    /// and changes a homopolymer run's length (rules version 28): a check.
+    RunIndel {
+        read: String,
+    },
     PossibleHeteroplasmy {
         position: usize,
         base: char,
@@ -569,6 +574,7 @@ pub(crate) struct LabelCounts {
     pub(crate) long_run: usize,
     pub(crate) edge_deletion: usize,
     pub(crate) run_deletion: usize,
+    pub(crate) run_indel: usize,
     pub(crate) beside_not_analysed: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,

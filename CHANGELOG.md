@@ -663,20 +663,31 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   and `dna.eval_run/v1` (`notes.tsv`, `length_note`, `length_note_only`) are
   revised in place (pre-release).
   - **Measured, development panel v5** against main 1a26e698 (diff gate
-    PASS). Current data: clear 7,824 -> 8,072 of 10,695; check items over
-    303-315 1,714 -> 1,514, over 568-576 316 -> 220, over 16180-16193 495 ->
-    450; noted runs 1,165 / 106 / 53 (HVS-II / III / I); no new non-het
-    block; 29 length-note blocks (17 newly unreviewed, 12 formerly non-het):
-    HVS-II 1 convention, 2 mode - 1, 11 other (DNA reports no length, the
-    truth longer); HVS-I 13 mode - 1, 2 other. Earlier data: clear 3,655 ->
-    3,755.
-  - **Measured, readiness-v2** (development data) against main 1a26e698.
-    Current data: clear 13,511 -> 14,126 of 17,307; checks over the tracts
-    2,538 -> 2,062, 332 -> 158, 497 -> 421; 54 length-note blocks (HVS-II 8
-    convention, 5 mode - 1, 15 other; HVS-III 2 mode - 1; HVS-I 22 mode - 1,
-    2 other); one non-het block newly unreviewed, a `291DEL` that only the
-    HVS-II length check had covered (LN_26_AE3814), so the diff gate fails on
-    `after@HV2` 1 -> 2. Earlier data: clear 1,821 -> 1,884.
+    PASS), with `run_indel` below. Current data: clear 7,824 -> 8,071 of
+    10,695; check items over 303-315 1,714 -> 1,514, over 568-576 316 -> 220,
+    over 16180-16193 495 -> 450; noted runs 1,165 / 106 / 53 (HVS-II / III /
+    I); no new non-het block; 29 length-note blocks (17 newly unreviewed, 12
+    formerly non-het): HVS-II 1 convention, 2 mode - 1, 11 other (DNA
+    reports no length, the truth longer); HVS-I 13 mode - 1, 2 other.
+    Earlier data: clear 3,655 -> 3,755.
+  - **Measured, readiness-v2** (development data) against main 1a26e698
+    (diff gate PASS). Current data: clear 13,511 -> 14,119 of 17,307; checks
+    over the tracts 2,538 -> 2,062, 332 -> 158, 497 -> 421; non-het
+    unreviewed blocks 29 -> 2; 54 length-note blocks (HVS-II 8 convention, 5
+    mode - 1, 15 other; HVS-III 2 mode - 1; HVS-I 22 mode - 1, 2 other).
+    Earlier data: clear 1,821 -> 1,884.
+- The review labels `run_indel` (a check, rank 2, rules version 28) a
+  decided site outside every nomenclature window and length tract that
+  rests on one read and changes the length of a reference run of at least
+  `review.phase_run` equal bases. Such a site had been reviewed only when a
+  nearby length check covered it: on readiness-v2, LN_26_AE3814's one-read
+  `291DEL` (A6 read as A5, the reverse read dephased after the C tract)
+  passed once the HVS-II length check became a note. Shorter runs are left
+  out: one-read `249DEL` (`AA` to `A`) is a common true deletion (814 items
+  on readiness-v2, none against the truth). It makes 8 items checks on
+  development panel v5 (1 over a truth difference) and 12 on readiness-v2
+  (2: the `291DEL` and a one-read `16166` change), costing 1 and 7 current
+  clear samples.
 
 - The review shows no length of DNA's for a run of an anchored repeat
   window it does not report (a window position not callable): such a run's

@@ -144,7 +144,7 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 22] = [
+const RANKS: [(&str, u64); 23] = [
     ("strands_disagree", 0),
     ("read_disagrees", 0),
     ("possible_heteroplasmy", 1),
@@ -156,6 +156,7 @@ const RANKS: [(&str, u64); 22] = [
     ("long_run", 2),
     ("edge_deletion", 2),
     ("run_deletion", 2),
+    ("run_indel", 2),
     ("beside_not_analysed", 2),
     ("one_read", 3),
     ("one_strand", 3),

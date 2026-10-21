@@ -178,7 +178,7 @@ the clipped columns, what most of its supporting reads show there). It has:
 - `kind`: `check` when a label leaves the item unassured
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
   `explained`, `reference_second`, `estimated_length`, `length_unconfirmed`, `undecided`,
-  `not_called`, `long_run`, `edge_deletion`, `run_deletion`,
+  `not_called`, `long_run`, `edge_deletion`, `run_deletion`, `run_indel`,
   `beside_not_analysed`, `not_covered`), whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
@@ -253,7 +253,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy`, `reference_second` |
-| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `run_deletion`, `undecided` |
+| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `run_deletion`, `run_indel`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
@@ -382,6 +382,16 @@ exemption lifts the margin (ADR-0076).
   development data it made 6 sites checks: the 4 auto-passed wrong ones (a
   compressed HVS-II run, and a composition taken from one read's end) and 2
   true deletions.
+- `run_indel` `{read}` (rules version 28): a decided site outside every
+  nomenclature window and length tract that rests on a single read and
+  changes the length of a reference run of at least `review.phase_run`
+  equal bases (inserts or deletes copies of the run's base, the runs' bases
+  unchanged: `291DEL` in `AAAAAA`). A read slips on such a run, and the
+  other strand often reads it only out of phase after a C tract, so one read
+  cannot assure its length; before, such a site was reviewed only when a
+  nearby length check happened to cover it (LN_26_AE3814 on readiness-v2).
+  Shorter runs are left out: one-read `249DEL` (`AA` to `A`) is a common
+  true deletion, 814 such items on readiness-v2 without a truth difference.
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
   lie on one strand. It describes the support of the call, so it can come

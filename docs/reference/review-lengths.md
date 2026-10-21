@@ -96,7 +96,8 @@ user decision 2026-10-21): runs of a profile length tract (`length_tracts`,
 Context, never a check (ISFG, Parson et al. 2014, Rec. 10, 11, 16; SWGDAM
 2024 5.1.1). `ignored_in_search` is the tract's search window, where EMPOP's
 standard query disregards its length variants (the EMPOP section lists them,
-[[reference/notation|notation]]).
+[[reference/notation|notation]]): EMPOP's search behaviour, not DNA's
+confidence in a call.
 
 A run of the tract is noted when its dominant length is determined. `status`
 says how, and `reading` is the length a reviewer would record:

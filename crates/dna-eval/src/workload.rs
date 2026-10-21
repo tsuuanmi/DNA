@@ -162,7 +162,8 @@ impl Tract {
     /// Whether `block` differs only in the length of a run of the tract:
     /// both sides read the same sequence once the tract's base is taken out
     /// (the structure equal: no `T310C`, no `16189C` one side lacks), and
-    /// the first run whose length differs starts inside the tract. A block
+    /// the first run whose length differs overlaps the tract, starting no
+    /// later than its last position (a `16183C` run reaches before it). A block
     /// may reach past the tract, to where its two sides' lengths meet again
     /// or its interval ends; a run that differs after the tract's own
     /// (`315.1C`) is no tract length.
@@ -203,8 +204,14 @@ impl Tract {
         while start > 0 && longer[start - 1] == base {
             start -= 1;
         }
-        let position = block.start + i64::try_from(start).unwrap_or(i64::MAX);
-        self.first <= position && position <= self.last
+        let mut end = common;
+        while end + 1 < longer.len() && longer[end + 1] == base {
+            end += 1;
+        }
+        let at = |index: usize| block.start + i64::try_from(index).unwrap_or(i64::MAX);
+        // The longer side's run lies at least one base past the shorter's, so
+        // its first and last bases bound the run on the reference.
+        at(start) <= self.last && self.first <= at(end)
     }
 
     /// How many more of the tract's base DNA reads in `block` than the
