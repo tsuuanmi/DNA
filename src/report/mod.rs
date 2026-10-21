@@ -7,7 +7,6 @@ mod call;
 mod consensus;
 mod evidence;
 mod json;
-pub(crate) mod length;
 mod notation;
 mod review;
 mod run_context;
