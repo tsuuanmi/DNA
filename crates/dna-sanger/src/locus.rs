@@ -1,7 +1,7 @@
 //! Shared canonical Sanger locus-window geometry.
 
+use crate::error::LocusWindowError;
 use crate::model::sanger::Chromatogram;
-use dna_kernel::error::LocusWindowError;
 
 /// Half-open sample window around one validated Sanger locus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

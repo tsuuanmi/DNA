@@ -682,6 +682,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- **Breaking (Rust API):** the Sanger-only failures leave the kernel.
+  `LocusWindowError` moves from `dna_kernel::error` to `dna_sanger::error`
+  (still `dna::error::LocusWindowError`), and `CallEvidenceError` drops
+  `MissingQuality`, `IndexMismatch`, and `MissingPeakEvidence`, which become
+  `ProductsError` variants with the same messages. No output changes.
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on
