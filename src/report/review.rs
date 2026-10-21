@@ -49,7 +49,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 22,
+    version: 23,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -758,7 +758,16 @@ impl<'a> Sample<'a> {
                     })
                 })
                 .collect::<Vec<_>>();
-            let mut runs = length::judge(window, called.as_deref(), &decodes, &in_phase);
+            let two_strand = self
+                .sites
+                .iter()
+                .find(|site| {
+                    site.first_0based < window.first && window.last <= site.last_0based + 1
+                })
+                .map(|site| length::two_strand_runs(&site.runs, window))
+                .unwrap_or_default();
+            let mut runs =
+                length::judge(window, called.as_deref(), &two_strand, &decodes, &in_phase);
             let label = if window.recorded {
                 runs.retain(|run| run.agreement != "confirmed");
                 LabelResult::LengthUnconfirmed { runs }

@@ -329,6 +329,7 @@ dependencies = [
  "dna-call",
  "dna-kernel",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

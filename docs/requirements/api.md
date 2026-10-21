@@ -1,5 +1,5 @@
 ---
-implements: [SRS-CALL, SRS-IN, SRS-SAMPLE, SRS-VAR]
+implements: [SRS-CALL, SRS-CONS, SRS-IN, SRS-SAMPLE, SRS-VAR]
 decided-by: [ADR-0074, ADR-0080, ADR-0082]
 verified-by:
   - tests/evidence.rs
@@ -38,11 +38,11 @@ These requirements are part of the canonical [[requirements/SRS|DNA SRS]].
   - **Credit.** A decode MUST be credited to the run its first call is aligned to, or, on an inserted column, the nearest aligned call before it in the read's order, when its run base is the window's repeat base on the read's strand.
   - **Lengths.** A read MUST give the length of the run it enters first from its first-run marginal. When it chose the window's anchor as its mark and both its marginals are clear, it MUST also give the next run's length, its total less the first and the mark. A read whose consensus reading shows a run in phase, its calls clean and counted and both ends shown by unmasked calls of another base (ADR-0074, `dna_consensus::read_runs_over`), MUST give that run's length too.
   - **Strands.** A strand MUST give a run one clear length only when every length its reads give is clear and equal.
-  - **Confirmation.** A run MUST be confirmed only when both strands give it one clear length, the same, which is DNA's decided length. A read structure other than DNA's (a mark where DNA calls one run, or none where it calls two) MUST never confirm.
+  - **Confirmation.** A run MUST be confirmed only when both strands give it one clear length, the same, which is DNA's decided length, or when the consensus decided its length by the two-strand rule (`two_strand`, SRS-CONS-013, increment 4). A read structure other than DNA's (a mark where DNA calls one run, or none where it calls two) MUST never confirm.
   - **Labels.** In a window whose run lengths the profile records, every run that a decode reaches and that is not confirmed MUST be labelled `length_unconfirmed`, a check. In a window over which a `run_length` convention leaves its repeat base's runs unrecorded, every run a decode reaches MUST be labelled `length_not_recorded`, context and never a check. A window no decode reaches MUST get no label.
 
 ## Implemented in
 
 <!-- docs:begin backlinks -->
-- **Implemented in:** [architecture/data-flow](../architecture/data-flow.md), [design/length-mixture](../design/length-mixture.md), [design/pipeline](../design/pipeline.md), [reference/consensus](../reference/consensus.md), [reference/read-evidence](../reference/read-evidence.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/sample-evidence](../reference/sample-evidence/README.md), [reference/signal](../reference/signal.md), [requirements/input](input.md), [requirements/output](output.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
+- **Implemented in:** [architecture/data-flow](../architecture/data-flow.md), [design/length-mixture](../design/length-mixture.md), [design/pipeline](../design/pipeline.md), [reference/consensus](../reference/consensus.md), [reference/read-evidence](../reference/read-evidence.md), [reference/review](../reference/review.md), [reference/rust-api](../reference/rust-api.md), [reference/rust-api-sample](../reference/rust-api-sample.md), [reference/sample-evidence](../reference/sample-evidence/README.md), [reference/signal](../reference/signal.md), [requirements/consensus](consensus.md), [requirements/input](input.md), [requirements/output](output.md), [validation/evaluation-harness](../validation/evaluation-harness.md), [validation/evaluation-measures](../validation/evaluation-measures.md), [validation/evaluation-triage](../validation/evaluation-triage.md)
 <!-- docs:end backlinks -->

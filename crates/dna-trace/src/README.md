@@ -24,7 +24,7 @@ constants), and the modality's plugin version covers its output.
 - `tract.rs` — a tract's length decode (SRS-CALL-025): `analyse` locates each
   tract, `choose` picks its structure (a single run, or two runs around a
   mark) by the lowest residual over one shared window, and `decode` fits it
-  as a mixture of molecules sharing one downstream sequence, by NNLS and an
+  as a mixture of molecules sharing one downstream sequence, by NNLS (`dna_kernel::nnls`) and an
   exact dynamic programme from a start per candidate length. Only the first
   run's and the total's marginals are identifiable, so only they are
   reported, with standard errors and autocorrelation-deflated margins.
