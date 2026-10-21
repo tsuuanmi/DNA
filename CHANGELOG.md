@@ -46,10 +46,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     per measure; and the changed samples, in `samples.tsv` and
     `statuses.tsv`.
   - **Verdict:** it exits 2 with `GATE FAIL` when non-het escapes or
-    unreviewed samples rise anywhere, or when the samples the harness could
-    not score differ between the runs: the runs then compare different
-    samples (2026-10-21: transient trace-read failures under load cost one
-    run 47 samples and went unnoticed).
+    unreviewed samples rise in the current period (`batch_date` in or after
+    the runs' current-data month; all samples when the runs record none), or
+    when the samples the harness could not score there differ between the
+    runs: the runs then compare different samples (2026-10-21: transient
+    trace-read failures under load cost one run 47 samples and went
+    unnoticed). The earlier period and the sources, which mix periods, are
+    reported in full and never gate (user decision 2026-10-21: the LAB keeps
+    improving, so recent data decides).
   - **New table:** `dna-eval run` writes `unreviewed.tsv`, one row per
     unreviewed block with its class, zone, and whether a check touches the
     zone (`dna.eval_run/v1`, in place, pre-release).
@@ -633,11 +637,45 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   (SRS-API-020, user decision 2026-10-21). On development panel v5 the
   floor matched the truth in 354 of 406 current unreported HVS-II run 1s
   whose reads top at different lengths, the phase-loss estimate in 41.
-  `dna.review/v1` gains the field in place (pre-release); plugin `review` 26.
-  Against `main` 60252579 the check items keep their positions (25 HVS-II
+  `dna.review/v1` gains the field in place (pre-release); plugin `review` 27.
+  Against `main` 60252579 (before #204) the check items keep their positions (25 HVS-II
   `estimated_length` items also carry `length_unconfirmed`), and the scores,
   unreviewed blocks, and clear samples are byte-identical (diff gate pass).
 
+- The review confirms an anchored window run that only one strand gives a
+  length when that strand gives one clear length, DNA's call, and at least
+  one of its reads shows the run in phase (SRS-API-020, ADR-0074): an
+  in-phase read shows the length directly, and the other strand having no
+  view is absence of evidence, not a contradiction. A run that only decodes
+  give still needs both strands, and a read whose structure differs from
+  DNA's still never confirms. Plugin `review` 26 (rules version 26).
+  - **Measured.** Against main 3cad890 (`dna-eval diff`, frozen re-check
+    list). Development panel v5, current data: window@HV2 checks
+    1,974 → 1,664, clear samples 7,728 → 7,824 of 10,695, no zone or
+    sample with a non-het block newly passed; GATE PASS. Readiness-v2 (now
+    development data), current data: window@HV2 checks 2,900 → 2,483, clear
+    13,383 → 13,511 of 17,307, passed non-het samples 11 → 11 and passed
+    window@HV2 zones with a non-het block 4 → 4. The six current samples
+    that newly pass with an unreviewed block that is not het hold only
+    `573.1C 573.2C` past the truth's HVS-III interval (truth N, #211); their
+    window@HV2 runs, now confirmed, match the truth.
+  - **Earlier data.** Readiness-v2 gains two window@HV2 zones with a
+    non-het block, both in one 2024-11 batch: DNA's `309.1C`, which the
+    truth lacks, is shown by eight clean, evenly spaced C peaks on HVS-II
+    forward (and on HVS-III reverse in one), so the truth is the likely
+    error; the diff gate fails on them.
+
+- `dna-eval` classes an unreviewed block whose every difference is an
+  insertion past the truth's analysed interval (anchored at the last base of
+  the truth's own interval, e.g. DNA's `573.1C 573.2C` where the truth's
+  HVS-III interval ends at 573) as `truth_n`, not `non_het`: the truth records
+  nothing there, and the allele measure already leaves it uncompared (user
+  decision 2026-10-21). A block that ends only where DNA's callable interval
+  ends stays `non_het`. On development panel v5 against main 60252579, 27
+  blocks move (25 at 573, 2 at 309); non-het unreviewed blocks fall 71 → 44
+  (current 34 → 20), passed samples with a non-het block 24 → 12 (current
+  8 → 2), and `end@HV3` passed non-het zones 24 → 1. DNA's output is
+  unchanged.
 - A Sanger call before a run that closes a stop of the read's in-phase
   signal (the informative end, or a phase loss after a repeat run inside the
   interval) is judged against the medians of the last `end_norm_calls` (30)

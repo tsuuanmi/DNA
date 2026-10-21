@@ -49,14 +49,12 @@ sample's admitted traces is another run's and fails the command without
 output, as does one made with another `flank` or `resolution` than the
 configuration's. Without it, the configured floor alone sets the threshold.
 
-Every sample gets a document. `status` says how far it got:
-
-- `called`: the analysis and the call succeeded;
-- `rejected`: every read was rejected; the document lists the reads with their
-  causes and has no items;
-- `call_failed`: the analysis succeeded but the call failed; `error` carries
-  the failure text, and the items are those of the consensus and the reads,
-  without calls.
+Every sample gets a document. `status` says how far it got: `called` (the
+analysis and the call succeeded), `rejected` (every read was rejected; the
+document lists the reads with their causes and has no items), or
+`call_failed` (the analysis succeeded but the call failed; `error` carries
+the failure text, and the items are those of the consensus and the reads,
+without calls).
 
 An unreadable input, an invalid configuration, two traces with the same
 reviewer-facing name (the same file stem in two directories), or an existing
@@ -258,7 +256,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 26)
+## Labels (rules version 27)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -353,7 +351,7 @@ exemption lifts the margin (ADR-0076).
   ([[PROP-0012]] increment 3) but do not confirm. `run` is 1 before the
   anchor and 2 after it (1 alone when DNA calls one run); `called` is DNA's
   length, null when DNA reports none: its call holds an `N`, or (rules
-  version 26) a window position is not callable, so its decided length is
+  version 27) a window position is not callable, so its decided length is
   an estimate, kept only in `estimated_length`. Each read gives a length
   with its `source`:
   - `decode`, the first-run marginal of the run the read enters first (a
@@ -367,8 +365,9 @@ exemption lifts the margin (ADR-0076).
   `structure_differs` (a read sees two runs where DNA calls one, or the
   reverse), `disagree` (the strands give different clear lengths),
   `not_clear` (a strand's lengths are not all clear and equal), `one_strand`
-  (one strand gives no length), `undecided_call` (both strands give one
-  length, DNA none), `differs_from_call` (both give another than DNA's).
+  (one strand gives no length, and no read of the other shows the run in
+  phase), `undecided_call` (the reads give one length, DNA none),
+  `differs_from_call` (the reads agree on another length than DNA's).
 
   `convention` (rules version 24, user decision 2026-10-20) is the lab's
   reading of a near-equal pair, a suggestion and never DNA's call:
@@ -380,16 +379,17 @@ exemption lifts the margin (ADR-0076).
   for a run whose structure differs from DNA's, and in `length_not_recorded`,
   where the lab records no length.
 
-  `floor` (rules version 26, user decision 2026-10-21), for a run whose
-  `called` is null, is the reads' floor reading, the least length any read
-  gives as its top or `next`: a suggestion only, like `convention`; null
-  otherwise and in `length_not_recorded`.
+  `floor` (rules version 27): for a run whose `called` is null, the least
+  length any read gives as its top or `next`, a suggestion only like
+  `convention`; null otherwise and in `length_not_recorded`.
 
-  A run both strands give one clear length that is DNA's reported length is
-  confirmed and not listed, as is a run the consensus decided by the
-  two-strand rule (`two_strand`, SRS-CONS-013, rules version 23) unless its
-  structure differs. The label is a check: the decodes do not assure DNA's
-  length.
+  The reads give a run its length when both strands give it one clear
+  length, the same, or (rules version 26) when one strand gives none and
+  one of the other's reads shows its one clear length `in_phase`; decodes
+  alone on one strand need the other. A run whose length so read is DNA's
+  reported length is confirmed and not listed, as is a run the consensus
+  decided by the two-strand rule (`two_strand`, SRS-CONS-013, rules version
+  23) unless its structure differs. The label is a check.
 - `length_not_recorded` `{runs: [...]}` (rules version 21): the same runs, as
   `length_unconfirmed` lists them, confirmed ones included, of an anchored
   window over which the profile's report convention leaves the run lengths

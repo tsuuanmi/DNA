@@ -97,7 +97,15 @@ Each unreviewed block has one class, the first that applies:
 
 1. `re-check`: the re-check list (`--recheck`) names a span of its sample
    that the block overlaps;
-2. `truth N`: the truth writes `N` in it (the reviewer abstained);
+2. `truth N`: the truth writes `N` in it (the reviewer abstained), or every
+   difference of the block is an insertion past the truth's analysed
+   interval: the block reaches the end of the truth's own interval, holds
+   only its last base, and one side reads that base as the other does, then
+   inserted bases the other has not (DNA's `573.1C 573.2C` where the truth's
+   HVS-III interval ends at 573). The truth records nothing past its
+   interval, and the allele measure leaves such an insertion uncompared too.
+   A block whose interval ends only where DNA's callable interval ends is not
+   this case;
 3. `het`: the truth writes an IUPAC code of two or three bases (`R`, `Y`,
    `K`, `M`, `S`, `W`, `B`, `D`, `H`, `V`) in it;
 4. `non-het`: any other block, a DNA error that neither a heteroplasmy, a

@@ -172,7 +172,7 @@ const RANKS: [(&str, u64); 21] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 26);
+    assert_eq!(value["provenance"]["rules"], 27);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
