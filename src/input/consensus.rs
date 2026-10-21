@@ -280,11 +280,10 @@ fn parse(bytes: &[u8], path: &Path, sample_id: &str, reference: &Reference) -> R
         .collect::<std::result::Result<_, _>>()?;
     let mut unreliable_only = BTreeMap::new();
     for stretch in raw.unreliable_only {
-        let reason = dna_sanger::read_processing::reason(&stretch.reason).ok_or(
-            ConsensusDocumentError::Inconsistent(
+        let reason =
+            super::modality_reason(&stretch.reason).ok_or(ConsensusDocumentError::Inconsistent(
                 "an unreliable-only stretch has an unknown reason",
-            ),
-        )?;
+            ))?;
         if stretch.first == 0 || stretch.last < stretch.first || stretch.last > length {
             return Err(ConsensusDocumentError::Inconsistent(
                 "an unreliable-only stretch is outside the reference",
