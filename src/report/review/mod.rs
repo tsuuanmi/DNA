@@ -10,9 +10,11 @@ mod labels;
 mod ranges;
 #[cfg(test)]
 mod test_support;
+mod zones;
 
 use self::labels::{key, priority, summarize};
 use self::ranges::{clip, inside, merge, segments, span, within};
+use self::zones::zones;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -27,7 +29,6 @@ use crate::model::review_result::{
     LabelResult, MaskedSpanResult, MixtureResult, ReviewCallResult, ReviewProvenanceResult,
     ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult, SecondResult, ShareResult,
     SideResult, SignalProvenanceResult, StrandsResult, TractRunResult, UnreliableSpanResult,
-    ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::model::sanger_read::{Rejection, SangerRead};
@@ -2464,72 +2465,6 @@ fn masked_spans(
     spans
 }
 
-/// The reportable positions within `regions` as zones a reviewer opens
-/// whole. Each position takes the first kind that holds, in [`ZoneKind`]
-/// order: inside a repeat window of the profile (1-based inclusive, with its
-/// name), outside the `callable` ranges, inside a read's masked stretch past a
-/// repeat, inside another masked stretch, else clean. A zone is a maximal
-/// stretch of one kind (and window) within one region; it counts the `check`
-/// items touching it. Every boundary comes from the profile and the sample's
-/// reads, none from a width.
-fn zones(
-    regions: &[[usize; 2]],
-    windows: &[(usize, usize, &str)],
-    callable: &[[usize; 2]],
-    reads: &[ReviewReadResult],
-    items: &[ItemResult],
-) -> Vec<ZoneResult> {
-    let masked = reads
-        .iter()
-        .flat_map(|read| read.masked.iter().flatten())
-        .collect::<Vec<_>>();
-    let masks = |position: usize, after_repeat: bool| {
-        masked.iter().any(|span| {
-            (!after_repeat || span.after_repeat) && span.first <= position && position <= span.last
-        })
-    };
-    let mut zones: Vec<ZoneResult> = Vec::new();
-    for &[start, end] in regions {
-        for position in start..=end {
-            let window = windows
-                .iter()
-                .find(|(first, last, _)| *first <= position && position <= *last);
-            let (kind, name) = match window {
-                Some(&(_, _, name)) => (ZoneKind::Repeat, Some(name)),
-                None if !inside(callable, position) => (ZoneKind::NotCallable, None),
-                None if masks(position, true) => (ZoneKind::Dephased, None),
-                None if masks(position, false) => (ZoneKind::Masked, None),
-                None => (ZoneKind::Clean, None),
-            };
-            match zones.last_mut() {
-                Some(zone)
-                    if position != start && zone.kind == kind && zone.name.as_deref() == name =>
-                {
-                    zone.last = position;
-                }
-                _ => zones.push(ZoneResult {
-                    kind,
-                    first: position,
-                    last: position,
-                    name: name.map(str::to_owned),
-                    checks: 0,
-                }),
-            }
-        }
-    }
-    for zone in &mut zones {
-        zone.checks = items
-            .iter()
-            .filter(|item| {
-                item.kind == ItemKind::Check
-                    && item.first.position <= zone.last
-                    && zone.first <= item.last.position
-            })
-            .count();
-    }
-    zones
-}
-
 /// A share rounded to three decimals.
 pub(super) fn round(share: f64) -> f64 {
     (share * 1000.0).round() / 1000.0
@@ -2537,9 +2472,8 @@ pub(super) fn round(share: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::test_support::{F, R, item};
+    use super::test_support::{F, R};
     use super::*;
-    use crate::model::review_result::ZoneCounts;
     use dna_kernel::read_evidence::EvidenceReason;
 
     fn clean(read: usize, strand: Orientation, second: char, share: f64) -> Clean {
@@ -3057,62 +2991,6 @@ mod tests {
         assert!(undecided(&site(SiteState::Unresolved, None)));
         assert!(undecided(&site(SiteState::Called, Some("CN"))));
         assert!(!undecided(&site(SiteState::Called, Some("T"))));
-    }
-
-    // SRS-API-014
-    #[test]
-    fn zones_follow_the_profile_windows_and_what_the_reads_show() {
-        let span = |first, last, state, after_repeat| MaskedSpanResult {
-            first,
-            last,
-            state,
-            after_repeat,
-        };
-        let reads = [ReviewReadResult {
-            name: "a".to_owned(),
-            sha256: String::new(),
-            strand: Some(F),
-            admitted: true,
-            rejection: None,
-            masked: Some(vec![
-                span(6, 6, PhaseState::Dephased, true),
-                span(7, 7, PhaseState::Mixed, false),
-            ]),
-            unreliable: Some(Vec::new()),
-            mixtures: Some(Vec::new()),
-        }];
-        let check = item(ItemKind::Check, vec![LabelResult::Undecided]);
-        let variant = item(ItemKind::Variant, Vec::new());
-        let zones = zones(
-            &[[1, 10], [11, 13]],
-            &[(4, 5, "W")],
-            &[[1, 8], [11, 13]],
-            &reads,
-            &[check, variant],
-        );
-        let zone = |kind, first, last, name: Option<&str>, checks| ZoneResult {
-            kind,
-            first,
-            last,
-            name: name.map(str::to_owned),
-            checks,
-        };
-        assert_eq!(
-            zones,
-            [
-                // Only the check item at position 1 counts.
-                zone(ZoneKind::Clean, 1, 3, None, 1),
-                zone(ZoneKind::Repeat, 4, 5, Some("W"), 0),
-                zone(ZoneKind::Dephased, 6, 6, None, 0),
-                zone(ZoneKind::Masked, 7, 7, None, 0),
-                zone(ZoneKind::Clean, 8, 8, None, 0),
-                zone(ZoneKind::NotCallable, 9, 10, None, 0),
-                // A zone never crosses into the next region.
-                zone(ZoneKind::Clean, 11, 13, None, 0),
-            ]
-        );
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones, &[], 0);
-        assert_eq!(summary.zones, ZoneCounts { total: 7, check: 1 });
     }
 
     #[test]
