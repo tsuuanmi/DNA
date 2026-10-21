@@ -3,6 +3,7 @@
 //! Everything here is derived from plain [`PositionEvidence`] records in call
 //! order; nothing refers to the chromatogram, the reference, or a profile.
 
+use crate::channel;
 use crate::error::{CallabilityError, Result};
 use crate::median;
 use crate::model::callability::{PositionEvidence, PositionFeatures};
@@ -82,12 +83,7 @@ fn median_primary_amplitude(
 /// Ranks the two strongest channels; ties favour the lower channel index and
 /// a position without positive signal has no primary channel.
 fn rank(amplitudes: [f64; 4]) -> (Option<usize>, Option<usize>) {
-    let mut order = [0_usize, 1, 2, 3];
-    order.sort_by(|left, right| {
-        amplitudes[*right]
-            .total_cmp(&amplitudes[*left])
-            .then_with(|| left.cmp(right))
-    });
+    let order = channel::ranked(&amplitudes, f64::total_cmp);
     if amplitudes[order[0]] > 0.0 {
         (Some(order[0]), Some(order[1]))
     } else {

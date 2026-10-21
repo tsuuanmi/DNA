@@ -122,7 +122,7 @@ pub fn refine(
     let threshold = threshold(key, signal, config);
     if peak.cause == SecondCause::SecondTemplate
         && threshold.calls.is_some()
-        && peak.share <= threshold.share
+        && peak.second.share <= threshold.share
     {
         SecondCause::Context
     } else {
@@ -413,7 +413,7 @@ fn median_of(histogram: &BTreeMap<u64, u64>, total: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile};
+    use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, SecondBase};
 
     use super::*;
 
@@ -578,24 +578,8 @@ mod tests {
             keys: BTreeMap::from([(key.clone(), Histogram::from([(300, 40)]))]),
         };
         let config = SignalProcessingConfig {
-            window_size_bases: 10,
-            minimum_primary_snr: 3.0,
-            minimum_noisy_windows: 2,
-            minimum_noise_sigma: 1.0,
-            second_floor: 0.21,
             run_signal: PARAMETERS,
-            second_cause: crate::signal_processing::SecondCauseParameters {
-                noise_ratio: 3.0,
-                tail_offset: 0.4,
-                blob_width: 1.8,
-                width_calls: 6,
-            },
-            decompose_unexplained_quantile: 0.99,
-            spike: crate::signal_processing::SpikeParameters {
-                height: 3.0,
-                span: 1.5,
-                level_calls: 6,
-            },
+            ..crate::signal_processing::fixture(10)
         };
         let floor = Threshold {
             share: 0.21,
@@ -667,29 +651,16 @@ mod tests {
             ..signal
         };
         let config = SignalProcessingConfig {
-            window_size_bases: 10,
-            minimum_primary_snr: 3.0,
-            minimum_noisy_windows: 2,
-            minimum_noise_sigma: 1.0,
             second_floor: 0.20,
             run_signal: PARAMETERS,
-            second_cause: crate::signal_processing::SecondCauseParameters {
-                noise_ratio: 3.0,
-                tail_offset: 0.4,
-                blob_width: 1.8,
-                width_calls: 6,
-            },
-            decompose_unexplained_quantile: 0.99,
-            spike: crate::signal_processing::SpikeParameters {
-                height: 3.0,
-                span: 1.5,
-                level_calls: 6,
-            },
+            ..crate::signal_processing::fixture(10)
         };
         let peak = |share, cause| SecondPeak {
-            base: 'C',
-            share,
-            stands_out: true,
+            second: SecondBase {
+                base: 'C',
+                share,
+                stands_out: true,
+            },
             cause,
         };
         let template = peak(0.30, SecondCause::SecondTemplate);

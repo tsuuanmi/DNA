@@ -28,39 +28,6 @@ use crate::model::callability::{PositionEvidence, ReadCallability};
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalAnalysis;
 
-/// Plain thresholds of the core, assembled from the configuration.
-#[derive(Debug, Clone, Copy)]
-struct Settings {
-    weak_amplitude_fraction: f64,
-    repeat_min_length: usize,
-    shadow: shadow::Rules,
-    thresholds: phase::Thresholds,
-    spacing_half_window: usize,
-}
-
-impl Settings {
-    fn from_config(config: &CallabilityConfig) -> Self {
-        Self {
-            weak_amplitude_fraction: config.weak_amplitude_fraction,
-            repeat_min_length: config.repeat_min_length,
-            shadow: shadow::Rules {
-                main_minimum: config.minimum_main_share,
-                far_maximum: config.maximum_far_share,
-                shadow_minimum: config.minimum_shadow_share,
-            },
-            thresholds: phase::Thresholds {
-                window: config.window_calls,
-                onset: config.onset_defect_fraction,
-                exit: config.exit_defect_fraction,
-                double_ratio: config.double_peak_ratio,
-                spacing_defect: config.spacing_defect,
-                repeat_window: config.repeat_window_calls,
-            },
-            spacing_half_window: config.spacing_half_window,
-        }
-    }
-}
-
 /// Derives the callability of one Sanger read.
 pub(crate) fn analyze(
     trace: &Chromatogram,
@@ -69,24 +36,32 @@ pub(crate) fn analyze(
     config: &CallabilityConfig,
 ) -> Result<ReadCallability> {
     let evidence = sanger::evidence(trace, calls, signal)?;
-    derive(&evidence, &Settings::from_config(config))
+    derive(&evidence, config)
 }
 
 /// The modality-generic core: evidence records in call order to callability.
-fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCallability> {
+fn derive(evidence: &[PositionEvidence], config: &CallabilityConfig) -> Result<ReadCallability> {
+    let thresholds = phase::Thresholds {
+        window: config.window_calls,
+        onset: config.onset_defect_fraction,
+        exit: config.exit_defect_fraction,
+        double_ratio: config.double_peak_ratio,
+        spacing_defect: config.spacing_defect,
+        repeat_window: config.repeat_window_calls,
+    };
     let features = features::calculate(
         evidence,
-        settings.weak_amplitude_fraction,
-        settings.spacing_half_window,
+        config.weak_amplitude_fraction,
+        config.spacing_half_window,
     )?;
     let primary = evidence
         .iter()
         .map(|position| position.primary)
         .collect::<Vec<_>>();
-    let repeats = runs::find(&primary, settings.repeat_min_length);
-    let prior = phase::prior_windows(features.len(), &repeats, settings.thresholds.repeat_window);
-    let defects = phase::defects(&features, &settings.thresholds);
-    let callable = phase::segment(&defects, &prior, &repeats, &settings.thresholds);
+    let repeats = runs::find(&primary, config.repeat_min_length);
+    let prior = phase::prior_windows(features.len(), &repeats, thresholds.repeat_window);
+    let defects = phase::defects(&features, &thresholds);
+    let callable = phase::segment(&defects, &prior, &repeats, &thresholds);
     let segments = classify::segments(
         &callable,
         &classify::Context {
@@ -94,15 +69,19 @@ fn derive(evidence: &[PositionEvidence], settings: &Settings) -> Result<ReadCall
             features: &features,
             defects: &defects,
             repeats: &repeats,
-            window: settings.thresholds.repeat_window,
-            rules: settings.shadow,
+            window: thresholds.repeat_window,
+            rules: shadow::Rules {
+                main_minimum: config.minimum_main_share,
+                far_maximum: config.maximum_far_share,
+                shadow_minimum: config.minimum_shadow_share,
+            },
         },
     );
     let mut callability = mask::build(repeats, segments, features.len())?;
     callability.gaps = features::gaps(
         evidence,
-        settings.spacing_half_window,
-        settings.thresholds.spacing_defect,
+        config.spacing_half_window,
+        thresholds.spacing_defect,
     );
     Ok(callability)
 }
@@ -113,22 +92,19 @@ mod tests {
 
     use super::*;
 
-    const SETTINGS: Settings = Settings {
+    const CONFIG: CallabilityConfig = CallabilityConfig {
+        window_calls: 8,
+        onset_defect_fraction: 0.375,
+        exit_defect_fraction: 0.125,
+        minimum_main_share: 0.35,
+        maximum_far_share: 0.12,
+        minimum_shadow_share: 0.1,
         weak_amplitude_fraction: 0.1,
         repeat_min_length: 8,
-        shadow: shadow::Rules {
-            main_minimum: 0.35,
-            far_maximum: 0.12,
-            shadow_minimum: 0.1,
-        },
-        thresholds: phase::Thresholds {
-            window: 8,
-            onset: 0.375,
-            exit: 0.125,
-            double_ratio: 0.33,
-            spacing_defect: 0.5,
-            repeat_window: 8,
-        },
+        minimum_callable_calls: 20,
+        repeat_window_calls: 8,
+        double_peak_ratio: 0.33,
+        spacing_defect: 0.5,
         spacing_half_window: 8,
     };
 
@@ -180,7 +156,7 @@ mod tests {
     #[test]
     fn keeps_a_clean_read_entirely_in_phase() -> Result<()> {
         let evidence = ladder("ACGTCAGTACGATCGTACCTGAGTACGA", usize::MAX, &[]);
-        let callability = derive(&evidence, &SETTINGS)?;
+        let callability = derive(&evidence, &CONFIG)?;
         assert_eq!(callability.segments.len(), 1);
         assert_eq!(callability.segments[0].state, PhaseState::InPhase);
         assert_eq!(callability.masked_count(), 0);
@@ -200,7 +176,7 @@ mod tests {
     fn masks_a_shadow_ladder_after_a_long_homopolymer_as_dephased() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
         let evidence = ladder(&sequence, 23, &[(-1, 0.4)]);
-        let callability = derive(&evidence, &SETTINGS)?;
+        let callability = derive(&evidence, &CONFIG)?;
         assert_eq!(
             callability.repeats,
             [crate::model::callability::RepeatRun {
@@ -229,7 +205,7 @@ mod tests {
     fn masks_a_two_sided_shadow_ladder_after_a_long_homopolymer_as_dephased() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
         let evidence = ladder(&sequence, 23, &[(-1, 0.4), (1, 0.4)]);
-        let callability = derive(&evidence, &SETTINGS)?;
+        let callability = derive(&evidence, &CONFIG)?;
         let last = callability.segments.last().copied();
         assert_eq!(
             last.map(|segment| segment.state),
@@ -249,15 +225,13 @@ mod tests {
     fn relabels_without_moving_segment_boundaries() -> Result<()> {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
         let evidence = ladder(&sequence, 23, &[(-1, 0.4), (1, 0.4)]);
-        let strict = Settings {
-            shadow: shadow::Rules {
-                main_minimum: 1.0,
-                far_maximum: 0.0,
-                shadow_minimum: 1.0,
-            },
-            ..SETTINGS
+        let strict = CallabilityConfig {
+            minimum_main_share: 1.0,
+            maximum_far_share: 0.0,
+            minimum_shadow_share: 1.0,
+            ..CONFIG
         };
-        let relaxed = derive(&evidence, &SETTINGS)?;
+        let relaxed = derive(&evidence, &CONFIG)?;
         let strict = derive(&evidence, &strict)?;
         let bounds = |callability: &ReadCallability| {
             callability
@@ -286,7 +260,7 @@ mod tests {
             let secondary = (primary + 2 + offset % 2) % 4;
             position.amplitudes[secondary] = 500.0;
         }
-        let callability = derive(&evidence, &SETTINGS)?;
+        let callability = derive(&evidence, &CONFIG)?;
         let masked = callability
             .segments
             .iter()
@@ -306,7 +280,7 @@ mod tests {
         for position in evidence.iter_mut().skip(24) {
             position.amplitudes = position.amplitudes.map(|amplitude| amplitude / 100.0);
         }
-        let callability = derive(&evidence, &SETTINGS)?;
+        let callability = derive(&evidence, &CONFIG)?;
         assert_eq!(
             callability.segments.last().map(|segment| segment.state),
             Some(PhaseState::Weak)
@@ -321,8 +295,8 @@ mod tests {
         let sequence = format!("ACGTAGTCAGTACG{}TAGCTAGCATGCATGACTGACTAG", "C".repeat(9));
         let evidence = ladder(&sequence, 23, &[(-1, 0.4)]);
         let before = evidence.clone();
-        let first = derive(&evidence, &SETTINGS)?;
-        let second = derive(&evidence, &SETTINGS)?;
+        let first = derive(&evidence, &CONFIG)?;
+        let second = derive(&evidence, &CONFIG)?;
         // The derivation takes only the evidence records: no reference,
         // profile, primer, or file name can reach it, and it never writes them.
         assert_eq!(evidence, before);

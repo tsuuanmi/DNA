@@ -79,15 +79,19 @@ pub fn classify(
             let mixed = callability.mask.get(index).copied().flatten() == Some(PhaseState::Mixed);
             match second {
                 Some(second) if second.share > config.second_floor => Some(SecondPeak {
-                    base: second.base,
-                    share: second.share,
-                    stands_out: true,
+                    second: SecondBase {
+                        base: second.base,
+                        share: second.share,
+                        stands_out: true,
+                    },
                     cause: shape(calls, signal, index, second.base, config),
                 }),
                 _ if mixed => Some(SecondPeak {
-                    base: second.map_or('N', |second| second.base),
-                    share: second.map_or(0.0, |second| second.share),
-                    stands_out: false,
+                    second: SecondBase {
+                        base: second.map_or('N', |second| second.base),
+                        share: second.map_or(0.0, |second| second.share),
+                        stands_out: false,
+                    },
                     cause: SecondCause::MixedStretch,
                 }),
                 _ => None,
@@ -191,38 +195,14 @@ mod tests {
     use crate::model::basecalls::ChannelPeak;
     use crate::model::locus_evidence::LocusEvidence;
     use crate::model::signal::SangerIntegrity;
-    use crate::signal_processing::{RunSignalParameters, SecondCauseParameters};
 
     /// Ten samples between calls.
     const SPACING: usize = 10;
 
     fn config() -> SignalProcessingConfig {
         SignalProcessingConfig {
-            window_size_bases: 10,
-            minimum_primary_snr: 3.0,
-            minimum_noisy_windows: 2,
-            minimum_noise_sigma: 1.0,
             second_floor: 0.20,
-            run_signal: RunSignalParameters {
-                flank: 2,
-                resolution: 1000,
-                minimum_reads: 40,
-                minimum_calls: 40,
-                margin: 0.05,
-                mad_factor: 4.0,
-            },
-            second_cause: SecondCauseParameters {
-                noise_ratio: 3.0,
-                tail_offset: 0.4,
-                blob_width: 1.8,
-                width_calls: 6,
-            },
-            decompose_unexplained_quantile: 0.99,
-            spike: crate::signal_processing::SpikeParameters {
-                height: 3.0,
-                span: 1.5,
-                level_calls: 6,
-            },
+            ..crate::signal_processing::fixture(10)
         }
     }
 
