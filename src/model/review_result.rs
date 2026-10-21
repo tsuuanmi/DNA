@@ -272,7 +272,7 @@ pub(crate) enum LabelResult {
         runs: Vec<GrowthResult>,
     },
     /// A decided deletion near a reportable region's end whose supporting
-    /// reads all lie on one strand (rules version 32, ADR-0090): a check.
+    /// reads all lie on one strand (rules version 33, ADR-0090): a check.
     /// Lists every supporting read.
     EdgeDeletion {
         strand: Orientation,
@@ -280,7 +280,7 @@ pub(crate) enum LabelResult {
     },
     /// A decided site at least `review.run_growth` bases shorter than its
     /// reference, over a reference run, whose supporting reads all lie on
-    /// one strand (rules version 32, ADR-0090): a check. Lists every
+    /// one strand (rules version 33, ADR-0090): a check. Lists every
     /// supporting read.
     RunDeletion {
         strand: Orientation,

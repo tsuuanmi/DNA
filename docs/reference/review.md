@@ -264,7 +264,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 32)
+## Labels (rules version 33)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A difference *rests on one strand* when
@@ -346,7 +346,7 @@ exemption lifts the margin (ADR-0076).
   call shows the reference base as its second peak, with a share above the
   call's second-channel threshold (SRS-CALL-020, as for
   `possible_heteroplasmy`), one label per such position and supporting read
-  (rules version 32; before, only at exactly one read). Neither a
+  (rules version 33; before, only at exactly one read). Neither a
   neighbour's base nor the peak's cause (SRS-CALL-021) exempts it: a dye
   blob is wider than one call, and its own shape labels the real peak, not
   the blob. One strand cannot tell a base from a broad peak of another dye
@@ -374,7 +374,7 @@ exemption lifts the margin (ADR-0076).
   at a decided site whose call holds the same runs as the reference, a run at
   least `review.run_growth` bases longer than its reference run whose length
   rests on an anchored end (`length_evidence` `anchored_end`) or on one
-  strand (rules version 7; one read before rules version 32). Both strands
+  strand (rules version 7; one read before rules version 33). Both strands
   showing the length in phase assure it, however long. `length_evidence` is
   `null` when the site was decided position by position. On current
   development data such lengths were 89 % wrong (an anchored end or one read counts one base too
@@ -383,7 +383,7 @@ exemption lifts the margin (ADR-0076).
   strand (every supporting read listed) and lies within
   `review.deletion_zone` positions of a reportable region's first or last
   position, where a read's own edge loses or doubles a base (rules version
-  7; one read, `{read}`, before rules version 32). On current development
+  7; one read, `{read}`, before rules version 33). On current development
   data such deletions were 88 % wrong, against 0.2 % inside the regions and
   0.8 % with both strands. Rules
   version 20 widened the zone with `review.edge_zone`; rules version 22 gives
@@ -407,7 +407,7 @@ exemption lifts the margin (ADR-0076).
   compressed HVS-II run, and a composition taken from one read's end) and 2
   true deletions.
 - `run_indel` `{strand, reads}` (rules version 28; one read, `{read}`,
-  before rules version 32): a decided site outside every nomenclature
+  before rules version 33): a decided site outside every nomenclature
   window and length tract that rests on one strand and changes the length
   of a reference run of at least `review.phase_run` equal bases (inserts or
   deletes copies of the run's base, the runs' bases unchanged: `291DEL` in

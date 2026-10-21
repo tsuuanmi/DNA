@@ -690,7 +690,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `reference_second` judges every supporting read of a difference that
   rests on one strand; `long_run` takes a length every read of one strand
   shows as resting on that strand. `one_read` and `one_strand` are
-  unchanged. Plugin: `review` 32. Measured against `main` 95f2edf2 (diff
+  unchanged. Plugin: `review` 33. Measured against `main` 95f2edf2 (diff
   gate PASS on both panels, artefact bench unchanged: 53 pass, 2 known):
   every added check is a `reference_second`, none over a DNA-truth
   difference in the current period, and non-het unreviewed blocks are
@@ -706,7 +706,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   difference where the truth leaves HVS-II unanalysed.
 
 - A read keeps its own anchor base in a re-expressed repeat stretch
-  (ADR-0091, proposed; SRS-ALN-016; plugin `core` 13, review rules 32).
+  (ADR-0091, accepted; SRS-ALN-016; plugin `core` 13, review rules 32).
   A clean reverse HVS-II read `C9 T C6` was aligned as `310C` with its T
   inserted: one gap opening costs more than a mismatch, and its last
   in-phase call reads `302` as C. Run-structure re-expression now also
