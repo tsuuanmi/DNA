@@ -1045,7 +1045,7 @@ mod tests {
 
     // SRS-ALN-016
     #[test]
-    fn re_expresses_a_masked_repeat_stretch_one_length_edit_per_run() -> Result<()> {
+    fn re_expresses_a_repeat_stretch_one_length_edit_per_run() -> Result<()> {
         let reference = Reference {
             name: "ref".into(),
             sequence: "TTGACCCCCCCTCCCCCGTAGG".into(),
@@ -1065,11 +1065,13 @@ mod tests {
                 .collect::<Vec<_>>()
         };
 
-        // Unmasked evidence keeps the optimal path: one merged gap and a
-        // substitution.
+        // The optimal path merges both length changes into one gap beside a
+        // substitution; the clean read's substitution re-expresses it, so
+        // each C run gains one base at its 3' end and the T stays matched.
         let optimal = align_best(&clean, &reference, &config())?;
-        assert_eq!(optimal.metrics.mismatches, 1);
-        // With the T masked, each C run gains one base at its 3' end.
+        assert_eq!(optimal.metrics.mismatches, 0);
+        assert_eq!(inserted_after(&optimal), [10, 16]);
+        // With the T masked, the masked call re-expresses it the same way.
         let realigned = align_best(&masked, &reference, &config())?;
         assert_eq!(realigned.metrics.mismatches, 0);
         assert_eq!(inserted_after(&realigned), [10, 16]);
