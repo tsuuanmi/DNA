@@ -1,6 +1,6 @@
 ---
 implements: [SRS-SAMPLE]
-decided-by: [ADR-0023, ADR-0025, ADR-0030, ADR-0053, ADR-0068]
+decided-by: [ADR-0023, ADR-0025, ADR-0030, ADR-0053, ADR-0068, ADR-0090]
 covers:
   - crates/dna-sample/src/
   - crates/dna-sample/src/model/sample_evidence.rs

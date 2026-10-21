@@ -1,6 +1,6 @@
 ---
 implements: [SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083, ADR-0085, ADR-0089]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083, ADR-0085, ADR-0089, ADR-0090]
 covers:
   - crates/dna-consensus/src/
   - crates/dna-consensus/src/model/consensus.rs
@@ -20,6 +20,11 @@ Part of the canonical [[design/pipeline|DNA pipeline]]. Requirements:
 rejected reads), aggregates the admitted reads to fix their order, and then
 calls `dna_consensus::build`. The module reads only `CalledRead`
 records, so any modality that produces `ReadEvidence` can feed it.
+
+A read is known by its input's content SHA-256, never by its file name, and
+every rule works over the set of reads of each strand, however many
+([[ADR-0090]]). A site's supporting, opposing, and uninformative reads are
+lists of those identities.
 
 ## Step 1 — Observations
 

@@ -664,6 +664,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Consensus over N reads per site and strand (ADR-0090, user decision
+  2026-10-21), step 1. A site whose supporting and opposing reads all lie
+  on one strand, however many, is a review check, `same_strand_dissent`
+  (rank 0); `strands_disagree` keeps the cross-strand case. The consensus,
+  the review, and `dna-eval` know a read by its input's content SHA-256,
+  not its file name (SRS-CONS-002): traces of one file name from different
+  folders are different reads, and their names gain `@` and the shortest
+  telling prefix of their SHA-256 (SRS-SAMPLE-004) instead of failing with
+  `DuplicateReadName`. Two copies of one trace fail typed
+  (`DuplicateTrace`), now also when every read is rejected. A consensus
+  document read back by `dna call` maps its sites' read names to their
+  SHA-256. Plugins: `consensus` 21, `review` 30. Measured against `main`
+  ba0dc0a2 (diff gate PASS on both panels, no sample changed, artefact
+  bench unchanged): the label adds no check; it marks 7 and 4 current
+  items on development panel v5 and readiness-v2, all contested
+  same-strand ties already `undecided`, none over a truth difference.
+
 - Insertions need both strands (SRS-CONS-015, ADR-0089, user decision
   2026-10-21). The consensus decides a short insertion as the reference,
   `contested`, when its clean support lies on one strand and a read of the

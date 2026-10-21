@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN, SRS-SAMPLE]
-decided-by: [ADR-0067]
+decided-by: [ADR-0067, ADR-0090]
 ---
 
 # Reads and Coverage
@@ -18,7 +18,12 @@ Each record contains:
 
 - `name`: the AB1 filename stem, for example
   `D11_20260404_LN_26_AB0442_HV1F_11`; from a read evidence document, the
-  stem of the trace file name it records;
+  stem of the trace file name it records. Reads that share a stem (one file
+  name in several folders, such as a re-sequenced trace) are told apart by
+  content: each name gains `@` and the shortest prefix of the read's
+  `sha256`, at least eight characters, that differs between them
+  (`HV1F_11@3fa2c9d0`). A name is for display only; documents and the core
+  identify a read by its `sha256` ([[ADR-0090]]);
 - `sha256`: stable content identity;
 - `integrity`: the same concise PLOC/vendor cardinality, merged repeated-PLOC count, PLOC-spacing,
   exact-clipping, and event-signal-scale observations retained by the one-read

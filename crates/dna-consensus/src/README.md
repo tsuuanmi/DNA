@@ -80,7 +80,9 @@ behind every non-trivial decision.
   length the two-strand rule decides (`two_strand`, SRS-CONS-013).
 
 The module reads only `CalledRead` records, so it is modality-neutral
-(ADR-0069). It uses no profile window or filename. `decided.rs` turns its
+(ADR-0069). It uses no profile window or filename: a read is its input's
+content SHA-256, and every rule accepts any number of reads per strand
+(ADR-0090). `decided.rs` turns its
 decisions into called records; it never places a segment again.
 
 See [crates](../../README.md).
