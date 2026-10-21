@@ -58,7 +58,7 @@ have no schema; the evaluation harness document describes them.
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `workload.rs` — the review workload: windows over the HV regions, each
   sample's positions to review and unreviewed difference blocks from `dna
-  review`'s check items (`SampleAnalysis::review_checks`), forced-window
+  review`'s check items (`SampleAnalysis::review_list`), forced-window
   lists, the Wilson bound of `windows.tsv`, and what passes without review
   (samples, regions, and zones no check item touches, and the passed ones
   with an unreviewed block by the class of their blocks: non-het, truth N,

@@ -179,6 +179,41 @@ floor reading instead, the least length any read gives as its top or next
 estimate in 10 %. Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
 
+## Notes (length heteroplasmy)
+
+Forensic practice treats the C tracts' length as length heteroplasmy: it
+records the dominant length, notes the heteroplasmy, and leaves the length
+out of comparisons and searches (ISFG, Parson et al. 2014, Rec. 10, 11, 16;
+SWGDAM 2024 5.1.1; EMPOP's query windows 16189-16194, 302-316, 567-574).
+For near-equal mixtures the record is a convention, the shortest dominant
+length, not a measurement (research note `length-heteroplasmy-literature`).
+So a run of a profile length tract (`length_tracts`) whose dominant length
+the reads determine is noted, not checked (`tract_length`, user decision
+2026-10-21). The tract holds only the homopolymer count: HVS-II's tract is
+its first run, so `315.1C` and the composition (`T310C`, `16189C`) stay
+calls checked as usual.
+
+The dominant is determined when every read tops at DNA's length, or when the
+reads hold one adjacent pair that the length convention reads as its shorter
+member (`shortest_dominant`, `dna-normalize`, with a configured ratio).
+Either way the run's structure must be shown, by a read in phase or by
+decodes on both strands. A trace-simulator benchmark (2026-10-21, 5,059
+simulated reads of known mixtures with noise fitted from development panel
+v5) found the decoder's structure choice its main failure: it adds a
+spurious mark to 6 % of HVS-I single runs and drops HVS-II's reverse mark
+from 13 %, and a third of those first-run marginals still read `clear`; under
+four times the noise, 14-36 % of `clear` margins are wrong. A decode alone
+on one strand therefore never makes a note. Forward reads under-read the
+shorter neighbour (a ratio 0.88-0.96 of the truth's), and a decode resolves
+the ratio only to about 0.85-0.9, so the convention's ratio is capped at
+0.85; `0.6` comes from the 2026-10-19 decoder spike, where the truth was
+the mode − 1 in all 53 confident HVS-II run-1 disagreements, with the
+shorter share at least 0.6 of the mode's. Where DNA reports no length, the
+note shows the reads' floor reading, unconfirmed, never the phase-loss
+estimate. The evaluation harness classes an unreviewed block that differs
+only in a tract's length, the structure equal, as `length_note`: reported,
+never gated.
+
 ## Decision (increment 4)
 
 The consensus decides a run's length from the decodes on both strands

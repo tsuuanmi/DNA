@@ -311,6 +311,47 @@ pub struct ReviewCheck {
     pub labels: Vec<&'static str>,
 }
 
+/// A sample's review list as `dna review` builds it, without the document:
+/// the items a reviewer must look at and the length tracts it notes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReviewList {
+    /// The `check` items.
+    pub checks: Vec<ReviewCheck>,
+    /// Each `tract_length` label, with its item's span.
+    pub notes: Vec<TractNote>,
+}
+
+/// One noted length tract of an item (`tract_length`, SRS-API-020).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TractNote {
+    /// First reference position of the item (1-based).
+    pub first: usize,
+    /// Last reference position of the item (1-based, inclusive).
+    pub last: usize,
+    /// The profile's name of the tract.
+    pub tract: String,
+    /// The noted runs.
+    pub runs: Vec<TractNoteRun>,
+}
+
+/// One noted run of a length tract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TractNoteRun {
+    /// 1 before the anchor, 2 after it, 1 alone for a single run.
+    pub run: usize,
+    /// DNA's reported length; `None` when DNA reports none.
+    pub called: Option<usize>,
+    /// `confirmed`, `dominant`, `convention`, or `unconfirmed`.
+    pub status: &'static str,
+    /// The length a reviewer would record, when one is given.
+    pub reading: Option<usize>,
+    /// The length convention's reading, when it gives one.
+    pub convention: Option<usize>,
+}
+
 /// Typed result of calling a sample's consensus (SRS-API-012).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

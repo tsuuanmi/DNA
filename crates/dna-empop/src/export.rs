@@ -37,6 +37,8 @@ pub struct Call<'a> {
     pub ordinal: usize,
     /// The rendered call, for example `309.1C`.
     pub text: &'a str,
+    /// The base the call inserts or deletes; `None` for a substitution.
+    pub indel: Option<char>,
 }
 
 /// Why a position inside a record is not in a range.
@@ -89,6 +91,11 @@ pub struct Export {
     pub mitotype: Vec<String>,
     /// The positions the ranges leave out, and why, in range order.
     pub cut: Vec<Cut>,
+    /// The mitotype's length variants of a homopolymer tract inside the
+    /// window over which EMPOP's standard query disregards them (the
+    /// profile's length tracts' `search`, with the tract's base): written,
+    /// but ignored in a search.
+    pub ignored: Vec<String>,
 }
 
 impl Export {
@@ -122,13 +129,16 @@ enum State {
 
 /// Builds the EMPOP query of a sample over the profile's `regions` (1-based
 /// inclusive), from its called `records`, its rendered `calls`, and the
-/// reference intervals (0-based half-open) the call does not analyse.
+/// reference intervals (0-based half-open) the call does not analyse, with
+/// the insertions and deletions of a tract's base inside its `search`
+/// window (1-based inclusive) marked as ignored in a search.
 #[must_use]
 pub fn export(
     regions: &[[usize; 2]],
     records: &[Record],
     calls: &[Call<'_>],
     not_analysed: &[Range<usize>],
+    search: &[([usize; 2], char)],
 ) -> Export {
     let excluded = records
         .iter()
@@ -196,13 +206,23 @@ pub fn export(
     let mut kept = calls
         .iter()
         .filter(|call| inside(call.position))
-        .map(|call| (call.position, call.ordinal, call.text.to_owned()))
+        .map(|call| {
+            let ignored = search.iter().any(|&([start, end], base)| {
+                call.indel == Some(base) && (start..=end).contains(&call.position)
+            });
+            (call.position, call.ordinal, call.text.to_owned(), ignored)
+        })
         .collect::<Vec<_>>();
     kept.sort();
     kept.dedup();
     Export {
         ranges,
-        mitotype: kept.into_iter().map(|(_, _, text)| text).collect(),
+        ignored: kept
+            .iter()
+            .filter(|(.., ignored)| *ignored)
+            .map(|(_, _, text, _)| text.clone())
+            .collect(),
+        mitotype: kept.into_iter().map(|(_, _, text, _)| text).collect(),
         cut,
     }
 }
@@ -224,7 +244,7 @@ fn positions(variant: &Variant) -> Vec<usize> {
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "empop",
     family: PluginFamily::PostCalling,
-    version: 2,
+    version: 3,
     provides: &[Contract::EmpopQuery],
     requires: &[Contract::Nomenclature],
     config_sections: &[],
@@ -255,6 +275,7 @@ mod tests {
             position,
             ordinal,
             text,
+            indel: (ordinal > 0 || text.ends_with("DEL")).then_some('C'),
         }
     }
 
@@ -275,7 +296,7 @@ mod tests {
             record((4, 40), &[(4, 14), (16, 40)]),
             record((100, 120), &[(100, 120)]),
         ];
-        let exported = export(&REGIONS, &records, &[], &[]);
+        let exported = export(&REGIONS, &records, &[], &[], &[]);
         assert_eq!(exported.ranges, [[101, 120], [11, 14], [17, 30]]);
         assert_eq!(exported.ranges_text(), "101-120 11-14 17-30");
         assert_eq!(reasons(&exported), [(15, 16, "unresolved")]);
@@ -301,7 +322,7 @@ mod tests {
                 excluded(20, "A", "AC", VariantKind::Ins),
             ],
         }];
-        let exported = export(&[[11, 30]], &records, &[], &[]);
+        let exported = export(&[[11, 30]], &records, &[], &[], &[]);
         assert_eq!(exported.ranges, [[11, 12], [14, 19], [22, 30]]);
         assert_eq!(
             reasons(&exported),
@@ -313,7 +334,7 @@ mod tests {
     #[test]
     fn positions_two_records_call_are_cut() {
         let records = [record((10, 20), &[(10, 20)]), record((15, 30), &[(15, 30)])];
-        let exported = export(&[[11, 30]], &records, &[], &[]);
+        let exported = export(&[[11, 30]], &records, &[], &[], &[]);
         assert_eq!(exported.ranges, [[11, 15], [21, 30]]);
         assert_eq!(reasons(&exported), [(16, 20, "overlap")]);
     }
@@ -338,20 +359,35 @@ mod tests {
             // An IUPAC code passes through.
             call(28, 0, "28Y"),
         ];
-        let exported = export(&[[11, 30]], &records, &calls, &[]);
+        let exported = export(&[[11, 30]], &records, &calls, &[], &[]);
         assert_eq!(exported.mitotype_text(), "12DEL 15.1C 15.2C 20.1C 25G 28Y");
+        assert!(exported.ignored.is_empty());
+        // A search window marks the length variants inside it, never a
+        // substitution.
+        let exported = export(
+            &[[11, 30]],
+            &records,
+            &calls,
+            &[],
+            &[([12, 16], 'C'), ([25, 25], 'C')],
+        );
+        assert_eq!(exported.ignored, ["12DEL", "15.1C", "15.2C"]);
+        // Another base's length variant is not the tract's.
+        let exported = export(&[[11, 30]], &records, &calls, &[], &[([12, 16], 'A')]);
+        assert!(exported.ignored.is_empty());
     }
 
     // SRS-NOM-018
     #[test]
     fn a_region_without_records_exports_nothing() {
-        let exported = export(&REGIONS, &[], &[call(15, 0, "15G")], &[]);
+        let exported = export(&REGIONS, &[], &[call(15, 0, "15G")], &[], &[]);
         assert_eq!(
             exported,
             Export {
                 ranges: Vec::new(),
                 mitotype: Vec::new(),
                 cut: Vec::new(),
+                ignored: Vec::new(),
             }
         );
     }

@@ -82,6 +82,7 @@ REVIEW_LABELS = {
     "read_edge": 4,
     "poor_signal": 4,
     "length_not_recorded": 4,
+    "tract_length": 4,
 }
 # Priority of a variant item without a label.
 UNLABELLED = 5

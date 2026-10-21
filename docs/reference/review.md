@@ -183,7 +183,8 @@ the clipped columns, what most of its supporting reads show there). It has:
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference; otherwise `note` (rules version 19): it holds an `explained`
-  `possible_heteroplasmy`, listed for the reviewer's information only. The
+  `possible_heteroplasmy` or (rules version 28) a `tract_length`, listed for
+  the reviewer's information only. The
   read labels `one_read`, `one_strand`, `noisy_signal`, `read_edge`, and
   `phase_shift` are context and do not make a check; `poor_signal` makes a
   check of an item with a difference only (rules version 18).
@@ -254,9 +255,9 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 1 | `possible_heteroplasmy`, `reference_second` |
 | 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `run_deletion`, `undecided` |
 | 3 | `one_read`, `one_strand` |
-| 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, an `explained` `possible_heteroplasmy` |
+| 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 27)
+## Labels (rules version 28)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -334,68 +335,13 @@ exemption lifts the margin (ADR-0076).
   `16328G`, under a dye blob over the reference's peak), 17 a truth
   heteroplasmy, and 6 the truth's base; every truth-base share was below
   0.25 and every truth-reference share but two above 0.33.
-- `estimated_length` `{runs: [{base, length, length_evidence}]}`: the site's
-  runs whose length is `phase_loss` or `reference_frame`, so their 3' end is
-  not callable. A run whose length a profile report convention leaves
-  unrecorded is not listed (rules version 9): a `run_length` convention
-  labelled `not_recorded` whose window the site overlaps, of the run's base,
-  with the run at least its `minimum_run` long without the bases the site's
-  call adds to the reference. An estimate lengthens a run only by adding
-  bases, so a run that reaches the bound only by them may be one whose
-  length the reviewers record, and stays listed. The reviewers do not record
-  that length, so its estimate leaves nothing to assure (on the human
-  profile, the HVS-I C run of ten or more that 16189C creates).
-- `length_unconfirmed` `{runs: [{run, base, called, agreement, convention, floor, reads}]}`
-  (rules version 21, SRS-API-020): runs of an anchored repeat window (on the
-  human profile, HVS-II `C7 T C5`) that the reads' tract decodes reach
-  ([[PROP-0012]] increment 3) but do not confirm. `run` is 1 before the
-  anchor and 2 after it (1 alone when DNA calls one run); `called` is DNA's
-  length, null when DNA reports none: its call holds an `N`, or (rules
-  version 27) a window position is not callable, so its decided length is
-  an estimate, kept only in `estimated_length`. Each read gives a length
-  with its `source`:
-  - `decode`, the first-run marginal of the run the read enters first (a
-    forward read enters run 1, a reverse read run 2);
-  - `derived`, the next run, from the read's total, when its mark is the
-    anchor and both its marginals are clear;
-  - `in_phase`, a run the consensus reads in phase in that read (ADR-0074).
-
-  Each also carries its `share`, `next` length, and `margin`. `agreement`
-  says why the run is not confirmed, the first that applies:
-  `structure_differs` (a read sees two runs where DNA calls one, or the
-  reverse), `disagree` (the strands give different clear lengths),
-  `not_clear` (a strand's lengths are not all clear and equal), `one_strand`
-  (one strand gives no length, and no read of the other shows the run in
-  phase), `undecided_call` (the reads give one length, DNA none),
-  `differs_from_call` (the reads agree on another length than DNA's).
-
-  `convention` (rules version 24, user decision 2026-10-20) is the lab's
-  reading of a near-equal pair, a suggestion and never DNA's call:
-  `{length, rule: "shorter_of_near_equal_pair"}` when both strands read the
-  run as the adjacent pair `n`, `n + 1` and at least one read's top two are
-  near-equal (every read with a next length holds the pair as its top two,
-  and every other read gives one of the two), with `length` `n`; the lab
-  ends the run at the first mixed call of the reverse read. Null otherwise,
-  for a run whose structure differs from DNA's, and in `length_not_recorded`,
-  where the lab records no length.
-
-  `floor` (rules version 27): for a run whose `called` is null, the least
-  length any read gives as its top or `next`, a suggestion only like
-  `convention`; null otherwise and in `length_not_recorded`.
-
-  The reads give a run its length when both strands give it one clear
-  length, the same, or (rules version 26) when one strand gives none and
-  one of the other's reads shows its one clear length `in_phase`; decodes
-  alone on one strand need the other. A run whose length so read is DNA's
-  reported length is confirmed and not listed, as is a run the consensus
-  decided by the two-strand rule (`two_strand`, SRS-CONS-013, rules version
-  23) unless its structure differs. The label is a check.
-- `length_not_recorded` `{runs: [...]}` (rules version 21): the same runs, as
-  `length_unconfirmed` lists them, confirmed ones included, of an anchored
-  window over which the profile's report convention leaves the run lengths
-  unrecorded (on the human profile, HVS-I). Context only: the reviewers do
-  not record those lengths, and a check against them would follow a
-  convention, not an error.
+- `estimated_length`, `length_unconfirmed` (rules version 21),
+  `length_not_recorded` (rules version 21), and `tract_length` (rules
+  version 28): run lengths, in [[reference/review-lengths|review length
+  labels]]. A run's estimated length, and a run of an anchored repeat window
+  the reads' tract decodes do not confirm, are checks; a window whose run
+  lengths the profile does not record, and a profile length tract whose
+  dominant length is determined or not reported, are context.
 - `undecided`: the site is `unresolved` or `contested` (a tie, even one the
   consensus settled on the reference and whichever strands the tied reads are
   on), or its call holds an `N`; or a gap is covered but not callable.

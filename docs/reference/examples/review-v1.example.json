@@ -47,7 +47,7 @@
       {
         "id": "empop",
         "family": "post_calling",
-        "version": 2
+        "version": 3
       },
       {
         "id": "review",
@@ -55,7 +55,7 @@
         "version": 26
       }
     ],
-    "rules": 27
+    "rules": 28
   },
   "reads": [
     {
@@ -251,6 +251,10 @@
         "end": 16193,
         "reason": "unresolved"
       }
+    ],
+    "ignored_in_search": [
+      "309.1C",
+      "315.1C"
     ]
   },
   "zones": [
@@ -1416,7 +1420,8 @@
       "dephased_end": 0,
       "read_edge": 0,
       "poor_signal": 0,
-      "length_not_recorded": 0
+      "length_not_recorded": 0,
+      "tract_length": 0
     },
     "positions": {
       "reportable": 749,

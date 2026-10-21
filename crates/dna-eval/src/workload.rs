@@ -1,7 +1,7 @@
 //! Review workload: how much of each sample DNA leaves to a reviewer, and
 //! which differences from the truth no reviewer would see.
 //!
-//! The review items are `dna review`'s own (`SampleAnalysis::review_checks`).
+//! The review items are `dna review`'s own (`SampleAnalysis::review_list`).
 //! The HV regions split into windows of a fixed size aligned to each region's
 //! first position, the last window of a region possibly shorter; a reviewer
 //! looks at every window a check item touches, so the positions to review are
@@ -110,6 +110,7 @@ pub(crate) struct Escape {
 /// explains. A passed unit counts under its most severe block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Class {
+    LengthNote,
     Recheck,
     Het,
     TruthN,
@@ -120,6 +121,7 @@ impl Class {
     /// The class's label in `unreviewed.tsv`.
     pub(crate) const fn label(self) -> &'static str {
         match self {
+            Self::LengthNote => "length_note",
             Self::Recheck => "recheck",
             Self::Het => "het",
             Self::TruthN => "truth_n",
@@ -128,17 +130,91 @@ impl Class {
     }
 
     /// The class of `block`, listed when it overlaps one of `listed`, its
-    /// sample's spans on the re-check list.
-    pub(crate) fn of(block: &Block, listed: &[(i64, i64)]) -> Self {
+    /// sample's spans on the re-check list, in the profile's length
+    /// `tracts`.
+    pub(crate) fn of(block: &Block, listed: &[(i64, i64)], tracts: &[Tract]) -> Self {
         if recheck::listed(block, listed) {
             Self::Recheck
         } else if block.truth.contains('N') || block.past_interval() {
             Self::TruthN
+        } else if tracts.iter().any(|tract| tract.length_only(block)) {
+            Self::LengthNote
         } else if het(block) {
             Self::Het
         } else {
             Self::NonHet
         }
+    }
+}
+
+/// A homopolymer tract of the profile with length heteroplasmy, 1-based
+/// and inclusive: a length difference there is noted, never gated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Tract {
+    /// The profile's name of the tract.
+    pub(crate) name: String,
+    pub(crate) first: i64,
+    pub(crate) last: i64,
+    pub(crate) base: char,
+}
+
+impl Tract {
+    /// Whether `block` differs only in the length of a run of the tract:
+    /// both sides read the same sequence once the tract's base is taken out
+    /// (the structure equal: no `T310C`, no `16189C` one side lacks), and
+    /// the first run whose length differs starts inside the tract. A block
+    /// may reach past the tract, to where its two sides' lengths meet again
+    /// or its interval ends; a run that differs after the tract's own
+    /// (`315.1C`) is no tract length.
+    pub(crate) fn length_only(&self, block: &Block) -> bool {
+        let rest = |text: &str| {
+            text.chars()
+                .filter(|&symbol| symbol != self.base)
+                .collect::<String>()
+        };
+        if block.dna.len() == block.truth.len() || rest(&block.dna) != rest(&block.truth) {
+            return false;
+        }
+        // The first symbol where the sides differ lies in a run of the
+        // tract's base on the longer side; that run's start, counted from
+        // the block's first anchor, is where the differing run begins.
+        let longer = if block.dna.len() > block.truth.len() {
+            block.dna.as_bytes()
+        } else {
+            block.truth.as_bytes()
+        };
+        let shorter = if block.dna.len() > block.truth.len() {
+            block.truth.as_bytes()
+        } else {
+            block.dna.as_bytes()
+        };
+        let common = longer
+            .iter()
+            .zip(shorter)
+            .take_while(|(left, right)| left == right)
+            .count();
+        let base = u8::try_from(self.base).unwrap_or(0);
+        let Some(mut start) = (common < longer.len()).then_some(common) else {
+            return false;
+        };
+        if longer[start] != base {
+            return false;
+        }
+        while start > 0 && longer[start - 1] == base {
+            start -= 1;
+        }
+        let position = block.start + i64::try_from(start).unwrap_or(i64::MAX);
+        self.first <= position && position <= self.last
+    }
+
+    /// How many more of the tract's base DNA reads in `block` than the
+    /// truth.
+    pub(crate) fn excess(&self, block: &Block) -> i64 {
+        let count = |text: &str| {
+            i64::try_from(text.chars().filter(|&symbol| symbol == self.base).count())
+                .unwrap_or(i64::MAX)
+        };
+        count(&block.dna) - count(&block.truth)
     }
 }
 
@@ -155,15 +231,15 @@ pub(crate) fn het(block: &Block) -> bool {
 }
 
 /// The workload of one sample from its check items (`first..=last`,
-/// 1-based), its `haplotype_lod` difference blocks, and its spans on the
-/// re-check list.
+/// 1-based), its `haplotype_lod` difference blocks, its spans on the
+/// re-check list, and the profile's length `tracts`.
 pub(crate) fn of(
     checks: &[(i64, i64)],
     blocks: &[Block],
     windows: &[Window],
     forced: &[(i64, i64)],
     zones: Option<&Zones>,
-    listed: &[(i64, i64)],
+    (listed, tracts): (&[(i64, i64)], &[Tract]),
 ) -> Workload {
     let touched = |window: &Window| {
         checks
@@ -240,7 +316,7 @@ pub(crate) fn of(
                 first: block.start,
                 last: block.end,
                 zone: zones.and_then(|zones| zones.instance(block.start)),
-                class: Class::of(block, listed),
+                class: Class::of(block, listed, tracts),
             })
             .collect(),
         checks: checks.len(),
@@ -256,7 +332,8 @@ pub(crate) fn of(
 
 /// Passed samples, regions, or zones that carry an unreviewed block: in all,
 /// and by the most severe [`Class`] of their blocks: with a `NonHet` block,
-/// else with a truth `N`, else het only, else on the re-check list only.
+/// else with a truth `N`, else het only, else on the re-check list only,
+/// else noted tract lengths only.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub(crate) struct Escaped {
     pub(crate) total: usize,
@@ -264,6 +341,7 @@ pub(crate) struct Escaped {
     pub(crate) het_only: usize,
     pub(crate) truth_n_only: usize,
     pub(crate) recheck_only: usize,
+    pub(crate) length_note_only: usize,
 }
 
 impl Escaped {
@@ -278,6 +356,7 @@ impl Escaped {
             Class::TruthN => &mut self.truth_n_only,
             Class::Het => &mut self.het_only,
             Class::Recheck => &mut self.recheck_only,
+            Class::LengthNote => &mut self.length_note_only,
         } += 1;
     }
 
@@ -289,6 +368,7 @@ impl Escaped {
             het_only: sum.het_only + count.het_only,
             truth_n_only: sum.truth_n_only + count.truth_n_only,
             recheck_only: sum.recheck_only + count.recheck_only,
+            length_note_only: sum.length_note_only + count.length_note_only,
         })
     }
 }
@@ -518,7 +598,7 @@ mod tests {
             &windows,
             &[],
             Some(&zones),
-            &[],
+            (&[], &[]),
         );
         assert_eq!(workload.checks, 1);
         assert_eq!(workload.zones, BTreeSet::from([(0, Kind::Start)]));
@@ -548,7 +628,7 @@ mod tests {
             &windows,
             &[(16184, 16193)],
             None,
-            &[],
+            (&[], &[]),
         );
         assert!(workload.zones.is_empty());
         assert_eq!(workload.escapes[0].zone, None);
@@ -584,7 +664,7 @@ mod tests {
             },
         );
         let of = |checks: &[(i64, i64)], blocks: &[Block]| {
-            of(checks, blocks, &windows, &[], Some(&zones), &[])
+            of(checks, blocks, &windows, &[], Some(&zones), (&[], &[]))
         };
         let workloads = [
             // Auto-pass with a non-het block in HV1 and a het one in HV2.
@@ -629,6 +709,7 @@ mod tests {
             het_only,
             truth_n_only,
             recheck_only: 0,
+            length_note_only: 0,
         };
         assert_eq!(passes.samples, 5);
         assert_eq!(
@@ -690,7 +771,7 @@ mod tests {
     fn a_block_takes_one_class_and_a_unit_its_most_severe() {
         use Class::{Het, NonHet, Recheck, TruthN};
         let class = |truth: &str, listed: &[(i64, i64)]| {
-            Class::of(&Block::fixture(100, 101, "AC", truth), listed)
+            Class::of(&Block::fixture(100, 101, "AC", truth), listed, &[])
         };
         // The re-check list comes first, then a truth `N`, then het.
         assert_eq!(class("AC", &[(101, 105)]), Recheck);
@@ -702,16 +783,43 @@ mod tests {
         // there. A block that also differs at the last base, holds more than
         // it, or stays inside the interval is DNA's.
         let open = |start, dna: &str, truth: &str| {
-            Class::of(&Block::open_fixture(start, 573, dna, truth), &[])
+            Class::of(&Block::open_fixture(start, 573, dna, truth), &[], &[])
         };
         assert_eq!(open(573, "CCC", "C"), TruthN);
         assert_eq!(open(573, "C", "CC"), TruthN);
         assert_eq!(open(573, "ACC", "C"), NonHet);
         assert_eq!(open(572, "CCCC", "CC"), NonHet);
         assert_eq!(
-            Class::of(&Block::fixture(573, 573, "CCC", "C"), &[]),
+            Class::of(&Block::fixture(573, 573, "CCC", "C"), &[], &[]),
             NonHet
         );
+        // A length difference inside a length tract, the structure equal,
+        // is noted: never a T read as C, nor a length outside the tract.
+        let tracts = [Tract {
+            name: "hvs2".to_owned(),
+            first: 303,
+            last: 309,
+            base: 'C',
+        }];
+        let tract = |start, end, dna: &str, truth: &str| {
+            Class::of(&Block::fixture(start, end, dna, truth), &[], &tracts)
+        };
+        assert_eq!(tract(309, 309, "CC", "C"), Class::LengthNote);
+        assert_eq!(tract(309, 310, "CCC", "CT"), NonHet);
+        assert_eq!(tract(315, 315, "CC", "C"), NonHet);
+        // A block that reaches past the tract: run 1 differs, or run 2.
+        assert_eq!(
+            tract(309, 316, "CCCCTCCCCCCG", "CCCTCCCCCCG"),
+            Class::LengthNote
+        );
+        assert_eq!(tract(309, 316, "CCCTCCCCCCCG", "CCCTCCCCCCG"), NonHet);
+        // Starting before the tract, the run that differs starts in it.
+        assert_eq!(
+            tract(301, 309, "AACCCCCCCCC", "AACCCCCCCC"),
+            Class::LengthNote
+        );
+        assert_eq!(tract(309, 309, "CC", "Y"), Het);
+        assert_eq!(tracts[0].excess(&Block::fixture(309, 309, "CCC", "C")), 2);
         // A passed unit counts once, under its most severe block.
         let escape = |class| Escape {
             first: 1,
@@ -730,17 +838,27 @@ mod tests {
             het_only,
             truth_n_only,
             recheck_only,
+            length_note_only: 0,
         };
         assert_eq!(count(&[Recheck, Het, TruthN, NonHet]), only(1, 0, 0, 0));
         assert_eq!(count(&[Recheck, Het, TruthN]), only(0, 0, 1, 0));
         assert_eq!(count(&[Recheck, Het]), only(0, 1, 0, 0));
         assert_eq!(count(&[Recheck, Recheck]), only(0, 0, 0, 1));
         assert_eq!(count(&[]), Escaped::default());
+        // A noted tract length is the least severe.
+        assert_eq!(count(&[Class::LengthNote, Recheck]), only(0, 0, 0, 1));
+        assert_eq!(
+            count(&[Class::LengthNote]),
+            Escaped {
+                length_note_only: 1,
+                ..only(0, 0, 0, 0)
+            }
+        );
         // A listed block passes as re-check only; unlisted it is non-het.
         let windows = windows(10);
         let block = [Block::fixture(573, 573, "CCCCCCCA", "CCCCCCA")];
-        let listed = of(&[], &block, &windows, &[], None, &[(573, 573)]);
-        let unlisted = of(&[], &block, &windows, &[], None, &[(16057, 16057)]);
+        let listed = of(&[], &block, &windows, &[], None, (&[(573, 573)], &[]));
+        let unlisted = of(&[], &block, &windows, &[], None, (&[(16057, 16057)], &[]));
         assert_eq!(listed.escapes[0].class, Recheck);
         assert_eq!(unlisted.escapes[0].class, NonHet);
         assert_eq!(listed.unreviewed, unlisted.unreviewed);

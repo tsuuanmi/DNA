@@ -18,8 +18,8 @@ use crate::model::review_result::{
     Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
     LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
     ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
-    SecondResult, ShareResult, SideResult, SignalProvenanceResult, SummaryResult,
-    UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
+    SecondResult, ShareResult, SideResult, SignalProvenanceResult, StrandsResult, SummaryResult,
+    TractRunResult, UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::model::sanger_read::{Rejection, SangerRead};
@@ -27,7 +27,10 @@ use crate::report::json::{project_plugins, project_profile};
 use crate::report::length;
 use crate::report::notation::project_empop;
 use crate::report::sample::{reviewer_names, reviewer_read_names};
-use crate::sample_analysis::{CallTrust, ConsensusCall, NotationCall, SampleAnalysis, TrustScope};
+use crate::sample_analysis::{
+    CallTrust, ConsensusCall, NotationCall, ReviewCheck, ReviewList, SampleAnalysis, TractNote,
+    TractNoteRun, TrustScope,
+};
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
@@ -37,8 +40,9 @@ use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, 
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
-use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, Profile};
+use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, LengthTract, Profile};
 use dna_kernel::read_evidence::{EvidenceReason, Placement, ReadEvidence};
+use dna_normalize::length_convention::ShortestDominant;
 use dna_sample::model::sample_evidence::{LocusObservations, LocusState, SampleLocusObservation};
 use dna_sanger::model::callability::PhaseState;
 use dna_sanger::run_signal::{self, Key, RunSignal, Threshold};
@@ -49,7 +53,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 27,
+    version: 28,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -322,14 +326,15 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
     })
 }
 
-/// The review list's check items of an analysed sample whose consensus was
-/// called, by the rules of `dna review`: each item's first and last
-/// reference positions (1-based) and its label names.
-pub(crate) fn checks(
+/// The review list of an analysed sample whose consensus was called, by the
+/// rules of `dna review`: each check item's first and last reference
+/// positions (1-based) and label names, and each `tract_length` label with
+/// its item's span.
+pub(crate) fn list(
     analysis: &SampleAnalysis,
     call: &ConsensusCall,
     signal: Option<&RunSignal>,
-) -> Result<Vec<(usize, usize, Vec<&'static str>)>> {
+) -> Result<ReviewList> {
     let reference = &analysis.loaded.reference;
     let regions = clip(&analysis.loaded.profile.regions, reference.len());
     let (names, _) = reviewer_read_names(&analysis.evidence)?;
@@ -348,18 +353,43 @@ pub(crate) fn checks(
         signal,
     )?
     .items()?;
-    Ok(items
-        .into_iter()
-        .filter(|item| item.kind == ItemKind::Check)
-        .map(|item| {
-            let labels = item.labels.iter().map(name).collect::<BTreeSet<_>>();
-            (
-                item.first.position,
-                item.last.position,
-                labels.into_iter().collect(),
-            )
-        })
-        .collect())
+    let mut review = ReviewList::default();
+    for item in &items {
+        let (first, last) = (item.first.position, item.last.position);
+        if item.kind == ItemKind::Check {
+            review.checks.push(ReviewCheck {
+                first,
+                last,
+                labels: item
+                    .labels
+                    .iter()
+                    .map(name)
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            });
+        }
+        for label in &item.labels {
+            if let LabelResult::TractLength { tract, runs, .. } = label {
+                review.notes.push(TractNote {
+                    first,
+                    last,
+                    tract: tract.clone(),
+                    runs: runs
+                        .iter()
+                        .map(|run| TractNoteRun {
+                            run: run.run,
+                            called: run.called,
+                            status: run.status,
+                            reading: run.reading,
+                            convention: run.convention.as_ref().map(|convention| convention.length),
+                        })
+                        .collect(),
+                });
+            }
+        }
+    }
+    Ok(review)
 }
 
 /// The reportable `regions` (1-based, inclusive) without the stretches at
@@ -468,9 +498,13 @@ struct Sample<'a> {
     signal: Option<RunSignal>,
     /// The second-channel threshold's floor and run-level parameters.
     second: &'a SignalProcessingConfig,
-    /// The profile's anchored repeat windows, whose run lengths the reads'
-    /// tract decodes judge (SRS-API-020).
+    /// The profile's anchored repeat windows and length tracts, whose run
+    /// lengths the reads' tract decodes judge (SRS-API-020).
     length_windows: Vec<length::LengthWindow>,
+    /// The profile's length tracts.
+    length_tracts: &'a [LengthTract],
+    /// The length convention, when configured (`[normalization]`).
+    length_convention: Option<ShortestDominant>,
     /// The reference and the core's and the consensus's configuration, for
     /// the consensus's reading of each read's runs (ADR-0074).
     reference: &'a Reference,
@@ -596,6 +630,8 @@ impl<'a> Sample<'a> {
             signal,
             second: &analysis.loaded.config.sanger.signal_processing,
             length_windows: length::windows(&analysis.loaded.profile),
+            length_tracts: &analysis.loaded.profile.length_tracts,
+            length_convention: analysis.loaded.config.length_convention,
             reference,
             call_config: &analysis.loaded.config.core,
             consensus_config: &analysis.loaded.config.consensus,
@@ -703,12 +739,18 @@ impl<'a> Sample<'a> {
         Ok(items)
     }
 
-    /// Labels the runs of each anchored repeat window that the reads' tract
-    /// decodes do not confirm (`length_unconfirmed`, a check), or, in a
-    /// window whose run lengths the profile does not record, every decoded
-    /// run (`length_not_recorded`, context). The label joins the first item
-    /// that overlaps the window, or a new item over the window. A window no
-    /// read decodes, outside the analysed regions, gets none.
+    /// Labels the runs of each judged window (SRS-API-020). In a window whose
+    /// run lengths the profile records, every run the reads' tract decodes
+    /// do not confirm is `length_unconfirmed`, a check, unless it lies in a
+    /// profile length tract and its dominant length is determined
+    /// (`length::status`): such a run is noted in `tract_length`, context.
+    /// In a window whose run lengths the profile does not record, every
+    /// decoded run is `length_not_recorded`, context. An `estimated_length`
+    /// or `long_run` run of the window's item that is a tract run so
+    /// determined moves to the note too; a plain tract (no anchored window)
+    /// gives a note only so. The labels join the first item that overlaps
+    /// the window, or a new item over the window. A window outside the
+    /// analysed regions gets none.
     fn length_labels(&self, drafts: &mut Vec<Draft<'a>>) {
         for window in &self.length_windows {
             let Some([first, last]) = within(self.regions, window.first, window.last) else {
@@ -726,9 +768,6 @@ impl<'a> Sample<'a> {
                     })
                 })
                 .collect::<Vec<_>>();
-            if decodes.is_empty() {
-                continue;
-            }
             let haplotype = self.decided_over(window.first, window.last);
             let called = haplotype
                 .as_deref()
@@ -769,44 +808,145 @@ impl<'a> Sample<'a> {
             // DNA reports the window's lengths only where it is callable
             // throughout; elsewhere its decided lengths are estimates.
             let reported = (first..=last).all(|position| inside(self.callable, position));
-            let mut runs = length::judge(
+            let judged = length::judge(
                 window,
                 called.as_deref(),
                 reported,
                 &two_strand,
                 &decodes,
                 &in_phase,
+                self.length_convention,
             );
-            let label = if window.recorded {
-                runs.retain(|run| run.agreement != "confirmed");
-                LabelResult::LengthUnconfirmed { runs }
-            } else {
-                // The lab records no length here, so no reading of it.
-                for run in &mut runs {
-                    run.convention = None;
-                    run.floor = None;
+            let single = called.as_ref().is_some_and(|runs| runs.len() == 1);
+            let draft = drafts
+                .iter()
+                .position(|draft| draft.first <= last && first <= draft.last);
+            // A tract run DNA's `estimated_length` or `long_run` names: the one
+            // run of the window with that base and length.
+            let named = |base: char, length: usize| {
+                let matching = called
+                    .iter()
+                    .flatten()
+                    .enumerate()
+                    .filter(|&(_, &decided)| base == window.repeat && decided == length)
+                    .map(|(index, _)| index + 1)
+                    .collect::<Vec<_>>();
+                match matching.as_slice() {
+                    [run] if window.in_tract(*run, single) => Some(*run),
+                    _ => None,
                 }
-                LabelResult::LengthNotRecorded { runs }
             };
-            if matches!(
-                &label,
-                LabelResult::LengthUnconfirmed { runs } | LabelResult::LengthNotRecorded { runs }
-                    if runs.is_empty()
-            ) {
+            let mut noted = BTreeSet::new();
+            let mut moved = Vec::new();
+            if let Some(index) = draft {
+                for label in &drafts[index].labels {
+                    let runs = match label {
+                        LabelResult::EstimatedLength { runs } => runs
+                            .iter()
+                            .map(|run| (run.base, run.length))
+                            .collect::<Vec<_>>(),
+                        LabelResult::LongRun { runs } => {
+                            runs.iter().map(|run| (run.base, run.length)).collect()
+                        }
+                        _ => Vec::new(),
+                    };
+                    for (base, length) in runs {
+                        let Some(run) = named(base, length) else {
+                            continue;
+                        };
+                        let judged_run = judged.iter().find(|judged| judged.result.run == run);
+                        // An estimate no read reaches is unconfirmed; one the
+                        // reads judge moves only when they determine it.
+                        let determined = judged_run
+                            .map_or(!reported, |judged| length::status(&judged.result).is_some());
+                        if determined {
+                            noted.insert(run);
+                            moved.push((base, length));
+                        }
+                    }
+                }
+            }
+            let mut unconfirmed = Vec::new();
+            let mut not_recorded = Vec::new();
+            for judged_run in &judged {
+                let run = judged_run.result.run;
+                let tract = window.in_tract(run, single);
+                let status = tract.then(|| length::status(&judged_run.result)).flatten();
+                match (window.anchor.is_some(), window.recorded, status) {
+                    (true, false, _) => {
+                        let mut result = judged_run.result.clone();
+                        // The lab records no length here, so no reading of it.
+                        result.convention = None;
+                        result.floor = None;
+                        not_recorded.push(result);
+                    }
+                    (true, true, Some((status, _))) if status != "confirmed" => {
+                        noted.insert(run);
+                    }
+                    (true, true, _) if judged_run.result.agreement != "confirmed" => {
+                        unconfirmed.push(judged_run.result.clone());
+                    }
+                    // A plain tract labels only what it moves.
+                    _ => {}
+                }
+            }
+            let mut labels = Vec::new();
+            if !unconfirmed.is_empty() {
+                labels.push(LabelResult::LengthUnconfirmed { runs: unconfirmed });
+            }
+            if !not_recorded.is_empty() {
+                labels.push(LabelResult::LengthNotRecorded { runs: not_recorded });
+            }
+            if let Some(tract) = window
+                .tract
+                .and_then(|tract| self.length_tracts.get(tract.index))
+                .filter(|_| !noted.is_empty())
+            {
+                let runs = noted
+                    .iter()
+                    .map(|&run| {
+                        let judged_run = judged.iter().find(|judged| judged.result.run == run);
+                        tract_run(run, window, called.as_deref(), reported, judged_run)
+                    })
+                    .collect();
+                labels.push(LabelResult::TractLength {
+                    tract: tract.name.clone(),
+                    ignored_in_search: tract.search,
+                    runs,
+                });
+            }
+            if labels.is_empty() {
                 continue;
             }
-            match drafts
-                .iter_mut()
-                .find(|draft| draft.first <= last && first <= draft.last)
-            {
-                Some(draft) => draft.labels.push(label),
+            match draft {
+                Some(index) => {
+                    let draft = &mut drafts[index];
+                    for label in &mut draft.labels {
+                        match label {
+                            LabelResult::EstimatedLength { runs } => {
+                                runs.retain(|run| !moved.contains(&(run.base, run.length)));
+                            }
+                            LabelResult::LongRun { runs } => {
+                                runs.retain(|run| !moved.contains(&(run.base, run.length)));
+                            }
+                            _ => {}
+                        }
+                    }
+                    draft.labels.retain(|label| {
+                        !matches!(
+                            label,
+                            LabelResult::EstimatedLength { runs } if runs.is_empty()
+                        ) && !matches!(label, LabelResult::LongRun { runs } if runs.is_empty())
+                    });
+                    draft.labels.extend(labels);
+                }
                 None => drafts.push(Draft {
                     first,
                     last,
                     site: None,
                     decided: haplotype.as_deref().is_some_and(|text| !text.contains('N')),
                     sequence: haplotype,
-                    labels: vec![label],
+                    labels,
                 }),
             }
         }
@@ -1066,7 +1206,7 @@ impl<'a> Sample<'a> {
                 LabelResult::PossibleHeteroplasmy {
                     explained: true,
                     ..
-                }
+                } | LabelResult::TractLength { .. }
             )
         });
         let kind = match (assured, differs, noted) {
@@ -1584,6 +1724,57 @@ impl<'a> Sample<'a> {
 
 /// One read's evidence at one position, with its Sanger scan position and
 /// relative quality.
+/// One noted run of a length tract: its judgement when a read reaches it,
+/// else an unreported run no read reaches. Where the profile records no
+/// length (`recorded` false), no reading is given.
+fn tract_run(
+    run: usize,
+    window: &length::LengthWindow,
+    called: Option<&[usize]>,
+    reported: bool,
+    judged: Option<&length::Judged>,
+) -> TractRunResult {
+    let Some(judged) = judged else {
+        return TractRunResult {
+            run,
+            base: window.repeat,
+            called: called
+                .filter(|_| reported)
+                .and_then(|runs| runs.get(run - 1))
+                .copied(),
+            status: "unconfirmed",
+            reading: None,
+            agreement: None,
+            strands: StrandsResult::default(),
+            in_phase: Vec::new(),
+            floor: None,
+            convention: None,
+            reads: Vec::new(),
+        };
+    };
+    let result = &judged.result;
+    let (status, reading) = length::status(result).unwrap_or(("unconfirmed", result.floor));
+    let recorded = window.recorded;
+    TractRunResult {
+        run,
+        base: result.base,
+        called: result.called,
+        status,
+        reading: reading.filter(|_| recorded),
+        agreement: Some(result.agreement),
+        strands: judged.strands,
+        in_phase: result
+            .reads
+            .iter()
+            .filter(|read| read.source == "in_phase")
+            .map(|read| read.read.clone())
+            .collect(),
+        floor: result.floor.filter(|_| recorded),
+        convention: result.convention.clone().filter(|_| recorded),
+        reads: judged.reads.clone(),
+    }
+}
+
 fn evidence(
     position: usize,
     observation: &SampleLocusObservation,
@@ -2001,7 +2192,8 @@ const fn rank(label: &LabelResult) -> u8 {
         | LabelResult::DephasedEnd { .. }
         | LabelResult::ReadEdge { .. }
         | LabelResult::PoorSignal { .. }
-        | LabelResult::LengthNotRecorded { .. } => 4,
+        | LabelResult::LengthNotRecorded { .. }
+        | LabelResult::TractLength { .. } => 4,
     }
 }
 
@@ -2019,6 +2211,7 @@ const fn name(label: &LabelResult) -> &'static str {
         LabelResult::EstimatedLength { .. } => "estimated_length",
         LabelResult::LengthUnconfirmed { .. } => "length_unconfirmed",
         LabelResult::LengthNotRecorded { .. } => "length_not_recorded",
+        LabelResult::TractLength { .. } => "tract_length",
         LabelResult::Undecided => "undecided",
         LabelResult::OneRead { .. } => "one_read",
         LabelResult::OneStrand { .. } => "one_strand",
@@ -2249,6 +2442,7 @@ fn summarize(
                 "estimated_length" => &mut labels.estimated_length,
                 "length_unconfirmed" => &mut labels.length_unconfirmed,
                 "length_not_recorded" => &mut labels.length_not_recorded,
+                "tract_length" => &mut labels.tract_length,
                 "undecided" => &mut labels.undecided,
                 "one_read" => &mut labels.one_read,
                 "one_strand" => &mut labels.one_strand,

@@ -13,6 +13,7 @@
     "windows.tsv",
     "summary.md",
     "checks.tsv",
+    "notes.tsv",
     "unreviewed.tsv",
     "components.tsv",
     "tracts.tsv",
@@ -45,6 +46,9 @@
     },
     "checks.tsv": {
       "$ref": "#/$defs/checks"
+    },
+    "notes.tsv": {
+      "$ref": "#/$defs/notes"
     },
     "unreviewed.tsv": {
       "$ref": "#/$defs/unreviewed"
@@ -1190,7 +1194,7 @@
       }
     },
     "escaped": {
-      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it or every difference is an insertion past the truth's analysed interval (anchored at its last base), else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only`; the four sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
+      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it or every difference is an insertion past the truth's analysed interval (anchored at its last base), else length note when it lies in a profile length tract and differs only in the count of the tract's base, else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, a tract length, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only` with a re-check block, else `length_note_only`; the five sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1198,7 +1202,8 @@
         "non_het",
         "het_only",
         "truth_n_only",
-        "recheck_only"
+        "recheck_only",
+        "length_note_only"
       ],
       "properties": {
         "total": {
@@ -1218,6 +1223,10 @@
           "minimum": 0
         },
         "recheck_only": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "length_note_only": {
           "type": "integer",
           "minimum": 0
         }
@@ -2087,12 +2096,13 @@
                 "$ref": "#/$defs/nonempty"
               },
               "class": {
-                "description": "`non_het`, `het`, `truth_n`, or `recheck` (the re-check list names it).",
+                "description": "`non_het`, `het`, `truth_n`, `recheck` (the re-check list names it), or `length_note` (it differs only in the length of a profile length tract, the structure equal; reported, never gated).",
                 "enum": [
                   "non_het",
                   "het",
                   "truth_n",
-                  "recheck"
+                  "recheck",
+                  "length_note"
                 ]
               },
               "zone": {
@@ -4293,6 +4303,101 @@
     "policy_name": {
       "type": "string",
       "pattern": "^[a-z0-9_@+.]+$"
+    },
+    "notes": {
+      "description": "One row per sample, `dna review` item, and run its `tract_length` label notes (a run of a profile length tract whose dominant length the reads determine, or that DNA does not report), in panel then item order; failed samples have none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comments",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "comments": {
+          "$ref": "#/$defs/no_comments"
+        },
+        "columns": {
+          "const": [
+            "sample_id",
+            "first",
+            "last",
+            "tract",
+            "run",
+            "status",
+            "called",
+            "reading",
+            "convention"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sample_id",
+              "first",
+              "last",
+              "tract",
+              "run",
+              "status",
+              "called",
+              "reading",
+              "convention"
+            ],
+            "properties": {
+              "sample_id": {
+                "description": "The panel sample identifier.",
+                "$ref": "#/$defs/text"
+              },
+              "first": {
+                "description": "The item's first reference position, 1-based.",
+                "$ref": "#/$defs/count"
+              },
+              "last": {
+                "description": "Its last position, inclusive.",
+                "$ref": "#/$defs/count"
+              },
+              "tract": {
+                "description": "The profile's name of the length tract.",
+                "$ref": "#/$defs/nonempty"
+              },
+              "run": {
+                "description": "The run: 1 before the anchor, 2 after it, 1 alone for a single run.",
+                "enum": [
+                  "1",
+                  "2"
+                ]
+              },
+              "status": {
+                "description": "How the run stands (`dna.review/v1` `tract_length`).",
+                "enum": [
+                  "confirmed",
+                  "dominant",
+                  "convention",
+                  "unconfirmed"
+                ]
+              },
+              "called": {
+                "description": "DNA's reported length; `.` when DNA reports none.",
+                "type": "string",
+                "pattern": "^([1-9][0-9]*|\\.)$"
+              },
+              "reading": {
+                "description": "The length a reviewer would record; `.` without one.",
+                "type": "string",
+                "pattern": "^([1-9][0-9]*|\\.)$"
+              },
+              "convention": {
+                "description": "The length convention's reading; `.` without one.",
+                "type": "string",
+                "pattern": "^([1-9][0-9]*|\\.)$"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
