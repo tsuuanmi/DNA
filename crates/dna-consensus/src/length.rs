@@ -21,16 +21,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use dna_align::model::alignment::{AlignmentColumn, Orientation};
 use dna_call::model::called_read::CalledRead;
-use dna_call::read_call::CallConfig;
-use dna_kernel::model::reference::Reference;
 use dna_kernel::nnls::nnls;
 use dna_kernel::read_evidence::{LengthMarginal, TractLengths};
 
-use crate::config::ConsensusConfig;
+use crate::ReadRun;
 use crate::decide::Decision;
 use crate::model::consensus::RunEvidence;
+#[cfg(doc)]
+use crate::read_runs_over;
 use crate::runs::{anchored_pair, runs_of};
-use crate::{ReadRun, read_runs_over};
 
 /// Lengths a derived run may take: the shifts the deconvolution fits.
 const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
@@ -471,7 +470,7 @@ pub const fn anchor_on(window: &Window, forward: bool) -> char {
 /// The rule's views of a two-run window's runs (run 1 first) from the
 /// reads' tract decodes and, on a strand no decode views a run from, the
 /// reads that show the run in phase (`shown_runs`, by read, as
-/// [`read_runs_over`](crate::read_runs_over) gives them over the window).
+/// [`read_runs_over`] gives them over the window).
 #[must_use]
 pub fn views(
     window: &Window,
@@ -536,15 +535,15 @@ pub fn views(
 /// its length, with `two_strand` evidence. A run a read shows in phase, or
 /// whose ends two reads confirm, keeps its length whatever the rule says;
 /// the review flags their disagreement. The pattern is the stretch's own
-/// structure, never a position: the rule names no region.
+/// structure, never a position: the rule names no region. `shown` gives each
+/// read's runs over a 0-based reference stretch, as [`read_runs_over`] does.
 pub(crate) fn two_strand(
     decided: &mut BTreeMap<usize, (usize, Decision)>,
     reads: &[&CalledRead],
-    reference: &Reference,
-    config: &CallConfig,
-    consensus_config: &ConsensusConfig,
+    bases: &[u8],
+    params: &RuleParams,
+    shown: impl Fn(usize, usize) -> Vec<Option<Vec<ReadRun>>>,
 ) {
-    let bases = reference.sequence.as_bytes();
     for (&start, (end, decision)) in decided.iter_mut() {
         if !decision
             .runs
@@ -589,22 +588,13 @@ pub(crate) fn two_strand(
                 repeat: repeat.0,
                 anchor_base: anchor.0,
             };
-            let shown = read_runs_over(
-                reads,
-                reference,
-                config,
-                consensus_config,
-                window.first - 1,
-                window.last - 1,
-            );
+            let shown = shown(window.first - 1, window.last - 1);
             let views = views(&window, reads, &shown);
             for (run, slot) in [(Run::Before, index), (Run::After, index + 2)] {
                 if !decision.runs[slot].evidence.yields_to_two_strand() {
                     continue;
                 }
-                let (Outcome::Decided(length), _) =
-                    decide(&views[run.index()], run, consensus_config.length_rule())
-                else {
+                let (Outcome::Decided(length), _) = decide(&views[run.index()], run, params) else {
                     continue;
                 };
                 decision.runs[slot].length = length;
