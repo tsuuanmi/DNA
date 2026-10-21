@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna.placed_read/v1` (ADR-0087, **proposed**): one read's placement as
+  `dna-align` selected it, which `dna-align` alone writes and reads back,
+  re-checking it against the read's evidence and the reference (PROP-0011).
+  `dna_call::read_call::call_read_placed` starts the core from it;
+  `dna::recorded::placed_read_document` and `analyze_placed_outcome` write
+  and read it in memory. `dna-eval --evidence-cache` also keeps a placement
+  cache keyed by the placement stage's code identity and the reference
+  (`run.json` `placement_cache`). On development panel v5 every table is
+  byte-identical with and without it, and a consensus-only probe takes
+  29-36 % less CPU.
 - `dna-eval subset --manifest <panel> --rows <n> --minimum <n> --salt <s>
   --output <file>` writes a deterministic stratified quick subset of a
   panel, every stratum kept, as a manifest of its own, for a first-pass

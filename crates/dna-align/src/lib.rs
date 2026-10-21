@@ -1,6 +1,7 @@
 //! Bounded deterministic affine-gap alignment and strand selection.
 
 pub mod model;
+pub mod placed;
 
 mod config;
 
