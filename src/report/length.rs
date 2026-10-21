@@ -18,10 +18,11 @@
 //! needs both strands. A run is confirmed when that length is DNA's call, or
 //! when the consensus decided it by the two-strand rule (PROP-0012
 //! increment 4) and no read's structure differs from DNA's.
-//! DNA reports a window's lengths only when every position of it is
-//! callable; otherwise its decided lengths are estimates, never a reading,
-//! and a run instead carries the reads' floor reading, the least length any
-//! read gives as its top or next. A run of a length tract whose dominant
+//! DNA reports a run's length only when every position it must show to
+//! measure the run ([`run_spans`]) is callable; otherwise its
+//! decided length is an estimate, never a reading, and the run instead
+//! carries the reads' floor reading, the least length any read gives as its
+//! top or next. A run of a length tract whose dominant
 //! length the reads determine is noted, not checked ([`status`]). Nothing
 //! here decides a length; it labels them.
 
@@ -34,6 +35,7 @@ use crate::model::review_result::{
     LengthConventionResult, LengthReadResult, LengthRunResult, MarginalResult, StrandsResult,
     TractReadResult,
 };
+use crate::sample_analysis::NotationCall;
 pub(super) use crate::sample_analysis::windows::{LengthWindow, windows};
 use dna_align::model::alignment::Orientation;
 
@@ -237,6 +239,52 @@ impl Contribution<'_> {
     }
 }
 
+/// The reference span DNA must show callable to report each run it calls
+/// in `window` (1-based and inclusive), in run order. Where DNA calls two
+/// runs `anchored` at the profile's anchor (its calls in the window change
+/// only the runs' lengths, by insertions or deletions of the repeat base),
+/// each run is measured between its bounds: run 1 spans the position before
+/// the window to the anchor, run 2 the anchor to the position after the
+/// window. So a run 1 whose 3' end is only estimated leaves run 2 reported
+/// while the anchor stays callable, and a run whose own positions are
+/// callable but whose anchor is not stays an estimate. Otherwise (one run, or
+/// a structure another call moves) every run spans the whole window. Empty
+/// when DNA calls no run there.
+pub(super) fn run_spans(
+    window: &LengthWindow,
+    called: Option<&[usize]>,
+    anchored: bool,
+) -> Vec<[usize; 2]> {
+    let count = called.map_or(0, <[usize]>::len);
+    match window.anchor {
+        Some((anchor, _)) if anchored && count == 2 => vec![
+            [window.first.saturating_sub(1).max(1), anchor],
+            [anchor, window.last + 1],
+        ],
+        _ => vec![[window.first, window.last]; count],
+    }
+}
+
+/// Whether DNA's `calls` leave `window`'s runs around its anchor: every call
+/// in the window inserts or deletes the repeat base, and none lies at the
+/// anchor.
+pub(super) fn anchored(window: &LengthWindow, calls: &[NotationCall]) -> bool {
+    window.anchor.is_some_and(|(anchor, _)| {
+        calls
+            .iter()
+            .filter(|call| (window.first..=window.last).contains(&call.position))
+            .all(|call| {
+                let repeat = Some(window.repeat);
+                call.position != anchor
+                    && match (call.reference, call.alternate) {
+                        (None, alternate) => alternate == repeat,
+                        (reference, None) => reference == repeat,
+                        _ => false,
+                    }
+            })
+    })
+}
+
 /// One judged run of a window: what `length_unconfirmed` lists, with each
 /// strand's one clear length and each read's decode components for a note.
 pub(super) struct Judged {
@@ -247,9 +295,10 @@ pub(super) struct Judged {
 
 /// The runs of `window` the `decodes` give a length for, each with DNA's
 /// length, the reads' lengths, and how they agree. `called` is DNA's
-/// decided runs over the window, which set its structure; their lengths are
-/// DNA's only when it `reported` them (every window position callable), and
-/// otherwise each run carries the reads' floor reading instead. A run in
+/// decided runs over the window, which set its structure; a run's length is
+/// DNA's only when the run is in `reported` (its span callable,
+/// [`run_spans`]), and otherwise the run carries the reads' floor reading
+/// instead. A run in
 /// `two_strand`, decided by the two-strand rule, is confirmed unless a
 /// read's structure differs from DNA's. `policy` is the length convention,
 /// when configured. Decodes of another base, or credited to no run of the
@@ -257,7 +306,7 @@ pub(super) struct Judged {
 pub(super) fn judge(
     window: &LengthWindow,
     called: Option<&[usize]>,
-    reported: bool,
+    reported: &[usize],
     two_strand: &[usize],
     decodes: &[Decode<'_>],
     in_phase: &[InPhase<'_>],
@@ -378,7 +427,7 @@ pub(super) fn judge(
                 .filter(|contribution| contribution.run == run)
                 .collect::<Vec<_>>();
             let called_length = called
-                .filter(|_| reported)
+                .filter(|_| reported.contains(&run))
                 .and_then(|runs| runs.get(run - 1))
                 .copied();
             // Each strand's one clear length: every length its reads give
@@ -542,10 +591,16 @@ mod tests {
         decodes: &[Decode<'_>],
         in_phase: &[InPhase<'_>],
     ) -> Vec<LengthRunResult> {
+        // Every run DNA calls is reported, or none.
+        let reported = if reported {
+            (1..=called.map_or(0, <[usize]>::len)).collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         super::judge(
             window,
             called,
-            reported,
+            &reported,
             two_strand,
             decodes,
             in_phase,
@@ -966,6 +1021,71 @@ mod tests {
         assert_eq!(runs[0].called, Some(10));
         assert_eq!(runs[0].floor, None);
         assert_eq!(runs[1].agreement, "confirmed");
+        // Run 2 alone reported (run 1's 3' end an estimate, the anchor
+        // callable): run 2 is confirmed, run 1 keeps the floor reading.
+        let runs = super::judge(
+            &HVS2,
+            Some(&[10, 5]),
+            &[2],
+            &[],
+            &decodes,
+            &in_phase,
+            ShortestDominant::new(0.6),
+        );
+        assert_eq!(runs[0].result.called, None);
+        assert_eq!(runs[0].result.floor, Some(8));
+        assert_eq!(runs[1].result.called, Some(5));
+        assert_eq!(runs[1].result.agreement, "confirmed");
+    }
+
+    // SRS-API-020
+    #[test]
+    fn bounds_each_run_by_its_flank_and_the_anchor() {
+        // Anchored: run 1 from 302 to the anchor 310, run 2 from 310 to 316.
+        assert_eq!(
+            run_spans(&HVS2, Some(&[8, 5]), true),
+            vec![[302, 310], [310, 316]]
+        );
+        // A structure another call moves: each run spans the window.
+        assert_eq!(
+            run_spans(&HVS2, Some(&[8, 5]), false),
+            vec![[303, 315], [303, 315]]
+        );
+        // One run where the anchor is lost: the window.
+        assert_eq!(run_spans(&HVS2, Some(&[14]), true), vec![[303, 315]]);
+        // No run without a call.
+        assert!(run_spans(&HVS2, None, true).is_empty());
+    }
+
+    // SRS-API-020
+    #[test]
+    fn runs_lie_around_the_anchor_when_calls_change_only_their_lengths() {
+        let call =
+            |position: usize, ordinal: usize, reference: Option<char>, alternate: Option<char>| {
+                NotationCall {
+                    position,
+                    ordinal,
+                    reference,
+                    alternate,
+                    text: String::new(),
+                    convention: None,
+                }
+            };
+        // 309.1C, 309.2C, 315.1C, and a call outside the window.
+        let lengths = [
+            call(309, 1, None, Some('C')),
+            call(309, 2, None, Some('C')),
+            call(315, 1, None, Some('C')),
+            call(263, 0, Some('A'), Some('G')),
+        ];
+        assert!(anchored(&HVS2, &lengths));
+        // A deleted C of run 2.
+        assert!(anchored(&HVS2, &[call(315, 0, Some('C'), None)]));
+        // T310C changes the anchor; 305T splits run 1; an inserted T moves
+        // the anchor.
+        assert!(!anchored(&HVS2, &[call(310, 0, Some('T'), Some('C'))]));
+        assert!(!anchored(&HVS2, &[call(305, 0, Some('C'), Some('T'))]));
+        assert!(!anchored(&HVS2, &[call(309, 1, None, Some('T'))]));
     }
 
     // SRS-API-020
