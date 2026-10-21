@@ -176,7 +176,7 @@ const RANKS: [(&str, u64); 25] = [
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 31);
+    assert_eq!(value["provenance"]["rules"], 32);
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
@@ -534,6 +534,198 @@ fn a_clean_read_against_its_own_strand_is_a_check() -> Result<(), Box<dyn std::e
     assert!(!label_names(first).contains(&"strands_disagree"));
     assert_eq!(value["summary"]["labels"]["same_strand_dissent"], 1);
     assert_eq!(value["summary"]["clear"], false);
+    Ok(())
+}
+
+/// A synthetic query that holds a reference run of five `A` at reference
+/// positions 17 to 21.
+const RUN_QUERY: &str = "ACGTCAGTACGTAAAAAGTACCTGAGTACGA";
+
+/// Writes `TTTT{RUN_QUERY}CCCC` over the synthetic reference.
+fn write_run_reference(reference: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    write_reference(reference, &format!("TTTT{RUN_QUERY}CCCC"))
+}
+
+/// Runs `dna review` over one trace per entry of `strands` that reads
+/// `sequence` on that strand (`true` forward), each with its own peak
+/// height, over `TTTT{RUN_QUERY}CCCC`, and returns its document.
+fn reads_on_strands(
+    directory: &Path,
+    sequence: &str,
+    strands: &[bool],
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let (reference, config) = inputs(directory)?;
+    write_run_reference(&reference)?;
+    let mut traces = Vec::new();
+    for (index, &forward) in strands.iter().enumerate() {
+        let trace = directory.join(format!("read-{index}.ab1"));
+        let read = if forward {
+            sequence.to_owned()
+        } else {
+            reverse_complement(sequence)
+        };
+        write_read(&trace, &read, 1000 + i16::try_from(index)?)?;
+        traces.push(trace);
+    }
+    run(
+        &traces.iter().collect::<Vec<_>>(),
+        &reference,
+        &config,
+        directory,
+    )
+    .success();
+    let value = document(directory)?;
+    assert_consistent(&value)?;
+    Ok(value)
+}
+
+/// The item of `value` that carries `label`, and that label.
+fn labelled<'a>(
+    value: &'a Value,
+    label: &str,
+) -> Result<(&'a Value, &'a Value), Box<dyn std::error::Error>> {
+    let item = items(value)?
+        .iter()
+        .find(|item| label_names(item).contains(&label))
+        .ok_or_else(|| format!("an item must carry {label}: {value}"))?;
+    let found = item["labels"]
+        .as_array()
+        .ok_or("labels must be an array")?
+        .iter()
+        .find(|found| found["label"] == label)
+        .ok_or(label.to_owned())?;
+    Ok((item, found))
+}
+
+/// Two or three reads of one strand that delete three bases of a reference
+/// run are `run_deletion`, `run_indel`, and `edge_deletion` checks that list
+/// every supporting read: reads of one strand share its slips, so their
+/// number does not assure the deletion (ADR-0090). A read of the other strand
+/// that shows it lifts the gates.
+// SRS-API-014
+#[test]
+fn deletions_resting_on_one_strand_are_checks_however_many_reads()
+-> Result<(), Box<dyn std::error::Error>> {
+    let deleted = RUN_QUERY.replacen("AAAAA", "AA", 1);
+    for strands in [&[true, true][..], &[true, true, true], &[false, false]] {
+        let directory = tempdir()?;
+        let value = reads_on_strands(directory.path(), &deleted, strands)?;
+        let strand = if strands[0] { "forward" } else { "reverse" };
+        let names = (0..strands.len())
+            .map(|index| format!("read-{index}"))
+            .collect::<Vec<_>>();
+        for label in ["run_deletion", "run_indel", "edge_deletion"] {
+            let (item, found) = labelled(&value, label)?;
+            assert_eq!(item["kind"], "check", "{label}: {item}");
+            assert_eq!(found["strand"], strand, "{label}: {found}");
+            let mut reads = serde_json::from_value::<Vec<String>>(found["reads"].clone())?;
+            reads.sort_unstable();
+            assert_eq!(reads, names, "{label}: {found}");
+            assert!(label_names(item).contains(&"one_strand"));
+            assert!(!label_names(item).contains(&"one_read"));
+        }
+        assert_eq!(value["summary"]["clear"], false);
+    }
+    let directory = tempdir()?;
+    let value = reads_on_strands(directory.path(), &deleted, &[true, true, false])?;
+    for label in ["run_deletion", "run_indel", "edge_deletion", "one_strand"] {
+        assert!(
+            labelled(&value, label).is_err(),
+            "{label} with both strands: {value}"
+        );
+    }
+    Ok(())
+}
+
+/// Two or three reads of one strand that lengthen a reference run by three
+/// bases are a `long_run` check: the length rests on one strand, however
+/// many of its reads show it in phase (ADR-0090).
+// SRS-API-014
+#[test]
+fn a_long_run_resting_on_one_strand_is_a_check_however_many_reads()
+-> Result<(), Box<dyn std::error::Error>> {
+    let longer = RUN_QUERY.replacen("AAAAA", "AAAAAAAA", 1);
+    for strands in [&[true, true][..], &[true, true, true]] {
+        let directory = tempdir()?;
+        let value = reads_on_strands(directory.path(), &longer, strands)?;
+        let (item, found) = labelled(&value, "long_run")?;
+        assert_eq!(item["kind"], "check", "{item}");
+        // Every read shows the run in phase: before, only one read made the
+        // length a check.
+        assert_eq!(
+            found["runs"],
+            serde_json::json!([{"base": "A", "length": 8, "reference_length": 5, "length_evidence": "in_phase"}])
+        );
+        let (_, indel) = labelled(&value, "run_indel")?;
+        assert_eq!(indel["reads"].as_array().map(Vec::len), Some(strands.len()));
+    }
+    Ok(())
+}
+
+/// Two or three reads of one strand that read another base than the
+/// reference while each shows the reference base as a second peak are a
+/// `reference_second` check at every such read: reruns of one strand repeat
+/// its dye blobs (ADR-0090). A read of the other strand that shows the base
+/// lifts the gate.
+// SRS-API-014
+#[test]
+fn a_reference_second_peak_on_one_strand_is_a_check_at_every_read()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (count, other) in [(2, false), (3, false), (2, true)] {
+        let directory = tempdir()?;
+        let (reference, config) = inputs(directory.path())?;
+        let mut traces = Vec::new();
+        for index in 0..count {
+            let trace = directory.path().join(format!("read-{index}.ab1"));
+            // Reference position 15 (call 10) reads A over a G second peak.
+            write_abif_with_secondary_signal(&trace, &alternate(), 10, b'G', 300 + index)?;
+            traces.push(trace);
+        }
+        if other {
+            let trace = directory.path().join("read-reverse.ab1");
+            write_abif(&trace, &reverse_complement(&alternate()))?;
+            traces.push(trace);
+        }
+        run(
+            &traces.iter().collect::<Vec<_>>(),
+            &reference,
+            &config,
+            directory.path(),
+        )
+        .success();
+        let value = document(directory.path())?;
+        assert_consistent(&value)?;
+        let variant = items(&value)?
+            .iter()
+            .find(|item| item["calls"] == serde_json::json!(["15A"]))
+            .ok_or("the substitution must be an item")?;
+        let mut flagged = variant["labels"]
+            .as_array()
+            .ok_or("labels must be an array")?
+            .iter()
+            .filter(|label| label["label"] == "reference_second")
+            .map(|label| {
+                assert_eq!(label["position"], 15);
+                assert_eq!(label["strand"], "forward");
+                label["read"].as_str().unwrap_or_default()
+            })
+            .collect::<Vec<_>>();
+        flagged.sort_unstable();
+        if other {
+            assert!(flagged.is_empty(), "{variant}");
+            assert_eq!(variant["kind"], "variant");
+        } else {
+            assert_eq!(
+                flagged,
+                (0..count)
+                    .map(|index| format!("read-{index}"))
+                    .collect::<Vec<_>>(),
+                "{variant}"
+            );
+            assert_eq!(variant["kind"], "check");
+            assert!(!label_names(variant).contains(&"one_read"));
+        }
+    }
     Ok(())
 }
 
