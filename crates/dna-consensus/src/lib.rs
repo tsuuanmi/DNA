@@ -319,12 +319,13 @@ fn decide_positions(
 
 /// Withdraws the reference confirmations a second sequence may hide
 /// (ADR-0080): at a position where a read of the confirming strand shows a
-/// second peak its modality does not explain, where a read of the other
+/// second peak its modality does not explain, and where a read of the other
 /// strand does so without its second base standing out, or with a second
-/// base that a read of the confirming strand shows standing out too, and
-/// where a read of the other strand shows the confirming call's own second
-/// base standing out. A second on one strand alone is not the two-strand
-/// signature of a second sequence.
+/// base that a read of the confirming strand shows standing out too. A
+/// second on one strand alone is not the two-strand signature of a second
+/// sequence, nor is a second base both strands show that the modality
+/// explains on the other strand: the confirming call's own second is
+/// explained, so neither strand shows an unexplained second there.
 fn hide_confirmations(observed: &mut [ReadObservations]) {
     let hidden = observed
         .iter()
@@ -334,7 +335,6 @@ fn hide_confirmations(observed: &mut [ReadObservations]) {
                 .iter()
                 .filter(|(_, observation)| observation.confirms)
                 .filter(|(position, _)| {
-                    let second = read.seconds.get(position);
                     // A second base standing out on a read of the confirming
                     // strand.
                     let confirming_strand_shows = |base: &char| {
@@ -344,16 +344,12 @@ fn hide_confirmations(observed: &mut [ReadObservations]) {
                         })
                     };
                     observed.iter().any(|other| {
-                        let other_strand = other.forward != read.forward;
-                        (other.unexplained.contains(position)
-                            && (!other_strand
+                        other.unexplained.contains(position)
+                            && (other.forward == read.forward
                                 || other
                                     .seconds
                                     .get(position)
-                                    .is_none_or(confirming_strand_shows)))
-                            || (other_strand
-                                && second.is_some()
-                                && other.seconds.get(position) == second)
+                                    .is_none_or(confirming_strand_shows))
                     })
                 })
                 .map(move |(position, _)| (index, *position))
@@ -1948,7 +1944,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 21,
+    version: 22,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2731,8 +2727,11 @@ mod tests {
         };
         // Nothing on the other read: the confirmation stands.
         assert!(observations(true, (false, None, false)));
-        // The other strand shows the same second base standing out.
-        assert!(!observations(true, (false, Some('C'), false)));
+        // The other strand shows the same second base standing out, which
+        // its modality explains: no unexplained second on either strand.
+        assert!(observations(true, (false, Some('C'), false)));
+        // The same, left unexplained: the two-strand signature.
+        assert!(!observations(true, (false, Some('C'), true)));
         // The same strand doing so is not a second sequence by itself.
         assert!(observations(true, (true, Some('C'), false)));
         // A read of the confirming strand with a second peak its modality
