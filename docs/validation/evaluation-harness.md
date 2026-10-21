@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
-decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082]
+decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082, ADR-0087]
 ---
 
 # Evaluation harness
@@ -34,6 +34,10 @@ cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n>
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
   --version <v2> --created <YYYY-MM-DD> --output <new-panel.tsv>
+
+cargo run --release -p dna-eval -- subset \
+  --manifest <panel.tsv> --rows <n> --minimum <n> --salt <text> \
+  --output <new-subset.tsv>
 
 cargo run --release -p dna-eval -- power \
   --dev-run <development-or-readiness-run-directory> --manifest <hold-out-panel.tsv> \
@@ -83,9 +87,9 @@ their directories alone, and gates it.
 
 The report (`diff.md`) shows, before and after:
 
-- **Samples:** samples, clear samples, samples with a non-het or het
-  unreviewed block, passed samples by their most severe block, and positions
-  to review.
+- **Samples:** samples, clear samples, samples with a non-het unreviewed
+  block and those whose only unreviewed blocks are het, passed samples by
+  their most severe block, and positions to review.
 - **Zones:** for every zone that changed, the units needing a check and the
   passed units with a non-het block.
 - **Coverage:** the truth alleles DNA's callable intervals newly leave out
@@ -96,9 +100,28 @@ The report (`diff.md`) shows, before and after:
   `samples.tsv` lists all, and `statuses.tsv` lists every status change.
 
 The verdict is `GATE FAIL`, with exit status 2, when in any group more
-passed samples carry a non-het block, more samples carry a non-het or het
-unreviewed block, or more passed units of any zone carry a non-het block.
-Re-check and truth-`N` blocks never count. Otherwise it is `GATE PASS`.
+passed samples carry a non-het block, more samples carry a non-het
+unreviewed block, or more passed units of any zone carry a non-het block. It
+also fails when the samples that failed to score differ between the runs,
+whatever the cause (the change, or a transient read error): the groups then
+hold different samples. Heteroplasmy is optional (user decision): het blocks
+are reported, beside re-check and truth-`N` blocks, and never gate. Otherwise
+it is `GATE PASS`.
+
+### Quick subset (pre-filter)
+
+`subset` writes a deterministic stratified sample of a panel's staying rows
+as a manifest of its own: each stratum keeps its share of `--rows`, at least
+`--minimum` rows (all of them when it has fewer, so the rare strata are
+always present), chosen by the smallest SHA-256 of `--salt`, a tab, and the
+sample identifier, and written verbatim in the parent's order. Its header
+keeps the parent's panel fields, records `subset_rows`, `subset_minimum`,
+`subset_salt`, and the parent's body hash, and recomputes the row count, the
+body hash, and the truth digest, so a run records them in `run.json`. Run
+the base and the candidate on the same subset and compare them with `diff`.
+**A subset verdict is a pre-filter, never the gate: a candidate that passes
+it must still pass `diff` on the full development panel before a pull
+request.**
 
 ## Approval
 
@@ -340,6 +363,18 @@ one.
 - **Record.** `run.json` records the directory, the key, the hits, misses,
   and replaced entries, and the generation's size. `cache prune --keep <n>`
   removes every generation but the `n` most recently used.
+- **Placement cache** ([[ADR-0087]], proposed). The same directory holds
+  each evidence document's `dna.placed_read/v1` document, written by
+  `dna-align`. Entries are keyed by the evidence document's SHA-256, in a
+  generation named for the configuration, the placement stage's code
+  identity, and the reference. The code identity is the git object ids of
+  `Cargo.lock`, the kernel, `dna-align`, and the facade's configuration,
+  evidence reading, and writer. Every read is then placed from its document,
+  which `dna-align` re-checks against the read's evidence and the reference.
+  A change to the placement stage is a new generation. `run.json` records it
+  as `placement_cache`. On development panel v5 the tables are
+  byte-identical with a cold placement cache, a warm one, and none. A
+  consensus-only probe takes 29-36 % less CPU.
 - **Limits.** Not with `--triage`, which reads the traces' own Sanger
   products. `approve` always runs from the traces.
 

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dna.genestory.ai/schemas/placed-read-v1.schema.json",
+  "title": "dna.placed_read/v1",
+  "description": "One read's placement as the core's aligner selected it (PROP-0011, ADR-0087), written and read back by dna-align alone. Reading one back re-checks it against the read's evidence and the reference.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "provenance", "alignment"],
+  "properties": {
+    "schema_version": { "const": "dna.placed_read/v1" },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "reference_sha256", "configuration_sha256"],
+      "properties": {
+        "input": {
+          "description": "The placed read evidence document.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256"],
+          "properties": {
+            "sha256": { "description": "SHA-256 of the dna.read_evidence/v1 document.", "$ref": "#/$defs/sha256" }
+          }
+        },
+        "reference_sha256": { "description": "SHA-256 of the reference sequence.", "$ref": "#/$defs/sha256" },
+        "configuration_sha256": { "description": "SHA-256 of the configuration file.", "$ref": "#/$defs/sha256" }
+      }
+    },
+    "alignment": {
+      "description": "The selected placement; null when the read's evidence places no read: a read the modality set aside, or one the core cannot place, which an analysis then searches and rejects as before.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["orientation", "score", "wraps_origin", "reference_segments", "callable_segments", "metrics", "columns"],
+          "properties": {
+            "orientation": { "enum": ["forward", "reverse"] },
+            "score": { "description": "The selected placement's profile score.", "type": "integer" },
+            "wraps_origin": { "type": "boolean" },
+            "reference_segments": { "$ref": "#/$defs/segments" },
+            "callable_segments": { "$ref": "#/$defs/segments" },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["exact_matches", "mismatches", "gap_opens", "callable_columns", "callable_identity", "unresolved_query_bases", "masked_query_bases"],
+              "properties": {
+                "exact_matches": { "type": "integer", "minimum": 0 },
+                "mismatches": { "type": "integer", "minimum": 0 },
+                "gap_opens": { "type": "integer", "minimum": 0 },
+                "callable_columns": { "type": "integer", "minimum": 0 },
+                "callable_identity": { "type": "number", "minimum": 0, "maximum": 1 },
+                "unresolved_query_bases": { "type": "integer", "minimum": 0 },
+                "masked_query_bases": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "columns": {
+              "description": "Per column in reference order: the read's base on the reference strand ('-' in a deletion), the reference base ('-' in an insertion), the read's call index (0-based, in the read's own order; null in a deletion), and the reference position (0-based; null in an insertion).",
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  { "type": "string", "minLength": 1, "maxLength": 1 },
+                  { "type": "string", "minLength": 1, "maxLength": 1 },
+                  { "type": ["integer", "null"], "minimum": 0 },
+                  { "type": ["integer", "null"], "minimum": 0 }
+                ],
+                "items": false,
+                "minItems": 4
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "segments": {
+      "description": "Half-open reference segments [start, end), 0-based, ordered and disjoint.",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          { "type": "integer", "minimum": 0 },
+          { "type": "integer", "minimum": 1 }
+        ],
+        "items": false,
+        "minItems": 2
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ use dna_sanger::model::attachment::{SangerAttachment, SangerRejection};
 use dna_sanger::model::sanger::Chromatogram;
 use dna_sanger::read_processing::{self, ProcessedRead, ReadWarnings};
 
+use dna_align::model::alignment::Alignment;
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::{self, CoreRun, PlacementRejection, ReadIdentity};
 
@@ -86,6 +87,7 @@ pub(crate) fn observe(
             declared: None,
         },
         evidence,
+        None,
         reference,
         config,
         profile,
@@ -162,11 +164,12 @@ pub(crate) enum Called {
 pub(crate) fn place(
     identity: ReadIdentity,
     evidence: ReadEvidence,
+    placed: Option<Alignment>,
     reference: &Reference,
     config: &Config,
     profile: &Profile,
 ) -> Result<Called> {
-    match call(identity, evidence, reference, config, profile) {
+    match call(identity, evidence, placed, reference, config, profile) {
         Ok(called) => Ok(Called::Placed(Box::new(called))),
         Err(error) => match PlacementRejection::of(&error) {
             Some(rejection) => Ok(Called::Unplaced {
@@ -180,17 +183,20 @@ pub(crate) fn place(
 
 /// Places and calls one read's evidence with the core: evidence from a
 /// trace's Sanger products, or from a recorded read evidence document
-/// (PROP-0011).
+/// (PROP-0011), with its recorded placement when a `dna.placed_read/v1`
+/// document gives one.
 pub(crate) fn call(
     identity: ReadIdentity,
     evidence: ReadEvidence,
+    placed: Option<Alignment>,
     reference: &Reference,
     config: &Config,
     profile: &Profile,
 ) -> dna_kernel::error::Result<CalledRead> {
-    read_call::call_read(
+    read_call::call_read_placed(
         identity,
         evidence,
+        placed,
         reference,
         &CoreRun {
             config: &config.core,

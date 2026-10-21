@@ -23,8 +23,8 @@ modality-neutral core.
   - per call: the primary base, the locus evidence profile, the mask, and the
     support vetoes;
   - the Sanger support vetoes: `peak_below_minimum`,
-    `relative_quality_not_above_threshold`, and `mixed_supporting_dna`
-    (SNVs only);
+    `relative_quality_not_above_threshold`, `mixed_supporting_dna`
+    (SNVs only), and `signal_spike`;
   - the second-peak assertions (SRS-CALL-022, ADR-0080): whether each
     call's second base stands out, whether its second peak is unexplained,
     and whether a call is `reference_only`: a mixed call whose peak is a
@@ -41,6 +41,10 @@ modality-neutral core.
   - the calls beside a junction whose spacing marks a missing peak
     (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
     they place no indel and show no run's end;
+  - the calls of every electrophoretic spike signal processing finds
+    (SRS-SIG-012), withheld for their base and for indels with
+    `signal_spike` after every vouching and edge rule (SRS-CALL-027): no
+    run's end, no reference confirmation;
   - the Sanger mask labels: `post_homopolymer`, or else the phase-state label.
     Dephased calls become anchoring masks; every other masked call is
     unresolved.

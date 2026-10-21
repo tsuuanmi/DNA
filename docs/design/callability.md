@@ -1,6 +1,6 @@
 ---
-implements: [SRS-CALL]
-decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076]
+implements: [SRS-CALL, SRS-SIG]
+decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076, ADR-0088]
 covers:
   - crates/dna-sanger/src/callability/
   - crates/dna-sanger/src/callability/sanger.rs
@@ -241,6 +241,18 @@ The core caller does not read callability directly. The Sanger adapter
   commit: unreviewed 668 → 667, non-het passed zones unchanged, 22 more
   samples clear (current 76.06 → 76.19 %), 63 checks removed and 17 added,
   and four samples concordant under every measure that were discordant;
+- every call of an electrophoretic spike ([spikes](signal-processing/spikes.md),
+  SRS-SIG-012) is withheld for its base and for indels with the reason
+  `signal_spike`, shows no run's end, and confirms no reference
+  (SRS-CALL-027). It is applied after the vouching and edge rules above, so
+  none of them lifts it. A spike's leading edge reads its first channel
+  cleanly: in 2538054 HV2F the T edge read `186T` with a second share of 0.04
+  where the truth has the reference C, and passed unflagged. Against `main`
+  85cab63 on development panel v5 the diff gate passes: that `186T` becomes
+  an undecided check, samples with an unreviewed block 618 → 617, no other
+  zone's passed non-het units change, five samples whose spiked read
+  disagreed with the other strand become clear (current 7,646 → 7,651), and
+  no coverage changes;
 - the read's poor start is asserted as an unreliable span (SRS-CALL-024):
   from its first call to its first run of `start_identity_margin` (12)
   consecutive sound calls, the vouching rules above having judged each call
