@@ -1217,7 +1217,7 @@ def validate_zones(
     label: str,
     errors: list[str],
 ) -> None:
-    """Check that zones tile the reportable positions and count the checks."""
+    """Check that zones tile the analysed reportable positions and count the checks."""
     zones = document.get("zones", [])
     if not isinstance(zones, list):
         return
@@ -1245,8 +1245,11 @@ def validate_zones(
         )
         if zone.get("checks") != touching:
             errors.append(f"{label}: zone {index} check count disagrees with the items")
-    if zones and covered != positions.get("reportable"):
-        errors.append(f"{label}: zones do not tile the reportable positions")
+    # The stretches the call does not analyse (SRS-CONS-012) belong to no
+    # zone, so the zones tile the reportable positions without them.
+    analysed = positions.get("reportable", 0) - positions.get("not_analysed", 0)
+    if zones and covered != analysed:
+        errors.append(f"{label}: zones do not tile the analysed reportable positions")
     counts = summary.get("zones", {})
     flagged = sum(1 for zone in zones if zone.get("checks", 0) > 0)
     if counts.get("total") != len(zones) or counts.get("check") != flagged:

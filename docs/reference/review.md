@@ -139,8 +139,9 @@ target still fails the command without output.
   (`callable`, the EMPOP ranges) starts or ends after them.
 - `zones` (`called`, rules version 14): the reportable positions as the
   zones a reviewer opens whole, in reference order, tiling every reportable
-  region. Each position takes the first kind that holds: `repeat`, inside a
-  nomenclature window of the profile (with the window's `name`);
+  region but its `not_analysed` stretches. Each position takes the first
+  kind that holds: `repeat`, inside a nomenclature window of the profile
+  (with the window's `name`);
   `not_callable`, outside `callable`; `dephased`, inside a read's `masked`
   stretch with `after_repeat`; `masked`, inside any other `masked` stretch;
   else `clean`, where every read covering it is in phase or vouched for. A
