@@ -27,9 +27,13 @@ large it is, and what the rule would cost elsewhere.
 
 Examples:
 
-- **Per-run reporting.** A census of anchored-window checks showed one run's
-  estimated end leaving the other run undecided, so the review now reports
-  each run on its own (#226).
+- **A hypothesis disproved before any code.** "Downstream `phase_shift`
+  seconds are explained by the decoded length mixture" was the proposed fix
+  for the window@HV2 checks. Its census on dev v5 showed that second peaks
+  did not cause those checks: `phase_shift` there is a context label, and only
+  1 of 1,030 window items had an unexplained `possible_heteroplasmy`. The
+  real blocker was the window-wide `reported` rule, and the fix became
+  per-run reporting (#226).
 - **Length notes.** A census of C-tract blocks separated count-only
   differences from structure differences. Forensic practice (ISFG, EMPOP)
   notes a length heteroplasmy whose dominant length is determined rather
@@ -37,9 +41,6 @@ Examples:
   length notes, and structure differences stay checks (#222).
 - **One-strand gates.** A census of decided insertions by the other strand's
   reading ([[ADR-0089]]) found the class where one strand alone errs.
-- **A rejected hypothesis.** "Every `phase_shift` second peak is an explained
-  artefact" looked like a large gain. Its census showed it hid real
-  heteroplasmies and added non-het escapes, so it was not built.
 
 Signal hypotheses (denoising, decomposition, new models of the trace) come
 after the logic is right: a logic error measured as a signal problem sends the
@@ -72,6 +73,9 @@ Ownership of each step is in the [crate router](../../crates/README.md).
   raise it.
 - **Heteroplasmy is optional** but always reported: het changes go in every
   result, beside the gate.
+- **Measure before adopting.** An earlier blanket rule, "every `phase_shift`
+  second is explained", cleared more samples in its probe but hid real
+  heteroplasmies and added non-het escapes, so it was rejected.
 - **Truth is guidance, not an oracle.** A difference the raw signal shows to
   be a truth error goes to the re-check list or to the `truth_n` and
   `length_note` classes ([[validation/evaluation-triage]]). It is never fitted:
@@ -120,9 +124,10 @@ numeric tolerances are not levels.
 5. **Equal failures.** Check that the samples that failed to score are the
    same on both sides; otherwise the two runs measure different samples.
 6. **Combined stacks.** Measure the set of changes that will land together,
-   not only each pull request on its own. Rules interact: read-end norms
-   (#209) and downstream confirmation (#203), measured one at a time,
-   together made a false deletion.
+   not only each pull request on its own. Rules interact: an end-norm change
+   combined with a downstream-confirmation change produced a false deletion
+   that neither made alone. Measuring the stack caught it, and the artefact
+   bench now guards it.
 7. **Merge** only after CI has run on the pull request combined with the
    current `main`.
 8. **Bump** the version of every plugin whose output changes
