@@ -6,14 +6,14 @@ use crate::ReadRun;
 use crate::model::consensus::ConsensusRun;
 
 /// A run of one base with its length, whoever reads it.
-pub trait Run {
+pub trait AsRun {
     /// The run's base.
     fn base(&self) -> char;
     /// The run's length.
     fn length(&self) -> usize;
 }
 
-impl Run for (char, usize) {
+impl AsRun for (char, usize) {
     fn base(&self) -> char {
         self.0
     }
@@ -23,7 +23,7 @@ impl Run for (char, usize) {
     }
 }
 
-impl Run for ReadRun {
+impl AsRun for ReadRun {
     fn base(&self) -> char {
         self.base
     }
@@ -33,7 +33,7 @@ impl Run for ReadRun {
     }
 }
 
-impl Run for ConsensusRun {
+impl AsRun for ConsensusRun {
     fn base(&self) -> char {
         self.base
     }
@@ -47,7 +47,7 @@ impl Run for ConsensusRun {
 /// base and another run of `repeat` follow: an anchored pair, as an anchored
 /// repeat window holds it. `None` without one.
 #[must_use]
-pub fn anchored_pair<R: Run>(runs: &[R], repeat: char, anchor: char) -> Option<usize> {
+pub fn anchored_pair<R: AsRun>(runs: &[R], repeat: char, anchor: char) -> Option<usize> {
     runs.windows(3).position(|triple| {
         triple[0].base() == repeat
             && triple[1].base() == anchor

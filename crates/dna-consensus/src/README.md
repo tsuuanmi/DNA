@@ -38,7 +38,9 @@ behind every non-trivial decision.
   their unreliable spans (SRS-CONS-012). It reuses
   `dna_call::Eligibility` for the trusted calls and for the run-end
   test of insertions and deletions (ADR-0071).
-- `decide.rs`: decision rule version 1 over clean observations.
+- `decide.rs`: decision rule version 1 over clean observations, where a
+  read that contradicts every sequence voted for casts a lone vote that
+  opposes and never decides.
 - `decided.rs`: the consensus's decided edits as called records
   (SRS-VAR-021, ADR-0078, plugin `decided`): each segment's columns from its
   sites, each site's call aligned against its own interval (an `N` stands for
@@ -52,7 +54,8 @@ behind every non-trivial decision.
   the last position not settled as the reference, left out of the callable
   segments with their changes excluded (SRS-CONS-012).
 - `length.rs`: the two-strand run-length rule (SRS-CONS-013, PROP-0012
-  increment 4): each strand's view of a window's run from the reads' tract
+  increment 4): each strand's view of a window's run (`Run`, the one before
+  or after the anchor) from the reads' tract
   decodes (direct, derived by NNLS deconvolution of the total, or in phase),
   and `decide`, which takes a length only when both strands put it on top
   beyond their own replicate noise, with `start_reference` and `entered_run`,

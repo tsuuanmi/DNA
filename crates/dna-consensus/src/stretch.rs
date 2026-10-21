@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::decide::{Decision, decide};
+use crate::decide::{Decision, decide, decide_with_lone};
 use crate::model::consensus::{ConsensusRun, RunEvidence, SiteState};
 use crate::observe::{Char, ReadObservations, SiteValue, Trust, junctions};
 use crate::runs::{reference_run, runs_of};
@@ -453,17 +453,12 @@ pub(crate) fn decide_stretch(
         if contradicting.is_empty() {
             composition
         } else {
-            let mut observations = whole
+            let observations = whole
                 .iter()
                 .filter(|(name, _)| !contradicting.contains(name))
                 .cloned()
                 .collect::<Vec<_>>();
-            observations.extend(
-                contradicting
-                    .iter()
-                    .map(|name| (*name, Some(format!("~{name}")))),
-            );
-            decide(&observations, &reference_composition)
+            decide_with_lone(&observations, &contradicting, &reference_composition)
         }
     } else {
         let mut joined: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();

@@ -27,7 +27,7 @@
 //! here decides a length; it labels them.
 
 use dna_consensus::ReadRun;
-use dna_consensus::length::entered_run;
+use dna_consensus::length::{Run, entered_run};
 use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
 use dna_consensus::runs::{anchored_pair, runs_of};
 use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
@@ -328,7 +328,8 @@ pub(super) fn judge(
             window.anchor.map(|(anchor, _)| anchor),
             position,
             single,
-        ) else {
+        )
+        .map(Run::number) else {
             continue;
         };
         // A plain run has no anchor: a mark the read chooses lies past it.
