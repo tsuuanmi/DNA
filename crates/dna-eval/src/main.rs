@@ -32,6 +32,7 @@ mod recheck;
 mod report;
 mod rundiff;
 mod runner;
+mod simbench;
 mod subset;
 mod tracts;
 mod triage;
@@ -135,6 +136,95 @@ enum Command {
     /// each expected outcome: exits 2 with `BENCH FAIL` when a guarded case
     /// regresses or its sample cannot be analysed.
     Bench(BenchArgs),
+    /// Runs DNA's read evidence stage on the frozen simulated tract-decode
+    /// cases (PROP-0015) and reports the decoder's measures per tract and
+    /// noise level, against a baseline when one is given.
+    SimBench(SimBenchArgs),
+}
+
+/// Arguments of `dna-eval sim-bench`.
+#[derive(Debug, Args)]
+struct SimBenchArgs {
+    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
+    #[arg(long)]
+    config: PathBuf,
+    /// Reference FASTA the templates are read from.
+    #[arg(long)]
+    reference: PathBuf,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+    /// A new directory for `bench.md`, `bench.tsv`, and `cases.tsv`.
+    #[arg(long)]
+    output: PathBuf,
+    /// An earlier `bench.tsv` to report the change from, in place of the
+    /// committed baseline.
+    #[arg(long)]
+    baseline: Option<PathBuf>,
+    /// Repetitions per cell; anything but the default is not the frozen
+    /// set, for validation runs only.
+    #[arg(long, default_value_t = simbench::FROZEN_REPS)]
+    reps: usize,
+    /// Keep the rendered traces in `<output>/traces`, for research checks of
+    /// the renderer's realism.
+    #[arg(long)]
+    keep_traces: bool,
+}
+
+/// Runs `dna-eval sim-bench` and prints its report.
+fn sim_bench(args: &SimBenchArgs) -> Result<String> {
+    let threads = Threads::new(args.threads)?;
+    let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
+        .map_err(|error| Error::Reference {
+            path: args.reference.clone(),
+            message: error.to_string(),
+        })?;
+    let table =
+        dna_trace::simulate::Table::pooled().map_err(|error| Error::SimBench(error.to_string()))?;
+    let baseline = match args.baseline.as_deref() {
+        Some(path) => {
+            let text = String::from_utf8(read(path, "baseline", MAX_CASES_BYTES)?)
+                .map_err(|error| Error::SimBench(error.to_string()))?;
+            simbench::parse(&text)
+                .map_err(|message| Error::SimBench(format!("{}: {message}", path.display())))?
+        }
+        None => simbench::parse(simbench::BASELINE)
+            .map_err(|message| Error::SimBench(format!("the committed baseline: {message}")))?,
+    };
+    prepare_output(&args.output)?;
+    let scratch = args.output.join("traces");
+    fs::create_dir_all(&scratch).map_err(|source| Error::Write {
+        path: scratch.clone(),
+        source,
+    })?;
+    let cases = simbench::cases(args.reps);
+    let outcomes = simbench::run(
+        &cases,
+        &table,
+        reference.sequence.as_bytes(),
+        &args.config,
+        (&scratch, args.keep_traces),
+        threads,
+    );
+    if !args.keep_traces {
+        let _ = fs::remove_dir_all(&scratch);
+    }
+    let rows = simbench::measures(&outcomes);
+    let source = source();
+    let revision = format!(
+        "{}{}",
+        source.revision.as_deref().unwrap_or("unknown revision"),
+        match source.dirty {
+            Some(true) => " (dirty)",
+            Some(false) => "",
+            None => " (dirty state unknown)",
+        }
+    );
+    let report = simbench::report(&revision, args.reps, &rows, &outcomes, &baseline);
+    write(&args.output, "bench.md", &report)?;
+    write(&args.output, "bench.tsv", &simbench::table(&rows))?;
+    write(&args.output, "cases.tsv", &simbench::cases_table(&outcomes))?;
+    Ok(report)
 }
 
 /// Arguments of `dna-eval bench`.
@@ -561,6 +651,7 @@ fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Diff(args) => return diff(&args),
         Command::Bench(args) => return bench(&args),
+        Command::SimBench(args) => sim_bench(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),

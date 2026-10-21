@@ -12,6 +12,7 @@ Validation describes **how DNA demonstrates that implementation and scientific c
   - [Measures and discrepancy classes](evaluation-measures.md)
   - [Review triage evaluation](evaluation-triage.md)
   - [Artefact bench](artefact-bench.md): adjudicated artefact cases checked before a panel run
+  - [Simulated bench](simulated-bench.md): the tract decoder against simulated length mixtures with a known truth ([[PROP-0015]])
 - [Requirement-to-implementation traceability](traceability.md)
 
 Validation is evidence, not a second specification. Normative behavior lives in [requirements](../requirements/README.md); mechanisms live in [design](../design/README.md).

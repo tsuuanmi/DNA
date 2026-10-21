@@ -10,7 +10,15 @@ publish.workspace = true
 
 [dependencies]
 dna-kernel.workspace = true
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
 tracing.workspace = true
+
+[features]
+# The forward-model renderer and its parameter table (PROP-0015): test
+# support for the simulated bench, never on a runtime path.
+simulate = ["dep:serde", "dep:serde_json", "dep:thiserror"]
 
 [dev-dependencies]
 serde_json.workspace = true

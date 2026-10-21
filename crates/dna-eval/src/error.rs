@@ -44,6 +44,9 @@ pub(crate) enum Error {
     /// malformed.
     #[error("forms {path}: {message}")]
     Forms { path: PathBuf, message: String },
+    /// The simulated bench cannot run.
+    #[error("simulated bench: {0}")]
+    SimBench(String),
     /// A batch's run context (`--run-context`) cannot be read.
     #[error("run context {path}: {message}")]
     RunContext { path: PathBuf, message: String },

@@ -33,6 +33,18 @@ constants), and the modality's plugin version covers its output.
   modality (`TractParams`, `LeakageParams`, `LocateParams`); the iteration
   and joint-length caps are reported when they bind.
 
+- `simulate/` — the forward model of the electropherogram and its renderer
+  ([PROP-0015](../../../docs/proposals/0015-forward-model-tract-decoder.md)
+  increment 1), behind the `simulate` feature: test support for the
+  [simulated bench](../../../docs/validation/simulated-bench.md), which only
+  the evaluation harness enables and no runtime path reaches. `render` draws
+  a read's peaks from templates and fractions and calls it with an
+  oracle-grid basecaller. `Table` draws a read's parameters through a
+  Gaussian copula from `params.json`: per-primer quantiles over fitted
+  reads, built by the research script `table.py`, aggregates only.
+  `random` holds a deterministic generator and the research simulator's
+  BLAKE2b-hashed sequence patterns.
+
 The crate reads no instrument format, reference, alignment, or truth.
 
 Output contract: none; the modality turns its results into

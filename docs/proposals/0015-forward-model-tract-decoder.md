@@ -410,4 +410,10 @@ Pending.
 
 ## Implementation
 
-None yet.
+- **Increment 1 (bench).**
+  - `dna-trace`'s `simulate` feature renders reads from an aggregate
+    parameter table (`crates/dna-trace/src/simulate/params.json`:
+    per-primer quantiles and a Gaussian copula over the fitted reads).
+  - `dna-eval sim-bench` runs the frozen case set (version 1, 396 reads) and
+    reports against the committed baseline. See [[validation/simulated-bench]]
+    for the baseline and the agreement with the research simulator.
