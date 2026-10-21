@@ -5,6 +5,11 @@ use serde::Deserialize;
 use dna_kernel::bounds;
 use dna_kernel::error::{ConfigError, Result};
 
+/// Calls per rolling window of the phase statistics.
+const WINDOW_CALLS: std::ops::RangeInclusive<usize> = 8..=64;
+/// Shortest repeat run: one call is not a run.
+const MIN_REPEAT_LENGTH: usize = 2;
+
 /// Signal-derived read-callability settings.
 #[derive(Debug, Clone)]
 pub struct CallabilityConfig {
@@ -63,11 +68,7 @@ pub struct RawCallabilityConfig {
 impl RawCallabilityConfig {
     /// Validates the section.
     pub(crate) fn validate(self) -> Result<CallabilityConfig> {
-        if !(8..=64).contains(&self.window_calls) {
-            return Err(
-                ConfigError::Constraint("callability.window_calls must be in 8..=64").into(),
-            );
-        }
+        bounds::count_range("callability.window_calls", self.window_calls, WINDOW_CALLS)?;
         bounds::fraction(
             "callability.onset_defect_fraction",
             self.onset_defect_fraction,
@@ -101,18 +102,15 @@ impl RawCallabilityConfig {
             0.0,
             0.5,
         )?;
-        if self.repeat_min_length < 2 {
-            return Err(ConfigError::Constraint(
-                "callability.repeat_min_length must be at least 2",
-            )
-            .into());
-        }
-        if self.minimum_callable_calls == 0 {
-            return Err(ConfigError::Constraint(
-                "callability.minimum_callable_calls must be positive",
-            )
-            .into());
-        }
+        bounds::count_at_least(
+            "callability.repeat_min_length",
+            self.repeat_min_length,
+            MIN_REPEAT_LENGTH,
+        )?;
+        bounds::positive_count(
+            "callability.minimum_callable_calls",
+            self.minimum_callable_calls,
+        )?;
         if self.repeat_window_calls == 0 || self.spacing_half_window == 0 {
             return Err(ConfigError::Constraint(
                 "callability.repeat_window_calls and spacing_half_window must be positive",

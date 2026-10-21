@@ -97,56 +97,56 @@ pub struct SangerEvidenceConfig {
     pub relative_quality_threshold: u8,
     /// Relative quality at or above which a call below the peak floor still
     /// shows its base; its indel stays withheld.
-    pub peak_rescue_quality: u8,
+    pub(crate) peak_rescue_quality: u8,
     /// A rescued call's second base must hold less than this peak share.
-    pub peak_rescue_second_share: f64,
+    pub(crate) peak_rescue_second_share: f64,
     /// Calls from an end of the usable signal that lie at a signal edge
     /// (SRS-CALL-013).
-    pub signal_edge_margin: usize,
+    pub(crate) signal_edge_margin: usize,
     /// Smallest primary peak of a leading call vouched for by its base, as a
     /// fraction of the read's median primary peak (SRS-CALL-014).
-    pub leading_height_fraction: f64,
+    pub(crate) leading_height_fraction: f64,
     /// Calls from an informative end within which the run before a
     /// post-repeat phase loss counts as bounded (SRS-CALL-016).
-    pub post_repeat_margin: usize,
+    pub(crate) post_repeat_margin: usize,
     /// Fewest informative calls between a run's bound and a post-repeat edge
     /// (SRS-CALL-016).
-    pub post_repeat_minimum_calls: usize,
+    pub(crate) post_repeat_minimum_calls: usize,
     /// Calls from an informative end within which an edge call may be
     /// vouched for by its own signal (SRS-CALL-017).
-    pub edge_identity_margin: usize,
+    pub(crate) edge_identity_margin: usize,
     /// Smallest primary peak of such a call at the informative start, as a
     /// fraction of the read's median (SRS-CALL-017).
-    pub edge_height_fraction: f64,
+    pub(crate) edge_height_fraction: f64,
     /// Last scored single-channel calls of the informative interval whose
     /// medians are the end's norms (SRS-CALL-017).
-    pub end_norm_calls: usize,
+    pub(crate) end_norm_calls: usize,
     /// Smallest primary peak of such a call at the informative end, as a
     /// fraction of the end's median (SRS-CALL-017).
-    pub end_height_fraction: f64,
+    pub(crate) end_height_fraction: f64,
     /// Second-channel share below which such a call's signal is clean
     /// (SRS-CALL-017, SRS-CALL-018).
-    pub edge_second_share: f64,
+    pub(crate) edge_second_share: f64,
     /// Widest primary peak of such a call, as a multiple of the median width
     /// (SRS-CALL-017, SRS-CALL-018).
-    pub edge_width_factor: f64,
+    pub(crate) edge_width_factor: f64,
     /// Narrowest spacing to a neighbouring call, as a multiple of the median
     /// spacing (SRS-CALL-017, SRS-CALL-018).
-    pub edge_spacing_minimum: f64,
+    pub(crate) edge_spacing_minimum: f64,
     /// Widest such spacing (SRS-CALL-017, SRS-CALL-018).
-    pub edge_spacing_maximum: f64,
+    pub(crate) edge_spacing_maximum: f64,
     /// Calls past the callable span's start within which a start call may be
     /// vouched for by its own signal (SRS-CALL-018).
-    pub start_identity_margin: usize,
+    pub(crate) start_identity_margin: usize,
     /// First in-phase single-channel calls of the callable span whose medians
     /// are the start's norms (SRS-CALL-018).
-    pub start_norm_calls: usize,
+    pub(crate) start_norm_calls: usize,
     /// Smallest primary peak of a start call, as a fraction of the start's
     /// median (SRS-CALL-018).
-    pub start_height_fraction: f64,
+    pub(crate) start_height_fraction: f64,
     /// Second-channel share below which a start call's signal is clean
     /// (SRS-CALL-018).
-    pub start_second_share: f64,
+    pub(crate) start_second_share: f64,
 }
 
 /// The `[sanger_evidence]` section as written in the configuration.
