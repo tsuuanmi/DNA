@@ -21,15 +21,16 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compare::{self, HV_REGIONS};
+use crate::compare;
+use crate::geometry::Span;
 use crate::haplotype::Block;
 use crate::recheck;
 use crate::zones::{Instance, Zones};
 
 /// One window of an HV region, 1-based and inclusive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Window {
-    pub(crate) region: &'static str,
+    pub(crate) region: String,
     pub(crate) start: i64,
     pub(crate) end: i64,
 }
@@ -45,19 +46,19 @@ impl Window {
     }
 }
 
-/// The windows of `size` positions over every HV region, in region order.
-pub(crate) fn windows(size: i64) -> Vec<Window> {
+/// The windows of `size` positions over every region, in region order.
+pub(crate) fn windows(size: i64, regions: &[Span]) -> Vec<Window> {
     let size = size.max(1);
-    HV_REGIONS
+    regions
         .iter()
-        .flat_map(|&(region, first, last)| {
+        .flat_map(|region| {
             (0..)
-                .map(move |index| first + index * size)
-                .take_while(move |start| *start <= last)
+                .map(move |index| region.first + index * size)
+                .take_while(move |start| *start <= region.last)
                 .map(move |start| Window {
-                    region,
+                    region: region.name.clone(),
                     start,
-                    end: (start + size - 1).min(last),
+                    end: (start + size - 1).min(region.last),
                 })
         })
         .collect()
@@ -81,7 +82,7 @@ pub(crate) struct Workload {
     /// Per window, whether an unreviewed block overlaps it.
     pub(crate) escaped: Vec<bool>,
     /// Region of each unreviewed block, by its first anchor.
-    pub(crate) regions: Vec<&'static str>,
+    pub(crate) regions: Vec<String>,
     /// The zone instances a check item touches.
     pub(crate) zones: BTreeSet<Instance>,
     /// Check items that touch more than one zone instance.
@@ -316,10 +317,10 @@ pub(crate) fn of(
     let regions = unreviewed
         .iter()
         .filter_map(|block| {
-            HV_REGIONS
+            windows
                 .iter()
-                .find(|(_, first, last)| (*first..=*last).contains(&block.start))
-                .map(|(region, _, _)| *region)
+                .find(|window| window.overlaps(block.start, block.start))
+                .map(|window| window.region.clone())
         })
         .collect();
     let touched_zones = checks
@@ -615,9 +616,9 @@ mod tests {
 
     #[test]
     fn windows_align_to_each_region_start_and_end_short() {
-        let windows = windows(10);
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
         assert_eq!(
-            (windows[0].region, windows[0].start, windows[0].end),
+            (windows[0].region.as_str(), windows[0].start, windows[0].end),
             ("HV1", 16024, 16033)
         );
         let last_hv1 = windows.iter().rfind(|window| window.region == "HV1");
@@ -638,9 +639,9 @@ mod tests {
 
     #[test]
     fn a_block_beside_a_check_item_is_unreviewed_and_marks_its_windows() {
-        let windows = windows(10);
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
         let zones = Zones::new(
-            &[(16024, 16365)],
+            &crate::geometry::tests::spans(&[(16024, 16365)]),
             &[(16180, 16193)],
             crate::zones::Widths {
                 after: 20,
@@ -677,7 +678,7 @@ mod tests {
 
     #[test]
     fn forced_windows_count_as_reviewed() {
-        let windows = windows(10);
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
         let workload = of(
             &[],
             &[block(16185, 16186)],
@@ -708,10 +709,10 @@ mod tests {
 
     #[test]
     fn passes_count_samples_regions_and_zones_without_a_check_item() {
-        let windows = windows(10);
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
         // HV3 holds no repeat window here, so it has three zone kinds.
         let zones = Zones::new(
-            &[(16024, 16365), (73, 340), (438, 576)],
+            &crate::geometry::tests::spans(&[(16024, 16365), (73, 340), (438, 576)]),
             &[(16184, 16193), (303, 315)],
             crate::zones::Widths {
                 after: 20,
@@ -905,7 +906,7 @@ mod tests {
             }
         );
         // A listed block passes as re-check only; unlisted it is non-het.
-        let windows = windows(10);
+        let windows = windows(10, crate::geometry::tests::rcrs().regions());
         let block = [Block::fixture(573, 573, "CCCCCCCA", "CCCCCCA")];
         let listed = of(&[], &block, &windows, &[], None, (&[(573, 573)], &[]));
         let unlisted = of(&[], &block, &windows, &[], None, (&[(16057, 16057)], &[]));

@@ -17,8 +17,10 @@ mod compare;
 mod components;
 #[cfg(test)]
 mod contract;
+mod conventions;
 mod error;
 mod estimate;
+mod geometry;
 mod haplotype;
 mod lod;
 mod manifest;
@@ -51,6 +53,7 @@ use sha2::{Digest, Sha256};
 use crate::cause::forms::Forms;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
+use crate::geometry::Geometry;
 use crate::manifest::{Manifest, Month};
 use crate::recheck::Recheck;
 use crate::report::{Report, Row, Status};
@@ -503,7 +506,7 @@ struct RunArgs {
     forms: Option<PathBuf>,
     /// Window of the review workload, in positions, aligned to each HV
     /// region's first position.
-    #[arg(long, default_value_t = report::REVIEW_WINDOW)]
+    #[arg(long, default_value_t = conventions::REVIEW_WINDOW)]
     review_window: i64,
     /// Windows always sent to review, one `start-end` (1-based, inclusive)
     /// per line; the workload is reported again with them reviewed. A list
@@ -528,7 +531,7 @@ struct RunArgs {
     #[arg(long, value_enum)]
     run_signal: Option<SignalGrouping>,
     /// Fewest reads of a batch for `--run-signal batch` to use it.
-    #[arg(long, default_value_t = 40)]
+    #[arg(long, default_value_t = conventions::RUN_SIGNAL_BATCH_READS)]
     run_signal_batch_reads: usize,
     /// A read evidence cache: every read is analysed from its
     /// `dna.read_evidence/v1` document, read from the directory or made and
@@ -546,15 +549,15 @@ struct RunArgs {
     run_context: Option<PathBuf>,
     /// Review zones: positions on each side of a repeat window that follow
     /// it.
-    #[arg(long, default_value_t = 20)]
+    #[arg(long, default_value_t = conventions::ZONE_AFTER)]
     zone_after: i64,
     /// Review zones: positions at each end of a region that are its
     /// amplicon's start or end.
-    #[arg(long, default_value_t = 40)]
+    #[arg(long, default_value_t = conventions::ZONE_EDGE)]
     zone_edge: i64,
     /// Review zones: positions past a repeat window that an item overlapping
     /// the window still counts for the window.
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = conventions::ZONE_OVERRUN)]
     zone_overrun: i64,
 }
 
@@ -627,20 +630,23 @@ fn run(cli: &RunArgs) -> Result<String> {
         })?;
     // How the reviewers write each window sequence, over the whole truth,
     // for the cause of a representation discrepancy.
+    // The geometry the run compares and counts in, from the target profile.
+    let profile = target_profile(&cli.config)?;
+    let geometry = Geometry::of(&profile);
     let forms = if let Some(path) = &cli.forms {
         let text = read(path, "forms", MAX_FORMS_BYTES)?;
         let text = String::from_utf8(text).map_err(|error| Error::Forms {
             path: path.clone(),
             message: error.to_string(),
         })?;
-        Forms::parse(&text, &truth.sha256).map_err(|message| Error::Forms {
+        Forms::parse(&text, &truth.sha256, &geometry).map_err(|message| Error::Forms {
             path: path.clone(),
             message,
         })?
     } else {
         let corpus = truth::sample_ids(&cli.truth)?;
         let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
-        Forms::new(corpus.samples.values(), &reference.sequence)
+        Forms::new(corpus.samples.values(), &reference.sequence, &geometry)
     };
     if cli.review_window < 1 {
         return Err(Error::ReviewWindow {
@@ -695,7 +701,6 @@ fn run(cli: &RunArgs) -> Result<String> {
             return Err(Error::ZoneWidth { name, value });
         }
     }
-    let profile = target_profile(&cli.config)?;
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
     let cache = cli
@@ -746,52 +751,38 @@ fn run(cli: &RunArgs) -> Result<String> {
             message: format!("DNA analysed with profile {other}, not {analysed}"),
         });
     }
-    let span = |first: usize, last: usize| {
-        (
-            i64::try_from(first).unwrap_or(i64::MAX),
-            i64::try_from(last).unwrap_or(i64::MAX),
-        )
-    };
-    let zones = zones::Zones::new(
-        &profile
-            .regions
-            .iter()
-            .map(|&[first, last]| span(first, last))
-            .collect::<Vec<_>>(),
-        &profile
-            .windows
-            .iter()
-            .map(|window| span(window.start + 1, window.end()))
-            .collect::<Vec<_>>(),
-        widths,
-    );
+    let zones = zones::Zones::new(geometry.regions(), geometry.repeats(), widths);
 
     let rows = report::rows(
         &manifest.samples,
         &outcomes,
         &truth.database.samples,
         &reference.sequence,
-        &profile.conventions,
+        (&geometry, &profile.conventions),
     );
     let check = TruthCheck::new(&manifest, &truth.database);
-    let report = Report::new(&rows, &check, (&forms, reference.sequence.as_str()))
-        .with_review(
-            cli.review_window,
-            forced,
-            Some(zones),
-            recheck,
-            profile
-                .length_tracts
-                .iter()
-                .map(|tract| workload::Tract {
-                    name: tract.name.clone(),
-                    first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
-                    last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
-                    base: char::from(tract.base),
-                })
-                .collect(),
-        )
-        .with_current_since(cli.current_since);
+    let report = Report::new(
+        &rows,
+        (&geometry, &check),
+        (&forms, reference.sequence.as_str()),
+    )
+    .with_review(
+        cli.review_window,
+        forced,
+        Some(zones),
+        recheck,
+        profile
+            .length_tracts
+            .iter()
+            .map(|tract| workload::Tract {
+                name: tract.name.clone(),
+                first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
+                last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
+                base: char::from(tract.base),
+            })
+            .collect(),
+    )
+    .with_current_since(cli.current_since);
 
     let mut header = header(
         cli,

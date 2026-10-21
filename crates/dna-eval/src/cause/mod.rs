@@ -15,7 +15,8 @@ pub(crate) mod loci;
 use std::collections::BTreeSet;
 
 use crate::classes::Discrepancy;
-use crate::compare::{self, Allele, Comparison, Failure, Region};
+use crate::compare::{self, Allele, Comparison, Failure};
+use crate::geometry::Window;
 use crate::lod;
 use forms::{Forms, Majority};
 use loci::{
@@ -123,7 +124,7 @@ pub(crate) struct Sample<'a> {
     /// The primary comparison, whose uncovered alleles a coverage gap names.
     pub(crate) primary: Option<&'a Comparison>,
     /// The windows of the class's discordant positions.
-    pub(crate) regions: &'a BTreeSet<Region>,
+    pub(crate) regions: &'a BTreeSet<Window>,
     pub(crate) dna: &'a [Allele],
     /// DNA's calls a profile convention labels `not_recorded`.
     pub(crate) not_recorded: Option<&'a BTreeSet<Allele>>,
@@ -282,7 +283,7 @@ fn iupac(
 fn representation(sample: &Sample<'_>, forms: &Forms, reference: &str) -> Vec<Finding> {
     let mut found = Vec::new();
     for region in sample.regions {
-        let majority = if *region == Region::Other {
+        let majority = if *region == Window::Other {
             let (dna, truth) = sample.comparison.map_or((&[][..], &[][..]), |comparison| {
                 (
                     comparison.dna_unique.as_slice(),
@@ -292,7 +293,7 @@ fn representation(sample: &Sample<'_>, forms: &Forms, reference: &str) -> Vec<Fi
             forms.outside(dna, truth).map(|majority| (majority, true))
         } else {
             forms
-                .window(*region, sample.dna, sample.truth, reference)
+                .window(region, sample.dna, sample.truth, reference)
                 .map(|majority| (majority, false))
         };
         let Some((majority, proxy)) = majority else {
@@ -459,7 +460,7 @@ mod tests {
         truth: &'a [Allele],
         loci: &'a Loci,
         signals: &'a lod::Signals,
-        regions: &'a BTreeSet<Region>,
+        regions: &'a BTreeSet<Window>,
     ) -> Sample<'a> {
         Sample {
             discrepancy,
@@ -640,7 +641,7 @@ mod tests {
         let length = Allele::new("16193.1", "-", "C");
         let not_recorded = BTreeSet::from([length.clone()]);
         let signals = lod::Signals::default();
-        let regions = BTreeSet::from([Region::Hv1PolyC]);
+        let regions = BTreeSet::from([Window::Named("hvs_i".to_owned())]);
         let texts_of = |dna_unique: Vec<Allele>, truth_unique: Vec<Allele>| {
             let comparison = comparison(&["16193.1"], dna_unique, truth_unique, Vec::new());
             let differs = Sample {
@@ -667,7 +668,7 @@ mod tests {
             Some((
                 "lab",
                 "deferred",
-                vec!["lab:convention_not_recorded@hv1_polyc".to_owned()]
+                vec!["lab:convention_not_recorded@hvs_i".to_owned()]
             ))
         );
         // A truth-only call, or an unlabelled DNA-only call, is content.
@@ -677,7 +678,7 @@ mod tests {
         ] {
             assert_ne!(
                 texts_of(dna, truth).map(|(_, _, findings)| findings),
-                Some(vec!["lab:convention_not_recorded@hv1_polyc".to_owned()])
+                Some(vec!["lab:convention_not_recorded@hvs_i".to_owned()])
             );
         }
     }

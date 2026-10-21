@@ -269,14 +269,14 @@
     "rows": [
       {
         "kind": "window",
-        "window": "hv2_polyc",
+        "window": "hvs_ii",
         "sequence": "CCCCCCCCTCCCCCC",
         "form": "309.1C 315.1C",
         "samples": "120"
       },
       {
         "kind": "window",
-        "window": "hv2_polyc",
+        "window": "hvs_ii",
         "sequence": "CCCCCCCCTCCCCCC",
         "form": "309.1CC 315.1C",
         "samples": "14"
@@ -1076,7 +1076,7 @@
         "haplotype_lod_blocks": "",
         "below_lod": "1",
         "class": "coverage",
-        "class_regions": "hv1_polyc",
+        "class_regions": "hvs_i",
         "cause": "lab",
         "cause_scope": "defect",
         "cause_evidence": "lab:no_read@16189",
@@ -1114,7 +1114,7 @@
         "reasons": "shared_position,dna_only,truth_only",
         "positions": "16189",
         "iupac_only": "1",
-        "regions": "hv1_polyc",
+        "regions": "hvs_i",
         "strict_status": "discordant",
         "strict_concordant": "N",
         "uncovered": "",
@@ -1131,7 +1131,7 @@
         "haplotype_lod_blocks": "",
         "below_lod": "1",
         "class": "heteroplasmy",
-        "class_regions": "hv1_polyc",
+        "class_regions": "hvs_i",
         "cause": "undetermined",
         "cause_scope": "defect",
         "cause_evidence": "undetermined:one_strand@16189",
@@ -1279,7 +1279,7 @@
         "reasons": "dna_only,truth_only",
         "positions": "150 16189",
         "iupac_only": "0",
-        "regions": "hv1_polyc,other",
+        "regions": "hvs_i,other",
         "strict_status": "discordant",
         "strict_concordant": "N",
         "uncovered": "",

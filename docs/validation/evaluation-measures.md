@@ -40,8 +40,9 @@ and the truth as tool B:
 - `N` when a position both sides call holds different allele sets
   (`comparison.py` also skips 309.1, 309.2, and 573.1, which hold insertions
   and are special already);
-- `N` when DNA alone calls an allele inside HV1 (16024–16365), HV2 (73–340),
-  or HV3 (438–576);
+- `N` when DNA alone calls an allele inside a reportable region of the
+  target profile: HV1 (16024–16365), HV2 (73–340), or HV3 (438–576) for
+  rCRS, named in the profile's order;
 - `N` when the truth alone calls an allele inside an HV region and inside
   DNA's callable intervals, or DNA reports none;
 - `Y` otherwise. Interval and region tests use an allele's anchor base, so
@@ -131,9 +132,18 @@ nothing" ever stands for a position DNA left unresolved.
 For each sample the harness also reports, on the primary measure, the alleles
 unique to each side (special positions left out), every rule that applies,
 the positions those rules name, whether every such position holds a truth
-IUPAC allele (`iupac_only`), and their windows: `hv2_polyc` 302–316,
-`hv1_polyc` 16180–16195, `hv3_polyc` 560–576, `ac_repeat` 513–526, `other`.
-It lists the `uncovered` truth alleles as well.
+IUPAC allele (`iupac_only`), and their windows. The windows are the target
+profile's nomenclature windows, then its length tracts outside them, each
+labelled by its profile name in lower case with any other character than a
+letter or digit written `_`, and `other`: for rCRS `hvs_ii` 303–315,
+`hvs_iii` 512–524, `hvs_i` 16180–16193, and `hvs3_c_tract` 568–573. It
+lists the `uncovered` truth alleles as well.
+
+The harness holds no reference coordinate of its own: the regions and
+windows come from the configuration's target profile, read once
+(`geometry.rs`). The laboratory's comparison conventions it reproduces, the
+special positions and the region names, are in one module with their
+sources (`conventions.rs`).
 
 ## Discrepancy classes
 

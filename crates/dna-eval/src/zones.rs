@@ -14,7 +14,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::compare::HV_REGIONS;
+use crate::geometry::Span;
 
 /// The widths that place the zones, in positions; recorded in `run.json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,13 +80,13 @@ pub(crate) struct Zones {
 }
 
 impl Zones {
-    /// The zones of `regions` and repeat `windows` (both 1-based and
-    /// inclusive), placed with `widths`. A region takes the name of the HV
-    /// region that holds its first position, else its bounds.
-    pub(crate) fn new(regions: &[(i64, i64)], windows: &[(i64, i64)], widths: Widths) -> Self {
+    /// The zones of the named `regions` and repeat `windows` (1-based and
+    /// inclusive), placed with `widths`.
+    pub(crate) fn new(regions: &[Span], windows: &[(i64, i64)], widths: Widths) -> Self {
         let regions = regions
             .iter()
-            .map(|&(start, end)| {
+            .map(|region| {
+                let (start, end) = (region.first, region.last);
                 let inside = windows
                     .iter()
                     .copied()
@@ -111,15 +111,8 @@ impl Zones {
                         Kind::Interior
                     }
                 };
-                let name = HV_REGIONS
-                    .iter()
-                    .find(|(_, first, last)| (*first..=*last).contains(&start))
-                    .map_or_else(
-                        || format!("{start}-{end}"),
-                        |(name, _, _)| (*name).to_owned(),
-                    );
                 Region {
-                    name,
+                    name: region.name.clone(),
                     start,
                     kinds: (start..=end).map(kind).collect(),
                     windows: inside,
@@ -207,7 +200,11 @@ mod tests {
     };
 
     fn hv2() -> Zones {
-        Zones::new(&[(73, 340)], &[(303, 315)], WIDTHS)
+        Zones::new(
+            &crate::geometry::tests::spans(&[(73, 340)]),
+            &[(303, 315)],
+            WIDTHS,
+        )
     }
 
     #[test]
