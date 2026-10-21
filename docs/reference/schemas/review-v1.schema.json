@@ -877,6 +877,47 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "strand",
+            "reads",
+            "other",
+            "from_start"
+          ],
+          "properties": {
+            "label": {
+              "const": "one_strand_insertion"
+            },
+            "strand": {
+              "$ref": "#/$defs/strand"
+            },
+            "reads": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "other": {
+              "enum": [
+                "not_covered",
+                "read_end",
+                "unresolved",
+                "reads_through"
+              ]
+            },
+            "from_start": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "description": "A decided insertion outside every repeat window and length tract whose supporting reads all lie on one strand while no read of the other strand shows it (SRS-CONS-015): a check. `other` is the other strand's best view of the site; `from_start`, the fewest calls from a supporting read's first call to its first call over the site."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "read"
           ],
           "properties": {
@@ -1853,6 +1894,7 @@
             "edge_deletion",
             "run_deletion",
             "run_indel",
+            "one_strand_insertion",
             "beside_not_analysed",
             "one_read",
             "one_strand",
@@ -1955,6 +1997,10 @@
               "minimum": 0
             },
             "run_indel": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "one_strand_insertion": {
               "type": "integer",
               "minimum": 0
             }

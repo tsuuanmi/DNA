@@ -275,6 +275,18 @@ pub(crate) enum LabelResult {
     RunIndel {
         read: String,
     },
+    /// A decided insertion outside every repeat window and length tract
+    /// whose supporting reads all lie on one strand, while no read of the
+    /// other strand shows it (rules version 29): a check. `other` is the
+    /// other strand's best view of the site (`not_covered`, `read_end`,
+    /// `unresolved`, `reads_through`), and `from_start` the fewest calls
+    /// from a supporting read's first call to its first call over the site.
+    OneStrandInsertion {
+        strand: Orientation,
+        reads: Vec<String>,
+        other: &'static str,
+        from_start: usize,
+    },
     PossibleHeteroplasmy {
         position: usize,
         base: char,
@@ -579,6 +591,7 @@ pub(crate) struct LabelCounts {
     pub(crate) edge_deletion: usize,
     pub(crate) run_deletion: usize,
     pub(crate) run_indel: usize,
+    pub(crate) one_strand_insertion: usize,
     pub(crate) beside_not_analysed: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,

@@ -58,6 +58,7 @@ REVIEW_UNASSURED = frozenset(
         "edge_deletion",
         "run_deletion",
         "run_indel",
+        "one_strand_insertion",
         "beside_not_analysed",
         "not_covered",
     }
@@ -76,6 +77,7 @@ REVIEW_LABELS = {
     "edge_deletion": 2,
     "run_deletion": 2,
     "run_indel": 2,
+    "one_strand_insertion": 2,
     "beside_not_analysed": 2,
     "one_read": 3,
     "one_strand": 3,
