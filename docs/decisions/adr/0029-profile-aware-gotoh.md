@@ -90,6 +90,11 @@ ties: optimal placements that differ only by repeat-equivalent indel shifting ar
 canonicalized to one deterministic 3'/right-most mtDNA alignment before uniqueness is
 assessed.
 
+Amended 2026-10-20 by [[ADR-0086]]: when the two best placements differ only
+in calls at one end of the read that the read itself asserts unreliable (inside
+an unreliable span, or masked), those calls are left unplaced and the rest of
+the read is aligned again; a tie there is still an error.
+
 ### Existing admission metrics
 
 The public/internal `callable_columns`, `callable_identity`,

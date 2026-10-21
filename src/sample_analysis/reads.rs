@@ -373,6 +373,7 @@ fn place_recorded(
         input_sha256,
         evidence,
         sanger,
+        placed,
     } = &**read;
     let stage = tracing::info_span!("read_evidence").entered();
     variant_analysis::observation::record_evidence(evidence, config);
@@ -385,6 +386,7 @@ fn place_recorded(
     let called = match variant_analysis::observation::place(
         identity,
         evidence.clone(),
+        placed.clone(),
         reference,
         config,
         profile,

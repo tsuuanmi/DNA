@@ -1,6 +1,6 @@
 ---
 id: ADR-0088
-status: proposed
+status: accepted
 date: 2026-10-21
 family: [signal-evidence, sanger-eligibility]
 related: [ADR-0027, ADR-0031, ADR-0069, ADR-0080]

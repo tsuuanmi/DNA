@@ -187,5 +187,6 @@ with the re-check list `--recheck`. A period is a range of batch dates.
 
 ## Links
 
-- Rule: SRS-CONS-012. SRS-CALL-024 allows the core this one use of the span.
+- Rule: SRS-CONS-012. SRS-CALL-024 allows the core this use of the span;
+  [[ADR-0086]] adds one more, in placement.
 - Increment: [[PROP-0012]] increment 5. Crate: [[ADR-0084]].
