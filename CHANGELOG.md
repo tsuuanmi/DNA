@@ -682,6 +682,26 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A read keeps its own anchor base in a re-expressed repeat stretch
+  (ADR-0091, proposed; SRS-ALN-016; plugin `core` 13, review rules 32).
+  A clean reverse HVS-II read `C9 T C6` was aligned as `310C` with its T
+  inserted: one gap opening costs more than a mismatch, and its last
+  in-phase call reads `302` as C. Run-structure re-expression now also
+  takes a substitution in repeat runs (every changed run two bases or
+  more). It moves a shorter run's boundary with a longer neighbour by
+  substitution, and keeps stretches that share only anchor columns apart.
+  The read now shows `302C 309.1C 309.2C 315.1C` with T310 matched. The
+  review credits a decode that starts on an inserted column to the
+  position the insertion follows on either strand (SRS-API-020 *Credit*):
+  a reverse read's run starts on its 3' insertion. Against `main` 95f2edf2,
+  current period, the diff gate passes on both panels:
+  - development v5: clear 8,358 → 8,813, window@HV2 checks 1,054 → 473,
+    unreviewed non-het 4 → 4;
+  - readiness v2: clear 14,408 → 15,159, window@HV2 checks 1,659 → 847,
+    unreviewed non-het 1 → 1.
+
+  The newly passed differences at 303-316 are length notes and re-check
+  rows. The artefact bench is unchanged.
 - Consensus over N reads per site and strand (ADR-0090, user decision
   2026-10-21), step 1. A site whose supporting and opposing reads all lie
   on one strand, however many, is a review check, `same_strand_dissent`
