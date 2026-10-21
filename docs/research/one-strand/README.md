@@ -23,7 +23,7 @@ exception, if any, would raise A without letting errors pass?
 - **Panel and truth.** Development panel v3 only (2,618 active samples), the
   lab's statistics database of 2026-10-15, `config/dna.toml`, rCRS, revision
   a244644. The validation panel was not used.
-- **Run.** `dna-eval run --triage` ([draft triage](../../validation/evaluation-triage.md#draft-triage)).
+- **Run.** `dna-eval run --triage` ([draft triage](../../governance/retired.md)).
   Its draft outcomes are the baseline: 515 passed samples, A = 0.178
   corpus-weighted.
 - **Extra evidence, outside the repository.** A throwaway copy of the harness

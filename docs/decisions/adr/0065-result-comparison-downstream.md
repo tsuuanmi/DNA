@@ -15,7 +15,7 @@ related: [ADR-0005, ADR-0019, ADR-0058]
 <!-- docs:end lifecycle -->
 
 <!-- docs:begin backlinks -->
-- **Governs:** [architecture/context](../../architecture/context.md), [design/callability](../../design/callability.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [engineering/ci-cd](../../engineering/ci-cd.md), [governance/data](../../governance/data.md), [requirements/constraints](../../requirements/constraints.md), [validation/acceptance-criteria](../../validation/acceptance-criteria.md), [validation/evaluation-harness](../../validation/evaluation-harness.md), [validation/evaluation-measures](../../validation/evaluation-measures.md), [validation/evaluation-triage](../../validation/evaluation-triage.md), [validation/evaluation-workload](../../validation/evaluation-workload.md), [validation/strategy](../../validation/strategy.md)
+- **Governs:** [architecture/context](../../architecture/context.md), [design/callability](../../design/callability.md), [design/variant-nomenclature](../../design/variant-nomenclature.md), [engineering/ci-cd](../../engineering/ci-cd.md), [governance/data](../../governance/data.md), [requirements/constraints](../../requirements/constraints.md), [validation/acceptance-criteria](../../validation/acceptance-criteria.md), [validation/evaluation-harness](../../validation/evaluation-harness.md), [validation/evaluation-measures](../../validation/evaluation-measures.md), [validation/evaluation-workload](../../validation/evaluation-workload.md), [validation/strategy](../../validation/strategy.md)
 <!-- docs:end backlinks -->
 
 ## Context
