@@ -99,14 +99,24 @@ The report (`diff.md`) shows, before and after:
   changed, with the blocks gone and new. The first 40 are shown;
   `samples.tsv` lists all, and `statuses.tsv` lists every status change.
 
-The verdict is `GATE FAIL`, with exit status 2, when in any group more
+The verdict reads one group, the current period: the samples whose
+`batch_date` is in or after the runs' current-data month. The LAB keeps
+improving, so recent data decides (user decision 2026-10-21). The earlier
+period, all samples, and the sources are reported in full and never gate; a
+source mixes periods, and its current samples already count in the current
+period. A sample without a `batch_date` is in no period and does not gate.
+When the runs record no current-data month, the verdict reads all samples.
+The report names the group under **Verdict**.
+
+The verdict is `GATE FAIL`, with exit status 2, when in that group more
 passed samples carry a non-het block, more samples carry a non-het
 unreviewed block, or more passed units of any zone carry a non-het block. It
-also fails when the samples that failed to score differ between the runs,
-whatever the cause (the change, or a transient read error): the groups then
-hold different samples. Heteroplasmy is optional (user decision): het blocks
-are reported, beside re-check and truth-`N` blocks, and never gate. Otherwise
-it is `GATE PASS`.
+also fails when the samples that failed to score in that group differ
+between the runs, whatever the cause (the change, or a transient read
+error): the group then holds different samples. Failures that differ only
+outside it are a warning. Heteroplasmy is optional (user decision): het
+blocks are reported, beside re-check and truth-`N` blocks, and never gate.
+Otherwise it is `GATE PASS`.
 
 ### Quick subset (pre-filter)
 

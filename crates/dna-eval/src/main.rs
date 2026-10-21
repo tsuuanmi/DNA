@@ -118,8 +118,10 @@ enum Command {
     /// Manages a read evidence cache (`run --evidence-cache`).
     Cache(CacheArgs),
     /// Compares a run with a base run of the same panel and gates it: exits
-    /// 2 with `GATE FAIL` when more samples, passed samples, or passed zones
-    /// carry a non-het unreviewed block; het blocks are reported, not gated.
+    /// 2 with `GATE FAIL` when, in the current period (all samples without
+    /// `--current-since`), more samples, passed samples, or passed zones
+    /// carry a non-het unreviewed block; het blocks and the earlier period
+    /// are reported, not gated.
     Diff(DiffArgs),
 }
 
@@ -341,7 +343,8 @@ struct RunArgs {
     #[arg(long)]
     recheck: Option<PathBuf>,
     /// First batch month (`YYYY-MM`) of the current data: the summary reports
-    /// the samples whose manifest `batch_date` is in or after it first.
+    /// the samples whose manifest `batch_date` is in or after it first, and
+    /// `diff` gates on them alone.
     #[arg(long)]
     current_since: Option<String>,
     /// Judge each review against a run signal (PROP-0009) built in process
