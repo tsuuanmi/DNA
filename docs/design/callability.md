@@ -292,7 +292,7 @@ The core caller does not read callability directly. The Sanger adapter
   disagreed with the other strand become clear (current 7,646 → 7,651), and
   no coverage changes;
 - the read's poor start is asserted as an unreliable span (SRS-CALL-024):
-  from its first call to its first run of `start_identity_margin` (12)
+  from its first call to its first run of `poor_start_calls` (12)
   consecutive sound calls, the vouching rules above having judged each call
   against the read's own heights, widths, and spacing. On development panel
   v5's current data, a non-reference call inside it is right far less often

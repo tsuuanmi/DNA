@@ -30,7 +30,7 @@ a shorter run. No offset is longer than the run that opens the stretch.
 
 Every `dephased` segment of the read is fitted when a repeat run opens it:
 the longest maximal run of two or more equal canonical primary calls whose end
-lies within `callability.repeat_window_calls` calls of the segment's start,
+lies within `signal_processing.decompose_onset_window` calls of the segment's start,
 the nearer on a tie, and which starts at or after the trim interval's start:
 a dephased stretch in the trimmed start is start noise, too short to place. The longest run nearby is the one whose length varies
 most; a nearer short run (the `AAA` before the HVS-II C-tract) would bound
@@ -58,7 +58,7 @@ read sets every level, so nothing is a fixed cut.
   sequence is read from them. A long noisy tail, where the primaries are
   mixture noise, fails here.
 - A read with fewer in-phase single-channel calls than
-  `callability.minimum_callable_calls` asserts no mixture.
+  `signal_processing.decompose_minimum_calls` asserts no mixture.
 
 ## Components
 

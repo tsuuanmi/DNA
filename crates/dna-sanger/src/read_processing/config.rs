@@ -138,6 +138,8 @@ pub struct SangerEvidenceConfig {
     /// Calls past the callable span's start within which a start call may be
     /// vouched for by its own signal (SRS-CALL-018).
     pub(crate) start_identity_margin: usize,
+    /// Consecutive sound calls that end a read's poor start (SRS-CALL-024).
+    pub(crate) poor_start_calls: usize,
     /// First in-phase single-channel calls of the callable span whose medians
     /// are the start's norms (SRS-CALL-018).
     pub(crate) start_norm_calls: usize,
@@ -170,6 +172,7 @@ pub struct RawSangerEvidenceConfig {
     pub(crate) edge_spacing_minimum: f64,
     pub(crate) edge_spacing_maximum: f64,
     pub(crate) start_identity_margin: usize,
+    pub(crate) poor_start_calls: usize,
     pub(crate) start_norm_calls: usize,
     pub(crate) start_height_fraction: f64,
     pub(crate) start_second_share: f64,
@@ -234,6 +237,7 @@ impl RawSangerEvidenceConfig {
             )
             .into());
         }
+        bounds::positive_count("sanger_evidence.poor_start_calls", self.poor_start_calls)?;
         if self.post_repeat_minimum_calls == 0
             || self.start_norm_calls == 0
             || self.end_norm_calls == 0
@@ -261,6 +265,7 @@ impl RawSangerEvidenceConfig {
             edge_spacing_minimum: self.edge_spacing_minimum,
             edge_spacing_maximum: self.edge_spacing_maximum,
             start_identity_margin: self.start_identity_margin,
+            poor_start_calls: self.poor_start_calls,
             start_norm_calls: self.start_norm_calls,
             start_height_fraction: self.start_height_fraction,
             start_second_share: self.start_second_share,
@@ -297,6 +302,7 @@ mod tests {
             edge_spacing_minimum: 0.5,
             edge_spacing_maximum: 1.5,
             start_identity_margin: 12,
+            poor_start_calls: 12,
             start_norm_calls: 30,
             start_height_fraction: 0.5,
             start_second_share: 0.15,
@@ -328,7 +334,7 @@ mod tests {
         let height = "sanger_evidence.minimum_peak_height must be in 1..=32767";
         let calls = "sanger_evidence.post_repeat_minimum_calls, start_norm_calls, and \
                      end_norm_calls must be positive";
-        let cases: [Case; 22] = [
+        let cases: [Case; 23] = [
             (|raw| raw.minimum_peak_height = 0, height.to_owned()),
             (|raw| raw.minimum_peak_height = 32_768, height.to_owned()),
             (
@@ -391,6 +397,10 @@ mod tests {
             // A margin of zero is accepted: its rule then covers no call.
             (|raw| raw.signal_edge_margin = 0, "ok".to_owned()),
             (|raw| raw.start_identity_margin = 0, "ok".to_owned()),
+            (
+                |raw| raw.poor_start_calls = 0,
+                "sanger_evidence.poor_start_calls must be positive".to_owned(),
+            ),
             (|raw| raw.edge_spacing_minimum = 1.5, "ok".to_owned()),
             (|raw| raw.edge_second_share = 1.0, "ok".to_owned()),
         ];

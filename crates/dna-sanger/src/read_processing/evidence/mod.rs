@@ -297,7 +297,7 @@ pub fn read_evidence(read: &ProcessedRead, config: &SangerEvidenceConfig) -> Res
         (start, end),
         config.signal_edge_margin,
     );
-    let poor = poor_start(&evidence, config.start_identity_margin);
+    let poor = poor_start(&evidence, config.poor_start_calls);
     Ok(
         ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())?
             .with_mixtures(mixtures.clone())?
