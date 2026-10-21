@@ -541,6 +541,10 @@ pub(crate) fn haplotypes(
     Haplotypes::new(
         reference,
         &comparable(dna.intervals, truth.intervals),
+        &merged(truth.intervals)
+            .iter()
+            .map(|&(_, end)| end)
+            .collect::<Vec<_>>(),
         &edits(dna.alleles, &|_| true),
         &edits(truth.alleles, &truth_lenient),
     )

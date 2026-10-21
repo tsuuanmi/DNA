@@ -47,7 +47,9 @@ have no schema; the evaluation harness document describes them.
 - `haplotype.rs` — the haplotype equivalence of two edit sets: both applied
   to the reference over each comparable interval and cut into blocks where
   their lengths agree;
-  built once per sample and read under exact or compatible symbols.
+  built once per sample and read under exact or compatible symbols. An open
+  block knows whether its interval ends where the truth's does, so an
+  insertion past the truth's interval is truth N (`Block::past_interval`).
 - `classes.rs` — the discrepancy class of a sample from its statuses: the
   part of DNA that owns its difference from the truth.
 - `cause/` — the cause of a sample's discrepancy (DNA, the lab, or the
