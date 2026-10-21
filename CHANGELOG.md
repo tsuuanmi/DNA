@@ -602,6 +602,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval diff` gates on non-het blocks only: more samples with a
+  non-het unreviewed block fail it, while samples whose only unreviewed
+  blocks are het are reported in their own column and never gate
+  (heteroplasmy is optional, user decision). The `Unreviewed` column splits
+  into `Unreviewed non-het` and `Unreviewed het only`.
 - A mixed Sanger call whose second peak is a neighbour's tail or a dye blob
   may confirm the reference beside a neighbour that is itself mixed, when
   that neighbour's second peak is also a tail or a blob: a blob is wider than

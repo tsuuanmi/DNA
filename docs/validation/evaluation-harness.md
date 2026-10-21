@@ -83,9 +83,9 @@ their directories alone, and gates it.
 
 The report (`diff.md`) shows, before and after:
 
-- **Samples:** samples, clear samples, samples with a non-het or het
-  unreviewed block, passed samples by their most severe block, and positions
-  to review.
+- **Samples:** samples, clear samples, samples with a non-het unreviewed
+  block and those whose only unreviewed blocks are het, passed samples by
+  their most severe block, and positions to review.
 - **Zones:** for every zone that changed, the units needing a check and the
   passed units with a non-het block.
 - **Coverage:** the truth alleles DNA's callable intervals newly leave out
@@ -96,9 +96,10 @@ The report (`diff.md`) shows, before and after:
   `samples.tsv` lists all, and `statuses.tsv` lists every status change.
 
 The verdict is `GATE FAIL`, with exit status 2, when in any group more
-passed samples carry a non-het block, more samples carry a non-het or het
+passed samples carry a non-het block, more samples carry a non-het
 unreviewed block, or more passed units of any zone carry a non-het block.
-Re-check and truth-`N` blocks never count. Otherwise it is `GATE PASS`.
+Heteroplasmy is optional (user decision): het blocks are reported, beside
+re-check and truth-`N` blocks, and never gate. Otherwise it is `GATE PASS`.
 
 ## Approval
 
