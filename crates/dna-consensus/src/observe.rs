@@ -8,6 +8,8 @@ use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::variant::VariantKind;
 use dna_kernel::model::nucleotide::is_canonical;
+
+use crate::runs::reference_run;
 use dna_kernel::read_evidence::{CallEvidence, EvidenceReason, Placement};
 
 /// What one read contributes at one reference position or junction.
@@ -255,17 +257,10 @@ pub(super) fn observe(
         if !calls.get(call).is_some_and(CallEvidence::base_only) {
             return false;
         }
-        let Some(&base) = bases.get(position) else {
+        let Some((first, last)) = reference_run(bases, position) else {
             return false;
         };
-        let mut first = position;
-        while first > 0 && bases[first - 1] == base {
-            first -= 1;
-        }
-        let mut last = position;
-        while last + 1 < reference_length && bases[last + 1] == base {
-            last += 1;
-        }
+        let base = bases[position];
         let shows = |bound: Option<usize>| {
             bound
                 .and_then(|bound| placed_at.get(&bound))

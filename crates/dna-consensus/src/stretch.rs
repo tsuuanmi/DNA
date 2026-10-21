@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::decide::{Decision, decide};
 use crate::model::consensus::{ConsensusRun, RunEvidence, SiteState};
 use crate::observe::{Char, ReadObservations, SiteValue, Trust, junctions};
+use crate::runs::{reference_run, runs_of};
 
 /// How a read shows one end of a run (ADR-0071, ADR-0074).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -891,18 +892,6 @@ fn taint(char: &mut Char, exit: bool) {
     }
 }
 
-/// Runs of equal bases as `(base, length)`.
-pub(crate) fn runs_of(bases: impl Iterator<Item = char>) -> Vec<(char, usize)> {
-    let mut runs: Vec<(char, usize)> = Vec::new();
-    for base in bases {
-        match runs.last_mut() {
-            Some((previous, count)) if *previous == base => *count += 1,
-            _ => runs.push((base, 1)),
-        }
-    }
-    runs
-}
-
 /// Observed bases grouped into runs of equal bases.
 fn groups_of(chars: &[Char]) -> Vec<Vec<Char>> {
     let mut groups: Vec<Vec<Char>> = Vec::new();
@@ -989,10 +978,7 @@ pub(crate) fn stretches(
     // position, it would assert a length no read shows (ADR-0071).
     let mut first = 1;
     while first + 1 < length {
-        let mut last = first;
-        while last + 1 < length && bases[last + 1] == bases[first] {
-            last += 1;
-        }
+        let last = reference_run(bases, first).map_or(first, |(_, last)| last);
         if last + 1 - first >= seeded_run && last + 1 < length && !seeds.contains(&first) {
             let bounded = observed.iter().any(|read| {
                 (first - 1..=last + 1).all(|position| {
@@ -1018,21 +1004,11 @@ pub(crate) fn stretches(
         }
         first = last + 1;
     }
-    let run_start = |mut position: usize| {
-        while position > 0 && bases[position - 1] == bases[position] {
-            position -= 1;
-        }
-        position
-    };
-    let run_end = |mut position: usize| {
-        while position + 1 < length && bases[position + 1] == bases[position] {
-            position += 1;
-        }
-        position
-    };
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for seed in seeds {
-        let (first, last) = (run_start(seed), run_end(seed));
+        let Some((first, last)) = reference_run(bases, seed) else {
+            continue;
+        };
         match merged.last_mut() {
             Some((_, previous)) if first <= *previous + 1 => *previous = (*previous).max(last),
             _ => merged.push((first, last)),

@@ -29,7 +29,7 @@ use dna_kernel::read_evidence::{LengthMarginal, TractLengths};
 use crate::config::ConsensusConfig;
 use crate::decide::Decision;
 use crate::model::consensus::RunEvidence;
-use crate::stretch::runs_of;
+use crate::runs::runs_of;
 use crate::{ReadRun, read_runs_over};
 
 /// Lengths a derived run may take: the shifts the deconvolution fits.
