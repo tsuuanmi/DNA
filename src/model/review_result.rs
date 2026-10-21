@@ -275,6 +275,20 @@ pub(crate) enum LabelResult {
         explained: bool,
         reads: Vec<ShareResult>,
     },
+    /// A difference resting on one read whose call at `position` shows
+    /// another base than the reference with the reference base as a second
+    /// peak above its threshold (SRS-CALL-020): a check.
+    ReferenceSecond {
+        position: usize,
+        read: String,
+        strand: Orientation,
+        share: f64,
+        /// The threshold the share exceeded (SRS-CALL-020).
+        threshold: f64,
+        /// The key's calls in the run signal, the sample's own taken out.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        calls: Option<u64>,
+    },
     EstimatedLength {
         runs: Vec<RunResult>,
     },
@@ -375,7 +389,17 @@ pub(crate) struct LengthRunResult {
     pub(crate) base: char,
     pub(crate) called: Option<usize>,
     pub(crate) agreement: &'static str,
+    /// The lab's convention reading of a near-equal pair, a suggestion only:
+    /// never DNA's call.
+    pub(crate) convention: Option<LengthConventionResult>,
     pub(crate) reads: Vec<LengthReadResult>,
+}
+
+/// A run length a reporting convention would read, with the convention.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct LengthConventionResult {
+    pub(crate) length: usize,
+    pub(crate) rule: &'static str,
 }
 
 /// One read's length of a run: decoded from its first-run marginal
@@ -470,6 +494,7 @@ pub(crate) struct LabelCounts {
     pub(crate) strands_disagree: usize,
     pub(crate) read_disagrees: usize,
     pub(crate) possible_heteroplasmy: usize,
+    pub(crate) reference_second: usize,
     pub(crate) estimated_length: usize,
     pub(crate) length_unconfirmed: usize,
     pub(crate) undecided: usize,

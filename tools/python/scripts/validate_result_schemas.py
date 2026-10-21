@@ -37,6 +37,8 @@ EVIDENCE_EXAMPLE = CONTRACTS / "examples" / "read-evidence-v1.example.json"
 REJECTED_EVIDENCE_EXAMPLE = (
     CONTRACTS / "examples" / "read-evidence-v1.rejected.example.json"
 )
+PLACED_SCHEMA = CONTRACTS / "schemas" / "placed-read-v1.schema.json"
+PLACED_EXAMPLE = CONTRACTS / "examples" / "placed-read-v1.example.json"
 EVAL_RUN_SCHEMA = CONTRACTS / "schemas" / "eval-run-v1.schema.json"
 EVAL_RUN_EXAMPLE = CONTRACTS / "examples" / "eval-run-v1.example.json"
 # Review labels that leave an item unassured, so that it is a check.
@@ -45,6 +47,7 @@ REVIEW_UNASSURED = frozenset(
         "strands_disagree",
         "read_disagrees",
         "possible_heteroplasmy",
+        "reference_second",
         "estimated_length",
         "length_unconfirmed",
         "undecided",
@@ -61,6 +64,7 @@ REVIEW_LABELS = {
     "strands_disagree": 0,
     "read_disagrees": 0,
     "possible_heteroplasmy": 1,
+    "reference_second": 1,
     "estimated_length": 2,
     "length_unconfirmed": 2,
     "undecided": 2,
@@ -2028,6 +2032,7 @@ def main(argv: list[str] | None = None) -> int:
     signal_validator = validator(SIGNAL_SCHEMA, errors)
     evidence_validator = validator(EVIDENCE_SCHEMA, errors)
     eval_run_validator = validator(EVAL_RUN_SCHEMA, errors)
+    placed_validator = validator(PLACED_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
     sample_paths = args.sample_evidence or [SAMPLE_EXAMPLE]
@@ -2046,6 +2051,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(review_validator, review_paths, errors)
     validate_documents(signal_validator, signal_paths, errors)
     validate_documents(evidence_validator, evidence_paths, errors)
+    validate_documents(placed_validator, [PLACED_EXAMPLE], errors)
     for path in evidence_paths:
         validate_evidence(load_json(path), str(path), errors)
     eval_runs: list[tuple[str, Any]] = []
@@ -2426,7 +2432,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
         f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, "
         f"{len(review_paths)} review, {len(signal_paths)} run signal, "
-        f"{len(evidence_paths)} read evidence document(s), "
+        f"{len(evidence_paths)} read evidence document(s), 1 placed read, "
         f"{len(eval_runs)} evaluation run(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "

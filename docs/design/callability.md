@@ -1,6 +1,6 @@
 ---
-implements: [SRS-CALL]
-decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076]
+implements: [SRS-CALL, SRS-SIG]
+decided-by: [ADR-0065, ADR-0067, ADR-0069, ADR-0076, ADR-0088]
 covers:
   - crates/dna-sanger/src/callability/
   - crates/dna-sanger/src/callability/sanger.rs
@@ -60,14 +60,16 @@ For position `i` with amplitudes `a` and total `T = Σ a`:
 Every value is rounded to six decimals before storage or comparison. Fewer than
 two positions is a typed failure.
 
-The same measure marks the junctions where the read missed a peak
-(`gaps`, SRS-CALL-026). With `M` the median spacing of the window at the
-position before a junction, the junction is a gap when `Δ − M`, and
-`Δ + Δ' − 2M` for each neighbouring junction's `Δ'`, are each at least
-`spacing_defect × M`. A missing peak leaves a gap about `2M` and the ladder a
-call behind; a peak placed late is followed by a short spacing that makes up
-for it (`Δ + Δ' ≈ 2M`) and is no gap. Gaps mask nothing: the Sanger evidence
-vouches for the two calls beside each by their bases only (see
+The same measure marks the junctions where the read missed a peak or called
+one twice (`gaps`, SRS-CALL-026). With `M` the median spacing of the window at
+the position before a junction, the junction marks a missing peak when
+`Δ − M`, and `Δ + Δ' − 2M` for each neighbouring junction's `Δ'`, are each at
+least `spacing_defect × M`, and an extra peak when `M − Δ` and `2M − Δ − Δ'`
+are. A missing peak leaves a gap about `2M` and the ladder a call behind; a
+peak called twice leaves two calls a fraction of `M` apart and the ladder a
+call ahead; a peak placed late or early is followed by a spacing that makes up
+for it (`Δ + Δ' ≈ 2M`) and marks nothing. Gaps mask nothing: the Sanger
+evidence vouches for the two calls beside each by their bases only (see
 [Consumers](#consumers)).
 
 ### Substep 4.2 — Repeat runs
@@ -269,7 +271,26 @@ The core caller does not read callability directly. The Sanger adapter
   scans) left `16036` undecided in about 170 samples. Against the previous
   commit: unreviewed 668 → 667, non-het passed zones unchanged, 22 more
   samples clear (current 76.06 → 76.19 %), 63 checks removed and 17 added,
-  and four samples concordant under every measure that were discordant;
+  and four samples concordant under every measure that were discordant.
+  The same holds for the two calls beside an extra peak's junction: a peak
+  called twice makes the read show an insertion the template does not hold.
+  On development panel v5 such one-read insertions at junctions 4-6 scans
+  wide, against a read spacing of about 12, passed unflagged near read
+  starts (`16049.1G`, `16025.1T`, `560.1C`, `16360.1C` and others); with
+  them withheld, samples passed with a non-het difference fall 23 → 19 and
+  9 more samples are clear;
+- every call of an electrophoretic spike ([spikes](signal-processing/spikes.md),
+  SRS-SIG-012) is withheld for its base and for indels with the reason
+  `signal_spike`, shows no run's end, and confirms no reference
+  (SRS-CALL-027). It is applied after the vouching and edge rules above, so
+  none of them lifts it. A spike's leading edge reads its first channel
+  cleanly: in 2538054 HV2F the T edge read `186T` with a second share of 0.04
+  where the truth has the reference C, and passed unflagged. Against `main`
+  85cab63 on development panel v5 the diff gate passes: that `186T` becomes
+  an undecided check, samples with an unreviewed block 618 → 617, no other
+  zone's passed non-het units change, five samples whose spiked read
+  disagreed with the other strand become clear (current 7,646 → 7,651), and
+  no coverage changes;
 - the read's poor start is asserted as an unreliable span (SRS-CALL-024):
   from its first call to its first run of `start_identity_margin` (12)
   consecutive sound calls, the vouching rules above having judged each call

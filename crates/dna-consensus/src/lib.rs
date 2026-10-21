@@ -15,6 +15,7 @@ pub mod model;
 
 mod decide;
 pub mod decided;
+pub mod length;
 mod observe;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -78,6 +79,7 @@ pub fn build(
     {
         decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     }
+    two_strand(&mut decided, reads, reference, config, consensus_config);
     let reference_only = confirmed_only(&observed);
 
     let mut consensus = Consensus {
@@ -157,6 +159,106 @@ pub fn read_runs_over(
             )
         })
         .collect()
+}
+
+/// The runs at which an estimated length gives way to the two-strand rule.
+const fn estimated(evidence: RunEvidence) -> bool {
+    matches!(
+        evidence,
+        RunEvidence::AnchoredEnd | RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
+    )
+}
+
+/// Decides by the two-strand rule over the reads' tract decodes (SRS-CONS-013,
+/// PROP-0012 increment 4) the runs a stretch's decision left as an estimate
+/// (an anchored end, a phase loss, or the reference frame), in every pair of
+/// runs of one base the stretch splits by a single-base anchor, where its
+/// call keeps the reference's run composition. A run the rule decides takes
+/// its length, with `two_strand` evidence. A run a read shows in phase, or
+/// whose ends two reads confirm, keeps its length whatever the rule says;
+/// the review flags their disagreement. The pattern is the stretch's own
+/// structure, never a position: the rule names no region.
+fn two_strand(
+    decided: &mut BTreeMap<usize, (usize, Decision)>,
+    reads: &[&CalledRead],
+    reference: &Reference,
+    config: &CallConfig,
+    consensus_config: &ConsensusConfig,
+) {
+    let bases = reference.sequence.as_bytes();
+    for (&start, (end, decision)) in decided.iter_mut() {
+        if !decision.runs.iter().any(|run| estimated(run.evidence)) {
+            continue;
+        }
+        let reference_runs = runs_of(bases[start..=*end].iter().map(|&base| char::from(base)));
+        if reference_runs.len() != decision.runs.len()
+            || reference_runs
+                .iter()
+                .zip(&decision.runs)
+                .any(|((base, _), run)| *base != run.base)
+        {
+            continue;
+        }
+        // Each reference run's first position, 1-based.
+        let firsts = reference_runs
+            .iter()
+            .scan(start + 1, |position, (_, length)| {
+                let first = *position;
+                *position += length;
+                Some(first)
+            })
+            .collect::<Vec<_>>();
+        let mut changed = false;
+        for index in 0..reference_runs.len().saturating_sub(2) {
+            let (repeat, anchor) = (reference_runs[index], reference_runs[index + 1]);
+            if reference_runs[index + 2].0 != repeat.0
+                || anchor.1 != 1
+                || decision.runs[index + 1].length != 1
+                || !(estimated(decision.runs[index].evidence)
+                    || estimated(decision.runs[index + 2].evidence))
+            {
+                continue;
+            }
+            let window = length::Window {
+                first: firsts[index],
+                last: firsts[index + 2] + reference_runs[index + 2].1 - 1,
+                anchor: firsts[index + 1],
+                repeat: repeat.0,
+                anchor_base: anchor.0,
+            };
+            let shown = read_runs_over(
+                reads,
+                reference,
+                config,
+                consensus_config,
+                window.first - 1,
+                window.last - 1,
+            );
+            let views = length::views(&window, reads, &shown);
+            for (run, slot) in [(1, index), (2, index + 2)] {
+                if !estimated(decision.runs[slot].evidence) {
+                    continue;
+                }
+                let (length::Outcome::Decided(length), _) =
+                    length::decide(&views[run - 1], run, consensus_config.length_rule())
+                else {
+                    continue;
+                };
+                decision.runs[slot].length = length;
+                decision.runs[slot].evidence = RunEvidence::TwoStrand;
+                changed = true;
+            }
+        }
+        if changed {
+            decision.value = Some(
+                decision
+                    .runs
+                    .iter()
+                    .map(|run| run.base.to_string().repeat(run.length))
+                    .collect(),
+            );
+        }
+    }
 }
 
 /// Decides every stretch by its run structure and every other covered
@@ -1782,7 +1884,10 @@ fn assemble(
             match run.evidence {
                 RunEvidence::ReferenceFrame => summary.reference_frame_runs += 1,
                 RunEvidence::PhaseLoss => summary.phase_loss_runs += 1,
-                RunEvidence::InPhase | RunEvidence::AnchoredEnd | RunEvidence::ConfirmedEnd => {}
+                RunEvidence::InPhase
+                | RunEvidence::AnchoredEnd
+                | RunEvidence::ConfirmedEnd
+                | RunEvidence::TwoStrand => {}
             }
         }
         match decision.state {
@@ -1841,7 +1946,7 @@ fn assemble(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 17,
+    version: 18,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
@@ -2145,6 +2250,134 @@ mod tests {
         assert!(decided[&11].1.value.is_none());
         assert_eq!(decided[&21].1.value.as_deref(), Some(""));
         assert_eq!(decided[&30].1.value.as_deref(), Some("CCC"));
+    }
+
+    /// A tract decode of a run of `run` entered at call `call_start`, the
+    /// anchor `mark` after it: its first run `first` or one longer, and the
+    /// total `total` or one longer, each at shares 0.95 and 0.05.
+    fn decoded(
+        run: char,
+        mark: char,
+        call_start: usize,
+        first: usize,
+        total: usize,
+    ) -> dna_kernel::read_evidence::TractLengths {
+        use dna_kernel::read_evidence::{LengthMarginal, Margin, StructureFit, TractLengths};
+        let marginal = |length: usize| LengthMarginal {
+            lengths: vec![length, length + 1],
+            shares: vec![0.95, 0.05],
+            errors: vec![0.01, 0.01],
+            dominant: Some(length),
+            next: Some(length + 1),
+            z: Some(10.0),
+            z_adjusted: Some(10.0),
+            margin: Margin::Clear,
+        };
+        TractLengths {
+            onset: call_start + total,
+            call_start,
+            extent: total,
+            window: total,
+            run,
+            mark: Some(mark),
+            candidates: vec![
+                StructureFit {
+                    mark: None,
+                    residual: 0.02,
+                },
+                StructureFit {
+                    mark: Some(mark),
+                    residual: 0.01,
+                },
+            ],
+            residual: 0.01,
+            sigma: 0.01,
+            autocorrelation: 0.0,
+            first: marginal(first),
+            total: marginal(total),
+            cleaned: None,
+        }
+    }
+
+    // SRS-CONS-013
+    #[test]
+    fn both_strands_decide_a_window_run_left_as_an_estimate()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // A stretch of C7 T C5 at 11-23 (1-based), the anchor T at 18, its
+        // window by its own structure. Both strands decode C8 T C5: the
+        // forward read enters run 1 at 11, the reverse read run 2 at 23, and
+        // each derives the other run.
+        let window_reference = Reference {
+            name: "ref".into(),
+            sequence: "TTGACGTCAGCCCCCCCTCCCCCGATCGTACCTGAGTACGAGGACT".into(),
+            topology: ReferenceTopology::Linear,
+            sequence_sha256: String::new(),
+        };
+        let read = |name: &str, sequence: &str, tract| -> Result<CalledRead> {
+            let evidence = ReadEvidence::clean(sequence).with_tracts(vec![tract])?;
+            let alignment = align_best(&evidence, &window_reference, &alignment()?)?;
+            Ok(CalledRead {
+                input_name: name.into(),
+                input_sha256: name.into(),
+                reference_sha256: String::new(),
+                configuration_sha256: String::new(),
+                evidence,
+                alignment,
+                variants: VariantCallingResult::fixture(Vec::new(), Vec::new()),
+            })
+        };
+        let sequence = window_reference.sequence.as_str();
+        let reverse_sequence = dna_kernel::model::nucleotide::reverse_complement(sequence);
+        let forward = read("f", sequence, decoded('C', 'T', 10, 8, 14))?;
+        let reverse = read(
+            "r",
+            &reverse_sequence,
+            decoded('G', 'A', sequence.len() - 23, 5, 14),
+        )?;
+        let decided_with = |evidence: RunEvidence| {
+            let decision = Decision {
+                value: Some("CCCCCCCTCCCCC".into()),
+                state: SiteState::Called,
+                supporting: vec!["f".into(), "r".into()],
+                opposing: Vec::new(),
+                uninformative: Vec::new(),
+                runs: vec![
+                    run('C', 7, evidence),
+                    run('T', 1, RunEvidence::InPhase),
+                    run('C', 5, RunEvidence::InPhase),
+                ],
+            };
+            BTreeMap::from([(10, (22, decision))])
+        };
+        let settle =
+            |evidence: RunEvidence| -> std::result::Result<Decision, Box<dyn std::error::Error>> {
+                let mut decided = decided_with(evidence);
+                two_strand(
+                    &mut decided,
+                    &[&forward, &reverse],
+                    &window_reference,
+                    &config()?,
+                    &config::tests::config(),
+                );
+                Ok(decided.remove(&10).ok_or("missing stretch")?.1)
+            };
+        // A phase-lost run 1 takes the strands' length; run 2, in phase,
+        // keeps its own.
+        let decision = settle(RunEvidence::PhaseLoss)?;
+        assert_eq!(
+            decision.runs,
+            [
+                run('C', 8, RunEvidence::TwoStrand),
+                run('T', 1, RunEvidence::InPhase),
+                run('C', 5, RunEvidence::InPhase)
+            ]
+        );
+        assert_eq!(decision.value.as_deref(), Some("CCCCCCCCTCCCCC"));
+        // A run whose ends two reads confirm keeps its length.
+        let decision = settle(RunEvidence::ConfirmedEnd)?;
+        assert_eq!(decision.runs[0], run('C', 7, RunEvidence::ConfirmedEnd));
+        assert_eq!(decision.value.as_deref(), Some("CCCCCCCTCCCCC"));
+        Ok(())
     }
 
     fn site_at(consensus: &Consensus, position: usize) -> Option<&ConsensusSite> {

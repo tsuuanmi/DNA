@@ -492,7 +492,8 @@
             "anchored_end",
             "confirmed_end",
             "phase_loss",
-            "reference_frame"
+            "reference_frame",
+            "two_strand"
           ]
         }
       }

@@ -91,8 +91,8 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(
         value["provenance"]["plugins"],
         serde_json::json!([
-            {"id": "sanger", "family": "modality", "version": 20},
-            {"id": "core", "family": "core", "version": 11},
+            {"id": "sanger", "family": "modality", "version": 22},
+            {"id": "core", "family": "core", "version": 12},
         ])
     );
     assert_eq!(value["provenance"]["profile"]["id"], "synthetic-linear");
@@ -209,7 +209,7 @@ fn writes_deterministic_compact_json() -> Result<(), Box<dyn std::error::Error>>
         "calls=28 repeats=0 segments=1 in_phase_segments=1 dephased_segments=0 mixed_segments=0 weak_segments=0 irregular_segments=0 masked_calls=0 callable=0..28 callable_fraction=1.0000 segment_map=0..28:in_phase window_calls=16"
     ));
     assert!(log.contains(
-        "windows=19 noisy_windows=0 noisy_regions=0 noisy_calls=0 window_size_bases=10 minimum_noisy_windows=2"
+        "windows=19 noisy_windows=0 noisy_regions=0 noisy_calls=0 spikes=0 spike_calls=0 window_size_bases=10 minimum_noisy_windows=2"
     ));
     assert!(log.contains("orientation=Forward"));
     assert!(log.contains("reported=0 snv=0 insertion=0 deletion=0 excluded=0"));

@@ -11,8 +11,9 @@
 //!
 //! The gate fails when, in any period or source, more passed samples or
 //! more passed zones of any zone carry a non-het unreviewed block, or more
-//! samples carry any unreviewed block other than one the re-check list or a
-//! truth `N` explains.
+//! samples carry a non-het unreviewed block. Heteroplasmy is optional (user
+//! decision): het-only, truth `N`, and re-check moves are reported, never
+//! gated.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -79,6 +80,8 @@ impl Severity {
 struct Sample {
     /// Counted by the pass measures: compared under `haplotype_lod`.
     counted: bool,
+    /// The harness could not score it (`status` `failed`).
+    failed: bool,
     clear: bool,
     positions: i64,
     zones: BTreeSet<String>,
@@ -139,6 +142,7 @@ impl Run {
             let lod = cell("haplotype_lod_status");
             let sample = Sample {
                 counted: lod == "concordant" || lod == "discordant",
+                failed: cell("status") == "failed",
                 clear: cell("review_clear") == "Y",
                 positions: cell("review_positions").parse().unwrap_or(0),
                 zones: cell("review_zones")
@@ -179,6 +183,15 @@ impl Run {
             header,
             samples,
         })
+    }
+
+    /// The samples the harness could not score.
+    fn failed(&self) -> BTreeSet<&str> {
+        self.samples
+            .iter()
+            .filter(|(_, sample)| sample.failed)
+            .map(|(id, _)| id.as_str())
+            .collect()
     }
 
     fn field(&self, pointer: &str) -> &Value {
@@ -233,9 +246,11 @@ fn groups(
 struct Counts {
     samples: usize,
     clear: usize,
-    /// Samples with an unreviewed block the re-check list or a truth `N`
-    /// does not explain.
-    unreviewed: usize,
+    /// Samples with a non-het unreviewed block.
+    unreviewed_non_het: usize,
+    /// Samples whose only unreviewed blocks the re-check list or a truth
+    /// `N` does not explain are het.
+    unreviewed_het_only: usize,
     /// Passed samples by their most severe unreviewed block.
     passed_non_het: usize,
     passed_truth_n: usize,
@@ -270,10 +285,15 @@ fn tally(
             continue;
         }
         let worst = sample.escapes.iter().map(|escape| escape.class).max();
-        let open = sample
+        let non_het = sample
             .escapes
             .iter()
-            .any(|escape| matches!(escape.class, Severity::NonHet | Severity::Het));
+            .any(|escape| escape.class == Severity::NonHet);
+        let het_only = !non_het
+            && sample
+                .escapes
+                .iter()
+                .any(|escape| escape.class == Severity::Het);
         let mut passed_zones = BTreeMap::<&str, Severity>::new();
         for escape in &sample.escapes {
             if let Some(zone) = escape.zone.as_deref().filter(|_| !escape.zone_checked) {
@@ -285,7 +305,8 @@ fn tally(
             let count = counts.entry(group.clone()).or_default();
             count.samples += 1;
             count.positions += sample.positions;
-            count.unreviewed += usize::from(open);
+            count.unreviewed_non_het += usize::from(non_het);
+            count.unreviewed_het_only += usize::from(het_only);
             if sample.clear {
                 count.clear += 1;
                 match worst {
@@ -445,10 +466,24 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         let _ = writeln!(report, "**WARNING, not comparable:** {mismatch}.\n");
     }
     let mut failures = Vec::new();
+    // A sample that failed on one side only is compared against nothing: the
+    // two runs no longer cover the same samples, whether the failure is the
+    // change's or a transient read error.
+    let (failed_before, failed_after) = (base.failed(), run.failed());
+    if failed_before != failed_after {
+        let message = format!(
+            "failed samples differ: {} in the base, {} in the run, {} in one only; rerun a side that failed transiently, or see the run's failures",
+            failed_before.len(),
+            failed_after.len(),
+            failed_before.symmetric_difference(&failed_after).count()
+        );
+        let _ = writeln!(report, "**WARNING:** {message}.\n");
+        failures.push(message);
+    }
 
     let _ = writeln!(
         report,
-        "## Samples\n\nUnreviewed counts samples with a non-het or het unreviewed block; passed samples are counted under their most severe block.\n\n| Group | Samples | Clear | Unreviewed | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe block. Only non-het counts gate.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     );
     let names = before
         .counts
@@ -468,10 +503,11 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         };
         let _ = writeln!(
             report,
-            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             cell(old.samples, new.samples),
             cell(old.clear, new.clear),
-            cell(old.unreviewed, new.unreviewed),
+            cell(old.unreviewed_non_het, new.unreviewed_non_het),
+            cell(old.unreviewed_het_only, new.unreviewed_het_only),
             cell(old.passed_non_het, new.passed_non_het),
             cell(old.passed_truth_n, new.passed_truth_n),
             cell(old.passed_het_only, new.passed_het_only),
@@ -488,10 +524,10 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
                 old.passed_non_het, new.passed_non_het
             ));
         }
-        if new.unreviewed > old.unreviewed {
+        if new.unreviewed_non_het > old.unreviewed_non_het {
             failures.push(format!(
-                "samples with an unreviewed block rise in {name}: {} → {}",
-                old.unreviewed, new.unreviewed
+                "samples with a non-het unreviewed block rise in {name}: {} → {}",
+                old.unreviewed_non_het, new.unreviewed_non_het
             ));
         }
     }
@@ -745,7 +781,7 @@ mod tests {
         assert!(
             comparison
                 .report
-                .contains("| all | 2 | 2 → 1 | 1 → 2 | 0 → 1 |")
+                .contains("| all | 2 | 2 → 1 | 0 → 1 | 1 | 0 → 1 |")
         );
         assert!(
             comparison
@@ -769,6 +805,38 @@ mod tests {
         Ok(())
     }
 
+    // A het block the candidate leaves unreviewed is reported, not gated:
+    // heteroplasmy is optional.
+    #[test]
+    fn reports_a_new_het_escape_without_gating() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let base = run(
+            root.path(),
+            "base",
+            false,
+            &["S1\tconcordant\tconcordant\tY\t0\t\t"],
+            &[],
+            (1, 0, 0),
+        )?;
+        let candidate = run(
+            root.path(),
+            "run",
+            false,
+            &["S1\tdiscordant\tdiscordant\tY\t0\t\t"],
+            &["S1\t461\t461\t461-461:C/S\thet\twindow@HV2\tno"],
+            (1, 0, 1),
+        )?;
+        let comparison = compare(&base, &candidate, false)?;
+        assert!(!comparison.gate_failed);
+        assert!(comparison.report.contains("GATE PASS"));
+        assert!(
+            comparison
+                .report
+                .contains("| all | 1 | 1 | 0 | 0 → 1 | 0 | 0 | 0 → 1 |")
+        );
+        Ok(())
+    }
+
     #[test]
     fn refuses_runs_that_measure_different_things() -> Result<(), Box<dyn std::error::Error>> {
         let root = tempfile::tempdir()?;
@@ -789,6 +857,29 @@ mod tests {
             compare(&base, &miscounted, false),
             Err(DiffError::Inconsistent(..))
         ));
+        Ok(())
+    }
+    #[test]
+    fn gates_samples_that_failed_on_one_side_only() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let scored = [
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+            "S2\tconcordant\tconcordant\tY\t0\t\t",
+        ];
+        let base = run(root.path(), "base", false, &scored, &[], (2, 0, 0))?;
+        let lost = [
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+            "S2\tfailed\tfailed\tN\t0\t\t",
+        ];
+        let flaky = run(root.path(), "flaky", false, &lost, &[], (1, 0, 0))?;
+        let comparison = compare(&base, &flaky, false)?;
+        assert!(comparison.gate_failed);
+        assert!(
+            comparison
+                .report
+                .contains("failed samples differ: 0 in the base, 1 in the run")
+        );
+        assert!(!compare(&flaky, &flaky, false)?.gate_failed);
         Ok(())
     }
 }

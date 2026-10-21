@@ -12,13 +12,16 @@
 //! (ADR-0074), gives that run's length too. A strand gives a run one clear
 //! length when every length its reads give is clear and equal. A run is
 //! confirmed when both strands give it one clear length, the same, and it is
-//! DNA's call. Nothing here decides a length; it labels them.
+//! DNA's call, or when the consensus decided it by the two-strand rule
+//! (PROP-0012 increment 4) and no read's structure differs from DNA's.
+//! Nothing here decides a length; it labels them.
 
 use dna_consensus::ReadRun;
+use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
 use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
 use dna_kernel::read_evidence::{Margin, TractLengths};
 
-use crate::model::review_result::{LengthReadResult, LengthRunResult};
+use crate::model::review_result::{LengthConventionResult, LengthReadResult, LengthRunResult};
 use dna_align::model::alignment::Orientation;
 
 /// One anchored repeat window of the profile, 1-based and inclusive.
@@ -37,7 +40,8 @@ pub(super) struct LengthWindow {
 }
 
 /// The profile's anchored repeat windows: those whose rules split two runs
-/// of one base by an anchor base.
+/// of one base by an anchor base, each with whether the profile records its
+/// run lengths.
 pub(super) fn windows(profile: &Profile) -> Vec<LengthWindow> {
     profile
         .windows
@@ -133,6 +137,53 @@ fn window_runs<'r>(runs: &'r [ReadRun], window: &LengthWindow) -> Vec<(usize, &'
         .unwrap_or_default()
 }
 
+/// The runs of `window` (1 or 2) the consensus decided by the two-strand
+/// rule, from the runs of the site that covers it.
+pub(super) fn two_strand_runs(runs: &[ConsensusRun], window: &LengthWindow) -> Vec<usize> {
+    (0..runs.len().saturating_sub(2))
+        .find(|&index| {
+            runs[index].base == window.repeat
+                && runs[index + 1].base == window.anchor_base
+                && runs[index + 1].length == 1
+                && runs[index + 2].base == window.repeat
+        })
+        .map(|index| {
+            [1, 2]
+                .into_iter()
+                .filter(|run| runs[index + 2 * (run - 1)].evidence == RunEvidence::TwoStrand)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The shorter length of the adjacent pair `n`, `n + 1` both strands read a
+/// run as, when at least one read's top two are near-equal: every read with
+/// a next length holds the pair as its top two, and every other read gives
+/// one of the two. The lab reads such a run as its shorter member (the run
+/// ends at the first mixed call of the reverse read); DNA only shows it.
+fn near_equal_pair(reads: &[&Contribution]) -> Option<usize> {
+    let shorter = reads.iter().find_map(|contribution| {
+        let result = &contribution.result;
+        (result.margin == margin_label(Margin::NearEqual))
+            .then(|| result.next.map(|next| result.length.min(next)))
+            .flatten()
+    })?;
+    let pair = [shorter, shorter + 1];
+    let holds = reads.iter().all(|contribution| {
+        let result = &contribution.result;
+        pair.contains(&result.length)
+            && result
+                .next
+                .is_none_or(|next| pair.contains(&next) && next != result.length)
+    });
+    let strands = |forward: bool| {
+        reads
+            .iter()
+            .any(|contribution| (contribution.result.strand == Orientation::Forward) == forward)
+    };
+    (holds && strands(true) && strands(false)).then_some(shorter)
+}
+
 const fn complement(base: char) -> char {
     match base {
         'A' => 'T',
@@ -162,11 +213,14 @@ struct Contribution {
 }
 
 /// The runs of `window` the `decodes` give a length for, each with DNA's
-/// length (`called`, by run), the reads' lengths, and how they agree.
-/// Decodes of another base, or credited to no run of the window, give none.
+/// length (`called`, by run), the reads' lengths, and how they agree. A run
+/// in `two_strand`, decided by the two-strand rule, is confirmed unless a
+/// read's structure differs from DNA's. Decodes of another base, or
+/// credited to no run of the window, give none.
 pub(super) fn judge(
     window: &LengthWindow,
     called: Option<&[usize]>,
+    two_strand: &[usize],
     decodes: &[Decode<'_>],
     in_phase: &[InPhase<'_>],
 ) -> Vec<LengthRunResult> {
@@ -316,6 +370,7 @@ pub(super) fn judge(
                 {
                     "structure_differs"
                 }
+                _ if called_length.is_some() && two_strand.contains(&run) => "confirmed",
                 (Some(Ok(forward)), Some(Ok(reverse))) if forward != reverse => "disagree",
                 (Some(Err(())), _) | (_, Some(Err(()))) => "not_clear",
                 (None, _) | (_, None) => "one_strand",
@@ -330,6 +385,13 @@ pub(super) fn judge(
                 base: window.repeat,
                 called: called_length,
                 agreement,
+                convention: (!matches!(agreement, "confirmed" | "structure_differs"))
+                    .then(|| near_equal_pair(&reads))
+                    .flatten()
+                    .map(|shorter| LengthConventionResult {
+                        length: shorter,
+                        rule: "shorter_of_near_equal_pair",
+                    }),
                 reads: reads
                     .into_iter()
                     .map(|contribution| contribution.result.clone())
@@ -423,7 +485,7 @@ mod tests {
                 tract: &reverse,
             },
         ];
-        let runs = judge(&HVS2, Some(&[8, 5]), &decodes, &[]);
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &[]);
         assert_eq!(runs.len(), 2);
         // Run 1: F's first run and R's derived one agree with the call.
         assert_eq!(runs[0].agreement, "confirmed");
@@ -431,7 +493,7 @@ mod tests {
         assert_eq!(runs[0].reads[1].source, "derived");
         assert_eq!(runs[1].agreement, "confirmed");
         // The call one longer than both strands read it.
-        let runs = judge(&HVS2, Some(&[9, 5]), &decodes, &[]);
+        let runs = judge(&HVS2, Some(&[9, 5]), &[], &decodes, &[]);
         assert_eq!(runs[0].agreement, "differs_from_call");
     }
 
@@ -450,6 +512,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            &[],
             &[
                 decode("F", Orientation::Forward, 303, &forward),
                 decode("R", Orientation::Reverse, 315, &reverse),
@@ -460,6 +523,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            &[],
             &[
                 decode("F", Orientation::Forward, 303, &forward),
                 decode("R", Orientation::Reverse, 315, &near),
@@ -468,11 +532,35 @@ mod tests {
         );
         assert_eq!(runs[0].agreement, "one_strand");
         assert_eq!(runs[1].agreement, "not_clear");
+        // A run the consensus decided by the two-strand rule is confirmed
+        // whatever the decodes' own agreement.
+        let runs = judge(
+            &HVS2,
+            Some(&[8, 5]),
+            &[1, 2],
+            &[
+                decode("F", Orientation::Forward, 303, &forward),
+                decode("R", Orientation::Reverse, 315, &near),
+            ],
+            &[],
+        );
+        assert_eq!(runs[0].agreement, "confirmed");
+        assert_eq!(runs[1].agreement, "confirmed");
         // A single run where DNA calls two is a structure that differs.
         let single = tract('C', None, 13, 13, Margin::Clear);
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            &[],
+            &[decode("F", Orientation::Forward, 303, &single)],
+            &[],
+        );
+        assert_eq!(runs[0].agreement, "structure_differs");
+        // Even then, a read whose structure differs keeps the run flagged.
+        let runs = judge(
+            &HVS2,
+            Some(&[8, 5]),
+            &[1],
             &[decode("F", Orientation::Forward, 303, &single)],
             &[],
         );
@@ -483,6 +571,7 @@ mod tests {
             judge(
                 &HVS2,
                 Some(&[8, 5]),
+                &[],
                 &[
                     decode("F", Orientation::Forward, 303, &other),
                     decode("F", Orientation::Forward, 290, &forward),
@@ -491,6 +580,75 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    // SRS-API-020
+    #[test]
+    fn suggests_the_shorter_member_of_a_near_equal_pair() {
+        let mut forward = tract('C', Some('T'), 8, 14, Margin::Clear);
+        forward.first = LengthMarginal {
+            lengths: vec![8, 9],
+            shares: vec![0.55, 0.45],
+            errors: vec![0.05, 0.05],
+            dominant: Some(8),
+            next: Some(9),
+            z: Some(0.7),
+            z_adjusted: Some(0.5),
+            margin: Margin::NearEqual,
+        };
+        let decodes = [Decode {
+            read: "F",
+            strand: Orientation::Forward,
+            reference: Some(303),
+            tract: &forward,
+        }];
+        let through = |length| {
+            [
+                ReadRun {
+                    base: 'C',
+                    length,
+                    in_phase: true,
+                },
+                ReadRun {
+                    base: 'T',
+                    length: 1,
+                    in_phase: true,
+                },
+                ReadRun {
+                    base: 'C',
+                    length: 5,
+                    in_phase: true,
+                },
+            ]
+        };
+        let judged = |length| {
+            let runs = through(length);
+            judge(
+                &HVS2,
+                Some(&[9, 5]),
+                &[],
+                &decodes,
+                &[InPhase {
+                    read: "R",
+                    strand: Orientation::Reverse,
+                    runs: &runs,
+                }],
+            )
+        };
+        // Both strands read C8/C9: the convention reads the shorter, as a
+        // suggestion beside DNA's own call, which stays unconfirmed.
+        let runs = judged(9);
+        assert_eq!(runs[0].agreement, "not_clear");
+        assert_eq!(
+            runs[0].convention,
+            Some(LengthConventionResult {
+                length: 8,
+                rule: "shorter_of_near_equal_pair",
+            })
+        );
+        assert_eq!(runs[0].called, Some(9));
+        // A read outside the pair leaves no suggestion.
+        assert_eq!(judged(10)[0].convention, None);
     }
 
     // SRS-API-020
@@ -519,7 +677,7 @@ mod tests {
             strand: Orientation::Reverse,
             runs,
         };
-        let runs = judge(&HVS2, Some(&[8, 5]), &decodes, &[reverse(&through)]);
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &[reverse(&through)]);
         assert_eq!(
             runs.iter().map(|run| run.agreement).collect::<Vec<_>>(),
             ["confirmed", "confirmed"]
@@ -536,11 +694,11 @@ mod tests {
             },
             decodes[0].clone(),
         ];
-        let runs = judge(&HVS2, Some(&[8, 5]), &mixed, &[reverse(&through)]);
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &mixed, &[reverse(&through)]);
         assert_eq!(runs[1].agreement, "not_clear");
         // A read in phase through one run where DNA calls two differs.
         let one = [run('C', 13, true)];
-        let runs = judge(&HVS2, Some(&[8, 5]), &decodes, &[reverse(&one)]);
+        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &[reverse(&one)]);
         assert_eq!(runs[0].agreement, "structure_differs");
     }
 }

@@ -307,6 +307,7 @@ dependencies = [
  "dna-kernel",
  "memchr",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -328,6 +329,7 @@ dependencies = [
  "dna-call",
  "dna-kernel",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

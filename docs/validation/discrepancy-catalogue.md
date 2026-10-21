@@ -151,6 +151,7 @@ which go to the reviewers for notation consistency.
 | DNA calls where the reviewers did not analyse counted as defects | the `unanalysed` class |
 | Indel lengths at `309`, `455`, `463`, and `573` never judged | every measure but the primary judges them |
 | HVS-I and HVS-II C-tract and AC-repeat notation, the deletion trade to `16298`, the insertion shift `16172C` blocked | `dna-normalize` window rules |
+| A substitution one read decides over a dye blob, the reference's own peak its second (`527A`, `530G` at HVS-III reverse read starts; `16326G`, `16328G` at HVS-I reverse read starts), auto-passed | review rules 23: `reference_second` makes it a check; the decision is unchanged |
 
 ## Open and TODO
 
@@ -169,6 +170,7 @@ which go to the reviewers for notation consistency.
 | An edge call whose own signal takes its base off the edge (SRS-CALL-017) can still read a base one position off at `310` (`310C`, 2 samples on dev v5, both inside check items) | Sanger evidence | watch: a recurring false call outside check items, or a rise in samples with an unreviewed difference, would call for a stricter rule |
 | A forward HVS-II read that ends in the `568-573` C run, with its calls before the run vouched for against their end's norms (SRS-CALL-017), lets the consensus decide the run's site from the reverse HVS-III read, which reads it longer: `573.1C`-`573.3C` (2 samples on dev v5, inside check items, both strands showing the longer run past the truth's HVS-III interval end at `573`). Behind an ambiguous bound at `567` this also gave `567C` in 5 samples, which the bound guard removed | Sanger evidence, or the truth | re-check the two samples; a false call outside check items would call for a core rule on a run a read loses phase right after |
 | The limit-of-detection check counts dephased reads' mixtures after a C-tract as a second base | evaluation harness | watch: leaks clustered at `316-320` or `16194-16199` would point to it |
+| A one-read substitution under a four-channel signal spike, roughly eight times its neighbours' peaks (`186T` in one earlier sample: the spike's `T` reads cleanly and the reference `C` vanishes, so no second peak flags it; the other strand's `C` is set aside as weak) | Sanger evidence | TODO, signal work: mark a call inside such a spike as not a base |
 | Heteroplasmy output (IUPAC) | core | deferred; a minimal two-strand caller was measured and gains little (most truth heteroplasmy is not shown on both strands at 10 %) |
 | Sequence-class causes for insertions | evaluation harness | open: insertions go to adjudication |
 
