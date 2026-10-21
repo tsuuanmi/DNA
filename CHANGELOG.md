@@ -682,6 +682,23 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The consensus's two late passes now pass the rules before them
+  (SRS-CONS-009, SRS-CONS-010): after the one-strand insertion contest and
+  the two-strand rule, confirmations beside a site they made differ are
+  withdrawn and everything is decided again, and a length change nothing
+  beside it places is left undecided, a `two_strand` one included.
+  Plugin: `consensus` 23. Measured against `main` af0823d3 with #239 (diff
+  gate PASS on both panels, artefact bench unchanged, non-het unreviewed
+  blocks and clear samples unchanged): the HVS-II 303-316 window of 7
+  samples of development panel v5 (2 current) and 3 of readiness-v2
+  (2 current) is now undecided under a check (`undecided`,
+  `tract_length`), where a `two_strand` length beside an undecided
+  position had been called. Window@HV2 units needing a check: development
+  current 473 → 475, readiness-v2 current 847 → 849. Status changes:
+  development v5 2517874 discordant → concordant (primary, strict, IUPAC;
+  earlier period), 2535940 and LN_26_AB0117 strict concordant → discordant
+  (their `309.1C 309.2C` is now under the check); readiness-v2 2519487
+  discordant → concordant, LN_26_AF2954 strict concordant → discordant.
 - Configuration: `variant_calling.read_end_margin` and
   `consensus.maximum_undecided_gap` must be at most the longest supported
   reference (50,000); larger values, which no read or segment can use,

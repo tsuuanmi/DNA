@@ -293,11 +293,19 @@ fn an_indel_with_an_undecided_neighbour_stays_undecided() {
     shown.runs = vec![run('C', 3, RunEvidence::InPhase)];
     decided.insert(29, (29, decision(None)));
     decided.insert(30, (31, shown));
+    // 39 undecided, 40-41 a CC run the two-strand rule lengthened to CCC:
+    // no read shows its bounds, so the bases beside it must place it, and
+    // build runs this rule again after the two-strand rule.
+    let mut two_strand = decision(Some("CCC"));
+    two_strand.runs = vec![run('C', 3, RunEvidence::TwoStrand)];
+    decided.insert(39, (39, decision(None)));
+    decided.insert(40, (41, two_strand));
     unplace_unbounded_indels(&mut decided, 100);
     assert_eq!(decided[&11].1.state, SiteState::Unresolved);
     assert!(decided[&11].1.value.is_none());
     assert_eq!(decided[&21].1.value.as_deref(), Some(""));
     assert_eq!(decided[&30].1.value.as_deref(), Some("CCC"));
+    assert_eq!(decided[&40].1.state, SiteState::Unresolved);
 }
 
 /// A tract decode of a run of `run` entered at call `call_start`, the
