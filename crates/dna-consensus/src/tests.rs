@@ -398,12 +398,16 @@ fn both_strands_decide_a_window_run_left_as_an_estimate()
     let settle =
         |evidence: RunEvidence| -> std::result::Result<Decision, Box<dyn std::error::Error>> {
             let mut decided = decided_with(evidence);
+            let (reads, call, consensus) =
+                ([&forward, &reverse], config()?, config::tests::config());
             two_strand(
                 &mut decided,
-                &[&forward, &reverse],
-                &window_reference,
-                &config()?,
-                &config::tests::config(),
+                &reads,
+                window_reference.sequence.as_bytes(),
+                consensus.length_rule(),
+                |first, last| {
+                    read_runs_over(&reads, &window_reference, &call, &consensus, first, last)
+                },
             );
             Ok(decided.remove(&10).ok_or("missing stretch")?.1)
         };
