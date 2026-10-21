@@ -167,5 +167,5 @@ current documents it governs. It is not a second specification.
 | [ADR-0088](0088-electrophoretic-spikes.md) | A call inside an electrophoretic spike shows no base | Accepted |
 | [ADR-0089](0089-insertions-need-both-strands.md) | Insertions need both strands | Accepted |
 | [ADR-0090](0090-consensus-over-n-reads.md) | Consensus over N reads per site and strand | Accepted |
-| [ADR-0091](0091-anchor-kept-in-re-expressed-repeats.md) | A re-expressed repeat stretch keeps the read's own anchor base | Proposed |
+| [ADR-0091](0091-anchor-kept-in-re-expressed-repeats.md) | A re-expressed repeat stretch keeps the read's own anchor base | Accepted |
 <!-- docs:end index:decision -->

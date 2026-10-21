@@ -1,6 +1,6 @@
 ---
 id: ADR-0091
-status: proposed
+status: accepted
 date: 2026-10-21
 family: [placement]
 related: [ADR-0029, ADR-0047, ADR-0072, ADR-0090]
