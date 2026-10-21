@@ -83,6 +83,8 @@ dropped or rewritten (SRS-NOM-017).
 deleted `base` in `window`, when the read's represented haplotype has an
 uninterrupted run of `base` of at least `minimum_run` bases at the call,
 counting a deleted base in the run it shortens. A substitution is never
-covered. The shipped human-mtDNA profile declares `hvs1_c_length`
-(`16180-16193`, `C`, `10`): the reviewers do not record the length of the
-uninterrupted HVS-I C run that `16189C` creates.
+covered. The shipped human-mtDNA profile declares `hvs3_c_length`
+(`568-573`, `C`, `6`): the HVS-III C run, whose length the reviewers do not
+record where the reads lose phase there (user decision 2026-10-21); and
+`hvs1_c_length` (`16180-16193`, `C`, `10`): the reviewers do not record the
+length of the uninterrupted HVS-I C run that `16189C` creates.

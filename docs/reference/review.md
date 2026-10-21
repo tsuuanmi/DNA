@@ -346,7 +346,8 @@ exemption lifts the margin (ADR-0076).
   bases, so a run that reaches the bound only by them may be one whose
   length the reviewers record, and stays listed. The reviewers do not record
   that length, so its estimate leaves nothing to assure (on the human
-  profile, the HVS-I C run of ten or more that 16189C creates).
+  profile, the HVS-I C run of ten or more that 16189C creates, and the
+  HVS-III C run at 568-573).
 - `length_unconfirmed` `{runs: [{run, base, called, agreement, reads}]}`
   (rules version 21, SRS-API-020): runs of an anchored repeat window (on the
   human profile, HVS-II `C7 T C5`) that the reads' tract decodes reach

@@ -53,11 +53,23 @@ canonical_haplotype = [
   { position = 16189, base = "C" },
 ]
 
-# Report conventions: calls the lab's reviewers do not record. A covered call
-# is labelled in every notation view and kept; the haplotype is unchanged
-# (SRS-NOM-017). The reviewers do not record the length of the uninterrupted
-# HVS-I C run that 16189C creates (C10 and longer); with T16189 the two short
-# runs are read through, and their length calls stay unlabelled.
+# Report conventions: calls the lab's reviewers do not record, in reference
+# order. A covered call is labelled in every notation view and kept; the
+# haplotype is unchanged (SRS-NOM-017).
+# The HVS-III C run 568-573 (C6 on the reference), where the reads lose
+# phase: the reviewers record no length there and cut the HVS-III range at
+# 573 (user decision 2026-10-21).
+[[nomenclature.conventions]]
+name = "hvs3_c_length"
+label = "not_recorded"
+kind = "run_length"
+window = [568, 573]
+base = "C"
+minimum_run = 6
+
+# The reviewers do not record the length of the uninterrupted HVS-I C run
+# that 16189C creates (C10 and longer); with T16189 the two short runs are
+# read through, and their length calls stay unlabelled.
 [[nomenclature.conventions]]
 name = "hvs1_c_length"
 label = "not_recorded"

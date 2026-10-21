@@ -622,6 +622,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The human-mtDNA profile declares a second report convention,
+  `hvs3_c_length` (`not_recorded`, `run_length`, `568-573`, `C`,
+  `minimum_run` 6; user decision 2026-10-21): where the reads lose phase in
+  the HVS-III C run, the reviewers record no length and end the range at
+  573, so the review's `estimated_length` there is context, not a check
+  (rules unchanged; the profile's SHA-256 changes). Every `573.kC` call is
+  labelled `not_recorded` in each notation view, and the harness compares no
+  C length at 568-573 on either side. On development panel v5 against
+  `main` 3cad8903 the diff gate passes: 153 HVS-III check items go, current
+  clear samples 7,728 → 7,739 (+11), earlier 3,612 → 3,615, no new
+  unreviewed block; 42 samples turn `haplotype_lod` concordant, the
+  `573` blocks of samples whose truth range ends at 573 (re-check or truth
+  `N`). The truth writes the same `573.kC` as DNA in 94 samples, so the
+  label also covers lengths the reviewers record where the run is
+  readable.
+
 - `dna-eval` classes an unreviewed block whose every difference is an
   insertion past the truth's analysed interval (anchored at the last base of
   the truth's own interval, e.g. DNA's `573.1C 573.2C` where the truth's

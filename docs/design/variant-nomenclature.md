@@ -224,6 +224,18 @@ evidence, so it stays unlabelled. On development panel v5 (main `4e6f8d1`), 31
 gives them to the lab as deferred. Two `16193DEL` samples whose `16185T`
 splits the run (C8) stay unlabelled.
 
+It also declares `hvs3_c_length` (`568-573`, C6 on the reference,
+`minimum_run` 6; user decision 2026-10-21). Where the reads lose phase in
+the HVS-III C run, the reviewers record no length and end the HVS-III range
+at 573 (149 of 152 such review items on development panel v5, against 2.5 %
+of all samples), so DNA's estimate there is context, not a check. The
+mechanism cannot tell a readable run from an unreadable one: a run's length
+on the reference strand is C6 in both, so every C insertion at `573` is
+labelled, and the harness compares none. Where the range runs past 573 the
+reviewers do record the length: on panel v5 at `main` 3cad8903, DNA calls a
+`573.kC` in 141 samples, the truth writes the same in 94, and the other 47
+end their range at 573.
+
 ## EMPOP query
 
 `dna-empop`'s `export` builds the offline EMPOP query of `notation`

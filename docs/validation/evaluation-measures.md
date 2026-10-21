@@ -20,7 +20,10 @@ it there, is left out when that side's haplotype with its substitutions only
 has a run of the base of at least `minimum_run` at the call. The reviewers do
 not write such a length (`hvs1_c_length`: 1.1 % of the truth's samples with
 `16189C` carry an indel at 16180-16195), so DNA's length and the reference
-length the truth keeps are no difference. Counting the run without either
+length the truth keeps are no difference. `hvs3_c_length` leaves the HVS-III
+C run at 568-573 out the same way, where the truth does record a length
+when its range runs past 573 (94 of the 141 development panel v5 samples in
+which DNA calls one; the other 47 end the range at 573). Counting the run without either
 side's insertions and deletions keeps an over-estimated length from carrying
 a run across the minimum.
 
