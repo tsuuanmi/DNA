@@ -264,11 +264,14 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 31)
+## Labels (rules version 33)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
-strand is its placement orientation. A read's call is judged with the core's
-trust in it (`SampleAnalysis::trust`): its mask, whether it is trusted
+strand is its placement orientation. A difference *rests on one strand* when
+every supporting read lies on one strand, however many ([[ADR-0090]]): reads
+of one strand share its slips, edges and dye blobs, so their number does not
+assure what they show. A read's call is judged with the core's trust in it
+(`SampleAnalysis::trust`): its mask, whether it is trusted
 (informative and outside the read-end margin), and whether the bounded-run
 exemption lifts the margin (ADR-0076).
 
@@ -338,14 +341,15 @@ exemption lifts the margin (ADR-0076).
   a difference from the decision, against 92 % heteroplasmies among the
   flags whose qualifying reads all show a `second_template` peak.
 - `reference_second` `{position, read, strand, share, threshold, calls?}`
-  (rules version 25): at a difference that rests on one read (`one_read`), a
-  position where that read reads another base than the reference while its
+  (rules version 25): at a difference that rests on one strand, a position
+  where a supporting read reads another base than the reference while its
   call shows the reference base as its second peak, with a share above the
   call's second-channel threshold (SRS-CALL-020, as for
-  `possible_heteroplasmy`). One label per such position. Neither a
+  `possible_heteroplasmy`), one label per such position and supporting read
+  (rules version 33; before, only at exactly one read). Neither a
   neighbour's base nor the peak's cause (SRS-CALL-021) exempts it: a dye
   blob is wider than one call, and its own shape labels the real peak, not
-  the blob. One read cannot tell a base from a broad peak of another dye
+  the blob. One strand cannot tell a base from a broad peak of another dye
   over the reference's, nor from a mixture, so the item is a check. On
   development panel v5, 28 such positions outside checks were truth
   reference (most at a reverse read's start, `527A`, `530G`, `16326G`,
@@ -369,17 +373,19 @@ exemption lifts the margin (ADR-0076).
 - `long_run` `{runs: [{base, length, reference_length, length_evidence}]}`:
   at a decided site whose call holds the same runs as the reference, a run at
   least `review.run_growth` bases longer than its reference run whose length
-  rests on an anchored end (`length_evidence` `anchored_end`) or on a single
-  supporting read (rules version 7). Both strands showing the length in
-  phase assure it, however long. `length_evidence` is `null` when the site
-  was decided position by position. On current development data such
-  lengths were 89 % wrong (an anchored end or one read counts one base too
+  rests on an anchored end (`length_evidence` `anchored_end`) or on one
+  strand (rules version 7; one read before rules version 33). Both strands
+  showing the length in phase assure it, however long. `length_evidence` is
+  `null` when the site was decided position by position. On current
+  development data such lengths were 89 % wrong (an anchored end or one read counts one base too
   many in a long run), against 2 % for lengths both strands showed in phase.
-- `edge_deletion` `{read}`: a decided deletion that rests on a single read
-  and lies within `review.deletion_zone` positions of a reportable region's
-  first or last position, where a read's own edge loses or doubles a base
-  (rules version 7). On current development data such deletions were 88 %
-  wrong, against 0.2 % inside the regions and 0.8 % with both strands. Rules
+- `edge_deletion` `{strand, reads}`: a decided deletion that rests on one
+  strand (every supporting read listed) and lies within
+  `review.deletion_zone` positions of a reportable region's first or last
+  position, where a read's own edge loses or doubles a base (rules version
+  7; one read, `{read}`, before rules version 33). On current development
+  data such deletions were 88 % wrong, against 0.2 % inside the regions and
+  0.8 % with both strands. Rules
   version 20 widened the zone with `review.edge_zone`; rules version 22 gives
   it its own key at its earlier width, since the wider zone flagged the
   common true `106-111DEL`, read by one HVS-II forward read 40 to 70 calls
@@ -391,22 +397,24 @@ exemption lifts the margin (ADR-0076).
   development panel v5, three such differences (an insertion at 111 in two
   samples, a shift at 102 in one) were DNA errors that a check at the cut
   edge had covered before.
-- `run_deletion` `{read}`: a decided site that rests on a single read whose
-  call is at least `review.run_growth` bases shorter than its reference,
-  where the reference holds a run of at least `review.phase_run` equal bases
-  (rules version 13). A read that loses or compresses part of a run aligns it
-  as a long deletion, and one read cannot assure that. On current
+- `run_deletion` `{strand, reads}`: a decided site that rests on one strand
+  whose call is at least `review.run_growth` bases shorter than its
+  reference, where the reference holds a run of at least `review.phase_run`
+  equal bases (rules version 13; one read, `{read}`, before rules version
+  32). A read that loses or compresses part of a run aligns it as a long
+  deletion, and one strand cannot assure that. On current
   development data it made 6 sites checks: the 4 auto-passed wrong ones (a
   compressed HVS-II run, and a composition taken from one read's end) and 2
   true deletions.
-- `run_indel` `{read}` (rules version 28): a decided site outside every
-  nomenclature window and length tract that rests on a single read and
-  changes the length of a reference run of at least `review.phase_run`
-  equal bases (inserts or deletes copies of the run's base, the runs' bases
-  unchanged: `291DEL` in `AAAAAA`). A read slips on such a run, and the
-  other strand often reads it only out of phase after a C tract, so one read
-  cannot assure its length; before, such a site was reviewed only when a
-  nearby length check happened to cover it (LN_26_AE3814 on readiness-v2).
+- `run_indel` `{strand, reads}` (rules version 28; one read, `{read}`,
+  before rules version 33): a decided site outside every nomenclature
+  window and length tract that rests on one strand and changes the length
+  of a reference run of at least `review.phase_run` equal bases (inserts or
+  deletes copies of the run's base, the runs' bases unchanged: `291DEL` in
+  `AAAAAA`). A read slips on such a run, and the other strand often reads
+  it only out of phase after a C tract, so one strand cannot assure its
+  length; before, such a site was reviewed only when a nearby length check
+  happened to cover it (LN_26_AE3814 on readiness-v2).
   Shorter runs are left out: one-read `249DEL` (`AA` to `A`) is a common
   true deletion, 814 such items on readiness-v2 without a truth difference.
 - `one_strand_insertion` `{strand, reads, other, from_start}` (rules

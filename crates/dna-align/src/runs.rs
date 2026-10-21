@@ -1,12 +1,16 @@
-//! Run-structure re-expression of masked repeat stretches (ADR-0072).
+//! Run-structure re-expression of repeat stretches (ADR-0072).
 //!
 //! Masked calls keep anchoring the optimal alignment, but their mixed signal
 //! can make it split one run-length change into a substitution next to an
-//! insertion, or merge two of them into one gap. Where the read's calls spell
-//! the reference's runs in the same order, every run only longer or every run
-//! only shorter, and a masked call lies among them, the selected placement is
-//! re-expressed as one length edit at the 3' end of each changed run. The
-//! placement, its score, and every column outside such a stretch are kept.
+//! insertion, or merge two of them into one gap. A clean read is merged the
+//! same way whenever a gap opening costs more than a mismatch and a lost
+//! match: two run-length changes become one gap beside a substitution. Where
+//! the read's calls spell the reference's runs in the same order, every run
+//! only longer or every run only shorter, and a masked call or a substitution
+//! lies among them, the selected placement is re-expressed as one length edit
+//! at the 3' end of each changed run, so the read shows every reference base
+//! it carries. The placement, its score, and every column outside such a
+//! stretch are kept.
 
 use crate::traceback::{self, RawAlignment, RawColumn};
 use dna_kernel::model::reference::Reference;
@@ -135,8 +139,10 @@ fn stretches(columns: &[RawColumn], reference: &Reference, max_stretch: usize) -
         let Some(stretch) = anchored(columns, reference, &column_of, low, high, max_stretch) else {
             continue;
         };
+        // Stretches whose anchors are each other's first and last columns
+        // share no column between their anchors: each stays its own.
         match found.last_mut() {
-            Some(previous) if stretch.left < previous.right => {
+            Some(previous) if stretch.left + 1 < previous.right => {
                 previous.right = previous.right.max(stretch.right);
                 previous.last = previous.last.max(stretch.last);
             }
@@ -200,8 +206,72 @@ fn runs(symbols: impl Iterator<Item = char>) -> Vec<(char, usize)> {
     runs
 }
 
-/// The stretch as one length edit at the 3' end of each changed run, or
-/// `None` when it does not qualify or already reads that way.
+/// A stretch's run-length changes, read run against reference run. Where one
+/// run is shorter and its neighbour longer, the boundary between them moves:
+/// the shorter run's positions beside it are substitutions by the longer
+/// run's base (`16182C 16183C`). What remains of each run's change is one
+/// length edit at its 3' end.
+struct Edits {
+    /// Per boundary between runs `i` and `i + 1`: how far read run `i`
+    /// reaches into reference run `i + 1` (positive), or read run `i + 1`
+    /// back into reference run `i` (negative).
+    shifts: Vec<isize>,
+    /// Per run: the inserted (positive) or deleted (negative) bases left
+    /// after the boundary moves.
+    residual: Vec<isize>,
+}
+
+impl Edits {
+    /// Moves boundaries from 5' to 3', each as far as both of its runs'
+    /// changes allow. `None` when the remaining changes still both lengthen
+    /// and shorten runs: substitutions elsewhere explain such a stretch.
+    fn of(read: &[usize], expected: &[usize]) -> Option<Self> {
+        let mut residual = read
+            .iter()
+            .zip(expected)
+            .map(|(&observed, &wanted)| {
+                Some(isize::try_from(observed).ok()? - isize::try_from(wanted).ok()?)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut shifts = vec![0; residual.len().saturating_sub(1)];
+        for boundary in 0..shifts.len() {
+            let (left, right) = (residual[boundary], residual[boundary + 1]);
+            if left.signum() * right.signum() < 0 {
+                let moved = left.abs().min(right.abs());
+                shifts[boundary] = left.signum() * moved;
+                residual[boundary] -= left.signum() * moved;
+                residual[boundary + 1] -= right.signum() * moved;
+            }
+        }
+        let longer = residual.iter().any(|&change| change > 0);
+        let shorter = residual.iter().any(|&change| change < 0);
+        (!(longer && shorter)).then_some(Self { shifts, residual })
+    }
+
+    /// Reference positions at the 5' end of `run` the previous read run reads.
+    fn head(&self, run: usize) -> usize {
+        run.checked_sub(1)
+            .map_or(0, |boundary| self.shifts[boundary].max(0).unsigned_abs())
+    }
+
+    /// Reference positions at the 3' end of `run` the next read run reads.
+    fn tail(&self, run: usize) -> usize {
+        self.shifts
+            .get(run)
+            .map_or(0, |&shift| shift.min(0).unsigned_abs())
+    }
+
+    /// Reference positions of the next run that read run `run` reads.
+    fn reach(&self, run: usize) -> usize {
+        self.shifts
+            .get(run)
+            .map_or(0, |&shift| shift.max(0).unsigned_abs())
+    }
+}
+
+/// The stretch as its moved run boundaries and one length edit at the 3' end
+/// of each changed run, or `None` when it does not qualify or already reads
+/// that way.
 fn rebuild(
     inside: &[RawColumn],
     stretch: Stretch,
@@ -215,7 +285,6 @@ fn rebuild(
     if !calls
         .iter()
         .all(|(_, call)| matches!(call, 'A' | 'C' | 'G' | 'T'))
-        || !calls.iter().any(|(index, _)| masked(*index))
     {
         return None;
     }
@@ -230,39 +299,61 @@ fn rebuild(
     {
         return None;
     }
-    let longer = read
+    // Where every run whose length changes is a repeat of the reference (two
+    // bases or more), a substitution beside a gap is a run-length change the
+    // affine optimum merged into it. A single base the read repeats is no
+    // slipped run: there the substitution may be the read's own error.
+    let substituted = inside.iter().any(|column| {
+        column.query_index.is_some()
+            && column.reference_index.is_some()
+            && column.query_base != column.reference_base
+    });
+    let repeats = read
         .iter()
         .zip(&expected)
-        .any(|(observed, wanted)| observed.1 > wanted.1);
-    let shorter = read
-        .iter()
-        .zip(&expected)
-        .any(|(observed, wanted)| observed.1 < wanted.1);
-    if longer == shorter {
+        .all(|(observed, wanted)| observed.1 == wanted.1 || wanted.1 >= 2);
+    if !((substituted && repeats) || calls.iter().any(|(index, _)| masked(*index))) {
         return None;
     }
+    let lengths = |runs: &[(char, usize)]| runs.iter().map(|run| run.1).collect::<Vec<_>>();
+    let edits = Edits::of(&lengths(&read), &lengths(&expected))?;
+    let symbols = read.iter().map(|run| run.0).collect::<Vec<_>>();
     let mut rebuilt = Vec::with_capacity(inside.len());
-    let mut call = calls.iter();
+    let mut call = calls.iter().map(|(index, _)| *index);
     let mut position = stretch.first;
-    for (&(symbol, observed), &(_, wanted)) in read.iter().zip(&expected) {
-        for paired in 0..observed.max(wanted) {
-            let query_index = (paired < observed)
-                .then(|| call.next().map(|(index, _)| *index))
-                .flatten();
-            let reference_index = (paired < wanted).then_some(position);
-            if reference_index.is_some() {
-                position += 1;
-            }
-            rebuilt.push(RawColumn {
-                query_base: if query_index.is_some() { symbol } else { '-' },
-                reference_base: if reference_index.is_some() {
-                    symbol
-                } else {
-                    '-'
-                },
-                query_index,
-                reference_index,
-            });
+    let mut push = |query: Option<char>, wanted: Option<char>| {
+        let query_index = query.and_then(|_| call.next());
+        let reference_index = wanted.map(|_| {
+            position += 1;
+            position - 1
+        });
+        rebuilt.push(RawColumn {
+            query_base: query.unwrap_or('-'),
+            reference_base: wanted.unwrap_or('-'),
+            query_index,
+            reference_index,
+        });
+    };
+    for (run, &symbol) in symbols.iter().enumerate() {
+        let wanted = expected[run].1;
+        let (head, tail) = (edits.head(run), edits.tail(run));
+        let residual = edits.residual[run];
+        if head > 0 {
+            // The previous read run reaches into this one, then takes its
+            // own insertion at its 3' end.
+            let previous = symbols[run - 1];
+            (0..head).for_each(|_| push(Some(previous), Some(symbol)));
+            (0..edits.residual[run - 1].max(0)).for_each(|_| push(Some(previous), None));
+        }
+        let core = wanted - head - tail;
+        let deleted = residual.min(0).unsigned_abs();
+        (0..core - deleted).for_each(|_| push(Some(symbol), Some(symbol)));
+        (0..deleted).for_each(|_| push(None, Some(symbol)));
+        if tail > 0 {
+            let next = symbols[run + 1];
+            (0..tail).for_each(|_| push(Some(next), Some(symbol)));
+        } else if edits.reach(run) == 0 {
+            (0..residual.max(0)).for_each(|_| push(Some(symbol), None));
         }
     }
     let same = rebuilt.len() == inside.len()
@@ -373,26 +464,100 @@ mod tests {
     }
 
     #[test]
-    fn keeps_stretches_without_a_masked_call() {
-        let raw = reexpressed("GACCCCCCCT-CCCCC-GTA", "GACCCCCCCCTCCCCCCGTA", &[]);
+    fn rewrites_an_unmasked_merged_gap_beside_a_substitution() {
+        // A clean C9 T C6: one gap opening saved for a substitution, the 8th
+        // C on T, the 9th on C, and `TCC` inserted. The read shows the T, so the T
+        // stays matched.
+        let raw = reexpressed("GACCCCCCCTC---CCCCGTA", "GACCCCCCCCCTCCCCCCGTA", &[]);
         assert_eq!(
             rows(&raw),
             (
-                "GACCCCCCCT-CCCCC-GTA".to_owned(),
-                "GACCCCCCCCTCCCCCCGTA".to_owned()
+                "GACCCCCCC--TCCCCC-GTA".to_owned(),
+                "GACCCCCCCCCTCCCCCCGTA".to_owned()
             )
+        );
+        assert_eq!(raw.metrics.mismatches, 0);
+        assert_eq!(raw.metrics.gap_opens, 2);
+    }
+
+    #[test]
+    fn keeps_an_unmasked_substitution_beside_a_single_base_run() {
+        // An AC repeat read `ACACAC CC AC CG` where the reference reads
+        // `ACACAC AC CG`: one C run of the reference grows from 1 to 3. A
+        // single C is no slipped run, so the read's own `C` over `A` and its
+        // `AC` insertion stay; masked, the stretch is re-expressed.
+        let raw = reexpressed("GCACACACAC--CGC", "GCACACACCCACCGC", &[]);
+        assert_eq!(
+            rows(&raw),
+            ("GCACACACAC--CGC".to_owned(), "GCACACACCCACCGC".to_owned())
+        );
+        let masked = reexpressed("GCACACACAC--CGC", "GCACACACCCACCGC", &[8]);
+        assert_eq!(
+            rows(&masked),
+            ("GCACACAC--ACCGC".to_owned(), "GCACACACCCACCGC".to_owned())
         );
     }
 
     #[test]
-    fn keeps_a_changed_run_structure_or_mixed_length_changes() {
-        // A substitution inside the second run gives the read another run.
-        let substituted = reexpressed("GACCCCCCCTCC-CCCGTA", "GACCCCCCCTCCGCCCGTA", &[12]);
-        assert_eq!(substituted.metrics.gap_opens, 1);
-        assert_eq!(rows(&substituted).0, "GACCCCCCCTCC-CCCGTA");
-        // One run shorter and the next longer: substitutions explain it too.
-        let shifted = reexpressed("GAAAACC-CCCTG", "GAACCCCCCCCTG", &[4]);
-        assert_eq!(rows(&shifted).0, "GAAAACC-CCCTG");
+    fn keeps_an_unmasked_stretch_without_a_substitution() {
+        // One merged two-base gap without a substitution already reads as
+        // length changes only; a masked call alone re-expresses it.
+        let raw = reexpressed("GACC--TGA", "GACCCTTGA", &[]);
+        assert_eq!(rows(&raw), ("GACC--TGA".to_owned(), "GACCCTTGA".to_owned()));
+        let masked = reexpressed("GACC--TGA", "GACCCTTGA", &[4]);
+        assert_eq!(
+            rows(&masked),
+            ("GACC-T-GA".to_owned(), "GACCCTTGA".to_owned())
+        );
+    }
+
+    #[test]
+    fn moves_a_run_boundary_by_substitution_then_edits_lengths() {
+        for masked in [&[4][..], &[]] {
+            // A2 C8 against A4 C5: the C run starts two bases early, then
+            // gains one base at its 3' end.
+            let shifted = reexpressed("GAAAACC-CCCTG", "GAACCCCCCCCTG", masked);
+            assert_eq!(
+                rows(&shifted),
+                ("GAAAACCCCC-TG".to_owned(), "GAACCCCCCCCTG".to_owned())
+            );
+        }
+        // A read whose last in-phase call reads the C run one base early
+        // (A2 C10 T C6 against A3 C7 T C5): the boundary moves by one
+        // substitution and each C run gains its bases at its 3' end, so the
+        // T stays matched.
+        let raw = reexpressed(
+            "GCACCAAACCCCCCCTC---CCCCGCT",
+            "GCACCAACCCCCCCCCCTCCCCCCGCT",
+            &[],
+        );
+        assert_eq!(
+            rows(&raw),
+            (
+                "GCACCAAACCCCCCC--TCCCCC-GCT".to_owned(),
+                "GCACCAACCCCCCCCCCTCCCCCCGCT".to_owned()
+            )
+        );
+        assert_eq!(raw.metrics.mismatches, 1);
+    }
+
+    #[test]
+    fn keeps_a_changed_run_structure_or_unpaired_mixed_changes() {
+        for masked in [&[12][..], &[]] {
+            // A substitution inside the second run gives the read another run.
+            let substituted = reexpressed("GACCCCCCCTCC-CCCGTA", "GACCCCCCCTCCGCCCGTA", masked);
+            assert_eq!(substituted.metrics.gap_opens, 1);
+            assert_eq!(rows(&substituted).0, "GACCCCCCCTCC-CCCGTA");
+        }
+        for masked in [&[3][..], &[]] {
+            // A shorter and T longer with C unchanged between them: no
+            // boundary pairs the two changes, so the substitutions stay.
+            let shifted = reexpressed("GAAACCCTTTG", "GAACCCTTTTG", masked);
+            assert_eq!(
+                rows(&shifted),
+                ("GAAACCCTTTG".to_owned(), "GAACCCTTTTG".to_owned())
+            );
+        }
     }
 
     #[test]
