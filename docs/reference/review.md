@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084]
+decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084, ADR-0089]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -181,7 +181,8 @@ the clipped columns, what most of its supporting reads show there). It has:
   (`strands_disagree`, `read_disagrees`, `possible_heteroplasmy` unless
   `explained`, `reference_second`, `estimated_length`, `length_unconfirmed`, `undecided`,
   `not_called`, `long_run`, `edge_deletion`, `run_deletion`, `run_indel`,
-  `beside_not_analysed`, `not_covered`), whatever its calls; otherwise `variant`: it
+  `one_strand_insertion`, `beside_not_analysed`, `not_covered`), whatever its
+  calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference; otherwise `note` (rules version 19): it holds an `explained`
@@ -255,11 +256,11 @@ and `5` for a variant without a label. Items are ordered by priority, then
 |---:|---|
 | 0 | `strands_disagree`, `read_disagrees` |
 | 1 | `possible_heteroplasmy`, `reference_second` |
-| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `run_deletion`, `run_indel`, `undecided` |
+| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `one_strand_insertion`, `run_deletion`, `run_indel`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 28)
+## Labels (rules version 29)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A read's call is judged with the core's
@@ -394,6 +395,24 @@ exemption lifts the margin (ADR-0076).
   nearby length check happened to cover it (LN_26_AE3814 on readiness-v2).
   Shorter runs are left out: one-read `249DEL` (`AA` to `A`) is a common
   true deletion, 814 such items on readiness-v2 without a truth difference.
+- `one_strand_insertion` `{strand, reads, other, from_start}` (rules
+  version 29, [[ADR-0089]]): a decided insertion (a call with an insertion
+  ordinal in the item, or without notation a decision longer than its
+  reference) outside every nomenclature window and length tract, whose
+  supporting reads all lie on `strand`, while no read of the other strand
+  reads the decided sequence over the site. `other` is that strand's best
+  view of the site, by the consensus's own reading (SRS-CONS-015):
+  `not_covered` (no read of it reaches the site), `read_end` (a read of it
+  ends in the site), `unresolved` (a read of it shows no base there), or
+  `reads_through` (it reads the site through without the insertion, which
+  the consensus leaves to the run rules on a long repeat; on a short one it
+  contests the site instead). `from_start` is the fewest calls from a
+  supporting read's first call to its first call over the site. One strand
+  cannot assure an insertion: before, `82.1A` and `93.1A` at the HVS-II
+  forward start and `16025.1T` at the HVS-I forward start passed on one
+  read and were wrong. Inside the windows and tracts the length labels
+  judge the runs, and a one-strand insertion there was wrong in 3 of 1,037
+  passing sites on current development data, so it gets no label.
 - `one_read` `{read}`: a variant site with exactly one supporting read.
 - `one_strand` `{strand, reads}`: a variant site whose supporting reads all
   lie on one strand. It describes the support of the call, so it can come

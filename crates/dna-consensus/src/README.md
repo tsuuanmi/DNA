@@ -8,7 +8,10 @@ sequence do a sample's reads agree on, stretch by stretch? It depends on
 
 Public surface: `build`, `read_runs_over` (each read's runs over a reference
 stretch as the consensus reads them, with whether each is in phase: the
-review's one source of in-phase run lengths, SRS-API-020), [length](length.rs)
+review's one source of in-phase run lengths, SRS-API-020),
+`insertion_views` and `InsertionView` (each read's view of a site decided
+with an insertion, the review's one source for `one_strand_insertion`,
+SRS-CONS-015), [length](length.rs)
 (the two-strand run-length rule), [noise](noise.rs) (a run's length noise
 statistics and the calibration of τ by them), the `consensus`
 plugin descriptor (it requires `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
@@ -50,6 +53,12 @@ behind every non-trivial decision.
   decodes (direct, derived by NNLS deconvolution of the total, or in phase),
   and `decide`, which takes a length only when both strands put it on top
   beyond their own replicate noise.
+- `insertion.rs`: insertions both strands must show (SRS-CONS-015,
+  ADR-0089): each read's view of a site decided with an insertion
+  (`not_covered`, `read_end`, `unresolved`, `reads_through`, `shows`), the
+  short-repeat test, and the pass that decides as the reference,
+  `contested`, a short insertion resting on one strand that a read of the
+  other strand reads through without.
 - `noise.rs`: a run's own length noise (PROP-0014, SRS-CONS-014):
   `cross_strand`, a sample's pair of one run's views; `LengthStatistics`,
   additive per-run pairs, `Σz²`, and histogram, with `with` and `without`

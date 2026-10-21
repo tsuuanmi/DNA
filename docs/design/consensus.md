@@ -1,6 +1,6 @@
 ---
 implements: [SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083, ADR-0085]
+decided-by: [ADR-0071, ADR-0073, ADR-0074, ADR-0080, ADR-0083, ADR-0085, ADR-0089]
 covers:
   - crates/dna-consensus/src/
   - crates/dna-consensus/src/model/consensus.rs
@@ -246,6 +246,34 @@ stretch's start, and a clean end likewise.
 
 The composition decision is merged into the result. Reads that disagree on it
 oppose the stretch, and a contested composition contests the stretch.
+
+**Insertions need both strands** ([[ADR-0089]], SRS-CONS-015). Once the
+stretches and positions are decided, every site called with a short
+insertion is checked against the other strand. A short insertion is the
+site's reference with one block of bases inserted, where:
+- the site holds no reference homopolymer of `consensus.seeded_run` bases;
+- the block adds to a tandem repeat of its own unit with fewer than that
+  many reference copies (`TTC` to `TTTC` at 16024-16026: two copies of `T`).
+
+When all its clean support lies on one strand, each read of the other
+strand is viewed over the site and both neighbouring positions
+(`InsertionView`):
+
+| View | The read |
+|---|---|
+| `not_covered` | covers no position of the site |
+| `read_end` | covers part of it, or not both neighbours |
+| `unresolved` | has a call there that shows no base (`Nothing` trust) |
+| `reads_through` | shows a base at every call (`Anchoring` or above), not the call |
+| `shows` | shows a base at every call, and reads the call |
+
+If some read `reads_through` and none `shows`, the site is decided as the
+reference, `contested`. The reads that read it through support it, and the
+insertion's reads oppose it. A dephased or vetoed read cannot decide a site
+cleanly, but it still shows whether the block is there on a short repeat.
+On a long run or repeat it often reads a tract out of phase, so the
+run-structure rules keep those lengths. The review reads the same views for
+its `one_strand_insertion` label (`insertion_views`).
 
 **3c. Position by position.** This uses reads without a clean indel inside
 the stretch.
