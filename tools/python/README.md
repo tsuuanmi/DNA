@@ -13,6 +13,10 @@ Orchestrating DNA runs, converting results, and comparing them with other
 sources belong to downstream pipelines or to the Rust evaluation harness
 `dna-eval`, not here (ADR-0065, ADR-0066, ADR-0075).
 
+Research code lives under `research/<topic>/`, one self-contained `uv` script (PEP 723)
+per step, with its own README. It is outside the CI checks and the lockfile below
+(for example [the trace simulator](research/trace_simulator/README.md)).
+
 Python code here must not become a runtime dependency of the `dna` binary or be placed under the Rust production `src/` or `crates/*/src/` trees.
 
 ## Environment

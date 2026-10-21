@@ -36,6 +36,7 @@ Open:
 - [C-tract length heteroplasmy](length-heteroplasmy/README.md) — **Active**; How forensic practice records C-tract length heteroplasmy, how precise DNA's tract-length review items are per evidence state, and whether decode noise should be calibrated per laboratory batch.
 - [when may a region read by one strand pass?](one-strand/README.md) — **Active**; Evidence for the open question on whether a single strand can pass a region.
 - [how other systems decide pass, review, and rerun](review-triage/README.md) — **Active**; Evidence supporting the review triage proposal.
+- [trace simulator and tract-decode benchmark](trace-simulator/README.md) — **Active**; A physical forward model of the electropherogram, fitted on real reads, and a simulator that benchmarks the tract decoder against known length mixtures.
 <!-- docs:end index:research:open -->
 
 Concluded:
