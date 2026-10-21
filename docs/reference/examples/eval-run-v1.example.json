@@ -347,6 +347,7 @@
     "review_window": 10,
     "current_since": "2026-01",
     "run_signal": "batch",
+    "run_signal_batch_reads": 40,
     "recheck": {
       "path": "/data/recheck-blocks.tsv",
       "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",

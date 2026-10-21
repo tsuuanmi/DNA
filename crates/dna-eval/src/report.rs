@@ -18,7 +18,7 @@ use crate::compare::{
 use crate::estimate::{self, Estimate, Observation};
 use crate::haplotype;
 use crate::lod;
-use crate::manifest::Sample;
+use crate::manifest::{Month, Sample};
 use crate::recheck::Recheck;
 use crate::rundir;
 use crate::runner::{Empop, Outcome};
@@ -317,7 +317,7 @@ pub(crate) struct Report<'a> {
     review: Review,
     /// The first batch month (`YYYY-MM`) of the current data, whose slice
     /// the summary reports first.
-    current_since: Option<String>,
+    current_since: Option<Month>,
 }
 
 /// Default window of the review workload, in positions.
@@ -443,20 +443,15 @@ impl<'a> Report<'a> {
 
     /// The same report with the samples whose batch date is in or after
     /// `since` (`YYYY-MM`) reported first as the current data.
-    pub(crate) fn with_current_since(mut self, since: Option<String>) -> Self {
+    pub(crate) fn with_current_since(mut self, since: Option<Month>) -> Self {
         self.current_since = since;
         self
     }
 
     /// Whether a row belongs to the current data.
     fn current(&self, row: &Row<'_>) -> bool {
-        self.current_since.as_deref().is_some_and(|since| {
-            row.sample
-                .batch_date
-                .as_deref()
-                .and_then(|date| date.get(..7))
-                .is_some_and(|month| month >= since)
-        })
+        self.current_since
+            .is_some_and(|since| row.sample.batch_month.is_some_and(|month| month >= since))
     }
 
     /// The same report with the review workload over windows of `window`
@@ -970,16 +965,8 @@ impl<'a> Report<'a> {
         for (row, workload) in &counted {
             let month = row
                 .sample
-                .batch_date
-                .as_deref()
-                .and_then(|date| date.get(..7))
-                .filter(|month| {
-                    month.len() == 7
-                        && month.as_bytes()[4] == b'-'
-                        && month.bytes().filter(u8::is_ascii_digit).count() == 6
-                })
-                .unwrap_or("unknown")
-                .to_owned();
+                .batch_month
+                .map_or_else(|| "unknown".to_owned(), |month| month.to_string());
             let entry = months.entry(month).or_default();
             entry.0 += 1;
             entry.1 += usize::from(!workload.unreviewed.is_empty());

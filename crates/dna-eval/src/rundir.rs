@@ -20,7 +20,7 @@ use crate::components;
 use crate::error::{DiffError, Error, Result};
 use crate::estimate;
 use crate::lod;
-use crate::manifest::Sample;
+use crate::manifest::{Month, Sample};
 use crate::runner::{Contexts, Identity, Outcome};
 use crate::tracts;
 use crate::truth::TruthSample;
@@ -76,10 +76,14 @@ pub(crate) struct RunHeader {
     pub(crate) review_window: i64,
     /// First batch month of the current data, when given.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) current_since: Option<String>,
+    pub(crate) current_since: Option<Month>,
     /// The run signal grouping, when the reviews were judged against one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) run_signal: Option<String>,
+    pub(crate) run_signal: Option<SignalGrouping>,
+    /// The fewest reads of a batch for its own run signal, with
+    /// `run_signal` `batch`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) run_signal_batch_reads: Option<usize>,
     /// The forced-window list the workload also counts as reviewed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) forced_windows: Option<PathBuf>,
@@ -107,6 +111,16 @@ pub(crate) struct RunHeader {
     pub(crate) seconds: Seconds,
 }
 
+/// How the samples are grouped for their run signal (`--run-signal`,
+/// PROP-0009): by batch, falling back to the batch month for a small batch,
+/// or by month alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum SignalGrouping {
+    Batch,
+    Month,
+}
+
 /// The harness's measurement constants, recorded so that a run's measures can
 /// be reproduced from its outputs. Shares are in thousandths.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -129,11 +143,14 @@ impl Constants {
     }
 }
 
-/// The run contexts' directory and how many of the panel's batches had one.
+/// The run contexts' directory, how many of the panel's batches had one,
+/// and the digest of the contexts read: the SHA-256 of one
+/// `<batch>\t<file SHA-256>` line per context, in batch order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct RunContextHeader {
     pub(crate) directory: PathBuf,
     pub(crate) batches: usize,
+    pub(crate) sha256: String,
 }
 
 /// The re-check list: its path, its SHA-256, and its rows.
@@ -335,17 +352,15 @@ pub(crate) fn context_coverage(
     contexts: &Contexts,
 ) -> String {
     let mut months = BTreeMap::<String, [usize; 8]>::new();
-    let mut counted = BTreeSet::<(&str, &str)>::new();
+    let mut counted = BTreeSet::<(String, &str)>::new();
     for (sample, outcome) in samples.iter().zip(outcomes) {
         let month = sample
-            .batch_date
-            .as_deref()
-            .and_then(|date| date.get(..7))
-            .unwrap_or("unknown");
-        for key in [month, "all"] {
+            .batch_month
+            .map_or_else(|| "unknown".to_owned(), |month| month.to_string());
+        for key in [month.as_str(), "all"] {
             let counts = months.entry(key.to_owned()).or_default();
             if let Some(context) = contexts.get(&sample.batch)
-                && counted.insert((key, &sample.batch))
+                && counted.insert((key.to_owned(), &sample.batch))
             {
                 counts[5] += 1;
                 counts[6] += context.length.runs[0].pairs;
@@ -538,8 +553,9 @@ pub(crate) mod tests {
                 profile_sha256: digest,
             }],
             review_window: report::REVIEW_WINDOW,
-            current_since: Some("2026-01".into()),
-            run_signal: Some("batch".into()),
+            current_since: "2026-01".parse().ok(),
+            run_signal: Some(SignalGrouping::Batch),
+            run_signal_batch_reads: Some(40),
             forced_windows: Some(PathBuf::from("/forced.txt")),
             recheck: Some(RecheckHeader {
                 path: PathBuf::from("/recheck.tsv"),
@@ -613,6 +629,7 @@ pub(crate) mod tests {
             identities: Vec::new(),
             current_since: None,
             run_signal: None,
+            run_signal_batch_reads: None,
             forced_windows: None,
             recheck: None,
             workload: WorkloadHeader {
@@ -625,6 +642,7 @@ pub(crate) mod tests {
         assert_eq!(serde_json::from_str::<RunHeader>(&bare.text()?)?, bare);
         crate::contract::check_table("checks.tsv", CHECKS_HEADER)?;
         crate::contract::check_table("notes.tsv", NOTES_HEADER)?;
+        crate::contract::check_table("run_context.tsv", RUN_CONTEXT_HEADER)?;
         crate::contract::check_table("signals.tsv", SIGNALS_HEADER)
     }
 

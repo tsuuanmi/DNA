@@ -682,6 +682,19 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval` reads batch months once, as a validated `Month`: a manifest's
+  `batch_date` must be `YYYY-MM-DD` or empty (unknown), and
+  `--current-since` must be `YYYY-MM`, checked when the command line is
+  parsed. Before, five places cut the month their own way, and an empty date
+  fell into the earlier period in `diff` but into no period in `run`. A
+  manifest that names no panel is refused like a hold-out. `diff` also
+  refuses runs on another reference or profile, run signal grouping or
+  batch reads, or run contexts, and a manifest edited since the base run;
+  `run.json` records `run_signal_batch_reads` and the run contexts' digest
+  (`run_context.sha256`), and `dna.eval_run/v1` changes in place: its
+  `unreviewed.tsv` text now says the rows are in `sample_id` order and that
+  a length note precedes het, and its zone pattern admits a region named by
+  its bounds. Every other output is byte-identical on development panel v5.
 - `dna-eval diff` reads a run directory strictly and counts with the run's
   own pass counting: the run header is one typed record (`RunHeader`) that
   `run` writes and `diff` reads back; a table without a column `diff` reads

@@ -196,9 +196,12 @@ pub(crate) type Contexts = BTreeMap<String, RunContext>;
 /// Reads `<directory>/<batch>.run_context.json` for every batch of
 /// `samples` that has one, as `dna run-context` writes them over the
 /// batches' full folders: a panel holds too few of a batch's samples to
-/// build its context in process.
-pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts> {
+/// build its context in process. With them, their digest: the SHA-256 of
+/// one `<batch>\t<file SHA-256>` line per context, in batch order, so that
+/// two runs on other contexts are told apart.
+pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<(Contexts, String)> {
     let mut contexts = Contexts::new();
+    let mut files = BTreeMap::<String, String>::new();
     for batch in samples.iter().map(|sample| &sample.batch) {
         if contexts.contains_key(batch) {
             continue;
@@ -211,6 +214,11 @@ pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts>
             path: path.clone(),
             message: error.to_string(),
         })?;
+        let sha256 = sha256_file(&path).map_err(|error| Error::RunContext {
+            path: path.clone(),
+            message: error.to_string(),
+        })?;
+        files.insert(batch.clone(), sha256);
         if context.run_id != *batch {
             return Err(Error::RunContext {
                 path,
@@ -219,16 +227,18 @@ pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts>
         }
         contexts.insert(batch.clone(), context);
     }
-    Ok(contexts)
+    let mut digest = Sha256::new();
+    for (batch, sha256) in &files {
+        digest.update(format!("{batch}\t{sha256}\n"));
+    }
+    Ok((contexts, format!("{:x}", digest.finalize())))
 }
 
 /// A sample's run signal groups: its batch's and its month's.
 fn groups(sample: &Sample) -> [String; 2] {
     let month = sample
-        .batch_date
-        .as_deref()
-        .and_then(|date| date.get(..7))
-        .unwrap_or("unknown");
+        .batch_month
+        .map_or_else(|| "unknown".to_owned(), |month| month.to_string());
     [format!("batch:{}", sample.batch), format!("month:{month}")]
 }
 
@@ -668,6 +678,7 @@ mod tests {
             retired: false,
             truth_digest: None,
             batch_date: None,
+            batch_month: None,
             fields: Vec::new(),
         }
     }

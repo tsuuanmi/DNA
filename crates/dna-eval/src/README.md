@@ -48,7 +48,9 @@ describes them.
   gating set (60 reads per cell), `baselines/sim-bench-smoke.tsv` for the
   smoke set (6).
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
-  the optional `retired` and `truth_digest` columns.
+  the optional `retired`, `truth_digest`, and `batch_date` columns; the
+  validated `Month` (`YYYY-MM`) a batch date and `--current-since` parse
+  into once.
 - `panel.rs` — a new panel version from a parent and the truth database.
 - `truth.rs` — reviewer truth from the lab's statistics database, opened
   read-only with `rusqlite`; the sample and panel truth digests and the check

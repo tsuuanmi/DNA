@@ -45,8 +45,8 @@ Every path is an argument. `run` needs a new or empty output directory, and
 body's checksum line (`<sha256>  <file> (body)`). The harness is built from
 the workspace but not shipped in a release.
 
-`run` and `bench` refuse a manifest whose header names a panel other than
-`dev` or `readiness`. A hold-out panel stays reserved: the approval path
+`run` and `bench` refuse a manifest whose header names no panel, or a panel
+other than `dev` or `readiness`. A hold-out panel stays reserved: the approval path
 that will read it is designed later, with endpoints per zone kind among
 auto-passed zones on recent batches (evaluation validity review,
 recommendation 5; [[engineering/improvement-method#6. Panels and their uses]]).
@@ -62,8 +62,13 @@ cargo run --release -p dna-eval -- diff --base <run-directory> --run <run-direct
 their directories alone, and gates it.
 
 - **Comparability.** Both runs must record the same manifest body, truth
-  digest, re-check list, current-data month, review window, and zone widths,
-  each from a clean build. Otherwise `diff` refuses, or with `--force` it
+  digest, re-check list, current-data month, review window, zone widths,
+  reference and profile (their SHA-256 in `identities`), run signal grouping
+  and batch reads, and run contexts (their digest), each from a clean build;
+  the configuration may differ, since a candidate changes it. The manifest
+  the base run names must still hash to the body it recorded, since the
+  periods and sources are read from it. Otherwise `diff` refuses, or with
+  `--force` it
   compares and warns at the top of the report.
 - **Reading.** It reads each run's `run.json`, `scores.tsv`, and
   `unreviewed.tsv` strictly: a missing or unparsable header field, a table
@@ -150,8 +155,13 @@ one tab-separated column header, then one row per sample.
   The optional `retired` column (`0` or `1`, from panel version 2) marks
   samples kept for continuity but left out of the estimates. The optional
   `truth_digest` column (from version 3, 64 lowercase hexadecimal digits)
-  records each sample's truth digest when the panel was built. Other columns
-  are ignored. Sample identifiers are unique.
+  records each sample's truth digest when the panel was built. The optional
+  `batch_date` column gives the batch's run date as `YYYY-MM-DD` (a day of
+  01 to 31), or empty when unknown; another value stops the run. Its month
+  is the sample's batch month everywhere the harness reads one: the
+  current data, the run signal's month groups, `run_context.tsv`, and the
+  summary's months. Other columns are ignored. Sample identifiers are
+  unique.
 - Bounds: 256 MiB, 1,000,000 rows, and 64 traces per sample.
 
 **Truth.** The lab's statistics database (`statistics.sqlite`, at most
@@ -289,9 +299,11 @@ batch's full folder, its `run_id` the manifest batch. A panel holds too few
 of a batch's samples to build one in process (about 16, or 2.5 run-1 pairs),
 so the directory is built beforehand and serves as the cache. A sample whose
 batch has no file is analysed with the configured τ; one whose reads are
-only partly in its batch's context fails. `run.json` records the directory
-and how many of the panel's batches had a context, and `run_context.tsv`
-the coverage per batch month.
+only partly in its batch's context fails. `run.json` records the directory,
+how many of the panel's batches had a context, and the contexts' digest
+(the SHA-256 of one `<batch>\t<file SHA-256>` line per context, in batch
+order), and `run_context.tsv` the coverage per batch month. With
+`--run-signal batch`, `run.json` also records `run_signal_batch_reads`.
 
 ## EMPOP queries
 

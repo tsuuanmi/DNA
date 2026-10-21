@@ -366,6 +366,11 @@
             "month"
           ]
         },
+        "run_signal_batch_reads": {
+          "description": "With `run_signal` `batch`: the fewest reads of a batch for its own run signal (`--run-signal-batch-reads`); absent otherwise.",
+          "type": "integer",
+          "minimum": 0
+        },
         "forced_windows": {
           "description": "The forced-window list, when given.",
           "type": "string",
@@ -523,12 +528,13 @@
           }
         },
         "run_context": {
-          "description": "With `--run-context`: the directory of run contexts (`<batch>.run_context.json`, PROP-0014) the consensus was calibrated by, absolute, and how many of the panel's batches had one.",
+          "description": "With `--run-context`: the directory of run contexts (`<batch>.run_context.json`, PROP-0014) the consensus was calibrated by, absolute, how many of the panel's batches had one, and the contexts' digest: the SHA-256 of one `<batch>\\t<file SHA-256>` line per context read, in batch order.",
           "type": "object",
           "additionalProperties": false,
           "required": [
             "directory",
-            "batches"
+            "batches",
+            "sha256"
           ],
           "properties": {
             "directory": {
@@ -538,6 +544,9 @@
             "batches": {
               "type": "integer",
               "minimum": 0
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
             }
           }
         },
@@ -891,7 +900,33 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "run_signal": {
+                "const": "batch"
+              }
+            },
+            "required": [
+              "run_signal"
+            ]
+          },
+          "then": {
+            "required": [
+              "run_signal_batch_reads"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "run_signal_batch_reads"
+              ]
+            }
+          }
+        }
+      ]
     },
     "passes": {
       "description": "What passes without review over one set of samples.",
@@ -1785,7 +1820,7 @@
       }
     },
     "unreviewed": {
-      "description": "One row per sample and `haplotype_lod` difference block that no check item overlaps, in panel then block order: its first and last anchors (1-based), its text as in `scores.tsv` `unreviewed`, its class as the pass measures split it (re-check list, then truth `N`, then a truth heteroplasmy, else a non-het DNA error), the review zone that holds its first anchor, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it.",
+      "description": "One row per sample and `haplotype_lod` difference block that no check item overlaps, in `sample_id` then block order: its first and last anchors (1-based), its text as in `scores.tsv` `unreviewed`, its class as the pass measures split it (the first that applies: the re-check list, truth `N`, a length note, a truth heteroplasmy, else a non-het DNA error), the review zone that holds its first anchor, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1852,7 +1887,7 @@
               "zone": {
                 "description": "The review zone (`kind@region`) holding the block's first anchor; `.` outside every zone.",
                 "type": "string",
-                "pattern": "^([a-z_]+@[A-Z0-9]+|\\.)$"
+                "pattern": "^([a-z_]+@([A-Z0-9]+|[0-9]+-[0-9]+)|\\.)$"
               },
               "zone_checked": {
                 "description": "Whether a check item of the sample touches that zone; `.` without one.",
