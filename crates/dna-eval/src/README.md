@@ -42,7 +42,10 @@ have no schema; the evaluation harness document describes them.
   call then fails, or from the rejected reads when none is admitted. With
   `run --run-signal` it first builds a run signal per batch and per batch
   month from every sample's admitted reads, then runs again with each
-  sample's review judged against its group's signal.
+  sample's review judged against its group's signal. With `run
+  --run-context` it reads each batch's `dna.run_context/v1` from the
+  directory (`contexts`) and rebuilds each sample's consensus under its
+  batch's context; `main.rs` writes the coverage (`run_context.tsv`).
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary
   (the lab's rules), strict, IUPAC-compatible, haplotype, and haplotype LoD
   measures, and the comparable intervals and edits of the haplotype measures.
@@ -64,7 +67,7 @@ have no schema; the evaluation harness document describes them.
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `workload.rs` — the review workload: windows over the HV regions, each
   sample's positions to review and unreviewed difference blocks from `dna
-  review`'s check items (`SampleAnalysis::review_checks`), forced-window
+  review`'s check items (`SampleAnalysis::review_list`), forced-window
   lists, the Wilson bound of `windows.tsv`, and what passes without review
   (samples, regions, and zones no check item touches, and the passed ones
   with an unreviewed block by the class of their blocks: non-het, truth N,

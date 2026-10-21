@@ -1,4 +1,4 @@
-"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, review, run signal, read evidence, and evaluation run contracts."""
+"""Validate DNA analysis, basecall, sample-evidence, variants, notation, consensus, review, run signal, run context, read evidence, and evaluation run contracts."""
 
 from __future__ import annotations
 
@@ -32,6 +32,8 @@ REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
 SIGNAL_SCHEMA = CONTRACTS / "schemas" / "signal-v1.schema.json"
 SIGNAL_EXAMPLE = CONTRACTS / "examples" / "signal-v1.example.json"
+RUN_CONTEXT_SCHEMA = CONTRACTS / "schemas" / "run-context-v1.schema.json"
+RUN_CONTEXT_EXAMPLE = CONTRACTS / "examples" / "run-context-v1.example.json"
 EVIDENCE_SCHEMA = CONTRACTS / "schemas" / "read-evidence-v1.schema.json"
 EVIDENCE_EXAMPLE = CONTRACTS / "examples" / "read-evidence-v1.example.json"
 REJECTED_EVIDENCE_EXAMPLE = (
@@ -55,6 +57,7 @@ REVIEW_UNASSURED = frozenset(
         "long_run",
         "edge_deletion",
         "run_deletion",
+        "run_indel",
         "beside_not_analysed",
         "not_covered",
     }
@@ -72,6 +75,7 @@ REVIEW_LABELS = {
     "long_run": 2,
     "edge_deletion": 2,
     "run_deletion": 2,
+    "run_indel": 2,
     "beside_not_analysed": 2,
     "one_read": 3,
     "one_strand": 3,
@@ -82,6 +86,7 @@ REVIEW_LABELS = {
     "read_edge": 4,
     "poor_signal": 4,
     "length_not_recorded": 4,
+    "tract_length": 4,
 }
 # Priority of a variant item without a label.
 UNLABELLED = 5
@@ -1217,7 +1222,7 @@ def validate_zones(
     label: str,
     errors: list[str],
 ) -> None:
-    """Check that zones tile the reportable positions and count the checks."""
+    """Check that zones tile the analysed reportable positions and count the checks."""
     zones = document.get("zones", [])
     if not isinstance(zones, list):
         return
@@ -1245,8 +1250,11 @@ def validate_zones(
         )
         if zone.get("checks") != touching:
             errors.append(f"{label}: zone {index} check count disagrees with the items")
-    if zones and covered != positions.get("reportable"):
-        errors.append(f"{label}: zones do not tile the reportable positions")
+    # The stretches the call does not analyse (SRS-CONS-012) belong to no
+    # zone, so the zones tile the reportable positions without them.
+    analysed = positions.get("reportable", 0) - positions.get("not_analysed", 0)
+    if zones and covered != analysed:
+        errors.append(f"{label}: zones do not tile the analysed reportable positions")
     counts = summary.get("zones", {})
     flagged = sum(1 for zone in zones if zone.get("checks", 0) > 0)
     if counts.get("total") != len(zones) or counts.get("check") != flagged:
@@ -1410,6 +1418,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=[],
         metavar="RESULT",
         help="run signal result to validate; may be repeated",
+    )
+    parser.add_argument(
+        "--run-context",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="RESULT",
+        help="run context result to validate; may be repeated",
     )
     parser.add_argument(
         "--evidence",
@@ -1682,6 +1698,60 @@ def validate_signal(document: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: traces are not sorted")
 
 
+def validate_run_context(document: Any, label: str, errors: list[str]) -> None:
+    """Check a run context's read order, window order, edge order, and each run's histogram."""
+    if not isinstance(document, dict):
+        return
+    reads = document.get("reads", [])
+    if reads != sorted(set(reads)):
+        errors.append(f"{label}: reads are not sorted and distinct")
+    length = document.get("length", {})
+    windows = length.get("windows", [])
+    if any(first > last for first, last in windows) or any(
+        left[1] >= right[0] for left, right in itertools.pairwise(windows)
+    ):
+        errors.append(f"{label}: length windows are not ordered and disjoint")
+    edges = length.get("edges", [])
+    if any(left >= right for left, right in itertools.pairwise(edges)):
+        errors.append(f"{label}: length edges are not strictly ascending")
+    runs = length.get("runs", [])
+    if [run.get("run") for run in runs] != [1, 2]:
+        errors.append(f"{label}: length runs are not run 1 then run 2")
+    for run in runs:
+        histogram = run.get("histogram", [])
+        if len(histogram) != len(edges) + 1:
+            errors.append(
+                f"{label}: run {run.get('run')} histogram has {len(histogram)} bins, "
+                f"expected {len(edges) + 1}"
+            )
+        if sum(histogram) != run.get("pairs"):
+            errors.append(
+                f"{label}: run {run.get('run')} histogram does not sum to its pairs"
+            )
+
+
+def rejected_run_context_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    other_method = copy.deepcopy(example)
+    other_method["length"]["method"] = 2
+    noisy = copy.deepcopy(example)
+    noisy["length"]["noise_forward"] = [0.6, 0.1]
+    one_run = copy.deepcopy(example)
+    one_run["length"]["runs"].pop()
+    no_reads = copy.deepcopy(example)
+    no_reads.pop("reads")
+    bad_use = copy.deepcopy(example)
+    bad_use["extra"] = True
+    return [
+        ("run context of another length method", other_method),
+        ("run context with noise above one half", noisy),
+        ("run context with one run", one_run),
+        ("run context without its reads", no_reads),
+        ("run context with an unknown field", bad_use),
+    ]
+
+
 def read_table(text: str) -> dict[str, Any]:
     """Read one `dna-eval` TSV table as `dna.eval_run/v1` describes it.
 
@@ -1929,6 +1999,34 @@ def rejected_eval_run_shapes(
     triage_files_without_triage["run.json"].pop("triage")
     signals_without_run_signal = copy.deepcopy(example)
     signals_without_run_signal["run.json"].pop("run_signal")
+    context_table_without_context = copy.deepcopy(example)
+    context_table_without_context["run_context.tsv"] = {
+        "comments": [],
+        "columns": [
+            "month",
+            "samples",
+            "analysed",
+            "with_context",
+            "run1_calibrated",
+            "run2_calibrated",
+            "batches",
+            "run1_pairs",
+            "run2_pairs",
+        ],
+        "rows": [
+            {
+                "month": "all",
+                "samples": "1",
+                "analysed": "1",
+                "with_context": "0",
+                "run1_calibrated": "0",
+                "run2_calibrated": "0",
+                "batches": "0",
+                "run1_pairs": "0",
+                "run2_pairs": "0",
+            }
+        ],
+    }
     run_without_constants = copy.deepcopy(example)
     run_without_constants["run.json"].pop("constants")
     run_without_workload = copy.deepcopy(example)
@@ -1968,6 +2066,7 @@ def rejected_eval_run_shapes(
         ("eval triage without one of its files", triage_without_file),
         ("eval triage files without the triage header", triage_files_without_triage),
         ("eval signals.tsv without the run signal", signals_without_run_signal),
+        ("eval run_context.tsv without run contexts", context_table_without_context),
         ("eval run.json without its constants", run_without_constants),
         ("eval run.json without its workload", run_without_workload),
         ("eval current data without its passes", current_without_passes),
@@ -2030,6 +2129,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_validator = validator(CONSENSUS_SCHEMA, errors)
     review_validator = validator(REVIEW_SCHEMA, errors)
     signal_validator = validator(SIGNAL_SCHEMA, errors)
+    run_context_validator = validator(RUN_CONTEXT_SCHEMA, errors)
     evidence_validator = validator(EVIDENCE_SCHEMA, errors)
     eval_run_validator = validator(EVAL_RUN_SCHEMA, errors)
     placed_validator = validator(PLACED_SCHEMA, errors)
@@ -2041,6 +2141,7 @@ def main(argv: list[str] | None = None) -> int:
     consensus_paths = args.consensus or [CONSENSUS_EXAMPLE]
     review_paths = args.review or [REVIEW_EXAMPLE]
     signal_paths = args.signal or [SIGNAL_EXAMPLE]
+    run_context_paths = args.run_context or [RUN_CONTEXT_EXAMPLE]
     evidence_paths = args.evidence or [EVIDENCE_EXAMPLE, REJECTED_EVIDENCE_EXAMPLE]
     validate_documents(analysis_validator, analysis_paths, errors)
     validate_documents(basecall_validator, basecall_paths, errors)
@@ -2050,6 +2151,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_documents(consensus_validator, consensus_paths, errors)
     validate_documents(review_validator, review_paths, errors)
     validate_documents(signal_validator, signal_paths, errors)
+    validate_documents(run_context_validator, run_context_paths, errors)
     validate_documents(evidence_validator, evidence_paths, errors)
     validate_documents(placed_validator, [PLACED_EXAMPLE], errors)
     for path in evidence_paths:
@@ -2070,6 +2172,8 @@ def main(argv: list[str] | None = None) -> int:
         validate_eval_run(document, label, errors)
     for path in signal_paths:
         validate_signal(load_json(path), str(path), errors)
+    for path in run_context_paths:
+        validate_run_context(load_json(path), str(path), errors)
     for path in review_paths:
         validate_review(load_json(path), str(path), errors)
     for path in consensus_paths:
@@ -2294,6 +2398,8 @@ def main(argv: list[str] | None = None) -> int:
     assert_rejected(notation_validator, rejected_notation, errors)
     rejected_consensus = rejected_consensus_shapes(load_json(CONSENSUS_EXAMPLE))
     assert_rejected(consensus_validator, rejected_consensus, errors)
+    rejected_run_context = rejected_run_context_shapes(load_json(RUN_CONTEXT_EXAMPLE))
+    assert_rejected(run_context_validator, rejected_run_context, errors)
     review_example = load_json(REVIEW_EXAMPLE)
     rejected_review = rejected_review_shapes(review_example)
     assert_rejected(review_validator, rejected_review, errors)
@@ -2432,11 +2538,12 @@ def main(argv: list[str] | None = None) -> int:
         f"{len(sample_paths)} sample-evidence, {len(variants_paths)} variants, "
         f"{len(notation_paths)} notation, {len(consensus_paths)} consensus, "
         f"{len(review_paths)} review, {len(signal_paths)} run signal, "
+        f"{len(run_context_paths)} run context, "
         f"{len(evidence_paths)} read evidence document(s), 1 placed read, "
         f"{len(eval_runs)} evaluation run(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
-        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_review) + len(rejected_evidence) + len(rejected_eval_runs)} "
+        f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_run_context) + len(rejected_review) + len(rejected_evidence) + len(rejected_eval_runs)} "
         "invalid shape(s)"
     )
     return 0

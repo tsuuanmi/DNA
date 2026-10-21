@@ -10,7 +10,7 @@ to its step and command. The review list,
 [`dna.review/v1`](../../docs/reference/schemas/review-v1.schema.json), is
 derived here.
 
-Key children separate analysis (with `aligned_calls.rs`, each aligned call's reference column and the core's trust in it, `dna.analysis/v10`), basecall, read evidence (`evidence.rs`, `dna.read_evidence/v1`), sample, run signal (`run_signal.rs`, `dna.signal/v1`), variant,
+Key children separate analysis (with `aligned_calls.rs`, each aligned call's reference column and the core's trust in it, `dna.analysis/v10`), basecall, read evidence (`evidence.rs`, `dna.read_evidence/v1`), sample, run signal (`run_signal.rs`, `dna.signal/v1`), run context (`run_context.rs`, `dna.run_context/v1`), variant,
 `per_base_decimal` notation rendering (`notation.rs`), serialization, and atomic
 publication concerns. Every document's provenance records the workflow's
 plugins; analysis, sample, variants, notation, consensus, and review provenance
@@ -25,8 +25,9 @@ rendered from the consensus alone, with the same record names),
 and call (the `review` plugin it declares, whose version is the labelling
 rules') and projects `dna.review/v1`; `length.rs` judges the runs of the
 profile's anchored repeat windows from the reads' tract decodes and in-phase
-readings for its `length_unconfirmed` and `length_not_recorded` labels
-(SRS-API-020),
+readings for its `length_unconfirmed`, `length_not_recorded`, and
+`tract_length` labels, a profile length tract's run noted when its dominant
+length is determined (SRS-API-020),
 and `notation.rs` renders the per-read notation once (`calls`, with each call's
 reference and called base and the reads containing it) and projects it for sample,
 call, and notation documents and builds `dna.notation/v1`. Every document reads a read's Sanger evidence through `model::sanger_read`

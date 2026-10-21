@@ -1,6 +1,6 @@
 ---
 id: PROP-0015
-status: proposed
+status: accepted
 created: 2026-10-21
 summary: "the tract decode reads each call's channel amplitudes through the read's own peak model, renders its design from a forward model of the electropherogram (context heights, dye gains), chooses a tract's structure by a penalised criterion, calibrates its margins by parametric bootstrap, and is gated by a frozen simulated benchmark; HVS-II forward reads give run 1 from the total marginal, and a 'shortest dominant' convention is an optional labelled policy on bias-corrected shares."
 evidence: [RES-length-heteroplasmy]
@@ -298,7 +298,7 @@ only.
      reported.
    - *Acceptance (real reads):* two-strand agreement among `clear` decodes
      is ≥ 99 % on development panel v5.
-   - *Acceptance (run context):* where the run context of `PROP-0014` (PR #212) is
+   - *Acceptance (run context):* where the run context of [[PROP-0014]] is
      available, the per-batch noise does not change the verdict on more
      than a reported share of runs.
    - *Cost:* read-stage time rises by at most 25 %.
@@ -357,7 +357,7 @@ only.
   - The primary gate is unflagged non-het error blocks per zone kind. They
     must never rise on any period.
   - Decided runs are reported by bucket, as in [[PROP-0012]].
-- **Run context.** Where `PROP-0014` (`dna.run_context/v1`, PR #212, not yet on main) is
+- **Run context.** Where [[PROP-0014]] (`dna.run_context/v1`) is
   merged, margins and the two-strand rule's τ are checked with per-batch
   noise.
 - **The current-period test set** is used for aggregates only, at logged

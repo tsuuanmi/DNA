@@ -1,5 +1,5 @@
 ---
-implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-NOM, SRS-SAMPLE]
+implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-CONS, SRS-NOM, SRS-SAMPLE]
 decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082, ADR-0087]
 ---
 
@@ -27,7 +27,7 @@ cargo run --release -p dna-eval -- run \
   [--current-since <YYYY-MM>] \
   [--run-signal batch|month [--run-signal-batch-reads <n>]] \
   [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
-  [--evidence-cache <dir>]
+  [--evidence-cache <dir>] [--run-context <dir>]
 
 cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n>
 
@@ -89,7 +89,8 @@ The report (`diff.md`) shows, before and after:
 
 - **Samples:** samples, clear samples, samples with a non-het unreviewed
   block and those whose only unreviewed blocks are het, passed samples by
-  their most severe block, and positions to review.
+  their most severe block (length notes reported, never gated), and
+  positions to review.
 - **Zones:** for every zone that changed, the units needing a check and the
   passed units with a non-het block.
 - **Coverage:** the truth alleles DNA's callable intervals newly leave out
@@ -405,6 +406,17 @@ manifest's batch stands for the laboratory's run, which the panel does not
 record. Without the flag, no run signal is built and the floor alone sets
 every threshold.
 
+`--run-context <dir>` calibrates each sample's consensus by its batch's
+[[reference/run-context|run context]] ([[PROP-0014]], SRS-CONS-014):
+`<dir>/<batch>.run_context.json`, as `dna run-context` writes it over the
+batch's full folder, its `run_id` the manifest batch. A panel holds too few
+of a batch's samples to build one in process (about 16, or 2.5 run-1 pairs),
+so the directory is built beforehand and serves as the cache. A sample whose
+batch has no file is analysed with the configured τ; one whose reads are
+only partly in its batch's context fails. `run.json` records the directory
+and how many of the panel's batches had a context, and `run_context.tsv`
+the coverage per batch month.
+
 ## EMPOP queries
 
 When the profile declares `[empop]`, each sample's EMPOP query
@@ -444,7 +456,8 @@ or to which files a run writes, is a new contract version
 | `components.tsv` | always | per phase-mixture component (ADR-0082) and reference run cluster it covers: the run it enters in phase against the truth's |
 | `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
-| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
+| `notes.tsv` | always | per sample, `dna review` item, and run its `tract_length` label notes: the tract, the run, its status, DNA's length, the reading, and the convention's reading |
+| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check, length note), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure, against the baseline |
@@ -454,6 +467,7 @@ or to which files a run writes, is a new contract version
 | `diff.tsv` | with `--baseline` | the samples whose status class changed, per measure the baseline reports |
 | `truth_changes.tsv` | when the panel's truth changed | the samples whose truth digest differs from the manifest's record |
 | `signals.tsv` | with `--run-signal` | per run-signal group: reads, calls, and keys |
+| `run_context.tsv` | with `--run-context` | per batch month, then `all`: samples, analysed, with a run context, and in how many the context rescaled run 1's and run 2's τ (the rest fail closed); and the month's batches with a context and their run-1 and run-2 pairs, which show why (a batch below `consensus.length_context_minimum_pairs` calibrates nothing) |
 | `triage.tsv`, `triage_regions.tsv`, `triage_traces.tsv`, `triage_leaks.tsv`, `triage_detectors.tsv`, `triage_positions.tsv`, `triage_sweep.tsv`, `triage_policies.tsv`, `triage_minor.tsv` | with `--triage` | the [draft triage](evaluation-triage.md#draft-triage) per sample, region, trace, leak, detector, and region position; per policy of the sweep and of the minor-signal measurement; and each sample's class under every policy, which `dna-eval power` reads |
 | `triage.md` | with `--triage` | the triage in aggregate: A/B/C overall and by stratum, leaks and what the leaked samples differ in, region outcomes (counts and weighted shares) and region leaks, leak classes, detectors, traces and primer footprints, the sweep, and the minor signal |
 

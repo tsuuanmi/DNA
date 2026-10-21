@@ -11,7 +11,7 @@ Part of the [[validation/evaluation-harness|evaluation harness]]: the review wor
 
 The review workload says how much of each sample DNA leaves to a reviewer,
 and which errors no reviewer would see. The review items are `dna review`'s
-own, read through `SampleAnalysis::review_checks` (SRS-API-015), so the
+own, read through `SampleAnalysis::review_list` (SRS-API-015), so the
 harness applies no review rule of its own.
 
 - The HV regions split into windows of `--review-window` positions (default
@@ -106,15 +106,28 @@ Each unreviewed block has one class, the first that applies:
    interval, and the allele measure leaves such an insertion uncompared too.
    A block whose interval ends only where DNA's callable interval ends is not
    this case;
-3. `het`: the truth writes an IUPAC code of two or three bases (`R`, `Y`,
+3. `length note`: the block lies in a profile length tract
+   (`length_tracts`) and both sides read the same sequence once the tract's
+   base is taken out: only the homopolymer count differs, the structure
+   equal (user decision 2026-10-21). Forensic practice notes such a length
+   heteroplasmy and leaves it out of comparisons and searches (ISFG 2014
+   Rec. 10, 16), so it is reported in every table and never gated. A
+   structure difference (`T310C`, a `16189C` one side lacks) and `315.1C`,
+   outside HVS-II's tract, stay non-het;
+4. `het`: the truth writes an IUPAC code of two or three bases (`R`, `Y`,
    `K`, `M`, `S`, `W`, `B`, `D`, `H`, `V`) in it;
-4. `non-het`: any other block, a DNA error that neither a heteroplasmy, a
-   truth `N`, nor the re-check list explains.
+5. `non-het`: any other block, a DNA error that neither a heteroplasmy, a
+   truth `N`, a tract length, nor the re-check list explains.
 
 A passed sample, region, or zone with unreviewed blocks counts once, under
-its most severe block, in the order non-het, truth N, het, re-check
-(`non_het`, `truth_n_only`, `het_only`, `recheck_only`): one non-het block
-makes it non-het, and it is re-check only when every block is on the list.
+its most severe block, in the order non-het, truth N, het, re-check, length
+note (`non_het`, `truth_n_only`, `het_only`, `recheck_only`,
+`length_note_only`): one non-het block makes it non-het, and it is re-check
+only when every block is on the list or a length note. The summary's
+"Length notes" table gives, per tract, the items the review notes and the
+unreviewed length-note blocks, split by the truth's length: the note's
+convention reading, DNA's length less one, or another (`notes.tsv` lists
+every noted run).
 The non-het count is the gate a change must not raise. Het is reported but
 counts as a pass, and the truth N and re-check units await a check of the
 truth, not of DNA. The sample measure "Samples with an unreviewed

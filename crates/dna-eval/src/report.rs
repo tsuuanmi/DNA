@@ -24,7 +24,7 @@ use crate::recheck::Recheck;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::unrecorded;
-use crate::workload::{self, Class as BlockClass, Escaped, Passes, Unit, Window, Workload};
+use crate::workload::{self, Class as BlockClass, Escaped, Passes, Tract, Unit, Window, Workload};
 use crate::zones::{Kind, Zones};
 use dna_kernel::profile::Convention;
 
@@ -371,6 +371,8 @@ struct Review {
     forced: Option<Vec<(i64, i64)>>,
     zones: Option<Zones>,
     recheck: Option<Recheck>,
+    /// The profile's length tracts, whose length differences are noted.
+    tracts: Vec<Tract>,
     workloads: Vec<Option<Workload>>,
 }
 
@@ -381,6 +383,7 @@ impl Review {
         forced: Option<Vec<(i64, i64)>>,
         zones: Option<Zones>,
         recheck: Option<Recheck>,
+        tracts: Vec<Tract>,
     ) -> Self {
         let windows = workload::windows(window);
         let workloads = rows
@@ -394,9 +397,12 @@ impl Review {
                     &windows,
                     forced.as_deref().unwrap_or_default(),
                     zones.as_ref(),
-                    recheck
-                        .as_ref()
-                        .map_or(&[], |recheck| recheck.spans(&row.sample.id)),
+                    (
+                        recheck
+                            .as_ref()
+                            .map_or(&[], |recheck| recheck.spans(&row.sample.id)),
+                        &tracts,
+                    ),
                 ))
             })
             .collect();
@@ -406,6 +412,7 @@ impl Review {
             forced,
             zones,
             recheck,
+            tracts,
             workloads,
         }
     }
@@ -461,7 +468,7 @@ impl<'a> Report<'a> {
             check,
             estimates,
             causes,
-            review: Review::of(rows, REVIEW_WINDOW, None, None, None),
+            review: Review::of(rows, REVIEW_WINDOW, None, None, None, Vec::new()),
             current_since: None,
         }
     }
@@ -504,8 +511,9 @@ impl<'a> Report<'a> {
         forced: Option<Vec<(i64, i64)>>,
         zones: Option<Zones>,
         recheck: Option<Recheck>,
+        tracts: Vec<Tract>,
     ) -> Self {
-        self.review = Review::of(self.rows, window, forced, zones, recheck);
+        self.review = Review::of(self.rows, window, forced, zones, recheck, tracts);
         self
     }
 
@@ -941,6 +949,7 @@ impl<'a> Report<'a> {
                 let current = current.into_iter().copied().collect::<Vec<_>>();
                 self.pass_section(text, &current);
                 self.zone_section(text, &current);
+                self.note_section(text, &current);
             }
         }
         let samples = counted.len();
@@ -1038,6 +1047,7 @@ impl<'a> Report<'a> {
         }
         self.pass_section(text, &counted);
         self.zone_section(text, &counted);
+        self.note_section(text, &counted);
         text.push_str("\nSamples with an unreviewed difference, by region:\n\n| Region | Samples |\n|---|---:|\n");
         let mut regions = BTreeMap::<&str, usize>::new();
         for (_, workload) in &counted {
@@ -1143,8 +1153,12 @@ impl<'a> Report<'a> {
         };
         let split = |escaped: &Escaped| {
             format!(
-                "non-het {}, truth N only {}, het only {}, re-check only {}",
-                escaped.non_het, escaped.truth_n_only, escaped.het_only, escaped.recheck_only
+                "non-het {}, truth N only {}, het only {}, re-check only {}, length note only {}",
+                escaped.non_het,
+                escaped.truth_n_only,
+                escaped.het_only,
+                escaped.recheck_only,
+                escaped.length_note_only
             )
         };
         let (auto_pass, regions, zones) = (&passes.auto_pass, &passes.regions, &passes.zones);
@@ -1155,9 +1169,10 @@ impl<'a> Report<'a> {
             "\nPasses (a sample, region, or zone that no check item touches passes unreviewed; \
              a difference block counts for the region of its first position. A block is \
              re-check when the re-check list names it, else truth N when the truth writes `N` \
-             in it, else het when the truth writes an IUPAC code of two or three bases in it, \
+             in it, else length note when it differs only in the length of a profile length \
+             tract, else het when the truth writes an IUPAC code of two or three bases in it, \
              else non-het; a passed unit counts under its most severe block, in the order \
-             non-het, truth N, het, re-check):\n\n\
+             non-het, truth N, het, re-check, length note; length notes are never gated):\n\n\
              | Measure | Value |\n|---|---:|\n\
              | Auto-pass samples (no check item) | {} of {} ({:.2} %) |\n\
              | Auto-pass samples with an unreviewed difference | {} ({:.2} % of them): {} |\n\
@@ -1201,13 +1216,13 @@ impl<'a> Report<'a> {
         }
         text.push_str(
             "\n| Region | Needing a check | Passed | Passed with an unreviewed difference \
-             | Non-het | Truth N only | Het only | Re-check only |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|\n",
+             | Non-het | Truth N only | Het only | Re-check only | Length note only |\n\
+             |---|---:|---:|---:|---:|---:|---:|---:|---:|\n",
         );
         for region in &regions.by_region {
             let _ = writeln!(
                 text,
-                "| {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} |",
+                "| {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} | {} |",
                 region.name,
                 region.checked,
                 percent(region.checked, region.total),
@@ -1217,19 +1232,20 @@ impl<'a> Report<'a> {
                 region.unreviewed.truth_n_only,
                 region.unreviewed.het_only,
                 region.unreviewed.recheck_only,
+                region.unreviewed.length_note_only,
             );
         }
         let table = |text: &mut String, label: &str, units: &[Unit]| {
             let _ = write!(
                 text,
                 "\n| {label} | Zones | Needing a check | Passed | Passed with an unreviewed \
-                 difference | Non-het | Truth N only | Het only | Re-check only |\n\
-                 |---|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+                 difference | Non-het | Truth N only | Het only | Re-check only | Length note \
+                 only |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
             );
             for unit in units {
                 let _ = writeln!(
                     text,
-                    "| {} | {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} |",
+                    "| {} | {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} | {} |",
                     unit.name,
                     unit.total,
                     unit.checked,
@@ -1240,6 +1256,7 @@ impl<'a> Report<'a> {
                     unit.unreviewed.truth_n_only,
                     unit.unreviewed.het_only,
                     unit.unreviewed.recheck_only,
+                    unit.unreviewed.length_note_only,
                 );
             }
         };
@@ -1264,6 +1281,82 @@ impl<'a> Report<'a> {
             .filter(|unit| unit.total > 0)
             .collect::<Vec<_>>();
         table(text, "Zone kind", &kinds);
+    }
+
+    /// The noted length tracts of `samples`: per profile length tract, the
+    /// items the review notes (`tract_length`) and their samples, and the
+    /// unreviewed blocks that differ only in the tract's length
+    /// (`length_note`, never gated), split by the truth's length: the
+    /// note's convention reading, DNA's length less one, or another.
+    fn note_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
+        if self.review.tracts.is_empty() || samples.is_empty() {
+            return;
+        }
+        text.push_str(
+            "\nLength notes (a run of a profile length tract whose dominant length the reads \
+             determine, or that DNA does not report, is noted, not checked; an unreviewed \
+             block that differs only in a tract's length is a length note, reported and never \
+             gated, split by the truth's length: the note's convention reading, DNA's length \
+             less one, or another):\n\n\
+             | Tract | Noted items | Samples | Length-note blocks | Convention | Mode - 1 | \
+             Other |\n|---|---:|---:|---:|---:|---:|---:|\n",
+        );
+        for tract in &self.review.tracts {
+            let (mut items, mut samples_noted, mut blocks) = (0, 0, [0_usize; 3]);
+            for (row, workload) in samples {
+                let Ok(called) = &row.outcome.result else {
+                    continue;
+                };
+                let tract_notes = called
+                    .notes
+                    .iter()
+                    .filter(|note| note.tract == tract.name)
+                    .collect::<Vec<_>>();
+                items += tract_notes.len();
+                samples_noted += usize::from(!tract_notes.is_empty());
+                let Ok(comparison) = row.comparison(Measure::HaplotypeLod) else {
+                    continue;
+                };
+                for escape in workload
+                    .escapes
+                    .iter()
+                    .filter(|escape| escape.class == BlockClass::LengthNote)
+                {
+                    let Some(block) = comparison.blocks.iter().find(|block| {
+                        block.start == escape.first
+                            && block.end == escape.last
+                            && tract.length_only(block)
+                    }) else {
+                        continue;
+                    };
+                    let excess = tract.excess(block);
+                    let convention = tract_notes.iter().flat_map(|note| &note.runs).any(|run| {
+                        run.called
+                            .zip(run.convention)
+                            .is_some_and(|(called, convention)| {
+                                i64::try_from(called).ok().map(|called| called - excess)
+                                    == i64::try_from(convention).ok()
+                            })
+                    });
+                    blocks[if convention {
+                        0
+                    } else if excess == 1 {
+                        1
+                    } else {
+                        2
+                    }] += 1;
+                }
+            }
+            let _ = writeln!(
+                text,
+                "| {} | {items} | {samples_noted} | {} | {} | {} | {} |",
+                tract.name,
+                blocks.iter().sum::<usize>(),
+                blocks[0],
+                blocks[1],
+                blocks[2],
+            );
+        }
     }
 
     /// The zones to check of `samples`: per sample (mean, median, 90th
@@ -2224,12 +2317,14 @@ mod tests {
             Ok(Called {
                 components: Vec::new(),
                 tracts: Vec::new(),
+                length_context: None,
                 rejected: index % 2,
                 alleles,
                 not_recorded: BTreeSet::new(),
                 empop: None,
                 checks: Vec::new(),
                 check_labels: Vec::new(),
+                notes: Vec::new(),
                 signals: lod::Signals::default(),
                 loci: cause::loci::Loci::default(),
                 intervals: if index % 5 == 0 {

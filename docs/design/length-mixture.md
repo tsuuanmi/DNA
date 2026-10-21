@@ -170,8 +170,49 @@ in-phase read shows the length directly; the other strand having no view
 is absence of evidence, not a contradiction. A decode is a model of a
 dephased tract, so a run that only decodes give still needs both strands.
 Every other run a decode reaches is a check
-(`length_unconfirmed`). Where the profile leaves the window's run lengths
+(`length_unconfirmed`). Where a window position is not callable, DNA
+reports no length there: its decided length is an estimate, which confirms
+nothing and is not shown as a reading. The run then carries the reads'
+floor reading instead, the least length any read gives as its top or next
+(user decision 2026-10-21): on development panel v5 it matched the truth in
+87 % of such run 1s whose reads top at different lengths, the phase-loss
+estimate in 10 %. Where the profile leaves the window's run lengths
 unrecorded (HVS-I), the same view is context (`length_not_recorded`).
+
+## Notes (length heteroplasmy)
+
+Forensic practice treats the C tracts' length as length heteroplasmy: it
+records the dominant length, notes the heteroplasmy, and leaves the length
+out of comparisons and searches (ISFG, Parson et al. 2014, Rec. 10, 11, 16;
+SWGDAM 2024 5.1.1; EMPOP's query windows 16189-16194, 302-316, 567-574).
+For near-equal mixtures the record is a convention, the shortest dominant
+length, not a measurement (research note `length-heteroplasmy-literature`).
+So a run of a profile length tract (`length_tracts`) whose dominant length
+the reads determine is noted, not checked (`tract_length`, user decision
+2026-10-21). The tract holds only the homopolymer count: HVS-II's tract is
+its first run, so `315.1C` and the composition (`T310C`, `16189C`) stay
+calls checked as usual.
+
+The dominant is determined when every read tops at DNA's length, or when the
+reads hold one adjacent pair that the length convention reads as its shorter
+member (`shortest_dominant`, `dna-normalize`, with a configured ratio).
+Either way the run's structure must be shown, by a read in phase or by
+decodes on both strands. A trace-simulator benchmark (2026-10-21, 5,059
+simulated reads of known mixtures with noise fitted from development panel
+v5) found the decoder's structure choice its main failure: it adds a
+spurious mark to 6 % of HVS-I single runs and drops HVS-II's reverse mark
+from 13 %, and a third of those first-run marginals still read `clear`; under
+four times the noise, 14-36 % of `clear` margins are wrong. A decode alone
+on one strand therefore never makes a note. Forward reads under-read the
+shorter neighbour (a ratio 0.88-0.96 of the truth's), and a decode resolves
+the ratio only to about 0.85-0.9, so the convention's ratio is capped at
+0.85; `0.6` comes from the 2026-10-19 decoder spike, where the truth was
+the mode − 1 in all 53 confident HVS-II run-1 disagreements, with the
+shorter share at least 0.6 of the mode's. Where DNA reports no length, the
+note shows the reads' floor reading, unconfirmed, never the phase-loss
+estimate. The evaluation harness classes an unreviewed block that differs
+only in a tract's length, the structure equal, as `length_note`: reported,
+never gated.
 
 ## Decision (increment 4)
 
@@ -226,6 +267,20 @@ Re-estimate τ, and re-run the rule's evaluation, when any of these change:
 - the chemistry, polymer, instrument, or basecaller;
 - the HV2F or HV3R primers or the PCR;
 - the decode (`[trace]`), or the deconvolution.
+
+**Per-batch noise ([[PROP-0014]], SRS-CONS-014).** τ is a corpus-wide
+estimate, but run 1's strand dispersion varies between batches (between-batch
+sd 0.31 of the corpus level; research note `run-calibrated-length`,
+2026-10-21). With a [[reference/run-context|run context]], each run's τ is
+rescaled by the batch's own cross-strand pairs, the sample's own taken out:
+`τ · max(m, √(φ̃ / φ_ref))`, with `φ̃` the batch's mean `z²` shrunk towards the
+corpus's `φ_ref` (run 1 0.4577, run 2 0.0542, over every read of the dev
+batches' folders) by `n0` pseudo-pairs (4.3 and 64: by the method of
+moments from the contexts' `Σz²` and `Σz⁴` for run 1; run 2's batch
+differences are sampling noise, so its weight stays the research's 64).
+The floor `m` = 1 keeps τ at least the replicate estimate, and below 10 pairs
+τ stays the configured one. On development panel v5, rule A's decisions sit
+far from the τ boundary, and the calibration changes no decision.
 
 **Effect.** On development panel v5 (against increment 3), the rule changed
 one call, a C8 at 303-309 where truth has `N`, and introduced no error. It

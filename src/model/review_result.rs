@@ -74,6 +74,10 @@ pub(crate) struct ReviewProvenanceResult {
     /// The run signal the calls were judged against, when one was given.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) signal: Option<SignalProvenanceResult>,
+    /// The run context the consensus calibrated its length rule by, when
+    /// one was given (PROP-0014).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) run_context: Option<super::run_context_result::ContextUseResult>,
 }
 
 /// The identity of a run signal a review read.
@@ -266,6 +270,11 @@ pub(crate) enum LabelResult {
     RunDeletion {
         read: String,
     },
+    /// A decided site outside every repeat window that rests on one read
+    /// and changes a homopolymer run's length (rules version 28): a check.
+    RunIndel {
+        read: String,
+    },
     PossibleHeteroplasmy {
         position: usize,
         base: char,
@@ -301,6 +310,16 @@ pub(crate) enum LabelResult {
     /// profile does not record: context, never a check.
     LengthNotRecorded {
         runs: Vec<LengthRunResult>,
+    },
+    /// Runs of a profile length tract whose dominant length the reads
+    /// determine, or that DNA does not report: a length heteroplasmy noted,
+    /// context and never a check (SRS-API-020).
+    TractLength {
+        tract: String,
+        /// The window a database search disregards length variants in
+        /// (EMPOP).
+        ignored_in_search: [usize; 2],
+        runs: Vec<TractRunResult>,
     },
     Undecided,
     OneRead {
@@ -381,8 +400,9 @@ pub(crate) struct RunResult {
 }
 
 /// One run of an anchored repeat window: which run (1 before the anchor, 2
-/// after it, 1 alone when the anchor is lost), its base, DNA's length, how
-/// the reads' decodes agree, and each read's length.
+/// after it, 1 alone when the anchor is lost), its base, DNA's length (none
+/// when DNA does not report it), how the reads' decodes agree, and each
+/// read's length.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct LengthRunResult {
     pub(crate) run: usize,
@@ -392,7 +412,63 @@ pub(crate) struct LengthRunResult {
     /// The lab's convention reading of a near-equal pair, a suggestion only:
     /// never DNA's call.
     pub(crate) convention: Option<LengthConventionResult>,
+    /// The reads' floor reading of a run DNA reports no length for: the
+    /// least length any read gives as its top or next. A suggestion only.
+    pub(crate) floor: Option<usize>,
     pub(crate) reads: Vec<LengthReadResult>,
+}
+
+/// One run of a length tract, noted: DNA's reported length, how the run
+/// stands, the length a reviewer would record, and the reads' evidence.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct TractRunResult {
+    pub(crate) run: usize,
+    pub(crate) base: char,
+    pub(crate) called: Option<usize>,
+    /// `confirmed`, `dominant`, `convention`, or `unconfirmed`.
+    pub(crate) status: &'static str,
+    /// The length a reviewer would record: DNA's, the convention's, or the
+    /// floor reading for an unconfirmed run; `None` where the profile
+    /// records no length or no read reaches the run.
+    pub(crate) reading: Option<usize>,
+    /// How the reads' lengths agree, as `length_unconfirmed` gives it;
+    /// `None` when no read reaches the run.
+    pub(crate) agreement: Option<&'static str>,
+    pub(crate) strands: StrandsResult,
+    /// The reads that show the run in phase.
+    pub(crate) in_phase: Vec<String>,
+    pub(crate) floor: Option<usize>,
+    pub(crate) convention: Option<LengthConventionResult>,
+    pub(crate) reads: Vec<TractReadResult>,
+}
+
+/// Each strand's one clear length of a run, when it gives one.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct StrandsResult {
+    pub(crate) forward: Option<usize>,
+    pub(crate) reverse: Option<usize>,
+}
+
+/// One read's length of a noted run with its decode's components.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct TractReadResult {
+    pub(crate) read: String,
+    pub(crate) strand: Orientation,
+    pub(crate) length: usize,
+    pub(crate) source: &'static str,
+    /// The decode's first-run and total length distributions; `None` for
+    /// a read in phase.
+    pub(crate) first: Option<MarginalResult>,
+    pub(crate) total: Option<MarginalResult>,
+}
+
+/// A decode's length distribution: signal shares, never heteroplasmy
+/// levels, and the dominant's margin over the next in standard errors.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct MarginalResult {
+    pub(crate) lengths: Vec<usize>,
+    pub(crate) shares: Vec<f64>,
+    pub(crate) z: Option<f64>,
 }
 
 /// A run length a reporting convention would read, with the convention.
@@ -502,6 +578,7 @@ pub(crate) struct LabelCounts {
     pub(crate) long_run: usize,
     pub(crate) edge_deletion: usize,
     pub(crate) run_deletion: usize,
+    pub(crate) run_indel: usize,
     pub(crate) beside_not_analysed: usize,
     pub(crate) one_read: usize,
     pub(crate) one_strand: usize,
@@ -512,4 +589,5 @@ pub(crate) struct LabelCounts {
     pub(crate) read_edge: usize,
     pub(crate) poor_signal: usize,
     pub(crate) length_not_recorded: usize,
+    pub(crate) tract_length: usize,
 }

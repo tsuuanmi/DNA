@@ -501,6 +501,7 @@ mod tests {
                 profile_sha256: String::new(),
             },
             empop: None,
+            notes: Vec::new(),
             checks: checks
                 .iter()
                 .map(|&(first, last, _)| (first, last))
@@ -511,6 +512,7 @@ mod tests {
                 .collect(),
             components: Vec::new(),
             tracts: Vec::new(),
+            length_context: None,
         }
     }
 

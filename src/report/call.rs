@@ -77,6 +77,7 @@ pub(crate) fn build(completed: CompletedCall) -> Result<VariantsResult> {
             configuration_sha256,
             profile: project_profile(profile),
             plugins: project_plugins(plugins),
+            run_context: None,
         },
         reads,
         not_analysed: not_analysed

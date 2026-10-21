@@ -1,5 +1,6 @@
 //! Projection of a sample consensus into `dna.consensus/v1` and FASTA.
 
+use crate::model::run_context_result::ContextUseResult;
 use std::collections::BTreeMap;
 
 use crate::error::{ReportError, Result};
@@ -33,6 +34,8 @@ pub(crate) struct CompletedConsensus {
     pub(crate) consensus: Consensus,
     /// Plugins of the workflow, in execution order.
     pub(crate) plugins: &'static [&'static PluginDescriptor],
+    /// How the consensus used a run context, when it was given one.
+    pub(crate) run_context: Option<crate::sample_analysis::ContextUse>,
 }
 
 /// Builds `dna.consensus/v1` without filesystem side effects.
@@ -45,6 +48,7 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
         rejected,
         consensus,
         plugins,
+        run_context,
     } = completed;
     let (names, rejected_names) = reviewer_read_names(&evidence)?;
     let reviewer = evidence
@@ -129,6 +133,7 @@ pub(crate) fn build(completed: CompletedConsensus) -> Result<ConsensusResult> {
             configuration_sha256: evidence.configuration_sha256,
             profile: project_profile(profile),
             plugins: project_plugins(plugins),
+            run_context: run_context.as_ref().map(ContextUseResult::of),
         },
         reads: evidence
             .reads

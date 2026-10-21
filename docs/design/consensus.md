@@ -235,7 +235,10 @@ stretch's start, and a clean end likewise.
   itself. A run of it still `anchored_end`, `phase_loss`, or
   `reference_frame` takes the length the reads' tract decodes put on top on
   both strands, as `two_strand`, when `length::decide` decides it
-  ([[design/length-mixture]]).
+  ([[design/length-mixture]]). With the batch's
+  [[reference/run-context|run context]], the rule's noise τ is the batch's
+  own, the sample left out (`noise`, SRS-CONS-014); the consensus is
+  otherwise built alike.
 - **Undecided runs.**
   - At the reference composition, an undecided run is written as `N` over its
     reference length.

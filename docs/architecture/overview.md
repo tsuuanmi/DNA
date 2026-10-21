@@ -76,6 +76,7 @@ covers:
 | `read_call` | call | the core's one-read path from `ReadEvidence` to a `CalledRead`, the sections a called read needs (`CallConfig`), and the `core` plugin descriptor | modality types |
 | `sample` | sample | multi-read evidence aggregation over modality-neutral `CalledRead` records | input discovery/consensus, modality types |
 | `consensus` | consensus | adjudication between a sample's placed reads into consensus segments with the evidence of each decision (ADR-0073) | variant calling of the consensus (done by `call`), modality types, heteroplasmy |
+| `noise` | consensus | a batch's length noise for the two-strand rule, as additive statistics, and τ calibrated by it (`dna.run_context/v1`, PROP-0014) | reading files, deciding a length |
 | `decided` | consensus | calls the consensus's decided edits without placing the consensus again (ADR-0078) | placement, modality types |
 | `variant_representation` | post | haplotype-preserving edit conversion, application, rendering | policy choices |
 | `variant_normalization` | post | optional sequence-equivalent normalization policies | nomenclature windows |

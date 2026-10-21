@@ -1,13 +1,14 @@
-//! Run lengths in the profile's anchored repeat windows, judged from the
-//! reads' tract decodes (SRS-API-020, PROP-0012 increment 3).
+//! Run lengths in the profile's anchored repeat windows and length tracts,
+//! judged from the reads' tract decodes (SRS-API-020, PROP-0012 increment 3).
 //!
 //! An anchored window holds two runs of one base around an anchor base
-//! (HVS-II's `C7 T C5`), or one run where the anchor is lost. Each admitted
-//! read's tract decode (SRS-CALL-025) is credited to the run its first call
-//! is aligned to. A read gives the length of the run it enters first (its
-//! first-run marginal) and, when it chose the window's anchor as its mark
-//! and both its marginals are clear, the length of the next run it reads
-//! (the total less the first and the mark). A read that shows a run in
+//! (HVS-II's `C7 T C5`), or one run where the anchor is lost; a length tract
+//! outside every anchored window (HVS-III's `C6`) is one plain run. Each
+//! admitted read's tract decode (SRS-CALL-025) is credited to the run its
+//! first call is aligned to. A read gives the length of the run it enters
+//! first (its first-run marginal) and, when it chose the window's anchor as
+//! its mark and both its marginals are clear, the length of the next run it
+//! reads (the total less the first and the mark). A read that shows a run in
 //! phase, both its ends resolved by unmasked calls as the consensus reads it
 //! (ADR-0074), gives that run's length too. A strand gives a run one clear
 //! length when every length its reads give is clear and equal. The reads
@@ -17,67 +18,24 @@
 //! needs both strands. A run is confirmed when that length is DNA's call, or
 //! when the consensus decided it by the two-strand rule (PROP-0012
 //! increment 4) and no read's structure differs from DNA's.
-//! Nothing here decides a length; it labels them.
+//! DNA reports a window's lengths only when every position of it is
+//! callable; otherwise its decided lengths are estimates, never a reading,
+//! and a run instead carries the reads' floor reading, the least length any
+//! read gives as its top or next. A run of a length tract whose dominant
+//! length the reads determine is noted, not checked ([`status`]). Nothing
+//! here decides a length; it labels them.
 
 use dna_consensus::ReadRun;
 use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
-use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
-use dna_kernel::read_evidence::{Margin, TractLengths};
+use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
+use dna_normalize::length_convention::{RULE as CONVENTION_RULE, ShortestDominant};
 
-use crate::model::review_result::{LengthConventionResult, LengthReadResult, LengthRunResult};
+use crate::model::review_result::{
+    LengthConventionResult, LengthReadResult, LengthRunResult, MarginalResult, StrandsResult,
+    TractReadResult,
+};
+pub(super) use crate::sample_analysis::windows::{LengthWindow, windows};
 use dna_align::model::alignment::Orientation;
-
-/// One anchored repeat window of the profile, 1-based and inclusive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct LengthWindow {
-    pub(super) first: usize,
-    pub(super) last: usize,
-    /// The anchor's reference position.
-    pub(super) anchor: usize,
-    pub(super) repeat: char,
-    pub(super) anchor_base: char,
-    /// Whether the profile records the window's run lengths: a run-length
-    /// convention of its repeat base over it leaves them unrecorded, so the
-    /// decodes are context there, never a check.
-    pub(super) recorded: bool,
-}
-
-/// The profile's anchored repeat windows: those whose rules split two runs
-/// of one base by an anchor base, each with whether the profile records its
-/// run lengths.
-pub(super) fn windows(profile: &Profile) -> Vec<LengthWindow> {
-    profile
-        .windows
-        .iter()
-        .filter_map(|window| {
-            let anchor = window.rules.iter().find_map(|rule| match rule {
-                WindowRule::AnchoredRunLengths(anchor)
-                | WindowRule::AnchorDuplication(anchor)
-                | WindowRule::AnchorDeletion(anchor)
-                | WindowRule::TerminalRepeatInsertion(anchor)
-                | WindowRule::AnchoredTract { anchor, .. } => Some(*anchor),
-                WindowRule::CanonicalHaplotype(_) | WindowRule::MotifShift { .. } => None,
-            })?;
-            let first = window.start + 1;
-            let last = window.end();
-            let recorded = !profile.conventions.iter().any(|convention| {
-                let ConventionKind::RunLength { base, .. } = convention.kind;
-                convention.label == ConventionLabel::NotRecorded
-                    && base == anchor.repeat
-                    && convention.window[0] <= last
-                    && first <= convention.window[1]
-            });
-            Some(LengthWindow {
-                first,
-                last,
-                anchor: first + anchor.index,
-                repeat: char::from(anchor.repeat),
-                anchor_base: char::from(anchor.base),
-                recorded,
-            })
-        })
-        .collect()
-}
 
 /// DNA's run lengths in a window from the decided `haplotype` over it: the
 /// two runs of the repeat base on each side of the first anchor base between
@@ -88,10 +46,12 @@ pub(super) fn called_runs(haplotype: &str, window: &LengthWindow) -> Option<Vec<
         return None;
     }
     let runs = super::review::runs_of(haplotype);
-    let split = runs.windows(3).find(|triple| {
-        triple[0].0 == window.repeat
-            && triple[1] == (window.anchor_base, 1)
-            && triple[2].0 == window.repeat
+    let split = window.anchor.and_then(|(_, anchor_base)| {
+        runs.windows(3).find(|triple| {
+            triple[0].0 == window.repeat
+                && triple[1] == (anchor_base, 1)
+                && triple[2].0 == window.repeat
+        })
     });
     match split {
         Some(triple) => Some(vec![triple[0].1, triple[2].1]),
@@ -125,12 +85,14 @@ pub(super) struct InPhase<'a> {
 /// The window's runs a read shows, as `(run, read run)`: the two runs around
 /// the first anchor between two repeat runs, else the longest repeat run.
 fn window_runs<'r>(runs: &'r [ReadRun], window: &LengthWindow) -> Vec<(usize, &'r ReadRun)> {
-    if let Some(index) = (0..runs.len().saturating_sub(2)).find(|&index| {
-        runs[index].base == window.repeat
-            && runs[index + 1].base == window.anchor_base
-            && runs[index + 1].length == 1
-            && runs[index + 2].base == window.repeat
-    }) {
+    if let Some((_, anchor_base)) = window.anchor
+        && let Some(index) = (0..runs.len().saturating_sub(2)).find(|&index| {
+            runs[index].base == window.repeat
+                && runs[index + 1].base == anchor_base
+                && runs[index + 1].length == 1
+                && runs[index + 2].base == window.repeat
+        })
+    {
         return vec![(1, &runs[index]), (2, &runs[index + 2])];
     }
     runs.iter()
@@ -143,10 +105,13 @@ fn window_runs<'r>(runs: &'r [ReadRun], window: &LengthWindow) -> Vec<(usize, &'
 /// The runs of `window` (1 or 2) the consensus decided by the two-strand
 /// rule, from the runs of the site that covers it.
 pub(super) fn two_strand_runs(runs: &[ConsensusRun], window: &LengthWindow) -> Vec<usize> {
+    let Some((_, anchor_base)) = window.anchor else {
+        return Vec::new();
+    };
     (0..runs.len().saturating_sub(2))
         .find(|&index| {
             runs[index].base == window.repeat
-                && runs[index + 1].base == window.anchor_base
+                && runs[index + 1].base == anchor_base
                 && runs[index + 1].length == 1
                 && runs[index + 2].base == window.repeat
         })
@@ -159,32 +124,36 @@ pub(super) fn two_strand_runs(runs: &[ConsensusRun], window: &LengthWindow) -> V
         .unwrap_or_default()
 }
 
-/// The shorter length of the adjacent pair `n`, `n + 1` both strands read a
-/// run as, when at least one read's top two are near-equal: every read with
-/// a next length holds the pair as its top two, and every other read gives
-/// one of the two. The lab reads such a run as its shorter member (the run
-/// ends at the first mixed call of the reverse read); DNA only shows it.
-fn near_equal_pair(reads: &[&Contribution]) -> Option<usize> {
-    let shorter = reads.iter().find_map(|contribution| {
-        let result = &contribution.result;
-        (result.margin == margin_label(Margin::NearEqual))
-            .then(|| result.next.map(|next| result.length.min(next)))
-            .flatten()
-    })?;
-    let pair = [shorter, shorter + 1];
-    let holds = reads.iter().all(|contribution| {
-        let result = &contribution.result;
-        pair.contains(&result.length)
-            && result
-                .next
-                .is_none_or(|next| pair.contains(&next) && next != result.length)
-    });
-    let strands = |forward: bool| {
-        reads
-            .iter()
-            .any(|contribution| (contribution.result.strand == Orientation::Forward) == forward)
-    };
-    (holds && strands(true) && strands(false)).then_some(shorter)
+/// The length convention's reading of a run (`policy`, ISFG 2014 3.3.2):
+/// each read's reading is its in-phase length, or the policy's reading of
+/// its decode; when every read gives one and they hold one adjacent pair
+/// `n`, `n + 1`, the run reads `n`. `None` without a policy, and when every
+/// read already tops at `n`.
+fn convention(reads: &[&Contribution<'_>], policy: Option<ShortestDominant>) -> Option<usize> {
+    let policy = policy?;
+    let readings = reads
+        .iter()
+        .map(|contribution| contribution.reading(policy))
+        .collect::<Option<Vec<_>>>()?;
+    let shortest = *readings.iter().min()?;
+    let pair = [shortest, shortest + 1];
+    let holds = readings.iter().all(|reading| pair.contains(reading));
+    let moves = reads
+        .iter()
+        .any(|contribution| contribution.result.length != shortest);
+    (holds && moves).then_some(shortest)
+}
+
+/// The reads' floor reading of a run: the least length any read gives as
+/// its top or next.
+fn floor(reads: &[&Contribution<'_>]) -> Option<usize> {
+    reads
+        .iter()
+        .flat_map(|contribution| {
+            let result = &contribution.result;
+            std::iter::once(result.length).chain(result.next)
+        })
+        .min()
 }
 
 const fn complement(base: char) -> char {
@@ -205,28 +174,95 @@ const fn margin_label(margin: Margin) -> &'static str {
     }
 }
 
+/// Where a read's length of a run comes from.
+#[derive(Clone, Copy)]
+enum Source<'a> {
+    /// The read shows the run in phase.
+    InPhase,
+    /// The first-run marginal of the read's decode.
+    Decode(&'a TractLengths),
+    /// The read's total less its first run (the given length) and the mark.
+    Derived(&'a TractLengths, usize),
+}
+
 /// One read's length for one run of a window.
-struct Contribution {
+struct Contribution<'a> {
     run: usize,
     result: LengthReadResult,
     clear: bool,
     /// The read's structure is not DNA's: a mark where DNA calls one run, or
     /// none where it calls two.
     structure_differs: bool,
+    source: Source<'a>,
+}
+
+impl Contribution<'_> {
+    /// The length convention's reading of this read.
+    fn reading(&self, policy: ShortestDominant) -> Option<usize> {
+        match self.source {
+            Source::InPhase => Some(self.result.length),
+            Source::Decode(tract) => policy.reading(&tract.first.lengths, &tract.first.shares),
+            Source::Derived(tract, first) => policy
+                .reading(&tract.total.lengths, &tract.total.shares)?
+                .checked_sub(first + 1)
+                .filter(|&derived| derived > 0),
+        }
+    }
+
+    /// The read with its decode's components, for a note.
+    fn detail(&self) -> TractReadResult {
+        let marginal = |marginal: &LengthMarginal| MarginalResult {
+            lengths: marginal.lengths.clone(),
+            shares: marginal
+                .shares
+                .iter()
+                .map(|&share| super::review::round(share))
+                .collect(),
+            z: marginal.z.map(super::review::round),
+        };
+        let (first, total) = match self.source {
+            Source::InPhase => (None, None),
+            Source::Decode(tract) | Source::Derived(tract, _) => {
+                (Some(marginal(&tract.first)), Some(marginal(&tract.total)))
+            }
+        };
+        TractReadResult {
+            read: self.result.read.clone(),
+            strand: self.result.strand,
+            length: self.result.length,
+            source: self.result.source,
+            first,
+            total,
+        }
+    }
+}
+
+/// One judged run of a window: what `length_unconfirmed` lists, with each
+/// strand's one clear length and each read's decode components for a note.
+pub(super) struct Judged {
+    pub(super) result: LengthRunResult,
+    pub(super) strands: StrandsResult,
+    pub(super) reads: Vec<TractReadResult>,
 }
 
 /// The runs of `window` the `decodes` give a length for, each with DNA's
-/// length (`called`, by run), the reads' lengths, and how they agree. A run
-/// in `two_strand`, decided by the two-strand rule, is confirmed unless a
-/// read's structure differs from DNA's. Decodes of another base, or
-/// credited to no run of the window, give none.
+/// length, the reads' lengths, and how they agree. `called` is DNA's
+/// decided runs over the window, which set its structure; their lengths are
+/// DNA's only when it `reported` them (every window position callable), and
+/// otherwise each run carries the reads' floor reading instead. A run in
+/// `two_strand`, decided by the two-strand rule, is confirmed unless a
+/// read's structure differs from DNA's. `policy` is the length convention,
+/// when configured. Decodes of another base, or credited to no run of the
+/// window, give none.
 pub(super) fn judge(
     window: &LengthWindow,
     called: Option<&[usize]>,
+    reported: bool,
     two_strand: &[usize],
     decodes: &[Decode<'_>],
     in_phase: &[InPhase<'_>],
-) -> Vec<LengthRunResult> {
+    policy: Option<ShortestDominant>,
+) -> Vec<Judged> {
     let mut contributions = Vec::new();
     for read in in_phase {
         let runs = window_runs(read.runs, window);
@@ -245,41 +281,40 @@ pub(super) fn judge(
                 },
                 clear: true,
                 structure_differs,
+                source: Source::InPhase,
             });
         }
     }
     for decode in decodes {
         let tract = decode.tract;
         let forward = decode.strand == Orientation::Forward;
-        let (run_base, anchor_base) = if forward {
-            (window.repeat, window.anchor_base)
-        } else {
-            (complement(window.repeat), complement(window.anchor_base))
-        };
+        let orient = |base: char| if forward { base } else { complement(base) };
         let Some(position) = decode.reference else {
             continue;
         };
-        if tract.run != run_base || position < window.first || position > window.last {
+        if tract.run != orient(window.repeat) || position < window.first || position > window.last {
             continue;
         }
-        if position == window.anchor {
+        if window.anchor.is_some_and(|(anchor, _)| position == anchor) {
             continue;
         }
         let single = called.is_some_and(|runs| runs.len() == 1);
-        let entered = if single || position < window.anchor {
-            1
-        } else {
-            2
+        let entered = match window.anchor {
+            Some((anchor, _)) if !single && position > anchor => 2,
+            _ => 1,
         };
+        // A plain run has no anchor: a mark the read chooses lies past it.
         let structure_differs = called.is_some()
-            && match tract.mark {
-                Some(mark) => single || mark != anchor_base,
-                None => !single,
-            };
+            && window
+                .anchor
+                .is_some_and(|(_, anchor_base)| match tract.mark {
+                    Some(mark) => single || mark != orient(anchor_base),
+                    None => !single,
+                });
         let Some(length) = tract.first.dominant else {
             continue;
         };
-        let share = |marginal: &dna_kernel::read_evidence::LengthMarginal, length: usize| {
+        let share = |marginal: &LengthMarginal, length: usize| {
             marginal
                 .lengths
                 .iter()
@@ -301,13 +336,15 @@ pub(super) fn judge(
             },
             clear: tract.first.margin == Margin::Clear,
             structure_differs,
+            source: Source::Decode(tract),
         });
         // The next run the read reads, from its total: only with the
         // window's anchor as its mark and both marginals clear.
         let next = if forward { 2 } else { 1 };
-        if !single
+        if let Some((_, anchor_base)) = window.anchor
+            && !single
             && entered != next
-            && tract.mark == Some(anchor_base)
+            && tract.mark == Some(orient(anchor_base))
             && tract.first.margin == Margin::Clear
             && tract.total.margin == Margin::Clear
             && let Some(total) = tract.total.dominant
@@ -326,6 +363,7 @@ pub(super) fn judge(
                 },
                 clear: true,
                 structure_differs,
+                source: Source::Derived(tract, length),
             });
         }
     }
@@ -339,7 +377,10 @@ pub(super) fn judge(
                 .iter()
                 .filter(|contribution| contribution.run == run)
                 .collect::<Vec<_>>();
-            let called_length = called.and_then(|runs| runs.get(run - 1)).copied();
+            let called_length = called
+                .filter(|_| reported)
+                .and_then(|runs| runs.get(run - 1))
+                .copied();
             // Each strand's one clear length: every length its reads give
             // clear and equal; `Err` when they are not.
             let strand = |forward: bool| -> Option<Result<usize, ()>> {
@@ -394,40 +435,126 @@ pub(super) fn judge(
                 (Ok(length), Some(called)) if called != length => "differs_from_call",
                 (Ok(_), Some(_)) => "confirmed",
             };
-            LengthRunResult {
-                run,
-                base: window.repeat,
-                called: called_length,
-                agreement,
-                convention: (!matches!(agreement, "confirmed" | "structure_differs"))
-                    .then(|| near_equal_pair(&reads))
-                    .flatten()
-                    .map(|shorter| LengthConventionResult {
-                        length: shorter,
-                        rule: "shorter_of_near_equal_pair",
-                    }),
+            let one = |forward: bool| strand(forward).and_then(Result::ok);
+            Judged {
+                strands: StrandsResult {
+                    forward: one(true),
+                    reverse: one(false),
+                },
                 reads: reads
-                    .into_iter()
-                    .map(|contribution| contribution.result.clone())
+                    .iter()
+                    .map(|contribution| contribution.detail())
                     .collect(),
+                result: LengthRunResult {
+                    run,
+                    base: window.repeat,
+                    called: called_length,
+                    agreement,
+                    convention: (!matches!(agreement, "confirmed" | "structure_differs"))
+                        .then(|| convention(&reads, policy))
+                        .flatten()
+                        .map(|length| LengthConventionResult {
+                            length,
+                            rule: CONVENTION_RULE,
+                        }),
+                    floor: called_length.is_none().then(|| floor(&reads)).flatten(),
+                    reads: reads
+                        .into_iter()
+                        .map(|contribution| contribution.result.clone())
+                        .collect(),
+                },
             }
         })
         .collect()
 }
 
+/// How a judged run of a length tract stands, with the length a reviewer
+/// would record: its dominant length determined, so the run is noted, not
+/// checked; `None` when it stays a check.
+///
+/// - `confirmed`: the reads confirm DNA's reported length;
+/// - `dominant`: every read tops at DNA's reported length;
+/// - `convention`: the reads hold one adjacent pair `n`, `n + 1` that the
+///   length convention reads as `n`, and DNA's length is one of the pair;
+/// - `unconfirmed`: DNA reports no length (the window is not callable), so
+///   the run carries the reads' floor reading, unconfirmed.
+///
+/// `dominant` and `convention` need the run's structure shown: a read in
+/// phase, or decodes on both strands. A read structure other than DNA's (its
+/// anchor base read otherwise, as with `T310C` or `16189C`) always stays a
+/// check, as do decodes on one strand alone and reads that top at lengths
+/// no convention resolves, among them an in-phase read of another length.
+pub(super) fn status(run: &LengthRunResult) -> Option<(&'static str, Option<usize>)> {
+    if run.agreement == "structure_differs" {
+        return None;
+    }
+    let Some(called) = run.called else {
+        return Some(("unconfirmed", run.floor));
+    };
+    if run.agreement == "confirmed" {
+        return Some(("confirmed", Some(called)));
+    }
+    // The structure the decodes rest on must be shown: by a read in phase,
+    // or by decodes on both strands. A decode alone on one strand may rest
+    // on a spurious or dropped mark, and its margin is over-confident under
+    // noise (trace-simulator benchmark, 2026-10-21).
+    let strand = |strand: Orientation| run.reads.iter().any(|read| read.strand == strand);
+    let shown = run.reads.iter().any(|read| read.source == "in_phase")
+        || (strand(Orientation::Forward) && strand(Orientation::Reverse));
+    if !shown {
+        return None;
+    }
+    if run.reads.iter().all(|read| read.length == called) {
+        return Some(("dominant", Some(called)));
+    }
+    let length = run.convention.as_ref()?.length;
+    let pair = [length, length + 1];
+    (pair.contains(&called) && run.reads.iter().all(|read| pair.contains(&read.length)))
+        .then_some(("convention", Some(length)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sample_analysis::windows::TractRuns;
     use dna_kernel::read_evidence::{LengthMarginal, StructureFit};
 
     const HVS2: LengthWindow = LengthWindow {
         first: 303,
         last: 315,
-        anchor: 310,
         repeat: 'C',
-        anchor_base: 'T',
+        anchor: Some((310, 'T')),
         recorded: true,
+        tract: Some(TractRuns {
+            index: 0,
+            runs: [true, false],
+            single: false,
+        }),
     };
+
+    /// The judged runs as `length_unconfirmed` lists them, under the
+    /// shipped length convention (ratio 0.6).
+    fn judge(
+        window: &LengthWindow,
+        called: Option<&[usize]>,
+        reported: bool,
+        two_strand: &[usize],
+        decodes: &[Decode<'_>],
+        in_phase: &[InPhase<'_>],
+    ) -> Vec<LengthRunResult> {
+        super::judge(
+            window,
+            called,
+            reported,
+            two_strand,
+            decodes,
+            in_phase,
+            ShortestDominant::new(0.6),
+        )
+        .into_iter()
+        .map(|judged| judged.result)
+        .collect()
+    }
 
     fn marginal(lengths: &[usize], dominant: usize, margin: Margin) -> LengthMarginal {
         LengthMarginal {
@@ -499,7 +626,7 @@ mod tests {
                 tract: &reverse,
             },
         ];
-        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &[]);
+        let runs = judge(&HVS2, Some(&[8, 5]), true, &[], &decodes, &[]);
         assert_eq!(runs.len(), 2);
         // Run 1: F's first run and R's derived one agree with the call.
         assert_eq!(runs[0].agreement, "confirmed");
@@ -507,7 +634,7 @@ mod tests {
         assert_eq!(runs[0].reads[1].source, "derived");
         assert_eq!(runs[1].agreement, "confirmed");
         // The call one longer than both strands read it.
-        let runs = judge(&HVS2, Some(&[9, 5]), &[], &decodes, &[]);
+        let runs = judge(&HVS2, Some(&[9, 5]), true, &[], &decodes, &[]);
         assert_eq!(runs[0].agreement, "differs_from_call");
     }
 
@@ -526,6 +653,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            true,
             &[],
             &[
                 decode("F", Orientation::Forward, 303, &forward),
@@ -537,6 +665,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            true,
             &[],
             &[
                 decode("F", Orientation::Forward, 303, &forward),
@@ -551,6 +680,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            true,
             &[1, 2],
             &[
                 decode("F", Orientation::Forward, 303, &forward),
@@ -565,6 +695,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            true,
             &[],
             &[decode("F", Orientation::Forward, 303, &single)],
             &[],
@@ -574,6 +705,7 @@ mod tests {
         let runs = judge(
             &HVS2,
             Some(&[8, 5]),
+            true,
             &[1],
             &[decode("F", Orientation::Forward, 303, &single)],
             &[],
@@ -585,6 +717,7 @@ mod tests {
             judge(
                 &HVS2,
                 Some(&[8, 5]),
+                true,
                 &[],
                 &[
                     decode("F", Orientation::Forward, 303, &other),
@@ -598,7 +731,7 @@ mod tests {
 
     // SRS-API-020
     #[test]
-    fn suggests_the_shorter_member_of_a_near_equal_pair() {
+    fn suggests_the_shortest_dominant_of_a_near_equal_pair() {
         let mut forward = tract('C', Some('T'), 8, 14, Margin::Clear);
         forward.first = LengthMarginal {
             lengths: vec![8, 9],
@@ -640,6 +773,7 @@ mod tests {
             judge(
                 &HVS2,
                 Some(&[9, 5]),
+                true,
                 &[],
                 &decodes,
                 &[InPhase {
@@ -649,20 +783,189 @@ mod tests {
                 }],
             )
         };
-        // Both strands read C8/C9: the convention reads the shorter, as a
-        // suggestion beside DNA's own call, which stays unconfirmed.
+        // Both strands read C8/C9: the convention reads the shortest
+        // dominant, as a suggestion beside DNA's own call, which stays
+        // unconfirmed.
         let runs = judged(9);
         assert_eq!(runs[0].agreement, "not_clear");
         assert_eq!(
             runs[0].convention,
             Some(LengthConventionResult {
                 length: 8,
-                rule: "shorter_of_near_equal_pair",
+                rule: "shortest_dominant",
             })
         );
         assert_eq!(runs[0].called, Some(9));
         // A read outside the pair leaves no suggestion.
         assert_eq!(judged(10)[0].convention, None);
+    }
+
+    // SRS-API-020
+    #[test]
+    fn notes_a_tract_run_whose_dominant_length_the_reads_determine() {
+        let read = |strand, length, source| LengthReadResult {
+            read: "R".to_owned(),
+            strand,
+            length,
+            share: 0.6,
+            next: None,
+            margin: "near_equal",
+            source,
+        };
+        let run = |called, agreement, reads, convention: Option<usize>| LengthRunResult {
+            run: 1,
+            base: 'C',
+            called,
+            agreement,
+            convention: convention.map(|length| LengthConventionResult {
+                length,
+                rule: CONVENTION_RULE,
+            }),
+            floor: called.is_none().then_some(7),
+            reads,
+        };
+        let (forward, reverse) = (Orientation::Forward, Orientation::Reverse);
+        // Every read tops at DNA's C8, on both strands: the dominant.
+        let both = vec![read(forward, 8, "decode"), read(reverse, 8, "derived")];
+        assert_eq!(
+            status(&run(Some(8), "not_clear", both.clone(), None)),
+            Some(("dominant", Some(8)))
+        );
+        // A decode alone on one strand rests on an unshown structure.
+        let one = vec![read(forward, 8, "decode")];
+        assert_eq!(status(&run(Some(8), "one_strand", one, None)), None);
+        // A read in phase shows it.
+        let shown = vec![read(forward, 8, "decode"), read(forward, 8, "in_phase")];
+        assert_eq!(
+            status(&run(Some(8), "one_strand", shown, None)),
+            Some(("dominant", Some(8)))
+        );
+        // A near-equal pair C8/C9 that the convention reads as C8, DNA C9.
+        let pair = vec![read(forward, 9, "decode"), read(reverse, 8, "in_phase")];
+        assert_eq!(
+            status(&run(Some(9), "disagree", pair.clone(), Some(8))),
+            Some(("convention", Some(8)))
+        );
+        // Without a convention reading, the dominant is undecided.
+        assert_eq!(status(&run(Some(9), "disagree", pair, None)), None);
+        // Reads beyond the pair, or another structure, stay a check.
+        let wide = vec![read(forward, 10, "decode"), read(reverse, 8, "decode")];
+        assert_eq!(status(&run(Some(9), "disagree", wide, Some(8))), None);
+        assert_eq!(status(&run(Some(8), "structure_differs", both, None)), None);
+        // DNA reports no length: the floor, unconfirmed.
+        assert_eq!(
+            status(&run(None, "undecided_call", Vec::new(), None)),
+            Some(("unconfirmed", Some(7)))
+        );
+    }
+
+    // SRS-API-020
+    #[test]
+    fn judges_a_plain_tract_as_one_run_whatever_mark_a_read_chooses() {
+        let plain = LengthWindow {
+            first: 568,
+            last: 573,
+            repeat: 'C',
+            anchor: None,
+            recorded: true,
+            tract: Some(TractRuns {
+                index: 0,
+                runs: [true, false],
+                single: true,
+            }),
+        };
+        // A forward decode that chose the A after the run as its mark, and
+        // a reverse one entering from 573.
+        let forward = tract('C', Some('A'), 7, 9, Margin::Clear);
+        let reverse = tract('G', None, 7, 7, Margin::Clear);
+        let decodes = [
+            Decode {
+                read: "F",
+                strand: Orientation::Forward,
+                reference: Some(568),
+                tract: &forward,
+            },
+            Decode {
+                read: "R",
+                strand: Orientation::Reverse,
+                reference: Some(573),
+                tract: &reverse,
+            },
+        ];
+        let runs = judge(&plain, Some(&[7]), true, &[], &decodes, &[]);
+        assert_eq!(runs.len(), 1);
+        assert_eq!((runs[0].run, runs[0].agreement), (1, "confirmed"));
+        assert!(plain.in_tract(1, true) && !HVS2.in_tract(2, false) && HVS2.in_tract(1, false));
+    }
+
+    // SRS-API-020
+    #[test]
+    fn gives_the_reads_floor_where_dna_reports_no_length() {
+        let mut forward = tract('C', Some('T'), 9, 15, Margin::Clear);
+        forward.first = LengthMarginal {
+            lengths: vec![9, 10],
+            shares: vec![0.55, 0.45],
+            errors: vec![0.05, 0.05],
+            dominant: Some(9),
+            next: Some(10),
+            z: Some(0.7),
+            z_adjusted: Some(0.5),
+            margin: Margin::NearEqual,
+        };
+        let reverse = tract('G', Some('A'), 5, 14, Margin::Clear);
+        let decodes = [
+            Decode {
+                read: "F",
+                strand: Orientation::Forward,
+                reference: Some(303),
+                tract: &forward,
+            },
+            Decode {
+                read: "R",
+                strand: Orientation::Reverse,
+                reference: Some(315),
+                tract: &reverse,
+            },
+        ];
+        // F reads run 2 in phase after a dephased run 1.
+        let through = [
+            ReadRun {
+                base: 'C',
+                length: 10,
+                in_phase: false,
+            },
+            ReadRun {
+                base: 'T',
+                length: 1,
+                in_phase: true,
+            },
+            ReadRun {
+                base: 'C',
+                length: 5,
+                in_phase: true,
+            },
+        ];
+        let in_phase = [InPhase {
+            read: "F",
+            strand: Orientation::Forward,
+            runs: &through,
+        }];
+        // DNA's estimate, C10 then C5, is not reported: no run carries it,
+        // and each carries the least length a read gives instead.
+        let runs = judge(&HVS2, Some(&[10, 5]), false, &[], &decodes, &in_phase);
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].called, None);
+        assert_eq!(runs[0].floor, Some(8));
+        assert_eq!(runs[0].agreement, "not_clear");
+        // Both strands give run 2 one clear length; DNA reports none.
+        assert_eq!(runs[1].called, None);
+        assert_eq!(runs[1].floor, Some(5));
+        assert_eq!(runs[1].agreement, "undecided_call");
+        // Reported, the same runs carry DNA's lengths and no floor.
+        let runs = judge(&HVS2, Some(&[10, 5]), true, &[], &decodes, &in_phase);
+        assert_eq!(runs[0].called, Some(10));
+        assert_eq!(runs[0].floor, None);
+        assert_eq!(runs[1].agreement, "confirmed");
     }
 
     // SRS-API-020
@@ -691,7 +994,14 @@ mod tests {
             strand: Orientation::Reverse,
             runs,
         };
-        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &[reverse(&through)]);
+        let runs = judge(
+            &HVS2,
+            Some(&[8, 5]),
+            true,
+            &[],
+            &decodes,
+            &[reverse(&through)],
+        );
         assert_eq!(
             runs.iter().map(|run| run.agreement).collect::<Vec<_>>(),
             ["confirmed", "confirmed"]
@@ -708,11 +1018,18 @@ mod tests {
             },
             decodes[0].clone(),
         ];
-        let runs = judge(&HVS2, Some(&[8, 5]), &[], &mixed, &[reverse(&through)]);
+        let runs = judge(
+            &HVS2,
+            Some(&[8, 5]),
+            true,
+            &[],
+            &mixed,
+            &[reverse(&through)],
+        );
         assert_eq!(runs[1].agreement, "not_clear");
         // A read in phase through one run where DNA calls two differs.
         let one = [run('C', 13, true)];
-        let runs = judge(&HVS2, Some(&[8, 5]), &[], &decodes, &[reverse(&one)]);
+        let runs = judge(&HVS2, Some(&[8, 5]), true, &[], &decodes, &[reverse(&one)]);
         assert_eq!(runs[0].agreement, "structure_differs");
     }
 
@@ -734,7 +1051,7 @@ mod tests {
             tract: &forward,
         }];
         let agreements = |called: &[usize], in_phase: &[InPhase<'_>]| {
-            judge(&HVS2, Some(called), &[], &decodes, in_phase)
+            judge(&HVS2, Some(called), true, &[], &decodes, in_phase)
                 .iter()
                 .map(|run| run.agreement)
                 .collect::<Vec<_>>()

@@ -220,8 +220,18 @@ fn rejects_what_the_contract_does_not_describe() -> Checked {
         "windows.tsv",
         &format!("{windows}HV1\t1\t10\t0\t0\t0\t\t1.0000\n"),
     )?;
+    let notes = "sample_id\tfirst\tlast\ttract\trun\tstatus\tcalled\treading\tconvention\n";
+    check_table(
+        "notes.tsv",
+        &format!("{notes}S1\t303\t315\thvs2_c_tract\t1\tunconfirmed\t.\t8\t.\n"),
+    )?;
     for (name, text) in [
         ("notes.tsv", header.to_owned()),
+        (
+            "notes.tsv",
+            format!("{notes}S1\t303\t315\thvs2_c_tract\t1\tmaybe\t.\t8\t.\n"),
+        ),
+        ("unknown.tsv", header.to_owned()),
         ("checks.tsv", "sample_id\tfirst\tlast\n".to_owned()),
         ("checks.tsv", format!("{header}S1\t1\t2\n")),
         ("checks.tsv", format!("# note\n{header}")),

@@ -20,7 +20,9 @@ appends it in trace order, and the public call sends it to the caller's
 dispatcher inside the caller's span.
 
 `mod.rs` aggregates the placed reads into the core sample evidence, builds the
-consensus in the evidence's read order, and exposes `analyze_sanger`, which
+consensus in the evidence's read order (with the two-strand rule calibrated by
+the batch's run context when the inputs hold one; `with_run_context` rebuilds
+it in process), and exposes `analyze_sanger`, which
 returns both as a typed `SampleAnalysis` from one pass. Every report reads a
 read's Sanger evidence from the analysis's `SangerRead` and `Rejection`
 records, which the evidence-based review fills as the trace-based one does. The `sample` and
@@ -46,3 +48,12 @@ It does not open logs, derive output paths, serialize JSON, or publish files.
 See [Rust API contract](../../docs/reference/rust-api-sample.md#sample-analysis),
 [pipeline method](../../docs/design/pipeline.md#sample-placement-pass), and
 [sample evidence requirements](../../docs/requirements/sample-evidence/README.md).
+
+`windows.rs` holds the profile's anchored repeat windows, which the review's
+length judgement reads, and the cross-strand pairs a sample gives a run
+context over the recorded ones (PROP-0014). `run_context.rs` reads a run
+context (`RunContext::read`) and holds `calibrate`, which checks the context's reference, windows, and length
+parameters against the analysis's, leaves the sample's own pairs out when
+all its admitted reads are among the context's (failing when only some
+are), and returns the consensus configuration with τ rescaled
+(SRS-CONS-014) and how it was used (`ContextUse`).

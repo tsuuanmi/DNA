@@ -334,6 +334,12 @@ the facade does not re-export: it also keeps the normalized form of a window
 whose representation would place a call outside the read's callable
 reference intervals, or would rest on a decisive base the read does not read
 (SRS-NOM-010).
+`dna_normalize::length_convention::ShortestDominant` is the optional
+"shortest dominant" length convention (ISFG 2014 3.3.2): from a length
+distribution it reads the dominant length, or the next-shorter one when its
+share is at least the configured ratio of the dominant's (`[normalization]`,
+at most `MAX_RATIO`, 0.85). The review applies it as a labelled suggestion
+([[reference/review-lengths]]); the facade does not re-export it.
 Decimal strings such as `309.1C` remain an outer notation concern. Sanger
 artifact interpretation, sample reconciliation, and NGS-specific behavior are
 not implemented by this API.
@@ -364,6 +370,7 @@ that stage's own `#[non_exhaustive]` failure enum, re-exported from
 | `KernelError::Sequence` | `SequenceError` | `invalid sequence FASTA:` |
 | `KernelError::Variants` | `VariantsError` | `invalid variants document:` |
 | `KernelError::ConsensusDocument` | `ConsensusDocumentError` | `invalid consensus document:` |
+| `KernelError::RunContext` | `RunContextError` | `invalid run context:` |
 | `KernelError::Evidence` | `EvidenceError` | `read evidence failed:` |
 | `KernelError::Alignment` | `AlignmentError` | `alignment failed:` |
 | `KernelError::Variant` | `VariantError` | `variant calling failed:` |
@@ -400,7 +407,7 @@ anchoring failures.
 
 `KernelError::Path` reports a rejected path with a static reason. `Read`, `Log`, and
 `Output` keep the `std::io::Error` as their `source`. Third-party parser and serializer
-failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `ConsensusParse`, `Serialize`) are erased to `ForeignError`, so
+failures (`ConfigParse`, `ProfileParse`, `VariantsParse`, `ConsensusParse`, `RunContextParse`, `Serialize`) are erased to `ForeignError`, so
 dependency types never appear in the public API. Stage failures render inline,
 `"<prefix> <failure>"`, and are reached by matching rather than through
 `std::error::Error::source`.

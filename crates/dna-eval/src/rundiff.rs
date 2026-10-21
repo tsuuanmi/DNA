@@ -53,6 +53,7 @@ struct Escape {
 /// The pass measures' classes, from the least to the most severe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Severity {
+    LengthNote,
     Recheck,
     Het,
     TruthN,
@@ -62,6 +63,7 @@ enum Severity {
 impl Severity {
     fn parse(label: &str) -> Option<Self> {
         Some(match label {
+            "length_note" => Self::LengthNote,
             "recheck" => Self::Recheck,
             "het" => Self::Het,
             "truth_n" => Self::TruthN,
@@ -72,6 +74,7 @@ impl Severity {
 
     const fn label(self) -> &'static str {
         match self {
+            Self::LengthNote => "length_note",
             Self::Recheck => "recheck",
             Self::Het => "het",
             Self::TruthN => "truth_n",
@@ -261,6 +264,9 @@ struct Counts {
     passed_truth_n: usize,
     passed_het_only: usize,
     passed_recheck_only: usize,
+    /// Passed samples whose only unreviewed blocks are noted tract lengths:
+    /// reported, never gated.
+    passed_length_note_only: usize,
     positions: i64,
 }
 
@@ -319,6 +325,7 @@ fn tally(
                     Some(Severity::TruthN) => count.passed_truth_n += 1,
                     Some(Severity::Het) => count.passed_het_only += 1,
                     Some(Severity::Recheck) => count.passed_recheck_only += 1,
+                    Some(Severity::LengthNote) => count.passed_length_note_only += 1,
                     None => {}
                 }
             }
@@ -510,7 +517,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
 
     let _ = writeln!(
         report,
-        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe block. Only the non-het counts of {gate} gate; the other groups are reported.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "## Samples\n\nUnreviewed counts samples with a non-het unreviewed block, and those whose only unreviewed blocks are het; passed samples are counted under their most severe block. Only the non-het counts of {gate} gate; the other groups are reported.\n\n| Group | Samples | Clear | Unreviewed non-het | Unreviewed het only | Passed non-het | Passed truth-N | Passed het only | Passed re-check only | Passed length-note only | Positions to review |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     );
     let names = before
         .counts
@@ -530,7 +537,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         };
         let _ = writeln!(
             report,
-            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             cell(old.samples, new.samples),
             cell(old.clear, new.clear),
             cell(old.unreviewed_non_het, new.unreviewed_non_het),
@@ -539,6 +546,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             cell(old.passed_truth_n, new.passed_truth_n),
             cell(old.passed_het_only, new.passed_het_only),
             cell(old.passed_recheck_only, new.passed_recheck_only),
+            cell(old.passed_length_note_only, new.passed_length_note_only),
             if old.positions == new.positions {
                 old.positions.to_string()
             } else {
