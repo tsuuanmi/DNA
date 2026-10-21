@@ -103,7 +103,9 @@ pub struct ConsensusSite {
     pub call: Option<String>,
     /// How the sequence was decided.
     pub state: SiteState,
-    /// Reads whose clean sequence matches the call.
+    /// Reads whose clean sequence matches the call. Every read list names a
+    /// read by its identity, its input's content SHA-256, never by its file
+    /// name, which two inputs can share.
     pub supporting: Vec<String>,
     /// Reads whose clean sequence differs from the call.
     pub opposing: Vec<String>,

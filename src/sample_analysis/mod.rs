@@ -589,8 +589,15 @@ pub(crate) fn analyze(
         workers,
     )?;
     if placed.called.is_empty() && !placed.rejected.is_empty() {
+        // Identical inputs never count twice, as `aggregate` checks for a
+        // sample with an admitted read.
+        let inputs = placed.rejected.len();
+        let rejections = by_identity(placed.rejected);
+        if rejections.len() != inputs {
+            return Err(SampleError::DuplicateTrace.into());
+        }
         return Ok(Outcome::Rejected {
-            rejections: by_identity(placed.rejected),
+            rejections,
             products: rejected_by_identity(placed.products.rejected),
         });
     }

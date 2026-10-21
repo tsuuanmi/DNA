@@ -53,7 +53,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 29,
+    version: 30,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -131,7 +131,11 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
     };
     let (analysis, call) = match outcome {
         Reviewed::Rejected(rejected) => {
-            let names = reviewer_names(rejected.values().map(|read| read.input_name.as_str()))?;
+            let names = reviewer_names(
+                rejected
+                    .values()
+                    .map(|read| (read.input_name.as_str(), read.input_sha256.as_str())),
+            )?;
             let reads = rejected
                 .values()
                 .zip(names)
@@ -495,8 +499,8 @@ struct Sample<'a> {
     /// Per read, in evidence order: name, content SHA-256, strand, the core's
     /// trust in each call, and the Sanger evidence.
     reads: Vec<Read<'a>>,
-    /// Read index by input name, as consensus sites name reads.
-    by_input: BTreeMap<&'a str, usize>,
+    /// Read index by content SHA-256, as consensus sites name reads.
+    by_id: BTreeMap<&'a str, usize>,
     /// Every covered position's observations.
     loci: BTreeMap<usize, LocusObservations>,
     /// The run signal the calls are judged against, the sample's own reads
@@ -586,12 +590,12 @@ impl<'a> Sample<'a> {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let by_input = analysis
+        let by_id = analysis
             .evidence
             .reads
             .iter()
             .enumerate()
-            .map(|(index, read)| (read.input_name.as_str(), index))
+            .map(|(index, read)| (read.input_sha256.as_str(), index))
             .collect();
         let covered = merge(segments(
             analysis
@@ -634,7 +638,7 @@ impl<'a> Sample<'a> {
             sites: &analysis.consensus.sites,
             unreliable_only: &analysis.consensus.unreliable_only,
             reads,
-            by_input,
+            by_id,
             loci,
             signal,
             second: &analysis.loaded.config.sanger.signal_processing,
@@ -1027,7 +1031,7 @@ impl<'a> Sample<'a> {
         let sides = |names: &[String], role: Role| {
             names
                 .iter()
-                .filter_map(|input| self.by_input.get(input.as_str()))
+                .filter_map(|input| self.by_id.get(input.as_str()))
                 .map(|&index| SideResult {
                     read: self.reads[index].name.to_owned(),
                     strand: self.reads[index].strand,
@@ -1035,19 +1039,10 @@ impl<'a> Sample<'a> {
                 })
                 .collect::<Vec<_>>()
         };
-        let supporting = sides(&site.supporting, Role::Supporting);
-        let opposing = sides(&site.opposing, Role::Opposing);
-        if disagree(
-            &supporting
-                .iter()
-                .map(|side| side.strand)
-                .collect::<Vec<_>>(),
-            &opposing.iter().map(|side| side.strand).collect::<Vec<_>>(),
-        ) {
-            labels.push(LabelResult::StrandsDisagree {
-                reads: supporting.into_iter().chain(opposing).collect(),
-            });
-        }
+        labels.extend(dissent(
+            sides(&site.supporting, Role::Supporting),
+            sides(&site.opposing, Role::Opposing),
+        ));
         if undecided(site) {
             labels.push(LabelResult::Undecided);
         }
@@ -1110,7 +1105,7 @@ impl<'a> Sample<'a> {
         let [input] = site.supporting.as_slice() else {
             return None;
         };
-        let index = *self.by_input.get(input.as_str())?;
+        let index = *self.by_id.get(input.as_str())?;
         run_lost(
             &site.reference,
             call,
@@ -1140,7 +1135,7 @@ impl<'a> Sample<'a> {
         {
             return None;
         }
-        let index = *self.by_input.get(input.as_str())?;
+        let index = *self.by_id.get(input.as_str())?;
         run_length_change(&site.reference, call, self.config.phase_run)
             .then(|| self.reads[index].name.to_owned())
     }
@@ -1254,7 +1249,7 @@ impl<'a> Sample<'a> {
             site.last_0based + 1,
             self.config.deletion_zone,
         );
-        let index = *self.by_input.get(input.as_str())?;
+        let index = *self.by_id.get(input.as_str())?;
         near.then(|| self.reads[index].name.to_owned())
     }
 
@@ -1297,7 +1292,7 @@ impl<'a> Sample<'a> {
             let indices = site
                 .supporting
                 .iter()
-                .filter_map(|input| self.by_input.get(input.as_str()).copied())
+                .filter_map(|input| self.by_id.get(input.as_str()).copied())
                 .collect::<Vec<_>>();
             let supporting = indices
                 .iter()
@@ -1505,7 +1500,7 @@ impl<'a> Sample<'a> {
         for index in site
             .supporting
             .iter()
-            .filter_map(|input| self.by_input.get(input.as_str()).copied())
+            .filter_map(|input| self.by_id.get(input.as_str()).copied())
         {
             if let Some(sequence) = self.shown(index, first, last) {
                 *shown.entry(sequence).or_default() += 1;
@@ -1518,12 +1513,13 @@ impl<'a> Sample<'a> {
             .map(|(sequence, _)| sequence)
     }
 
-    /// Keeps `strands_disagree` on a clipped site only for the opposing reads
-    /// that may differ from `decision` over its reportable columns: one that
-    /// shows the decision there, its difference lying outside the regions, no
-    /// longer opposes the item (a read that does not bound those columns
-    /// still does). The label goes when no opposing read is left on another
-    /// strand than a supporting one.
+    /// Keeps a clipped site's dissent label (`strands_disagree` or
+    /// `same_strand_dissent`) only for the opposing reads that may differ
+    /// from `decision` over its reportable columns: one that shows the
+    /// decision there, its difference lying outside the regions, no longer
+    /// opposes the item (a read that does not bound those columns still
+    /// does). The label is then the one the remaining reads give
+    /// ([`dissent`]), or goes when no opposing read is left.
     fn clip_disagreement(
         &self,
         labels: &mut Vec<LabelResult>,
@@ -1538,28 +1534,34 @@ impl<'a> Sample<'a> {
                 .and_then(|index| self.shown(index, first, last))
                 .is_some_and(|shown| shown == decision)
         };
-        labels.retain_mut(|label| {
-            let LabelResult::StrandsDisagree { reads } = label else {
-                return true;
-            };
-            reads.retain(|side| side.role != Role::Opposing || !agrees(&side.read));
-            let strands = |role: Role| {
-                reads
-                    .iter()
-                    .filter(|side| side.role == role)
-                    .map(|side| side.strand)
-                    .collect::<Vec<_>>()
-            };
-            disagree(&strands(Role::Supporting), &strands(Role::Opposing))
-        });
+        let Some(at) = labels.iter().position(|label| {
+            matches!(
+                label,
+                LabelResult::StrandsDisagree { .. } | LabelResult::SameStrandDissent { .. }
+            )
+        }) else {
+            return;
+        };
+        let (LabelResult::StrandsDisagree { reads } | LabelResult::SameStrandDissent { reads }) =
+            labels.remove(at)
+        else {
+            return;
+        };
+        let (supporting, opposing) = reads
+            .into_iter()
+            .filter(|side| side.role != Role::Opposing || !agrees(&side.read))
+            .partition(|side| side.role == Role::Supporting);
+        if let Some(label) = dissent(supporting, opposing) {
+            labels.insert(at, label);
+        }
     }
 
     /// `read_disagrees` for each read that supports a decided site, or that
     /// the consensus set aside there (`uninformative`), and still shows the
     /// whole item, every call clean of the modality's reasons, as
     /// another sequence than the decision: the consensus explained the
-    /// difference away by the read's bounds. Opposing reads are
-    /// `strands_disagree`'s. Only an unclipped site is compared.
+    /// difference away by the read's bounds. Opposing reads are [`dissent`]'s.
+    /// Only an unclipped site is compared.
     fn disagreeing(
         &self,
         site: &ConsensusSite,
@@ -1573,7 +1575,7 @@ impl<'a> Sample<'a> {
         site.supporting
             .iter()
             .chain(&site.uninformative)
-            .filter_map(|input| self.by_input.get(input.as_str()).copied())
+            .filter_map(|input| self.by_id.get(input.as_str()).copied())
             .filter_map(|index| {
                 let shown = self.shown(index, first, last)?;
                 (shown != sequence).then(|| LabelResult::ReadDisagrees {
@@ -1593,7 +1595,7 @@ impl<'a> Sample<'a> {
     /// of such a run is a length question that dephasing leaves open; the
     /// bases before it are not. Only an item without a length change is
     /// compared, position by position; an opposing read is
-    /// `strands_disagree`'s, and a read that [`Self::disagreeing`] already
+    /// [`dissent`]'s, and a read that [`Self::disagreeing`] already
     /// labels is left to it.
     fn end_disagreeing(
         &self,
@@ -1611,7 +1613,7 @@ impl<'a> Sample<'a> {
         let opposing = site
             .opposing
             .iter()
-            .filter_map(|input| self.by_input.get(input.as_str()).copied())
+            .filter_map(|input| self.by_id.get(input.as_str()).copied())
             .collect::<BTreeSet<_>>();
         for (index, read) in self.reads.iter().enumerate() {
             if opposing.contains(&index)
@@ -2045,11 +2047,25 @@ fn heteroplasmy(clean: &[Clean]) -> Option<(char, Vec<Clean>)> {
     ))
 }
 
-/// Whether a supporting read and an opposing read lie on different strands.
-fn disagree(supporting: &[Orientation], opposing: &[Orientation]) -> bool {
-    supporting
+/// The label of a site's clean dissent, over every supporting and opposing
+/// read, however many each strand has: `strands_disagree` when a supporting
+/// read lies on another strand than an opposing one, otherwise
+/// `same_strand_dissent` (all of them lie on one strand); `None` without a
+/// supporting or an opposing read. Lists the supporting, then the opposing
+/// reads.
+fn dissent(supporting: Vec<SideResult>, opposing: Vec<SideResult>) -> Option<LabelResult> {
+    if supporting.is_empty() || opposing.is_empty() {
+        return None;
+    }
+    let across = supporting
         .iter()
-        .any(|left| opposing.iter().any(|right| left != right))
+        .any(|left| opposing.iter().any(|right| left.strand != right.strand));
+    let reads = supporting.into_iter().chain(opposing).collect();
+    Some(if across {
+        LabelResult::StrandsDisagree { reads }
+    } else {
+        LabelResult::SameStrandDissent { reads }
+    })
 }
 
 /// The one strand every supporting read lies on; `None` without a read or
@@ -2302,7 +2318,7 @@ fn bounded(
 }
 
 /// Whether a label leaves its item unassured, so that the item is a check:
-/// strands that disagree, a possible heteroplasmy, an estimated length, an
+/// reads that disagree, a possible heteroplasmy, an estimated length, an
 /// undecided position, or no read. The read labels (one read, one strand,
 /// noisy signal, read edge, phase shift) are context for the reviewer.
 const fn unassured(label: &LabelResult) -> bool {
@@ -2310,6 +2326,7 @@ const fn unassured(label: &LabelResult) -> bool {
         label,
         LabelResult::StrandsDisagree { .. }
             | LabelResult::ReadDisagrees { .. }
+            | LabelResult::SameStrandDissent { .. }
             | LabelResult::PossibleHeteroplasmy {
                 explained: false,
                 ..
@@ -2332,7 +2349,9 @@ const fn unassured(label: &LabelResult) -> bool {
 /// A label's rank: the lower, the earlier a reviewer looks.
 const fn rank(label: &LabelResult) -> u8 {
     match label {
-        LabelResult::StrandsDisagree { .. } | LabelResult::ReadDisagrees { .. } => 0,
+        LabelResult::StrandsDisagree { .. }
+        | LabelResult::ReadDisagrees { .. }
+        | LabelResult::SameStrandDissent { .. } => 0,
         LabelResult::PossibleHeteroplasmy {
             explained: false, ..
         }
@@ -2367,6 +2386,7 @@ const fn name(label: &LabelResult) -> &'static str {
     match label {
         LabelResult::StrandsDisagree { .. } => "strands_disagree",
         LabelResult::ReadDisagrees { .. } => "read_disagrees",
+        LabelResult::SameStrandDissent { .. } => "same_strand_dissent",
         LabelResult::NotCalled => "not_called",
         LabelResult::LongRun { .. } => "long_run",
         LabelResult::EdgeDeletion { .. } => "edge_deletion",
@@ -2600,6 +2620,7 @@ fn summarize(
             let count = match label {
                 "strands_disagree" => &mut labels.strands_disagree,
                 "read_disagrees" => &mut labels.read_disagrees,
+                "same_strand_dissent" => &mut labels.same_strand_dissent,
                 "not_called" => &mut labels.not_called,
                 "long_run" => &mut labels.long_run,
                 "edge_deletion" => &mut labels.edge_deletion,
@@ -3021,12 +3042,50 @@ mod tests {
     }
 
     #[test]
-    fn strands_disagree_needs_opposite_strands_across_the_sides() {
-        assert!(disagree(&[F], &[R]));
-        assert!(disagree(&[F, R], &[F]));
-        assert!(!disagree(&[F, F], &[F]));
-        assert!(!disagree(&[F], &[]));
-        assert!(!disagree(&[], &[R]));
+    fn dissent_is_across_or_within_one_strand_over_every_read() {
+        let sides = |strands: &[Orientation], role: Role| {
+            strands
+                .iter()
+                .enumerate()
+                .map(|(index, &strand)| SideResult {
+                    read: format!("{role:?}{index}"),
+                    strand,
+                    role,
+                })
+                .collect::<Vec<_>>()
+        };
+        let label = |supporting: &[Orientation], opposing: &[Orientation]| {
+            dissent(
+                sides(supporting, Role::Supporting),
+                sides(opposing, Role::Opposing),
+            )
+            .map(|label| name(&label))
+        };
+        assert_eq!(label(&[F], &[R]), Some("strands_disagree"));
+        assert_eq!(label(&[F, R], &[F]), Some("strands_disagree"));
+        // Three reads of one strand against one: no strand contradicts, but
+        // a clean read of the supporting strand dissents.
+        assert_eq!(label(&[F, F, F], &[F]), Some("same_strand_dissent"));
+        assert_eq!(label(&[R, R], &[R, R, R]), Some("same_strand_dissent"));
+        assert_eq!(label(&[F, F, F], &[F, R]), Some("strands_disagree"));
+        assert_eq!(label(&[F, F, F], &[]), None);
+        assert_eq!(label(&[], &[R, R, R]), None);
+        // The label lists every read, the supporting first.
+        let Some(LabelResult::SameStrandDissent { reads }) = dissent(
+            sides(&[F, F, F], Role::Supporting),
+            sides(&[F], Role::Opposing),
+        ) else {
+            panic!("three forward reads against one dissent within the strand");
+        };
+        assert_eq!(
+            reads.iter().map(|side| side.role).collect::<Vec<_>>(),
+            [
+                Role::Supporting,
+                Role::Supporting,
+                Role::Supporting,
+                Role::Opposing
+            ]
+        );
         assert_eq!(one_strand(&[R, R]), Some(R));
         assert_eq!(one_strand(&[R, F]), None);
         assert_eq!(one_strand(&[]), None);
