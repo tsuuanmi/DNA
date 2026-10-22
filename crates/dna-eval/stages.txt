@@ -9,8 +9,9 @@
 #   path            a file or directory on the stage's path;
 #   path: a, b      a file on the stage's path for items a and b only: listed
 #                   whole, and what those items use (their definitions and
-#                   impl blocks, through the file's `use` bindings too) is
-#                   followed, but not what its other items use;
+#                   impl blocks, through the file's `use` bindings and the
+#                   file's own items they name, transitively) is followed,
+#                   but not what its other items use;
 #   !path           used by a listed source, but not on the stage's path: the
 #                   check fails when nothing listed uses it.
 #
@@ -55,7 +56,12 @@ src/report/atomic.rs
 src/report/evidence.rs
 src/report/json.rs
 # The configuration envelope parses every plugin's section, and the result
-# models name the core's types; the read stage writes neither.
+# models name the core's types; the read stage writes neither. The plugin
+# registry names every plugin's descriptor, which composing EVIDENCE only
+# checks.
+!crates/dna-empop
+!src/input/sequence.rs
+!src/report/review/mod.rs
 !crates/dna-align
 !crates/dna-call
 !crates/dna-consensus
@@ -93,6 +99,9 @@ src/pipeline/mod.rs: plugins
 src/pipeline/plugins.rs: EVIDENCE
 # As the read stage's; the evidence reader also parses the Sanger plugin's
 # fields, whose document the key already names.
+!crates/dna-empop
+!src/input/sequence.rs
+!src/report/review/mod.rs
 !crates/dna-call
 !crates/dna-consensus
 !crates/dna-normalize

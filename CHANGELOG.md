@@ -796,7 +796,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   the result models the evidence names, all of which it missed; the forms
   index's covers the kernel, the geometry, the manifests it reads, and the
   harness library's manifest. A file listed for some items only has what
-  those items use checked too, and every list names `stages.txt`. The
+  those items use checked too, with the same file's helpers they call,
+  transitively; a listed file may not glob-import its own crate; and every
+  list names `stages.txt`. The
   placement cache's generation also names the target profile file's
   SHA-256, whose topology the placement aligns on. Every existing evidence,
   placement, and forms cache generation therefore misses once. No DNA output changes; run outputs are byte-identical.
