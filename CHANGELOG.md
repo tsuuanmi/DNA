@@ -682,6 +682,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review's `read_disagrees` reads a call a bounded-run exemption
+  covers as showing its base only where the consensus lifts `read_end` from
+  it (ADR-0076): a run call aligned as a match or inserted, a bound aligned
+  as a match. It trusted every exempt call before. One rule,
+  `Eligibility::exempt_as`, serves both. Plugin: `review` 34. Measured
+  against `main` af0823d3 with #239: every table byte-identical on
+  development panel v5 and readiness-v2; artefact bench unchanged.
 - The two-strand rule reads each read's runs as the confirmation and
   set-aside passes leave them, so a read set aside at a stretch
   (SRS-CONS-011) gives no in-phase view of its runs; it read the reads'

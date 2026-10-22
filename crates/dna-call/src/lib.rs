@@ -7,7 +7,7 @@ pub mod read_call;
 mod config;
 
 pub use config::{RawVariantCallingConfig, VariantCallingConfig};
-pub use eligibility::{Eligibility, read_trust};
+pub use eligibility::{Aligned, Eligibility, read_trust};
 
 mod anchor;
 mod eligibility;
