@@ -8,7 +8,7 @@ covers:
   - src/model/review_result.rs
   - src/pipeline/review.rs
   - src/pipeline/sample_call.rs
-  - src/report/review.rs
+  - src/report/review/
   - src/recorded.rs
   - src/sample_analysis/
   - src/variant_analysis/

@@ -2,6 +2,8 @@
 //! position, and the anchored pair of runs in a list of runs. The consensus
 //! and the review read runs through these alone.
 
+use dna_kernel::model::runs::maximal_runs;
+
 use crate::ReadRun;
 use crate::model::consensus::ConsensusRun;
 
@@ -56,17 +58,14 @@ pub fn anchored_pair<R: AsRun>(runs: &[R], repeat: char, anchor: char) -> Option
     })
 }
 
-/// Runs of equal bases as `(base, length)`, in order.
+/// Runs of equal bases as `(base, length)`, in order: the kernel's
+/// `maximal_runs` scan over the bases.
 #[must_use]
 pub fn runs_of(bases: impl IntoIterator<Item = char>) -> Vec<(char, usize)> {
-    let mut runs: Vec<(char, usize)> = Vec::new();
-    for base in bases {
-        match runs.last_mut() {
-            Some((previous, count)) if *previous == base => *count += 1,
-            _ => runs.push((base, 1)),
-        }
-    }
-    runs
+    let bases = bases.into_iter().collect::<Vec<_>>();
+    maximal_runs(&bases, |base| *base)
+        .map(|run| (bases[run.start], run.len()))
+        .collect()
 }
 
 /// The run of one base of `bases` holding the 0-based `position`, as its

@@ -33,7 +33,7 @@ CONSENSUS_EXAMPLE = CONTRACTS / "examples" / "consensus-v1.example.json"
 REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
 # The labelling rules' one source: the `review` plugin's descriptor.
-REVIEW_SOURCE = ROOT / "src" / "report" / "review.rs"
+REVIEW_SOURCE = ROOT / "src" / "report" / "review" / "mod.rs"
 REVIEW_REFERENCE = CONTRACTS / "review.md"
 REVIEW_PLUGIN = re.compile(
     r'PluginDescriptor = PluginDescriptor \{\s*id: "review",[^}]*?version: (\d+),'
