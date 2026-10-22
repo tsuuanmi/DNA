@@ -41,6 +41,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `crates/dna-eval/baselines/regress-v1-ledger.tsv` and one per stratum (37)
   in `regress-v1-strata.tsv`. 589 samples, none failed, 291 clear, 6 non-het
   blocks in unchecked zones.
+- Regression ledger entry `r0002` of regress-v1: the change of #299 (review
+  rules 35, anchored runs beside the anchor) on `main` c2fcd771, `REGRESS
+  EXPLAINED` against `r0001` by its intent file
+  `crates/dna-eval/baselines/regress-intents/r0002.tsv` (no posthoc row). 9
+  samples changed (31 lines: 9 check items removed, 22 review lines changed),
+  clear 291 → 295, samples with a check 298 → 294, non-het blocks in
+  unchecked zones 6 → 6; version key: plugin `review` 34 → 35.
 - `dna-eval regress` (`dna.eval_regress/v1`): the versioned regression set
   (`docs/validation/regression-set.md`).
   - `regress check` runs DNA on every row of a `panel=regress` manifest as
