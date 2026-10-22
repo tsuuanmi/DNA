@@ -17,7 +17,7 @@ use crate::error::{
 use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::result::{
     CallabilityResult, CallabilitySegmentResult, IntervalResult, NoisyRegionResult,
-    SignalQualityResult, TraceIntegrityResult,
+    PhaseStateResult, SignalQualityResult, TraceIntegrityResult,
 };
 use crate::model::sample_result::ReadRejectionResult;
 use crate::model::sanger_read::{RejectedSanger, Rejection, SangerCallSignal, SangerRead};
@@ -32,7 +32,6 @@ use dna_kernel::read_evidence::{
 use dna_kernel::read_evidence::{
     CleanedLengths, LeakageShare, LengthMarginal, Margin, StructureFit, TractLengths,
 };
-use dna_sanger::model::callability::PhaseState;
 use dna_sanger::model::second_cause::{SecondCause, SecondPeak};
 use dna_sanger::read_processing;
 
@@ -955,11 +954,11 @@ fn callability_result(raw: &RawCallability, count: usize) -> Result<CallabilityR
             .map(|segment| CallabilitySegmentResult {
                 calls: interval(segment.calls),
                 state: match segment.state {
-                    RawPhaseState::InPhase => PhaseState::InPhase,
-                    RawPhaseState::Dephased => PhaseState::Dephased,
-                    RawPhaseState::Mixed => PhaseState::Mixed,
-                    RawPhaseState::Weak => PhaseState::Weak,
-                    RawPhaseState::Irregular => PhaseState::Irregular,
+                    RawPhaseState::InPhase => PhaseStateResult::InPhase,
+                    RawPhaseState::Dephased => PhaseStateResult::Dephased,
+                    RawPhaseState::Mixed => PhaseStateResult::Mixed,
+                    RawPhaseState::Weak => PhaseStateResult::Weak,
+                    RawPhaseState::Irregular => PhaseStateResult::Irregular,
                 },
                 after_repeat: segment.after_repeat,
                 shadow_offsets: segment.shadow_offsets.clone(),

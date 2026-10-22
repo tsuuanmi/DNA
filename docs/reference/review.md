@@ -8,7 +8,7 @@ covers:
   - src/model/review_result.rs
   - src/pipeline/review.rs
   - src/pipeline/sample_call.rs
-  - src/report/review.rs
+  - src/report/review/
   - src/sample_analysis/
   - src/variant_analysis/
 ---
@@ -264,7 +264,7 @@ carries this table (`x-rank`, and `x-check` for a check); CI checks they agree.
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 34)
+## Labels (rules version 35)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A difference *rests on one strand* when

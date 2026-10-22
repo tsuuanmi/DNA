@@ -47,8 +47,10 @@ Every path is an argument. `run` needs a new or empty output directory, and
 body's checksum line (`<sha256>  <file> (body)`). The harness is built from
 the workspace but not shipped in a release.
 
-`run` and `bench` refuse a manifest whose header names no panel, or a panel
-other than `dev` or `readiness`. A hold-out panel stays reserved: the approval path
+`run` and `bench` read a manifest whose header names `panel=dev`,
+`panel=readiness`, or `panel=regress` (the regression set, development data:
+[[validation/regression-set]]), so `diff` compares runs of these panels too;
+they refuse a manifest that names no panel or another panel. A hold-out panel stays reserved: the approval path
 that will read it is designed later, with endpoints per zone kind among
 auto-passed zones on recent batches (evaluation validity review,
 recommendation 5; [[engineering/improvement-method#6. Panels and their uses]]).
@@ -158,7 +160,15 @@ request.**
 `bench` checks adjudicated artefact cases before any panel run:
 [[validation/artefact-bench]]. `sim-bench` measures the tract decoder on
 simulated length mixtures against the committed baseline:
-[[validation/simulated-bench]].
+[[validation/simulated-bench]]. `regress check` compares a build's output on
+the frozen regression set with the head of its version ledger, and `regress
+record` appends a checked run of `main` to it: [[validation/regression-set]].
+
+`run`, `bench`, and `regress check` take one set of options for running DNA
+(`--config`, `--reference`, `--threads`, `--evidence-cache`,
+`--run-context`), and `run` and `regress check` one set for the review
+workload (`--review-window`, `--zone-after`, `--zone-edge`,
+`--zone-overrun`), each with the same meaning and defaults.
 
 ## Inputs
 
