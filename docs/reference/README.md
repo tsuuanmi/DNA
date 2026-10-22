@@ -21,6 +21,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Consensus result](consensus.md): `dna.consensus/v1` and its FASTA.
 - [Review list](review.md): `dna.review/v1`; its run-length labels in [review length labels](review-lengths.md).
 - [Run signal](signal.md): `dna.signal/v1`.
+- [Run context](run-context.md): `dna.run_context/v1`.
 - [Coordinate conventions](coordinates.md): shared coordinate domains and interval semantics.
 - [Rust public API](rust-api.md): capability-oriented typed library contract.
   - [Sample analysis API](rust-api-sample.md)

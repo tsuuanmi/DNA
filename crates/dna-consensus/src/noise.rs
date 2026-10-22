@@ -10,15 +10,15 @@
 //! subtracting what it gives (leave-one-out). Without statistics, or below
 //! the minimum pairs, τ is the configured one.
 
-use crate::length::{RuleParams, Source, View};
+use crate::length::{MAXIMUM_NOISE, RuleParams, Run, Source, View};
 
 /// One sample's strand difference over one run of a window: each strand
 /// decodes the run once (direct or derived), with the same top, a next
 /// length on at least one strand, and both standard errors defined.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CrossStrand {
-    /// The run, 1 or 2.
-    pub run: usize,
+    /// The run.
+    pub run: Run,
     /// `p_F − p_R`.
     pub difference: f64,
     /// `SE_F² + SE_R²`.
@@ -27,7 +27,7 @@ pub struct CrossStrand {
 
 /// The cross-strand pair a run's `views` give, `None` without one.
 #[must_use]
-pub fn cross_strand(views: &[View], run: usize) -> Option<CrossStrand> {
+pub fn cross_strand(views: &[View], run: Run) -> Option<CrossStrand> {
     let decoded = |forward: bool| {
         let mut strand = views
             .iter()
@@ -47,6 +47,13 @@ pub fn cross_strand(views: &[View], run: usize) -> Option<CrossStrand> {
         difference: forward.p - reverse.p,
         variance: se_forward.mul_add(se_forward, se_reverse * se_reverse),
     })
+}
+
+/// Whether pairs are added to statistics or taken out of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Change {
+    Add,
+    TakeOut,
 }
 
 /// One run's additive statistics.
@@ -118,10 +125,10 @@ impl LengthStatistics {
         self.edges.partition_point(|&edge| edge <= normalised)
     }
 
-    /// Adds (`sign` 1) or takes out (`sign` −1) `pairs`.
-    fn apply(&mut self, pairs: &[CrossStrand], sign: i8) {
+    /// Adds `pairs`, or takes them out.
+    fn apply(&mut self, pairs: &[CrossStrand], change: Change) {
         for pair in pairs {
-            let index = pair.run.clamp(1, 2) - 1;
+            let index = pair.run.index();
             let prior = self.forward[index].mul_add(
                 self.forward[index],
                 self.reverse[index] * self.reverse[index],
@@ -133,7 +140,7 @@ impl LengthStatistics {
             let normalised = pair.difference / scale;
             let bin = self.bin(normalised);
             let run = &mut self.runs[index];
-            if sign > 0 {
+            if change == Change::Add {
                 run.pairs += 1;
                 run.sum_z2 += normalised * normalised;
                 run.sum_z4 += normalised.powi(4);
@@ -150,14 +157,14 @@ impl LengthStatistics {
     /// These statistics with `pairs` added.
     #[must_use]
     pub fn with(mut self, pairs: &[CrossStrand]) -> Self {
-        self.apply(pairs, 1);
+        self.apply(pairs, Change::Add);
         self
     }
 
     /// These statistics without `pairs`, a sample's own (leave-one-out).
     #[must_use]
     pub fn without(mut self, pairs: &[CrossStrand]) -> Self {
-        self.apply(pairs, -1);
+        self.apply(pairs, Change::TakeOut);
         self
     }
 
@@ -191,14 +198,14 @@ impl LengthStatistics {
 
 impl RuleParams {
     /// The rule's constants for a run whose statistics give `scale`: τ of
-    /// each run with a scale multiplied by it, at most one half.
+    /// each run with a scale multiplied by it, at most [`MAXIMUM_NOISE`].
     #[must_use]
     pub fn calibrated(&self, scale: [Option<f64>; 2]) -> Self {
         let mut params = *self;
         for (index, scale) in scale.iter().enumerate() {
             if let Some(scale) = scale {
-                params.forward[index] = (self.forward[index] * scale).min(0.5);
-                params.reverse[index] = (self.reverse[index] * scale).min(0.5);
+                params.forward[index] = (self.forward[index] * scale).min(MAXIMUM_NOISE);
+                params.reverse[index] = (self.reverse[index] * scale).min(MAXIMUM_NOISE);
             }
         }
         params
@@ -244,24 +251,30 @@ mod tests {
             view(true, Source::Direct, 0.8, 0.03),
             view(false, Source::Derived, 0.7, 0.04),
         ];
-        let pair = cross_strand(&views, 1);
+        let pair = cross_strand(&views, Run::Before);
         assert!(
             pair.is_some_and(|pair| (pair.difference - 0.1).abs() < 1e-12
                 && (pair.variance - 0.0025).abs() < 1e-12)
         );
         // An in-phase view is no decode.
-        assert!(cross_strand(&[views[0].clone(), in_phase(false, 8)], 1).is_none());
+        assert!(cross_strand(&[views[0].clone(), in_phase(false, 8)], Run::Before).is_none());
         // Two decoded views on one strand, or different tops, give none.
-        assert!(cross_strand(&[views[0].clone(), views[0].clone(), views[1].clone()], 1).is_none());
+        assert!(
+            cross_strand(
+                &[views[0].clone(), views[0].clone(), views[1].clone()],
+                Run::Before
+            )
+            .is_none()
+        );
         let other = View {
             top: 9,
             ..views[1].clone()
         };
-        assert!(cross_strand(&[views[0].clone(), other], 1).is_none());
+        assert!(cross_strand(&[views[0].clone(), other], Run::Before).is_none());
     }
 
-    fn pair(run: usize, normalised: f64) -> CrossStrand {
-        let index = run - 1;
+    fn pair(run: Run, normalised: f64) -> CrossStrand {
+        let index = run.index();
         let prior = PARAMS.forward[index].powi(2) + PARAMS.reverse[index].powi(2);
         CrossStrand {
             run,
@@ -275,8 +288,8 @@ mod tests {
     fn statistics_add_and_leave_a_sample_out() {
         let edges = calibration().edges;
         let empty = LengthStatistics::empty(&PARAMS, &edges);
-        let first = [pair(1, 2.0), pair(1, -0.5)];
-        let second = [pair(1, 0.5), pair(2, 3.0)];
+        let first = [pair(Run::Before, 2.0), pair(Run::Before, -0.5)];
+        let second = [pair(Run::Before, 0.5), pair(Run::After, 3.0)];
         let both = empty.clone().with(&first).with(&second);
         assert_eq!(both.runs[0].pairs, 3);
         assert!((both.runs[0].sum_z2 - (4.0 + 0.25 + 0.25)).abs() < 1e-9);
@@ -303,7 +316,7 @@ mod tests {
         // Two pairs at a mean squared normalised difference of 2.0, four
         // times the reference: shrunk by two pseudo-pairs to 1.25, a scale
         // of √2.5.
-        let noisy = empty.clone().with(&[pair(1, 2.0_f64.sqrt()); 2]);
+        let noisy = empty.clone().with(&[pair(Run::Before, 2.0_f64.sqrt()); 2]);
         let scale = noisy.scale(&calibration);
         assert!(scale[0].is_some_and(|scale| (scale - 2.5_f64.sqrt()).abs() < 1e-9));
         assert_eq!(scale[1], None);
@@ -311,10 +324,10 @@ mod tests {
         assert!((calibrated.forward[0] - 0.065 * 2.5_f64.sqrt()).abs() < 1e-9);
         assert_eq!(calibrated.forward[1], PARAMS.forward[1]);
         // A quiet run keeps the configured τ: the scale's floor.
-        let quiet = empty.clone().with(&[pair(1, 0.0); 2]);
+        let quiet = empty.clone().with(&[pair(Run::Before, 0.0); 2]);
         assert_eq!(PARAMS.calibrated(quiet.scale(&calibration)), PARAMS);
         // Too few pairs: nothing changes.
-        let few = empty.with(&[pair(1, 5.0)]);
+        let few = empty.with(&[pair(Run::Before, 5.0)]);
         assert_eq!(few.scale(&calibration), [None, None]);
     }
 }
