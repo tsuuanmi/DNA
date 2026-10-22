@@ -32,6 +32,7 @@ pub(crate) use notation::{
 };
 pub(crate) use review::{
     CompletedReview, PLUGIN as REVIEW, Reviewed, build as build_review, list as review_list,
+    mixtures as review_mixtures,
 };
 pub(crate) use run_context::{CompletedRunContext, Skipped, build as build_run_context};
 pub(crate) use run_signal::{CompletedRunSignal, build as build_run_signal};
