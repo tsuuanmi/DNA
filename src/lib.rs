@@ -50,6 +50,17 @@ pub mod fuzzing {
     }
 }
 
+/// Every plugin this build contains, `(id, version)` in the static
+/// registry's order (ADR-0069): the method versions a record of this build's
+/// output names, as `dna-eval regress` keys its ledger.
+#[must_use]
+pub fn plugins() -> Vec<(&'static str, u32)> {
+    pipeline::plugins::REGISTRY
+        .iter()
+        .map(|plugin| (plugin.id, plugin.version))
+        .collect()
+}
+
 use cli::{Cli, Command};
 use error::{KernelError, Result};
 use std::path::PathBuf;

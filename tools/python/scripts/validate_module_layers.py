@@ -19,6 +19,13 @@ member crate per plugin family or core step under ``crates/``:
 and the evaluation harness: its library ``dna-eval-lib`` and the thin
 ``dna-eval`` binary over it, which records what it was built from.
 
+Inside the facade, the modules that stay modality-neutral (ADR-0069, the
+``NEUTRAL_FACADE`` paths) may not name a modality crate (``dna-sanger``,
+``dna-trace``): the contracts' records, the readers of neutral documents,
+the neutral reports and pipelines, and the review's rules but its Sanger
+part. A modality value a contract reports has its own facade record,
+projected in ``model::sanger_read``.
+
 The modality and post-calling crates depend only on the kernel, the Sanger
 modality on ``dna-trace`` as well, and only the facade composes the plugins. The harness may depend on the facade and the
 crates whose records it reads, and no crate but its binary may depend on the
@@ -89,6 +96,33 @@ ALLOWED: dict[str, frozenset[str]] = {
         }
     ),
 }
+# Modality crates the neutral facade modules may not name.
+MODALITY_CRATES = frozenset({"sanger", "trace"})
+# Facade source files (globs relative to src/) that stay modality-neutral.
+NEUTRAL_FACADE = (
+    "model/result.rs",
+    "model/*_result.rs",
+    "model/run_context.rs",
+    "input/consensus.rs",
+    "input/run_context.rs",
+    "input/sequence.rs",
+    "input/variants.rs",
+    "pipeline/call.rs",
+    "pipeline/notation.rs",
+    "pipeline/path.rs",
+    "pipeline/represent.rs",
+    "pipeline/sample_call.rs",
+    "report/aligned_calls.rs",
+    "report/atomic.rs",
+    "report/call.rs",
+    "report/consensus.rs",
+    "report/json.rs",
+    "report/notation.rs",
+    "report/variant.rs",
+    "report/review/*.rs",
+)
+# The review's Sanger part: its run signal input (mod.rs) and second peaks.
+NEUTRAL_EXCEPTIONS = frozenset({"report/review/mod.rs", "report/review/second.rs"})
 # Source path prefix of each crate.
 PATH_PREFIXES = {
     ("dna" if name == "dna" else f"dna_{name.replace('-', '_')}"): name
@@ -322,6 +356,35 @@ def validate(root: Path = ROOT) -> list[str]:
             failures.append(
                 f"{crate.name}: module dependency cycle: {' -> '.join(cycle)}"
             )
+    failures.extend(neutrality_violations(root))
+    return failures
+
+
+def neutral_files(source: Path) -> list[Path]:
+    """The facade's modality-neutral source files."""
+    found = {
+        path
+        for pattern in NEUTRAL_FACADE
+        for path in source.glob(pattern)
+        if path.relative_to(source).as_posix() not in NEUTRAL_EXCEPTIONS
+    }
+    return sorted(found)
+
+
+# ADR-0069: the facade's neutral modules name no modality crate.
+def neutrality_violations(root: Path) -> list[str]:
+    source = root / "src"
+    failures: list[str] = []
+    for path in neutral_files(source):
+        text = production_text(path)
+        for match in PATH_START.finditer(text):
+            prefix = match.group(1)
+            if prefix != "crate" and PATH_PREFIXES[prefix] in MODALITY_CRATES:
+                line = text.count("\n", 0, match.start()) + 1
+                failures.append(
+                    f"{relative(root, path)}:{line}: a modality-neutral facade module "
+                    f"must not name {package(PATH_PREFIXES[prefix])}"
+                )
     return failures
 
 
@@ -656,7 +719,8 @@ def main(argv: list[str] | None = None) -> int:
         "OK: the core steps form a chain on the kernel, the other plugin crates "
         "depend only on the kernel, the facade on the plugin crates, and nothing "
         "on the evaluation harness but its binary, in source and manifests, each "
-        "crate's module graph is acyclic, and the harness's stage lists are closed"
+        "crate's module graph is acyclic, the facade's neutral modules name no "
+        "modality crate, and the harness's stage lists are closed"
     )
     return 0
 

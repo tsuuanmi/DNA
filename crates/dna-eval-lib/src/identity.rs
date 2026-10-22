@@ -3,7 +3,8 @@
 //! binary without recompiling the harness.
 
 /// The build of the `dna-eval` binary: its name and version, the source
-/// revision, and the code identity of each cached stage. Each identity is
+/// revision, the code identity of each cached stage, and the contracts DNA
+/// emits. Each identity is
 /// `path=object;` for every source the stage depends on (the git object id
 /// at the commit), empty when one of them differed from the commit or
 /// without git, so its cache is refused rather than keyed on code that is
@@ -27,4 +28,21 @@ pub struct Identity {
     pub placement_stage: &'static str,
     /// The code identity of the index of the truth's written forms.
     pub forms_stage: &'static str,
+    /// The result contracts DNA emits, `dna.<name>/v<n>` sorted and
+    /// comma-joined, for the version key of `dna-eval regress`.
+    pub contracts: &'static str,
 }
+
+/// A clean build's identity in tests: a synthetic revision and no stage
+/// identities, so no cache opens.
+#[cfg(test)]
+pub(crate) const TEST: Identity = Identity {
+    name: "dna-eval",
+    version: env!("CARGO_PKG_VERSION"),
+    revision: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    dirty: "0",
+    read_stage: "",
+    placement_stage: "",
+    forms_stage: "",
+    contracts: "dna.analysis/v10",
+};

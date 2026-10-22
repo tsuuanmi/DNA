@@ -16,5 +16,6 @@ fn main() -> ExitCode {
         read_stage: env!("DNA_EVAL_READ_STAGE"),
         placement_stage: env!("DNA_EVAL_PLACEMENT_STAGE"),
         forms_stage: env!("DNA_EVAL_FORMS_STAGE"),
+        contracts: env!("DNA_EVAL_CONTRACTS"),
     })
 }

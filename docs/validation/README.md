@@ -13,6 +13,7 @@ Validation describes **how DNA demonstrates that implementation and scientific c
   - [Review workload evaluation](evaluation-workload.md): the review workload, its passes, estimates, and anchors
   - [Artefact bench](artefact-bench.md): adjudicated artefact cases checked before a panel run
   - [Simulated bench](simulated-bench.md): the tract decoder against simulated length mixtures with a known truth ([[PROP-0015]])
+  - [Regression set](regression-set.md): a frozen sample set whose output is recorded per version in a ledger; every output change is declared
 - [Requirement-to-implementation traceability](traceability.md)
 
 Validation is evidence, not a second specification. Normative behavior lives in [requirements](../requirements/README.md); mechanisms live in [design](../design/README.md).

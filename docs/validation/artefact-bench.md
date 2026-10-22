@@ -12,8 +12,14 @@ regression bench of adjudicated cases, run before any panel run.
 cargo run --release -p dna-eval -- bench \
   --cases <cases.tsv> --manifest <panel.tsv> [--manifest <panel.tsv>...] \
   --config config/dna.toml --reference references/rCRS.fasta \
-  --threads <1-256> [--evidence-cache <dir>] [--output <new-directory>]
+  --threads <1-256> [--evidence-cache <dir>] [--run-context <dir>] \
+  [--output <new-directory>]
 ```
+
+`--evidence-cache` and `--run-context` are `run`'s: the bench runs DNA with
+the same options, so a case under its batch's run context is judged as the
+panel run analyses it. With `--run-context`, `bench.md` names the directory,
+the batches with a context, and their digest beside the harness revision.
 
 ## What it checks
 
