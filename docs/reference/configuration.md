@@ -15,7 +15,7 @@ Every command loads exactly one strict TOML file selected by `DNA_CONFIG` or `co
 
 Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions, non-finite numbers, invalid ranges, and config sources above 1 MiB are errors. No scientific value falls back silently.
 
-## Schema version 24
+## Schema version 25
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
