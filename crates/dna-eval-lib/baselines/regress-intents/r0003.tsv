@@ -1,0 +1,6 @@
+# regress-intent series=regress-v1 base=r0002 pr=#306
+id	kind	change	where	match	max_samples	posthoc	reason
+na-check	check	added	*	not_analysed	-	0	#306 SRS-CONS-012 rules 36: every stretch not analysed is a check item labelled not_analysed
+na-review	review	changed	*	*	-	0	#306 those samples lose clear; their checked zones and positions to review follow the new check
+na-block	block	changed	*	*	-	0	#306 an unreviewed block in a zone the new check touches becomes zone_checked
+na-status	status	any	*	*	-	0	#306 the pass class of those samples follows their review

@@ -117,6 +117,22 @@ impl<'a> Sample<'a> {
             });
         }
 
+        // D: every stretch the call does not analyse (SRS-CONS-012). It
+        // leaves the region's reported range short, so an allele there would
+        // be omitted from the report: a check, never a silent pass.
+        for span in self.not_analysed {
+            drafts.push(Draft {
+                first: span.first,
+                last: span.last,
+                site: None,
+                sequence: None,
+                decided: false,
+                labels: vec![LabelResult::NotAnalysed {
+                    reasons: span.reasons.clone(),
+                }],
+            });
+        }
+
         self.length_labels(&mut drafts);
         let mut items = drafts
             .into_iter()
@@ -218,7 +234,11 @@ impl<'a> Sample<'a> {
         if differs
             && beside_not_analysed(
                 &self.reportable,
-                &self.not_analysed,
+                &self
+                    .not_analysed
+                    .iter()
+                    .map(|span| [span.first, span.last])
+                    .collect::<Vec<_>>(),
                 first,
                 last,
                 self.config.edge_zone,

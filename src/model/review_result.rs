@@ -184,6 +184,9 @@ pub(crate) struct ZoneResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ZoneKind {
+    /// A stretch the call does not analyse (SRS-CONS-012), held by its
+    /// `not_analysed` check.
+    NotAnalysed,
     /// A repeat window of the profile's nomenclature.
     Repeat,
     /// No read gives a callable call there.
@@ -273,6 +276,7 @@ pub(crate) enum LabelKind {
     RunIndel,
     OneStrandInsertion,
     BesideNotAnalysed,
+    NotAnalysed,
     OneRead,
     OneStrand,
     NoisySignal,
@@ -287,7 +291,7 @@ pub(crate) enum LabelKind {
 
 impl LabelKind {
     /// Every kind, in the order the summary counts them.
-    pub(crate) const ALL: [Self; 25] = [
+    pub(crate) const ALL: [Self; 26] = [
         Self::StrandsDisagree,
         Self::ReadDisagrees,
         Self::SameStrandDissent,
@@ -303,6 +307,7 @@ impl LabelKind {
         Self::RunIndel,
         Self::OneStrandInsertion,
         Self::BesideNotAnalysed,
+        Self::NotAnalysed,
         Self::OneRead,
         Self::OneStrand,
         Self::NoisySignal,
@@ -338,6 +343,7 @@ impl LabelKind {
             Self::RunIndel => ("run_indel", 2, true),
             Self::OneStrandInsertion => ("one_strand_insertion", 2, true),
             Self::BesideNotAnalysed => ("beside_not_analysed", 2, true),
+            Self::NotAnalysed => ("not_analysed", 2, true),
             Self::OneRead => ("one_read", 3, false),
             Self::OneStrand => ("one_strand", 3, false),
             Self::NoisySignal => ("noisy_signal", CONTEXT_RANK, false),
@@ -499,6 +505,13 @@ pub(crate) enum LabelResult {
         read: String,
     },
     BesideNotAnalysed,
+    /// A stretch at a reportable region's end that the call does not
+    /// analyse (SRS-CONS-012), those that touch merged, with every reason
+    /// (rules version 36): a check, so that an allele the report omits there
+    /// is never passed silently.
+    NotAnalysed {
+        reasons: Vec<&'static str>,
+    },
 }
 
 impl LabelResult {
@@ -520,6 +533,7 @@ impl LabelResult {
             Self::RunIndel { .. } => LabelKind::RunIndel,
             Self::OneStrandInsertion { .. } => LabelKind::OneStrandInsertion,
             Self::BesideNotAnalysed => LabelKind::BesideNotAnalysed,
+            Self::NotAnalysed { .. } => LabelKind::NotAnalysed,
             Self::OneRead { .. } => LabelKind::OneRead,
             Self::OneStrand { .. } => LabelKind::OneStrand,
             Self::NoisySignal { .. } => LabelKind::NoisySignal,

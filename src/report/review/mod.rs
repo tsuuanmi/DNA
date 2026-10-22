@@ -74,7 +74,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 35,
+    version: 36,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -182,7 +182,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
                 not_analysed: None,
                 empop: None,
                 zones: None,
-                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[], &[], 0),
+                summary: summarize(&[], ReviewStatus::Rejected, &regions, &[], &[], &[]),
                 items: Vec::new(),
             });
         }
@@ -281,11 +281,16 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
     let notation = call.as_ref().and_then(|call| call.notation.as_deref());
     // The called sample's analysed regions: the reportable regions without
     // the stretches at their edges the call does not analyse.
-    let (analysed, not_analysed) = if call.is_some() {
+    let analysed = if call.is_some() {
         analysed_regions(&analysis, &regions)
     } else {
-        (regions.clone(), Vec::new())
+        Analysed {
+            regions: regions.clone(),
+            stretches: Vec::new(),
+            spans: Vec::new(),
+        }
     };
+    let not_analysed = analysed.ranges();
     let items = Sample::new(
         &analysis,
         &names,
@@ -321,7 +326,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         .collect::<Vec<_>>();
     let zones = call
         .as_ref()
-        .map(|_| zones(&analysed, &windows, &callable, &reads, &items));
+        .map(|_| zones(&regions, &not_analysed, &windows, &callable, &reads, &items));
     Ok(ReviewResult {
         schema_version: "dna.review/v1",
         sample_id,
@@ -342,13 +347,10 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
             &regions,
             zones.as_deref().unwrap_or_default(),
             if call.is_some() { &reference_only } else { &[] },
-            not_analysed
-                .iter()
-                .map(|stretch| stretch.last - stretch.first + 1)
-                .sum(),
+            &not_analysed,
         ),
         reference_only: call.as_ref().map(|_| reference_only.clone()),
-        not_analysed: call.as_ref().map(|_| not_analysed.clone()),
+        not_analysed: call.as_ref().map(|_| analysed.stretches.clone()),
         empop: call.and_then(|call| call.empop).map(project_empop),
         zones,
         items,
@@ -371,7 +373,7 @@ pub(crate) fn list(
         merge(segments(call.callable_segments.iter().map(|segment| {
             (segment.start_0based, segment.end_0based_exclusive)
         })));
-    let (analysed, _) = analysed_regions(analysis, &regions);
+    let analysed = analysed_regions(analysis, &regions);
     let items = Sample::new(
         analysis,
         &names,
@@ -421,13 +423,63 @@ pub(crate) fn list(
     Ok(review)
 }
 
+/// A called sample's analysed regions and the stretches the call does not
+/// analyse (SRS-CONS-012).
+struct Analysed {
+    /// The reportable regions without the stretches, 1-based and inclusive;
+    /// a region left out whole is dropped.
+    regions: Vec<[usize; 2]>,
+    /// The stretches at the reportable regions' ends the call does not
+    /// analyse, 1-based and inclusive, with their reasons.
+    stretches: Vec<StretchResult>,
+    /// The same stretches, those that touch merged: what one item holds.
+    spans: Vec<Span>,
+}
+
+impl Analysed {
+    /// The spans' positions, 1-based and inclusive.
+    fn ranges(&self) -> Vec<[usize; 2]> {
+        self.spans
+            .iter()
+            .map(|span| [span.first, span.last])
+            .collect()
+    }
+}
+
+/// Contiguous stretches the call does not analyse, 1-based and inclusive,
+/// with each stretch's reason once, in order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Span {
+    first: usize,
+    last: usize,
+    reasons: Vec<&'static str>,
+}
+
+/// `stretches`, in reference order, with those that touch merged into one
+/// span listing every reason.
+fn spans(stretches: &[StretchResult]) -> Vec<Span> {
+    let mut spans: Vec<Span> = Vec::new();
+    for stretch in stretches {
+        match spans.last_mut() {
+            Some(span) if span.last + 1 == stretch.first => {
+                span.last = stretch.last;
+                if !span.reasons.contains(&stretch.reason) {
+                    span.reasons.push(stretch.reason);
+                }
+            }
+            _ => spans.push(Span {
+                first: stretch.first,
+                last: stretch.last,
+                reasons: vec![stretch.reason],
+            }),
+        }
+    }
+    spans
+}
+
 /// The reportable `regions` (1-based, inclusive) without the stretches at
-/// their ends the call does not analyse (SRS-CONS-012), and those
-/// stretches. A region left out whole is dropped.
-fn analysed_regions(
-    analysis: &SampleAnalysis,
-    regions: &[[usize; 2]],
-) -> (Vec<[usize; 2]>, Vec<StretchResult>) {
+/// their ends the call does not analyse (SRS-CONS-012), and those stretches.
+fn analysed_regions(analysis: &SampleAnalysis, regions: &[[usize; 2]]) -> Analysed {
     let stretches = not_analysed(&analysis.consensus, regions);
     let left_out = |position: usize| {
         stretches
@@ -443,7 +495,7 @@ fn analysed_regions(
             }
         }
     }
-    let stretches = stretches
+    let stretches: Vec<StretchResult> = stretches
         .iter()
         .map(|stretch| StretchResult {
             first: stretch.first_0based + 1,
@@ -451,7 +503,11 @@ fn analysed_regions(
             reason: stretch.reason.label(),
         })
         .collect();
-    (analysed, stretches)
+    Analysed {
+        regions: analysed,
+        spans: spans(&stretches),
+        stretches,
+    }
 }
 
 /// One sample's evidence, indexed for the review rules.
@@ -468,8 +524,8 @@ struct Sample<'a> {
     /// The profile's reportable regions, whose ends are the amplicons'.
     reportable: Vec<[usize; 2]>,
     /// The stretches at the reportable regions' ends the call does not
-    /// analyse (SRS-CONS-012), 1-based and inclusive.
-    not_analysed: Vec<[usize; 2]>,
+    /// analyse (SRS-CONS-012), those that touch merged, with their reasons.
+    not_analysed: &'a [Span],
     callable: &'a [[usize; 2]],
     /// Reference segments of the admitted reads, merged, 1-based inclusive.
     covered: Vec<[usize; 2]>,
@@ -533,7 +589,7 @@ impl<'a> Sample<'a> {
         analysis: &'a SampleAnalysis,
         names: &'a [String],
         reference: &'a Reference,
-        regions: &'a [[usize; 2]],
+        analysed: &'a Analysed,
         callable: &'a [[usize; 2]],
         notation: Option<&'a [NotationCall]>,
         signal: Option<&RunSignal>,
@@ -590,20 +646,7 @@ impl<'a> Sample<'a> {
                 .filter(|position| !analysis.consensus.reference_only.contains(position))
                 .map(|position| (position, position + 1)),
         ));
-        // The reportable positions outside the analysed `regions`: the
-        // stretches the call does not analyse.
         let reportable = clip(&analysis.loaded.profile.regions, reference.len());
-        let mut not_analysed: Vec<[usize; 2]> = Vec::new();
-        for position in reportable
-            .iter()
-            .flat_map(|&[start, end]| start..=end)
-            .filter(|&position| !inside(regions, position))
-        {
-            match not_analysed.last_mut() {
-                Some(last) if last[1] + 1 == position => last[1] = position,
-                _ => not_analysed.push([position, position]),
-            }
-        }
         let loci = analysis
             .observations(1, reference.len())?
             .into_iter()
@@ -613,9 +656,9 @@ impl<'a> Sample<'a> {
             config: analysis.loaded.config.review,
             conventions: &analysis.loaded.profile.conventions,
             sequence: reference.sequence.as_bytes(),
-            regions,
+            regions: &analysed.regions,
             reportable,
-            not_analysed,
+            not_analysed: &analysed.spans,
             callable,
             covered,
             calls: notation.unwrap_or_default(),
@@ -672,6 +715,38 @@ pub(super) fn round(share: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// One contiguous edge stretch split by reason is one span, listing
+    /// every reason once; stretches that do not touch stay apart.
+    #[test]
+    fn touching_stretches_merge_into_one_span() {
+        let stretch = |first, last, reason| StretchResult {
+            first,
+            last,
+            reason,
+        };
+        let merged = spans(&[
+            stretch(73, 76, "poor_start_signal"),
+            stretch(77, 80, "other_reason"),
+            stretch(81, 81, "poor_start_signal"),
+            stretch(570, 576, "poor_start_signal"),
+        ]);
+        assert_eq!(
+            merged,
+            [
+                Span {
+                    first: 73,
+                    last: 81,
+                    reasons: vec!["poor_start_signal", "other_reason"],
+                },
+                Span {
+                    first: 570,
+                    last: 576,
+                    reasons: vec!["poor_start_signal"],
+                },
+            ]
+        );
+    }
 
     #[test]
     fn shares_round_to_three_decimals() {

@@ -68,7 +68,7 @@
       }
     },
     "not_analysed": {
-      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); no item or zone holds them; for called.",
+      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); a check item labelled not_analysed and a not_analysed zone hold each run of touching stretches; for called.",
       "type": "array",
       "items": {
         "$ref": "urn:signal:schema:consensus:v1#/$defs/stretch"
@@ -1123,6 +1123,29 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "reasons"
+          ],
+          "properties": {
+            "label": {
+              "const": "not_analysed"
+            },
+            "reasons": {
+              "description": "The reasons of the touching not_analysed stretches the item holds, each once, in reference order.",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "runs"
           ],
           "properties": {
@@ -1951,6 +1974,7 @@
             "run_indel",
             "one_strand_insertion",
             "beside_not_analysed",
+            "not_analysed",
             "one_read",
             "one_strand",
             "noisy_signal",
@@ -2037,6 +2061,12 @@
               "x-check": true
             },
             "beside_not_analysed": {
+              "type": "integer",
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
+            },
+            "not_analysed": {
               "type": "integer",
               "minimum": 0,
               "x-rank": 2,
@@ -2179,8 +2209,9 @@
       ],
       "properties": {
         "kind": {
-          "description": "What the reads show there, in precedence order: a profile repeat window, no callable call, a read past a repeat out of phase, a read otherwise masked, every read in phase or vouched for.",
+          "description": "What the reads show there, in precedence order: a stretch the call does not analyse (rules version 36), a profile repeat window, no callable call, a read past a repeat out of phase, a read otherwise masked, every read in phase or vouched for.",
           "enum": [
+            "not_analysed",
             "repeat",
             "not_callable",
             "dephased",
