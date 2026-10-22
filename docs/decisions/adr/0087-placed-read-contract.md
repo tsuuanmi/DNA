@@ -62,9 +62,9 @@ Proposed:
   configuration, evidence reading, and writer), and the reference. The cache
   is gzip-compressed, writes are atomic, a corrupt entry is a miss, and the
   run's provenance lists the cache in `run.json`.
-- **Status.** Proposed. It touches production crates (`dna-align`,
-  `dna-call`, the facade) for a speed-up the evaluation loop uses first, and
-  needs the user's decision. No CLI flag reads placed-read files yet.
+- **Status.** Accepted. It touches production crates (`dna-align`,
+  `dna-call`, the facade) for a speed-up the evaluation loop uses first. No
+  CLI flag reads placed-read files yet.
 
 ## Alternatives
 

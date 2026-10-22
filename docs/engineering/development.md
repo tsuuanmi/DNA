@@ -70,8 +70,10 @@ non-het unreviewed block, or when the two runs failed on different current
 samples (rerun a side that failed transiently); het blocks and the earlier
 period are reported, not gated. Keep one cache
 directory per machine, and remove old generations with
-`dna-eval cache prune --dir <dir> --keep <n>` (about 3 GB per generation for
-panel v5).
+`dna-eval cache prune --dir <dir> --keep <n>`. An evidence generation holds
+every read run through it: about 3 GB for panel v5 alone, about 7 GB when
+readiness-v2 runs through the same one. The placement cache shares the
+directory, under 1 GB a generation.
 Before any panel run, run the artefact bench on the probe
 (`dna-eval bench --cases <cases.tsv> --manifest <panel.tsv>…`, with the same
 cache): it runs DNA on the adjudicated artefact cases alone, in seconds, and
@@ -81,6 +83,31 @@ known failure to a guard once it passes.
 For a first pass, run the base and the probe on a quick subset
 (`dna-eval subset`, [[validation/evaluation-harness]]); a subset verdict is a
 pre-filter only, and a candidate must still pass `diff` on the full panel.
+
+## Keeping a branch current
+
+Merge `main` into a branch rather than rebasing a branch others may have
+fetched. Two kinds of file used to conflict on almost every merge:
+
+- `CHANGELOG.md` merges with git's built-in `union` driver
+  (`.gitattributes`): every side's new lines are kept, so check the merged
+  entries for order and duplicates before committing.
+- Generated blocks (`<!-- docs:begin … -->`, such as the traceability
+  coverage and the ADR index) are never resolved by hand. Take either side,
+  then regenerate them; also run it after a clean merge, since a block
+  generated on each side alone goes stale once both sides are combined:
+
+  ```bash
+  git merge origin/main
+  (cd tools/python && uv run python scripts/docs_graph.py sync)
+  ```
+
+Wait for a pull request's checks with `gh pr checks <pr> --watch --fail-fast`.
+It exits non-zero when a check fails. `CI success` is the aggregate of every
+mandatory job ([[engineering/ci-cd#Aggregate required check]]). Once branch
+rules mark it required ([[governance/repository]]), add `--required` to watch
+only the required checks; `main` has no such rule yet, and with none
+`--required` reports nothing.
 
 ## Required checks
 
