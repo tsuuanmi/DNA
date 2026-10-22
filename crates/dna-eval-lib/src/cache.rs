@@ -140,13 +140,31 @@ pub(crate) enum CacheError {
 pub(crate) struct Key {
     /// The `sanger` plugin version.
     pub(crate) sanger: u32,
-    /// The configuration digest the stage depends on: for the evidence
-    /// cache, the evidence plugins' sections
-    /// (`dna::recorded::evidence_configuration_sha256`); for the placement
-    /// cache, the configuration file's SHA-256.
-    pub(crate) configuration_sha256: String,
-    /// The SHA-256 of the read stage's code identity.
+    /// What the stage depends on of the configuration.
+    #[serde(flatten)]
+    pub(crate) configuration: Configuration,
+    /// The SHA-256 of the stage's code identity.
     pub(crate) code_sha256: String,
+}
+
+/// What a generation depends on of the configuration, named by its kind in
+/// `run.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Configuration {
+    /// The evidence cache: the digest of the evidence plugins' sections
+    /// (`dna::recorded::evidence_configuration_sha256`).
+    EvidenceConfigurationSha256(String),
+    /// The placement cache: the configuration file's SHA-256.
+    ConfigurationSha256(String),
+}
+
+impl Configuration {
+    fn sha256(&self) -> &str {
+        match self {
+            Self::EvidenceConfigurationSha256(sha256) | Self::ConfigurationSha256(sha256) => sha256,
+        }
+    }
 }
 
 impl Key {
@@ -155,7 +173,9 @@ impl Key {
         let mut hasher = Sha256::new();
         hasher.update(format!(
             "sanger={}\nconfiguration={}\ncode={}\n",
-            self.sanger, self.configuration_sha256, self.code_sha256
+            self.sanger,
+            self.configuration.sha256(),
+            self.code_sha256
         ));
         format!("{:x}", hasher.finalize())
     }
@@ -366,7 +386,11 @@ impl EvidenceCache {
                     message: error.to_string(),
                 }
             })?;
-        Self::with_code(root, configuration, (Kind::Evidence, code))
+        Self::with_code(
+            root,
+            Configuration::EvidenceConfigurationSha256(configuration),
+            (Kind::Evidence, code),
+        )
     }
 
     /// Opens the placement cache's generation of `root` for the
@@ -392,7 +416,7 @@ impl EvidenceCache {
         })?;
         Self::with_code(
             root,
-            format!("{:x}", Sha256::digest(&configuration)),
+            Configuration::ConfigurationSha256(format!("{:x}", Sha256::digest(&configuration))),
             (
                 Kind::Placement,
                 &format!("placement;{code}reference={reference_sha256};profile={profile_sha256};"),
@@ -400,11 +424,11 @@ impl EvidenceCache {
         )
     }
 
-    /// Opens the generation of `root` for the configuration digest
-    /// `configuration_sha256` under the code identity `code` of `kind`.
+    /// Opens the generation of `root` for `configuration` under the code
+    /// identity `code` of `kind`.
     fn with_code(
         root: &Path,
-        configuration_sha256: String,
+        configuration: Configuration,
         (kind, code): (Kind, &str),
     ) -> Result<Self, CacheError> {
         if code.is_empty() {
@@ -412,7 +436,7 @@ impl EvidenceCache {
         }
         let key = Key {
             sanger: dna_sanger::read_processing::PLUGIN.version,
-            configuration_sha256,
+            configuration,
             code_sha256: format!("{:x}", Sha256::digest(code.as_bytes())),
         };
         let (root, generation) = open_generation(root, kind, &key.generation(), &key)?;
@@ -832,7 +856,11 @@ mod tests {
     }
 
     fn cache(root: &Path, code: &str) -> Result<EvidenceCache, CacheError> {
-        EvidenceCache::with_code(&root.join("cache"), "c".repeat(64), (Kind::Evidence, code))
+        EvidenceCache::with_code(
+            &root.join("cache"),
+            Configuration::EvidenceConfigurationSha256("c".repeat(64)),
+            (Kind::Evidence, code),
+        )
     }
 
     /// A miss stores the document, a hit reads it back, and a build without
@@ -969,8 +997,11 @@ mod tests {
         let directory = root.path().join("cache");
         let old = cache(root.path(), "crates/dna-sanger=old;")?;
         let new = cache(root.path(), "crates/dna-sanger=new;")?;
-        let placed =
-            EvidenceCache::with_code(&directory, "c".repeat(64), (Kind::Placement, "placement;"))?;
+        let placed = EvidenceCache::with_code(
+            &directory,
+            Configuration::ConfigurationSha256("c".repeat(64)),
+            (Kind::Placement, "placement;"),
+        )?;
         fs::write(old.generation.join(LAST_USED), "100\n")?;
         fs::write(new.generation.join(LAST_USED), "200\n")?;
         fs::write(placed.generation.join(LAST_USED), "50\n")?;
