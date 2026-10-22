@@ -72,9 +72,6 @@ pub fn build(
         })
         .collect::<Vec<_>>();
     let unreliable_only = observe::unreliable_only(reads, &config.variant_calling);
-    // The reads as first observed, before any pass withdraws an observation:
-    // the two-strand rule reads their runs over each window.
-    let first_pass = observed.clone();
     // Reference confirmations (ADR-0080): none where a second sequence may
     // hide, none within or beside a site that differs from the reference, and
     // the positions they alone decide bound no neighbour's run when called.
@@ -106,7 +103,9 @@ pub fn build(
             reads,
             bases,
             consensus_config.length_rule(),
-            |first, last| runs_over(&first_pass, bases, first, last),
+            // The reads as the passes leave them: a read set aside at a
+            // stretch shows no run there (SRS-CONS-011).
+            |first, last| runs_over(&observed, bases, first, last),
         );
         // A run the two-strand rule lengthens or shortens differs from the
         // reference: a confirmation beside it is withdrawn and the positions
@@ -261,7 +260,7 @@ fn decide_positions(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 23,
+    version: 24,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
