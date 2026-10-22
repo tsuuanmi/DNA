@@ -360,3 +360,15 @@ pub struct NotationCall {
   declares no `[empop]`. `EmpopExport` (`ranges`, `mitotype`, `cut`, with
   `ranges_text()` and `mitotype_text()`), `Cut`, and `CutReason` are the types
   of `dna_empop::export`, re-exported from `sample_analysis`.
+
+### Re-exported plugin types
+
+`dna::sample_analysis` re-exports the plugin types its results carry, so a
+caller needs no plugin crate: `Convention`, `ConventionKind`,
+`ConventionLabel`, `LengthMarginal`, `Margin`, and `TractLengths` (kernel),
+`CallTrust`, `TrustScope`, `Withholder`, `ComponentCall`, and `MixtureCalls`
+(core), `Consensus`, `SampleEvidence`, `EmpopExport`, `Cut`, and `CutReason`,
+and the Sanger modality's `SangerAttachment`, `SangerRejection`,
+`RunSignal`, and `Contributions`. The Sanger types are there because this
+capability analyses Sanger traces; they are the modality's own records, and
+no JSON contract serializes them.
