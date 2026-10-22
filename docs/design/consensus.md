@@ -85,7 +85,10 @@ if the confirmation were not there. The confirmation is withdrawn:
   across a junction no read observes cleanly (a length may change there);
 - within or beside a decided site that differs from the reference (a site
   written partly as `N` included), after which the positions are decided
-  again until no confirmation is withdrawn.
+  again until no confirmation is withdrawn. This holds as well for a site
+  that the one-strand insertion contest or the two-strand rule (Step 3)
+  makes differ: after those passes the confirmations beside it are
+  withdrawn and everything is decided again, those passes included.
 
 So a confirmation never decides a position a second sequence may explain, and
 never changes what a variant's neighbours were. The positions only
@@ -243,7 +246,9 @@ stretch's start, and a clean end likewise.
   ([[design/length-mixture]]). With the batch's
   [[reference/run-context|run context]], the rule's noise τ is the batch's
   own, the sample left out (`noise`, SRS-CONS-014); the consensus is
-  otherwise built alike.
+  otherwise built alike. A `two_strand` length is no read's own bound, so a
+  length change it makes beside an undecided or uncovered position is left
+  undecided like any other (SRS-CONS-009): that rule runs again after it.
 - **Undecided runs.**
   - At the reference composition, an undecided run is written as `N` over its
     reference length.

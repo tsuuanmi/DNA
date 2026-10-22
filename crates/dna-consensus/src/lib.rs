@@ -82,30 +82,44 @@ pub fn build(
     withdraw_beside_observed_differences(&mut observed, bases);
     withdraw_unobserved_run_junctions(&mut observed, bases, consensus_config.seeded_run);
     let mut decided = decide_positions(&observed, bases, consensus_config.seeded_run);
-    // Deciding again can move a differing site beside another confirmation,
-    // or leave a reference decision with dissent to set aside: each pass
-    // withdraws at least one clean observation, so this ends.
-    while withdraw_near_differences(&mut observed, &decided, bases)
-        | set_aside_dissent(
-            &mut observed,
-            &decided,
+    loop {
+        // Deciding again can move a differing site beside another
+        // confirmation, or leave a reference decision with dissent to set
+        // aside: each pass withdraws at least one clean observation, so this
+        // ends.
+        while withdraw_near_differences(&mut observed, &decided, bases)
+            | set_aside_dissent(
+                &mut observed,
+                &decided,
+                bases,
+                config.variant_calling.read_end_margin(),
+                consensus_config.dissent_edge,
+            )
+        {
+            decided = decide_positions(&observed, bases, consensus_config.seeded_run);
+        }
+        // An insertion into a short repeat that a read of the other strand
+        // reads through without is decided by neither strand (SRS-CONS-015).
+        insertion::contest_one_strand(&mut decided, &observed, bases, consensus_config.seeded_run);
+        two_strand(
+            &mut decided,
+            reads,
             bases,
-            config.variant_calling.read_end_margin(),
-            consensus_config.dissent_edge,
-        )
-    {
+            consensus_config.length_rule(),
+            |first, last| runs_over(&first_pass, bases, first, last),
+        );
+        // A run the two-strand rule lengthens or shortens differs from the
+        // reference: a confirmation beside it is withdrawn and the positions
+        // decided again (SRS-CONS-010). Each round withdraws at least one
+        // confirmation, so this ends.
+        if !withdraw_near_differences(&mut observed, &decided, bases) {
+            break;
+        }
         decided = decide_positions(&observed, bases, consensus_config.seeded_run);
     }
-    // An insertion into a short repeat that a read of the other strand reads
-    // through without is decided by neither strand (SRS-CONS-015).
-    insertion::contest_one_strand(&mut decided, &observed, bases, consensus_config.seeded_run);
-    two_strand(
-        &mut decided,
-        reads,
-        bases,
-        consensus_config.length_rule(),
-        |first, last| runs_over(&first_pass, bases, first, last),
-    );
+    // A length the two-strand rule decides is placed by the bases beside it
+    // like any other (SRS-CONS-009).
+    unplace_unbounded_indels(&mut decided, bases.len());
     let reference_only = confirmed_only(&observed);
 
     let mut consensus = Consensus {
@@ -247,7 +261,7 @@ fn decide_positions(
 pub const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "consensus",
     family: PluginFamily::Core,
-    version: 22,
+    version: 23,
     provides: &[Contract::Consensus],
     requires: &[Contract::CalledReads],
     config_sections: &["consensus"],
