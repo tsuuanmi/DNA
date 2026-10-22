@@ -19,8 +19,8 @@ pub(crate) fn analyze(
     calls: &BaseCalls,
     callability: &ReadCallability,
     config: &QualityControlConfig,
-    context_margin: usize,
 ) -> Result<QualityControlResult> {
+    let context_margin = config.trim_context_margin;
     let span_start = callability.callable_start_0based;
     let span_end = callability.callable_end_0based_exclusive;
     if span_start >= span_end || span_end > calls.len() {
@@ -133,7 +133,7 @@ mod tests {
             trim_context_margin: 1,
         };
         let mut callability = ReadCallability::in_phase(4);
-        let result = analyze(&trace, &calls, &callability, &config, 1)?;
+        let result = analyze(&trace, &calls, &callability, &config)?;
         assert_eq!(
             (result.trim_start_0based, result.trim_end_0based_exclusive),
             (0, 4)
@@ -141,7 +141,7 @@ mod tests {
         assert_eq!(result.retained_sequence, "AAAA");
         callability.callable_start_0based = 2;
         callability.callable_end_0based_exclusive = 3;
-        let narrowed = analyze(&trace, &calls, &callability, &config, 1)?;
+        let narrowed = analyze(&trace, &calls, &callability, &config)?;
         assert_eq!(
             (
                 narrowed.trim_start_0based,
@@ -166,7 +166,7 @@ mod tests {
             },
         )
         .to_vec();
-        let anchored = analyze(&trace, &calls, &callability, &config, 1)?;
+        let anchored = analyze(&trace, &calls, &callability, &config)?;
         assert_eq!(
             (
                 anchored.trim_start_0based,
@@ -175,7 +175,7 @@ mod tests {
             (1, 3)
         );
         callability.callable_end_0based_exclusive = 2;
-        assert!(analyze(&trace, &calls, &callability, &config, 1).is_err());
+        assert!(analyze(&trace, &calls, &callability, &config).is_err());
         assert!(result.per_call.iter().all(|quality| {
             quality.relative_quality_score == 60 && quality.vendor_quality_applies
         }));
@@ -238,7 +238,7 @@ mod tests {
             (Some(true), None, false),
         ] {
             let (trace, calls) = one_call_fixture(agrees, qualities);
-            let result = analyze(&trace, &calls, &callability, &one_call_config(), 0)?;
+            let result = analyze(&trace, &calls, &callability, &one_call_config())?;
             assert_eq!(result.per_call[0].vendor_quality_applies, applies);
             // The relative score never depends on the vendor quality.
             assert_eq!(result.per_call[0].relative_quality_score, 60);
@@ -254,7 +254,7 @@ mod tests {
             let mut callability = ReadCallability::in_phase(1);
             callability.callable_start_0based = start;
             callability.callable_end_0based_exclusive = end;
-            let error = analyze(&trace, &calls, &callability, &one_call_config(), 0).err();
+            let error = analyze(&trace, &calls, &callability, &one_call_config()).err();
             assert!(
                 matches!(
                     error,
