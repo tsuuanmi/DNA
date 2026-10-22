@@ -17,6 +17,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval same <run-a> <run-b>`: whether two runs' outputs are
+  byte-identical, and which files differ, with the first line at which each
+  does (exit 2 with `DIFFERENT`). `dna.eval_run/v1`'s `run.json` records the
+  SHA-256 of every other file of the run (`outputs`), written last; `same`
+  checks them against the files, so a file edited after its run is refused.
+  `validate_result_schemas.py --eval-run` checks them too. `diff` reads runs
+  without them. No DNA output changes.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,

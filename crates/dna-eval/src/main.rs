@@ -30,6 +30,7 @@ mod report;
 mod rundiff;
 mod rundir;
 mod runner;
+mod same;
 mod simbench;
 mod subset;
 mod tracts;
@@ -107,6 +108,10 @@ enum Command {
     /// carry a non-het unreviewed block; het blocks and the earlier period
     /// are reported, not gated.
     Diff(DiffArgs),
+    /// Says whether two runs' outputs are byte-identical (every file but
+    /// `run.json`, by SHA-256) and which files differ: exits 2 with
+    /// `DIFFERENT` when one does.
+    Same(SameArgs),
     /// Runs DNA on the adjudicated artefact cases of a case list and checks
     /// each expected outcome: exits 2 with `BENCH FAIL` when a guarded case
     /// regresses or its sample cannot be analysed.
@@ -385,6 +390,34 @@ struct DiffArgs {
     force: bool,
 }
 
+/// Arguments of `dna-eval same`.
+#[derive(Debug, Args)]
+struct SameArgs {
+    /// A run directory.
+    a: PathBuf,
+    /// The run directory compared with it.
+    b: PathBuf,
+}
+
+/// Runs `dna-eval same`: prints the comparison, and exits 2 when an output
+/// differs.
+fn same(args: &SameArgs) -> ExitCode {
+    match same::compare(&args.a, &args.b) {
+        Ok(sameness) => {
+            print!("{}", sameness.report);
+            if sameness.same {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(2)
+            }
+        }
+        Err(error) => {
+            eprintln!("dna-eval: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 /// Arguments of `dna-eval cache`.
 #[derive(Debug, Args)]
 struct CacheArgs {
@@ -564,6 +597,7 @@ struct RunArgs {
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Diff(args) => return diff(&args),
+        Command::Same(args) => return same(&args),
         Command::Bench(args) => return bench(&args),
         Command::SimBench(args) => sim_bench(&args),
         Command::Run(args) => run(&args),
@@ -849,6 +883,8 @@ fn run(cli: &RunArgs) -> Result<String> {
         &rundir::tracts(&manifest.samples, &outcomes),
     )?;
     write(&cli.output, rundir::FORMS, &forms.table(&truth.sha256))?;
+    // `run.json` comes last, with the digest of every file before it.
+    header.outputs = rundir::digests(&cli.output)?;
     write(&cli.output, rundir::RUN_JSON, &header.text()?)?;
 
     let count = |measure: Measure, status: Status| count(&rows, measure, status);
@@ -1148,6 +1184,7 @@ fn header(
             sample_max: seconds(millis.len().saturating_sub(1)),
             sample_sum: millis.iter().sum::<u128>() as f64 / 1000.0,
         },
+        outputs: BTreeMap::new(),
     }
 }
 

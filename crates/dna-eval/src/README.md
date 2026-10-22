@@ -23,15 +23,20 @@ The outputs of `diff`, `bench`, and `sim-bench`, and the manifests `panel`
 and `subset` write, have no schema; the evaluation harness document
 describes them.
 
-- `main.rs` — command line (`run`, `diff`, `panel`, `subset`, `cache`,
-  `bench`, `sim-bench`) and run orchestration.
+- `main.rs` — command line (`run`, `diff`, `same`, `panel`, `subset`,
+  `cache`, `bench`, `sim-bench`) and run orchestration.
 - `rundir.rs` — the run directory: its file names, the run header
   `run.json` as one typed record (`RunHeader`) that `run` writes and `diff`
   reads back, the tables `run` writes beside the report's (`checks.tsv`,
   `notes.tsv`, `signals.tsv`, `run_context.tsv`, `components.tsv`,
-  `tracts.tsv`), the output directory, and the strict table reader, which
+  `tracts.tsv`), the output directory, the SHA-256 of every file of a run
+  that `run.json` records last (`outputs`), and the strict table reader, which
   refuses a table without a column it needs, with a column twice, or with
   a row of another width.
+- `same.rs` — `dna-eval same`: whether two runs' outputs are
+  byte-identical, by the SHA-256 of every file but `run.json`, checked
+  against the digests each run recorded, and which files differ, with the
+  first line at which each does.
 - `bench.rs` — `dna-eval bench`: the artefact regression bench. It parses a
   case list (adjudicated artefacts and truth errors, each with a span and
   the outcome DNA must keep there), judges each case from DNA's alleles,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import itertools
 import json
 import re
@@ -1892,6 +1893,30 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
     validate_eval_passes(
         header.get("workload", {}), "recheck" in header, scores, label, errors
     )
+    # A run of an earlier revision records no output digests.
+    outputs = header.get("outputs")
+    if outputs is not None and sorted(outputs) != sorted(
+        name for name in document if name != "run.json"
+    ):
+        errors.append(f"{label}: run.json outputs do not name every other file")
+
+
+def output_digests(directory: Path) -> dict[str, str]:
+    """The SHA-256 of every file of a run directory but `run.json`, by name."""
+    return {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(directory.iterdir())
+        if path.name != "run.json"
+    }
+
+
+def validate_output_digests(
+    directory: Path, document: dict[str, Any], errors: list[str]
+) -> None:
+    """Check that `run.json` records the digests of the files the run holds."""
+    recorded = document.get("run.json", {}).get("outputs")
+    if recorded is not None and recorded != output_digests(directory):
+        errors.append(f"{directory}: run.json outputs disagree with the files")
 
 
 # The classes that split the passed units with an unreviewed block.
@@ -2101,6 +2126,10 @@ def validate_eval_run_reader(example: dict[str, Any], errors: list[str]) -> None
                 path.write_text(value, encoding="utf-8")
         if read_run(directory) != example:
             errors.append("the example eval run does not read back from its files")
+        digests: list[str] = []
+        validate_output_digests(directory, example, digests)
+        if digests:
+            errors.append("the example eval run's outputs are not its files' digests")
     for text, description in [
         ("a\tb\n1\n", "a row without a cell"),
         ("a\tb\r\n1\t2\r\n", "carriage returns"),
@@ -2160,7 +2189,9 @@ def main(argv: list[str] | None = None) -> int:
         eval_runs.append((str(EVAL_RUN_EXAMPLE), load_json(EVAL_RUN_EXAMPLE)))
     for directory in args.eval_run:
         try:
-            eval_runs.append((str(directory), read_run(directory)))
+            run = read_run(directory)
+            validate_output_digests(directory, run, errors)
+            eval_runs.append((str(directory), run))
         except (OSError, ValueError) as exc:
             errors.append(f"{directory}: not an evaluation run: {exc}")
     for label, document in eval_runs:

@@ -175,7 +175,8 @@
         "constants",
         "samples",
         "workload",
-        "seconds"
+        "seconds",
+        "outputs"
       ],
       "properties": {
         "harness": {
@@ -873,6 +874,16 @@
               "type": "number",
               "minimum": 0
             }
+          }
+        },
+        "outputs": {
+          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`).",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z_]+\\.(tsv|md)$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
           }
         }
       },
