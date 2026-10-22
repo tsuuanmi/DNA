@@ -144,39 +144,40 @@ fn label_names(item: &Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-const RANKS: [(&str, u64); 25] = [
-    ("strands_disagree", 0),
-    ("read_disagrees", 0),
-    ("same_strand_dissent", 0),
-    ("possible_heteroplasmy", 1),
-    ("reference_second", 1),
-    ("estimated_length", 2),
-    ("length_unconfirmed", 2),
-    ("undecided", 2),
-    ("not_called", 2),
-    ("long_run", 2),
-    ("edge_deletion", 2),
-    ("run_deletion", 2),
-    ("run_indel", 2),
-    ("one_strand_insertion", 2),
-    ("beside_not_analysed", 2),
-    ("one_read", 3),
-    ("one_strand", 3),
-    ("noisy_signal", 4),
-    ("not_covered", 4),
-    ("phase_shift", 4),
-    ("dephased_end", 4),
-    ("read_edge", 4),
-    ("poor_signal", 4),
-    ("length_not_recorded", 4),
-    ("tract_length", 4),
-];
+/// The review labels with their ranks, in the summary's order, as the
+/// published schema lists them (`x-rank`).
+fn ranks() -> Result<Vec<(String, u64)>, Box<dyn std::error::Error>> {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/reference/schemas/review-v1.schema.json");
+    let schema: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
+    let labels = &schema["$defs"]["summary"]["properties"]["labels"];
+    labels["required"]
+        .as_array()
+        .ok_or("summary labels must list their names")?
+        .iter()
+        .map(|name| {
+            let name = name.as_str().ok_or("a label name must be a string")?;
+            let rank = labels["properties"][name]["x-rank"]
+                .as_u64()
+                .ok_or("every label must have a rank")?;
+            Ok((name.to_owned(), rank))
+        })
+        .collect()
+}
 
 /// The document's structural invariants: items ordered by priority then
 /// position, kinds that follow the calls, and a summary that counts them.
 fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["schema_version"], "dna.review/v1");
-    assert_eq!(value["provenance"]["rules"], 34);
+    // The labelling rules' version is the `review` plugin's version.
+    let review = value["provenance"]["plugins"]
+        .as_array()
+        .ok_or("plugins must be an array")?
+        .iter()
+        .find(|plugin| plugin["id"] == "review")
+        .ok_or("the review plugin must be recorded")?;
+    assert_eq!(value["provenance"]["rules"], review["version"]);
+    let ranks = ranks()?;
     // An admitted read's masked stretches are ordered, disjoint, and well formed.
     for read in value["reads"].as_array().ok_or("reads must be an array")? {
         if read["admitted"] != true {
@@ -292,12 +293,25 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
     let mut checks = 0;
     for item in items {
         let names = label_names(item);
-        let priority = names
-            .iter()
-            .filter_map(|name| RANKS.iter().find(|(label, _)| label == name))
-            .map(|(_, rank)| *rank)
+        // An explained possible heteroplasmy is context: the context rank.
+        let context = ranks.iter().map(|(_, rank)| *rank).max().unwrap_or(0);
+        let priority = item["labels"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|label| {
+                let rank = ranks
+                    .iter()
+                    .find(|(name, _)| label["label"] == name.as_str())?
+                    .1;
+                Some(if label["explained"] == true {
+                    context
+                } else {
+                    rank
+                })
+            })
             .min()
-            .unwrap_or(5);
+            .unwrap_or(context + 1);
         let position = item["first"]["position"].as_u64().ok_or("first position")?;
         let order = (priority, position);
         assert!(
@@ -333,7 +347,7 @@ fn assert_consistent(value: &Value) -> Result<(), Box<dyn std::error::Error>> {
             .keys()
             .map(String::as_str)
             .collect::<std::collections::BTreeSet<_>>(),
-        RANKS.iter().map(|(name, _)| *name).collect()
+        ranks.iter().map(|(name, _)| name.as_str()).collect()
     );
     for (name, count) in labels {
         assert_eq!(
@@ -376,7 +390,7 @@ fn lists_the_items_of_a_called_sample() -> Result<(), Box<dyn std::error::Error>
     // The summary lists every label, in priority order.
     let text = fs::read_to_string(output(directory.path()))?;
     let summary = text.rfind("\"summary\"").ok_or("summary must be present")?;
-    let offsets = RANKS
+    let offsets = ranks()?
         .iter()
         .map(|(name, _)| text[summary..].find(&format!("\"{name}\":")))
         .collect::<Option<Vec<_>>>()

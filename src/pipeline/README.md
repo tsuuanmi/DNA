@@ -19,11 +19,13 @@ profile representation for the notation view of sample, call, and notation
 documents (`represent.rs`, which composes `variant_normalization` and
 `variant_nomenclature` when the target profile declares notation). Scientific
 Sanger source loading is owned by `input::sanger`; shared reference-free read
-processing lives in `read_processing` (`prepare` through callability, then
-`finish`); reference-guided read observation is owned by `variant_analysis`.
+processing lives in the Sanger plugin's `dna_sanger::read_processing`
+(`prepare` through callability, then `finish`); reference-guided read
+observation is owned by `variant_analysis`.
 `sample.rs` and `consensus.rs` run the sample placement pass of
 `sample_analysis`, which records a read shorter than one signal window
-(`ShortRead::of` reads it from the failure of `read_processing::prepare`), one
+(`ShortRead::of` reads it from the failure of
+`dna_sanger::read_processing::prepare`), one
 with too few callable calls, or one the core cannot place
 (`dna_call::read_call::PlacementRejection`) as rejected while the others
 continue; the operation log implements its `ReadScope`, so records
@@ -68,8 +70,8 @@ reads of one placement pass. `sample.rs` splits every read into its
 `SangerRead`, which `sample_metrics.rs` and the sample report join by read
 identity (ADR-0069).
 `evidence.rs` admits the read as the sample commands do
-(`read_processing::admit`): a read set aside before the core gets a document
-with its `Rejection` instead of its calls.
+(`dna_sanger::read_processing::admit`): a read set aside before the core gets
+a document with its `Rejection` instead of its calls.
 
 Scientific input adapters are independent of deterministic CLI publication
 targets. Pipeline validates output naming and overwrite protection separately,
