@@ -1,7 +1,10 @@
 # Report
 
 Owns projection of completed scientific state into versioned public contracts,
-deterministic JSON serialization, and atomic no-overwrite publication.
+deterministic JSON serialization, and atomic no-overwrite publication. It also
+holds the review's labelling rules: the `review` post-calling plugin
+(`review.rs`, with `length.rs` for run lengths) is the one part of this module
+that judges evidence rather than projecting it.
 
 Output contract: every public JSON contract
 ([schemas](../../docs/reference/schemas/README.md)); the
@@ -40,7 +43,7 @@ callability, quality, noisy regions) and each rejected read's `Rejection` by
 read identity and call index. `evidence.rs` writes a read's evidence, or the
 rejection of a read the Sanger plugin set aside.
 
-Scientific decisions remain upstream: the review rules label evidence the
+Calls and decisions remain upstream: the review rules label evidence the
 analysis and the call already hold, read the `SangerRead` only for each
 call's scan position, relative quality, second peak with its cause, and
 window peaks (which the run signal counts), and change no call.

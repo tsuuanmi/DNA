@@ -143,6 +143,32 @@ cargo run --release -- review AB0442 read1.ab1 read2.ab1 \
   --reference references/rCRS.fasta
 ```
 
+A read's per-call evidence as the core receives it, without a reference
+([read evidence](docs/reference/read-evidence.md)); `analyze`, `sample`,
+`consensus`, and `review` accept these documents with `--evidence` in place
+of the traces:
+
+```bash
+cargo run --release -- evidence read1.ab1
+```
+
+The second-channel signal a run's traces share
+([run signal](docs/reference/signal.md)), which `review --signal` judges
+second bases against:
+
+```bash
+cargo run --release -- signal RUN01 run01/*.ab1
+```
+
+A laboratory batch's own statistics ([run context](docs/reference/run-context.md)),
+from a list of `sample_id<TAB>path` lines, which `consensus --run-context`
+and `review --run-context` calibrate the length rule by:
+
+```bash
+cargo run --release -- run-context BATCH01 --traces batch01.tsv \
+  --reference references/rCRS.fasta
+```
+
 Notation and conformance findings from a variants document:
 
 ```bash
@@ -150,21 +176,24 @@ cargo run --release -- notation AB0442 results/AB0442.variants.json \
   --reference references/rCRS.fasta
 ```
 
-DNA reads `DNA_CONFIG` or `config/dna.toml` and, for reference-guided commands, the [target profile](docs/reference/profiles.md) it names (`config/profiles/human-mtdna-rcrs.toml` by default).
+DNA reads `DNA_CONFIG` or `config/dna.toml` and, for reference-guided commands, the [target profile](docs/reference/profiles.md) it names (`config/profiles/human-mtdna-rcrs.toml` by default); `basecall`, `evidence`, and `signal` read no profile.
 
 Successful core commands publish exactly one command-specific JSON result without overwriting an existing result; `consensus` also publishes its FASTA:
 
 ```text
-basecall  -> results/<trace-stem>.basecalls.json
-analyze   -> results/<trace-stem>.json
-sample    -> results/<sample-id>.sample.json
-consensus -> results/<sample-id>.consensus.json, results/<sample-id>.consensus.fasta
-review    -> results/<sample-id>.review.json
-call      -> results/<sample-id>.variants.json
-notation  -> results/<sample-id>.notation.json
+basecall    -> results/<trace-stem>.basecalls.json
+evidence    -> results/<trace-stem>.evidence.json
+analyze     -> results/<trace-stem>.json
+sample      -> results/<sample-id>.sample.json
+consensus   -> results/<sample-id>.consensus.json, results/<sample-id>.consensus.fasta
+review      -> results/<sample-id>.review.json
+call        -> results/<sample-id>.variants.json
+notation    -> results/<sample-id>.notation.json
+signal      -> results/<run-id>.signal.json
+run-context -> results/<run-id>.run_context.json
 ```
 
-Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`/`analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `review`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads.
+Operational logs are separate append-only sidecars under `logs/` by default. Standalone `basecall`, `evidence`, and `analyze` operations use `<trace-stem>.log`; `sample`, `consensus`, `review`, `call`, and `notation` use one `<sample-id>.log` containing the nested processing events for all of the sample's reads; `signal` and `run-context` use `<run-id>.log`.
 
 Running DNA over many samples, converting its results, and comparing them with other sources is done by downstream pipelines that drive the CLI or library (ADR-0065, ADR-0066). The library offers the same workflow in process: `dna::sample_analysis::analyze_sanger`, then `SampleAnalysis::call` ([Rust API](docs/reference/rust-api-sample.md#sample-analysis)). For validation, the workspace's evaluation harness `dna-eval` runs DNA over a fixed test panel in process and compares its calls with reviewer truth; it is not part of the `dna` binary or the release ([evaluation harness](docs/validation/evaluation-harness.md), ADR-0075).
 
@@ -173,12 +202,17 @@ Running DNA over many samples, converting its results, and comparing them with o
 Current public result contracts are:
 
 - `dna.basecalls/v3` — reference-free primary/ambiguity/retained read result with the read callability view;
+- `dna.read_evidence/v1` — one read's per-call evidence as the Sanger modality hands it to the core, or the rejection of a read it set aside; also an input of `analyze`, `sample`, `consensus`, `review`, and `run-context`;
 - `dna.analysis/v10` — compact reference-guided analysis result with reviewer-facing four-channel peak evidence, the read callability view, and each aligned call's reference column and the core's trust in it;
 - `dna.sample_evidence/v10` — compact multi-read coverage and overlap evidence plus sparse differential loci that preserve factorized support topology, per-read callability, A/C/G/T evidence profiles/noisy context, normalized-variant evidence, and explicit eligibility reasons;
 - `dna.variants/v1` — the core's per-read placements and observed variants from reviewed consensus sequences, with eligibility and optional notation, and no modality evidence;
 - `dna.notation/v1` — the post-calling notation of a variants document and the target profile's conformance findings;
 - `dna.consensus/v1` — a sample's adjudicated consensus sequence and the evidence behind each decision;
-- `dna.review/v1` — a sample's review list: the positions a reviewer should look at, with evidence labels and no conclusion.
+- `dna.review/v1` — a sample's review list: the positions a reviewer should look at, with evidence labels and no conclusion;
+- `dna.signal/v1` — the second-channel signal a run's reads share, by call context;
+- `dna.run_context/v1` — a laboratory batch's additive statistics, from which a sample's analysis takes its own contribution out.
+
+`dna.placed_read/v1`, one read's placement as `dna-align` selected it, is not a command output: `dna-align` alone writes and reads it back, for the evaluation harness's placement cache.
 
 The schemas, examples, coordinate conventions, and human-readable semantics live under [docs/reference](docs/reference/README.md).
 

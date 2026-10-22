@@ -791,7 +791,10 @@ impl<'a> Sample<'a> {
                     read.evidence.tracts().iter().map(|tract| length::Decode {
                         read: read.name,
                         strand: read.strand,
-                        reference: start_reference(read.columns, tract.call_start),
+                        reference: dna_consensus::length::start_reference(
+                            read.columns,
+                            tract.call_start,
+                        ),
                         tract,
                     })
                 })
@@ -2205,24 +2208,6 @@ fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
         && runs_of(reference).iter().any(|(_, length)| *length >= run)
 }
 
-/// The reference position (1-based) a read's call `call` is aligned to, or,
-/// on an inserted column, the position the insertion follows on the
-/// reference, on either strand: an inserted base of a run lies at the run's
-/// 3' end (SRS-ALN-012), after the run's last position. The first position
-/// after it stands in only where no aligned column precedes it.
-fn start_reference(columns: &[AlignmentColumn], call: usize) -> Option<usize> {
-    let index = columns
-        .iter()
-        .position(|column| column.original_call_index_0based() == Some(call))?;
-    let aligned = |column: &AlignmentColumn| column.reference_index_0based();
-    columns[..=index]
-        .iter()
-        .rev()
-        .find_map(aligned)
-        .or_else(|| columns[index..].iter().find_map(aligned))
-        .map(|position| position + 1)
-}
-
 /// A sequence's runs of one base, in order, with their lengths.
 pub(super) fn runs_of(sequence: &str) -> Vec<(char, usize)> {
     let mut runs: Vec<(char, usize)> = Vec::new();
@@ -3196,24 +3181,6 @@ mod tests {
 
     fn column(base: char, call: Option<usize>, reference: Option<usize>) -> AlignmentColumn {
         AlignmentColumn::new(base, 'C', call, reference)
-    }
-
-    // SRS-API-020
-    #[test]
-    fn an_inserted_first_call_is_credited_to_the_position_it_follows() {
-        // Reference 315-316 (0-based 314-315) read C G; a reverse read's run
-        // of C starts, in its order, on the C inserted after 315.
-        let columns = [
-            column('C', Some(9), Some(313)),
-            column('C', Some(8), Some(314)),
-            column('C', Some(7), None),
-            column('G', Some(6), Some(315)),
-        ];
-        assert_eq!(start_reference(&columns, 7), Some(315));
-        assert_eq!(start_reference(&columns, 6), Some(316));
-        // With no aligned column before it, the next one stands in.
-        let leading = [column('C', Some(0), None), column('C', Some(1), Some(4))];
-        assert_eq!(start_reference(&leading, 0), Some(5));
     }
 
     fn clean_call(placement: Placement) -> CallTrust {
