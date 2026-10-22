@@ -292,6 +292,11 @@ pub(crate) struct Header {
     pub(crate) zones: ZoneHeader,
     pub(crate) run_context: Option<RunContextHeader>,
     pub(crate) version_key: VersionKey,
+    /// The workload counting version ([`workload::COUNTING_VERSION`]) the
+    /// evaluation lines follow. Absent in the checks recorded before it was
+    /// kept, whose version [`counting_version`] reads from their revision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) workload_version: Option<u32>,
     pub(crate) evidence_cache: Option<Usage>,
     pub(crate) placement_cache: Option<Usage>,
     /// The head entry compared with; none for the series' first check.
@@ -423,6 +428,37 @@ fn regress_panel(manifest: &Manifest) -> Result<()> {
             "the manifest names no panel; regress reads panel=regress manifests only",
         )),
     }
+}
+
+/// The workload counting version of each check recorded before `run.json`
+/// held it, by the revision whose build ran it: regress-v1's `r0001` to
+/// `r0003` counted with version 1 (no counting version yet), `r0004`, the
+/// merge of the hardened gate, with version 2.
+const UNRECORDED_WORKLOAD: [(&str, u32); 4] = [
+    ("74c9cbaf2a3c4e5e25cfe83b090394bc9bd75959", 1),
+    ("c2fcd7715f6d2e8f75fd90315e64d69a3dcb5123", 1),
+    ("39a2c582f293e32b8489b3d02ae0cbff2378c932", 1),
+    ("1a23f5751e256aa0760ff39dedf692464f2d3b6d", 2),
+];
+
+/// The workload counting version `header`'s evaluation lines follow: the
+/// recorded one, else the one [`UNRECORDED_WORKLOAD`] names for its
+/// revision; a check that records neither is refused.
+fn counting_version(header: &Header) -> Result<u32> {
+    if let Some(version) = header.workload_version {
+        return Ok(version);
+    }
+    let revision = header.source.revision.as_deref();
+    UNRECORDED_WORKLOAD
+        .iter()
+        .find(|(known, _)| Some(*known) == revision)
+        .map(|(_, version)| *version)
+        .ok_or_else(|| {
+            refused(format!(
+                "the check of revision {} records no workload counting version",
+                revision.unwrap_or("unknown")
+            ))
+        })
 }
 
 /// The ledger head: its index row and run header.
@@ -805,6 +841,7 @@ fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String
         zones: args.review.header(),
         run_context: None,
         version_key: VersionKey::current(&configuration_sha256, identity),
+        workload_version: Some(workload::COUNTING_VERSION),
         evidence_cache: None,
         placement_cache: None,
         head: head.as_ref().map(|head| head.row.entry.clone()),
@@ -904,6 +941,11 @@ fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String
         zones: &zones,
     });
 
+    let head_counting = head
+        .as_ref()
+        .map_or(Ok(workload::COUNTING_VERSION), |head| {
+            counting_version(&head.header)
+        })?;
     let judged = Judged::new(
         &golden,
         head_golden.as_ref(),
@@ -915,6 +957,7 @@ fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String
             version_moved: head
                 .as_ref()
                 .is_some_and(|head| head.header.version_key != header.version_key),
+            workload: (head_counting, workload::COUNTING_VERSION),
         },
         &strata,
     );
@@ -952,7 +995,8 @@ fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String
 }
 
 /// What a check reports beside the verdict: a moved version key without a
-/// change, intent rows that matched nothing, rows added after a check, the
+/// change, a moved workload counting version, intent rows that matched
+/// nothing, rows added after a check, the
 /// version-key fields that moved, the configuration that changed, escapes
 /// a rebase measures, and escape lines that changed while their sample's
 /// escape count in the zone did not rise.
@@ -977,9 +1021,17 @@ fn warnings(
             );
         }
     }
+    if let (Ok(before), Ok(after)) = (counting_version(&head.header), counting_version(header))
+        && before != after
+    {
+        warnings.push(format!(
+            "workload counting version moved: {before} -> {after}"
+        ));
+    }
     if let Some((intents, _)) = intents {
-        for (intent, (lines, _)) in intents.rows.iter().zip(&judgement.intents) {
-            if *lines == 0 {
+        for (index, (intent, (lines, _))) in intents.rows.iter().zip(&judgement.intents).enumerate()
+        {
+            if *lines == 0 && judgement.workload_intent != Some(index) {
                 warnings.push(format!("unused intent {}", intent.id));
             }
             if intent.posthoc {
@@ -1065,6 +1117,9 @@ fn summary(
         ("configuration sha256", |header| {
             header.version_key.configuration_sha256.clone()
         }),
+        ("workload counting version", |header| {
+            counting_version(header).map_or_else(|_| "-".to_owned(), |version| version.to_string())
+        }),
         ("truth digest", |header| header.truth.digest.clone()),
         ("re-check list sha256", |header| {
             header
@@ -1088,6 +1143,7 @@ fn summary(
         intents: Vec::new(),
         rebase_escapes: 0,
         reshaped_escapes: Vec::new(),
+        workload_intent: None,
     };
     let judgement = judgement.unwrap_or(&empty);
 
@@ -1433,6 +1489,8 @@ fn rejudge(
         .transpose()?;
     let golden = Golden::parse(golden_text, &samples)
         .map_err(|message| refused(format!("the run's golden.tsv: {message}")))?;
+    let counting = counting_version(header)?;
+    let head_counting = head.map_or(Ok(counting), |head| counting_version(&head.header))?;
     let judged = Judged::new(
         &golden,
         head_golden.as_ref(),
@@ -1442,6 +1500,7 @@ fn rejudge(
             regions: geometry.regions(),
             rebase: header.rebase,
             version_moved: head.is_some_and(|head| head.header.version_key != header.version_key),
+            workload: (head_counting, counting),
         },
         &strata,
     );

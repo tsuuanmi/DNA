@@ -325,6 +325,11 @@
             }
           }
         },
+        "workload_version": {
+          "description": "The workload counting version (`workload::COUNTING_VERSION`) the evaluation lines follow: which differences are unreviewed and their classes. Optional: the checks of regress-v1's `r0001` to `r0004` predate it and are read by revision (`r0001` to `r0003` version 1, `r0004` version 2). A change against the head is a warning and needs a `workload` intent row (`workload_undeclared`).",
+          "type": "integer",
+          "minimum": 1
+        },
         "evidence_cache": {
           "oneOf": [
             {
@@ -523,6 +528,7 @@
               "forbidden:flag_lost",
               "forbidden:failures",
               "forbidden:no_bump",
+              "workload_undeclared",
               "intent_exceeded",
               "unexplained",
               "rebase_dna_change"
@@ -530,7 +536,7 @@
           }
         },
         "warnings": {
-          "description": "What the check reports beside the verdict: a moved version key, unused or posthoc intent rows, escapes a rebase measures, and each escape line that changed while its sample's escape count in the zone did not rise (`escape changed, count not risen: <sample> block <key> <change> <before> -> <after>`).",
+          "description": "What the check reports beside the verdict: a moved version key, a moved workload counting version (`workload counting version moved: <head> -> <candidate>`), unused or posthoc intent rows, escapes a rebase measures, and each escape line that changed while its sample's escape count in the zone did not rise (`escape changed, count not risen: <sample> block <key> <change> <before> -> <after>`).",
           "type": "array",
           "items": {
             "type": "string",

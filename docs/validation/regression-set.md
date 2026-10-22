@@ -181,6 +181,16 @@ note-hv2b	note	added	303-316	*	-	0	#222 the same samples gain a note
 | `posthoc` | `0` when declared before the first check of the change; `1` when added after a check showed it | – |
 | `reason` | a pull request, ADR, or SRS reference and a short phrase | – |
 
+A row of kind `workload` declares a new **workload counting version**
+instead of lines: its `change` is `changed` or `any`, its `where` `*`, its
+`max_samples` `-`, and its `match` a glob on the candidate's version (for
+example `2`). It explains no golden line, and a row of kind `*` never
+declares the version.
+
+```text
+counting	workload	changed	*	2	-	0	#282 workload counting version 2: per-position blocks, omission classes
+```
+
 The header's `series` and `base` must be the check's series and head entry.
 The file must be committed and unmodified at the harness's revision: `check`
 compares its git blob with the blob at the revision the harness was built
@@ -201,6 +211,7 @@ that fired. A line a forbidden rule names carries it as its label.
 | `forbidden:flag_lost` | a sample whose head `haplotype_lod` status is `discordant` goes from `review clear N` to `Y` while still `discordant`; whatever the intents |
 | `forbidden:failures` | a `failure` line is added or removed: the set of failed samples differs |
 | `forbidden:no_bump` | a truth-free line changed while the candidate's version key equals the head's |
+| `workload_undeclared` | the workload counting version differs from the head's and no `workload` intent row matches the candidate's version |
 | `intent_exceeded` | an intent row matched lines of more distinct samples than its `max_samples` |
 | `unexplained` | a changed line matches no intent row |
 | `rebase_dna_change` | with `--rebase`, a truth-free line changed |
@@ -208,7 +219,9 @@ that fired. A line a forbidden rule names carries it as its label.
 Otherwise the verdict is `REGRESS SAME` when no line changed, `REGRESS
 EXPLAINED` when every changed line is explained, and `REGRESS REBASE` for a
 rebase. Reported, never the verdict: a version key that moved without a
-changed line (the change may lie outside the set), intent rows that matched
+changed line (the change may lie outside the set), a moved workload counting
+version (`workload counting version moved: <head> -> <candidate>`), intent
+rows other than a declaring `workload` row that matched
 nothing (`unused intent`), `posthoc` rows, the version-key fields that
 moved, and the changed escape lines of each sample and zone that gains an
 escape line while its escape count does not rise (`escape changed, count not
@@ -222,6 +235,18 @@ declare, but the harness's own), and the configuration SHA-256. A truth-free
 change therefore needs a plugin version bump, a new contract version, or a
 configuration change.
 
+The **workload counting version** (`COUNTING_VERSION` of the harness's
+workload: which differences are unreviewed, per differing position, and
+their classes) governs the evaluation lines, which the version key does not
+cover. A harness change that reclassifies blocks with DNA's output unchanged
+moves it, and `workload_undeclared` makes the move a declared, visible
+change rather than a plain `EXPLAINED`. `run.json` records it as
+`workload_version`. The checks of regress-v1 recorded before it was kept
+have none and are read by revision: `r0001` to `r0003` counted with version
+1, `r0004` (the merge of the hardened gate) with version 2; any other check
+without it is refused. The committed ledger keeps its columns (it is
+append-only): the version shows there through the entry's intent file.
+
 ## Outputs
 
 `check` writes `dna.eval_regress/v1`
@@ -232,8 +257,8 @@ configuration change.
 |---|---|
 | `golden.tsv` | the golden output |
 | `changes.tsv` | the changed lines |
-| `regress.md` | the verdict and the rules that fired, warnings, the head and candidate revisions and version keys, the changes by kind and change, by stratum (changed samples of its members), and by intent row (lines, samples), the first 40 unexplained or forbidden lines, and the counts; the listed lines and the changed-escape warnings name samples, so the file stays local |
-| `run.json` | the harness and source revision and dirty flag, the manifest fields, the truth and re-check identities, the configuration, profile, and reference identities, the review options, the run contexts, the version key, cache usage, the head entry, the intent file (blob id, rows, `posthoc` rows), the verdict and rules, the warnings (a changed-escape warning names its sample; the file stays local), the golden, kind, and stratum digests, the counts, and the timings |
+| `regress.md` | the verdict and the rules that fired, warnings, the head and candidate revisions, version keys, and workload counting versions, the changes by kind and change, by stratum (changed samples of its members), and by intent row (lines, samples), the first 40 unexplained or forbidden lines, and the counts; the listed lines and the changed-escape warnings name samples, so the file stays local |
+| `run.json` | the harness and source revision and dirty flag, the manifest fields, the truth and re-check identities, the configuration, profile, and reference identities, the review options, the run contexts, the version key, the workload counting version, cache usage, the head entry, the intent file (blob id, rows, `posthoc` rows), the verdict and rules, the warnings (a changed-escape warning names its sample; the file stays local), the golden, kind, and stratum digests, the counts, and the timings |
 
 ## Ledger
 

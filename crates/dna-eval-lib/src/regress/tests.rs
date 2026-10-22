@@ -2,7 +2,7 @@
 //! rows, on synthetic run headers and ledgers.
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::*;
 use crate::identity::TEST;
@@ -49,7 +49,21 @@ fn the_files_follow_the_contract() -> std::result::Result<(), Box<dyn std::error
     let required = strings(&definitions["run"]["required"])
         .into_iter()
         .collect::<BTreeSet<_>>();
-    assert_eq!(names(&written), required);
+    // Every required field is written; the one optional field, the
+    // workload counting version, is written too.
+    assert_eq!(
+        names(&written)
+            .difference(&required)
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["workload_version"]
+    );
+    assert!(required.is_subset(&names(&written)));
+    assert!(names(&written).is_subset(&names(&definitions["run"]["properties"])));
+    assert_eq!(
+        strings(&definitions["run"]["properties"]["rules"]["items"]["enum"]),
+        judge::Rule::ALL.map(|rule| rule.label().to_owned())
+    );
     assert_eq!(
         names(&written["counts"]),
         names(&definitions["run"]["properties"]["counts"]["properties"])
@@ -104,6 +118,7 @@ fn header() -> Header {
             contracts: "dna.analysis/v10,dna.variants/v1".into(),
             configuration_sha256: "2".repeat(64),
         },
+        workload_version: Some(2),
         evidence_cache: None,
         placement_cache: None,
         head: None,
@@ -197,6 +212,7 @@ fn warnings_list_escape_lines_changed_without_a_rise() {
         intents: Vec::new(),
         rebase_escapes: 0,
         reshaped_escapes: vec![0, 1],
+        workload_intent: None,
     };
     let samples = ["S1".to_owned(), "S2".to_owned()];
     assert_eq!(
@@ -208,6 +224,90 @@ fn warnings_list_escape_lines_changed_without_a_rise() {
              - -> non_het interior@HV1 no",
         ]
     );
+}
+
+#[test]
+fn warnings_name_a_moved_counting_version() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut before = header();
+    before.workload_version = Some(1);
+    let head = Head {
+        row: ledger::IndexRow {
+            entry: "r0001".into(),
+            kind: "initial".into(),
+            base: "-".into(),
+            revision: "a".repeat(40),
+            golden_sha256: "0".repeat(64),
+            verdict: Verdict::Initial.label().into(),
+            recorded: "2026-10-22".into(),
+        },
+        header: before,
+    };
+    let text = format!(
+        "# regress-intent series=regress-v1 base=r0001 pr=#1\n{}\n\
+         counting\tworkload\tchanged\t*\t2\t-\t0\t#1 version 2\n\
+         idle\tblock\tany\t*\t*\t-\t0\t#1 nothing\n",
+        intents::COLUMNS
+    );
+    let parsed = intents::parse(&text, &BTreeSet::new(), &BTreeSet::new())?;
+    let intent = IntentHeader {
+        path: "intent.tsv".into(),
+        blob: "5".repeat(40),
+        pr: "#1".into(),
+        rows: 2,
+        posthoc_rows: 0,
+    };
+    let judgement = Judgement {
+        changes: Vec::new(),
+        rules: Vec::new(),
+        verdict: Verdict::Same,
+        intents: vec![(0, 0), (0, 0)],
+        rebase_escapes: 0,
+        reshaped_escapes: Vec::new(),
+        workload_intent: Some(0),
+    };
+    // The declaring row is used; only the idle row is reported unused.
+    assert_eq!(
+        warnings(
+            Some(&head),
+            &header(),
+            Some(&judgement),
+            Some(&(parsed, intent)),
+            &[]
+        ),
+        vec![
+            "workload counting version moved: 1 -> 2",
+            "unused intent idle"
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn reads_the_counting_version_of_checks_that_predate_it() -> Result<()> {
+    let mut header = header();
+    assert_eq!(counting_version(&header)?, 2);
+    header.workload_version = None;
+    // The recorded entries before the field: r0001 to r0003 counted with
+    // version 1, r0004 with version 2.
+    for (revision, version) in [
+        ("74c9cbaf2a3c4e5e25cfe83b090394bc9bd75959", 1),
+        ("39a2c582f293e32b8489b3d02ae0cbff2378c932", 1),
+        ("1a23f5751e256aa0760ff39dedf692464f2d3b6d", 2),
+    ] {
+        header.source.revision = Some(revision.to_owned());
+        assert_eq!(counting_version(&header)?, version, "{revision}");
+    }
+    // Any other check without it is refused, never guessed.
+    header.source.revision = Some("a".repeat(40));
+    assert!(matches!(counting_version(&header), Err(Error::Regress(_))));
+    // A run.json without the field reads back as absent.
+    let mut json = serde_json::to_value(&header).map_err(|error| refused(error.to_string()))?;
+    if let Some(object) = json.as_object_mut() {
+        object.remove("workload_version");
+    }
+    let read: Header = serde_json::from_value(json).map_err(|error| refused(error.to_string()))?;
+    assert_eq!(read.workload_version, None);
+    Ok(())
 }
 
 #[test]
@@ -596,6 +696,8 @@ fn checks_and_records_a_synthetic_set_end_to_end()
     assert!(report.contains("**Verdict: REGRESS INITIAL**"), "{report}");
     let first = set.directory.path().join("first");
     let golden_text = fs::read_to_string(first.join(GOLDEN))?;
+    let written: Header = serde_json::from_str(&fs::read_to_string(first.join(RUN_JSON))?)?;
+    assert_eq!(written.workload_version, Some(workload::COUNTING_VERSION));
     // Every sample fails: S1's trace is unreadable, S2's is missing.
     assert!(golden_text.starts_with(golden::HEADER));
     assert_eq!(
