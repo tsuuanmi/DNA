@@ -28,8 +28,9 @@
 
 use std::collections::BTreeSet;
 
+use super::Sample;
+use super::items::Draft;
 use super::ranges::{inside, within};
-use super::{Draft, Sample};
 use dna_consensus::ReadRun;
 use dna_consensus::length::{Run, entered_run, start_reference};
 use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
