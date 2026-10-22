@@ -238,8 +238,8 @@ mod tests {
         assert_eq!(config.sanger.signal_processing.window_size_bases, 10);
         assert_eq!(config.sanger.signal_processing.minimum_primary_snr, 3.0);
         assert_eq!(config.sanger.signal_processing.minimum_noisy_windows, 2);
-        assert_eq!(config.sample.minimum_comparable_bases, 25);
-        assert_eq!(config.sample.minimum_overlap_agreement, 0.5);
+        assert_eq!(config.sample.minimum_comparable_bases(), 25);
+        assert_eq!(config.sample.minimum_overlap_agreement(), 0.5);
         assert_eq!(config.sanger.sanger_evidence.minimum_peak_height, 150);
         assert_eq!(config.sanger.sanger_evidence.relative_quality_threshold, 30);
         Ok(())
@@ -384,6 +384,8 @@ mod tests {
             VALID.replace("minimum_resolved_bases=20", "minimum_resolved_bases=0"),
             VALID.replace("site_mismatch_cost=2", "site_mismatch_cost=6"),
             VALID.replace("site_gap_extension_cost=2", "site_gap_extension_cost=0"),
+            VALID.replace("maximum_undecided_gap=20", "maximum_undecided_gap=50001"),
+            VALID.replace("read_end_margin=10", "read_end_margin=50001"),
         ] {
             assert!(
                 validate(&invalid).is_err(),

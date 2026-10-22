@@ -7,8 +7,8 @@ does a read lie on the reference? It depends only on `dna-kernel`.
 
 Public surface: `align_best`, [placed](placed.rs) (the `dna.placed_read/v1`
 contract: `write` and `read`, which re-checks a placement against the read's
-evidence and the reference, [ADR-0087](../../../docs/decisions/adr/0087-placed-read-contract.md),
-proposed), the `[alignment]` section (`AlignmentConfig`,
+evidence and the reference, [ADR-0087](../../../docs/decisions/adr/0087-placed-read-contract.md)),
+the `[alignment]` section (`AlignmentConfig`,
 `RawAlignmentConfig`), and the [model](model/README.md): a read-only `Alignment`,
 columns included, whose callable segments only its own methods narrow, so
 `dna-align` is its only writer. `Alignment::placed` is the second producer
@@ -61,8 +61,8 @@ document records the full rationale. A future maintained implementation may
 replace this code only if it satisfies the same scientific contract and is
 validated independently.
 
-`config.rs` owns the `[alignment]`, with the alignment-cell cap configuration section: its raw record, validated
-record, and rules (ADR-0069).
+`config.rs` owns the `[alignment]` configuration section, with the
+alignment-cell cap: its raw record, validated record, and rules (ADR-0069).
 
 See [alignment requirements](../../../docs/requirements/alignment.md),
 [alignment method](../../../docs/design/alignment.md), and
