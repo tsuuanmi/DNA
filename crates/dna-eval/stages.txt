@@ -30,7 +30,7 @@ crates/dna-sanger
 crates/dna-trace
 src/lib.rs: config, error, input, model, operation_log, pipeline, recorded, report
 src/error.rs
-src/recorded.rs: read_evidence_document
+src/recorded.rs: read_evidence_document, evidence_configuration_sha256
 src/config/mod.rs
 src/config/defaults.rs
 src/config/load.rs

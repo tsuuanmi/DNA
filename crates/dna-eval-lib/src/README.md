@@ -135,10 +135,9 @@ describes them.
   unrecorded, left out of every comparison on both sides.
 - `cache.rs` — the read evidence cache of `run --evidence-cache`: each
   trace's `dna.read_evidence/v1` document, gzip-compressed, in a generation
-  keyed by the configuration's SHA-256, the `sanger` version, and the read
-  stage's code identity (git object ids the binary's build script records),
-  written
-  atomically, a corrupt entry being a miss; the index of the truth's
+  keyed by the Sanger plugin's configuration digest, the `sanger` version,
+  and the read stage's code identity (git object ids the binary's build
+  script records), written atomically, a corrupt entry being a miss; the index of the truth's
   written forms, in a generation keyed by the truth database, the reference
   sequence, the profile's repeat windows, and the index's code identity;
   each generation's label (`key.json`: kind and key) and last use

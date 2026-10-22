@@ -12,7 +12,10 @@
         "family": "modality",
         "version": 13
       }
-    ]
+    ],
+    "plugin_configuration_sha256": {
+      "sanger": "9d2a6f0c4e1b8a7d3f5c2e9b0a6d4f8c1e3b7a5d9c2f6e0b4a8d1c7f3e5b9a2d"
+    }
   },
   "rejection": {
     "reason": "callable_calls_below_minimum",

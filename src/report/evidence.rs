@@ -58,6 +58,10 @@ pub(crate) fn build(completed: CompletedEvidence) -> Result<EvidenceDocument> {
     } = completed;
     let provenance = EvidenceProvenanceResult {
         input: EvidenceInputResult { name, sha256 },
+        plugin_configuration_sha256: plugins
+            .iter()
+            .map(|plugin| (plugin.id, config.plugin_sha256(plugin)))
+            .collect(),
         configuration_sha256: config.source_sha256,
         plugins: project_plugins(plugins),
     };

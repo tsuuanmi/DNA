@@ -751,6 +751,29 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- A read evidence document now depends on the configuration the evidence
+  plugins read, not the configuration file: `dna.read_evidence/v1` records
+  each plugin's configuration digest in
+  `provenance.plugin_configuration_sha256` (the SHA-256 of the plugin's
+  sections' canonical values, `config_sections`), and its reader
+  (`--evidence`, SRS-API-018) compares those digests instead of the
+  configuration file's SHA-256, which it still records. A document stays
+  valid when another plugin's section, a comment, or the layout changes,
+  and the analyses from it stay byte-identical to the analyses from the
+  traces under the configuration loaded. `dna-eval`'s evidence cache keys
+  its generations on that digest
+  (`dna::recorded::evidence_configuration_sha256`), so editing `[review]`
+  or `[consensus]` no longer makes a new 7 GB generation; `run.json` records
+  it as `evidence_cache.key.evidence_configuration_sha256` (renamed from
+  `configuration_sha256`, `dna.eval_run/v1` and `dna.eval_regress/v1` in
+  place). The placement cache
+  is still keyed by the configuration file, its key's
+  `configuration_sha256`. No plugin's output
+  changes and no plugin version moves: the documents gain the provenance
+  field only, and every other output is byte-identical. **Breaking:**
+  `dna.read_evidence/v1` revised in place (pre-release): the provenance
+  field is required, so documents written before it are refused and must be
+  written again.
 - The evaluation harness is the library `dna-eval-lib` under a thin
   `dna-eval` binary, which keeps the build stamps (revision, dirty state,
   and each cached stage's code identity): a new commit or `git add` relinks
