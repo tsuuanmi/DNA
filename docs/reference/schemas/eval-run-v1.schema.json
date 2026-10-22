@@ -175,8 +175,7 @@
         "constants",
         "samples",
         "workload",
-        "seconds",
-        "outputs"
+        "seconds"
       ],
       "properties": {
         "harness": {
@@ -441,7 +440,7 @@
               "additionalProperties": false,
               "required": [
                 "sanger",
-                "configuration_sha256",
+                "evidence_configuration_sha256",
                 "code_sha256"
               ],
               "properties": {
@@ -450,7 +449,7 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "configuration_sha256": {
+                "evidence_configuration_sha256": {
                   "description": "The digest of the configuration the evidence plugins read (`dna::recorded::evidence_configuration_sha256`): the SHA-256 of one `<plugin>\\t<digest>` line per evidence plugin, each the digest the documents record in `provenance.plugin_configuration_sha256`. Another section, a comment, or the layout leaves it unchanged.",
                   "$ref": "#/$defs/sha256"
                 },
@@ -944,7 +943,7 @@
           }
         },
         "outputs": {
-          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`).",
+          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`). Every run of this revision records it; a run of an earlier harness revision has none, and `same` hashes its files.",
           "type": "object",
           "propertyNames": {
             "pattern": "^[a-z_]+\\.(tsv|md)$"

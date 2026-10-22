@@ -287,6 +287,35 @@ class CrateMapTests(unittest.TestCase):
             "[read] !crates/dna-sanger is used by no listed source", result.stderr
         )
 
+    def test_follows_the_items_of_an_item_scoped_entry(self) -> None:
+        # A listed item's body calls a new module: through a child path, or
+        # through a name the file's `use` binds.
+        for mod_rs in (
+            (
+                "mod evidence;\nmod newstep;\n"
+                "pub(crate) fn evidence_document() { newstep::run(); }\n"
+                "pub(crate) fn review() { crate::report::review(); }\n"
+            ),
+            (
+                "mod evidence;\nmod newstep;\nuse newstep::run as step;\n"
+                "pub(crate) fn evidence_document() { step(); }\n"
+            ),
+        ):
+            result = self.run_stages(
+                self.STAGES,
+                **{
+                    "src/pipeline/mod.rs": mod_rs,
+                    "src/pipeline/newstep.rs": "pub(crate) fn run() {}\n",
+                },
+            )
+            self.assertNotEqual(result.returncode, 0, mod_rs)
+            self.assertIn(
+                "[read] src/pipeline/mod.rs uses src/pipeline/newstep.rs, which is not listed",
+                result.stderr,
+            )
+            # An item outside the list (`review`) is not followed.
+            self.assertNotIn("src/report/review.rs", result.stderr)
+
     def test_rejects_a_listed_crate_whose_dependency_is_not_listed(self) -> None:
         stages = self.STAGES.replace("!crates/dna-call\n", "crates/dna-call\n").replace(
             "crates/dna-kernel\n", ""

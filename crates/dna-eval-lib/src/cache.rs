@@ -50,6 +50,7 @@
 use std::fmt::Write as _;
 use std::fs;
 use std::io::{self, Read as _, Write as _};
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -139,13 +140,31 @@ pub(crate) enum CacheError {
 pub(crate) struct Key {
     /// The `sanger` plugin version.
     pub(crate) sanger: u32,
-    /// The configuration digest the stage depends on: for the evidence
-    /// cache, the evidence plugins' sections
-    /// (`dna::recorded::evidence_configuration_sha256`); for the placement
-    /// cache, the configuration file's SHA-256.
-    pub(crate) configuration_sha256: String,
-    /// The SHA-256 of the read stage's code identity.
+    /// What the stage depends on of the configuration.
+    #[serde(flatten)]
+    pub(crate) configuration: Configuration,
+    /// The SHA-256 of the stage's code identity.
     pub(crate) code_sha256: String,
+}
+
+/// What a generation depends on of the configuration, named by its kind in
+/// `run.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Configuration {
+    /// The evidence cache: the digest of the evidence plugins' sections
+    /// (`dna::recorded::evidence_configuration_sha256`).
+    EvidenceConfigurationSha256(String),
+    /// The placement cache: the configuration file's SHA-256.
+    ConfigurationSha256(String),
+}
+
+impl Configuration {
+    fn sha256(&self) -> &str {
+        match self {
+            Self::EvidenceConfigurationSha256(sha256) | Self::ConfigurationSha256(sha256) => sha256,
+        }
+    }
 }
 
 impl Key {
@@ -154,7 +173,9 @@ impl Key {
         let mut hasher = Sha256::new();
         hasher.update(format!(
             "sanger={}\nconfiguration={}\ncode={}\n",
-            self.sanger, self.configuration_sha256, self.code_sha256
+            self.sanger,
+            self.configuration.sha256(),
+            self.code_sha256
         ));
         format!("{:x}", hasher.finalize())
     }
@@ -309,9 +330,10 @@ pub(crate) struct Caches {
 }
 
 impl Caches {
-    /// Opens both caches of `root` for the configuration at `config` and
-    /// the reference whose sequence SHA-256 is `reference_sha256`, under the
-    /// read and placement stages of `identity`.
+    /// Opens both caches of `root` for the configuration at `config`, the
+    /// reference whose sequence SHA-256 is `reference_sha256`, and the target
+    /// profile file whose SHA-256 is `profile_sha256` (the placement aligns
+    /// on its topology), under the read and placement stages of `identity`.
     ///
     /// # Errors
     ///
@@ -319,7 +341,7 @@ impl Caches {
     pub(crate) fn open(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
         identity: &Identity,
     ) -> Result<Self, CacheError> {
         Ok(Self {
@@ -327,7 +349,7 @@ impl Caches {
             placed: EvidenceCache::open_placed(
                 root,
                 config,
-                reference_sha256,
+                (reference_sha256, profile_sha256),
                 identity.placement_stage,
             )?,
         })
@@ -364,12 +386,17 @@ impl EvidenceCache {
                     message: error.to_string(),
                 }
             })?;
-        Self::with_code(root, configuration, (Kind::Evidence, code))
+        Self::with_code(
+            root,
+            Configuration::EvidenceConfigurationSha256(configuration),
+            (Kind::Evidence, code),
+        )
     }
 
     /// Opens the placement cache's generation of `root` for the
-    /// configuration at `config` and the reference whose sequence SHA-256 is
-    /// `reference_sha256`, under the placement stage's code identity `code`.
+    /// configuration at `config`, the reference whose sequence SHA-256 is
+    /// `reference_sha256`, and the target profile file whose SHA-256 is
+    /// `profile_sha256`, under the placement stage's code identity `code`.
     ///
     /// # Errors
     ///
@@ -377,7 +404,7 @@ impl EvidenceCache {
     pub(crate) fn open_placed(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
         code: &str,
     ) -> Result<Self, CacheError> {
         if code.is_empty() {
@@ -389,19 +416,19 @@ impl EvidenceCache {
         })?;
         Self::with_code(
             root,
-            format!("{:x}", Sha256::digest(&configuration)),
+            Configuration::ConfigurationSha256(format!("{:x}", Sha256::digest(&configuration))),
             (
                 Kind::Placement,
-                &format!("placement;{code}reference={reference_sha256};"),
+                &format!("placement;{code}reference={reference_sha256};profile={profile_sha256};"),
             ),
         )
     }
 
-    /// Opens the generation of `root` for the configuration digest
-    /// `configuration_sha256` under the code identity `code` of `kind`.
+    /// Opens the generation of `root` for `configuration` under the code
+    /// identity `code` of `kind`.
     fn with_code(
         root: &Path,
-        configuration_sha256: String,
+        configuration: Configuration,
         (kind, code): (Kind, &str),
     ) -> Result<Self, CacheError> {
         if code.is_empty() {
@@ -409,7 +436,7 @@ impl EvidenceCache {
         }
         let key = Key {
             sanger: dna_sanger::read_processing::PLUGIN.version,
-            configuration_sha256,
+            configuration,
             code_sha256: format!("{:x}", Sha256::digest(code.as_bytes())),
         };
         let (root, generation) = open_generation(root, kind, &key.generation(), &key)?;
@@ -654,7 +681,10 @@ pub(crate) fn list(root: &Path) -> Result<Listing, CacheError> {
 
 /// The temporary files of `generation` whose writing process is no longer
 /// alive on this host: a temporary file is named `.<name>.<pid>.<n>.tmp`.
-/// Without `/proc` no process can be checked, and none is orphaned.
+/// Without `/proc` no process can be checked, and none is orphaned. The
+/// check sees this host's processes in this PID namespace only: a run on
+/// another host or in another container that writes to a shared cache
+/// looks orphaned, so prune a shared cache where no such run is writing.
 fn orphaned(generation: &Path) -> Vec<(PathBuf, u64)> {
     let processes = Path::new("/proc");
     if !processes.is_dir() {
@@ -694,7 +724,7 @@ pub(crate) struct Pruned {
 ///
 /// Returns [`CacheError::Io`] when the root cannot be read or a generation
 /// or file removed.
-pub(crate) fn prune(root: &Path, keep: usize, dry_run: bool) -> Result<Pruned, CacheError> {
+pub(crate) fn prune(root: &Path, keep: NonZeroUsize, dry_run: bool) -> Result<Pruned, CacheError> {
     let io = |path: &Path| {
         let path = path.to_path_buf();
         move |source| CacheError::Io { path, source }
@@ -707,7 +737,7 @@ pub(crate) fn prune(root: &Path, keep: usize, dry_run: bool) -> Result<Pruned, C
     };
     for generation in listing.generations {
         let count = kept.entry(generation.kind).or_default();
-        if *count < keep {
+        if *count < keep.get() {
             *count += 1;
             continue;
         }
@@ -826,7 +856,11 @@ mod tests {
     }
 
     fn cache(root: &Path, code: &str) -> Result<EvidenceCache, CacheError> {
-        EvidenceCache::with_code(&root.join("cache"), "c".repeat(64), (Kind::Evidence, code))
+        EvidenceCache::with_code(
+            &root.join("cache"),
+            Configuration::EvidenceConfigurationSha256("c".repeat(64)),
+            (Kind::Evidence, code),
+        )
     }
 
     /// A miss stores the document, a hit reads it back, and a build without
@@ -963,8 +997,11 @@ mod tests {
         let directory = root.path().join("cache");
         let old = cache(root.path(), "crates/dna-sanger=old;")?;
         let new = cache(root.path(), "crates/dna-sanger=new;")?;
-        let placed =
-            EvidenceCache::with_code(&directory, "c".repeat(64), (Kind::Placement, "placement;"))?;
+        let placed = EvidenceCache::with_code(
+            &directory,
+            Configuration::ConfigurationSha256("c".repeat(64)),
+            (Kind::Placement, "placement;"),
+        )?;
         fs::write(old.generation.join(LAST_USED), "100\n")?;
         fs::write(new.generation.join(LAST_USED), "200\n")?;
         fs::write(placed.generation.join(LAST_USED), "50\n")?;
@@ -975,7 +1012,7 @@ mod tests {
             .join(format!(".bb.{}.0.tmp", std::process::id()));
         fs::write(&orphan, b"half")?;
         fs::write(&live, b"half")?;
-        let planned = prune(&directory, 1, true)?;
+        let planned = prune(&directory, NonZeroUsize::MIN, true)?;
         assert_eq!(
             planned
                 .generations
@@ -990,7 +1027,7 @@ mod tests {
             pruned_summary(&planned, true),
             "dna-eval: would remove 1 cache generation(s): evidence 1 (0 bytes); 1 orphaned temporary file(s), 4 bytes"
         );
-        prune(&directory, 1, false)?;
+        prune(&directory, NonZeroUsize::MIN, false)?;
         assert!(!old.generation.exists() && !orphan.exists());
         assert!(new.generation.exists() && placed.generation.exists() && live.exists());
         Ok(())

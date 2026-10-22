@@ -621,7 +621,9 @@ pub(crate) mod tests {
                 directory: "/cache/evidence".into(),
                 key: cache::Key {
                     sanger: 17,
-                    configuration_sha256: "a".repeat(64),
+                    configuration: cache::Configuration::EvidenceConfigurationSha256(
+                        "a".repeat(64),
+                    ),
                     code_sha256: "b".repeat(64),
                 },
                 hits: 5,
@@ -633,7 +635,7 @@ pub(crate) mod tests {
                 directory: "/cache/evidence".into(),
                 key: cache::Key {
                     sanger: 17,
-                    configuration_sha256: "a".repeat(64),
+                    configuration: cache::Configuration::ConfigurationSha256("a".repeat(64)),
                     code_sha256: "c".repeat(64),
                 },
                 hits: 4,
