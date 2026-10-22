@@ -3,7 +3,9 @@
 //! Everything here is derived from plain [`PositionEvidence`] records in call
 //! order; nothing refers to the chromatogram, the reference, or a profile.
 
+use crate::channel;
 use crate::error::{CallabilityError, Result};
+use crate::median;
 use crate::model::callability::{PositionEvidence, PositionFeatures};
 use crate::signal_processing::round_metric;
 
@@ -75,27 +77,13 @@ fn median_primary_amplitude(
         .zip(ranked)
         .filter_map(|(position, &(primary, _))| primary.map(|channel| position.amplitudes[channel]))
         .collect::<Vec<_>>();
-    if amplitudes.is_empty() {
-        return 0.0;
-    }
-    amplitudes.sort_by(f64::total_cmp);
-    let middle = amplitudes.len() / 2;
-    if amplitudes.len().is_multiple_of(2) {
-        f64::midpoint(amplitudes[middle - 1], amplitudes[middle])
-    } else {
-        amplitudes[middle]
-    }
+    median::midpoint(&mut amplitudes).unwrap_or(0.0)
 }
 
 /// Ranks the two strongest channels; ties favour the lower channel index and
 /// a position without positive signal has no primary channel.
 fn rank(amplitudes: [f64; 4]) -> (Option<usize>, Option<usize>) {
-    let mut order = [0_usize, 1, 2, 3];
-    order.sort_by(|left, right| {
-        amplitudes[*right]
-            .total_cmp(&amplitudes[*left])
-            .then_with(|| left.cmp(right))
-    });
+    let order = channel::ranked(&amplitudes, f64::total_cmp);
     if amplitudes[order[0]] > 0.0 {
         (Some(order[0]), Some(order[1]))
     } else {
@@ -120,16 +108,7 @@ fn local_median(index: usize, spacings: &[f64], half_window: usize) -> f64 {
         .get(window_start..window_end)
         .unwrap_or_default()
         .to_vec();
-    if window.is_empty() {
-        return 0.0;
-    }
-    window.sort_by(f64::total_cmp);
-    let middle = window.len() / 2;
-    if window.len().is_multiple_of(2) {
-        f64::midpoint(window[middle - 1], window[middle])
-    } else {
-        window[middle]
-    }
+    median::midpoint(&mut window).unwrap_or(0.0)
 }
 
 /// The junctions whose spacing marks a missing or an extra peak, each by the
@@ -158,10 +137,10 @@ pub(super) fn gaps(
                 return false;
             }
             let spacing = spacings[index];
-            let neighbours = [index.checked_sub(1), index.checked_add(1)]
+            let neighbors = [index.checked_sub(1), index.checked_add(1)]
                 .into_iter()
                 .flatten()
-                .filter_map(|neighbour| spacings.get(neighbour))
+                .filter_map(|neighbor| spacings.get(neighbor))
                 .copied()
                 .collect::<Vec<_>>();
             // `sign` 1 asks for a span wider than expected, -1 for narrower.
@@ -170,9 +149,9 @@ pub(super) fn gaps(
                     round_metric(sign * (span - expected * median) / median) >= spacing_defect
                 };
                 off(spacing, 1.0)
-                    && neighbours
+                    && neighbors
                         .iter()
-                        .all(|&neighbour| off(spacing + neighbour, 2.0))
+                        .all(|&neighbor| off(spacing + neighbor, 2.0))
             };
             defect(1.0) || defect(-1.0)
         })

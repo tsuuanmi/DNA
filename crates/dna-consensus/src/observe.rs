@@ -3,16 +3,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use dna_align::model::alignment::Orientation;
-use dna_call::Eligibility;
 use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_call::model::variant::VariantKind;
-use dna_kernel::model::nucleotide::reverse_complement;
+use dna_call::{Aligned, Eligibility};
+use dna_kernel::model::nucleotide::is_canonical;
+
+use crate::runs::reference_run;
 use dna_kernel::read_evidence::{CallEvidence, EvidenceReason, Placement};
 
 /// What one read contributes at one reference position or junction.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum SiteValue {
+pub(crate) enum SiteValue {
     /// A base at a reference position.
     Base(char),
     /// A deleted reference position.
@@ -37,7 +39,7 @@ pub(super) enum SiteValue {
 /// base only: whatever its level, it neither counts towards a run nor shows
 /// a run's end (`Char::base_only`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum Trust {
+pub(crate) enum Trust {
     /// Nothing: a non-canonical or uninformative call, or one beside an
     /// unresolved call.
     Nothing,
@@ -54,74 +56,93 @@ pub(super) enum Trust {
 
 /// One observed base: a call aligned to a position or inserted at a junction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct Char {
-    pub(super) base: char,
-    pub(super) trust: Trust,
+pub(crate) struct Char {
+    pub(crate) base: char,
+    pub(crate) trust: Trust,
     /// The reference position the base is aligned to; `None` for an inserted
     /// base.
-    pub(super) position: Option<usize>,
+    pub(crate) position: Option<usize>,
     /// One unresolved call separates the base from a run where the read
     /// loses phase: the base shows that run's end only as `anchored_end`, the
     /// run being as long as its in-phase calls or one longer (ADR-0074).
-    pub(super) beside_unresolved: bool,
+    pub(crate) beside_unresolved: bool,
     /// The modality vouches for the call's base only: it neither counts
     /// towards a run nor shows a run's end.
-    pub(super) base_only: bool,
+    pub(crate) base_only: bool,
 }
 
 impl Char {
     /// The call shows its base.
-    pub(super) fn clean(self) -> bool {
+    pub(crate) fn clean(self) -> bool {
         self.trust == Trust::Clean
     }
 
     /// The call shows where a neighbouring run ends.
-    pub(super) fn resolving(self) -> bool {
+    pub(crate) fn resolving(self) -> bool {
         self.trust >= Trust::Anchoring && !self.base_only
     }
 
     /// The call counts towards its run.
-    pub(super) fn unmasked(self) -> bool {
+    pub(crate) fn unmasked(self) -> bool {
         self.trust >= Trust::Unmasked && !self.base_only
     }
 }
 
 /// One read's value at one site, and whether it may decide the site.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Observation {
-    pub(super) value: SiteValue,
+pub(crate) struct Observation {
+    pub(crate) value: SiteValue,
     /// The calls behind the value are unmasked, trusted (`read_end`), and
     /// raise no support veto.
-    pub(super) clean: bool,
+    pub(crate) clean: bool,
     /// Clean only because a reference-only call confirms the reference here
     /// (ADR-0080).
-    pub(super) confirms: bool,
+    pub(crate) confirms: bool,
     /// The observed bases: one for a base, none for a deletion, the inserted
     /// ones at a junction.
-    pub(super) chars: Vec<Char>,
+    pub(crate) chars: Vec<Char>,
+}
+
+impl Observation {
+    /// Clean by the read's own calls, not only as a reference confirmation.
+    pub(crate) const fn clean_call(&self) -> bool {
+        self.clean && !self.confirms
+    }
+
+    /// A junction where the read inserts bases.
+    pub(crate) fn inserts(&self) -> bool {
+        matches!(&self.value, SiteValue::Insertion(inserted) if !inserted.is_empty())
+    }
+}
+
+/// The junctions inside the 0-based stretch `first..=last` and at its two
+/// edges, each keyed by the position before it, on a reference of `length`
+/// positions whose origin wraps.
+pub(crate) fn junctions(first: usize, last: usize, length: usize) -> impl Iterator<Item = usize> {
+    std::iter::once((first + length - 1) % length).chain(first..=last)
 }
 
 /// Every observation of one read, keyed by 0-based reference position; a
 /// junction is keyed by the position before it.
 #[derive(Debug, Clone)]
-pub(super) struct ReadObservations {
+pub(crate) struct ReadObservations {
     /// The read's identity, its input's content SHA-256: never its file
     /// name, which two inputs can share.
-    pub(super) id: String,
+    pub(crate) id: String,
     /// The read is placed on the reference strand.
-    pub(super) forward: bool,
-    pub(super) positions: BTreeMap<usize, Observation>,
-    pub(super) junctions: BTreeMap<usize, Observation>,
+    pub(crate) forward: bool,
+    pub(crate) positions: BTreeMap<usize, Observation>,
+    pub(crate) junctions: BTreeMap<usize, Observation>,
     /// The second base, on the reference strand, of each position whose call
     /// shows one standing out (ADR-0080).
-    pub(super) seconds: BTreeMap<usize, char>,
+    pub(crate) seconds: BTreeMap<usize, char>,
     /// Positions whose call shows a second peak its modality does not explain
     /// (ADR-0080).
-    pub(super) unexplained: BTreeSet<usize>,
+    pub(crate) unexplained: BTreeSet<usize>,
     /// Per covered position, the calls between it and the nearer end of the
     /// read's informative interval, through the nearer of the calls on both
     /// sides of a deleted position or a junction after it (SRS-CONS-011).
-    pub(super) edges: BTreeMap<usize, usize>,
+    pub(crate) edges: BTreeMap<usize, usize>,
 }
 
 /// Walks the read's alignment columns in reference order.
@@ -136,7 +157,7 @@ pub(super) struct ReadObservations {
 /// reference's makes its position's base observation clean as a
 /// confirmation of the reference (ADR-0080), and nothing else: its run role
 /// stays its call's.
-pub(super) fn observe(
+pub(crate) fn observe(
     read: &CalledRead,
     config: &VariantCallingConfig,
     bases: &[u8],
@@ -146,27 +167,22 @@ pub(super) fn observe(
     let calls = read.evidence.calls();
     let eligibility = Eligibility::new(&read.evidence, config);
     let orientation = read.alignment.orientation();
-    // Calls aligned as a match, and calls aligned as a match or inserted:
-    // the only bounds, and the only run calls, a bounded-run exemption may
-    // trust (ADR-0076); a substituted call keeps `read_end`.
-    let mut matches = vec![false; calls.len()];
-    let mut length_only = vec![false; calls.len()];
+    // How each call is aligned: a bounded-run exemption trusts only a run
+    // call aligned as a match or inserted, and a bound aligned as a match
+    // (ADR-0076).
+    let mut aligned = vec![Aligned::Other; calls.len()];
     for column in read.alignment.columns() {
         if let Some(call) = column.original_call_index_0based()
             && call < calls.len()
         {
-            let inserted = column.reference_index_0based().is_none();
-            matches[call] = !inserted && column.query_base() == column.reference_base();
-            length_only[call] = inserted || matches[call];
+            aligned[call] = Aligned::of(column);
         }
     }
     // Scored and trusted, whatever the modality's reasons against its base.
     let trusted_call = |index: usize| {
         calls.get(index).is_some_and(|call| {
             call.placement == Placement::Scored
-                && (eligibility.trusted(index)
-                    || (eligibility.run_exempt(index) && length_only[index])
-                    || (eligibility.bound_exempt(index) && matches[index]))
+                && (eligibility.trusted(index) || eligibility.exempt_as(index, aligned[index]))
         })
     };
     // Each use reads the modality's reasons for it, as variant calling does:
@@ -194,7 +210,7 @@ pub(super) fn observe(
     let observed_char = |base: char, call: usize, position: Option<usize>| Char {
         base,
         trust: match calls.get(call) {
-            _ if !canonical(base) || !interval.contains(&call) => Trust::Nothing,
+            _ if !is_canonical(base) || !interval.contains(&call) => Trust::Nothing,
             Some(evidence) => match evidence.placement {
                 Placement::Scored if position.is_some() && clean_call(call) => Trust::Clean,
                 Placement::Scored if position.is_none() && inserted_call(call) => Trust::Clean,
@@ -236,17 +252,10 @@ pub(super) fn observe(
         if !calls.get(call).is_some_and(CallEvidence::base_only) {
             return false;
         }
-        let Some(&base) = bases.get(position) else {
+        let Some((first, last)) = reference_run(bases, position) else {
             return false;
         };
-        let mut first = position;
-        while first > 0 && bases[first - 1] == base {
-            first -= 1;
-        }
-        let mut last = position;
-        while last + 1 < reference_length && bases[last + 1] == base {
-            last += 1;
-        }
+        let base = bases[position];
         let shows = |bound: Option<usize>| {
             bound
                 .and_then(|bound| placed_at.get(&bound))
@@ -275,14 +284,6 @@ pub(super) fn observe(
     let mut junctions = BTreeMap::new();
     let mut seconds = BTreeMap::new();
     let mut unexplained = BTreeSet::new();
-    // A read-strand base on the reference strand.
-    let on_reference = |base: char| match orientation {
-        Orientation::Forward => base,
-        Orientation::Reverse => reverse_complement(&base.to_string())
-            .chars()
-            .next()
-            .unwrap_or('N'),
-    };
     let mut edges = BTreeMap::new();
     // Calls between `call` and the nearer end of the informative interval.
     let edge = |call: usize| {
@@ -322,7 +323,7 @@ pub(super) fn observe(
             let clean = !unbounded
                 && inserted
                     .iter()
-                    .all(|(base, call)| canonical(*base) && inserted_clean(*call))
+                    .all(|(base, call)| is_canonical(*base) && inserted_clean(*call))
                 && bounded(before[previous_column], after[offset]);
             junctions.insert(
                 previous_position,
@@ -372,10 +373,10 @@ pub(super) fn observe(
                     unexplained.insert(position);
                 }
                 if let Some(second) = evidence.second.filter(|second| second.stands_out) {
-                    seconds.insert(position, on_reference(second.base));
+                    seconds.insert(position, orientation.reference_base(second.base));
                 }
             }
-            let clean = canonical(column.query_base())
+            let clean = is_canonical(column.query_base())
                 && !shifted
                 && column.original_call_index_0based().is_some_and(clean_call);
             // A call reading the reference's base confirms the reference at
@@ -387,7 +388,7 @@ pub(super) fn observe(
             // out or left unexplained. The margin keeps an indel or a run's
             // end from resting there; a confirmation shows neither.
             let confirms = !clean
-                && canonical(column.query_base())
+                && is_canonical(column.query_base())
                 && !shifted
                 && reference_at(position) == Some(column.query_base())
                 && call.is_some_and(|(call, evidence)| {
@@ -482,7 +483,7 @@ impl ReadObservations {
     /// edges and inside included, framed by the bases at the two neighbouring
     /// positions (`None` in the frame for a deleted neighbour); `None` when
     /// the read does not cover the stretch and both its neighbours.
-    pub(super) fn span(
+    pub(crate) fn span(
         &self,
         first: usize,
         last: usize,
@@ -545,7 +546,7 @@ impl ReadObservations {
     /// inwards, in reference order: from `first` when `from_end` is false,
     /// from `last` otherwise, one clean canonical call per position, until a
     /// position it does not read cleanly or an insertion.
-    pub(super) fn clean_edge(
+    pub(crate) fn clean_edge(
         &self,
         first: usize,
         last: usize,
@@ -563,7 +564,7 @@ impl ReadObservations {
             let [char] = observation.chars.as_slice() else {
                 break;
             };
-            if !observation.clean || !char.clean() || !canonical(char.base) {
+            if !observation.clean || !char.clean() || !is_canonical(char.base) {
                 break;
             }
             bases.push(char.base);
@@ -598,7 +599,7 @@ impl ReadObservations {
 /// spans, by a call aligned there that is scored, trusted, and withheld for
 /// nothing on its base. Each with the reason of the first read's span there.
 /// A deleted position lies in a span when the calls on both sides of it do.
-pub(super) fn unreliable_only(
+pub(crate) fn unreliable_only(
     reads: &[&CalledRead],
     config: &VariantCallingConfig,
 ) -> BTreeMap<usize, EvidenceReason> {
@@ -606,7 +607,6 @@ pub(super) fn unreliable_only(
     let mut sound = BTreeSet::new();
     for read in reads {
         let eligibility = Eligibility::new(&read.evidence, config);
-        let calls = read.evidence.calls();
         let spans = read.evidence.unreliable();
         let reason = |call: usize| {
             spans
@@ -640,12 +640,7 @@ pub(super) fn unreliable_only(
                 (Some(reason), _) => {
                     unreliable.entry(position).or_insert(reason);
                 }
-                (None, Some(call))
-                    if eligibility.trusted(call)
-                        && calls.get(call).is_some_and(|call| {
-                            call.placement == Placement::Scored && call.identity.withheld.is_empty()
-                        }) =>
-                {
+                (None, Some(call)) if eligibility.shows_base(call) => {
                     sound.insert(position);
                 }
                 _ => {}
@@ -654,8 +649,4 @@ pub(super) fn unreliable_only(
     }
     unreliable.retain(|position, _| !sound.contains(position));
     unreliable
-}
-
-const fn canonical(base: char) -> bool {
-    matches!(base, 'A' | 'C' | 'G' | 'T')
 }

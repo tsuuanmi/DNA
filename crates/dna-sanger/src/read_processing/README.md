@@ -15,7 +15,10 @@ modality-neutral core.
   calls, locus profiles, callability, and trim start, and its tract decodes
   ([tract](../tract/README.md), SRS-CALL-025).
   Basecall and Variant Analysis both reuse it.
-- `evidence.rs` is the Sanger modality adapter
+- `stage_log.rs` emits each stage's completion event (`basecalling_completed`,
+  `signal_processing_completed`, `callability_completed`,
+  `quality_control_completed`): logging only, read by nothing.
+- [evidence](evidence/README.md) is the Sanger modality adapter
   ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
   It builds the per-read `ReadEvidence` that alignment and variant calling
   consume:
@@ -38,6 +41,10 @@ modality-neutral core.
   - the read's phase mixtures (SRS-CALL-023, ADR-0082), as `dna-trace`
     asserted them, and its tract decodes (SRS-CALL-025), as
     [tract](../tract/README.md) turned them into `TractLengths`;
+  - the read's poor start (SRS-CALL-024), an unreliable span with the reason
+    `poor_start_signal` from the read's first call to its first run of
+    `start_identity_margin` sound calls, judged after the edge and start
+    rules; it changes no verdict, mask, or call;
   - the calls beside a junction whose spacing marks a missing or an extra
     peak (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
     they place no indel and show no run's end;
@@ -59,7 +66,7 @@ modality-neutral core.
     SRS-CALL-018; using the peak widths signal processing measures), and every call's second base (SRS-CALL-015,
     computed by [second_cause](../second_cause/README.md)'s `second_base`).
 
-  This file is the only place where Sanger peaks, relative quality,
+  This module is the only place where Sanger peaks, relative quality,
   qualifying channels, and phase states turn into core evidence. `reason`
   maps a published label back onto the plugin's own reason, so a recorded
   `dna.read_evidence/v1` document is read back without new labels
@@ -67,7 +74,10 @@ modality-neutral core.
 
 `config.rs` owns the `[sanger_evidence]` section and `SangerConfig`, which
 validates every Sanger-owned section together, including the cross-section
-check of the relative-quality threshold. `mod.rs` also declares the Sanger
+check of the relative-quality threshold. Each section checks its values with the
+kernel's `bounds` helpers, so a message names the key and its rule. A
+validated section's fields are crate-private, except the few the facade
+reads. `mod.rs` also declares the Sanger
 plugin descriptor. Every read-edge parameter, the trim's context margin
 included, is the plugin's own configuration; no core key is read.
 

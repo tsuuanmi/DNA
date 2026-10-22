@@ -7,6 +7,7 @@
 mod abif;
 mod basecalling;
 mod callability;
+mod locus;
 mod quality_control;
 mod read_evidence;
 mod run_signal;
@@ -15,6 +16,7 @@ mod signal;
 pub use abif::{AbifError, Tag};
 pub use basecalling::BasecallingError;
 pub use callability::CallabilityError;
+pub use locus::LocusWindowError;
 pub use quality_control::QualityControlError;
 pub use read_evidence::ReadEvidenceError;
 pub use run_signal::RunSignalError;
@@ -117,6 +119,29 @@ pub enum ProductsError {
         /// Call index (0-based).
         index: usize,
     },
+    /// A reported call has no quality record.
+    #[error("failed to assemble analysis report: variant references missing quality index {index}")]
+    MissingQuality {
+        /// Call index (0-based).
+        index: usize,
+    },
+    /// A reported call's call and quality records disagree on their own
+    /// index.
+    #[error(
+        "failed to assemble analysis report: variant call index {index} does not match call/quality records"
+    )]
+    IndexMismatch {
+        /// Call index (0-based).
+        index: usize,
+    },
+    /// A reported call has no primary-event peak evidence.
+    #[error(
+        "failed to assemble analysis report: variant call index {index} lacks primary-event peak evidence"
+    )]
+    MissingPeakEvidence {
+        /// Call index (0-based).
+        index: usize,
+    },
 }
 
 impl From<AbifError> for SangerError {
@@ -181,8 +206,6 @@ impl From<EvidenceError> for SangerError {
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::error::LocusWindowError;
-
     use super::*;
 
     #[test]

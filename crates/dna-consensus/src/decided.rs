@@ -33,7 +33,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use crate::config::ConsensusConfig;
-use crate::model::consensus::{Consensus, ConsensusSegment, RunEvidence, SiteState};
+use crate::model::consensus::{Consensus, ConsensusSegment, SiteState};
 use dna_call::model::variant::{Variant, VariantExclusionReason, VariantKind};
 use dna_call::read_call::{CoreRun, ReadIdentity};
 use dna_kernel::error::{Result, VariantError};
@@ -394,10 +394,7 @@ fn columns(
             .unwrap_or_else(|| "N".repeat(interval.len()));
         let mut start = steps.iter().filter(|(reads, _)| *reads).count();
         for run in &site.runs {
-            if matches!(
-                run.evidence,
-                RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
-            ) {
+            if run.evidence.is_estimate() {
                 estimated.push(start..start + run.length);
             }
             start += run.length;

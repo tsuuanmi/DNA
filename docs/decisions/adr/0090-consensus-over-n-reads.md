@@ -123,7 +123,7 @@ the `dna-eval diff` gate before it merges:
 3. Per-strand voting as above, and a count-aware `set_aside_dissent`: a
    dissent is set aside only by at least as many clean reads of the other
    strand.
-4. Pooled per-strand length statistics for rule A and for τ
+4. Pooled per-strand length statistics for the two-strand rule and for τ
    (`noise.rs::cross_strand`), and a per-strand dominant length with a
    dissent count in place of "every read clear and equal".
 5. `dna-eval`: `u32` strand counts, and primers from `HV<n>-<pos><F|R>`.

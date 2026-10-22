@@ -30,7 +30,7 @@ a shorter run. No offset is longer than the run that opens the stretch.
 
 Every `dephased` segment of the read is fitted when a repeat run opens it:
 the longest maximal run of two or more equal canonical primary calls whose end
-lies within `callability.repeat_window_calls` calls of the segment's start,
+lies within `signal_processing.decompose_onset_window` calls of the segment's start,
 the nearer on a tie, and which starts at or after the trim interval's start:
 a dephased stretch in the trimmed start is start noise, too short to place. The longest run nearby is the one whose length varies
 most; a nearer short run (the `AAA` before the HVS-II C-tract) would bound
@@ -58,7 +58,7 @@ read sets every level, so nothing is a fixed cut.
   sequence is read from them. A long noisy tail, where the primaries are
   mixture noise, fails here.
 - A read with fewer in-phase single-channel calls than
-  `callability.minimum_callable_calls` asserts no mixture.
+  `signal_processing.decompose_minimum_calls` asserts no mixture.
 
 ## Components
 
@@ -151,7 +151,10 @@ research reference's vectors check every output.
 
 The review judges the runs of each anchored repeat window from the decodes
 (SRS-API-020). It credits each decode to the run its first call is aligned
-to, the run at the tract's start. A forward read gives run 1, the one it
+to, the run at the tract's start; a first call on an inserted column is
+credited to the position the insertion follows, on either strand. The
+consensus's two-strand rule credits a decode by the same function
+(`length::start_reference`). A forward read gives run 1, the one it
 enters first, and a reverse read gives run 2. With the anchor as its mark
 and both marginals clear, a read also gives the next run's length from its
 total.
@@ -253,7 +256,7 @@ view's top is `n`, and every view satisfies
 Otherwise the outcome is `near_equal` (every view's top two are `n` and
 `n + 1`), `strands_differ`, or `one_strand`, and the run keeps its evidence.
 Twelve reference vectors from the research implementation check every view
-and outcome (`crates/dna-consensus/tests/rule_a.rs`).
+and outcome (`crates/dna-consensus/tests/two_strand.rs`).
 
 **Noise τ.** τ measures how far `p` moves between independent sequencing
 reads of the same sample beyond what the decode's own `SE` explains. It is
@@ -289,7 +292,7 @@ batches' folders) by `n0` pseudo-pairs (4.3 and 64: by the method of
 moments from the contexts' `Σz²` and `Σz⁴` for run 1; run 2's batch
 differences are sampling noise, so its weight stays the research's 64).
 The floor `m` = 1 keeps τ at least the replicate estimate, and below 10 pairs
-τ stays the configured one. On development panel v5, rule A's decisions sit
+τ stays the configured one. On development panel v5, the two-strand rule's decisions sit
 far from the τ boundary, and the calibration changes no decision.
 
 **Effect.** On development panel v5 (against increment 3), the rule changed

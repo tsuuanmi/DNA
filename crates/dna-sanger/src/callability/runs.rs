@@ -4,6 +4,8 @@
 //! long homopolymers and dinucleotide tandem repeats, so the onset threshold is
 //! lowered right after one. Runs never mask by themselves.
 
+use dna_kernel::model::runs::maximal_runs;
+
 use crate::model::callability::{RepeatRun, RepeatUnit};
 
 /// Finds every maximal homopolymer and dinucleotide run of at least
@@ -16,27 +18,17 @@ pub(super) fn find(primary: &[Option<usize>], minimum_length: usize) -> Vec<Repe
 }
 
 fn homopolymers(primary: &[Option<usize>], minimum_length: usize) -> Vec<RepeatRun> {
-    let mut runs = Vec::new();
-    let mut start = 0;
-    while start < primary.len() {
-        let Some(channel) = primary[start] else {
-            start += 1;
-            continue;
-        };
-        let length = primary[start..]
-            .iter()
-            .take_while(|&&next| next == Some(channel))
-            .count();
-        if length >= minimum_length {
-            runs.push(RepeatRun {
-                call_start_0based: start,
-                call_end_0based_exclusive: start + length,
+    maximal_runs(primary, |channel| *channel)
+        .filter_map(|run| {
+            // An unresolved call is in no run.
+            let channel = primary[run.start]?;
+            (run.len() >= minimum_length).then_some(RepeatRun {
+                call_start_0based: run.start,
+                call_end_0based_exclusive: run.end,
                 unit: RepeatUnit::Homopolymer(channel),
-            });
-        }
-        start += length;
-    }
-    runs
+            })
+        })
+        .collect()
 }
 
 fn dinucleotides(primary: &[Option<usize>], minimum_length: usize) -> Vec<RepeatRun> {

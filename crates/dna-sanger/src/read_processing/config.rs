@@ -97,56 +97,58 @@ pub struct SangerEvidenceConfig {
     pub relative_quality_threshold: u8,
     /// Relative quality at or above which a call below the peak floor still
     /// shows its base; its indel stays withheld.
-    pub peak_rescue_quality: u8,
+    pub(crate) peak_rescue_quality: u8,
     /// A rescued call's second base must hold less than this peak share.
-    pub peak_rescue_second_share: f64,
+    pub(crate) peak_rescue_second_share: f64,
     /// Calls from an end of the usable signal that lie at a signal edge
     /// (SRS-CALL-013).
-    pub signal_edge_margin: usize,
+    pub(crate) signal_edge_margin: usize,
     /// Smallest primary peak of a leading call vouched for by its base, as a
     /// fraction of the read's median primary peak (SRS-CALL-014).
-    pub leading_height_fraction: f64,
+    pub(crate) leading_height_fraction: f64,
     /// Calls from an informative end within which the run before a
     /// post-repeat phase loss counts as bounded (SRS-CALL-016).
-    pub post_repeat_margin: usize,
+    pub(crate) post_repeat_margin: usize,
     /// Fewest informative calls between a run's bound and a post-repeat edge
     /// (SRS-CALL-016).
-    pub post_repeat_minimum_calls: usize,
+    pub(crate) post_repeat_minimum_calls: usize,
     /// Calls from an informative end within which an edge call may be
     /// vouched for by its own signal (SRS-CALL-017).
-    pub edge_identity_margin: usize,
+    pub(crate) edge_identity_margin: usize,
     /// Smallest primary peak of such a call at the informative start, as a
     /// fraction of the read's median (SRS-CALL-017).
-    pub edge_height_fraction: f64,
+    pub(crate) edge_height_fraction: f64,
     /// Last scored single-channel calls of the informative interval whose
     /// medians are the end's norms (SRS-CALL-017).
-    pub end_norm_calls: usize,
+    pub(crate) end_norm_calls: usize,
     /// Smallest primary peak of such a call at the informative end, as a
     /// fraction of the end's median (SRS-CALL-017).
-    pub end_height_fraction: f64,
+    pub(crate) end_height_fraction: f64,
     /// Second-channel share below which such a call's signal is clean
     /// (SRS-CALL-017, SRS-CALL-018).
-    pub edge_second_share: f64,
+    pub(crate) edge_second_share: f64,
     /// Widest primary peak of such a call, as a multiple of the median width
     /// (SRS-CALL-017, SRS-CALL-018).
-    pub edge_width_factor: f64,
+    pub(crate) edge_width_factor: f64,
     /// Narrowest spacing to a neighbouring call, as a multiple of the median
     /// spacing (SRS-CALL-017, SRS-CALL-018).
-    pub edge_spacing_minimum: f64,
+    pub(crate) edge_spacing_minimum: f64,
     /// Widest such spacing (SRS-CALL-017, SRS-CALL-018).
-    pub edge_spacing_maximum: f64,
+    pub(crate) edge_spacing_maximum: f64,
     /// Calls past the callable span's start within which a start call may be
     /// vouched for by its own signal (SRS-CALL-018).
-    pub start_identity_margin: usize,
+    pub(crate) start_identity_margin: usize,
+    /// Consecutive sound calls that end a read's poor start (SRS-CALL-024).
+    pub(crate) poor_start_calls: usize,
     /// First in-phase single-channel calls of the callable span whose medians
     /// are the start's norms (SRS-CALL-018).
-    pub start_norm_calls: usize,
+    pub(crate) start_norm_calls: usize,
     /// Smallest primary peak of a start call, as a fraction of the start's
     /// median (SRS-CALL-018).
-    pub start_height_fraction: f64,
+    pub(crate) start_height_fraction: f64,
     /// Second-channel share below which a start call's signal is clean
     /// (SRS-CALL-018).
-    pub start_second_share: f64,
+    pub(crate) start_second_share: f64,
 }
 
 /// The `[sanger_evidence]` section as written in the configuration.
@@ -170,6 +172,7 @@ pub struct RawSangerEvidenceConfig {
     pub(crate) edge_spacing_minimum: f64,
     pub(crate) edge_spacing_maximum: f64,
     pub(crate) start_identity_margin: usize,
+    pub(crate) poor_start_calls: usize,
     pub(crate) start_norm_calls: usize,
     pub(crate) start_height_fraction: f64,
     pub(crate) start_second_share: f64,
@@ -234,6 +237,7 @@ impl RawSangerEvidenceConfig {
             )
             .into());
         }
+        bounds::positive_count("sanger_evidence.poor_start_calls", self.poor_start_calls)?;
         if self.post_repeat_minimum_calls == 0
             || self.start_norm_calls == 0
             || self.end_norm_calls == 0
@@ -261,9 +265,147 @@ impl RawSangerEvidenceConfig {
             edge_spacing_minimum: self.edge_spacing_minimum,
             edge_spacing_maximum: self.edge_spacing_maximum,
             start_identity_margin: self.start_identity_margin,
+            poor_start_calls: self.poor_start_calls,
             start_norm_calls: self.start_norm_calls,
             start_height_fraction: self.start_height_fraction,
             start_second_share: self.start_second_share,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dna_kernel::error::Error;
+
+    use super::RawSangerEvidenceConfig;
+
+    /// A change to the section and the message it gives, or `ok`.
+    type Case = (fn(&mut RawSangerEvidenceConfig), String);
+
+    /// The shipped `[sanger_evidence]` values.
+    fn raw() -> RawSangerEvidenceConfig {
+        RawSangerEvidenceConfig {
+            minimum_peak_height: 150,
+            relative_quality_threshold: 30,
+            peak_rescue_quality: 50,
+            peak_rescue_second_share: 0.20,
+            signal_edge_margin: 12,
+            leading_height_fraction: 1.0,
+            post_repeat_margin: 12,
+            post_repeat_minimum_calls: 2,
+            edge_identity_margin: 12,
+            edge_height_fraction: 1.0,
+            end_norm_calls: 30,
+            end_height_fraction: 0.3,
+            edge_second_share: 0.10,
+            edge_width_factor: 1.5,
+            edge_spacing_minimum: 0.5,
+            edge_spacing_maximum: 1.5,
+            start_identity_margin: 12,
+            poor_start_calls: 12,
+            start_norm_calls: 30,
+            start_height_fraction: 0.5,
+            start_second_share: 0.15,
+        }
+    }
+
+    /// The message of the section with `change` applied, or `ok`.
+    fn message(change: fn(&mut RawSangerEvidenceConfig)) -> String {
+        let mut config = raw();
+        change(&mut config);
+        match config.validate() {
+            Ok(_) => "ok".to_owned(),
+            Err(Error::Config(error)) => error.to_string(),
+            Err(other) => format!("not a configuration error: {other}"),
+        }
+    }
+
+    // The messages are pinned: a refactor of the checks keeps them.
+    #[test]
+    fn validates_the_sanger_evidence_section() {
+        assert_eq!(message(|_| {}), "ok");
+        let positive = |key: &str| format!("sanger_evidence.{key} must be finite and positive");
+        let fraction = |key: &str| {
+            format!(
+                "sanger_evidence.{key} must be finite and in [{}, 1]",
+                f64::MIN_POSITIVE
+            )
+        };
+        let height = "sanger_evidence.minimum_peak_height must be in 1..=32767";
+        let calls = "sanger_evidence.post_repeat_minimum_calls, start_norm_calls, and \
+                     end_norm_calls must be positive";
+        let cases: [Case; 23] = [
+            (|raw| raw.minimum_peak_height = 0, height.to_owned()),
+            (|raw| raw.minimum_peak_height = 32_768, height.to_owned()),
+            (
+                |raw| raw.leading_height_fraction = 0.0,
+                positive("leading_height_fraction"),
+            ),
+            (
+                |raw| raw.edge_height_fraction = f64::NAN,
+                positive("edge_height_fraction"),
+            ),
+            (
+                |raw| raw.end_height_fraction = -1.0,
+                positive("end_height_fraction"),
+            ),
+            (
+                |raw| raw.edge_width_factor = f64::INFINITY,
+                positive("edge_width_factor"),
+            ),
+            (
+                |raw| raw.edge_spacing_minimum = 0.0,
+                positive("edge_spacing_minimum"),
+            ),
+            (
+                |raw| raw.edge_spacing_maximum = 0.0,
+                positive("edge_spacing_maximum"),
+            ),
+            (
+                |raw| raw.start_height_fraction = 0.0,
+                positive("start_height_fraction"),
+            ),
+            (
+                |raw| raw.edge_second_share = 0.0,
+                fraction("edge_second_share"),
+            ),
+            (
+                |raw| raw.edge_second_share = 1.5,
+                fraction("edge_second_share"),
+            ),
+            (
+                |raw| raw.peak_rescue_second_share = 0.0,
+                fraction("peak_rescue_second_share"),
+            ),
+            (
+                |raw| raw.start_second_share = f64::NAN,
+                fraction("start_second_share"),
+            ),
+            (
+                |raw| raw.edge_spacing_minimum = 2.0,
+                "sanger_evidence.edge_spacing_minimum must not exceed edge_spacing_maximum"
+                    .to_owned(),
+            ),
+            (
+                |raw| raw.peak_rescue_quality = 30,
+                "sanger_evidence.peak_rescue_quality must exceed relative_quality_threshold"
+                    .to_owned(),
+            ),
+            (|raw| raw.post_repeat_minimum_calls = 0, calls.to_owned()),
+            (|raw| raw.start_norm_calls = 0, calls.to_owned()),
+            (|raw| raw.end_norm_calls = 0, calls.to_owned()),
+            // A margin of zero is accepted: its rule then covers no call.
+            (|raw| raw.signal_edge_margin = 0, "ok".to_owned()),
+            (|raw| raw.start_identity_margin = 0, "ok".to_owned()),
+            (
+                |raw| raw.poor_start_calls = 0,
+                "sanger_evidence.poor_start_calls must be positive".to_owned(),
+            ),
+            (|raw| raw.edge_spacing_minimum = 1.5, "ok".to_owned()),
+            (|raw| raw.edge_second_share = 1.0, "ok".to_owned()),
+        ];
+        for (change, expected) in cases {
+            assert_eq!(message(change), expected);
+        }
     }
 }
