@@ -41,9 +41,11 @@ code outside the list changed: every module a listed source uses (through
 re-export), every module file above a listed source, every workspace crate a
 listed source or crate depends on, and the build's own inputs, is listed. A
 file listed for some items only (``path: a, b``) must define or re-export
-them, and what those items' definitions and ``impl`` blocks use (directly or
-through the file's ``use`` bindings) is checked like a whole file's uses;
-what its other items use is not followed. A path marked ``!path``
+them, and what those items' definitions and ``impl`` blocks use (directly,
+through the file's ``use`` bindings, or through the file's own top-level
+items they name, transitively) is checked like a whole file's uses; what its
+other items use is not followed. A listed file may not glob-import its own
+crate (``use super::*``), whose names the check cannot follow. A path marked ``!path``
 is used by a listed source but is not on the stage's path; it must be used.
 """
 
@@ -396,6 +398,13 @@ MOD_DECLARATION = re.compile(r"\bmod\s+([a-z_][a-z0-9_]*)\s*;")
 USE = re.compile(r"\buse\s+([^;]*);")
 PATH_HEAD = re.compile(r"(?<!::)\b(crate|super|self|[a-z_][a-z0-9_]*)\s*::")
 WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|::|\{|\}|,|\*")
+# A named item a file defines.
+ITEM_DEFINITION = re.compile(
+    r"(?<!')\b(?:fn|struct|enum|union|const|static|type|trait)\s+([A-Za-z_][A-Za-z0-9_]*)"
+)
+WORD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# A glob import, whose names the closure cannot follow: its path.
+GLOB_USE = re.compile(r"\buse\s+([^;]*\*)\s*\}?\s*;")
 # How deep re-exports are followed.
 MAX_REEXPORTS = 8
 
@@ -544,6 +553,54 @@ def item_spans(text: str, item: str) -> list[str]:
     return spans
 
 
+def top_level_items(text: str) -> set[str]:
+    """The names a file defines at its top level, outside every block (a
+    method of an ``impl`` is not one)."""
+    depths: list[int] = []
+    depth = 0
+    for character in text:
+        depths.append(depth)
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+    return {
+        match.group(1)
+        for match in ITEM_DEFINITION.finditer(text)
+        if depths[match.start()] == 0 and match.group(1) != "fn"
+    }
+
+
+def item_closure(text: str, items: tuple[str, ...]) -> str:
+    """The spans of ``items`` and, transitively, of every top-level item of
+    the same file their spans name (a private helper a listed function
+    calls). A method call (``.name(``), a path segment (``a::name``), a
+    child module's path (``name::``), and a ``use`` statement name no item
+    of the file."""
+    defined = top_level_items(text)
+    children = set(MOD_DECLARATION.findall(text))
+    names = set(items)
+    pending = list(items)
+    spans: list[str] = []
+    while pending:
+        for span in item_spans(text, pending.pop()):
+            spans.append(span)
+            if span.startswith("use"):
+                continue
+            for match in WORD_NAME.finditer(span):
+                word = match.group(0)
+                before = span[: match.start()].rstrip()
+                after = span[match.end() :].lstrip()
+                if before.endswith((".", "::")) or (
+                    word in children and after.startswith("::")
+                ):
+                    continue
+                if word in defined and word not in names:
+                    names.add(word)
+                    pending.append(word)
+    return "\n".join(spans)
+
+
 def stage_uses(
     tree: Tree, path: Path, items: tuple[str, ...] | None = None
 ) -> tuple[set[Path], set[str]]:
@@ -554,11 +611,7 @@ def stage_uses(
     module = tree.module(path)
     children = set(MOD_DECLARATION.findall(text))
     bindings = dict(use_bindings(text))
-    scanned = (
-        text
-        if items is None
-        else "\n".join(span for item in items for span in item_spans(text, item))
-    )
+    scanned = text if items is None else item_closure(text, items)
     files: set[Path] = set()
     crates_used: set[str] = set()
     if items is not None:
@@ -666,6 +719,15 @@ def check_stage(root: Path, stage: Stage) -> list[str]:
             if parent is not None and not covered(parent):
                 failures.append(
                     f"{where} {show(path)} is in {show(parent)}, which is not listed"
+                )
+        for glob in GLOB_USE.finditer(production_text(path)):
+            # A glob of another crate's module is that crate's, which the
+            # crate check covers; a glob of this crate hides what it uses.
+            head = WORD_NAME.match(glob.group(1).strip())
+            if head is None or head.group(0) not in PATH_PREFIXES:
+                failures.append(
+                    f"{where} {show(path)} has a glob import (`use …::*`), whose "
+                    "names the check cannot follow; import the names"
                 )
         if items is not None:
             text = production_text(path)

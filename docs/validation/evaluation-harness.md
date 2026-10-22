@@ -295,9 +295,10 @@ one.
   it, and every workspace crate a listed crate depends on, is listed, or
   marked as used but off the stage's path (the configuration envelope
   parses the core's sections, which the read stage never reads). A file on
-  the path for some items only is listed with them: what those items use
-  is checked like a whole file's uses, and what its other items use is not
-  followed. Every list also names `stages.txt` itself, so editing a list is
+  the path for some items only is listed with them: what those items use,
+  with the file's own items they name, transitively, is checked like a
+  whole file's uses, and what its other items use is not followed. A
+  listed file may not glob-import its own crate (`use super::*`). Every list also names `stages.txt` itself, so editing a list is
   a new identity.
 - **Storage.** Entries are gzip-compressed and renamed into place. An entry
   that does not decompress, is not JSON, or names another trace is a miss,

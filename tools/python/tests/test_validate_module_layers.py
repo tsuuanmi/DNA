@@ -316,6 +316,57 @@ class CrateMapTests(unittest.TestCase):
             # An item outside the list (`review`) is not followed.
             self.assertNotIn("src/report/review.rs", result.stderr)
 
+    def test_follows_same_file_helpers_of_a_listed_item(self) -> None:
+        # A listed item calls a private helper of its file, which calls a
+        # new module; a method of the same name elsewhere is not the helper.
+        mod_rs = (
+            "mod evidence;\nmod newstep;\n"
+            "pub(crate) fn evidence_document() { helper(); }\n"
+            "fn helper() { deeper(); }\n"
+            "fn deeper() { newstep::tweak(); }\n"
+            "pub(crate) fn review() { crate::report::review(); }\n"
+        )
+        result = self.run_stages(
+            self.STAGES,
+            **{
+                "src/pipeline/mod.rs": mod_rs,
+                "src/pipeline/newstep.rs": "pub(crate) fn tweak() {}\n",
+            },
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "[read] src/pipeline/mod.rs uses src/pipeline/newstep.rs, which is not listed",
+            result.stderr,
+        )
+        self.assertNotIn("src/report/review.rs", result.stderr)
+
+    def test_rejects_a_glob_import_of_its_own_crate(self) -> None:
+        # A fully listed file reaches a new module through `use super::*`.
+        result = self.run_stages(
+            self.STAGES,
+            **{
+                "src/pipeline/mod.rs": (
+                    "mod evidence;\npub(crate) mod newstep;\n"
+                    "pub(crate) use evidence::evidence_document;\n"
+                ),
+                "src/pipeline/newstep.rs": "pub(crate) fn tweak() {}\n",
+                "src/pipeline/evidence.rs": (
+                    "use super::*;\n"
+                    "pub(crate) fn evidence_document() { newstep::tweak(); }\n"
+                ),
+            },
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "[read] src/pipeline/evidence.rs has a glob import", result.stderr
+        )
+        # Another crate's glob is that crate's, which the crate check covers.
+        result = self.run_stages(
+            self.STAGES,
+            **{"src/config.rs": "pub(crate) use dna_kernel::checksum::*;\n"},
+        )
+        self.assertNotIn("glob import", result.stderr)
+
     def test_rejects_a_listed_crate_whose_dependency_is_not_listed(self) -> None:
         stages = self.STAGES.replace("!crates/dna-call\n", "crates/dna-call\n").replace(
             "crates/dna-kernel\n", ""
