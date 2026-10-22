@@ -10,9 +10,14 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
 
 - `mod.rs` — the plugin descriptor, building the document (`build`) and the
   in-process review list (`list`), and the rules over a sample's reads,
-  second peaks, run lengths, and items.
+  second peaks, and items.
 - `labels.rs` — label order within an item, an item's priority, and the
   summary's counts over the items.
+- `lengths.rs` — the runs of the profile's anchored repeat windows and
+  length tracts, judged from the reads' tract decodes and in-phase readings,
+  for the `estimated_length`, `length_unconfirmed`, `length_not_recorded`,
+  and `tract_length` labels; a length tract's run is noted when its
+  dominant length is determined (SRS-API-020).
 - `ranges.rs` — reference ranges: 1-based inclusive `[first, last]` pairs
   from alignment segments, merged, clipped to the reportable regions, and
   tested for a position.
@@ -26,5 +31,4 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
   items each touches.
 
 The label table (names, ranks, and checks) is `LabelKind` in
-[`model::review_result`](../../model/README.md). The run-length rules of the
-profile's anchored repeat windows are in [`report::length`](../README.md).
+[`model::review_result`](../../model/README.md).
