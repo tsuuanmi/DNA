@@ -50,6 +50,7 @@
 use std::fmt::Write as _;
 use std::fs;
 use std::io::{self, Read as _, Write as _};
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -309,9 +310,10 @@ pub(crate) struct Caches {
 }
 
 impl Caches {
-    /// Opens both caches of `root` for the configuration at `config` and
-    /// the reference whose sequence SHA-256 is `reference_sha256`, under the
-    /// read and placement stages of `identity`.
+    /// Opens both caches of `root` for the configuration at `config`, the
+    /// reference whose sequence SHA-256 is `reference_sha256`, and the target
+    /// profile file whose SHA-256 is `profile_sha256` (the placement aligns
+    /// on its topology), under the read and placement stages of `identity`.
     ///
     /// # Errors
     ///
@@ -319,7 +321,7 @@ impl Caches {
     pub(crate) fn open(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
         identity: &Identity,
     ) -> Result<Self, CacheError> {
         Ok(Self {
@@ -327,7 +329,7 @@ impl Caches {
             placed: EvidenceCache::open_placed(
                 root,
                 config,
-                reference_sha256,
+                (reference_sha256, profile_sha256),
                 identity.placement_stage,
             )?,
         })
@@ -368,8 +370,9 @@ impl EvidenceCache {
     }
 
     /// Opens the placement cache's generation of `root` for the
-    /// configuration at `config` and the reference whose sequence SHA-256 is
-    /// `reference_sha256`, under the placement stage's code identity `code`.
+    /// configuration at `config`, the reference whose sequence SHA-256 is
+    /// `reference_sha256`, and the target profile file whose SHA-256 is
+    /// `profile_sha256`, under the placement stage's code identity `code`.
     ///
     /// # Errors
     ///
@@ -377,7 +380,7 @@ impl EvidenceCache {
     pub(crate) fn open_placed(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
         code: &str,
     ) -> Result<Self, CacheError> {
         if code.is_empty() {
@@ -392,7 +395,7 @@ impl EvidenceCache {
             format!("{:x}", Sha256::digest(&configuration)),
             (
                 Kind::Placement,
-                &format!("placement;{code}reference={reference_sha256};"),
+                &format!("placement;{code}reference={reference_sha256};profile={profile_sha256};"),
             ),
         )
     }
@@ -654,7 +657,10 @@ pub(crate) fn list(root: &Path) -> Result<Listing, CacheError> {
 
 /// The temporary files of `generation` whose writing process is no longer
 /// alive on this host: a temporary file is named `.<name>.<pid>.<n>.tmp`.
-/// Without `/proc` no process can be checked, and none is orphaned.
+/// Without `/proc` no process can be checked, and none is orphaned. The
+/// check sees this host's processes in this PID namespace only: a run on
+/// another host or in another container that writes to a shared cache
+/// looks orphaned, so prune a shared cache where no such run is writing.
 fn orphaned(generation: &Path) -> Vec<(PathBuf, u64)> {
     let processes = Path::new("/proc");
     if !processes.is_dir() {
@@ -694,7 +700,7 @@ pub(crate) struct Pruned {
 ///
 /// Returns [`CacheError::Io`] when the root cannot be read or a generation
 /// or file removed.
-pub(crate) fn prune(root: &Path, keep: usize, dry_run: bool) -> Result<Pruned, CacheError> {
+pub(crate) fn prune(root: &Path, keep: NonZeroUsize, dry_run: bool) -> Result<Pruned, CacheError> {
     let io = |path: &Path| {
         let path = path.to_path_buf();
         move |source| CacheError::Io { path, source }
@@ -707,7 +713,7 @@ pub(crate) fn prune(root: &Path, keep: usize, dry_run: bool) -> Result<Pruned, C
     };
     for generation in listing.generations {
         let count = kept.entry(generation.kind).or_default();
-        if *count < keep {
+        if *count < keep.get() {
             *count += 1;
             continue;
         }
@@ -975,7 +981,7 @@ mod tests {
             .join(format!(".bb.{}.0.tmp", std::process::id()));
         fs::write(&orphan, b"half")?;
         fs::write(&live, b"half")?;
-        let planned = prune(&directory, 1, true)?;
+        let planned = prune(&directory, NonZeroUsize::MIN, true)?;
         assert_eq!(
             planned
                 .generations
@@ -990,7 +996,7 @@ mod tests {
             pruned_summary(&planned, true),
             "dna-eval: would remove 1 cache generation(s): evidence 1 (0 bytes); 1 orphaned temporary file(s), 4 bytes"
         );
-        prune(&directory, 1, false)?;
+        prune(&directory, NonZeroUsize::MIN, false)?;
         assert!(!old.generation.exists() && !orphan.exists());
         assert!(new.generation.exists() && placed.generation.exists() && live.exists());
         Ok(())

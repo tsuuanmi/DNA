@@ -24,7 +24,8 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `prune --keep <n>` now keeps the `n` most recently used generations of
   each kind (evidence, placement, forms, unlabelled) instead of `n` over
   all kinds by last write, removes those orphaned temporary files, and takes
-  `--dry-run`. No DNA output changes; run outputs are byte-identical.
+  `--dry-run`; `--keep` is at least 1. The orphan sweep sees this host's
+  processes only. No DNA output changes; run outputs are byte-identical.
 - `dna-eval same <run-a> <run-b>`: whether two runs' outputs are
   byte-identical, and which files differ, with the first line at which each
   does (exit 2 with `DIFFERENT`). `dna.eval_run/v1`'s `run.json` records the
@@ -41,6 +42,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   database alone (Breaking for the harness's command line). `run.json`
   records `forms_cache` (key, hit). Outputs are byte-identical. No DNA
   output changes.
+  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
+  is a new optional `run.json` field, absent from runs of earlier
+  revisions. No DNA output changes.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,
@@ -737,9 +741,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   (`Cargo.toml`, `rust-toolchain.toml`), the facade's crate root, error,
   operation log, plugin composition, pipeline module, artefact writer, and
   the result models the evidence names, all of which it missed; the forms
-  index's covers the kernel, the geometry, and the manifests it reads.
-  Every existing evidence, placement, and forms cache generation therefore
-  misses once. No DNA output changes; run outputs are byte-identical.
+  index's covers the kernel, the geometry, the manifests it reads, and the
+  harness library's manifest. A file listed for some items only has what
+  those items use checked too, and every list names `stages.txt`. The
+  placement cache's generation also names the target profile file's
+  SHA-256, whose topology the placement aligns on. Every existing evidence,
+  placement, and forms cache generation therefore misses once. No DNA output changes; run outputs are byte-identical.
 - A reference confirmation (ADR-0080) is no longer withdrawn because a read
   of the other strand shows the confirming call's own second base standing
   out when that read's modality explains its second too: the confirming

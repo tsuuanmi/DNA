@@ -49,6 +49,7 @@ pub use identity::Identity;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::Write as _;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::thread;
@@ -326,12 +327,15 @@ fn run_bench(args: &BenchArgs, identity: &Identity) -> Result<bench::Report> {
         .evidence_cache
         .as_deref()
         .map(|directory| {
-            cache::Caches::open(
+            Ok::<_, Error>(cache::Caches::open(
                 directory,
                 &args.config,
-                &reference.sequence_sha256,
+                (
+                    &reference.sequence_sha256,
+                    &target_profile(&args.config)?.identity().sha256,
+                ),
                 identity,
-            )
+            )?)
         })
         .transpose()?;
     let outcomes = runner::run(
@@ -445,9 +449,9 @@ enum CacheAction {
         #[arg(long)]
         dir: PathBuf,
         /// Generations to keep of each kind (evidence, placement, forms, and
-        /// unlabelled).
+        /// unlabelled), at least 1.
         #[arg(long)]
-        keep: usize,
+        keep: NonZeroUsize,
         /// Report what would be removed, and remove nothing.
         #[arg(long)]
         dry_run: bool,
@@ -749,7 +753,12 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
         .evidence_cache
         .as_deref()
         .map(|directory| {
-            cache::Caches::open(directory, &cli.config, &reference.sequence_sha256, identity)
+            cache::Caches::open(
+                directory,
+                &cli.config,
+                (&reference.sequence_sha256, &profile.identity().sha256),
+                identity,
+            )
         })
         .transpose()?;
     let contexts = cli
@@ -1325,6 +1334,16 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+
+    /// `cache prune` keeps at least one generation of each kind.
+    #[test]
+    fn prune_keeps_at_least_one_generation() {
+        let parse = |keep: &str| {
+            Cli::try_parse_from(["dna-eval", "cache", "prune", "--dir", "c", "--keep", keep])
+        };
+        assert!(parse("1").is_ok());
+        assert!(parse("0").is_err());
+    }
 
     fn panel(name: Option<&str>) -> Manifest {
         Manifest {
