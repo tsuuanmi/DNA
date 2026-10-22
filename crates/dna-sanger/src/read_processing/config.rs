@@ -267,3 +267,135 @@ impl RawSangerEvidenceConfig {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dna_kernel::error::Error;
+
+    use super::RawSangerEvidenceConfig;
+
+    /// A change to the section and the message it gives, or `ok`.
+    type Case = (fn(&mut RawSangerEvidenceConfig), String);
+
+    /// The shipped `[sanger_evidence]` values.
+    fn raw() -> RawSangerEvidenceConfig {
+        RawSangerEvidenceConfig {
+            minimum_peak_height: 150,
+            relative_quality_threshold: 30,
+            peak_rescue_quality: 50,
+            peak_rescue_second_share: 0.20,
+            signal_edge_margin: 12,
+            leading_height_fraction: 1.0,
+            post_repeat_margin: 12,
+            post_repeat_minimum_calls: 2,
+            edge_identity_margin: 12,
+            edge_height_fraction: 1.0,
+            end_norm_calls: 30,
+            end_height_fraction: 0.3,
+            edge_second_share: 0.10,
+            edge_width_factor: 1.5,
+            edge_spacing_minimum: 0.5,
+            edge_spacing_maximum: 1.5,
+            start_identity_margin: 12,
+            start_norm_calls: 30,
+            start_height_fraction: 0.5,
+            start_second_share: 0.15,
+        }
+    }
+
+    /// The message of the section with `change` applied, or `ok`.
+    fn message(change: fn(&mut RawSangerEvidenceConfig)) -> String {
+        let mut config = raw();
+        change(&mut config);
+        match config.validate() {
+            Ok(_) => "ok".to_owned(),
+            Err(Error::Config(error)) => error.to_string(),
+            Err(other) => format!("not a configuration error: {other}"),
+        }
+    }
+
+    // The messages are pinned: a refactor of the checks keeps them.
+    #[test]
+    fn validates_the_sanger_evidence_section() {
+        assert_eq!(message(|_| {}), "ok");
+        let positive = |key: &str| format!("sanger_evidence.{key} must be finite and positive");
+        let fraction = |key: &str| {
+            format!(
+                "sanger_evidence.{key} must be finite and in [{}, 1]",
+                f64::MIN_POSITIVE
+            )
+        };
+        let height = "sanger_evidence.minimum_peak_height must be in 1..=32767";
+        let calls = "sanger_evidence.post_repeat_minimum_calls, start_norm_calls, and \
+                     end_norm_calls must be positive";
+        let cases: [Case; 22] = [
+            (|raw| raw.minimum_peak_height = 0, height.to_owned()),
+            (|raw| raw.minimum_peak_height = 32_768, height.to_owned()),
+            (
+                |raw| raw.leading_height_fraction = 0.0,
+                positive("leading_height_fraction"),
+            ),
+            (
+                |raw| raw.edge_height_fraction = f64::NAN,
+                positive("edge_height_fraction"),
+            ),
+            (
+                |raw| raw.end_height_fraction = -1.0,
+                positive("end_height_fraction"),
+            ),
+            (
+                |raw| raw.edge_width_factor = f64::INFINITY,
+                positive("edge_width_factor"),
+            ),
+            (
+                |raw| raw.edge_spacing_minimum = 0.0,
+                positive("edge_spacing_minimum"),
+            ),
+            (
+                |raw| raw.edge_spacing_maximum = 0.0,
+                positive("edge_spacing_maximum"),
+            ),
+            (
+                |raw| raw.start_height_fraction = 0.0,
+                positive("start_height_fraction"),
+            ),
+            (
+                |raw| raw.edge_second_share = 0.0,
+                fraction("edge_second_share"),
+            ),
+            (
+                |raw| raw.edge_second_share = 1.5,
+                fraction("edge_second_share"),
+            ),
+            (
+                |raw| raw.peak_rescue_second_share = 0.0,
+                fraction("peak_rescue_second_share"),
+            ),
+            (
+                |raw| raw.start_second_share = f64::NAN,
+                fraction("start_second_share"),
+            ),
+            (
+                |raw| raw.edge_spacing_minimum = 2.0,
+                "sanger_evidence.edge_spacing_minimum must not exceed edge_spacing_maximum"
+                    .to_owned(),
+            ),
+            (
+                |raw| raw.peak_rescue_quality = 30,
+                "sanger_evidence.peak_rescue_quality must exceed relative_quality_threshold"
+                    .to_owned(),
+            ),
+            (|raw| raw.post_repeat_minimum_calls = 0, calls.to_owned()),
+            (|raw| raw.start_norm_calls = 0, calls.to_owned()),
+            (|raw| raw.end_norm_calls = 0, calls.to_owned()),
+            // A margin of zero is accepted: its rule then covers no call.
+            (|raw| raw.signal_edge_margin = 0, "ok".to_owned()),
+            (|raw| raw.start_identity_margin = 0, "ok".to_owned()),
+            (|raw| raw.edge_spacing_minimum = 1.5, "ok".to_owned()),
+            (|raw| raw.edge_second_share = 1.0, "ok".to_owned()),
+        ];
+        for (change, expected) in cases {
+            assert_eq!(message(change), expected);
+        }
+    }
+}

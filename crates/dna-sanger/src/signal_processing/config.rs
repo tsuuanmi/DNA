@@ -232,3 +232,146 @@ impl RawSignalProcessingConfig {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dna_kernel::error::Error;
+
+    use super::RawSignalProcessingConfig;
+
+    /// A change to the section and the message it gives, or `ok`.
+    type Case = (fn(&mut RawSignalProcessingConfig), String);
+
+    /// The shipped `[signal_processing]` values.
+    fn raw() -> RawSignalProcessingConfig {
+        RawSignalProcessingConfig {
+            window_size_bases: 10,
+            minimum_primary_snr: 3.0,
+            minimum_noisy_windows: 2,
+            minimum_noise_sigma: 1.0,
+            second_floor: 0.20,
+            run_signal_flank: 2,
+            run_signal_resolution: 1000,
+            run_signal_minimum_reads: 40,
+            run_signal_minimum_calls: 40,
+            run_signal_margin: 0.05,
+            run_signal_mad_factor: 4.0,
+            second_cause_noise_ratio: 3.0,
+            second_cause_tail_offset: 0.4,
+            second_cause_blob_width: 1.8,
+            second_cause_width_calls: 6,
+            decompose_unexplained_quantile: 0.99,
+            spike_height: 3.0,
+            spike_span: 1.5,
+            spike_level_calls: 6,
+        }
+    }
+
+    /// The message of the section with `change` applied, or `ok`.
+    fn message(change: fn(&mut RawSignalProcessingConfig)) -> String {
+        let mut config = raw();
+        change(&mut config);
+        match config.validate() {
+            Ok(_) => "ok".to_owned(),
+            Err(Error::Config(error)) => error.to_string(),
+            Err(other) => format!("not a configuration error: {other}"),
+        }
+    }
+
+    // The messages are pinned: a refactor of the checks keeps them.
+    #[test]
+    fn validates_the_signal_processing_section() {
+        assert_eq!(message(|_| {}), "ok");
+        let positive = |key: &str| format!("signal_processing.{key} must be finite and positive");
+        let fraction = |key: &str| {
+            format!(
+                "signal_processing.{key} must be finite and in [{}, 1]",
+                f64::MIN_POSITIVE
+            )
+        };
+        let window = "signal_processing.window_size_bases must be in 5..=10";
+        let flank = "signal_processing.run_signal_flank must be in 1..=4";
+        let resolution = "signal_processing.run_signal_resolution must be in 100..=10000";
+        let minimum = "signal_processing.run_signal_minimum_reads and run_signal_minimum_calls \
+                       must be positive";
+        let quantile = "signal_processing.decompose_unexplained_quantile must be in (0, 1)";
+        let spike = "signal_processing.spike_height must be finite and at least 1";
+        let cases: [Case; 30] = [
+            (|raw| raw.window_size_bases = 4, window.to_owned()),
+            (|raw| raw.window_size_bases = 11, window.to_owned()),
+            (|raw| raw.window_size_bases = 5, "ok".to_owned()),
+            (
+                |raw| raw.minimum_primary_snr = 0.0,
+                positive("minimum_primary_snr"),
+            ),
+            (
+                |raw| raw.minimum_noisy_windows = 1,
+                "signal_processing.minimum_noisy_windows must be at least 2".to_owned(),
+            ),
+            (|raw| raw.run_signal_flank = 0, flank.to_owned()),
+            (|raw| raw.run_signal_flank = 5, flank.to_owned()),
+            (|raw| raw.run_signal_flank = 4, "ok".to_owned()),
+            (|raw| raw.run_signal_resolution = 99, resolution.to_owned()),
+            (
+                |raw| raw.run_signal_resolution = 10_001,
+                resolution.to_owned(),
+            ),
+            (|raw| raw.run_signal_resolution = 10_000, "ok".to_owned()),
+            (|raw| raw.run_signal_minimum_reads = 0, minimum.to_owned()),
+            (|raw| raw.run_signal_minimum_calls = 0, minimum.to_owned()),
+            (
+                |raw| raw.minimum_noise_sigma = f64::NAN,
+                positive("minimum_noise_sigma"),
+            ),
+            (|raw| raw.second_floor = 0.0, fraction("second_floor")),
+            (|raw| raw.second_floor = 1.01, fraction("second_floor")),
+            (
+                |raw| raw.run_signal_margin = -0.1,
+                fraction("run_signal_margin"),
+            ),
+            (
+                |raw| raw.run_signal_mad_factor = 0.0,
+                positive("run_signal_mad_factor"),
+            ),
+            (
+                |raw| raw.second_cause_noise_ratio = 0.0,
+                positive("second_cause_noise_ratio"),
+            ),
+            (
+                |raw| raw.second_cause_tail_offset = f64::INFINITY,
+                positive("second_cause_tail_offset"),
+            ),
+            (
+                |raw| raw.second_cause_blob_width = -1.0,
+                positive("second_cause_blob_width"),
+            ),
+            (
+                |raw| raw.decompose_unexplained_quantile = 0.0,
+                quantile.to_owned(),
+            ),
+            (
+                |raw| raw.decompose_unexplained_quantile = 1.0,
+                quantile.to_owned(),
+            ),
+            (
+                |raw| raw.decompose_unexplained_quantile = f64::NAN,
+                quantile.to_owned(),
+            ),
+            (
+                |raw| raw.second_cause_width_calls = 0,
+                "signal_processing.second_cause_width_calls must be positive".to_owned(),
+            ),
+            (|raw| raw.spike_height = 0.99, spike.to_owned()),
+            (|raw| raw.spike_height = f64::INFINITY, spike.to_owned()),
+            (|raw| raw.spike_height = 1.0, "ok".to_owned()),
+            (|raw| raw.spike_span = 0.0, positive("spike_span")),
+            (
+                |raw| raw.spike_level_calls = 0,
+                "signal_processing.spike_level_calls must be positive".to_owned(),
+            ),
+        ];
+        for (change, expected) in cases {
+            assert_eq!(message(change), expected);
+        }
+    }
+}
