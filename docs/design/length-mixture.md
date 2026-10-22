@@ -179,16 +179,17 @@ estimate, which confirms nothing and is not shown as a reading. When DNA's
 calls in the window change only the runs' lengths (insertions or deletions
 of the repeat base, none at the anchor), the two runs lie around the anchor
 and each is measured between its bounds: run 1 from the position before the
-window to the one before the anchor, run 2 from the one after the anchor to
-the position after the window. A run 1 whose 3' end the consensus only
-estimates then leaves run 2 reported (rules version 30). The anchor is DNA's
-decided base, so neither span holds it (rules version 35): the insertion
-excluded at such a run 1's 3' end takes both positions beside its junction,
-the anchor among them, out of the callable segments (SRS-VAR-019), which
-until then left run 2 `undecided_call`, a check, in 177 samples of the
-current period on development panel v5. Otherwise (one
-run, or a call such as `T310C` or `16189C` that moves the structure) every
-run needs the whole window callable, as rules version 27 required of all
+window to the anchor, run 2 from the anchor to the position after the
+window. A run 1 whose 3' end the consensus only estimates then leaves run 2
+reported (rules version 30). Where the consensus shows the anchor (a
+segment holds it and more than reference confirmations observe it), it is
+DNA's decided base and neither span holds it (rules version 35): the
+insertion excluded at such a run 1's 3' end takes both positions beside its
+junction, the anchor among them, out of the callable segments (SRS-VAR-019),
+which until then left run 2 `undecided_call`, a check, in 177 samples of
+the current period on development panel v5. An anchor the consensus does
+not show (a coverage edge) must be callable. Otherwise (one run, or a call
+such as `T310C` or `16189C` that moves the structure) every run needs the whole window callable, as rules version 27 required of all
 runs; that left run 2 unconfirmed beside every estimated run 1, 611 of the
 current period's window checks on development panel v5. The run then carries the reads'
 floor reading instead, the least length any read gives as its top or next
