@@ -142,7 +142,7 @@ impl Empop {
 }
 
 /// Scientific identities DNA reports for a sample.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Identity {
     pub(crate) configuration_sha256: String,
     pub(crate) reference_name: String,

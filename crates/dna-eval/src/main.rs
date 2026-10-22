@@ -9,7 +9,6 @@
 //! `dna-eval panel` derives a new panel version against the database.
 //! Nothing in DNA depends on this crate.
 
-mod baseline;
 mod bench;
 mod cache;
 mod cause;
@@ -27,6 +26,7 @@ mod panel;
 mod recheck;
 mod report;
 mod rundiff;
+mod rundir;
 mod runner;
 mod simbench;
 mod subset;
@@ -37,7 +37,6 @@ mod workload;
 mod zones;
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -47,7 +46,6 @@ use std::time::Instant;
 
 use clap::{Args, Parser, Subcommand};
 use dna_kernel::model::reference::ReferenceTopology;
-use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::cause::forms::Forms;
@@ -56,9 +54,12 @@ use crate::error::{Error, Result};
 use crate::manifest::Manifest;
 use crate::recheck::Recheck;
 use crate::report::{Report, Row, Status};
-use crate::runner::{Identity, Outcome, Threads};
+use crate::rundir::{
+    Constants, Counts, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader, Seconds, Source,
+    TruthHeader, WorkloadHeader, ZoneHeader, prepare_output, write,
+};
+use crate::runner::{Outcome, Threads};
 use crate::truth::TruthCheck;
-use crate::workload::Passes;
 
 /// The panels the harness reads: the development panel the rules are tuned
 /// on, and the readiness panels that test them. A hold-out panel stays
@@ -75,17 +76,6 @@ const MAX_FORCED_BYTES: u64 = 1024 * 1024;
 const MAX_RECHECK_BYTES: u64 = 16 * 1024 * 1024;
 /// Largest accepted bench case list.
 const MAX_CASES_BYTES: u64 = 4 * 1024 * 1024;
-
-/// The header of `signals.tsv`.
-const SIGNALS_HEADER: &str =
-    "group\treads\tcalls\tkeys\tkeys_20_calls\tkeys_40_calls\tkeys_100_calls\n";
-/// The header of `run_context.tsv`.
-const RUN_CONTEXT_HEADER: &str = "month\tsamples\tanalysed\twith_context\trun1_calibrated\trun2_calibrated\tbatches\trun1_pairs\trun2_pairs\n";
-/// The header of `checks.tsv`.
-const CHECKS_HEADER: &str = "sample_id\tfirst\tlast\tlabels\n";
-/// The header of `notes.tsv`.
-const NOTES_HEADER: &str =
-    "sample_id\tfirst\tlast\ttract\trun\tstatus\tcalled\treading\tconvention\n";
 
 /// Runs DNA over a test panel and compares it with reviewer truth.
 #[derive(Debug, Parser)]
@@ -851,84 +841,44 @@ fn run(cli: &RunArgs) -> Result<String> {
     if cli.run_context.is_some() {
         write(
             &cli.output,
-            "run_context.tsv",
-            &context_coverage(&manifest.samples, &outcomes, &contexts),
+            rundir::RUN_CONTEXT,
+            &rundir::context_coverage(&manifest.samples, &outcomes, &contexts),
         )?;
     }
     if cli.run_signal.is_some() {
-        let mut text = String::from(SIGNALS_HEADER);
-        for line in &signal_groups {
-            text.push_str(line);
-            text.push('\n');
-        }
-        write(&cli.output, "signals.tsv", &text)?;
+        write(
+            &cli.output,
+            rundir::SIGNALS,
+            &rundir::signals(&signal_groups),
+        )?;
     }
-    let mut checks = String::from(CHECKS_HEADER);
-    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
-        if let Ok(called) = &outcome.result {
-            for (first, last, labels) in &called.check_labels {
-                let _ = writeln!(checks, "{}\t{first}\t{last}\t{labels}", sample.id);
-            }
-        }
-    }
-    write(&cli.output, "checks.tsv", &checks)?;
-    let mut notes = String::from(NOTES_HEADER);
-    let cell =
-        |value: Option<usize>| value.map_or_else(|| ".".to_owned(), |value| value.to_string());
-    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
-        if let Ok(called) = &outcome.result {
-            for note in &called.notes {
-                for run in &note.runs {
-                    let _ = writeln!(
-                        notes,
-                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                        sample.id,
-                        note.first,
-                        note.last,
-                        note.tract,
-                        run.run,
-                        run.status,
-                        cell(run.called),
-                        cell(run.reading),
-                        cell(run.convention),
-                    );
-                }
-            }
-        }
-    }
-    write(&cli.output, "notes.tsv", &notes)?;
-    let mut table = String::from(components::HEADER);
-    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
-        if let Ok(called) = &outcome.result {
-            components::append(
-                &mut table,
-                (&sample.id, sample.batch_date.as_deref().unwrap_or("")),
-                &called.components,
-                truth
-                    .database
-                    .samples
-                    .get(&sample.id)
-                    .map(|record| record.alleles.as_slice()),
-                reference.sequence.as_bytes(),
-            );
-        }
-    }
-    write(&cli.output, "components.tsv", &table)?;
-    let mut table = String::from(tracts::HEADER);
-    for (sample, outcome) in manifest.samples.iter().zip(&outcomes) {
-        if let Ok(called) = &outcome.result {
-            tracts::append(
-                &mut table,
-                (&sample.id, sample.batch_date.as_deref().unwrap_or("")),
-                &called.tracts,
-            );
-        }
-    }
-    write(&cli.output, "tracts.tsv", &table)?;
-    write(&cli.output, "forms.tsv", &forms.table(&truth.sha256))?;
-    let mut json = serde_json::to_string_pretty(&header).map_err(Error::Serialize)?;
-    json.push('\n');
-    write(&cli.output, "run.json", &json)?;
+    write(
+        &cli.output,
+        rundir::CHECKS,
+        &rundir::checks(&manifest.samples, &outcomes),
+    )?;
+    write(
+        &cli.output,
+        rundir::NOTES,
+        &rundir::notes(&manifest.samples, &outcomes),
+    )?;
+    write(
+        &cli.output,
+        rundir::COMPONENTS,
+        &rundir::components(
+            &manifest.samples,
+            &outcomes,
+            &truth.database.samples,
+            reference.sequence.as_bytes(),
+        ),
+    )?;
+    write(
+        &cli.output,
+        rundir::TRACTS,
+        &rundir::tracts(&manifest.samples, &outcomes),
+    )?;
+    write(&cli.output, rundir::FORMS, &forms.table(&truth.sha256))?;
+    write(&cli.output, rundir::RUN_JSON, &header.text()?)?;
 
     let count = |measure: Measure, status: Status| count(&rows, measure, status);
     Ok(format!(
@@ -1128,247 +1078,10 @@ fn check_size(path: &Path, kind: &'static str, maximum: u64) -> Result<()> {
     Ok(())
 }
 
-/// Creates the output directory, which must not hold files yet.
-fn prepare_output(directory: &Path) -> Result<()> {
-    let failure = |source| Error::Write {
-        path: directory.to_path_buf(),
-        source,
-    };
-    fs::create_dir_all(directory).map_err(failure)?;
-    if fs::read_dir(directory).map_err(failure)?.next().is_some() {
-        return Err(Error::OutputNotEmpty {
-            path: directory.to_path_buf(),
-        });
-    }
-    Ok(())
-}
-
-fn write(directory: &Path, name: &str, contents: &str) -> Result<()> {
-    let path = directory.join(name);
-    fs::write(&path, contents).map_err(|source| Error::Write { path, source })
-}
-
-/// `run.json`: what was run, on what, and how long it took.
-#[derive(Debug, Serialize)]
-struct Header {
-    harness: &'static str,
-    harness_version: &'static str,
-    source: Source,
-    threads: usize,
-    manifest: ManifestHeader,
-    truth: TruthHeader,
-    configuration_path: PathBuf,
-    reference_path: PathBuf,
-    /// Distinct identities DNA reported; one unless the inputs changed during
-    /// the run.
-    identities: Vec<Identity>,
-    /// Window of the review workload, in positions.
-    review_window: i64,
-    /// First batch month of the current data, when given.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    current_since: Option<String>,
-    /// The run signal grouping, when the reviews were judged against one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    run_signal: Option<String>,
-    /// The forced-window list the workload also counts as reviewed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    forced_windows: Option<PathBuf>,
-    /// The re-check list the pass measures read.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    recheck: Option<RecheckHeader>,
-    /// The read evidence cache the run read and filled.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    evidence_cache: Option<cache::Usage>,
-    /// The placement cache the run read and filled, beside the evidence
-    /// cache.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    placement_cache: Option<cache::Usage>,
-    /// The run contexts the consensus was calibrated by.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    run_context: Option<RunContextHeader>,
-    /// The widths that place the review zones, in positions.
-    zones: ZoneHeader,
-    /// The harness's own measurement constants.
-    constants: Constants,
-    /// Outcome counts per measure.
-    samples: BTreeMap<&'static str, Counts>,
-    /// What passes without review.
-    workload: WorkloadHeader,
-    seconds: Seconds,
-}
-
-/// The harness's measurement constants, recorded so that a run's measures can
-/// be reproduced from its outputs. Shares are in thousandths.
-#[derive(Debug, Serialize)]
-struct Constants {
-    /// Limit of detection of a second base (`haplotype_lod`).
-    lod_share: u16,
-    /// Smallest share of a faint second base, for discrepancy causes.
-    faint_share: u16,
-    /// Normal quantile of the two-sided 95 % intervals and Wilson bounds.
-    interval_z: f64,
-}
-
-impl Constants {
-    const fn current() -> Self {
-        Self {
-            lod_share: lod::LOD,
-            faint_share: cause::loci::FAINT,
-            interval_z: estimate::Z_95,
-        }
-    }
-}
-
-/// The run contexts' directory and how many of the panel's batches had one.
-#[derive(Debug, Serialize)]
-struct RunContextHeader {
-    directory: PathBuf,
-    batches: usize,
-}
-
-/// Run context coverage per batch month, then over all samples: of the
-/// analysed samples, how many had their batch's context and in how many it
-/// calibrated τ of run 1 and of run 2; the rest fail closed to the
-/// configured τ. With them, the batches that had a context and their pairs
-/// per run, which show why: a batch below the minimum pairs calibrates
-/// nothing.
-fn context_coverage(
-    samples: &[manifest::Sample],
-    outcomes: &[Outcome],
-    contexts: &runner::Contexts,
-) -> String {
-    let mut months = BTreeMap::<String, [usize; 8]>::new();
-    let mut counted = BTreeSet::<(&str, &str)>::new();
-    for (sample, outcome) in samples.iter().zip(outcomes) {
-        let month = sample
-            .batch_date
-            .as_deref()
-            .and_then(|date| date.get(..7))
-            .unwrap_or("unknown");
-        for key in [month, "all"] {
-            let counts = months.entry(key.to_owned()).or_default();
-            if let Some(context) = contexts.get(&sample.batch)
-                && counted.insert((key, &sample.batch))
-            {
-                counts[5] += 1;
-                counts[6] += context.length.runs[0].pairs;
-                counts[7] += context.length.runs[1].pairs;
-            }
-            counts[0] += 1;
-            if let Ok(called) = &outcome.result {
-                counts[1] += 1;
-                if let Some([run1, run2]) = called.length_context {
-                    counts[2] += 1;
-                    counts[3] += usize::from(run1);
-                    counts[4] += usize::from(run2);
-                }
-            }
-        }
-    }
-    let all = months.remove("all").unwrap_or_default();
-    let mut text = String::from(RUN_CONTEXT_HEADER);
-    for (month, counts) in months.iter().chain([(&"all".to_owned(), &all)]) {
-        let [
-            samples,
-            analysed,
-            context,
-            run1,
-            run2,
-            batches,
-            pairs1,
-            pairs2,
-        ] = counts;
-        let _ = writeln!(
-            text,
-            "{month}\t{samples}\t{analysed}\t{context}\t{run1}\t{run2}\t{batches}\t{pairs1}\t{pairs2}"
-        );
-    }
-    text
-}
-
-/// The re-check list: its path, its SHA-256, and its rows.
-#[derive(Debug, Serialize)]
-struct RecheckHeader {
-    path: PathBuf,
-    sha256: String,
-    rows: usize,
-}
-
-/// What passes without review over the samples the review workload counts,
-/// and over the current data when the run names it.
-#[derive(Debug, Serialize)]
-struct WorkloadHeader {
-    all: Passes,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    current: Option<Passes>,
-}
-
-/// The widths that place the review zones, from the run's options.
-#[derive(Debug, Serialize)]
-struct ZoneHeader {
-    after: i64,
-    edge: i64,
-    overrun: i64,
-}
-
-#[derive(Debug, Serialize)]
-struct Source {
-    /// Git revision of the checkout the harness was built from, if available.
-    revision: Option<String>,
-    /// Whether tracked files of that checkout differed from the revision.
-    dirty: Option<bool>,
-}
-
-#[derive(Debug, Serialize)]
-struct ManifestHeader {
-    path: PathBuf,
-    fields: BTreeMap<String, String>,
-    body_sha256: String,
-    rows: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct TruthHeader {
-    path: PathBuf,
-    /// The database file's SHA-256, for provenance only.
-    sha256: String,
-    /// The database's `info` table, for provenance only.
-    info: BTreeMap<String, String>,
-    /// The panel truth digest of the current database.
-    digest: String,
-    /// The panel truth digest the manifest records.
-    recorded_digest: Option<String>,
-    /// `unchanged`, `changed`, or `not_recorded`.
-    state: &'static str,
-    /// Samples whose truth differs from the manifest's record.
-    changed_samples: usize,
-    panel_samples_found: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct Counts {
-    total: usize,
-    concordant: usize,
-    discordant: usize,
-    not_applicable: usize,
-    failed: usize,
-}
-
 fn count(rows: &[Row<'_>], measure: Measure, status: Status) -> usize {
     rows.iter()
         .filter(|row| row.status(measure) == status)
         .count()
-}
-
-#[derive(Debug, Serialize)]
-struct Seconds {
-    total: f64,
-    truth: f64,
-    dna: f64,
-    sample_median: f64,
-    sample_p95: f64,
-    sample_max: f64,
-    sample_sum: f64,
 }
 
 /// When the run started and how long DNA took, in seconds.
@@ -1385,7 +1098,7 @@ fn header(
     report: &Report<'_>,
     outcomes: &[Outcome],
     times: Times,
-) -> Header {
+) -> RunHeader {
     let (rows, check) = (report.rows(), report.check());
     let (all, current) = report.passes();
     let counts = |measure: Measure| Counts {
@@ -1410,9 +1123,9 @@ fn header(
         .filter_map(|row| row.outcome.result.as_ref().ok())
         .map(|called| called.identity.clone())
         .collect::<BTreeSet<_>>();
-    Header {
-        harness: env!("CARGO_PKG_NAME"),
-        harness_version: env!("CARGO_PKG_VERSION"),
+    RunHeader {
+        harness: env!("CARGO_PKG_NAME").to_owned(),
+        harness_version: env!("CARGO_PKG_VERSION").to_owned(),
         source: source(),
         threads: cli.threads,
         manifest: ManifestHeader {
@@ -1427,7 +1140,7 @@ fn header(
             info: truth.database.info.clone(),
             digest: check.current.clone(),
             recorded_digest: check.recorded.clone(),
-            state: check.state().label(),
+            state: check.state().label().to_owned(),
             changed_samples: check.changed.len(),
             panel_samples_found: truth.database.samples.len(),
         },
@@ -1450,7 +1163,7 @@ fn header(
         },
         samples: Measure::ALL
             .into_iter()
-            .map(|measure| (measure.label(), counts(measure)))
+            .map(|measure| (measure.label().to_owned(), counts(measure)))
             .collect(),
         workload: WorkloadHeader { all, current },
         seconds: Seconds {
@@ -1466,7 +1179,7 @@ fn header(
 }
 
 /// The deterministic part of the header, for the summary.
-fn context(header: &Header) -> Vec<(&'static str, String)> {
+fn context(header: &RunHeader) -> Vec<(&'static str, String)> {
     let field = |key: &str| {
         header
             .manifest
@@ -1565,142 +1278,6 @@ mod tests {
             columns: Vec::new(),
             samples: Vec::new(),
         }
-    }
-
-    /// `run.json` with every optional field, and without them, and the
-    /// headers of `checks.tsv` and `signals.tsv`, follow `dna.eval_run/v1`.
-    #[test]
-    fn the_run_header_and_tables_follow_the_contract() -> contract::Checked {
-        let digest = "a".repeat(64);
-        let counts = || Counts {
-            total: 3,
-            concordant: 1,
-            discordant: 1,
-            not_applicable: 0,
-            failed: 1,
-        };
-        let zones = zones::Zones::new(
-            &[(16024, 16365), (73, 340)],
-            &[(16184, 16193)],
-            zones::Widths {
-                after: 20,
-                edge: 40,
-                overrun: 2,
-            },
-        );
-        let passes = || workload::passes(std::iter::empty(), Some(&zones));
-        let header = Header {
-            harness: env!("CARGO_PKG_NAME"),
-            harness_version: env!("CARGO_PKG_VERSION"),
-            source: Source {
-                revision: Some("0".repeat(40)),
-                dirty: Some(false),
-            },
-            threads: 4,
-            manifest: ManifestHeader {
-                path: PathBuf::from("/panel.tsv"),
-                fields: BTreeMap::from([("panel".to_owned(), "dev".to_owned())]),
-                body_sha256: digest.clone(),
-                rows: 3,
-            },
-            truth: TruthHeader {
-                path: PathBuf::from("/statistics.sqlite"),
-                sha256: digest.clone(),
-                info: BTreeMap::from([("schema_version".to_owned(), "1".to_owned())]),
-                digest: digest.clone(),
-                recorded_digest: Some(digest.clone()),
-                state: truth::TruthState::Unchanged.label(),
-                changed_samples: 0,
-                panel_samples_found: 3,
-            },
-            configuration_path: PathBuf::from("/dna.toml"),
-            reference_path: PathBuf::from("/rCRS.fasta"),
-            identities: vec![Identity {
-                configuration_sha256: digest.clone(),
-                reference_name: "rCRS".into(),
-                reference_sha256: digest.clone(),
-                profile_id: "human-mtdna-rcrs".into(),
-                profile_sha256: digest,
-            }],
-            review_window: report::REVIEW_WINDOW,
-            current_since: Some("2026-01".into()),
-            run_signal: Some("batch".into()),
-            forced_windows: Some(PathBuf::from("/forced.txt")),
-            recheck: Some(RecheckHeader {
-                path: PathBuf::from("/recheck.tsv"),
-                sha256: "b".repeat(64),
-                rows: 2,
-            }),
-            evidence_cache: Some(cache::Usage {
-                directory: "/cache/evidence".into(),
-                key: cache::Key {
-                    sanger: 17,
-                    configuration_sha256: "a".repeat(64),
-                    code_sha256: "b".repeat(64),
-                },
-                hits: 5,
-                misses: 1,
-                replaced: 0,
-                bytes: 270_000,
-            }),
-            placement_cache: Some(cache::Usage {
-                directory: "/cache/evidence".into(),
-                key: cache::Key {
-                    sanger: 17,
-                    configuration_sha256: "a".repeat(64),
-                    code_sha256: "c".repeat(64),
-                },
-                hits: 4,
-                misses: 2,
-                replaced: 0,
-                bytes: 90_000,
-            }),
-            run_context: None,
-            zones: ZoneHeader {
-                after: 20,
-                edge: 40,
-                overrun: 2,
-            },
-            constants: Constants::current(),
-            samples: Measure::ALL
-                .into_iter()
-                .map(|measure| (measure.label(), counts()))
-                .collect(),
-            workload: WorkloadHeader {
-                all: passes(),
-                current: Some(passes()),
-            },
-            seconds: Seconds {
-                total: 2.5,
-                truth: 0.5,
-                dna: 1.5,
-                sample_median: 0.5,
-                sample_p95: 0.75,
-                sample_max: 1.0,
-                sample_sum: 1.5,
-            },
-        };
-        contract::check_document("run.json", &serde_json::to_value(&header)?)?;
-        let bare = Header {
-            source: Source {
-                revision: None,
-                dirty: None,
-            },
-            identities: Vec::new(),
-            current_since: None,
-            run_signal: None,
-            forced_windows: None,
-            recheck: None,
-            workload: WorkloadHeader {
-                all: header.workload.all,
-                current: None,
-            },
-            ..header
-        };
-        contract::check_document("run.json", &serde_json::to_value(&bare)?)?;
-        contract::check_table("checks.tsv", CHECKS_HEADER)?;
-        contract::check_table("notes.tsv", NOTES_HEADER)?;
-        contract::check_table("signals.tsv", SIGNALS_HEADER)
     }
 
     #[test]

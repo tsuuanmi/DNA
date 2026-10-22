@@ -9,10 +9,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use crate::baseline::Class;
 use crate::cause::forms::Forms;
 use crate::cause::{self, Cause, Finding, Scope};
-use crate::classes::Discrepancy;
+use crate::classes::{Discrepancy, StatusClass};
 use crate::compare::{
     self, Comparison, Concordance, Failure, Measure, Reason, Region, Side, Yield,
 };
@@ -21,6 +20,7 @@ use crate::haplotype;
 use crate::lod;
 use crate::manifest::Sample;
 use crate::recheck::Recheck;
+use crate::rundir;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::unrecorded;
@@ -162,7 +162,7 @@ impl Row<'_> {
     /// The sample's discrepancy class.
     pub(crate) fn discrepancy(&self) -> Discrepancy {
         Discrepancy::of(
-            |measure| Class::of(self.status(measure).label()),
+            |measure| StatusClass::of(self.status(measure).label()),
             self.unanalysed(),
         )
     }
@@ -480,7 +480,7 @@ impl<'a> Report<'a> {
     /// `context` heads the summary.
     pub(crate) fn files(&self, context: &[(&str, String)]) -> Vec<(&'static str, String)> {
         let mut files = vec![
-            ("scores.tsv", self.scores()),
+            (rundir::SCORES, self.scores()),
             ("estimates.tsv", self.estimates()),
             ("anchors.tsv", self.anchors()),
             ("windows.tsv", self.windows()),
@@ -488,7 +488,7 @@ impl<'a> Report<'a> {
         if self.check.state() == TruthState::Changed {
             files.push(("truth_changes.tsv", self.check.changes()));
         }
-        files.push(("unreviewed.tsv", self.unreviewed()));
+        files.push((rundir::UNREVIEWED, self.unreviewed()));
         files.push(("summary.md", self.summary(context)));
         files
     }

@@ -24,8 +24,14 @@ and `subset` write, have no schema; the evaluation harness document
 describes them.
 
 - `main.rs` — command line (`run`, `diff`, `panel`, `subset`, `cache`,
-  `bench`, `sim-bench`), run orchestration, output directory, and the
-  `run.json` header.
+  `bench`, `sim-bench`) and run orchestration.
+- `rundir.rs` — the run directory: its file names, the run header
+  `run.json` as one typed record (`RunHeader`) that `run` writes and `diff`
+  reads back, the tables `run` writes beside the report's (`checks.tsv`,
+  `notes.tsv`, `signals.tsv`, `run_context.tsv`, `components.tsv`,
+  `tracts.tsv`), the output directory, and the strict table reader, which
+  refuses a table without a column it needs, with a column twice, or with
+  a row of another width.
 - `bench.rs` — `dna-eval bench`: the artefact regression bench. It parses a
   case list (adjudicated artefacts and truth errors, each with a span and
   the outcome DNA must keep there), judges each case from DNA's alleles,
@@ -69,8 +75,9 @@ describes them.
   built once per sample and read under exact or compatible symbols. An open
   block knows whether its interval ends where the truth's does, so an
   insertion past the truth's interval is truth N (`Block::past_interval`).
-- `classes.rs` — the discrepancy class of a sample from its statuses: the
-  part of DNA that owns its difference from the truth.
+- `classes.rs` — the class of a status across scoring conventions, and the
+  discrepancy class of a sample from its statuses: the part of DNA that owns
+  its difference from the truth.
 - `cause/` — the cause of a sample's discrepancy (DNA, the lab, or the
   technology) from the reads' evidence and the truth's written forms
   ([cause](cause/README.md)).
@@ -81,7 +88,8 @@ describes them.
   lists, the Wilson bound of `windows.tsv`, and what passes without review
   (samples, regions, and zones no check item touches, and the passed ones
   with an unreviewed block by the class of their blocks: non-het, truth N,
-  het, or re-check) for the summary and `run.json`.
+  het, re-check, or length note) for the summary and `run.json`. The
+  counting is `PassSample`'s, which `diff` counts a run's files with too.
 - `recheck.rs` — the re-check list of `run --recheck`: the difference blocks
   whose truth is under re-check, per sample and span, that the pass
   measures count in their own class.
@@ -105,17 +113,17 @@ describes them.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior), the zones a
   check item touches, and the zone instance that holds a position.
-- `baseline.rs` — the statuses of a run's `scores.tsv`, which `diff`
-  compares, and their classes.
 - `report.rs` — scores, estimates, anchors, the unreviewed blocks
   (`unreviewed.tsv`), and the Markdown summary.
 - `subset.rs` — `dna-eval subset`: a deterministic stratified quick subset
   of a panel as a manifest of its own, every stratum kept, for a first-pass
   `diff`; a pre-filter, never the gate.
 - `rundiff.rs` — `dna-eval diff`: a run against a base run of the same
-  panel, from their directories alone. It refuses runs that measure
-  different things or whose files disagree with their `run.json`, counts the
-  passes per group (all, period, source) and zone, and gives the verdict
+  panel, from their directories alone, read strictly. It refuses runs that
+  measure different things, a sample scored twice, or files that count
+  other passes than their `run.json` records over all samples or the
+  current data; it counts the passes per group (all, period, source) and
+  zone with the review workload's counting, and gives the verdict
   that gates a probe on non-het blocks in the current period alone (all
   samples when the runs record no current-data month); het blocks, the
   earlier period, and the sources are reported only.

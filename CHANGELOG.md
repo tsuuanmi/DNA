@@ -682,6 +682,18 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval diff` reads a run directory strictly and counts with the run's
+  own pass counting: the run header is one typed record (`RunHeader`) that
+  `run` writes and `diff` reads back; a table without a column `diff` reads
+  or with a column twice, a sample scored twice, an unknown block class, or
+  a `zone_checked` that disagrees with `review_zones` stops the comparison,
+  where missing cells used to read as empty and a repeated sample
+  overwrote the first. Each run's counts are checked against its
+  `run.json` over the current data too, every auto-pass class and zone unit
+  included (only all samples' auto-pass non-het and het counts and the
+  zones' non-het counts were). The run's writers move from `main.rs` to
+  `rundir.rs`. Every output of `run` and `diff` is byte-identical on
+  development panel v5.
 - The Sanger edge and start identity rules (SRS-CALL-017, SRS-CALL-018)
   take the read's and a stop's median spacing as the midpoint median, as
   signal processing and callability do, instead of the upper median.

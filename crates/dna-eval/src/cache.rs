@@ -35,7 +35,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The read stage's code identity this harness was built with:
@@ -69,7 +69,7 @@ pub(crate) enum CacheError {
 }
 
 /// The parts of a generation's key, as `run.json` records them.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Key {
     /// The `sanger` plugin version.
     pub(crate) sanger: u32,
@@ -92,7 +92,7 @@ impl Key {
 }
 
 /// A run's use of the cache, as `run.json` records it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Usage {
     /// The cache directory, absolute.
     pub(crate) directory: String,

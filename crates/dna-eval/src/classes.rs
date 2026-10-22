@@ -12,8 +12,36 @@
 
 use std::collections::BTreeSet;
 
-use crate::baseline::Class;
 use crate::compare::{self, Measure, Reason};
+
+/// The class of a status, across scoring conventions, so that runs that
+/// score on the fair scale (`exact`, `error`) stay comparable with ones that
+/// report concordance (`concordant`, `discordant`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum StatusClass {
+    /// `exact` or `concordant`.
+    Good,
+    /// `error` or `discordant`.
+    Bad,
+    /// `not_applicable`.
+    NotApplicable,
+    /// `failed`.
+    Failed,
+    /// Any other status.
+    Other,
+}
+
+impl StatusClass {
+    pub(crate) fn of(status: &str) -> Self {
+        match status {
+            "exact" | "concordant" => Self::Good,
+            "error" | "discordant" => Self::Bad,
+            "not_applicable" => Self::NotApplicable,
+            "failed" => Self::Failed,
+            _ => Self::Other,
+        }
+    }
+}
 
 /// What a sample's difference from the truth is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -91,11 +119,11 @@ impl Discrepancy {
     /// The class of a sample whose status class under each measure is
     /// `class`, and whose primary differences are all DNA calls outside the
     /// truth's analysed intervals when `unanalysed`.
-    pub(crate) fn of(class: impl Fn(Measure) -> Class, unanalysed: bool) -> Self {
+    pub(crate) fn of(class: impl Fn(Measure) -> StatusClass, unanalysed: bool) -> Self {
         let classes = Self::MEASURES.map(&class);
         for (excluded, discrepancy) in [
-            (Class::Failed, Self::Failed),
-            (Class::NotApplicable, Self::NotComparable),
+            (StatusClass::Failed, Self::Failed),
+            (StatusClass::NotApplicable, Self::NotComparable),
         ] {
             if classes.contains(&excluded) {
                 return discrepancy;
@@ -104,7 +132,7 @@ impl Discrepancy {
         let first = Self::MEASURES
             .into_iter()
             .zip(classes)
-            .find(|(_, class)| *class != Class::Good)
+            .find(|(_, class)| *class != StatusClass::Good)
             .map(|(measure, _)| measure);
         match first {
             Some(Measure::HaplotypeIupacCompatible) => Self::Sequence,
@@ -155,10 +183,18 @@ mod tests {
                 Discrepancy::MEASURES
                     .iter()
                     .position(|decided| *decided == measure)
-                    .map_or(Class::Other, |index| Class::of(statuses[index]))
+                    .map_or(StatusClass::Other, |index| StatusClass::of(statuses[index]))
             },
             false,
         )
+    }
+
+    #[test]
+    fn statuses_fall_into_classes_across_conventions() {
+        assert_eq!(StatusClass::of("concordant"), StatusClass::of("exact"));
+        assert_eq!(StatusClass::of("discordant"), StatusClass::Bad);
+        assert_eq!(StatusClass::of("failed"), StatusClass::Failed);
+        assert_eq!(StatusClass::of("unknown"), StatusClass::Other);
     }
 
     #[test]
@@ -186,7 +222,7 @@ mod tests {
         let representation = |unanalysed| {
             Discrepancy::of(
                 |measure| {
-                    Class::of(if measure == Measure::Primary {
+                    StatusClass::of(if measure == Measure::Primary {
                         "discordant"
                     } else {
                         "concordant"

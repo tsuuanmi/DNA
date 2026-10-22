@@ -75,9 +75,6 @@ pub(crate) enum Error {
     /// DNA analysed with.
     #[error("target profile {path}: {message}")]
     Profile { path: PathBuf, message: String },
-    /// The baseline scores are invalid.
-    #[error("invalid baseline scores: {0}")]
-    Baseline(#[from] BaselineError),
     /// A command-line value is not a single token.
     #[error("invalid {name} {value:?}: it must be one token without spaces or '='")]
     Argument { name: &'static str, value: String },
@@ -186,27 +183,6 @@ pub(crate) enum TruthError {
     /// A sample has more alleles than the bound.
     #[error("sample {sample:?} has more than {maximum} alleles")]
     TooManyAlleles { sample: String, maximum: usize },
-}
-
-/// Baseline scores that cannot be compared with this run.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub(crate) enum BaselineError {
-    /// The scores file is not UTF-8.
-    #[error("the scores file is not UTF-8")]
-    NotUtf8,
-    /// A required column is missing.
-    #[error("the column {column} is missing")]
-    MissingColumn { column: &'static str },
-    /// A row does not have one field per column.
-    #[error("line {line} has {found} fields, expected {expected}")]
-    Fields {
-        line: usize,
-        found: usize,
-        expected: usize,
-    },
-    /// A sample appears on two rows.
-    #[error("line {line} repeats sample {sample:?}")]
-    DuplicateSample { line: usize, sample: String },
 }
 
 /// Why two runs cannot be compared.
