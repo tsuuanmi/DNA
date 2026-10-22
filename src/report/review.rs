@@ -1071,12 +1071,7 @@ impl<'a> Sample<'a> {
         let runs = site
             .runs
             .iter()
-            .filter(|run| {
-                matches!(
-                    run.evidence,
-                    RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
-                ) && !not_recorded(self.conventions, site, run)
-            })
+            .filter(|run| run.evidence.is_estimate() && !not_recorded(self.conventions, site, run))
             .map(|run| RunResult {
                 base: run.base,
                 length: run.length,

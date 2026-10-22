@@ -167,14 +167,6 @@ pub fn read_runs_over(
         .collect()
 }
 
-/// The runs at which an estimated length gives way to the two-strand rule.
-const fn estimated(evidence: RunEvidence) -> bool {
-    matches!(
-        evidence,
-        RunEvidence::AnchoredEnd | RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
-    )
-}
-
 /// Decides by the two-strand rule over the reads' tract decodes (SRS-CONS-013,
 /// PROP-0012 increment 4) the runs a stretch's decision left as an estimate
 /// (an anchored end, a phase loss, or the reference frame), in every pair of
@@ -193,7 +185,11 @@ fn two_strand(
 ) {
     let bases = reference.sequence.as_bytes();
     for (&start, (end, decision)) in decided.iter_mut() {
-        if !decision.runs.iter().any(|run| estimated(run.evidence)) {
+        if !decision
+            .runs
+            .iter()
+            .any(|run| run.evidence.yields_to_two_strand())
+        {
             continue;
         }
         let reference_runs = runs_of(bases[start..=*end].iter().map(|&base| char::from(base)));
@@ -220,8 +216,8 @@ fn two_strand(
             if reference_runs[index + 2].0 != repeat.0
                 || anchor.1 != 1
                 || decision.runs[index + 1].length != 1
-                || !(estimated(decision.runs[index].evidence)
-                    || estimated(decision.runs[index + 2].evidence))
+                || !(decision.runs[index].evidence.yields_to_two_strand()
+                    || decision.runs[index + 2].evidence.yields_to_two_strand())
             {
                 continue;
             }
@@ -242,7 +238,7 @@ fn two_strand(
             );
             let views = length::views(&window, reads, &shown);
             for (run, slot) in [(1, index), (2, index + 2)] {
-                if !estimated(decision.runs[slot].evidence) {
+                if !decision.runs[slot].evidence.yields_to_two_strand() {
                     continue;
                 }
                 let (length::Outcome::Decided(length), _) =
@@ -758,12 +754,7 @@ fn unplace_unbounded_indels(decided: &mut BTreeMap<usize, (usize, Decision)>, le
             .filter(|(first, (last, decision))| {
                 let (first, last) = (**first, *last);
                 let shown = !decision.runs.is_empty()
-                    && decision.runs.iter().all(|run| {
-                        matches!(
-                            run.evidence,
-                            RunEvidence::InPhase | RunEvidence::AnchoredEnd
-                        )
-                    });
+                    && decision.runs.iter().all(|run| run.evidence.shown_by_read());
                 !shown
                     && decision
                         .value
@@ -1900,12 +1891,7 @@ fn assemble(
         let reference = String::from_utf8_lossy(&bases[*first..=*last]).into_owned();
         // A run length that is an estimate keeps its label even where it
         // equals the reference.
-        let estimated = decision.runs.iter().any(|run| {
-            matches!(
-                run.evidence,
-                RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
-            )
-        });
+        let estimated = decision.runs.iter().any(|run| run.evidence.is_estimate());
         if decision.value.as_deref() != Some(reference.as_str())
             || decision.state != SiteState::Called
             || !decision.opposing.is_empty()
