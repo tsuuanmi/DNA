@@ -6,7 +6,9 @@
 //! reviewer truth of the lab's statistics database, and writes the
 //! comparisons, weighted estimates, anchors, and a summary into a new output
 //! directory. `dna-eval diff` compares two runs and gates the candidate;
-//! `dna-eval panel` derives a new panel version against the database.
+//! `dna-eval panel` derives a new panel version against the database;
+//! `dna-eval regress` checks DNA's output on the frozen regression set
+//! against its version ledger.
 //! Nothing in DNA depends on this crate.
 
 mod bench;
@@ -26,6 +28,7 @@ mod lod;
 mod manifest;
 mod panel;
 mod recheck;
+mod regress;
 mod report;
 mod rundiff;
 mod rundir;
@@ -65,9 +68,10 @@ use crate::runner::{Outcome, Threads};
 use crate::truth::TruthCheck;
 
 /// The panels the harness reads: the development panel the rules are tuned
-/// on, and the readiness panels that test them. A hold-out panel stays
-/// reserved for an approval path not yet designed.
-const RUNNABLE_PANELS: [&str; 2] = ["dev", "readiness"];
+/// on, the readiness panels that test them, and the regression set, which is
+/// development data (`dna-eval regress`). A hold-out panel stays reserved
+/// for an approval path not yet designed.
+const RUNNABLE_PANELS: [&str; 3] = ["dev", "readiness", "regress"];
 
 /// Largest accepted panel manifest.
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
@@ -115,6 +119,97 @@ enum Command {
     /// cases (PROP-0015) and reports the decoder's measures per tract and
     /// noise level, against a baseline when one is given.
     SimBench(SimBenchArgs),
+    /// Checks DNA's output on the frozen regression set against the head of
+    /// its version ledger (`check`, exits 2 with `REGRESS FAIL` when a change
+    /// is undeclared or forbidden), or records a checked run of `main` in
+    /// the ledger (`record`).
+    Regress(regress::Args),
+}
+
+/// How DNA runs over a panel's samples: the options `run`, `bench`, and
+/// `regress check` share.
+#[derive(Debug, Args)]
+pub(crate) struct DnaOptions {
+    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
+    #[arg(long)]
+    config: PathBuf,
+    /// Reference FASTA, as given to `dna --reference`.
+    #[arg(long)]
+    reference: PathBuf,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+    /// A read evidence cache: every read is analysed from its
+    /// `dna.read_evidence/v1` document, read from the directory or made and
+    /// stored there, so a run whose read stage is unchanged skips it. It
+    /// needs a harness built from committed read-stage sources; `run.json`
+    /// records its key and hits.
+    #[arg(long)]
+    evidence_cache: Option<PathBuf>,
+    /// A directory of run contexts (PROP-0014), one
+    /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
+    /// over the batches' full folders: a sample of a batch with one has its
+    /// consensus calibrated by it. `run_context.tsv` reports per batch month
+    /// how many samples a context calibrated.
+    #[arg(long)]
+    run_context: Option<PathBuf>,
+}
+
+/// How the review workload is counted: the options `run` and `regress
+/// check` share.
+#[derive(Debug, Args)]
+pub(crate) struct ReviewOptions {
+    /// Window of the review workload, in positions, aligned to each HV
+    /// region's first position.
+    #[arg(long, default_value_t = conventions::REVIEW_WINDOW)]
+    review_window: i64,
+    /// Review zones: positions on each side of a repeat window that follow
+    /// it.
+    #[arg(long, default_value_t = conventions::ZONE_AFTER)]
+    zone_after: i64,
+    /// Review zones: positions at each end of a region that are its
+    /// amplicon's start or end.
+    #[arg(long, default_value_t = conventions::ZONE_EDGE)]
+    zone_edge: i64,
+    /// Review zones: positions past a repeat window that an item overlapping
+    /// the window still counts for the window.
+    #[arg(long, default_value_t = conventions::ZONE_OVERRUN)]
+    zone_overrun: i64,
+}
+
+impl ReviewOptions {
+    /// The zone widths, once the window and every width are checked.
+    fn widths(&self) -> Result<zones::Widths> {
+        if self.review_window < 1 {
+            return Err(Error::ReviewWindow {
+                window: self.review_window,
+            });
+        }
+        let widths = zones::Widths {
+            after: self.zone_after,
+            edge: self.zone_edge,
+            overrun: self.zone_overrun,
+        };
+        for (name, value) in [
+            ("--zone-after", widths.after),
+            ("--zone-edge", widths.edge),
+            ("--zone-overrun", widths.overrun),
+        ] {
+            if value < 0 {
+                return Err(Error::ZoneWidth { name, value });
+            }
+        }
+        Ok(widths)
+    }
+
+    /// The widths as `run.json` records them.
+    const fn header(&self) -> ZoneHeader {
+        ZoneHeader {
+            after: self.zone_after,
+            edge: self.zone_edge,
+            overrun: self.zone_overrun,
+        }
+    }
 }
 
 /// Arguments of `dna-eval sim-bench`.
@@ -217,18 +312,8 @@ struct BenchArgs {
     /// A panel manifest the cases name as `<panel>-<version>`; repeatable.
     #[arg(long, required = true)]
     manifest: Vec<PathBuf>,
-    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
-    #[arg(long)]
-    config: PathBuf,
-    /// Reference FASTA, as given to `dna --reference`.
-    #[arg(long)]
-    reference: PathBuf,
-    /// Worker threads that run DNA (1 to 256).
-    #[arg(long)]
-    threads: usize,
-    /// A read evidence cache, as for `run --evidence-cache`.
-    #[arg(long)]
-    evidence_cache: Option<PathBuf>,
+    #[command(flatten)]
+    dna: DnaOptions,
     /// A new directory for `bench.md` and `bench.tsv`.
     #[arg(long)]
     output: Option<PathBuf>,
@@ -255,7 +340,7 @@ fn bench(args: &BenchArgs) -> ExitCode {
 
 /// Runs DNA once on each sample the cases name and judges every case.
 fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
-    let threads = Threads::new(args.threads)?;
+    let threads = Threads::new(args.dna.threads)?;
     let invalid = |message: String| Error::Cases {
         path: args.cases.clone(),
         message,
@@ -307,32 +392,16 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
         index.insert(key, samples.len());
         samples.push(sample.clone());
     }
-    let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
-        .map_err(|error| Error::Reference {
-            path: args.reference.clone(),
-            message: error.to_string(),
-        })?;
-    let cache = args
-        .evidence_cache
-        .as_deref()
-        .map(|directory| {
-            Ok::<_, cache::CacheError>(cache::Caches {
-                evidence: cache::EvidenceCache::open(directory, &args.config)?,
-                placed: cache::EvidenceCache::open_placed(
-                    directory,
-                    &args.config,
-                    &reference.sequence_sha256,
-                )?,
-            })
-        })
-        .transpose()?;
+    let reference = load_reference(&args.dna.reference)?;
+    let cache = args.dna.caches(&reference.sequence_sha256)?;
+    let (contexts, _) = args.dna.contexts(&samples)?;
     let outcomes = runner::run(
         &samples,
-        (&args.reference, &reference.sequence_sha256),
-        &args.config,
+        (&args.dna.reference, &reference.sequence_sha256),
+        &args.dna.config,
         threads,
         None,
-        (cache.as_ref(), &runner::Contexts::new()),
+        (cache.as_ref(), &contexts),
         &mut Vec::new(),
     )?;
     let judged = cases
@@ -488,26 +557,17 @@ struct RunArgs {
     /// The lab's statistics database (`statistics.sqlite`), opened read-only.
     #[arg(long)]
     truth: PathBuf,
-    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
-    #[arg(long)]
-    config: PathBuf,
-    /// Reference FASTA, as given to `dna --reference`.
-    #[arg(long)]
-    reference: PathBuf,
     /// New or empty output directory.
     #[arg(long)]
     output: PathBuf,
-    /// Worker threads that run DNA (1 to 256).
-    #[arg(long)]
-    threads: usize,
+    #[command(flatten)]
+    dna: DnaOptions,
+    #[command(flatten)]
+    review: ReviewOptions,
     /// An earlier run's `forms.tsv` for the same truth database, read
     /// instead of indexing the whole database.
     #[arg(long)]
     forms: Option<PathBuf>,
-    /// Window of the review workload, in positions, aligned to each HV
-    /// region's first position.
-    #[arg(long, default_value_t = conventions::REVIEW_WINDOW)]
-    review_window: i64,
     /// Windows always sent to review, one `start-end` (1-based, inclusive)
     /// per line; the workload is reported again with them reviewed. A list
     /// learned on this run's panel overstates its effect.
@@ -533,32 +593,6 @@ struct RunArgs {
     /// Fewest reads of a batch for `--run-signal batch` to use it.
     #[arg(long, default_value_t = conventions::RUN_SIGNAL_BATCH_READS)]
     run_signal_batch_reads: usize,
-    /// A read evidence cache: every read is analysed from its
-    /// `dna.read_evidence/v1` document, read from the directory or made and
-    /// stored there, so a run whose read stage is unchanged skips it. It
-    /// needs a harness built from committed read-stage sources; `run.json`
-    /// records its key and hits.
-    #[arg(long)]
-    evidence_cache: Option<PathBuf>,
-    /// A directory of run contexts (PROP-0014), one
-    /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
-    /// over the batches' full folders: a sample of a batch with one has its
-    /// consensus calibrated by it. `run_context.tsv` reports per batch month
-    /// how many samples a context calibrated.
-    #[arg(long)]
-    run_context: Option<PathBuf>,
-    /// Review zones: positions on each side of a repeat window that follow
-    /// it.
-    #[arg(long, default_value_t = conventions::ZONE_AFTER)]
-    zone_after: i64,
-    /// Review zones: positions at each end of a region that are its
-    /// amplicon's start or end.
-    #[arg(long, default_value_t = conventions::ZONE_EDGE)]
-    zone_edge: i64,
-    /// Review zones: positions past a repeat window that an item overlapping
-    /// the window still counts for the window.
-    #[arg(long, default_value_t = conventions::ZONE_OVERRUN)]
-    zone_overrun: i64,
 }
 
 fn main() -> ExitCode {
@@ -566,6 +600,7 @@ fn main() -> ExitCode {
         Command::Diff(args) => return diff(&args),
         Command::Bench(args) => return bench(&args),
         Command::SimBench(args) => sim_bench(&args),
+        Command::Regress(args) => return regress::main(&args),
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),
@@ -596,7 +631,7 @@ fn main() -> ExitCode {
 /// Whether the harness may read the panel: a development or readiness panel,
 /// as its header names it. A manifest that names no panel could be a
 /// hold-out's, so it is refused too.
-fn runnable(manifest: &Manifest) -> Result<()> {
+pub(crate) fn runnable(manifest: &Manifest) -> Result<()> {
     match manifest.header.get("panel") {
         Some(panel) if RUNNABLE_PANELS.contains(&panel.as_str()) => Ok(()),
         Some(panel) => Err(Error::HoldOut {
@@ -606,53 +641,242 @@ fn runnable(manifest: &Manifest) -> Result<()> {
     }
 }
 
+/// A panel's inputs, loaded and checked before DNA runs: what `run` and
+/// `regress check` share.
+pub(crate) struct Loaded {
+    pub(crate) manifest: Manifest,
+    pub(crate) truth: Truth,
+    pub(crate) reference: dna_kernel::model::reference::Reference,
+    pub(crate) profile: dna_kernel::profile::Profile,
+    pub(crate) geometry: Geometry,
+    pub(crate) forms: Forms,
+    /// The re-check list and its identity, when given.
+    pub(crate) recheck: Option<(Recheck, RecheckHeader)>,
+    pub(crate) widths: zones::Widths,
+}
+
+impl Loaded {
+    /// Reads the manifest at `manifest`, which `accept` must allow, its
+    /// whole truth from `truth`, the reference and the target profile, the
+    /// written forms (from `forms` when given, else indexed over the whole
+    /// database), and the re-check list when given; checks the review
+    /// options.
+    pub(crate) fn read(
+        (manifest, accept): (&Path, fn(&Manifest) -> Result<()>),
+        (truth, forms, recheck): (&Path, Option<&Path>, Option<&Path>),
+        dna: &DnaOptions,
+        review: &ReviewOptions,
+    ) -> Result<Self> {
+        let manifest = manifest::parse(&read(manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
+        accept(&manifest)?;
+        // The whole truth of the panel loads before DNA runs, so a database
+        // that cannot be opened, has another schema, or fails a query stops
+        // the run before any sample is called.
+        let wanted = manifest
+            .samples
+            .iter()
+            .map(|sample| sample.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let truth_records = load_truth(truth, &wanted)?;
+        // The haplotype measures apply alleles to this sequence; a sample DNA
+        // analyses on another sequence fails.
+        let reference = load_reference(&dna.reference)?;
+        // The geometry the run compares and counts in, from the target
+        // profile.
+        let profile = target_profile(&dna.config)?;
+        let geometry = Geometry::of(&profile);
+        // How the reviewers write each window sequence, over the whole truth,
+        // for the cause of a representation discrepancy.
+        let forms = if let Some(path) = forms {
+            let text = read(path, "forms", MAX_FORMS_BYTES)?;
+            let text = String::from_utf8(text).map_err(|error| Error::Forms {
+                path: path.to_path_buf(),
+                message: error.to_string(),
+            })?;
+            Forms::parse(&text, &truth_records.sha256, &geometry).map_err(|message| {
+                Error::Forms {
+                    path: path.to_path_buf(),
+                    message,
+                }
+            })?
+        } else {
+            let corpus = truth::sample_ids(truth)?;
+            let corpus = truth::load(truth, &corpus.iter().map(String::as_str).collect())?;
+            Forms::new(corpus.samples.values(), &reference.sequence, &geometry)
+        };
+        let widths = review.widths()?;
+        let recheck = recheck
+            .map(|path| -> Result<_> {
+                let failure = |message: String| Error::Recheck {
+                    path: path.to_path_buf(),
+                    message,
+                };
+                let bytes = read(path, "re-check list", MAX_RECHECK_BYTES)?;
+                let sha256 = format!("{:x}", Sha256::digest(&bytes));
+                let text = String::from_utf8(bytes).map_err(|error| failure(error.to_string()))?;
+                let list = Recheck::parse(&text).map_err(failure)?;
+                let header = RecheckHeader {
+                    path: absolute(path),
+                    sha256,
+                    rows: list.rows(),
+                };
+                Ok((list, header))
+            })
+            .transpose()?;
+        Ok(Self {
+            manifest,
+            truth: truth_records,
+            reference,
+            profile,
+            geometry,
+            forms,
+            recheck,
+            widths,
+        })
+    }
+
+    /// The profile's length tracts, as the review workload notes them.
+    pub(crate) fn tracts(&self) -> Vec<workload::Tract> {
+        self.profile
+            .length_tracts
+            .iter()
+            .map(|tract| workload::Tract {
+                name: tract.name.clone(),
+                first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
+                last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
+                base: char::from(tract.base),
+            })
+            .collect()
+    }
+
+    /// The review zones of the profile's regions, placed with the widths.
+    pub(crate) fn zones(&self) -> zones::Zones {
+        zones::Zones::new(
+            self.geometry.regions(),
+            self.geometry.repeats(),
+            self.widths,
+        )
+    }
+}
+
+/// DNA's outcomes over a loaded panel, in manifest order, with the caches
+/// and run contexts it read.
+pub(crate) struct Ran {
+    pub(crate) outcomes: Vec<Outcome>,
+    pub(crate) cache: Option<cache::Caches>,
+    pub(crate) contexts: runner::Contexts,
+    pub(crate) contexts_sha256: String,
+    /// The run signal groups, with a grouping.
+    pub(crate) signal_groups: Vec<String>,
+    /// Wall time of DNA, in seconds.
+    pub(crate) seconds: f64,
+}
+
+impl Ran {
+    /// Runs DNA over every sample of `loaded` as `dna` says, with each
+    /// review judged against its group's run signal under `grouping`, and
+    /// checks that DNA analysed with the configuration's target profile.
+    pub(crate) fn run(
+        loaded: &Loaded,
+        dna: &DnaOptions,
+        grouping: Option<runner::Grouping>,
+    ) -> Result<Self> {
+        let threads = Threads::new(dna.threads)?;
+        let started = Instant::now();
+        let cache = dna.caches(&loaded.reference.sequence_sha256)?;
+        let (contexts, contexts_sha256) = dna.contexts(&loaded.manifest.samples)?;
+        let mut signal_groups = Vec::new();
+        let outcomes = runner::run(
+            &loaded.manifest.samples,
+            (&dna.reference, &loaded.reference.sequence_sha256),
+            &dna.config,
+            threads,
+            grouping,
+            (cache.as_ref(), &contexts),
+            &mut signal_groups,
+        )?;
+        let seconds = started.elapsed().as_secs_f64();
+        let analysed = &loaded.profile.identity().sha256;
+        if let Some(other) = outcomes
+            .iter()
+            .filter_map(|outcome| outcome.result.as_ref().ok())
+            .map(|called| &called.identity.profile_sha256)
+            .find(|sha256| *sha256 != analysed)
+        {
+            return Err(Error::Profile {
+                path: dna.config.clone(),
+                message: format!("DNA analysed with profile {other}, not {analysed}"),
+            });
+        }
+        Ok(Self {
+            outcomes,
+            cache,
+            contexts,
+            contexts_sha256,
+            signal_groups,
+            seconds,
+        })
+    }
+}
+
+impl DnaOptions {
+    /// The evidence and placement caches, when a cache directory is given.
+    fn caches(&self, reference_sha256: &str) -> Result<Option<cache::Caches>> {
+        Ok(self
+            .evidence_cache
+            .as_deref()
+            .map(|directory| {
+                Ok::<_, cache::CacheError>(cache::Caches {
+                    evidence: cache::EvidenceCache::open(directory, &self.config)?,
+                    placed: cache::EvidenceCache::open_placed(
+                        directory,
+                        &self.config,
+                        reference_sha256,
+                    )?,
+                })
+            })
+            .transpose()?)
+    }
+
+    /// The run contexts of the samples' batches and their digest, when a
+    /// run-context directory is given; none otherwise.
+    fn contexts(&self, samples: &[manifest::Sample]) -> Result<(runner::Contexts, String)> {
+        Ok(self
+            .run_context
+            .as_deref()
+            .map(|directory| runner::contexts(directory, samples))
+            .transpose()?
+            .unwrap_or_default())
+    }
+
+    /// The run contexts as `run.json` records them.
+    fn context_header(&self, ran: &Ran) -> Option<RunContextHeader> {
+        self.run_context
+            .as_deref()
+            .map(|directory| RunContextHeader {
+                directory: absolute(directory),
+                batches: ran.contexts.len(),
+                sha256: ran.contexts_sha256.clone(),
+            })
+    }
+}
+
+/// Loads the reference FASTA at `path`.
+fn load_reference(path: &Path) -> Result<dna_kernel::model::reference::Reference> {
+    dna_kernel::reference::load(path, ReferenceTopology::Linear).map_err(|error| Error::Reference {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })
+}
+
 fn run(cli: &RunArgs) -> Result<String> {
     let started = Instant::now();
-    let threads = Threads::new(cli.threads)?;
-    let manifest = manifest::parse(&read(&cli.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
-    runnable(&manifest)?;
-
-    // The whole truth of the panel loads before DNA runs, so a database that
-    // cannot be opened, has another schema, or fails a query stops the run
-    // before any sample is called.
-    let wanted = manifest
-        .samples
-        .iter()
-        .map(|sample| sample.id.as_str())
-        .collect::<BTreeSet<_>>();
-    let truth = load_truth(&cli.truth, &wanted)?;
-    // The haplotype measures apply alleles to this sequence; a sample DNA
-    // analyses on another sequence fails.
-    let reference = dna_kernel::reference::load(&cli.reference, ReferenceTopology::Linear)
-        .map_err(|error| Error::Reference {
-            path: cli.reference.clone(),
-            message: error.to_string(),
-        })?;
-    // How the reviewers write each window sequence, over the whole truth,
-    // for the cause of a representation discrepancy.
-    // The geometry the run compares and counts in, from the target profile.
-    let profile = target_profile(&cli.config)?;
-    let geometry = Geometry::of(&profile);
-    let forms = if let Some(path) = &cli.forms {
-        let text = read(path, "forms", MAX_FORMS_BYTES)?;
-        let text = String::from_utf8(text).map_err(|error| Error::Forms {
-            path: path.clone(),
-            message: error.to_string(),
-        })?;
-        Forms::parse(&text, &truth.sha256, &geometry).map_err(|message| Error::Forms {
-            path: path.clone(),
-            message,
-        })?
-    } else {
-        let corpus = truth::sample_ids(&cli.truth)?;
-        let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
-        Forms::new(corpus.samples.values(), &reference.sequence, &geometry)
-    };
-    if cli.review_window < 1 {
-        return Err(Error::ReviewWindow {
-            window: cli.review_window,
-        });
-    }
+    let mut loaded = Loaded::read(
+        (&cli.manifest, runnable),
+        (&cli.truth, cli.forms.as_deref(), cli.recheck.as_deref()),
+        &cli.dna,
+        &cli.review,
+    )?;
     let forced = cli
         .forced_windows
         .as_ref()
@@ -668,177 +892,101 @@ fn run(cli: &RunArgs) -> Result<String> {
             })
         })
         .transpose()?;
-    let (recheck, recheck_header) = match &cli.recheck {
-        Some(path) => {
-            let failure = |message: String| Error::Recheck {
-                path: path.clone(),
-                message,
-            };
-            let bytes = read(path, "re-check list", MAX_RECHECK_BYTES)?;
-            let sha256 = format!("{:x}", Sha256::digest(&bytes));
-            let text = String::from_utf8(bytes).map_err(|error| failure(error.to_string()))?;
-            let list = Recheck::parse(&text).map_err(failure)?;
-            let header = RecheckHeader {
-                path: absolute(path),
-                sha256,
-                rows: list.rows(),
-            };
-            (Some(list), Some(header))
-        }
-        None => (None, None),
-    };
-    let widths = zones::Widths {
-        after: cli.zone_after,
-        edge: cli.zone_edge,
-        overrun: cli.zone_overrun,
-    };
-    for (name, value) in [
-        ("--zone-after", widths.after),
-        ("--zone-edge", widths.edge),
-        ("--zone-overrun", widths.overrun),
-    ] {
-        if value < 0 {
-            return Err(Error::ZoneWidth { name, value });
-        }
-    }
     prepare_output(&cli.output)?;
-    let dna_started = Instant::now();
-    let cache = cli
-        .evidence_cache
-        .as_deref()
-        .map(|directory| {
-            Ok::<_, cache::CacheError>(cache::Caches {
-                evidence: cache::EvidenceCache::open(directory, &cli.config)?,
-                placed: cache::EvidenceCache::open_placed(
-                    directory,
-                    &cli.config,
-                    &reference.sequence_sha256,
-                )?,
-            })
-        })
-        .transpose()?;
-    let contexts = cli
-        .run_context
-        .as_deref()
-        .map(|directory| runner::contexts(directory, &manifest.samples))
-        .transpose()?;
-    let (contexts, contexts_sha256) = contexts.unwrap_or_default();
-    let mut signal_groups = Vec::new();
-    let outcomes = runner::run(
-        &manifest.samples,
-        (&cli.reference, &reference.sequence_sha256),
-        &cli.config,
-        threads,
+    let ran = Ran::run(
+        &loaded,
+        &cli.dna,
         cli.run_signal.map(|grouping| match grouping {
             SignalGrouping::Month => runner::Grouping::Month,
             SignalGrouping::Batch => runner::Grouping::Batch {
                 batch_reads: cli.run_signal_batch_reads,
             },
         }),
-        (cache.as_ref(), &contexts),
-        &mut signal_groups,
     )?;
-    let dna_seconds = dna_started.elapsed().as_secs_f64();
-    let analysed = &profile.identity().sha256;
-    if let Some(other) = outcomes
-        .iter()
-        .filter_map(|outcome| outcome.result.as_ref().ok())
-        .map(|called| &called.identity.profile_sha256)
-        .find(|sha256| *sha256 != analysed)
-    {
-        return Err(Error::Profile {
-            path: cli.config.clone(),
-            message: format!("DNA analysed with profile {other}, not {analysed}"),
-        });
-    }
-    let zones = zones::Zones::new(geometry.regions(), geometry.repeats(), widths);
+    let (recheck, recheck_header) = loaded.recheck.take().unzip();
+    let zones = loaded.zones();
+    let tracts = loaded.tracts();
+    let Loaded {
+        manifest,
+        truth,
+        reference,
+        profile,
+        geometry,
+        forms,
+        ..
+    } = &loaded;
 
     let rows = report::rows(
         &manifest.samples,
-        &outcomes,
+        &ran.outcomes,
         &truth.database.samples,
         &reference.sequence,
-        (&geometry, &profile.conventions),
+        (geometry, &profile.conventions),
     );
-    let check = TruthCheck::new(&manifest, &truth.database);
+    let check = TruthCheck::new(manifest, &truth.database);
     let report = Report::new(
         &rows,
-        (&geometry, &check),
-        (&forms, reference.sequence.as_str()),
+        (geometry, &check),
+        (forms, reference.sequence.as_str()),
     )
     .with_review(
-        cli.review_window,
+        cli.review.review_window,
         forced,
         Some(zones),
         recheck,
-        profile
-            .length_tracts
-            .iter()
-            .map(|tract| workload::Tract {
-                name: tract.name.clone(),
-                first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
-                last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
-                base: char::from(tract.base),
-            })
-            .collect(),
+        tracts,
     )
     .with_current_since(cli.current_since);
 
     let mut header = header(
         cli,
-        &manifest,
-        &truth,
+        manifest,
+        truth,
         &report,
-        &outcomes,
+        &ran.outcomes,
         Times {
             started,
-            dna: dna_seconds,
+            dna: ran.seconds,
         },
     );
     header.recheck = recheck_header;
-    header.evidence_cache = cache.as_ref().map(|cache| cache.evidence.usage());
-    header.placement_cache = cache.as_ref().map(|cache| cache.placed.usage());
-    header.run_context = cli
-        .run_context
-        .as_deref()
-        .map(|directory| RunContextHeader {
-            directory: absolute(directory),
-            batches: contexts.len(),
-            sha256: contexts_sha256.clone(),
-        });
+    header.evidence_cache = ran.cache.as_ref().map(|cache| cache.evidence.usage());
+    header.placement_cache = ran.cache.as_ref().map(|cache| cache.placed.usage());
+    header.run_context = cli.dna.context_header(&ran);
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
     }
-    if cli.run_context.is_some() {
+    let (samples, outcomes) = (&manifest.samples, &ran.outcomes);
+    if cli.dna.run_context.is_some() {
         write(
             &cli.output,
             rundir::RUN_CONTEXT,
-            &rundir::context_coverage(&manifest.samples, &outcomes, &contexts),
+            &rundir::context_coverage(samples, outcomes, &ran.contexts),
         )?;
     }
     if cli.run_signal.is_some() {
         write(
             &cli.output,
             rundir::SIGNALS,
-            &rundir::signals(&signal_groups),
+            &rundir::signals(&ran.signal_groups),
         )?;
     }
     write(
         &cli.output,
         rundir::CHECKS,
-        &rundir::checks(&manifest.samples, &outcomes),
+        &rundir::checks(samples, outcomes),
     )?;
     write(
         &cli.output,
         rundir::NOTES,
-        &rundir::notes(&manifest.samples, &outcomes),
+        &rundir::notes(samples, outcomes),
     )?;
     write(
         &cli.output,
         rundir::COMPONENTS,
         &rundir::components(
-            &manifest.samples,
-            &outcomes,
+            samples,
+            outcomes,
             &truth.database.samples,
             reference.sequence.as_bytes(),
         ),
@@ -846,7 +994,7 @@ fn run(cli: &RunArgs) -> Result<String> {
     write(
         &cli.output,
         rundir::TRACTS,
-        &rundir::tracts(&manifest.samples, &outcomes),
+        &rundir::tracts(samples, outcomes),
     )?;
     write(&cli.output, rundir::FORMS, &forms.table(&truth.sha256))?;
     write(&cli.output, rundir::RUN_JSON, &header.text()?)?;
@@ -992,10 +1140,10 @@ fn derive_panel(args: &PanelArgs) -> Result<String> {
 
 /// The panel's truth records, the database's hash and `info`, and the load
 /// time.
-struct Truth {
-    sha256: String,
-    database: truth::TruthDatabase,
-    seconds: f64,
+pub(crate) struct Truth {
+    pub(crate) sha256: String,
+    pub(crate) database: truth::TruthDatabase,
+    pub(crate) seconds: f64,
 }
 
 fn load_truth(path: &Path, wanted: &BTreeSet<&str>) -> Result<Truth> {
@@ -1020,7 +1168,7 @@ fn load_truth(path: &Path, wanted: &BTreeSet<&str>) -> Result<Truth> {
 }
 
 /// Reads a whole input file of at most `maximum` bytes.
-fn read(path: &Path, kind: &'static str, maximum: u64) -> Result<Vec<u8>> {
+pub(crate) fn read(path: &Path, kind: &'static str, maximum: u64) -> Result<Vec<u8>> {
     check_size(path, kind, maximum)?;
     fs::read(path).map_err(|source| Error::Read {
         kind,
@@ -1098,7 +1246,7 @@ fn header(
         harness: env!("CARGO_PKG_NAME").to_owned(),
         harness_version: env!("CARGO_PKG_VERSION").to_owned(),
         source: source(),
-        threads: cli.threads,
+        threads: cli.dna.threads,
         manifest: ManifestHeader {
             path: absolute(&cli.manifest),
             fields: manifest.header.clone(),
@@ -1115,10 +1263,10 @@ fn header(
             changed_samples: check.changed.len(),
             panel_samples_found: truth.database.samples.len(),
         },
-        configuration_path: absolute(&cli.config),
-        reference_path: absolute(&cli.reference),
+        configuration_path: absolute(&cli.dna.config),
+        reference_path: absolute(&cli.dna.reference),
         identities: identities.into_iter().collect(),
-        review_window: cli.review_window,
+        review_window: cli.review.review_window,
         run_signal: cli.run_signal,
         run_signal_batch_reads: (cli.run_signal == Some(SignalGrouping::Batch))
             .then_some(cli.run_signal_batch_reads),
@@ -1129,11 +1277,7 @@ fn header(
         placement_cache: None,
         run_context: None,
         constants: Constants::current(),
-        zones: ZoneHeader {
-            after: cli.zone_after,
-            edge: cli.zone_edge,
-            overrun: cli.zone_overrun,
-        },
+        zones: cli.review.header(),
         samples: Measure::ALL
             .into_iter()
             .map(|measure| (measure.label().to_owned(), counts(measure)))
@@ -1211,7 +1355,7 @@ fn context(header: &RunHeader) -> Vec<(&'static str, String)> {
 
 /// The git revision of the checkout the harness was built from, recorded by
 /// the build script.
-fn source() -> Source {
+pub(crate) fn source() -> Source {
     Source {
         revision: option_env!("DNA_EVAL_REVISION")
             .filter(|revision| !revision.is_empty())
@@ -1226,7 +1370,7 @@ fn source() -> Source {
 
 /// The path made absolute against the working directory, or as given when
 /// that fails.
-fn absolute(path: &Path) -> PathBuf {
+pub(crate) fn absolute(path: &Path) -> PathBuf {
     std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
@@ -1248,8 +1392,8 @@ mod tests {
     }
 
     #[test]
-    fn run_reads_development_and_readiness_panels_only() {
-        for name in ["dev", "readiness"] {
+    fn run_reads_development_readiness_and_regression_panels_only() {
+        for name in ["dev", "readiness", "regress"] {
             assert!(runnable(&panel(Some(name))).is_ok(), "{name}");
         }
         assert!(matches!(runnable(&panel(None)), Err(Error::UnnamedPanel)));
