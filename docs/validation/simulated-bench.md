@@ -1,7 +1,7 @@
 ---
 implements: [SRS-CALL]
 decided-by: [ADR-0074, ADR-0075, ADR-0084]
-covers: [crates/dna-eval/src/simbench.rs, crates/dna-eval/baselines/, crates/dna-trace/src/simulate/, crates/dna-trace/tables/]
+covers: [crates/dna-eval/src/simbench.rs, crates/dna-eval/baselines/sim-bench*, crates/dna-trace/src/simulate/, crates/dna-trace/tables/]
 ---
 
 # Simulated tract-decode bench
