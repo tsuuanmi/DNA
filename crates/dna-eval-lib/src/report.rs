@@ -2051,6 +2051,18 @@ fn truth_length(tract: &Tract, alleles: &[Allele], reference: &[u8]) -> i64 {
     count
 }
 
+/// The class of a truth allele omitted under a tract note: the note's
+/// `reading` of the tract's length against the truth's `length`. A reading
+/// one unit off, or none, is a length note (user decision 2026-10-22); two
+/// or more units off is a DNA error, as for a block.
+fn noted(reading: Option<i64>, length: i64) -> BlockClass {
+    match reading.map(|reading| (reading - length).abs()) {
+        Some(0) => BlockClass::OmittedTract,
+        Some(2..) => BlockClass::NonHet,
+        _ => BlockClass::NoteMisread,
+    }
+}
+
 /// What a row's workload is measured on: its `haplotype_lod` blocks with
 /// their differing positions (the comparison's rule positions inside each),
 /// and the truth alleles its report omits (the strict measure's uncovered
@@ -2129,11 +2141,7 @@ fn differences<'r>(
                     .map(|run| run.reading.or(run.convention))
                     .sum::<Option<usize>>()
                     .and_then(|reading| i64::try_from(reading).ok());
-                if reading == Some(truth_length(tract, truth, reference)) {
-                    BlockClass::OmittedTract
-                } else {
-                    BlockClass::NoteMisread
-                }
+                noted(reading, truth_length(tract, truth, reference))
             } else {
                 BlockClass::OmittedOther
             };
@@ -2173,6 +2181,16 @@ mod tests {
     use super::*;
     use crate::compare::Allele;
     use crate::runner::{Called, Identity, Threads};
+
+    #[test]
+    fn an_omission_under_a_note_one_unit_off_is_a_length_note() {
+        assert_eq!(noted(Some(9), 9), BlockClass::OmittedTract);
+        assert_eq!(noted(Some(8), 9), BlockClass::NoteMisread);
+        assert_eq!(noted(Some(10), 9), BlockClass::NoteMisread);
+        assert_eq!(noted(None, 9), BlockClass::NoteMisread);
+        assert_eq!(noted(Some(7), 9), BlockClass::NonHet);
+        assert_eq!(noted(Some(12), 9), BlockClass::NonHet);
+    }
 
     fn identity() -> Identity {
         Identity {

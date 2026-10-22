@@ -127,8 +127,9 @@ pub(crate) struct Escape {
 /// intervals leave out is omitted from the report: `OmittedNotAnalysed` in a
 /// stretch DNA did not analyse (a poor read start or end), `OmittedTract` in
 /// a profile length tract under a `tract_length` note whose reading is the
-/// truth's length, `NoteMisread` there when the reading differs, and
-/// `OmittedOther` anywhere else.
+/// truth's length, `NoteMisread` there when the reading is one unit off or
+/// absent (a length note, user decision 2026-10-22), `NonHet` when it is two
+/// or more units off, and `OmittedOther` anywhere else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Class {
     LengthNote,

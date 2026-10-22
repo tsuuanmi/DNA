@@ -786,8 +786,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     (one whose reading is not), or `omitted_other`. On development panel v5,
     current data, 526 of 8,813 clear samples omit one: 117 not analysed
     (mostly `73G`), 357 omitted tract and 48 misread notes (HVS-II), and 4
-    other. Whether such a sample may count as clear awaits the user.
-  - **Length notes** are a one-unit difference only; two or more is non-het.
+    other. User decisions 2026-10-22: an omission in a stretch not analysed
+    is acceptable only under a check (#306 adds the `not_analysed` item), so
+    `omitted_not_analysed` gates; length notes, omitted tracts, and a note
+    one unit off (`note_misread`) are reported, not gated; a note two or
+    more units off is `non_het`.
+  - **Length notes** are a one-unit difference only; two or more is non-het,
+    for a block and for an omission under a tract note alike.
   - **Duplicate traces** fail the sample typed (`duplicate_trace`,
     ADR-0090) instead of being dropped.
   - **Run signal**: the first pass counts the samples it cannot use

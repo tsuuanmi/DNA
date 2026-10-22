@@ -135,9 +135,9 @@ holds different samples. Differences only outside it are a warning.
 Otherwise it is `GATE PASS`.
 
 - **Gated classes** (`--gate`, comma-separated `unreviewed.tsv` labels): by
-  default `non_het`, `omitted_other`, and `omitted_not_analysed`; the others
-  (heteroplasmy is optional, user decision) gate only when named. Whether an
-  omitted read start or tract length may count as clear awaits the user.
+  default `non_het`, `omitted_other`, and `omitted_not_analysed` (an omission
+  not analysed needs a check, user decision 2026-10-22); length notes,
+  omitted tracts, misread notes, het, truth `N`, and re-check gate only when named.
 - **Without the re-check list.** The verdict gives `b`, `c`, and the gate
   from each escape's class without the list, reported, not gated: a candidate
   that passes only through rows added after its own failure has not passed

@@ -136,8 +136,9 @@ own, in the zone of its anchor:
 - `omitted tract`: in a profile length tract under a `tract_length` note
   whose reading (or, without one, the convention's reading) is the truth's
   count of the tract's base there;
-- `note misread`: there, when the note's reading differs from the truth's
-  count, or the note gives none;
+- `note misread`: there, when the note's reading is one unit off the
+  truth's count, or the note gives none: a length note (user decision
+  2026-10-22); two or more units off is `non-het`;
 - `omitted (other)`: anywhere else.
 
 The re-check list applies to an omission as to a position.
