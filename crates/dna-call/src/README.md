@@ -7,9 +7,10 @@ a placed read assert, its variants and the positions it shows? It depends on
 `dna-kernel` and `dna-align`.
 
 Public surface: `call`, `Eligibility` (the one trust rule, which
-`dna-sample` and `dna-consensus` read), `read_trust`, the `[variant_calling]`
+`dna-sample` and `dna-consensus` read; `shows_base` is its test of a call
+that shows its base), `read_trust`, the `[variant_calling]`
 section, [read_call](read_call.rs) (`call_read`, `call_read_placed` (from a placement a
-`dna.placed_read/v1` document gives, ADR-0087, proposed), `CallConfig`, `CoreRun`,
+`dna.placed_read/v1` document gives, ADR-0087), `CallConfig`, `CoreRun`,
 `ReadIdentity`, `PlacementRejection`, and the descriptor of the `core`
 plugin, one provenance identity across `dna-align`, `dna-call`, and
 `dna-sample`), and the [model](model/README.md). The `test-support` feature
@@ -62,8 +63,8 @@ and target nomenclature belong to `variant_normalization` and
 This module does not infer genotype, heteroplasmy, phase, pathogenicity, or
 clinical significance.
 
-`config.rs` owns the `[variant_calling]`, with the indel-length cap configuration section: its raw record, validated
-record, and rules (ADR-0069).
+`config.rs` owns the `[variant_calling]` configuration section, with the
+indel-length cap: its raw record, validated record, and rules (ADR-0069).
 
 See [variant requirements](../../../docs/requirements/variants.md),
 [variant-calling method](../../../docs/design/variant-calling.md), and

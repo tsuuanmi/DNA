@@ -8,13 +8,40 @@
 //! at a truth heteroplasmy, then DNA calls only where the reviewers did not
 //! analyse, then the same sequence written differently, then a truth allele
 //! where DNA has no callable base. The class follows from the statuses and,
-//! for `unanalysed`, from where the primary differences lie; a baseline run's
-//! classes come from its scores.
+//! for `unanalysed`, from where the primary differences lie.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use crate::baseline::Class;
 use crate::compare::{self, Measure, Reason};
+
+/// The class of a status, across scoring conventions, so that runs that
+/// score on the fair scale (`exact`, `error`) stay comparable with ones that
+/// report concordance (`concordant`, `discordant`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum StatusClass {
+    /// `exact` or `concordant`.
+    Good,
+    /// `error` or `discordant`.
+    Bad,
+    /// `not_applicable`.
+    NotApplicable,
+    /// `failed`.
+    Failed,
+    /// Any other status.
+    Other,
+}
+
+impl StatusClass {
+    pub(crate) fn of(status: &str) -> Self {
+        match status {
+            "exact" | "concordant" => Self::Good,
+            "error" | "discordant" => Self::Bad,
+            "not_applicable" => Self::NotApplicable,
+            "failed" => Self::Failed,
+            _ => Self::Other,
+        }
+    }
+}
 
 /// What a sample's difference from the truth is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -91,31 +118,30 @@ impl Discrepancy {
 
     /// The class of a sample whose status class under each measure is
     /// `class`, and whose primary differences are all DNA calls outside the
-    /// truth's analysed intervals when `unanalysed`; `None` when a deciding
-    /// measure has no status (a baseline that does not report it).
-    pub(crate) fn of(class: impl Fn(Measure) -> Option<Class>, unanalysed: bool) -> Option<Self> {
+    /// truth's analysed intervals when `unanalysed`.
+    pub(crate) fn of(class: impl Fn(Measure) -> StatusClass, unanalysed: bool) -> Self {
         let classes = Self::MEASURES.map(&class);
         for (excluded, discrepancy) in [
-            (Class::Failed, Self::Failed),
-            (Class::NotApplicable, Self::NotComparable),
+            (StatusClass::Failed, Self::Failed),
+            (StatusClass::NotApplicable, Self::NotComparable),
         ] {
-            if classes.iter().flatten().any(|class| *class == excluded) {
-                return Some(discrepancy);
+            if classes.contains(&excluded) {
+                return discrepancy;
             }
         }
-        let mut decided = Self::MEASURES.into_iter().zip(classes);
-        let first = decided.try_fold(None, |found, (measure, class)| {
-            let class = class?;
-            Some(found.or((class != Class::Good).then_some(measure)))
-        })?;
-        Some(match first {
+        let first = Self::MEASURES
+            .into_iter()
+            .zip(classes)
+            .find(|(_, class)| *class != StatusClass::Good)
+            .map(|(measure, _)| measure);
+        match first {
             Some(Measure::HaplotypeIupacCompatible) => Self::Sequence,
             Some(Measure::Haplotype) => Self::Heteroplasmy,
             Some(Measure::Primary) if unanalysed => Self::Unanalysed,
             Some(Measure::Primary) => Self::Representation,
             Some(_) => Self::Coverage,
             None => Self::None,
-        })
+        }
     }
 
     /// The measure whose discordant positions locate the class.
@@ -127,15 +153,6 @@ impl Discrepancy {
             Self::Sequence => Some(Measure::HaplotypeIupacCompatible),
             Self::None | Self::NotComparable | Self::Failed => None,
         }
-    }
-
-    /// A class from the statuses of one baseline sample, which cannot tell
-    /// `unanalysed` from `representation`.
-    pub(crate) fn of_statuses(statuses: &BTreeMap<Measure, String>) -> Option<Self> {
-        Self::of(
-            |measure| statuses.get(&measure).map(|status| Class::of(status)),
-            false,
-        )
     }
 
     /// Whether a primary comparison's differences, its `reasons` at its
@@ -154,27 +171,30 @@ impl Discrepancy {
                 .iter()
                 .all(|position| !compare::inside(position, analysed))
     }
-
-    /// The class a label names.
-    pub(crate) fn from_label(label: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|class| class.label() == label)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn classify(statuses: [&str; 4]) -> Option<Discrepancy> {
+    fn classify(statuses: [&str; 4]) -> Discrepancy {
         Discrepancy::of(
             |measure| {
                 Discrepancy::MEASURES
                     .iter()
                     .position(|decided| *decided == measure)
-                    .map(|index| Class::of(statuses[index]))
+                    .map_or(StatusClass::Other, |index| StatusClass::of(statuses[index]))
             },
             false,
         )
+    }
+
+    #[test]
+    fn statuses_fall_into_classes_across_conventions() {
+        assert_eq!(StatusClass::of("concordant"), StatusClass::of("exact"));
+        assert_eq!(StatusClass::of("discordant"), StatusClass::Bad);
+        assert_eq!(StatusClass::of("failed"), StatusClass::Failed);
+        assert_eq!(StatusClass::of("unknown"), StatusClass::Other);
     }
 
     #[test]
@@ -182,25 +202,19 @@ mod tests {
         // Haplotype IUPAC-compatible, haplotype, primary, strict.
         let good = "concordant";
         let bad = "discordant";
-        assert_eq!(classify([good; 4]), Some(Discrepancy::None));
-        assert_eq!(
-            classify([good, good, good, bad]),
-            Some(Discrepancy::Coverage)
-        );
+        assert_eq!(classify([good; 4]), Discrepancy::None);
+        assert_eq!(classify([good, good, good, bad]), Discrepancy::Coverage);
         assert_eq!(
             classify([good, good, bad, bad]),
-            Some(Discrepancy::Representation)
+            Discrepancy::Representation
         );
-        assert_eq!(
-            classify([good, bad, bad, good]),
-            Some(Discrepancy::Heteroplasmy)
-        );
-        assert_eq!(classify([bad, bad, bad, bad]), Some(Discrepancy::Sequence));
+        assert_eq!(classify([good, bad, bad, good]), Discrepancy::Heteroplasmy);
+        assert_eq!(classify([bad, bad, bad, bad]), Discrepancy::Sequence);
         assert_eq!(
             classify(["not_applicable", good, good, good]),
-            Some(Discrepancy::NotComparable)
+            Discrepancy::NotComparable
         );
-        assert_eq!(classify(["failed"; 4]), Some(Discrepancy::Failed));
+        assert_eq!(classify(["failed"; 4]), Discrepancy::Failed);
     }
 
     #[test]
@@ -208,17 +222,17 @@ mod tests {
         let representation = |unanalysed| {
             Discrepancy::of(
                 |measure| {
-                    Some(Class::of(if measure == Measure::Primary {
+                    StatusClass::of(if measure == Measure::Primary {
                         "discordant"
                     } else {
                         "concordant"
-                    }))
+                    })
                 },
                 unanalysed,
             )
         };
-        assert_eq!(representation(true), Some(Discrepancy::Unanalysed));
-        assert_eq!(representation(false), Some(Discrepancy::Representation));
+        assert_eq!(representation(true), Discrepancy::Unanalysed);
+        assert_eq!(representation(false), Discrepancy::Representation);
         // The truth analysed HVS-II only to 302.
         let analysed = [(73, 302), (438, 576)];
         let dna_only = BTreeSet::from([Reason::DnaOnly]);
@@ -231,13 +245,5 @@ mod tests {
         assert!(!Discrepancy::only_unanalysed(&shared, &outside, &analysed));
         // A truth without intervals analysed everything.
         assert!(!Discrepancy::only_unanalysed(&dna_only, &outside, &[]));
-    }
-
-    #[test]
-    fn needs_every_deciding_measure() {
-        let primary_only = BTreeMap::from([(Measure::Primary, "discordant".to_owned())]);
-        assert_eq!(Discrepancy::of_statuses(&primary_only), None);
-        let failed = BTreeMap::from([(Measure::Primary, "failed".to_owned())]);
-        assert_eq!(Discrepancy::of_statuses(&failed), Some(Discrepancy::Failed));
     }
 }

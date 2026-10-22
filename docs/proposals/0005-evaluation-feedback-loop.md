@@ -363,9 +363,19 @@ The report is written both as machine-readable TSV/JSON and as Markdown.
 
 ### Approval protocol (draft)
 
-The harness implements this protocol as `dna-eval approve` and `dna-eval
-power` ([[validation/evaluation-harness#approval|approval]]); the bounds
-and rules below are inputs of the pre-registration, which the tool checks.
+**Status, 2026-10-21.** The harness no longer implements this protocol: its
+`dna-eval approve` and `dna-eval power`, with the draft triage they read,
+were removed (user decision 2026-10-21). The protocol below approved triage
+pass rules at the sample level, heteroplasmy counted, on a mostly 2025-era
+hold-out; the current goal is auto-pass per region and zone with no
+unflagged non-het error. Before any approval run, its endpoints are
+rewritten per the evaluation validity review's recommendation 5: the
+non-het escape rate per zone kind among auto-passed zones, on recent
+batches only, bounded as non-inferiority to the reviewers' own error rate
+in that zone kind, with blind adjudication pre-declared. The hold-out
+remainder stays reserved until then
+([[engineering/improvement-method#6. Panels and their uses]]). The text
+below is the earlier draft, kept as the record of what was decided.
 
 This protocol approves pass rules on the hold-out (validation panel v3: 115
 whole batches, 10,102 active samples, the same corpus weights as the

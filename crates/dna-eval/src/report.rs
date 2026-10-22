@@ -1,5 +1,5 @@
-//! The run's outputs: per-sample comparisons, estimates, anchors, the diff
-//! against a baseline, and a Markdown summary.
+//! The run's outputs: per-sample comparisons, estimates, anchors, and a
+//! Markdown summary.
 //!
 //! Every sample is compared under each [`Measure`]. Every output but the run
 //! header (`run.json`, which records timings) is a function of the panel, the
@@ -9,18 +9,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use crate::baseline::{Class, Statuses};
 use crate::cause::forms::Forms;
 use crate::cause::{self, Cause, Finding, Scope};
-use crate::classes::Discrepancy;
-use crate::compare::{
-    self, Comparison, Concordance, Failure, Measure, Reason, Region, Side, Yield,
-};
+use crate::classes::{Discrepancy, StatusClass};
+use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Side, Yield};
+use crate::conventions;
 use crate::estimate::{self, Estimate, Observation};
+use crate::geometry::{Geometry, Window as RepeatWindow};
 use crate::haplotype;
 use crate::lod;
-use crate::manifest::Sample;
+use crate::manifest::{Month, Sample};
 use crate::recheck::Recheck;
+use crate::rundir;
 use crate::runner::{Empop, Outcome};
 use crate::truth::{TruthCheck, TruthSample, TruthState};
 use crate::unrecorded;
@@ -31,6 +31,8 @@ use dna_kernel::profile::Convention;
 /// One compared panel sample.
 pub(crate) struct Row<'a> {
     pub(crate) sample: &'a Sample,
+    /// The target geometry the sample is compared in.
+    pub(crate) geometry: &'a Geometry,
     pub(crate) outcome: &'a Outcome,
     /// The sample's truth record, when the truth has one.
     pub(crate) truth: Option<&'a TruthSample>,
@@ -41,7 +43,7 @@ pub(crate) struct Row<'a> {
     pub(crate) below_lod: usize,
     /// Per HV region, the truth's analysed positions DNA's callable
     /// intervals cover.
-    pub(crate) callable_yield: Option<[Yield; 3]>,
+    pub(crate) callable_yield: Option<Vec<Yield>>,
 }
 
 /// Compares every sample's outcome, given in sample order, with its truth
@@ -52,7 +54,7 @@ pub(crate) fn rows<'a>(
     outcomes: &'a [Outcome],
     truth: &'a BTreeMap<String, TruthSample>,
     reference: &str,
-    conventions: &[Convention],
+    (geometry, conventions): (&'a Geometry, &[Convention]),
 ) -> Vec<Row<'a>> {
     let mut rows = samples
         .iter()
@@ -79,25 +81,28 @@ pub(crate) fn rows<'a>(
                         intervals: &record.intervals,
                     };
                     callable_yield = Some(compare::callable_yield(
+                        geometry,
                         &called.intervals,
                         &record.intervals,
                     ));
                     let below = lod::below(&record.alleles, &called.signals);
                     below_lod = below.len();
-                    let haplotypes = compare::haplotypes(dna, truth, reference, None);
-                    let lod_haplotypes = compare::haplotypes(dna, truth, reference, Some(&below));
+                    let haplotypes = compare::haplotypes(geometry, dna, truth, reference, None);
+                    let lod_haplotypes =
+                        compare::haplotypes(geometry, dna, truth, reference, Some(&below));
                     Ok(Measure::ALL.map(|measure| {
                         let haplotypes = if measure == Measure::HaplotypeLod {
                             &lod_haplotypes
                         } else {
                             &haplotypes
                         };
-                        compare::compare(dna, truth, measure, haplotypes, &below)
+                        compare::compare(geometry, dna, truth, measure, haplotypes, &below)
                     }))
                 }
             };
             Row {
                 sample,
+                geometry,
                 outcome,
                 truth: record,
                 comparisons,
@@ -162,10 +167,9 @@ impl Row<'_> {
     /// The sample's discrepancy class.
     pub(crate) fn discrepancy(&self) -> Discrepancy {
         Discrepancy::of(
-            |measure| Some(Class::of(self.status(measure).label())),
+            |measure| StatusClass::of(self.status(measure).label()),
             self.unanalysed(),
         )
-        .unwrap_or(Discrepancy::Failed)
     }
 
     /// Whether every primary difference is a DNA call outside the truth's
@@ -208,11 +212,11 @@ impl Row<'_> {
     }
 
     /// The windows of the class's discordant positions.
-    fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<Region> {
+    fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<RepeatWindow> {
         discrepancy
             .measure()
             .and_then(|measure| self.comparison(measure).ok())
-            .map(regions)
+            .map(|comparison| regions(self.geometry, comparison))
             .unwrap_or_default()
     }
 
@@ -303,44 +307,6 @@ impl Metric {
     }
 }
 
-/// How a sample's outcome moved against the baseline under one measure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Change {
-    /// Exact or concordant in the baseline, not now.
-    Regression,
-    /// Not exact or concordant in the baseline, exact or concordant now.
-    Fix,
-    /// Another change of status class.
-    Changed,
-    /// Absent from the baseline.
-    Added,
-    /// In the baseline, absent from this panel.
-    Removed,
-    /// The same status class.
-    Same,
-}
-
-impl Change {
-    const ALL: [Self; 5] = [
-        Self::Regression,
-        Self::Fix,
-        Self::Changed,
-        Self::Added,
-        Self::Removed,
-    ];
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Regression => "regression",
-            Self::Fix => "fix",
-            Self::Changed => "changed",
-            Self::Added => "added",
-            Self::Removed => "removed",
-            Self::Same => "same",
-        }
-    }
-}
-
 /// Every derived output of one run.
 /// The header of `unreviewed.tsv`.
 pub(crate) const UNREVIEWED_HEADER: &str =
@@ -348,7 +314,7 @@ pub(crate) const UNREVIEWED_HEADER: &str =
 
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
-    baseline: Option<&'a Statuses>,
+    geometry: &'a Geometry,
     check: &'a TruthCheck,
     estimates: Vec<(Weighting, Metric, Estimate)>,
     /// Per row, its cause and findings.
@@ -357,11 +323,8 @@ pub(crate) struct Report<'a> {
     review: Review,
     /// The first batch month (`YYYY-MM`) of the current data, whose slice
     /// the summary reports first.
-    current_since: Option<String>,
+    current_since: Option<Month>,
 }
-
-/// Default window of the review workload, in positions.
-pub(crate) const REVIEW_WINDOW: i64 = 10;
 
 /// The review workload of a run: its windows, its forced windows, its
 /// re-check list, and each row's workload when the row was compared.
@@ -379,13 +342,12 @@ struct Review {
 impl Review {
     fn of(
         rows: &[Row<'_>],
-        window: i64,
-        forced: Option<Vec<(i64, i64)>>,
-        zones: Option<Zones>,
+        (window, geometry): (i64, &Geometry),
+        (forced, zones): (Option<Vec<(i64, i64)>>, Option<Zones>),
         recheck: Option<Recheck>,
         tracts: Vec<Tract>,
     ) -> Self {
-        let windows = workload::windows(window);
+        let windows = workload::windows(window, geometry.regions());
         let workloads = rows
             .iter()
             .map(|row| {
@@ -438,8 +400,7 @@ impl<'a> Report<'a> {
     /// identifier, the causes on the truth's written `forms` and `reference`.
     pub(crate) fn new(
         rows: &'a [Row<'a>],
-        baseline: Option<&'a Statuses>,
-        check: &'a TruthCheck,
+        (geometry, check): (&'a Geometry, &'a TruthCheck),
         (forms, reference): (&Forms, &str),
     ) -> Self {
         let estimates = Weighting::ALL
@@ -464,11 +425,17 @@ impl<'a> Report<'a> {
         let causes = rows.iter().map(|row| row.cause(forms, reference)).collect();
         Self {
             rows,
-            baseline,
+            geometry,
             check,
             estimates,
             causes,
-            review: Review::of(rows, REVIEW_WINDOW, None, None, None, Vec::new()),
+            review: Review::of(
+                rows,
+                (conventions::REVIEW_WINDOW, geometry),
+                (None, None),
+                None,
+                Vec::new(),
+            ),
             current_since: None,
         }
     }
@@ -485,20 +452,15 @@ impl<'a> Report<'a> {
 
     /// The same report with the samples whose batch date is in or after
     /// `since` (`YYYY-MM`) reported first as the current data.
-    pub(crate) fn with_current_since(mut self, since: Option<String>) -> Self {
+    pub(crate) fn with_current_since(mut self, since: Option<Month>) -> Self {
         self.current_since = since;
         self
     }
 
     /// Whether a row belongs to the current data.
     fn current(&self, row: &Row<'_>) -> bool {
-        self.current_since.as_deref().is_some_and(|since| {
-            row.sample
-                .batch_date
-                .as_deref()
-                .and_then(|date| date.get(..7))
-                .is_some_and(|month| month >= since)
-        })
+        self.current_since
+            .is_some_and(|since| row.sample.batch_month.is_some_and(|month| month >= since))
     }
 
     /// The same report with the review workload over windows of `window`
@@ -513,62 +475,30 @@ impl<'a> Report<'a> {
         recheck: Option<Recheck>,
         tracts: Vec<Tract>,
     ) -> Self {
-        self.review = Review::of(self.rows, window, forced, zones, recheck, tracts);
+        self.review = Review::of(
+            self.rows,
+            (window, self.geometry),
+            (forced, zones),
+            recheck,
+            tracts,
+        );
         self
     }
 
-    /// The change under `measure`, or `None` without a baseline or when the
-    /// baseline does not report the measure.
-    fn change(&self, row: &Row<'_>, measure: Measure) -> Option<Change> {
-        let baseline = self.baseline.filter(|baseline| baseline.reports(measure))?;
-        let Some(before) = baseline.get(&row.sample.id) else {
-            return Some(Change::Added);
-        };
-        let before = Class::of(before.get(&measure)?);
-        let now = Class::of(row.status(measure).label());
-        Some(if before == Class::Good && now != Class::Good {
-            Change::Regression
-        } else if before != Class::Good && now == Class::Good {
-            Change::Fix
-        } else if before != now {
-            Change::Changed
-        } else {
-            Change::Same
-        })
-    }
-
-    /// Baseline samples absent from this panel, with their statuses.
-    fn removed(&self) -> Vec<(&'a str, &'a BTreeMap<Measure, String>)> {
-        let present = self
-            .rows
-            .iter()
-            .map(|row| row.sample.id.as_str())
-            .collect::<BTreeSet<_>>();
-        self.baseline
-            .into_iter()
-            .flat_map(|baseline| &baseline.samples)
-            .filter(|(sample, _)| !present.contains(sample.as_str()))
-            .map(|(sample, statuses)| (sample.as_str(), statuses))
-            .collect()
-    }
-
-    /// Every deterministic output file, by name; `diff.tsv` only with a
-    /// baseline, `truth_changes.tsv` whenever the panel's truth changed.
+    /// Every deterministic output file, by name; `truth_changes.tsv` only
+    /// when the panel's truth changed.
     /// `context` heads the summary.
     pub(crate) fn files(&self, context: &[(&str, String)]) -> Vec<(&'static str, String)> {
         let mut files = vec![
-            ("scores.tsv", self.scores()),
+            (rundir::SCORES, self.scores()),
             ("estimates.tsv", self.estimates()),
             ("anchors.tsv", self.anchors()),
             ("windows.tsv", self.windows()),
         ];
-        if let Some(diff) = self.diff() {
-            files.push(("diff.tsv", diff));
-        }
         if self.check.state() == TruthState::Changed {
             files.push(("truth_changes.tsv", self.check.changes()));
         }
-        files.push(("unreviewed.tsv", self.unreviewed()));
+        files.push((rundir::UNREVIEWED, self.unreviewed()));
         files.push(("summary.md", self.summary(context)));
         files
     }
@@ -714,9 +644,9 @@ impl<'a> Report<'a> {
                         labels(&comparison.reasons),
                         compare::sorted_positions(&comparison.positions).join(" "),
                         u8::from(comparison.iupac_only),
-                        regions(comparison)
+                        regions(row.geometry, comparison)
                             .iter()
-                            .map(|region| region.label())
+                            .map(RepeatWindow::label)
                             .collect::<Vec<_>>()
                             .join(","),
                     )
@@ -752,9 +682,12 @@ impl<'a> Report<'a> {
                         )
                     },
                 );
-            let callable_yield = row.callable_yield.map_or_else(String::new, |yields| {
-                yields.map(|value| value.text()).join(" ")
-            });
+            let callable_yield = row
+                .callable_yield
+                .as_ref()
+                .map_or_else(String::new, |yields| {
+                    yields.iter().map(Yield::text).collect::<Vec<_>>().join(" ")
+                });
             let below_lod = if row.comparisons.is_ok() {
                 row.below_lod.to_string()
             } else {
@@ -764,7 +697,7 @@ impl<'a> Report<'a> {
             let class_regions = row
                 .discrepancy_regions(discrepancy)
                 .iter()
-                .map(|region| region.label())
+                .map(RepeatWindow::label)
                 .collect::<Vec<_>>()
                 .join(",");
             let failure = row
@@ -901,7 +834,7 @@ impl<'a> Report<'a> {
     /// The review workload: positions to review, samples with an
     /// unreviewed difference overall, by region, and by batch month, clear
     /// samples, the windows with the most unreviewed differences, and the
-    /// forced windows' and the baseline's effect.
+    /// forced windows' effect.
     fn review_section(&self, text: &mut String) {
         let counted = self.review.counted(self.rows);
         if counted.is_empty() {
@@ -1006,21 +939,6 @@ impl<'a> Report<'a> {
                 percent(unreviewed as f64, samples as f64),
             );
         }
-        if let Some(baseline) = self.baseline.filter(|baseline| !baseline.review.is_empty()) {
-            let before = counted
-                .iter()
-                .filter_map(|(row, _)| baseline.review.get(&row.sample.id))
-                .collect::<Vec<_>>();
-            let positions = before.iter().map(|(positions, _)| *positions).sum::<i64>();
-            let unreviewed = before.iter().filter(|(_, unreviewed)| *unreviewed).count();
-            let _ = writeln!(
-                text,
-                "| Baseline, same samples: positions to review | {positions} |\n\
-                 | Baseline, same samples: samples with an unreviewed difference | {unreviewed} \
-                 of {} |",
-                before.len()
-            );
-        }
         if let Some(recheck) = &self.review.recheck {
             let matched = counted
                 .iter()
@@ -1065,16 +983,8 @@ impl<'a> Report<'a> {
         for (row, workload) in &counted {
             let month = row
                 .sample
-                .batch_date
-                .as_deref()
-                .and_then(|date| date.get(..7))
-                .filter(|month| {
-                    month.len() == 7
-                        && month.as_bytes()[4] == b'-'
-                        && month.bytes().filter(u8::is_ascii_digit).count() == 6
-                })
-                .unwrap_or("unknown")
-                .to_owned();
+                .batch_month
+                .map_or_else(|| "unknown".to_owned(), |month| month.to_string());
             let entry = months.entry(month).or_default();
             entry.0 += 1;
             entry.1 += usize::from(!workload.unreviewed.is_empty());
@@ -1362,8 +1272,7 @@ impl<'a> Report<'a> {
     /// The zones to check of `samples`: per sample (mean, median, 90th
     /// percentile, none), the items that touch more than one zone, the
     /// samples with a check in each zone, the unreviewed blocks by the zone
-    /// of their first position, and with a baseline that reports zones, its
-    /// zones per sample on the same samples.
+    /// of their first position.
     fn zone_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
         let Some(zones) = &self.review.zones else {
             return;
@@ -1410,20 +1319,6 @@ impl<'a> Report<'a> {
                 0.0
             },
         );
-        if let Some(baseline) = self.baseline.filter(|baseline| !baseline.zones.is_empty()) {
-            let before = samples
-                .iter()
-                .filter_map(|(row, _)| baseline.zones.get(&row.sample.id))
-                .collect::<Vec<_>>();
-            if !before.is_empty() {
-                let _ = writeln!(
-                    text,
-                    "| Baseline, same samples: zones per sample, mean | {:.2} (of {}) |",
-                    before.iter().copied().sum::<usize>() as f64 / before.len() as f64,
-                    before.len()
-                );
-            }
-        }
         text.push_str("\n| Zone | Samples with a check | Share |\n|---|---:|---:|\n");
         for instance in zones.instances() {
             let count = samples
@@ -1460,79 +1355,21 @@ impl<'a> Report<'a> {
         }
     }
 
-    /// `anchors.tsv`: every anchor candidate under each measure, with its
-    /// baseline status and primary change.
+    /// `anchors.tsv`: every anchor candidate under each measure.
     fn anchors(&self) -> String {
         let mut text = String::from("sample_id\tstratum");
         for measure in Measure::ALL {
             let _ = write!(text, "\t{}", measure.column());
         }
-        text.push_str("\tbaseline_status\tchange\n");
+        text.push('\n');
         for row in self.rows.iter().filter(|row| row.sample.anchor) {
-            let before = self
-                .baseline
-                .and_then(|baseline| baseline.get(&row.sample.id))
-                .and_then(|statuses| statuses.get(&Measure::Primary))
-                .map_or("", String::as_str);
-            let change = self.change(row, Measure::Primary).map_or("", Change::label);
             let _ = write!(text, "{}\t{}", row.sample.id, row.sample.stratum);
             for measure in Measure::ALL {
                 let _ = write!(text, "\t{}", row.status(measure).label());
             }
-            let _ = writeln!(text, "\t{before}\t{change}");
-        }
-        text
-    }
-
-    /// `diff.tsv`: per measure the baseline reports, the samples whose status
-    /// class changed.
-    fn diff(&self) -> Option<String> {
-        let baseline = self.baseline?;
-        let mut lines = BTreeMap::new();
-        for row in self.rows {
-            for measure in Measure::ALL {
-                let Some(change) = self
-                    .change(row, measure)
-                    .filter(|change| *change != Change::Same)
-                else {
-                    continue;
-                };
-                let before = baseline
-                    .get(&row.sample.id)
-                    .and_then(|statuses| statuses.get(&measure))
-                    .map_or("", String::as_str);
-                lines.insert(
-                    (row.sample.id.as_str(), measure),
-                    format!(
-                        "{}\t{}\t{}\t{before}\t{}\t{}",
-                        row.sample.id,
-                        row.sample.stratum,
-                        measure.label(),
-                        row.status(measure).label(),
-                        change.label()
-                    ),
-                );
-            }
-        }
-        for (sample, statuses) in self.removed() {
-            for (measure, before) in statuses {
-                lines.insert(
-                    (sample, *measure),
-                    format!(
-                        "{sample}\t\t{}\t{before}\t\t{}",
-                        measure.label(),
-                        Change::Removed.label()
-                    ),
-                );
-            }
-        }
-        let mut text =
-            String::from("sample_id\tstratum\tmeasure\tbaseline_status\tstatus\tchange\n");
-        for line in lines.into_values() {
-            text.push_str(&line);
             text.push('\n');
         }
-        Some(text)
+        text
     }
 
     /// `summary.md`: the run in aggregate.
@@ -1567,7 +1404,6 @@ impl<'a> Report<'a> {
         self.secondary_section(&mut text);
         self.anchor_section(&mut text);
         self.review_section(&mut text);
-        self.baseline_section(&mut text);
 
         let mut failures = BTreeMap::<&str, usize>::new();
         for row in self.rows {
@@ -1726,21 +1562,19 @@ impl<'a> Report<'a> {
         text.push_str(
             "\nBy the window of a discordant position:\n\n| Region | Samples |\n|---|---:|\n",
         );
-        for region in Region::ALL {
+        for region in self.geometry.all_windows() {
             let count = discordant
                 .iter()
-                .filter(|comparison| regions(comparison).contains(&region))
+                .filter(|comparison| regions(self.geometry, comparison).contains(&region))
                 .count();
             let _ = writeln!(text, "| {} | {count} |", region.label());
         }
     }
 
-    /// Samples per discrepancy class and window, retired ones left out, and
-    /// with a baseline that reports every deciding measure, the samples whose
-    /// class changed.
+    /// Samples per discrepancy class and window, retired ones left out.
     fn class_section(&self, text: &mut String) {
         let current = self.rows.iter().filter(|row| !row.sample.retired);
-        let mut classes = BTreeMap::<Discrepancy, (usize, BTreeMap<Region, usize>)>::new();
+        let mut classes = BTreeMap::<Discrepancy, (usize, BTreeMap<RepeatWindow, usize>)>::new();
         for row in current.clone() {
             let discrepancy = row.discrepancy();
             let (samples, windows) = classes.entry(discrepancy).or_default();
@@ -1757,11 +1591,11 @@ impl<'a> Report<'a> {
              the samples with a discordant position of their class in it.\n\n\
              | Class | Owner | Samples |",
         );
-        for region in Region::ALL {
+        for region in self.geometry.all_windows() {
             let _ = write!(text, " {} |", region.label());
         }
         text.push_str("\n|---|---|---:|");
-        text.push_str(&"---:|".repeat(Region::ALL.len()));
+        text.push_str(&"---:|".repeat(self.geometry.all_windows().len()));
         text.push('\n');
         for discrepancy in Discrepancy::ALL {
             let (samples, windows) = classes.get(&discrepancy).cloned().unwrap_or_default();
@@ -1771,7 +1605,7 @@ impl<'a> Report<'a> {
                 discrepancy.label(),
                 discrepancy.owner()
             );
-            for region in Region::ALL {
+            for region in self.geometry.all_windows() {
                 let _ = write!(
                     text,
                     " {} |",
@@ -1783,40 +1617,6 @@ impl<'a> Report<'a> {
         self.cause_tables(text);
         self.empop_section(text);
         self.yield_section(text);
-        let Some(baseline) = self.baseline.filter(|baseline| {
-            Discrepancy::MEASURES
-                .iter()
-                .all(|measure| baseline.reports(*measure))
-        }) else {
-            return;
-        };
-        let mut moves = BTreeMap::<(&str, &str), usize>::new();
-        for row in current {
-            let before = baseline
-                .classes
-                .get(&row.sample.id)
-                .and_then(|label| Discrepancy::from_label(label))
-                .or_else(|| {
-                    baseline
-                        .get(&row.sample.id)
-                        .and_then(Discrepancy::of_statuses)
-                })
-                .map_or("(absent)", Discrepancy::label);
-            let now = row.discrepancy().label();
-            if before != now {
-                *moves.entry((before, now)).or_default() += 1;
-            }
-        }
-        text.push_str(
-            "\nSamples whose class changed against the baseline:\n\n\
-             | Baseline class | Class | Samples |\n|---|---|---:|\n",
-        );
-        if moves.is_empty() {
-            text.push_str("| - | - | 0 |\n");
-        }
-        for ((before, now), count) in moves {
-            let _ = writeln!(text, "| {before} | {now} | {count} |");
-        }
     }
 
     /// DNA's callable yield: per HV region, the truth's analysed positions
@@ -1826,7 +1626,7 @@ impl<'a> Report<'a> {
             .rows
             .iter()
             .filter(|row| !row.sample.retired)
-            .filter_map(|row| row.callable_yield)
+            .filter_map(|row| row.callable_yield.as_ref())
             .collect::<Vec<_>>();
         if yields.is_empty() {
             return;
@@ -1837,10 +1637,10 @@ impl<'a> Report<'a> {
              | Region | Samples | Analysed | Callable | Share | Samples short |\n\
              |---|---:|---:|---:|---:|---:|\n",
         );
-        for index in 0..3 {
+        for (index, name) in self.geometry.regions().iter().enumerate() {
             let region = yields
                 .iter()
-                .map(|values| values[index])
+                .filter_map(|values| values.get(index))
                 .filter(|value| value.analysed > 0)
                 .collect::<Vec<_>>();
             let analysed = region.iter().map(|value| value.analysed).sum::<u64>();
@@ -1854,7 +1654,7 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "| {} | {} | {analysed} | {callable} | {share:.4} | {} |",
-                yields[0][index].region,
+                name.name,
                 region.len(),
                 region
                     .iter()
@@ -2022,11 +1822,11 @@ impl<'a> Report<'a> {
              | Base measure | Haplotype measure | Discordant | Same sequence | Still discordant | \
              Blocks | Open blocks |",
         );
-        for region in Region::ALL {
+        for region in self.geometry.all_windows() {
             let _ = write!(text, " Same: {} |", region.label());
         }
         text.push_str("\n|---|---|---:|---:|---:|---:|---:|");
-        text.push_str(&"---:|".repeat(Region::ALL.len()));
+        text.push_str(&"---:|".repeat(self.geometry.all_windows().len()));
         text.push('\n');
         for (base, measure) in pairs {
             let discordant = self
@@ -2058,10 +1858,10 @@ impl<'a> Report<'a> {
                 blocks.len(),
                 blocks.iter().filter(|block| block.open).count(),
             );
-            for region in Region::ALL {
+            for region in self.geometry.all_windows() {
                 let count = same
                     .iter()
-                    .filter(|comparison| regions(comparison).contains(&region))
+                    .filter(|comparison| regions(self.geometry, comparison).contains(&region))
                     .count();
                 let _ = write!(text, " {count} |");
             }
@@ -2089,94 +1889,6 @@ impl<'a> Report<'a> {
                 .map(|measure| format!("{} {}", measure.label(), concordant(measure)))
                 .join(", ")
         );
-        if let Some(baseline) = self.baseline {
-            let set = anchors
-                .iter()
-                .filter(|row| {
-                    baseline
-                        .get(&row.sample.id)
-                        .and_then(|statuses| statuses.get(&Measure::Primary))
-                        .is_some_and(|status| Class::of(status) == Class::Good)
-                })
-                .collect::<Vec<_>>();
-            let regressions = set
-                .iter()
-                .filter(|row| row.status(Measure::Primary) != Status::Concordant)
-                .count();
-            let _ = writeln!(
-                text,
-                "{} candidates were exact or concordant in the baseline (the anchor set); \
-                 {regressions} of them are not concordant now.",
-                set.len()
-            );
-        }
-    }
-
-    fn baseline_section(&self, text: &mut String) {
-        let Some(baseline) = self.baseline else {
-            return;
-        };
-        let mut transitions = BTreeMap::<(&str, &str), usize>::new();
-        let mut changes = BTreeMap::<(Measure, Change), usize>::new();
-        for row in self.rows {
-            let before = baseline
-                .get(&row.sample.id)
-                .and_then(|statuses| statuses.get(&Measure::Primary))
-                .map_or("(absent)", String::as_str);
-            *transitions
-                .entry((before, row.status(Measure::Primary).label()))
-                .or_default() += 1;
-            for measure in Measure::ALL {
-                if let Some(change) = self.change(row, measure) {
-                    *changes.entry((measure, change)).or_default() += 1;
-                }
-            }
-        }
-        for (_, statuses) in self.removed() {
-            for measure in statuses.keys() {
-                *changes.entry((*measure, Change::Removed)).or_default() += 1;
-            }
-        }
-        text.push_str(
-            "\n## Against the baseline\n\nPrimary status against the baseline's `status`:\n\n\
-             | Baseline status | Status | Samples |\n|---|---|---:|\n",
-        );
-        for ((before, now), count) in transitions {
-            let _ = writeln!(text, "| {before} | {now} | {count} |");
-        }
-        text.push_str("\nChanges of status class, per measure the baseline reports:\n\n| Change |");
-        table_header(text, "|---|");
-        for change in Change::ALL {
-            let _ = write!(text, "| {} |", change.label());
-            for measure in Measure::ALL {
-                let count = changes.get(&(measure, change)).copied().unwrap_or_default();
-                let _ = write!(text, " {count} |");
-            }
-            text.push('\n');
-        }
-        if let Some(since) = &self.current_since {
-            let mut current = BTreeMap::<(Measure, Change), usize>::new();
-            for row in self.rows.iter().filter(|row| self.current(row)) {
-                for measure in Measure::ALL {
-                    if let Some(change) = self.change(row, measure) {
-                        *current.entry((measure, change)).or_default() += 1;
-                    }
-                }
-            }
-            let _ = write!(
-                text,
-                "\nThe same on current data (batch date in or after {since}):\n\n| Change |"
-            );
-            table_header(text, "|---|");
-            for change in Change::ALL {
-                let _ = write!(text, "| {} |", change.label());
-                for measure in Measure::ALL {
-                    let count = current.get(&(measure, change)).copied().unwrap_or_default();
-                    let _ = write!(text, " {count} |");
-                }
-                text.push('\n');
-            }
-        }
     }
 }
 
@@ -2203,11 +1915,13 @@ fn labels(reasons: &BTreeSet<Reason>) -> String {
 }
 
 /// The windows of a comparison's discordant positions.
-fn regions(comparison: &Comparison) -> BTreeSet<Region> {
+fn regions(geometry: &Geometry, comparison: &Comparison) -> BTreeSet<RepeatWindow> {
     comparison
         .positions
         .iter()
-        .map(|position| Region::of(position))
+        .map(|position| {
+            compare::anchor(position).map_or(RepeatWindow::Other, |base| geometry.window_at(base))
+        })
         .collect()
 }
 
@@ -2335,13 +2049,8 @@ mod tests {
                 identity: identity(),
             })
         };
-        let call = |sample: &Sample, traces: &[PathBuf]| -> crate::runner::Ran {
-            (called(sample, traces), None)
-        };
-        let baseline = crate::baseline::parse(
-            b"sample_id\tstatus\tstrict_status\nS00\texact\tconcordant\nS01\texact\tdiscordant\n\
-              S02\terror\terror\nGONE\texact\texact\n",
-        )?;
+        let call =
+            |sample: &Sample, traces: &[PathBuf]| -> crate::runner::Ran { called(sample, traces) };
         let check = TruthCheck::new(&manifest, &truth);
         assert_eq!(check.state(), TruthState::NotRecorded);
         let outputs = |threads: usize| -> Result<Vec<(&str, String)>, Box<dyn std::error::Error>> {
@@ -2352,12 +2061,14 @@ mod tests {
                 &outcomes,
                 &truth.samples,
                 compare::tests::rcrs(),
-                &[],
+                (crate::geometry::tests::rcrs(), &[]),
             );
-            Ok(
-                Report::new(&rows, Some(&baseline), &check, (&Forms::default(), ""))
-                    .files(&[("panel", "synthetic".to_owned())]),
+            Ok(Report::new(
+                &rows,
+                (crate::geometry::tests::rcrs(), &check),
+                (&Forms::default(), ""),
             )
+            .files(&[("panel", "synthetic".to_owned())]))
         };
         let one = outputs(1)?;
         assert_eq!(one, outputs(8)?);
@@ -2370,7 +2081,6 @@ mod tests {
                 "estimates.tsv",
                 "anchors.tsv",
                 "windows.tsv",
-                "diff.tsv",
                 "unreviewed.tsv",
                 "summary.md"
             ]
@@ -2380,11 +2090,11 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tdefect\tlab:no_read@16189\t\t\t\t\tHV1=0/342 HV2=268/268 HV3=0/0\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thvs_i\tlab\tdefect\tlab:no_read@16189\t\t\t\t\tHV1=0/342 HV2=268/268 HV3=0/0\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
-             shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
+             shared_position,dna_only,truth_only\t16189\t1\thvs_i\tdiscordant\tN\t\t\
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thvs_i\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
             "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\t\t\t\t\t\
              2\t\tdna: 2 traces",
@@ -2392,7 +2102,7 @@ mod tests {
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
-             dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
+             dna_only,truth_only\t150 16189\t0\thvs_i,other\tdiscordant\tN\t\tdiscordant\tN\t\
              discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tdefect\tundetermined:adjudicate\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
@@ -2405,62 +2115,17 @@ mod tests {
             assert!(scores.contains(&format!("{line}\t")), "{line}");
         }
 
-        let diff = &one[4].1;
-        for line in [
-            "S00\thard\tstrict\tconcordant\tdiscordant\tregression",
-            "S01\tclean\tprimary\texact\tdiscordant\tregression",
-            "S02\tclean\tprimary\terror\tfailed\tchanged",
-            "S02\tclean\tstrict\terror\tfailed\tchanged",
-            "S03\thard\tprimary\t\tnot_applicable\tadded",
-            "GONE\t\tprimary\texact\t\tremoved",
-            "GONE\t\tstrict\texact\t\tremoved",
-        ] {
-            assert!(diff.contains(&format!("{line}\n")), "{line}");
-        }
-        assert!(!diff.contains("S00\thard\tprimary"));
-        assert!(!diff.contains("S01\tclean\tstrict"));
-        // Added and removed samples count under every measure the baseline
-        // reports, and under no other.
-        assert!(diff.contains("S03\thard\tstrict\t\tnot_applicable\tadded\n"));
-        assert!(!diff.contains("\tiupac_compatible\t"));
-        let summary_counts = |summary: &str, change: &str| {
-            summary
-                .lines()
-                .find(|line| line.starts_with(&format!("| {change} |")))
-                .map(str::to_owned)
-        };
-        for (change, line) in [
-            ("added", "| added | 27 | 27 | 0 | 0 | 0 | 0 |"),
-            ("removed", "| removed | 1 | 1 | 0 | 0 | 0 | 0 |"),
-            ("regression", "| regression | 1 | 1 | 0 | 0 | 0 | 0 |"),
-        ] {
-            assert_eq!(summary_counts(&one[6].1, change).as_deref(), Some(line));
-            for (measure, column) in [("primary", 2), ("strict", 3), ("iupac_compatible", 4)] {
-                let rows = diff
-                    .lines()
-                    .filter(|row| row.contains(&format!("\t{measure}\t")) && row.ends_with(change))
-                    .count();
-                let summary = line.split(" | ").nth(column - 1).unwrap_or_default();
-                assert_eq!(
-                    rows.to_string(),
-                    summary.trim_end_matches(" |"),
-                    "{measure} {change}"
-                );
-            }
-        }
         let anchors = &one[2].1;
         assert!(anchors.contains(
-            "S00\thard\tconcordant\tdiscordant\tconcordant\tconcordant\tconcordant\tconcordant\texact\tsame\n"
+            "S00\thard\tconcordant\tdiscordant\tconcordant\tconcordant\tconcordant\tconcordant\n"
         ));
         let estimates = &one[1].1;
         assert!(estimates.contains("corpus\tstrict\tnot_concordant\tall\t"));
         assert!(estimates.contains("pool\tall\tfailed\tall\t"));
-        let summary = &one[6].1;
+        let summary = &one[5].1;
         for line in [
             "| without a truth record | 1 |",
             "| truth batch differs from the panel batch | 1 |",
-            "| exact | discordant | 1 |",
-            "| regression | 1 | 1 | 0 | 0 | 0 |",
             "| coverage | core callability, or the lab's assay | 6 | 0 | 6 | 0 | 0 | 0 |",
             "| sequence | core, or the truth (adjudication) | 5 | 0 | 0 | 0 | 0 | 5 |",
             "| not_comparable | the input, or coverage | 6 | 0 | 0 | 0 | 0 | 0 |",
@@ -2497,7 +2162,12 @@ mod tests {
                 current: digest("d"),
             }],
         };
-        let files = Report::new(&[], None, &check, (&Forms::default(), "")).files(&[]);
+        let files = Report::new(
+            &[],
+            (crate::geometry::tests::rcrs(), &check),
+            (&Forms::default(), ""),
+        )
+        .files(&[]);
         let names = files.iter().map(|(name, _)| *name).collect::<Vec<_>>();
         assert_eq!(
             names,
@@ -2525,7 +2195,12 @@ mod tests {
             changed: Vec::new(),
             ..check
         };
-        let files = Report::new(&[], None, &unchanged, (&Forms::default(), "")).files(&[]);
+        let files = Report::new(
+            &[],
+            (crate::geometry::tests::rcrs(), &unchanged),
+            (&Forms::default(), ""),
+        )
+        .files(&[]);
         assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
         assert!(files[5].1.contains("Panel truth: unchanged"));
         // The header digest differs while no row does: the file is still
@@ -2535,7 +2210,12 @@ mod tests {
             changed: Vec::new(),
             ..unchanged
         };
-        let files = Report::new(&[], None, &header_only, (&Forms::default(), "")).files(&[]);
+        let files = Report::new(
+            &[],
+            (crate::geometry::tests::rcrs(), &header_only),
+            (&Forms::default(), ""),
+        )
+        .files(&[]);
         let tsv = files
             .iter()
             .find(|(name, _)| *name == "truth_changes.tsv")

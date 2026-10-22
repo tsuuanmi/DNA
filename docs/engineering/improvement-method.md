@@ -78,7 +78,7 @@ Ownership of each step is in the [crate router](../../crates/README.md).
   heteroplasmies and added non-het escapes, so it was rejected.
 - **Truth is guidance, not an oracle.** A difference the raw signal shows to
   be a truth error goes to the re-check list or to the `truth_n` and
-  `length_note` classes ([[validation/evaluation-triage]]). It is never fitted:
+  `length_note` classes ([[validation/evaluation-workload]]). It is never fitted:
   no rule is tuned to reproduce a reviewer's habit.
 
 ## 4. Data-driven levels
@@ -103,7 +103,7 @@ numeric tolerances are not levels.
 |---|---|
 | development: dev v5 and readiness-v2 | tuning, censuses, per-sample inspection, `dna-eval diff` |
 | the untouched test set: readiness-v6 | one logged use per decision, aggregates only, each `source` reported separately; never inspected per sample while tuning |
-| the reserved hold-out remainder: the approval hold-out less the batches readiness-v6 took | `dna-eval approve` only, under a committed pre-registration |
+| the reserved hold-out remainder: the approval hold-out less the batches readiness-v6 took | none: it stays reserved. `dna-eval` refuses a hold-out panel; the approval path that will read it is designed later, with endpoints per zone kind among auto-passed zones on recent batches (evaluation validity review, recommendation 5) |
 
 - Test sets are built from recent batches only.
 - A test-set result that drives a rule change makes that panel development

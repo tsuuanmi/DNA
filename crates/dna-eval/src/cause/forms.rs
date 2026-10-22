@@ -12,16 +12,19 @@ use std::fmt::Write as _;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::compare::{self, Allele, Region};
+use crate::compare::{self, Allele};
+use crate::geometry::{Geometry, Window};
 use crate::truth::TruthSample;
 
 /// Written forms of the truth.
 #[derive(Debug, Default)]
 pub(crate) struct Forms {
     /// Per window and window sequence, the samples per written form.
-    windows: BTreeMap<(Region, String), BTreeMap<String, usize>>,
+    windows: BTreeMap<(Window, String), BTreeMap<String, usize>>,
     /// The samples per set of calls outside the windows.
     outside: BTreeMap<BTreeSet<String>, usize>,
+    /// The geometry's windows with their bounds.
+    spans: Vec<(Window, i64, i64)>,
 }
 
 /// Which side writes the majority form.
@@ -36,21 +39,25 @@ pub(crate) enum Majority {
 }
 
 impl Forms {
-    /// Indexes every sample of `samples` with IUPAC-free calls in a window,
-    /// on `reference`.
+    /// Indexes every sample of `samples` with IUPAC-free calls in a window
+    /// of `geometry`, on `reference`.
     pub(crate) fn new<'a>(
         samples: impl IntoIterator<Item = &'a TruthSample>,
         reference: &str,
+        geometry: &Geometry,
     ) -> Self {
-        let mut forms = Self::default();
+        let mut forms = Self {
+            spans: geometry.window_bounds().collect(),
+            ..Self::default()
+        };
         for sample in samples {
-            for (window, first, last) in Region::WINDOWS {
-                if let Some(sequence) = window_sequence(&sample.alleles, first, last, reference) {
+            for (window, first, last) in &forms.spans {
+                if let Some(sequence) = window_sequence(&sample.alleles, *first, *last, reference) {
                     *forms
                         .windows
-                        .entry((window, sequence))
+                        .entry((window.clone(), sequence))
                         .or_default()
-                        .entry(form(&sample.alleles, first, last))
+                        .entry(form(&sample.alleles, *first, *last))
                         .or_default() += 1;
                 }
             }
@@ -61,7 +68,7 @@ impl Forms {
                         .alleles
                         .iter()
                         .filter(|allele| allele.reference != allele.alternate)
-                        .filter(|allele| outside(allele))
+                        .filter(|allele| forms.outside_windows(allele))
                         .map(Allele::text)
                         .collect(),
                 )
@@ -75,20 +82,18 @@ impl Forms {
     /// there or the sequence holds a call DNA cannot write.
     pub(crate) fn window(
         &self,
-        window: Region,
+        window: &Window,
         dna: &[Allele],
         truth: &[Allele],
         reference: &str,
     ) -> Option<Majority> {
-        let &(_, first, last) = Region::WINDOWS
-            .iter()
-            .find(|(region, _, _)| *region == window)?;
+        let &(_, first, last) = self.spans.iter().find(|(span, _, _)| span == window)?;
         let (dna_form, truth_form) = (form(dna, first, last), form(truth, first, last));
         if dna_form == truth_form {
             return None;
         }
         let sequence = window_sequence(truth, first, last, reference)?;
-        let counts = self.windows.get(&(window, sequence));
+        let counts = self.windows.get(&(window.clone(), sequence));
         let count = |form: &str| {
             counts
                 .and_then(|counts| counts.get(form))
@@ -105,7 +110,7 @@ impl Forms {
         let calls = |alleles: &[Allele]| {
             alleles
                 .iter()
-                .filter(|allele| outside(allele))
+                .filter(|allele| self.outside_windows(allele))
                 .map(Allele::text)
                 .collect::<BTreeSet<_>>()
         };
@@ -160,13 +165,17 @@ impl Forms {
     }
 
     /// Reads a `forms.tsv` written for the truth database whose SHA-256 is
-    /// `truth_sha256`.
+    /// `truth_sha256`, over the windows of `geometry`.
     ///
     /// # Errors
     ///
-    /// Returns a message when it was written for another database or a line
-    /// is malformed.
-    pub(crate) fn parse(text: &str, truth_sha256: &str) -> Result<Self, String> {
+    /// Returns a message when it was written for another database, names a
+    /// window `geometry` lacks, or a line is malformed.
+    pub(crate) fn parse(
+        text: &str,
+        truth_sha256: &str,
+        geometry: &Geometry,
+    ) -> Result<Self, String> {
         let mut lines = text.lines();
         let recorded = lines
             .next()
@@ -180,7 +189,10 @@ impl Forms {
         if lines.next() != Some(HEADER.trim_end()) {
             return Err("the second line must be the column header".to_owned());
         }
-        let mut forms = Self::default();
+        let mut forms = Self {
+            spans: geometry.window_bounds().collect(),
+            ..Self::default()
+        };
         for (index, line) in lines.enumerate() {
             let invalid = || format!("line {} is malformed", index + 3);
             let fields = line.split('\t').collect::<Vec<_>>();
@@ -191,10 +203,12 @@ impl Forms {
             let form = if form == "-" { "" } else { form };
             match kind {
                 "window" => {
-                    let window = Region::ALL
-                        .into_iter()
-                        .find(|region| region.label() == window && *region != Region::Other)
-                        .ok_or_else(invalid)?;
+                    let window = geometry
+                        .window_named(window)
+                        .filter(|window| *window != Window::Other)
+                        .ok_or_else(|| {
+                            format!("line {} names an unknown window {window}", index + 3)
+                        })?;
                     forms
                         .windows
                         .entry((window, sequence.to_owned()))
@@ -222,9 +236,16 @@ fn majority(dna: usize, truth: usize) -> Majority {
     }
 }
 
-/// Whether an allele's anchor lies outside every window.
-fn outside(allele: &Allele) -> bool {
-    compare::anchor(&allele.position).is_some_and(|anchor| Region::at(anchor) == Region::Other)
+impl Forms {
+    /// Whether an allele's anchor lies outside every window.
+    fn outside_windows(&self, allele: &Allele) -> bool {
+        compare::anchor(&allele.position).is_some_and(|anchor| {
+            !self
+                .spans
+                .iter()
+                .any(|(_, first, last)| (*first..=*last).contains(&anchor))
+        })
+    }
 }
 
 /// The calls anchored in `first..=last`, sorted, as one text.
@@ -301,46 +322,34 @@ mod tests {
 
     #[test]
     fn finds_the_side_that_writes_the_majority_form() -> crate::contract::Checked {
-        // A reference with an AC repeat at 513-526, as in rCRS.
+        // A reference with an AC repeat in HVS-III's window, 512-524, as in
+        // rCRS.
+        let geometry = crate::geometry::tests::rcrs();
+        let window = geometry.window_at(514);
         let reference = format!("{}GCACACACACACCG{}", "T".repeat(512), "T".repeat(40));
         let majority = sample(&[("523", "A", "-"), ("524", "C", "-")]);
         let minority = sample(&[("514", "C", "-"), ("515", "A", "-")]);
-        let forms = Forms::new([&majority, &majority, &minority], &reference);
+        let forms = Forms::new([&majority, &majority, &minority], &reference, geometry);
         assert_eq!(
-            forms.window(
-                Region::AcRepeat,
-                &majority.alleles,
-                &minority.alleles,
-                &reference
-            ),
+            forms.window(&window, &majority.alleles, &minority.alleles, &reference),
             Some(Majority::Dna)
         );
         assert_eq!(
-            forms.window(
-                Region::AcRepeat,
-                &minority.alleles,
-                &majority.alleles,
-                &reference
-            ),
+            forms.window(&window, &minority.alleles, &majority.alleles, &reference),
             Some(Majority::Truth)
         );
         assert_eq!(
-            forms.window(
-                Region::AcRepeat,
-                &majority.alleles,
-                &majority.alleles,
-                &reference
-            ),
+            forms.window(&window, &majority.alleles, &majority.alleles, &reference),
             None
         );
-        let read = Forms::parse(&forms.table("abc"), "abc");
+        let read = Forms::parse(&forms.table("abc"), "abc", geometry);
         assert_eq!(
             read.as_ref().map(|read| read.table("abc")),
             Ok(forms.table("abc"))
         );
-        assert!(Forms::parse(&forms.table("abc"), "other").is_err());
+        assert!(Forms::parse(&forms.table("abc"), "other", geometry).is_err());
         let other = sample(&[("73", "A", "G")]);
-        let forms = Forms::new([&other, &other, &majority], &reference);
+        let forms = Forms::new([&other, &other, &majority], &reference, geometry);
         assert_eq!(
             forms.outside(&other.alleles, &majority.alleles),
             Some(Majority::Dna)

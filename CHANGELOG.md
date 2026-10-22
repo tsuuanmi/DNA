@@ -687,12 +687,145 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   out when that read's modality explains its second too: the confirming
   call's second is explained by construction, so neither strand shows an
   unexplained second there (SRS-CONS-010). A second the other strand leaves
-  unexplained still withdraws it. Plugin: `consensus` 22. Measured against
+  unexplained still withdraws it. Plugin: `consensus` 25. Measured against
   `main` af0823d3 (diff gate PASS on both panels): clear development panel
   v5 current 8,813 → 8,827, earlier 4,049 → 4,065; readiness-v2 current
   15,158 → 15,165, earlier 2,011 → 2,024; no unreviewed block, status, or
   coverage changes.
 
+- `dna-eval` reads its geometry from the target profile (`geometry.rs`):
+  the reportable regions (named `HV1`, `HV2`, `HV3` in the profile's
+  order), the zones' repeat windows, and the windows a discordant position
+  is classified by, which are now the profile's nomenclature windows and
+  the length tracts outside them, labelled by their profile names: for
+  rCRS `hvs_ii` 303–315, `hvs_iii` 512–524, `hvs_i` 16180–16193, and
+  `hvs3_c_tract` 568–573, in place of the harness's own `hv2_polyc`
+  302–316, `ac_repeat` 513–526, `hv1_polyc` 16180–16195, and `hv3_polyc`
+  560–576. The lab's comparison conventions (the special positions, the
+  region names) and the measurement definitions (limit of detection, faint
+  second base) move to one module with their sources (`conventions.rs`).
+  Outputs: `scores.tsv` `regions` and `class_regions`, the summary's window
+  tables, `forms.tsv` (an earlier `forms.tsv` is refused, since it names
+  other windows), and the causes that read the written forms change; the
+  measures, statuses, classes, workload, and passes do not.
+  `dna.eval_run/v1` changes in place (the window and region patterns).
+- `dna-eval` reads batch months once, as a validated `Month`: a manifest's
+  `batch_date` must be `YYYY-MM-DD` or empty (unknown), and
+  `--current-since` must be `YYYY-MM`, checked when the command line is
+  parsed. Before, five places cut the month their own way, and an empty date
+  fell into the earlier period in `diff` but into no period in `run`. A
+  manifest that names no panel is refused like a hold-out. `diff` also
+  refuses runs on another reference or profile, run signal grouping or
+  batch reads, or run contexts, and a manifest edited since the base run;
+  `run.json` records `run_signal_batch_reads` and the run contexts' digest
+  (`run_context.sha256`), and `dna.eval_run/v1` changes in place: its
+  `unreviewed.tsv` text now says the rows are in `sample_id` order and that
+  a length note precedes het, and its zone pattern admits a region named by
+  its bounds. Every other output is byte-identical on development panel v5.
+- `dna-eval diff` reads a run directory strictly and counts with the run's
+  own pass counting: the run header is one typed record (`RunHeader`) that
+  `run` writes and `diff` reads back; a table without a column `diff` reads
+  or with a column twice, a sample scored twice, an unknown block class, or
+  a `zone_checked` that disagrees with `review_zones` stops the comparison,
+  where missing cells used to read as empty and a repeated sample
+  overwrote the first. Each run's counts are checked against its
+  `run.json` over the current data too, every auto-pass class and zone unit
+  included (only all samples' auto-pass non-het and het counts and the
+  zones' non-het counts were). The run's writers move from `main.rs` to
+  `rundir.rs`. Every output of `run` and `diff` is byte-identical on
+  development panel v5.
+- The Sanger edge and start identity rules (SRS-CALL-017, SRS-CALL-018)
+  take the read's and a stop's median spacing as the midpoint median, as
+  signal processing and callability do, instead of the upper median.
+  Development panel v5: one `start@HV1` check fewer, 10 fewer positions to
+  review, no unreviewed or clear-state change; readiness-v2 unchanged. Plugin:
+  `sanger` 23.
+- Configuration schema 25: the phase-mixture decomposition and the poor
+  start get their own keys instead of reusing other rules' keys.
+  `signal_processing.decompose_minimum_calls` (20) and
+  `signal_processing.decompose_onset_window` (16) replace
+  `callability.minimum_callable_calls` and `callability.repeat_window_calls`
+  in SRS-CALL-023, and `sanger_evidence.poor_start_calls` (12) replaces
+  `sanger_evidence.start_identity_margin` in SRS-CALL-024. The shipped
+  values are the old ones, so no call, label, or check changes; documents
+  record the new configuration digest.
+- **Breaking (Rust API):** the Sanger-only failures leave the kernel.
+  `LocusWindowError` moves from `dna_kernel::error` to `dna_sanger::error`
+  (still `dna::error::LocusWindowError`), and `CallEvidenceError` drops
+  `MissingQuality`, `IndexMismatch`, and `MissingPeakEvidence`, which become
+  `ProductsError` variants with the same messages. No output changes.
+- **Breaking (Rust API):** `dna_sanger::read_processing::read_evidence` takes
+  the `ProcessedRead` and the `[sanger_evidence]` configuration instead of
+  the read's seven products. No output changes.
+- **Breaking (Rust API):** single-key count checks of the Sanger sections
+  fail with the new `ConfigError::CountOutOfRange`, `CountBelow`, and
+  `NotPositive` (from `dna_kernel::bounds::count_range`, `count_at_least`,
+  and `positive_count`) instead of `Constraint`, with the same messages;
+  most validated Sanger configuration fields become crate-private.
+- **Breaking (Rust API):** Sanger identifiers use `Params` and US spelling:
+  `RunSignalParams`, `SecondCauseParams`, `SpikeParams`, and
+  `SecondCause::{NeighborTail, OffCenter}`. The labels (`neighbour_tail`,
+  `off_centre`) and every document are unchanged.
+- The review's `read_disagrees` reads a call a bounded-run exemption
+  covers as showing its base only where the consensus lifts `read_end` from
+  it (ADR-0076): a run call aligned as a match or inserted, a bound aligned
+  as a match. It trusted every exempt call before. One rule,
+  `Eligibility::exempt_as`, serves both. Plugin: `review` 34. Measured
+  against `main` af0823d3 with #239: every table byte-identical on
+  development panel v5 and readiness-v2; artefact bench unchanged.
+- The two-strand rule reads each read's runs as the confirmation and
+  set-aside passes leave them, so a read set aside at a stretch
+  (SRS-CONS-011) gives no in-phase view of its runs; it read the reads'
+  first observations before. Plugin: `consensus` 24. Measured against the
+  previous change: every table byte-identical on development panel v5 and
+  readiness-v2; artefact bench unchanged.
+- The consensus's two late passes now pass the rules before them
+  (SRS-CONS-009, SRS-CONS-010): after the one-strand insertion contest and
+  the two-strand rule, confirmations beside a site they made differ are
+  withdrawn and everything is decided again, and a length change nothing
+  beside it places is left undecided, a `two_strand` one included.
+  Plugin: `consensus` 23. Measured against `main` af0823d3 with #239 (diff
+  gate PASS on both panels, artefact bench unchanged, non-het unreviewed
+  blocks and clear samples unchanged): the HVS-II 303-316 window of 7
+  samples of development panel v5 (2 current) and 3 of readiness-v2
+  (2 current) is now undecided under a check (`undecided`,
+  `tract_length`), where a `two_strand` length beside an undecided
+  position had been called. Window@HV2 units needing a check: development
+  current 473 → 475, readiness-v2 current 847 → 849. Status changes:
+  development v5 2517874 discordant → concordant (primary, strict, IUPAC;
+  earlier period), 2535940 and LN_26_AB0117 strict concordant → discordant
+  (their `309.1C 309.2C` is now under the check); readiness-v2 2519487
+  discordant → concordant, LN_26_AF2954 strict concordant → discordant.
+- Configuration: `variant_calling.read_end_margin` and
+  `consensus.maximum_undecided_gap` must be at most the longest supported
+  reference (50,000); larger values, which no read or segment can use,
+  are refused. The two-strand rule's model constants (derived lengths 1 to
+  15, the deconvolution cap, the share floor) and τ's bound of ½ are named
+  constants of `dna_consensus::length`, documented under SRS-CONS-013. The
+  validated `[variant_calling]` and `[sample_reconciliation]` records are
+  read through accessors, as the other sections are. No output changes.
+- The review's label set, ranks, and checks are one table in DNA
+  (`LabelKind`): the summary counts every label exhaustively (a new label is
+  no longer counted as `poor_signal`). The `dna.review/v1` schema's
+  `summary.labels` carries the table as `x-rank` and `x-check` annotations,
+  which the review tests and the result validator read; the validator now
+  also accepts `note` items, ranks an `explained` possible heteroplasmy as
+  context, and checks that the reference's rank table and rules version, and
+  the example's, agree with DNA's. Review outputs are byte-identical.
+- One decode credit for the two-strand rule and the review (ADR-0091,
+  SRS-CONS-013): the consensus's two-strand rule credits a decode whose
+  first call sits on an inserted column to the position the insertion
+  follows, on either strand, as the review has since ADR-0091; the review
+  calls the consensus's `length::start_reference` and its copy is gone.
+  Plugin: `consensus` 22. Measured against `main` af0823d3 (diff gate PASS
+  on both panels, artefact bench unchanged): the rule now decides the
+  HVS-II 303-316 window in 35 more samples of development panel v5 and 47
+  of readiness-v2, whose window items lose `dephased_end` (and, in two,
+  `estimated_length`) and keep their other labels, so no check, clear
+  state, or non-het block moves. In readiness-v2 the two samples whose
+  item lost `estimated_length` now call `309.1C 309.2C` with 309-310
+  callable, and become strict-concordant (`hv2_309_2C` strict discordant
+  1,019 → 1,017).
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on
@@ -1833,6 +1966,27 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   build, and RustSec audit run on `main` and on schedules, not on pull requests.
 - Corrected the minimum supported Rust version to match language features used
   by the codebase.
+
+### Removed
+
+- `dna-eval`'s approval-era tooling (user decision 2026-10-21, after the
+  evaluation code and validity reviews): the draft triage (`run --triage`,
+  its nine `triage*.tsv` tables and `triage.md`, and the triage evidence the
+  runner took), `approve` and `power` (the pre-registered sample-level
+  approval of triage pass rules and its projection), `convention`, and
+  `run --baseline` with `diff.tsv`, the baseline sections of `summary.md`,
+  and `anchors.tsv`'s `baseline_status` and `change` columns; `dna-eval
+  diff` compares two runs. `run.json` loses `baseline`, `triage`, and the
+  triage constants (`minor_floor_share`, `minor_noise_calls`,
+  `local_shadow_share`, `noise_ratio`, `upper_bound_alpha`,
+  `triage_window_margin`, `triage_footprint_positions`); the summary loses
+  its `baseline | none` line. `dna.eval_run/v1` changes in place
+  (`docs/governance/versioning.md` now states this practice). Every other
+  output is byte-identical on development panel v5. The hold-out remainder
+  stays reserved: `dna-eval` refuses a hold-out panel, and a new approval
+  path is designed later (PROP-0005, validity review recommendation 5).
+  `docs/validation/evaluation-triage.md` is retired; its review workload,
+  estimates, and anchors move to `docs/validation/evaluation-workload.md`.
 
 ### Fixed
 

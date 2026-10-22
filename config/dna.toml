@@ -1,5 +1,5 @@
 # DNA scientific configuration. Unknown or missing keys are errors.
-schema_version = 24
+schema_version = 25
 # Target profile (reference identity and topology, reportable regions,
 # representation chain), resolved against this file's directory.
 profile = "profiles/human-mtdna-rcrs.toml"
@@ -46,6 +46,12 @@ second_cause_width_calls = 6
 # unexplained when its residual exceeds this nearest-rank quantile of the
 # residuals of the read's own in-phase calls.
 decompose_unexplained_quantile = 0.99
+# A read needs decompose_minimum_calls in-phase single-channel calls to
+# measure its own noise before any mixture is fitted, and the run that opens
+# a mixture must end within decompose_onset_window calls of the dephased
+# segment's start.
+decompose_minimum_calls = 20
+decompose_onset_window = 16
 # An electrophoretic spike (SRS-SIG-012) is not DNA: every channel peaks
 # within spike_span median call spacings, each at least spike_height times the
 # local level, the median primary height of the spike_level_calls calls on
@@ -156,6 +162,9 @@ edge_height_fraction = 1.0
 end_norm_calls = 30
 end_height_fraction = 0.3
 start_identity_margin = 12
+# A read's poor start (SRS-CALL-024) runs to its first run of
+# poor_start_calls consecutive sound calls.
+poor_start_calls = 12
 start_norm_calls = 30
 start_height_fraction = 0.5
 start_second_share = 0.15

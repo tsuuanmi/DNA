@@ -2,12 +2,20 @@
 //! same panel, read from the two run directories alone, with a verdict.
 //!
 //! Both runs must measure the same thing: the same manifest body, truth
-//! digest, re-check list, current-data month, review window, and zone
-//! widths, each from a clean build; otherwise the comparison is refused.
-//! The passes are counted from `scores.tsv` and `unreviewed.tsv` as the
-//! run's own summary counts them: a sample, or a zone of it, passes when no
-//! check item touches it, and a passed unit counts under its most severe
-//! unreviewed block (non-het, then truth `N`, then het, then re-check).
+//! digest, re-check list, current-data month, review window, zone widths,
+//! reference, profile, run signal grouping and batch reads, and run
+//! contexts, each from a clean build; otherwise the comparison is refused.
+//! The manifest the base run names is read again for the periods and
+//! sources, and must still hash to the body the run recorded.
+//! The run directories are read strictly ([`rundir`]): a table without a
+//! column `diff` needs, or with a sample twice, is refused. The passes are
+//! counted from `scores.tsv` and `unreviewed.tsv` with the review workload's
+//! own counting ([`crate::workload::PassSample`]): a sample, or a zone of it,
+//! passes when no check item touches it, and a passed unit counts under its
+//! most severe unreviewed block (non-het, then truth `N`, then het, then
+//! re-check, then length note). Before comparing, every count of a run is
+//! checked against the passes its `run.json` records, over all samples and
+//! over the current data.
 //!
 //! The gate reads one group: the current period, the samples whose manifest
 //! `batch_date` is in or after the runs' current-data month, or all samples
@@ -26,10 +34,12 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::baseline::{self, Class as StatusClass};
+use crate::classes::StatusClass;
 use crate::compare::Measure;
 use crate::error::DiffError;
-use crate::manifest;
+use crate::manifest::{self, Month};
+use crate::rundir::{self, RunHeader};
+use crate::workload::{AutoPass, Class, Escaped, PassSample, Passes, Unit};
 
 /// Rows of a sample-change listing shown in the summary; the TSV has all.
 const SHOWN: usize = 40;
@@ -45,54 +55,21 @@ fn failure(path: &Path, message: impl std::fmt::Display) -> DiffError {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Escape {
     block: String,
-    class: Severity,
+    class: Class,
     zone: Option<String>,
     zone_checked: bool,
 }
 
-/// The pass measures' classes, from the least to the most severe.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Severity {
-    LengthNote,
-    Recheck,
-    Het,
-    TruthN,
-    NonHet,
-}
-
-impl Severity {
-    fn parse(label: &str) -> Option<Self> {
-        Some(match label {
-            "length_note" => Self::LengthNote,
-            "recheck" => Self::Recheck,
-            "het" => Self::Het,
-            "truth_n" => Self::TruthN,
-            "non_het" => Self::NonHet,
-            _ => return None,
-        })
-    }
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::LengthNote => "length_note",
-            Self::Recheck => "recheck",
-            Self::Het => "het",
-            Self::TruthN => "truth_n",
-            Self::NonHet => "non_het",
-        }
-    }
-}
-
 /// One sample of a run.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct Sample {
     /// Counted by the pass measures: compared under `haplotype_lod`.
     counted: bool,
     /// The harness could not score it (`status` `failed`).
     failed: bool,
-    clear: bool,
     positions: i64,
-    zones: BTreeSet<String>,
+    /// The sample as the pass measures count it, its zones by label.
+    pass: PassSample<String>,
     escapes: Vec<Escape>,
     statuses: BTreeMap<Measure, String>,
     uncovered: BTreeSet<String>,
@@ -101,90 +78,108 @@ struct Sample {
 /// One run directory, read.
 struct Run {
     directory: PathBuf,
-    header: Value,
+    header: RunHeader,
     samples: BTreeMap<String, Sample>,
 }
 
-/// Reads a TSV with a header row into rows of named cells.
-fn table(path: &Path) -> Result<Vec<BTreeMap<String, String>>, DiffError> {
-    let text = std::fs::read_to_string(path).map_err(|error| failure(path, error))?;
-    let mut lines = text.lines().filter(|line| !line.starts_with("# "));
-    let columns = lines
-        .next()
-        .ok_or_else(|| failure(path, "no header"))?
-        .split('\t')
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    lines
-        .map(|line| {
-            let cells = line.split('\t').collect::<Vec<_>>();
-            if cells.len() == columns.len() {
-                Ok(columns
-                    .iter()
-                    .cloned()
-                    .zip(cells.into_iter().map(str::to_owned))
-                    .collect())
-            } else {
-                Err(failure(path, "a row does not match the header"))
-            }
-        })
-        .collect()
-}
+/// The `scores.tsv` columns `diff` reads besides the measures' statuses.
+const SCORE_COLUMNS: [&str; 5] = [
+    "sample_id",
+    "review_clear",
+    "review_positions",
+    "review_zones",
+    "uncovered",
+];
+
+/// The `unreviewed.tsv` columns `diff` reads.
+const UNREVIEWED_COLUMNS: [&str; 5] = ["sample_id", "block", "class", "zone", "zone_checked"];
 
 impl Run {
     fn read(directory: &Path) -> Result<Self, DiffError> {
-        let path = directory.join("run.json");
-        let header = serde_json::from_slice::<Value>(
-            &std::fs::read(&path).map_err(|error| failure(&path, error))?,
-        )
-        .map_err(|error| failure(&path, error))?;
-        let scores_path = directory.join(baseline::SCORES);
-        let statuses = baseline::parse(
-            &std::fs::read(&scores_path).map_err(|error| failure(&scores_path, error))?,
-        )
-        .map_err(|error| failure(&scores_path, error))?;
+        let header = RunHeader::read(directory)?;
+        let scores_path = directory.join(rundir::SCORES);
+        let columns = SCORE_COLUMNS
+            .into_iter()
+            .chain(Measure::ALL.map(Measure::column))
+            .collect::<Vec<_>>();
         let mut samples = BTreeMap::new();
-        for row in table(&scores_path)? {
-            let cell = |name: &str| row.get(name).map_or("", String::as_str);
-            let id = cell("sample_id").to_owned();
-            let lod = cell("haplotype_lod_status");
-            let sample = Sample {
-                counted: lod == "concordant" || lod == "discordant",
-                failed: cell("status") == "failed",
-                clear: cell("review_clear") == "Y",
-                positions: cell("review_positions").parse().unwrap_or(0),
-                zones: cell("review_zones")
-                    .split_whitespace()
-                    .map(str::to_owned)
-                    .collect(),
-                escapes: Vec::new(),
-                statuses: statuses.get(&id).cloned().unwrap_or_default(),
-                uncovered: cell("uncovered")
-                    .split_whitespace()
-                    .map(str::to_owned)
-                    .collect(),
+        for line in rundir::read_table(directory, rundir::SCORES, &columns)? {
+            let invalid =
+                |message: &str| failure(&scores_path, format!("line {}: {message}", line.number));
+            let [id, clear, positions, zones, uncovered] =
+                [0, 1, 2, 3, 4].map(|at| &line.cells[at]);
+            let statuses = Measure::ALL
+                .into_iter()
+                .zip(&line.cells[SCORE_COLUMNS.len()..])
+                .map(|(measure, status)| (measure, status.clone()))
+                .collect::<BTreeMap<_, _>>();
+            let lod = statuses[&Measure::HaplotypeLod].as_str();
+            let counted = lod == "concordant" || lod == "discordant";
+            // A compared sample has a review workload; a failed one has
+            // none, and the pass measures count only a counted one.
+            let clear = match clear.as_str() {
+                "Y" => true,
+                "N" => false,
+                "" if !counted => false,
+                _ => return Err(invalid("review_clear is neither Y nor N")),
             };
-            samples.insert(id, sample);
+            let positions = match positions.as_str() {
+                "" if !counted => 0,
+                text => text
+                    .parse()
+                    .map_err(|_| invalid("review_positions is not a number"))?,
+            };
+            let sample = Sample {
+                counted,
+                failed: statuses[&Measure::Primary] == "failed",
+                positions,
+                pass: PassSample {
+                    clear,
+                    zones: zones.split_whitespace().map(str::to_owned).collect(),
+                    escapes: Vec::new(),
+                },
+                escapes: Vec::new(),
+                statuses,
+                uncovered: uncovered.split_whitespace().map(str::to_owned).collect(),
+            };
+            if samples.insert(id.clone(), sample).is_some() {
+                return Err(invalid(&format!("sample {id} appears twice")));
+            }
         }
-        let unreviewed_path = directory.join("unreviewed.tsv");
-        for row in table(&unreviewed_path)? {
-            let cell = |name: &str| row.get(name).map_or("", String::as_str);
-            let class = Severity::parse(cell("class"))
-                .ok_or_else(|| failure(&unreviewed_path, "an unknown class"))?;
-            let zone = Some(cell("zone"))
+        let unreviewed_path = directory.join(rundir::UNREVIEWED);
+        for line in rundir::read_table(directory, rundir::UNREVIEWED, &UNREVIEWED_COLUMNS)? {
+            let invalid = |message: &str| {
+                failure(&unreviewed_path, format!("line {}: {message}", line.number))
+            };
+            let [id, block, class, zone, zone_checked] = [0, 1, 2, 3, 4].map(|at| &line.cells[at]);
+            let class = Class::parse(class).ok_or_else(|| invalid("an unknown class"))?;
+            let zone = Some(zone.as_str())
                 .filter(|zone| *zone != ".")
                 .map(str::to_owned);
-            let escape = Escape {
-                block: cell("block").to_owned(),
+            let zone_checked = match zone_checked.as_str() {
+                "yes" => true,
+                "no" => false,
+                _ => return Err(invalid("zone_checked is neither yes nor no")),
+            };
+            let sample = samples
+                .get_mut(id)
+                .ok_or_else(|| invalid("a sample scores.tsv does not list"))?;
+            if zone
+                .as_ref()
+                .is_some_and(|zone| sample.pass.zones.contains(zone))
+                != zone_checked
+            {
+                return Err(invalid(
+                    "zone_checked disagrees with the sample's review_zones",
+                ));
+            }
+            sample.pass.escapes.push((zone.clone(), class));
+            sample.escapes.push(Escape {
+                block: block.clone(),
                 class,
                 zone,
-                zone_checked: cell("zone_checked") == "yes",
-            };
-            samples
-                .get_mut(cell("sample_id"))
-                .ok_or_else(|| failure(&unreviewed_path, "a sample scores.tsv does not list"))?
-                .escapes
-                .push(escape);
+                zone_checked,
+            });
         }
         Ok(Self {
             directory: directory.to_path_buf(),
@@ -202,32 +197,95 @@ impl Run {
             .collect()
     }
 
-    fn field(&self, pointer: &str) -> &Value {
-        self.header.pointer(pointer).unwrap_or(&Value::Null)
+    /// Every zone the run's files or header name.
+    fn zone_names(&self) -> BTreeSet<String> {
+        let recorded = [
+            Some(&self.header.workload.all),
+            self.header.workload.current.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .flat_map(|passes| &passes.zones.by_zone)
+        .map(|unit| unit.name.clone());
+        let seen = self.samples.values().flat_map(|sample| {
+            sample.pass.zones.iter().cloned().chain(
+                sample
+                    .pass
+                    .escapes
+                    .iter()
+                    .filter_map(|(zone, _)| zone.clone()),
+            )
+        });
+        recorded.chain(seen).collect()
     }
 }
 
 /// What makes two runs measure the same thing, as each records it.
 fn mismatches(base: &Run, run: &Run) -> Vec<String> {
+    let value = |value: Result<Value, serde_json::Error>| value.unwrap_or(Value::Null);
+    let fields = |run: &Run| {
+        let header = &run.header;
+        [
+            (
+                "manifest body",
+                Value::from(header.manifest.body_sha256.clone()),
+            ),
+            ("truth digest", Value::from(header.truth.digest.clone())),
+            (
+                "re-check list",
+                header
+                    .recheck
+                    .as_ref()
+                    .map_or(Value::Null, |recheck| Value::from(recheck.sha256.clone())),
+            ),
+            (
+                "current-data month",
+                value(serde_json::to_value(header.current_since)),
+            ),
+            ("review window", Value::from(header.review_window)),
+            ("zone widths", value(serde_json::to_value(header.zones))),
+            (
+                "reference",
+                header
+                    .identities
+                    .iter()
+                    .map(|identity| identity.reference_sha256.clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            ),
+            (
+                "profile",
+                header
+                    .identities
+                    .iter()
+                    .map(|identity| identity.profile_sha256.clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            ),
+            ("run signal", value(serde_json::to_value(header.run_signal))),
+            (
+                "run signal batch reads",
+                value(serde_json::to_value(header.run_signal_batch_reads)),
+            ),
+            (
+                "run contexts",
+                header
+                    .run_context
+                    .as_ref()
+                    .map_or(Value::Null, |context| Value::from(context.sha256.clone())),
+            ),
+        ]
+    };
     let mut found = Vec::new();
-    for (name, pointer) in [
-        ("manifest body", "/manifest/body_sha256"),
-        ("truth digest", "/truth/digest"),
-        ("re-check list", "/recheck/sha256"),
-        ("current-data month", "/current_since"),
-        ("review window", "/review_window"),
-        ("zone widths", "/zones"),
-    ] {
-        if base.field(pointer) != run.field(pointer) {
-            found.push(format!(
-                "{name} differs ({} against {})",
-                base.field(pointer),
-                run.field(pointer)
-            ));
+    for ((name, before), (_, after)) in fields(base).into_iter().zip(fields(run)) {
+        if before != after {
+            found.push(format!("{name} differs ({before} against {after})"));
         }
     }
     for (label, run) in [("base", base), ("run", run)] {
-        if run.field("/source/dirty") != &Value::Bool(false) {
+        if run.header.source.dirty != Some(false) {
             found.push(format!(
                 "the {label} run was not built from a clean commit ({})",
                 run.directory.display()
@@ -250,147 +308,109 @@ fn groups(
 }
 
 /// One group's sample-level counts.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Counts {
     samples: usize,
-    clear: usize,
     /// Samples with a non-het unreviewed block.
     unreviewed_non_het: usize,
     /// Samples whose only unreviewed blocks the re-check list or a truth
     /// `N` does not explain are het.
     unreviewed_het_only: usize,
-    /// Passed samples by their most severe unreviewed block.
-    passed_non_het: usize,
-    passed_truth_n: usize,
-    passed_het_only: usize,
-    passed_recheck_only: usize,
-    /// Passed samples whose only unreviewed blocks are noted tract lengths:
-    /// reported, never gated.
-    passed_length_note_only: usize,
+    /// The samples without a check item, and those of them with an
+    /// unreviewed block by its most severe class.
+    auto_pass: AutoPass,
     positions: i64,
 }
 
-/// One zone's counts in one group: units needing a check, and passed units
-/// with a non-het unreviewed block.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct ZoneCounts {
-    checked: usize,
-    passed_non_het: usize,
+impl Default for Counts {
+    fn default() -> Self {
+        Self {
+            samples: 0,
+            unreviewed_non_het: 0,
+            unreviewed_het_only: 0,
+            auto_pass: AutoPass {
+                samples: 0,
+                unreviewed: Escaped::default(),
+            },
+            positions: 0,
+        }
+    }
 }
 
 /// What a run gives per group, and per group and zone.
 struct Tally {
     counts: BTreeMap<String, Counts>,
-    zones: BTreeMap<(String, String), ZoneCounts>,
+    zones: BTreeMap<(String, String), Unit>,
 }
 
+/// Counts the passes of `run` per group, and per group and zone over
+/// `names`.
 fn tally(
     run: &Run,
     periods: &BTreeMap<String, String>,
     sources: &BTreeMap<String, String>,
+    names: &BTreeSet<String>,
 ) -> Tally {
     let mut counts = BTreeMap::<String, Counts>::new();
-    let mut zones = BTreeMap::<(String, String), ZoneCounts>::new();
+    let mut zones = BTreeMap::<(String, String), Unit>::new();
     for (id, sample) in &run.samples {
         if !sample.counted {
             continue;
         }
-        let worst = sample.escapes.iter().map(|escape| escape.class).max();
         let non_het = sample
             .escapes
             .iter()
-            .any(|escape| escape.class == Severity::NonHet);
+            .any(|escape| escape.class == Class::NonHet);
         let het_only = !non_het
             && sample
                 .escapes
                 .iter()
-                .any(|escape| escape.class == Severity::Het);
-        let mut passed_zones = BTreeMap::<&str, Severity>::new();
-        for escape in &sample.escapes {
-            if let Some(zone) = escape.zone.as_deref().filter(|_| !escape.zone_checked) {
-                let entry = passed_zones.entry(zone).or_insert(escape.class);
-                *entry = (*entry).max(escape.class);
-            }
-        }
+                .any(|escape| escape.class == Class::Het);
         for group in groups(id, periods, sources) {
             let count = counts.entry(group.clone()).or_default();
             count.samples += 1;
             count.positions += sample.positions;
             count.unreviewed_non_het += usize::from(non_het);
             count.unreviewed_het_only += usize::from(het_only);
-            if sample.clear {
-                count.clear += 1;
-                match worst {
-                    Some(Severity::NonHet) => count.passed_non_het += 1,
-                    Some(Severity::TruthN) => count.passed_truth_n += 1,
-                    Some(Severity::Het) => count.passed_het_only += 1,
-                    Some(Severity::Recheck) => count.passed_recheck_only += 1,
-                    Some(Severity::LengthNote) => count.passed_length_note_only += 1,
-                    None => {}
-                }
-            }
-            for zone in &sample.zones {
+            count.auto_pass.add(&sample.pass);
+            for name in names {
                 zones
-                    .entry((group.clone(), zone.clone()))
-                    .or_default()
-                    .checked += 1;
-            }
-            for (zone, severity) in &passed_zones {
-                let entry = zones
-                    .entry((group.clone(), (*zone).to_owned()))
-                    .or_default();
-                entry.passed_non_het += usize::from(*severity == Severity::NonHet);
+                    .entry((group.clone(), name.clone()))
+                    .or_insert_with(|| Unit::new(name.clone()))
+                    .add(&sample.pass, name);
             }
         }
     }
     Tally { counts, zones }
 }
 
-/// Checks that the files count the passes the run's own `run.json` records
-/// over all samples: the auto-passed samples by their most severe block, and
-/// every zone's checked units and passed units with a non-het block.
-fn consistent(run: &Run, tally: &Tally) -> Result<(), DiffError> {
-    let all = tally.counts.get("all").copied().unwrap_or_default();
-    let workload = run.field("/workload/all");
-    let number = |value: &Value| value.as_u64().and_then(|value| usize::try_from(value).ok());
+/// Checks that the files count the passes the run's own `run.json` records:
+/// over all samples, and over the current data in `current` when the run
+/// records it, the counted samples, the auto-passed samples by their most
+/// severe block, and every zone's units.
+fn consistent(run: &Run, tally: &Tally, current: &str) -> Result<(), DiffError> {
     let mut found = Vec::new();
-    for (name, recorded, counted) in [
-        (
-            "auto-pass samples",
-            &workload["auto_pass"]["samples"],
-            all.clear,
-        ),
-        (
-            "auto-pass non-het",
-            &workload["auto_pass"]["unreviewed"]["non_het"],
-            all.passed_non_het,
-        ),
-        (
-            "auto-pass het only",
-            &workload["auto_pass"]["unreviewed"]["het_only"],
-            all.passed_het_only,
-        ),
-    ] {
-        if number(recorded) != Some(counted) {
-            found.push(format!("{name}: {recorded} recorded, {counted} counted"));
+    let mut check = |group: &str, passes: &Passes| {
+        let counted = tally.counts.get(group).copied().unwrap_or_default();
+        if passes.samples != counted.samples {
+            found.push(format!(
+                "{group}: {} samples recorded, {} counted",
+                passes.samples, counted.samples
+            ));
         }
-    }
-    for zone in workload["zones"]["by_zone"]
-        .as_array()
-        .into_iter()
-        .flatten()
-    {
-        let name = zone["name"].as_str().unwrap_or_default().to_owned();
-        let counted = tally
-            .zones
-            .get(&("all".to_owned(), name.clone()))
-            .copied()
-            .unwrap_or_default();
-        if number(&zone["checked"]) != Some(counted.checked)
-            || number(&zone["unreviewed"]["non_het"]) != Some(counted.passed_non_het)
-        {
-            found.push(format!("zone {name}"));
+        if passes.auto_pass != counted.auto_pass {
+            found.push(format!("{group}: the auto-pass samples"));
         }
+        for unit in &passes.zones.by_zone {
+            let key = (group.to_owned(), unit.name.clone());
+            if tally.zones.get(&key) != Some(unit) {
+                found.push(format!("{group}: zone {}", unit.name));
+            }
+        }
+    };
+    check("all", &run.header.workload.all);
+    if let Some(passes) = &run.header.workload.current {
+        check(current, passes);
     }
     if found.is_empty() {
         Ok(())
@@ -406,14 +426,14 @@ fn consistent(run: &Run, tally: &Tally) -> Result<(), DiffError> {
 type Labels = BTreeMap<String, String>;
 
 /// The label of the current period from `since`.
-fn current(since: &str) -> String {
+fn current(since: Month) -> String {
     format!("current (≥ {since})")
 }
 
 /// The group the gate reads: the current period when the run records a
 /// current-data month, else all samples.
 fn gated(run: &Run) -> String {
-    run.field("/current_since").as_str().map_or_else(
+    run.header.current_since.map_or_else(
         || "all".to_owned(),
         |since| format!("period {}", current(since)),
     )
@@ -422,16 +442,25 @@ fn gated(run: &Run) -> String {
 /// Each sample's period, by its manifest `batch_date` against the run's
 /// current-data month, and its source, when the manifest has the column.
 fn split(run: &Run) -> Result<(Labels, Labels), DiffError> {
-    let path = PathBuf::from(run.field("/manifest/path").as_str().unwrap_or_default());
-    let bytes = std::fs::read(&path).map_err(|error| failure(&path, error))?;
-    let manifest = manifest::parse(&bytes).map_err(|error| failure(&path, error))?;
-    let since = run.field("/current_since").as_str().map(str::to_owned);
+    let path = &run.header.manifest.path;
+    let bytes = std::fs::read(path).map_err(|error| failure(path, error))?;
+    let manifest = manifest::parse(&bytes).map_err(|error| failure(path, error))?;
+    if manifest.body_sha256 != run.header.manifest.body_sha256 {
+        return Err(failure(
+            path,
+            format!(
+                "its body has sha256 {}, the run recorded {}",
+                manifest.body_sha256, run.header.manifest.body_sha256
+            ),
+        ));
+    }
+    let since = run.header.current_since;
     let source = manifest.columns.iter().position(|name| name == "source");
     let mut periods = BTreeMap::new();
     let mut sources = BTreeMap::new();
     for sample in &manifest.samples {
-        if let (Some(since), Some(date)) = (&since, &sample.batch_date) {
-            let period = if date.as_str() >= since.as_str() {
+        if let (Some(since), Some(month)) = (since, sample.batch_month) {
+            let period = if month >= since {
                 current(since)
             } else {
                 format!("earlier (< {since})")
@@ -471,14 +500,21 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
     let (periods, sources) = split(&base)?;
     let gate = gated(&base);
     let in_gate = |id: &str| groups(id, &periods, &sources).contains(&gate);
-    let before = tally(&base, &periods, &sources);
-    let after = tally(&run, &periods, &sources);
-    consistent(&base, &before)?;
-    consistent(&run, &after)?;
+    let names = base
+        .zone_names()
+        .into_iter()
+        .chain(run.zone_names())
+        .collect::<BTreeSet<_>>();
+    let before = tally(&base, &periods, &sources, &names);
+    let after = tally(&run, &periods, &sources, &names);
+    consistent(&base, &before, &gate)?;
+    consistent(&run, &after, &gate)?;
     let mut report = String::from("# Run comparison\n\n");
     let revision = |run: &Run| {
-        run.field("/source/revision")
-            .as_str()
+        run.header
+            .source
+            .revision
+            .as_deref()
             .map_or("unknown", |revision| revision.get(..12).unwrap_or(revision))
             .to_owned()
     };
@@ -528,6 +564,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
     for name in &names {
         let old = before.counts.get(name).copied().unwrap_or_default();
         let new = after.counts.get(name).copied().unwrap_or_default();
+        let (passed_old, passed_new) = (old.auto_pass.unreviewed, new.auto_pass.unreviewed);
         let cell = |old: usize, new: usize| {
             if old == new {
                 old.to_string()
@@ -539,14 +576,14 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             report,
             "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             cell(old.samples, new.samples),
-            cell(old.clear, new.clear),
+            cell(old.auto_pass.samples, new.auto_pass.samples),
             cell(old.unreviewed_non_het, new.unreviewed_non_het),
             cell(old.unreviewed_het_only, new.unreviewed_het_only),
-            cell(old.passed_non_het, new.passed_non_het),
-            cell(old.passed_truth_n, new.passed_truth_n),
-            cell(old.passed_het_only, new.passed_het_only),
-            cell(old.passed_recheck_only, new.passed_recheck_only),
-            cell(old.passed_length_note_only, new.passed_length_note_only),
+            cell(passed_old.non_het, passed_new.non_het),
+            cell(passed_old.truth_n_only, passed_new.truth_n_only),
+            cell(passed_old.het_only, passed_new.het_only),
+            cell(passed_old.recheck_only, passed_new.recheck_only),
+            cell(passed_old.length_note_only, passed_new.length_note_only),
             if old.positions == new.positions {
                 old.positions.to_string()
             } else {
@@ -556,10 +593,10 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         if *name != gate {
             continue;
         }
-        if new.passed_non_het > old.passed_non_het {
+        if passed_new.non_het > passed_old.non_het {
             failures.push(format!(
                 "passed samples with a non-het block rise in {name}: {} → {}",
-                old.passed_non_het, new.passed_non_het
+                passed_old.non_het, passed_new.non_het
             ));
         }
         if new.unreviewed_non_het > old.unreviewed_non_het {
@@ -581,20 +618,26 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         .cloned()
         .collect::<BTreeSet<_>>();
     for key in &keys {
-        let old = before.zones.get(key).copied().unwrap_or_default();
-        let new = after.zones.get(key).copied().unwrap_or_default();
-        if old == new {
+        let counts = |tally: &Tally| {
+            tally
+                .zones
+                .get(key)
+                .map_or((0, 0), |unit| (unit.checked, unit.unreviewed.non_het))
+        };
+        let ((old_checked, old_non_het), (new_checked, new_non_het)) =
+            (counts(&before), counts(&after));
+        if (old_checked, old_non_het) == (new_checked, new_non_het) {
             continue;
         }
         let _ = writeln!(
             report,
-            "| {} | {} | {} → {} | {} → {} |",
-            key.0, key.1, old.checked, new.checked, old.passed_non_het, new.passed_non_het
+            "| {} | {} | {old_checked} → {new_checked} | {old_non_het} → {new_non_het} |",
+            key.0, key.1
         );
-        if key.0 == gate && new.passed_non_het > old.passed_non_het {
+        if key.0 == gate && new_non_het > old_non_het {
             failures.push(format!(
-                "passed {} zones with a non-het block rise in {}: {} → {}",
-                key.1, key.0, old.passed_non_het, new.passed_non_het
+                "passed {} zones with a non-het block rise in {}: {old_non_het} → {new_non_het}",
+                key.1, key.0
             ));
         }
     }
@@ -692,7 +735,7 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
         };
         let gone = text(&old.escapes, &sample.escapes);
         let new = text(&sample.escapes, &old.escapes);
-        if gone.is_empty() && new.is_empty() && old.clear == sample.clear {
+        if gone.is_empty() && new.is_empty() && old.pass.clear == sample.pass.clear {
             continue;
         }
         let flag = |clear: bool| if clear { "Y" } else { "N" };
@@ -700,8 +743,8 @@ pub(crate) fn compare(base: &Path, run: &Path, force: bool) -> Result<Comparison
             "{id}\t{}\t{}\t{}\t{}\t{gone}\t{new}",
             periods.get(id).map_or("", String::as_str),
             sources.get(id).map_or("", String::as_str),
-            flag(old.clear),
-            flag(sample.clear),
+            flag(old.pass.clear),
+            flag(sample.pass.clear),
         );
         let _ = writeln!(samples, "{row}");
         listed.push(row);
@@ -758,23 +801,61 @@ mod tests {
                 <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
             ),
         )?;
-        let header = serde_json::json!({
-            "source": {"revision": "0".repeat(40), "dirty": dirty},
-            "manifest": {"path": manifest, "body_sha256": "b"},
-            "truth": {"digest": "t"},
-            "review_window": 10,
-            "zones": {"after": 20, "edge": 40, "overrun": 2},
-            "workload": {"all": {
-                "auto_pass": {"samples": workload.0, "unreviewed": {"non_het": workload.1, "het_only": workload.2}},
-                "zones": {"by_zone": []}
-            }}
-        });
-        std::fs::write(directory.join("run.json"), serde_json::to_vec(&header)?)?;
-        let mut text = String::from(
-            "sample_id\tstatus\thaplotype_lod_status\treview_clear\treview_positions\treview_zones\tuncovered\n",
+        let counted = scores
+            .iter()
+            .filter(|row| {
+                let lod = row.split('\t').nth(2).unwrap_or_default();
+                lod == "concordant" || lod == "discordant"
+            })
+            .count();
+        let mut header = rundir::tests::fixture();
+        header.source.dirty = Some(dirty);
+        header.manifest.path = manifest;
+        header.manifest.body_sha256 = format!(
+            "{:x}",
+            <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
         );
+        header.truth.digest = "t".to_owned();
+        header.recheck = None;
+        header.current_since = None;
+        header.review_window = 10;
+        header.workload.current = None;
+        let all = &mut header.workload.all;
+        all.samples = counted;
+        all.zones.by_zone.clear();
+        all.auto_pass = AutoPass {
+            samples: workload.0,
+            unreviewed: Escaped {
+                total: workload.1 + workload.2,
+                non_het: workload.1,
+                het_only: workload.2,
+                ..Escaped::default()
+            },
+        };
+        std::fs::write(directory.join("run.json"), header.text()?)?;
+        // The scores give the primary status, `haplotype_lod`'s, and the
+        // review columns; the other measures take the primary status.
+        let mut text = String::from("sample_id");
+        for measure in Measure::ALL {
+            text.push('\t');
+            text.push_str(measure.column());
+        }
+        text.push_str("\treview_clear\treview_positions\treview_zones\tuncovered\n");
         for row in scores {
-            text.push_str(row);
+            let cells = row.split('\t').collect::<Vec<_>>();
+            text.push_str(cells[0]);
+            for measure in Measure::ALL {
+                text.push('\t');
+                text.push_str(if measure == Measure::HaplotypeLod {
+                    cells[2]
+                } else {
+                    cells[1]
+                });
+            }
+            for cell in &cells[3..] {
+                text.push('\t');
+                text.push_str(cell);
+            }
             text.push('\n');
         }
         std::fs::write(directory.join("scores.tsv"), text)?;
@@ -789,10 +870,9 @@ mod tests {
 
     /// Records `since` as the run's current-data month.
     fn dated(directory: &Path, since: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let path = directory.join("run.json");
-        let mut header = serde_json::from_slice::<Value>(&std::fs::read(&path)?)?;
-        header["current_since"] = Value::from(since);
-        std::fs::write(path, serde_json::to_vec(&header)?)?;
+        let mut header = RunHeader::read(directory)?;
+        header.current_since = Some(since.parse()?);
+        std::fs::write(directory.join("run.json"), header.text()?)?;
         Ok(())
     }
 
@@ -981,6 +1061,23 @@ mod tests {
                 .report
                 .contains("WARNING, not comparable")
         );
+        // Another profile, or a manifest edited since the run, is refused.
+        let profile = run(root.path(), "profile", false, &rows, &[], (1, 0, 0))?;
+        let mut header = RunHeader::read(&profile)?;
+        header.identities[0].profile_sha256 = "another".to_owned();
+        std::fs::write(profile.join(rundir::RUN_JSON), header.text()?)?;
+        assert!(matches!(
+            compare(&base, &profile, false),
+            Err(DiffError::Mismatch(message)) if message.starts_with("profile differs")
+        ));
+        let edited = run(root.path(), "edited", false, &rows, &[], (1, 0, 0))?;
+        let mut header = RunHeader::read(&edited)?;
+        header.manifest.body_sha256 = "c".repeat(64);
+        std::fs::write(edited.join(rundir::RUN_JSON), header.text()?)?;
+        assert!(matches!(
+            compare(&edited, &edited, false),
+            Err(DiffError::Run { message, .. }) if message.contains("the run recorded cccc")
+        ));
         let miscounted = run(root.path(), "miscounted", false, &rows, &[], (0, 0, 0))?;
         assert!(matches!(
             compare(&base, &miscounted, false),
@@ -1009,6 +1106,178 @@ mod tests {
                 .contains("failed samples differ: 0 in the base, 1 in the run")
         );
         assert!(!compare(&flaky, &flaky, false)?.gate_failed);
+        Ok(())
+    }
+
+    /// A run written by the harness's own writers reads back through
+    /// `diff`: its files count the passes its `run.json` records, over all
+    /// samples and the current data, and the run compared with itself passes.
+    #[test]
+    fn a_written_run_reads_back_consistently() -> Result<(), Box<dyn std::error::Error>> {
+        use crate::cause::forms::Forms;
+        use crate::compare::Allele;
+        use crate::report::Report;
+        use crate::runner::{Called, Outcome};
+        use crate::truth::{TruthCheck, TruthDatabase, TruthSample};
+
+        let root = tempfile::tempdir()?;
+        // Four samples, two earlier and two current; each a different case.
+        let body = "E1\tb1\t2025-06-01\tclean\t1\t1\t0\t/t/a.ab1\n\
+                    E2\tb1\t2025-06-01\tclean\t1\t1\t0\t/t/b.ab1\n\
+                    C1\tb2\t2026-02-01\tclean\t1\t1\t0\t/t/c.ab1\n\
+                    C2\tb2\t2026-02-01\tclean\t1\t1\t0\t/t/d.ab1\n";
+        let path = root.path().join("panel.tsv");
+        std::fs::write(
+            &path,
+            format!(
+                "# panel=dev\n# body_sha256={:x}\nsample_id\tbatch\tbatch_date\tstratum\tweight\tweight_corpus\tanchor_candidate\ttrace_paths\n{body}",
+                <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
+            ),
+        )?;
+        let manifest = manifest::parse(&std::fs::read(&path)?)?;
+        let truth = manifest
+            .samples
+            .iter()
+            .map(|sample| {
+                (
+                    sample.id.clone(),
+                    TruthSample {
+                        batch: sample.batch.clone(),
+                        status: None,
+                        alleles: vec![Allele::new("263", "A", "G")],
+                        intervals: vec![(73, 340)],
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        // E1 and C1 call a DNA-only 150T, unchecked; E2 calls it under a
+        // check item; C2 agrees with the truth.
+        let outcomes = manifest
+            .samples
+            .iter()
+            .map(|sample| {
+                let mut alleles = vec![Allele::new("263", "A", "G")];
+                if sample.id != "C2" {
+                    alleles.push(Allele::new("150", "C", "T"));
+                }
+                let checks = if sample.id == "E2" {
+                    vec![(145, 155)]
+                } else {
+                    Vec::new()
+                };
+                Outcome {
+                    traces: Some(1),
+                    result: Ok(Called {
+                        rejected: 0,
+                        alleles,
+                        not_recorded: BTreeSet::new(),
+                        intervals: vec![(73, 340)],
+                        signals: crate::lod::Signals::default(),
+                        loci: crate::cause::loci::Loci::default(),
+                        identity: rundir::tests::fixture().identities[0].clone(),
+                        empop: None,
+                        check_labels: checks
+                            .iter()
+                            .map(|&(first, last)| (first, last, "x".to_owned()))
+                            .collect(),
+                        checks,
+                        notes: Vec::new(),
+                        components: Vec::new(),
+                        tracts: Vec::new(),
+                        length_context: None,
+                    }),
+                    millis: 0,
+                }
+            })
+            .collect::<Vec<_>>();
+        let rows = crate::report::rows(
+            &manifest.samples,
+            &outcomes,
+            &truth,
+            crate::compare::tests::rcrs(),
+            (crate::geometry::tests::rcrs(), &[]),
+        );
+        let database = TruthDatabase {
+            info: BTreeMap::new(),
+            samples: truth.clone(),
+        };
+        let check = TruthCheck::new(&manifest, &database);
+        let zones = crate::zones::Zones::new(
+            &crate::geometry::tests::spans(&[(73, 340)]),
+            &[(303, 315)],
+            crate::zones::Widths {
+                after: 20,
+                edge: 40,
+                overrun: 2,
+            },
+        );
+        let report = Report::new(
+            &rows,
+            (crate::geometry::tests::rcrs(), &check),
+            (&Forms::default(), ""),
+        )
+        .with_review(10, None, Some(zones), None, Vec::new())
+        .with_current_since("2026-01".parse().ok());
+        let directory = root.path().join("run");
+        std::fs::create_dir_all(&directory)?;
+        for (name, contents) in report.files(&[]) {
+            rundir::write(&directory, name, &contents)?;
+        }
+        let (all, current) = report.passes();
+        let mut header = rundir::tests::fixture();
+        header.manifest.path = path;
+        header
+            .manifest
+            .body_sha256
+            .clone_from(&manifest.body_sha256);
+        header.recheck = None;
+        header.current_since = "2026-01".parse().ok();
+        header.workload = rundir::WorkloadHeader { all, current };
+        std::fs::write(directory.join(rundir::RUN_JSON), header.text()?)?;
+
+        let comparison = compare(&directory, &directory, false)?;
+        assert!(!comparison.gate_failed, "{}", comparison.report);
+        assert!(
+            comparison
+                .report
+                .contains("| period current (≥ 2026-01) | 2 | 2 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |"),
+            "{}",
+            comparison.report
+        );
+        // A run.json that records other passes is refused.
+        let mut miscounted = header.clone();
+        if let Some(current) = &mut miscounted.workload.current {
+            current.zones.by_zone[0].checked += 1;
+        }
+        std::fs::write(directory.join(rundir::RUN_JSON), miscounted.text()?)?;
+        assert!(matches!(
+            compare(&directory, &directory, false),
+            Err(DiffError::Inconsistent(..))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_a_sample_scored_twice_or_a_missing_column() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = tempfile::tempdir()?;
+        let rows = [
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+            "S1\tconcordant\tconcordant\tY\t0\t\t",
+        ];
+        let twice = run(root.path(), "twice", false, &rows, &[], (2, 0, 0))?;
+        assert!(matches!(
+            compare(&twice, &twice, false),
+            Err(DiffError::Run { message, .. }) if message.contains("sample S1 appears twice")
+        ));
+        let once = run(root.path(), "once", false, &rows[..1], &[], (1, 0, 0))?;
+        let scores = once.join(rundir::SCORES);
+        let text = std::fs::read_to_string(&scores)?.replace("review_zones", "zones");
+        std::fs::write(&scores, text)?;
+        assert!(matches!(
+            compare(&once, &once, false),
+            Err(DiffError::Run { message, .. }) if message == "no column review_zones"
+        ));
         Ok(())
     }
 }

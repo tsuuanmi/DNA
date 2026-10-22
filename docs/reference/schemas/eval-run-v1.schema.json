@@ -35,9 +35,6 @@
     "windows.tsv": {
       "$ref": "#/$defs/windows"
     },
-    "diff.tsv": {
-      "$ref": "#/$defs/diff"
-    },
     "truth_changes.tsv": {
       "$ref": "#/$defs/truth_changes"
     },
@@ -67,68 +64,9 @@
     },
     "forms.tsv": {
       "$ref": "#/$defs/forms"
-    },
-    "triage.tsv": {
-      "$ref": "#/$defs/triage"
-    },
-    "triage_regions.tsv": {
-      "$ref": "#/$defs/triage_regions"
-    },
-    "triage_traces.tsv": {
-      "$ref": "#/$defs/triage_traces"
-    },
-    "triage_leaks.tsv": {
-      "$ref": "#/$defs/triage_leaks"
-    },
-    "triage_detectors.tsv": {
-      "$ref": "#/$defs/triage_detectors"
-    },
-    "triage_positions.tsv": {
-      "$ref": "#/$defs/triage_positions"
-    },
-    "triage_sweep.tsv": {
-      "$ref": "#/$defs/triage_sweep"
-    },
-    "triage_policies.tsv": {
-      "$ref": "#/$defs/triage_policies"
-    },
-    "triage_minor.tsv": {
-      "$ref": "#/$defs/triage_minor"
-    },
-    "triage.md": {
-      "$ref": "#/$defs/markdown"
     }
   },
   "allOf": [
-    {
-      "if": {
-        "properties": {
-          "run.json": {
-            "properties": {
-              "baseline": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "required": [
-          "diff.tsv"
-        ]
-      },
-      "else": {
-        "not": {
-          "anyOf": [
-            {
-              "required": [
-                "diff.tsv"
-              ]
-            }
-          ]
-        }
-      }
-    },
     {
       "if": {
         "properties": {
@@ -215,87 +153,6 @@
           ]
         }
       }
-    },
-    {
-      "if": {
-        "properties": {
-          "run.json": {
-            "required": [
-              "triage"
-            ]
-          }
-        }
-      },
-      "then": {
-        "required": [
-          "triage.tsv",
-          "triage_regions.tsv",
-          "triage_traces.tsv",
-          "triage_leaks.tsv",
-          "triage_detectors.tsv",
-          "triage_positions.tsv",
-          "triage_sweep.tsv",
-          "triage_policies.tsv",
-          "triage_minor.tsv",
-          "triage.md"
-        ]
-      },
-      "else": {
-        "not": {
-          "anyOf": [
-            {
-              "required": [
-                "triage.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_regions.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_traces.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_leaks.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_detectors.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_positions.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_sweep.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_policies.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage_minor.tsv"
-              ]
-            },
-            {
-              "required": [
-                "triage.md"
-              ]
-            }
-          ]
-        }
-      }
     }
   ],
   "$defs": {
@@ -313,7 +170,6 @@
         "configuration_path",
         "reference_path",
         "identities",
-        "baseline",
         "review_window",
         "zones",
         "constants",
@@ -493,14 +349,6 @@
             }
           }
         },
-        "baseline": {
-          "description": "The baseline run directory; null without one.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "minLength": 1
-        },
         "review_window": {
           "description": "Window of the review workload, in positions.",
           "type": "integer",
@@ -517,6 +365,11 @@
             "batch",
             "month"
           ]
+        },
+        "run_signal_batch_reads": {
+          "description": "With `run_signal` `batch`: the fewest reads of a batch for its own run signal (`--run-signal-batch-reads`); absent otherwise.",
+          "type": "integer",
+          "minimum": 0
         },
         "forced_windows": {
           "description": "The forced-window list, when given.",
@@ -675,12 +528,13 @@
           }
         },
         "run_context": {
-          "description": "With `--run-context`: the directory of run contexts (`<batch>.run_context.json`, PROP-0014) the consensus was calibrated by, absolute, and how many of the panel's batches had one.",
+          "description": "With `--run-context`: the directory of run contexts (`<batch>.run_context.json`, PROP-0014) the consensus was calibrated by, absolute, how many of the panel's batches had one, and the contexts' digest: the SHA-256 of one `<batch>\\t<file SHA-256>` line per context read, in batch order.",
           "type": "object",
           "additionalProperties": false,
           "required": [
             "directory",
-            "batches"
+            "batches",
+            "sha256"
           ],
           "properties": {
             "directory": {
@@ -690,6 +544,9 @@
             "batches": {
               "type": "integer",
               "minimum": 0
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
             }
           }
         },
@@ -724,14 +581,7 @@
           "required": [
             "lod_share",
             "faint_share",
-            "minor_floor_share",
-            "minor_noise_calls",
-            "local_shadow_share",
-            "noise_ratio",
-            "upper_bound_alpha",
-            "interval_z",
-            "triage_window_margin",
-            "triage_footprint_positions"
+            "interval_z"
           ],
           "properties": {
             "lod_share": {
@@ -746,48 +596,10 @@
               "minimum": 0,
               "maximum": 1000
             },
-            "minor_floor_share": {
-              "description": "Smallest second-channel weight the triage evidence keeps.",
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 1000
-            },
-            "minor_noise_calls": {
-              "description": "Calls on each side of a call whose second channels give its local noise.",
-              "type": "integer",
-              "minimum": 0
-            },
-            "local_shadow_share": {
-              "description": "Share of a read's nearby calls showing the same shadow that marks it local.",
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 1000
-            },
-            "noise_ratio": {
-              "description": "Multiple of its local noise a second channel needs to count.",
-              "type": "integer",
-              "minimum": 0
-            },
-            "upper_bound_alpha": {
-              "description": "One-sided level of the Clopper–Pearson upper bounds.",
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "exclusiveMaximum": 1
-            },
             "interval_z": {
               "description": "Normal quantile of the two-sided 95 % intervals and Wilson bounds.",
               "type": "number",
               "exclusiveMinimum": 0
-            },
-            "triage_window_margin": {
-              "description": "Positions around a repeat window that count as inside it, for triage.",
-              "type": "integer",
-              "minimum": 0
-            },
-            "triage_footprint_positions": {
-              "description": "Clean positions a read observes in a region for its primer to count.",
-              "type": "integer",
-              "minimum": 0
             }
           }
         },
@@ -1062,30 +874,6 @@
               "minimum": 0
             }
           }
-        },
-        "triage": {
-          "description": "With `--triage`: the reported policy (`<name>: <parameters>`), the number of policies swept, and the time to decide and score them.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "policy",
-            "policies",
-            "seconds"
-          ],
-          "properties": {
-            "policy": {
-              "type": "string",
-              "minLength": 1
-            },
-            "policies": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "seconds": {
-              "type": "number",
-              "minimum": 0
-            }
-          }
         }
       },
       "if": {
@@ -1112,7 +900,33 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "run_signal": {
+                "const": "batch"
+              }
+            },
+            "required": [
+              "run_signal"
+            ]
+          },
+          "then": {
+            "required": [
+              "run_signal_batch_reads"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "run_signal_batch_reads"
+              ]
+            }
+          }
+        }
+      ]
     },
     "passes": {
       "description": "What passes without review over one set of samples.",
@@ -1756,9 +1570,7 @@
             "iupac_compatible_status",
             "haplotype_status",
             "haplotype_iupac_compatible_status",
-            "haplotype_lod_status",
-            "baseline_status",
-            "change"
+            "haplotype_lod_status"
           ]
         },
         "rows": {
@@ -1774,9 +1586,7 @@
               "iupac_compatible_status",
               "haplotype_status",
               "haplotype_iupac_compatible_status",
-              "haplotype_lod_status",
-              "baseline_status",
-              "change"
+              "haplotype_lod_status"
             ],
             "properties": {
               "sample_id": {
@@ -1810,14 +1620,6 @@
               "haplotype_lod_status": {
                 "description": "The status under `haplotype_lod`.",
                 "$ref": "#/$defs/status"
-              },
-              "baseline_status": {
-                "description": "The primary status the baseline's `scores.tsv` records, as written there (earlier runs may write `exact` or `error`); empty without one.",
-                "$ref": "#/$defs/text"
-              },
-              "change": {
-                "description": "The primary change against the baseline; empty without a baseline.",
-                "$ref": "#/$defs/optional_change"
               }
             }
           }
@@ -1896,78 +1698,6 @@
               "unreviewed_upper95": {
                 "description": "The Wilson 95 % upper bound of that share.",
                 "$ref": "#/$defs/decimal_4"
-              }
-            }
-          }
-        }
-      }
-    },
-    "diff": {
-      "description": "With a baseline: per measure the baseline reports, each sample whose status class changed, including added and removed samples, by sample and measure.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "sample_id",
-            "stratum",
-            "measure",
-            "baseline_status",
-            "status",
-            "change"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "sample_id",
-              "stratum",
-              "measure",
-              "baseline_status",
-              "status",
-              "change"
-            ],
-            "properties": {
-              "sample_id": {
-                "description": "The panel sample identifier.",
-                "$ref": "#/$defs/text"
-              },
-              "stratum": {
-                "description": "The stratum; empty for a removed sample.",
-                "$ref": "#/$defs/text"
-              },
-              "measure": {
-                "description": "The measure.",
-                "$ref": "#/$defs/measure"
-              },
-              "baseline_status": {
-                "description": "The baseline's status, as written there; empty for an added sample.",
-                "$ref": "#/$defs/text"
-              },
-              "status": {
-                "description": "The status now; empty for a removed sample.",
-                "$ref": "#/$defs/optional_status"
-              },
-              "change": {
-                "description": "How the status class moved.",
-                "enum": [
-                  "regression",
-                  "fix",
-                  "changed",
-                  "added",
-                  "removed"
-                ]
               }
             }
           }
@@ -2090,7 +1820,7 @@
       }
     },
     "unreviewed": {
-      "description": "One row per sample and `haplotype_lod` difference block that no check item overlaps, in panel then block order: its first and last anchors (1-based), its text as in `scores.tsv` `unreviewed`, its class as the pass measures split it (re-check list, then truth `N`, then a truth heteroplasmy, else a non-het DNA error), the review zone that holds its first anchor, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it.",
+      "description": "One row per sample and `haplotype_lod` difference block that no check item overlaps, in `sample_id` then block order: its first and last anchors (1-based), its text as in `scores.tsv` `unreviewed`, its class as the pass measures split it (the first that applies: the re-check list, truth `N`, a length note, a truth heteroplasmy, else a non-het DNA error), the review zone that holds its first anchor, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -2157,7 +1887,7 @@
               "zone": {
                 "description": "The review zone (`kind@region`) holding the block's first anchor; `.` outside every zone.",
                 "type": "string",
-                "pattern": "^([a-z_]+@[A-Z0-9]+|\\.)$"
+                "pattern": "^([a-z_]+@([A-Z0-9]+|[0-9]+-[0-9]+)|\\.)$"
               },
               "zone_checked": {
                 "description": "Whether a check item of the sample touches that zone; `.` without one.",
@@ -2741,14 +2471,9 @@
                 ]
               },
               "window": {
-                "description": "The repeat window; `-` for `outside`.",
-                "enum": [
-                  "hv2_polyc",
-                  "hv1_polyc",
-                  "hv3_polyc",
-                  "ac_repeat",
-                  "-"
-                ]
+                "description": "The repeat window, by its label as in `class_regions` (never `other`); `-` for `outside`.",
+                "type": "string",
+                "pattern": "^([a-z0-9_]+|-)$"
               },
               "sequence": {
                 "description": "The window's sequence; `-` for `outside`.",
@@ -2761,1440 +2486,6 @@
               "samples": {
                 "description": "Truth samples that write it.",
                 "$ref": "#/$defs/count"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per sample, sorted by `sample_id`, retired ones included.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "sample_id",
-            "stratum",
-            "weight_corpus",
-            "retired",
-            "outcome",
-            "regions",
-            "findings",
-            "poor_traces",
-            "rerun_traces",
-            "status",
-            "strict_status",
-            "iupac_compatible_status",
-            "haplotype_status",
-            "haplotype_iupac_compatible_status",
-            "haplotype_lod_status"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "sample_id",
-              "stratum",
-              "weight_corpus",
-              "retired",
-              "outcome",
-              "regions",
-              "findings",
-              "poor_traces",
-              "rerun_traces",
-              "status",
-              "strict_status",
-              "iupac_compatible_status",
-              "haplotype_status",
-              "haplotype_iupac_compatible_status",
-              "haplotype_lod_status"
-            ],
-            "properties": {
-              "sample_id": {
-                "description": "The panel sample identifier.",
-                "$ref": "#/$defs/text"
-              },
-              "stratum": {
-                "description": "The sample's manifest stratum.",
-                "$ref": "#/$defs/text"
-              },
-              "weight_corpus": {
-                "description": "The manifest `weight_corpus`, as written.",
-                "$ref": "#/$defs/weight"
-              },
-              "retired": {
-                "description": "The manifest `retired` flag.",
-                "$ref": "#/$defs/flag"
-              },
-              "outcome": {
-                "description": "The triage class: the draft's outcome, or `failed` when DNA failed on a sample with an admitted read (a sample without one is decided, `rerun`).",
-                "$ref": "#/$defs/triage_class"
-              },
-              "regions": {
-                "description": "Each region's outcome, `<region>=<outcome>`, comma-separated.",
-                "$ref": "#/$defs/text"
-              },
-              "findings": {
-                "description": "Each region detector's positions, `<region>:<detector>=<positions>`, comma-separated, then `minor_unavailable=<reason>` when the minor channels could not be read.",
-                "$ref": "#/$defs/text"
-              },
-              "poor_traces": {
-                "description": "Each poor trace with its findings, `<trace>=<finding>+<finding>`, comma-separated.",
-                "$ref": "#/$defs/text"
-              },
-              "rerun_traces": {
-                "description": "The traces a rerun asks for, comma-separated.",
-                "$ref": "#/$defs/text"
-              },
-              "status": {
-                "description": "The status under `primary`.",
-                "$ref": "#/$defs/status"
-              },
-              "strict_status": {
-                "description": "The status under `strict`.",
-                "$ref": "#/$defs/status"
-              },
-              "iupac_compatible_status": {
-                "description": "The status under `iupac_compatible`.",
-                "$ref": "#/$defs/status"
-              },
-              "haplotype_status": {
-                "description": "The status under `haplotype`.",
-                "$ref": "#/$defs/status"
-              },
-              "haplotype_iupac_compatible_status": {
-                "description": "The status under `haplotype_iupac_compatible`.",
-                "$ref": "#/$defs/status"
-              },
-              "haplotype_lod_status": {
-                "description": "The status under `haplotype_lod`.",
-                "$ref": "#/$defs/status"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_regions": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per sample with triage evidence and region, in sample then region order.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "sample_id",
-            "stratum",
-            "region",
-            "outcome",
-            "region.unreliable:n",
-            "region.unreliable:contested",
-            "region.unreliable:masked",
-            "region.unreliable:masked_read",
-            "region.unreliable:phase_loss",
-            "region.unreliable:reference_frame",
-            "region.one_strand",
-            "region.gap",
-            "region.minor_signal",
-            "rerun_traces",
-            "primary_positions",
-            "strict_positions",
-            "iupac_compatible_positions",
-            "haplotype_positions",
-            "haplotype_iupac_compatible_positions",
-            "haplotype_lod_positions"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "sample_id",
-              "stratum",
-              "region",
-              "outcome",
-              "region.unreliable:n",
-              "region.unreliable:contested",
-              "region.unreliable:masked",
-              "region.unreliable:masked_read",
-              "region.unreliable:phase_loss",
-              "region.unreliable:reference_frame",
-              "region.one_strand",
-              "region.gap",
-              "region.minor_signal",
-              "rerun_traces",
-              "primary_positions",
-              "strict_positions",
-              "iupac_compatible_positions",
-              "haplotype_positions",
-              "haplotype_iupac_compatible_positions",
-              "haplotype_lod_positions"
-            ],
-            "properties": {
-              "sample_id": {
-                "description": "The panel sample identifier.",
-                "$ref": "#/$defs/text"
-              },
-              "stratum": {
-                "description": "The sample's manifest stratum.",
-                "$ref": "#/$defs/text"
-              },
-              "region": {
-                "description": "The region.",
-                "$ref": "#/$defs/triage_region"
-              },
-              "outcome": {
-                "description": "The region's outcome.",
-                "$ref": "#/$defs/outcome"
-              },
-              "region.unreliable:n": {
-                "description": "Positions `region.unreliable:n` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:contested": {
-                "description": "Positions `region.unreliable:contested` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:masked": {
-                "description": "Positions `region.unreliable:masked` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:masked_read": {
-                "description": "Positions `region.unreliable:masked_read` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:phase_loss": {
-                "description": "Positions `region.unreliable:phase_loss` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:reference_frame": {
-                "description": "Positions `region.unreliable:reference_frame` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.one_strand": {
-                "description": "Positions `region.one_strand` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.gap": {
-                "description": "Positions `region.gap` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "region.minor_signal": {
-                "description": "Positions `region.minor_signal` marks.",
-                "$ref": "#/$defs/count"
-              },
-              "rerun_traces": {
-                "description": "The traces the region's rerun asks for, comma-separated.",
-                "$ref": "#/$defs/text"
-              },
-              "primary_positions": {
-                "description": "The `primary` discordant positions in the region.",
-                "$ref": "#/$defs/words"
-              },
-              "strict_positions": {
-                "description": "The `strict` discordant positions in the region.",
-                "$ref": "#/$defs/words"
-              },
-              "iupac_compatible_positions": {
-                "description": "The `iupac_compatible` discordant positions in the region.",
-                "$ref": "#/$defs/words"
-              },
-              "haplotype_positions": {
-                "description": "The `haplotype` discordant positions in the region.",
-                "$ref": "#/$defs/words"
-              },
-              "haplotype_iupac_compatible_positions": {
-                "description": "The `haplotype_iupac_compatible` discordant positions in the region.",
-                "$ref": "#/$defs/words"
-              },
-              "haplotype_lod_positions": {
-                "description": "The `haplotype_lod` discordant positions in the region.",
-                "$ref": "#/$defs/words"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_traces": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per input trace of a sample with triage evidence.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "sample_id",
-            "trace",
-            "primer",
-            "state",
-            "callable_span",
-            "findings",
-            "rerun_for"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "sample_id",
-              "trace",
-              "primer",
-              "state",
-              "callable_span",
-              "findings",
-              "rerun_for"
-            ],
-            "properties": {
-              "sample_id": {
-                "description": "The panel sample identifier.",
-                "$ref": "#/$defs/text"
-              },
-              "trace": {
-                "description": "The trace's file name.",
-                "$ref": "#/$defs/nonempty"
-              },
-              "primer": {
-                "description": "The primer its name carries; empty when none is recognised.",
-                "$ref": "#/$defs/text"
-              },
-              "state": {
-                "description": "`admitted:<strand>`, `too_short`, `weak`, `unplaced:<reason>`, or `rejected`.",
-                "type": "string",
-                "pattern": "^(admitted:(forward|reverse)|too_short|weak|unplaced:.+|rejected)$"
-              },
-              "callable_span": {
-                "description": "The callable span in calls, from the first to the last unmasked call; empty when the read did not reach callability.",
-                "$ref": "#/$defs/optional_count"
-              },
-              "findings": {
-                "description": "The trace's findings, `+`-separated.",
-                "type": "string",
-                "pattern": "^((trace\\.[a-z_]+)(\\+trace\\.[a-z_]+)*)?$"
-              },
-              "rerun_for": {
-                "description": "The regions whose rerun asks for the trace, comma-separated; `no_admitted_read` for a sample without an admitted read.",
-                "$ref": "#/$defs/text"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_leaks": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. Every discordant position inside a passed region, under each measure, by sample.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "sample_id",
-            "stratum",
-            "sample_outcome",
-            "measure",
-            "region",
-            "position",
-            "window",
-            "kind",
-            "class",
-            "dna_alleles",
-            "truth_alleles",
-            "marked_by"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "sample_id",
-              "stratum",
-              "sample_outcome",
-              "measure",
-              "region",
-              "position",
-              "window",
-              "kind",
-              "class",
-              "dna_alleles",
-              "truth_alleles",
-              "marked_by"
-            ],
-            "properties": {
-              "sample_id": {
-                "description": "The panel sample identifier.",
-                "$ref": "#/$defs/text"
-              },
-              "stratum": {
-                "description": "The sample's manifest stratum.",
-                "$ref": "#/$defs/text"
-              },
-              "sample_outcome": {
-                "description": "The sample's triage class.",
-                "$ref": "#/$defs/triage_class"
-              },
-              "measure": {
-                "description": "The measure.",
-                "$ref": "#/$defs/measure"
-              },
-              "region": {
-                "description": "The region; `-` outside every region.",
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/triage_region"
-                  },
-                  {
-                    "const": "-"
-                  }
-                ]
-              },
-              "position": {
-                "description": "The discordant position.",
-                "$ref": "#/$defs/nonempty"
-              },
-              "window": {
-                "description": "The repeat window of the position, or `other`.",
-                "$ref": "#/$defs/window"
-              },
-              "kind": {
-                "description": "Which side's alleles differ there.",
-                "enum": [
-                  "both",
-                  "dna_unique",
-                  "truth_unique",
-                  "uncovered",
-                  "none"
-                ]
-              },
-              "class": {
-                "description": "The difference: `iupac` when a truth allele is IUPAC, else `insertion`, `deletion`, or `substitution`.",
-                "enum": [
-                  "iupac",
-                  "insertion",
-                  "deletion",
-                  "substitution"
-                ]
-              },
-              "dna_alleles": {
-                "description": "DNA's differing alleles there.",
-                "$ref": "#/$defs/words"
-              },
-              "truth_alleles": {
-                "description": "The truth's differing alleles there.",
-                "$ref": "#/$defs/words"
-              },
-              "marked_by": {
-                "description": "The detectors marking the position, comma-separated.",
-                "$ref": "#/$defs/text"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_detectors": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per region detector, over the scored (not retired), compared samples. An applied detector fills `unique_*` and `sole_burden`, one the policy does not apply fills `if_applied_*`; the other set is `-`.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "detector",
-            "applied",
-            "samples",
-            "regions",
-            "positions",
-            "catches_primary",
-            "catches_strict",
-            "catches_iupac_compatible",
-            "catches_haplotype",
-            "catches_haplotype_iupac_compatible",
-            "catches_haplotype_lod",
-            "burden",
-            "unique_primary",
-            "unique_strict",
-            "unique_iupac_compatible",
-            "unique_haplotype",
-            "unique_haplotype_iupac_compatible",
-            "unique_haplotype_lod",
-            "sole_burden",
-            "if_applied_catches_primary",
-            "if_applied_catches_strict",
-            "if_applied_catches_iupac_compatible",
-            "if_applied_catches_haplotype",
-            "if_applied_catches_haplotype_iupac_compatible",
-            "if_applied_catches_haplotype_lod",
-            "if_applied_burden",
-            "position_hits_primary"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "detector",
-              "applied",
-              "samples",
-              "regions",
-              "positions",
-              "catches_primary",
-              "catches_strict",
-              "catches_iupac_compatible",
-              "catches_haplotype",
-              "catches_haplotype_iupac_compatible",
-              "catches_haplotype_lod",
-              "burden",
-              "unique_primary",
-              "unique_strict",
-              "unique_iupac_compatible",
-              "unique_haplotype",
-              "unique_haplotype_iupac_compatible",
-              "unique_haplotype_lod",
-              "sole_burden",
-              "if_applied_catches_primary",
-              "if_applied_catches_strict",
-              "if_applied_catches_iupac_compatible",
-              "if_applied_catches_haplotype",
-              "if_applied_catches_haplotype_iupac_compatible",
-              "if_applied_catches_haplotype_lod",
-              "if_applied_burden",
-              "position_hits_primary"
-            ],
-            "properties": {
-              "detector": {
-                "description": "The region detector.",
-                "$ref": "#/$defs/detector"
-              },
-              "applied": {
-                "description": "Whether the draft applies it.",
-                "$ref": "#/$defs/flag"
-              },
-              "samples": {
-                "description": "Samples it flags.",
-                "$ref": "#/$defs/count"
-              },
-              "regions": {
-                "description": "Regions it flags.",
-                "$ref": "#/$defs/count"
-              },
-              "positions": {
-                "description": "Positions it flags.",
-                "$ref": "#/$defs/count"
-              },
-              "catches_primary": {
-                "description": "Flagged samples not concordant under `primary`.",
-                "$ref": "#/$defs/count"
-              },
-              "catches_strict": {
-                "description": "Flagged samples not concordant under `strict`.",
-                "$ref": "#/$defs/count"
-              },
-              "catches_iupac_compatible": {
-                "description": "Flagged samples not concordant under `iupac_compatible`.",
-                "$ref": "#/$defs/count"
-              },
-              "catches_haplotype": {
-                "description": "Flagged samples not concordant under `haplotype`.",
-                "$ref": "#/$defs/count"
-              },
-              "catches_haplotype_iupac_compatible": {
-                "description": "Flagged samples not concordant under `haplotype_iupac_compatible`.",
-                "$ref": "#/$defs/count"
-              },
-              "catches_haplotype_lod": {
-                "description": "Flagged samples not concordant under `haplotype_lod`.",
-                "$ref": "#/$defs/count"
-              },
-              "burden": {
-                "description": "Flagged samples concordant under `primary`.",
-                "$ref": "#/$defs/count"
-              },
-              "unique_primary": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `primary` no other applied detector shares."
-              },
-              "unique_strict": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `strict` no other applied detector shares."
-              },
-              "unique_iupac_compatible": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `iupac_compatible` no other applied detector shares."
-              },
-              "unique_haplotype": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `haplotype` no other applied detector shares."
-              },
-              "unique_haplotype_iupac_compatible": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `haplotype_iupac_compatible` no other applied detector shares."
-              },
-              "unique_haplotype_lod": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `haplotype_lod` no other applied detector shares."
-              },
-              "sole_burden": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Burden no other applied detector shares."
-              },
-              "if_applied_catches_primary": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `primary` applying it would add."
-              },
-              "if_applied_catches_strict": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `strict` applying it would add."
-              },
-              "if_applied_catches_iupac_compatible": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `iupac_compatible` applying it would add."
-              },
-              "if_applied_catches_haplotype": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `haplotype` applying it would add."
-              },
-              "if_applied_catches_haplotype_iupac_compatible": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `haplotype_iupac_compatible` applying it would add."
-              },
-              "if_applied_catches_haplotype_lod": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Catches under `haplotype_lod` applying it would add."
-              },
-              "if_applied_burden": {
-                "type": "string",
-                "pattern": "^(0|[1-9][0-9]*|-)$",
-                "description": "Burden applying it would add."
-              },
-              "position_hits_primary": {
-                "description": "`primary` discordant positions it marks.",
-                "$ref": "#/$defs/count"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_positions": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per region position, in region then position order.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "region",
-            "position",
-            "samples",
-            "region.unreliable:n",
-            "region.unreliable:contested",
-            "region.unreliable:masked",
-            "region.unreliable:masked_read",
-            "region.unreliable:phase_loss",
-            "region.unreliable:reference_frame",
-            "region.one_strand",
-            "region.gap",
-            "region.minor_signal"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "region",
-              "position",
-              "samples",
-              "region.unreliable:n",
-              "region.unreliable:contested",
-              "region.unreliable:masked",
-              "region.unreliable:masked_read",
-              "region.unreliable:phase_loss",
-              "region.unreliable:reference_frame",
-              "region.one_strand",
-              "region.gap",
-              "region.minor_signal"
-            ],
-            "properties": {
-              "region": {
-                "description": "The region.",
-                "$ref": "#/$defs/triage_region"
-              },
-              "position": {
-                "description": "The reference position, 1-based.",
-                "$ref": "#/$defs/count"
-              },
-              "samples": {
-                "description": "Scored samples with region evidence there.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:n": {
-                "description": "Samples `region.unreliable:n` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:contested": {
-                "description": "Samples `region.unreliable:contested` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:masked": {
-                "description": "Samples `region.unreliable:masked` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:masked_read": {
-                "description": "Samples `region.unreliable:masked_read` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:phase_loss": {
-                "description": "Samples `region.unreliable:phase_loss` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.unreliable:reference_frame": {
-                "description": "Samples `region.unreliable:reference_frame` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.one_strand": {
-                "description": "Samples `region.one_strand` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.gap": {
-                "description": "Samples `region.gap` marks the position in.",
-                "$ref": "#/$defs/count"
-              },
-              "region.minor_signal": {
-                "description": "Samples `region.minor_signal` marks the position in.",
-                "$ref": "#/$defs/count"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_sweep": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per policy of the sweep, the draft first.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "policy",
-            "parameters",
-            "samples",
-            "pass",
-            "review",
-            "rerun",
-            "failed",
-            "pass_rate",
-            "pass_corpus",
-            "pass_corpus_ci95",
-            "review_corpus",
-            "rerun_corpus",
-            "failed_corpus",
-            "passed_primary",
-            "leaks_primary",
-            "leak_rate_primary",
-            "leak_upper95_primary",
-            "leak_rate_corpus_primary",
-            "passed_strict",
-            "leaks_strict",
-            "leak_rate_strict",
-            "leak_upper95_strict",
-            "leak_rate_corpus_strict",
-            "passed_iupac_compatible",
-            "leaks_iupac_compatible",
-            "leak_rate_iupac_compatible",
-            "leak_upper95_iupac_compatible",
-            "leak_rate_corpus_iupac_compatible",
-            "passed_haplotype",
-            "leaks_haplotype",
-            "leak_rate_haplotype",
-            "leak_upper95_haplotype",
-            "leak_rate_corpus_haplotype",
-            "passed_haplotype_iupac_compatible",
-            "leaks_haplotype_iupac_compatible",
-            "leak_rate_haplotype_iupac_compatible",
-            "leak_upper95_haplotype_iupac_compatible",
-            "leak_rate_corpus_haplotype_iupac_compatible",
-            "passed_haplotype_lod",
-            "leaks_haplotype_lod",
-            "leak_rate_haplotype_lod",
-            "leak_upper95_haplotype_lod",
-            "leak_rate_corpus_haplotype_lod"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "policy",
-              "parameters",
-              "samples",
-              "pass",
-              "review",
-              "rerun",
-              "failed",
-              "pass_rate",
-              "pass_corpus",
-              "pass_corpus_ci95",
-              "review_corpus",
-              "rerun_corpus",
-              "failed_corpus",
-              "passed_primary",
-              "leaks_primary",
-              "leak_rate_primary",
-              "leak_upper95_primary",
-              "leak_rate_corpus_primary",
-              "passed_strict",
-              "leaks_strict",
-              "leak_rate_strict",
-              "leak_upper95_strict",
-              "leak_rate_corpus_strict",
-              "passed_iupac_compatible",
-              "leaks_iupac_compatible",
-              "leak_rate_iupac_compatible",
-              "leak_upper95_iupac_compatible",
-              "leak_rate_corpus_iupac_compatible",
-              "passed_haplotype",
-              "leaks_haplotype",
-              "leak_rate_haplotype",
-              "leak_upper95_haplotype",
-              "leak_rate_corpus_haplotype",
-              "passed_haplotype_iupac_compatible",
-              "leaks_haplotype_iupac_compatible",
-              "leak_rate_haplotype_iupac_compatible",
-              "leak_upper95_haplotype_iupac_compatible",
-              "leak_rate_corpus_haplotype_iupac_compatible",
-              "passed_haplotype_lod",
-              "leaks_haplotype_lod",
-              "leak_rate_haplotype_lod",
-              "leak_upper95_haplotype_lod",
-              "leak_rate_corpus_haplotype_lod"
-            ],
-            "properties": {
-              "policy": {
-                "description": "The policy's name.",
-                "$ref": "#/$defs/policy_name"
-              },
-              "parameters": {
-                "description": "Its parameters, `key=value` pairs separated by spaces.",
-                "$ref": "#/$defs/nonempty"
-              },
-              "samples": {
-                "description": "Scored samples.",
-                "$ref": "#/$defs/count"
-              },
-              "pass": {
-                "description": "Samples passed.",
-                "$ref": "#/$defs/count"
-              },
-              "review": {
-                "description": "Samples sent to review.",
-                "$ref": "#/$defs/count"
-              },
-              "rerun": {
-                "description": "Samples sent to rerun.",
-                "$ref": "#/$defs/count"
-              },
-              "failed": {
-                "description": "Failed samples.",
-                "$ref": "#/$defs/count"
-              },
-              "pass_rate": {
-                "description": "The share passed.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "pass_corpus": {
-                "description": "The corpus-weighted share passed.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "pass_corpus_ci95": {
-                "description": "Its 95 % interval half-width.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "review_corpus": {
-                "description": "The corpus-weighted share sent to review.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "rerun_corpus": {
-                "description": "The corpus-weighted share sent to rerun.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "failed_corpus": {
-                "description": "The corpus-weighted share failed.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_primary": {
-                "description": "Passed samples compared under `primary`.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_primary": {
-                "description": "Those not concordant under `primary`.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_rate_primary": {
-                "description": "The leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_upper95_primary": {
-                "description": "Its one-sided 95 % Clopper–Pearson upper bound.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_primary": {
-                "description": "The corpus-weighted leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_strict": {
-                "description": "Passed samples compared under `strict`.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_strict": {
-                "description": "Those not concordant under `strict`.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_rate_strict": {
-                "description": "The leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_upper95_strict": {
-                "description": "Its one-sided 95 % Clopper–Pearson upper bound.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_strict": {
-                "description": "The corpus-weighted leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_iupac_compatible": {
-                "description": "Passed samples compared under `iupac_compatible`.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_iupac_compatible": {
-                "description": "Those not concordant under `iupac_compatible`.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_rate_iupac_compatible": {
-                "description": "The leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_upper95_iupac_compatible": {
-                "description": "Its one-sided 95 % Clopper–Pearson upper bound.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_iupac_compatible": {
-                "description": "The corpus-weighted leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_haplotype": {
-                "description": "Passed samples compared under `haplotype`.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_haplotype": {
-                "description": "Those not concordant under `haplotype`.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_rate_haplotype": {
-                "description": "The leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_upper95_haplotype": {
-                "description": "Its one-sided 95 % Clopper–Pearson upper bound.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_haplotype": {
-                "description": "The corpus-weighted leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_haplotype_iupac_compatible": {
-                "description": "Passed samples compared under `haplotype_iupac_compatible`.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_haplotype_iupac_compatible": {
-                "description": "Those not concordant under `haplotype_iupac_compatible`.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_rate_haplotype_iupac_compatible": {
-                "description": "The leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_upper95_haplotype_iupac_compatible": {
-                "description": "Its one-sided 95 % Clopper–Pearson upper bound.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_haplotype_iupac_compatible": {
-                "description": "The corpus-weighted leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_haplotype_lod": {
-                "description": "Passed samples compared under `haplotype_lod`.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_haplotype_lod": {
-                "description": "Those not concordant under `haplotype_lod`.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_rate_haplotype_lod": {
-                "description": "The leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_upper95_haplotype_lod": {
-                "description": "Its one-sided 95 % Clopper–Pearson upper bound.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_haplotype_lod": {
-                "description": "The corpus-weighted leak rate.",
-                "$ref": "#/$defs/decimal_4"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_policies": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per sample, sorted by `sample_id`, retired ones included; then one column per policy of the sweep, named as in `triage_sweep.tsv`, the draft first. `dna-eval power` reads it.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "type": "array",
-          "uniqueItems": true,
-          "prefixItems": [
-            {
-              "const": "sample_id"
-            },
-            {
-              "const": "stratum"
-            },
-            {
-              "const": "retired"
-            }
-          ],
-          "items": {
-            "$ref": "#/$defs/policy_name"
-          }
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": {
-              "description": "The sample's class under the policy.",
-              "$ref": "#/$defs/triage_class"
-            },
-            "required": [
-              "sample_id",
-              "stratum",
-              "retired"
-            ],
-            "properties": {
-              "sample_id": {
-                "description": "The panel sample identifier.",
-                "$ref": "#/$defs/text"
-              },
-              "stratum": {
-                "description": "The sample's manifest stratum.",
-                "$ref": "#/$defs/text"
-              },
-              "retired": {
-                "description": "The manifest `retired` flag.",
-                "$ref": "#/$defs/flag"
-              }
-            }
-          }
-        }
-      }
-    },
-    "triage_minor": {
-      "description": "With `--triage`, under the draft policy of PROP-0004 phase 0 (the sweep's first policy, `run.json` `triage.policy`); research only. One row per policy of the minor-signal measurement: the reported policy and each policy with another `region.minor_signal` rule, against the same policy without the rule.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "comments",
-        "columns",
-        "rows"
-      ],
-      "properties": {
-        "comments": {
-          "$ref": "#/$defs/no_comments"
-        },
-        "columns": {
-          "const": [
-            "policy",
-            "rule",
-            "pass_corpus_without",
-            "pass_corpus",
-            "pass_corpus_cost",
-            "moved",
-            "burden",
-            "iupac_sites",
-            "iupac_caught",
-            "iupac_sites_all",
-            "iupac_caught_all",
-            "passed_without_primary",
-            "leaks_without_primary",
-            "passed_primary",
-            "leaks_primary",
-            "leak_upper95_primary",
-            "leak_rate_corpus_primary",
-            "passed_without_strict",
-            "leaks_without_strict",
-            "passed_strict",
-            "leaks_strict",
-            "leak_upper95_strict",
-            "leak_rate_corpus_strict",
-            "passed_without_iupac_compatible",
-            "leaks_without_iupac_compatible",
-            "passed_iupac_compatible",
-            "leaks_iupac_compatible",
-            "leak_upper95_iupac_compatible",
-            "leak_rate_corpus_iupac_compatible",
-            "passed_without_haplotype",
-            "leaks_without_haplotype",
-            "passed_haplotype",
-            "leaks_haplotype",
-            "leak_upper95_haplotype",
-            "leak_rate_corpus_haplotype",
-            "passed_without_haplotype_iupac_compatible",
-            "leaks_without_haplotype_iupac_compatible",
-            "passed_haplotype_iupac_compatible",
-            "leaks_haplotype_iupac_compatible",
-            "leak_upper95_haplotype_iupac_compatible",
-            "leak_rate_corpus_haplotype_iupac_compatible",
-            "passed_without_haplotype_lod",
-            "leaks_without_haplotype_lod",
-            "passed_haplotype_lod",
-            "leaks_haplotype_lod",
-            "leak_upper95_haplotype_lod",
-            "leak_rate_corpus_haplotype_lod"
-          ]
-        },
-        "rows": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "policy",
-              "rule",
-              "pass_corpus_without",
-              "pass_corpus",
-              "pass_corpus_cost",
-              "moved",
-              "burden",
-              "iupac_sites",
-              "iupac_caught",
-              "iupac_sites_all",
-              "iupac_caught_all",
-              "passed_without_primary",
-              "leaks_without_primary",
-              "passed_primary",
-              "leaks_primary",
-              "leak_upper95_primary",
-              "leak_rate_corpus_primary",
-              "passed_without_strict",
-              "leaks_without_strict",
-              "passed_strict",
-              "leaks_strict",
-              "leak_upper95_strict",
-              "leak_rate_corpus_strict",
-              "passed_without_iupac_compatible",
-              "leaks_without_iupac_compatible",
-              "passed_iupac_compatible",
-              "leaks_iupac_compatible",
-              "leak_upper95_iupac_compatible",
-              "leak_rate_corpus_iupac_compatible",
-              "passed_without_haplotype",
-              "leaks_without_haplotype",
-              "passed_haplotype",
-              "leaks_haplotype",
-              "leak_upper95_haplotype",
-              "leak_rate_corpus_haplotype",
-              "passed_without_haplotype_iupac_compatible",
-              "leaks_without_haplotype_iupac_compatible",
-              "passed_haplotype_iupac_compatible",
-              "leaks_haplotype_iupac_compatible",
-              "leak_upper95_haplotype_iupac_compatible",
-              "leak_rate_corpus_haplotype_iupac_compatible",
-              "passed_without_haplotype_lod",
-              "leaks_without_haplotype_lod",
-              "passed_haplotype_lod",
-              "leaks_haplotype_lod",
-              "leak_upper95_haplotype_lod",
-              "leak_rate_corpus_haplotype_lod"
-            ],
-            "properties": {
-              "policy": {
-                "description": "The policy.",
-                "$ref": "#/$defs/policy_name"
-              },
-              "rule": {
-                "description": "Its `region.minor_signal` rules, `<kind>@<threshold>` joined by `+`.",
-                "$ref": "#/$defs/nonempty"
-              },
-              "pass_corpus_without": {
-                "description": "The corpus-weighted share passed without the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "pass_corpus": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "pass_corpus_cost": {
-                "description": "The difference.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "moved": {
-                "description": "Compared samples the rule alone moves from pass to review.",
-                "$ref": "#/$defs/count"
-              },
-              "burden": {
-                "description": "The concordant ones among them.",
-                "$ref": "#/$defs/count"
-              },
-              "iupac_sites": {
-                "description": "Truth IUPAC positions inside regions that pass without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "iupac_caught": {
-                "description": "Those the rule marks.",
-                "$ref": "#/$defs/count"
-              },
-              "iupac_sites_all": {
-                "description": "Truth IUPAC positions in any region.",
-                "$ref": "#/$defs/count"
-              },
-              "iupac_caught_all": {
-                "description": "Those the rule marks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_without_primary": {
-                "description": "Passed samples compared under `primary` without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_without_primary": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_primary": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_primary": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_upper95_primary": {
-                "description": "The one-sided 95 % upper bound with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_primary": {
-                "description": "The corpus-weighted leak rate with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_without_strict": {
-                "description": "Passed samples compared under `strict` without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_without_strict": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_strict": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_strict": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_upper95_strict": {
-                "description": "The one-sided 95 % upper bound with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_strict": {
-                "description": "The corpus-weighted leak rate with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_without_iupac_compatible": {
-                "description": "Passed samples compared under `iupac_compatible` without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_without_iupac_compatible": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_iupac_compatible": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_iupac_compatible": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_upper95_iupac_compatible": {
-                "description": "The one-sided 95 % upper bound with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_iupac_compatible": {
-                "description": "The corpus-weighted leak rate with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_without_haplotype": {
-                "description": "Passed samples compared under `haplotype` without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_without_haplotype": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_haplotype": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_haplotype": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_upper95_haplotype": {
-                "description": "The one-sided 95 % upper bound with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_haplotype": {
-                "description": "The corpus-weighted leak rate with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_without_haplotype_iupac_compatible": {
-                "description": "Passed samples compared under `haplotype_iupac_compatible` without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_without_haplotype_iupac_compatible": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_haplotype_iupac_compatible": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_haplotype_iupac_compatible": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_upper95_haplotype_iupac_compatible": {
-                "description": "The one-sided 95 % upper bound with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_haplotype_iupac_compatible": {
-                "description": "The corpus-weighted leak rate with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "passed_without_haplotype_lod": {
-                "description": "Passed samples compared under `haplotype_lod` without the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_without_haplotype_lod": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "passed_haplotype_lod": {
-                "description": "The same with the rule.",
-                "$ref": "#/$defs/count"
-              },
-              "leaks_haplotype_lod": {
-                "description": "Their leaks.",
-                "$ref": "#/$defs/count"
-              },
-              "leak_upper95_haplotype_lod": {
-                "description": "The one-sided 95 % upper bound with the rule.",
-                "$ref": "#/$defs/decimal_4"
-              },
-              "leak_rate_corpus_haplotype_lod": {
-                "description": "The corpus-weighted leak rate with the rule.",
-                "$ref": "#/$defs/decimal_4"
               }
             }
           }
@@ -4263,31 +2554,12 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
-    "measure": {
-      "enum": [
-        "primary",
-        "strict",
-        "iupac_compatible",
-        "haplotype",
-        "haplotype_iupac_compatible",
-        "haplotype_lod"
-      ]
-    },
     "status": {
       "enum": [
         "concordant",
         "discordant",
         "not_applicable",
         "failed"
-      ]
-    },
-    "optional_status": {
-      "enum": [
-        "concordant",
-        "discordant",
-        "not_applicable",
-        "failed",
-        ""
       ]
     },
     "code": {
@@ -4315,18 +2587,10 @@
       "type": "string",
       "pattern": "^((shared_position|dna_only|truth_only|uncovered)(,(shared_position|dna_only|truth_only|uncovered))*)?$"
     },
-    "window": {
-      "enum": [
-        "ac_repeat",
-        "hv1_polyc",
-        "hv2_polyc",
-        "hv3_polyc",
-        "other"
-      ]
-    },
     "window_list": {
       "type": "string",
-      "pattern": "^((ac_repeat|hv1_polyc|hv2_polyc|hv3_polyc|other)(,(ac_repeat|hv1_polyc|hv2_polyc|hv3_polyc|other))*)?$"
+      "pattern": "^([a-z0-9_]+(,[a-z0-9_]+)*)?$",
+      "description": "Comma-separated window labels, in label order: the target profile's nomenclature windows and its length tracts outside them, each by its profile name in lower case with any other character than a letter or digit written `_` (`hvs_ii`, `hvs3_c_tract` for rCRS), and `other`."
     },
     "class": {
       "description": "The discrepancy class: the part of DNA that owns the difference.",
@@ -4368,9 +2632,9 @@
       "pattern": "^([0-9]+-[0-9]+\\+?:[^ /:]+/[^ /:]+( [0-9]+-[0-9]+\\+?:[^ /:]+/[^ /:]+)*)?$"
     },
     "callable_yield": {
-      "description": "`HV1=<callable>/<analysed> HV2=… HV3=…`.",
+      "description": "Per reportable region of the target profile, in its order (`HV1`, `HV2`, `HV3` for rCRS), `<region>=<callable>/<analysed>`.",
       "type": "string",
-      "pattern": "^(HV1=[0-9]+/[0-9]+ HV2=[0-9]+/[0-9]+ HV3=[0-9]+/[0-9]+)?$"
+      "pattern": "^([A-Z0-9]+=[0-9]+/[0-9]+( [A-Z0-9]+=[0-9]+/[0-9]+)*)?$"
     },
     "failure": {
       "type": "string",
@@ -4380,17 +2644,6 @@
       "description": "`<kind>@<region>`, space-separated.",
       "type": "string",
       "pattern": "^((window|after|start|end|interior)@[^ ]+( (window|after|start|end|interior)@[^ ]+)*)?$"
-    },
-    "optional_change": {
-      "enum": [
-        "regression",
-        "fix",
-        "changed",
-        "added",
-        "removed",
-        "same",
-        ""
-      ]
     },
     "hv_region": {
       "enum": [
@@ -4410,34 +2663,6 @@
         "yes",
         "no"
       ]
-    },
-    "outcome": {
-      "enum": [
-        "pass",
-        "review",
-        "rerun"
-      ]
-    },
-    "triage_class": {
-      "enum": [
-        "pass",
-        "review",
-        "rerun",
-        "failed"
-      ]
-    },
-    "triage_region": {
-      "description": "A region of the target profile, `<first>-<last>`, 1-based.",
-      "type": "string",
-      "pattern": "^[0-9]+-[0-9]+$"
-    },
-    "detector": {
-      "type": "string",
-      "pattern": "^region\\.[a-z_]+(:[a-z_]+)?$"
-    },
-    "policy_name": {
-      "type": "string",
-      "pattern": "^[a-z0-9_@+.]+$"
     },
     "notes": {
       "description": "One row per sample, `dna review` item, and run its `tract_length` label notes (a run of a profile length tract whose dominant length the reads determine, or that DNA does not report), in panel then item order; failed samples have none.",

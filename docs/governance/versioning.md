@@ -17,10 +17,12 @@ A contract version introduced in the current unreleased cycle may be revised in 
 The evaluation harness's output contract, `dna.eval_run/v1`, is versioned
 like a result contract, but no file of a run carries the identifier: a run's
 `run.json` records the harness revision, whose schema describes the run. The
-harness is never released, and runs from any revision are read back as
-baselines and by `dna-eval power`, so the unreleased-cycle exception does not
-apply: a change to a file's columns, formats, or meaning, or to which files a
-run writes, is a new version.
+harness is never released. Its revisions change `dna.eval_run/v1` in place,
+each recorded under `[Unreleased]` in `CHANGELOG.md` with what it changes.
+The only reader of other revisions' runs is `dna-eval diff`, which reads
+`run.json`, `scores.tsv`, and `unreviewed.tsv`: the entry says when a
+revision changes what those files count, since a diff across it shows that
+change beside the candidate's.
 
 ## Configuration
 

@@ -1,11 +1,11 @@
-//! The two-strand run-length rule against the research reference's vectors
-//! (PROP-0012 increment 4): twelve HVS-II runs from development panel v5,
+//! The two-strand run-length rule (SRS-CONS-013) against the research
+//! reference's vectors: twelve HVS-II runs from development panel v5,
 //! with every view's top, next, `p`, and standard error, the strands'
 //! spread, and the outcome.
 
 use std::path::Path;
 
-use dna_consensus::length::{Outcome, RuleParams, View, decide, derived, direct, in_phase};
+use dna_consensus::length::{Outcome, RuleParams, Run, View, decide, derived, direct, in_phase};
 use dna_kernel::read_evidence::{LengthMarginal, Margin};
 use serde_json::Value;
 
@@ -51,7 +51,7 @@ fn close(actual: f64, expected: f64, what: &str, case: &str) {
 // SRS-CONS-013
 #[test]
 fn decides_the_reference_runs() -> Result<(), Box<dyn std::error::Error>> {
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/rule_a");
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/two_strand");
     let mut files = std::fs::read_dir(&directory)?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .collect::<Vec<_>>();
@@ -60,7 +60,11 @@ fn decides_the_reference_runs() -> Result<(), Box<dyn std::error::Error>> {
     for file in files {
         let vector: Value = serde_json::from_str(&std::fs::read_to_string(&file)?)?;
         let case = vector["case"].as_str().unwrap_or_default().to_owned();
-        let run = if vector["run"] == "run1" { 1 } else { 2 };
+        let run = if vector["run"] == "run1" {
+            Run::Before
+        } else {
+            Run::After
+        };
         let tau = &vector["parameters"]["tau"];
         let params = RuleParams {
             confidence: number(&vector["parameters"]["k"]).ok_or("k")?,
@@ -78,7 +82,7 @@ fn decides_the_reference_runs() -> Result<(), Box<dyn std::error::Error>> {
         let mut views: Vec<View> = Vec::new();
         for read in vector["reads"].as_array().into_iter().flatten() {
             let forward = read["strand"] == "F";
-            let key = if run == 1 { "run1" } else { "run2" };
+            let key = if run == Run::Before { "run1" } else { "run2" };
             if read["source"] == "in_phase" {
                 let length = read["lengths"][key].as_u64().ok_or("in-phase length")?;
                 views.push(in_phase(forward, usize::try_from(length)?));
@@ -90,15 +94,15 @@ fn decides_the_reference_runs() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
             let entered = if forward || read["opens_at"] == "run1" {
-                1
+                Run::Before
             } else {
-                2
+                Run::After
             };
             let first = marginal(&read["first"]);
             let view = if run == entered {
                 direct(forward, &first)
             } else if mark == Some(expected_mark)
-                && (forward && entered == 1 || !forward && entered == 2)
+                && (forward && entered == Run::Before || !forward && entered == Run::After)
                 && direct(forward, &first).is_some()
             {
                 derived(forward, &first, &marginal(&read["total"]))

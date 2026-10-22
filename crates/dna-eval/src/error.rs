@@ -1,7 +1,7 @@
 //! Typed failures of an evaluation run.
 //!
 //! [`Error`] stops the run: an input that cannot be trusted as a whole (the
-//! manifest, the truth database, the baseline) or an output that cannot be
+//! manifest, the truth database) or an output that cannot be
 //! written.
 //! A sample that cannot be called or compared is not an error of the run; it
 //! becomes a [`crate::compare::Failure`] row.
@@ -60,9 +60,6 @@ pub(crate) enum Error {
     /// manifest holds.
     #[error("invalid bench case list {path}: {message}")]
     Cases { path: PathBuf, message: String },
-    /// The current-data month is not `YYYY-MM`.
-    #[error("invalid current-data month {value:?}: expected YYYY-MM")]
-    CurrentSince { value: String },
     /// The review window is not a positive number of positions.
     #[error("invalid review window {window}: it must be at least 1")]
     ReviewWindow { window: i64 },
@@ -75,9 +72,6 @@ pub(crate) enum Error {
     /// DNA analysed with.
     #[error("target profile {path}: {message}")]
     Profile { path: PathBuf, message: String },
-    /// The baseline scores are invalid.
-    #[error("invalid baseline scores: {0}")]
-    Baseline(#[from] BaselineError),
     /// A command-line value is not a single token.
     #[error("invalid {name} {value:?}: it must be one token without spaces or '='")]
     Argument { name: &'static str, value: String },
@@ -104,31 +98,15 @@ pub(crate) enum Error {
     /// A harness thread panicked outside the per-sample guard.
     #[error("a harness thread panicked outside a sample")]
     Worker,
-    /// The pre-registration cannot be run.
-    #[error("invalid pre-registration: {0}")]
-    Prereg(#[from] PreregError),
-    /// The pre-registration is not tracked by git or has local changes.
-    #[error("pre-registration {path} is not committed unmodified")]
-    PreregNotCommitted { path: PathBuf },
-    /// An input differs from what the pre-registration froze.
-    #[error("{what} differs from the pre-registration: expected {expected}, found {found}")]
-    Frozen {
-        what: &'static str,
-        expected: String,
-        found: String,
-    },
-    /// An approval output directory outside `results/`.
-    #[error("approval output {path} must lie under a results directory")]
-    OutputOutsideResults { path: PathBuf },
-    /// `run` was given a hold-out panel, which only `approve` may read.
+    /// A command was given a hold-out panel, which stays reserved.
     #[error(
-        "panel {panel:?} is a hold-out panel: only `dna-eval approve` with a committed pre-registration may read it"
+        "panel {panel:?} is a hold-out panel: it stays reserved, and dna-eval reads development and readiness panels only"
     )]
     HoldOut { panel: String },
-    /// `power --base/--candidate` named a policy the development run's
-    /// `triage_policies.tsv` lacks or lists twice.
-    #[error("the development run's triage_policies.tsv has no single column for policy {name:?}")]
-    Policy { name: String },
+    /// A manifest names no panel (`panel=` in its header), so the harness
+    /// cannot tell it from a hold-out panel.
+    #[error("the manifest names no panel: its header needs panel=dev or panel=readiness")]
+    UnnamedPanel,
 }
 
 /// A panel manifest that does not follow the manifest format.
@@ -206,41 +184,6 @@ pub(crate) enum TruthError {
     /// A sample has more alleles than the bound.
     #[error("sample {sample:?} has more than {maximum} alleles")]
     TooManyAlleles { sample: String, maximum: usize },
-}
-
-/// Baseline scores that cannot be compared with this run.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub(crate) enum BaselineError {
-    /// The scores file is not UTF-8.
-    #[error("the scores file is not UTF-8")]
-    NotUtf8,
-    /// A required column is missing.
-    #[error("the column {column} is missing")]
-    MissingColumn { column: &'static str },
-    /// A row does not have one field per column.
-    #[error("line {line} has {found} fields, expected {expected}")]
-    Fields {
-        line: usize,
-        found: usize,
-        expected: usize,
-    },
-    /// A sample appears on two rows.
-    #[error("line {line} repeats sample {sample:?}")]
-    DuplicateSample { line: usize, sample: String },
-}
-
-/// A pre-registration that cannot be run.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub(crate) enum PreregError {
-    /// The file is not valid TOML of the expected shape.
-    #[error("{0}")]
-    Format(String),
-    /// A value is still pending.
-    #[error("{0} is still \"pending\"")]
-    Pending(String),
-    /// A value is outside its allowed set or range.
-    #[error("{field}: {message}")]
-    Invalid { field: String, message: String },
 }
 
 /// Why two runs cannot be compared.

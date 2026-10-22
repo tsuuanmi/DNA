@@ -3,6 +3,7 @@
 use crate::basecalling::BasecallingConfig;
 use crate::basecalling::iupac;
 use crate::basecalling::peak;
+use crate::channel;
 use crate::error::{BasecallingError, Result};
 use crate::model::basecalls::{BaseCall, BaseCalls, PrimaryPeakEvidence};
 use crate::model::sanger::Chromatogram;
@@ -27,13 +28,7 @@ pub(crate) fn call(trace: &Chromatogram, config: &BasecallingConfig) -> Result<B
             }
             .into());
         }
-        let mut order = [0_usize, 1, 2, 3];
-        order.sort_by(|left, right| {
-            peaks[*right]
-                .height
-                .cmp(&peaks[*left].height)
-                .then_with(|| left.cmp(right))
-        });
+        let order = channel::ranked(&peaks.map(|peak| peak.height), Ord::cmp);
         let top_height = peaks[order[0]].height;
         let tied_top = top_height > 0 && peaks[order[1]].height == top_height;
         let vendor_primary = trace

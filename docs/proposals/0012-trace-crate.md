@@ -283,7 +283,7 @@ turns it into development data.
   agreeing and clear, near-equal, one strand, disagreeing. Each bucket gets
   its count and its accuracy against truth. A bucket is decided only where
   its accuracy, set on development panel v5, holds on readiness-v2 at a
-  logged use. The hold-out (validation-v3) stays reserved for `approve`.
+  logged use. The hold-out (validation-v3) stays reserved.
 - **Flags.** Each flagged run is reported with the components shown, so the
   reviewer workload is measured, not assumed.
 - **Unit tests** on synthetic traces for every model step:

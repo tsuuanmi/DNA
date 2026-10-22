@@ -16,10 +16,7 @@ use dna::sample_analysis::SampleAnalysis;
 use dna_kernel::model::nucleotide::Nucleotide;
 
 use crate::compare::{self, Allele};
-
-/// The limit of detection, in thousandths of a read's normalised A/C/G/T
-/// profile: 10 % (user, 2026-10-16).
-pub(crate) const LOD: u16 = 100;
+use crate::conventions::LOD;
 
 /// Per sample, what the covering admitted reads show at 1-based positions.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -118,9 +115,23 @@ mod tests {
             intervals: &intervals,
         };
         let below = below(truth, signals);
-        let haplotypes: Haplotypes =
-            compare::haplotypes(dna, truth_side, compare::tests::rcrs(), Some(&below));
-        compare::compare(dna, truth_side, Measure::HaplotypeLod, &haplotypes, &below).concordance
+        let geometry = crate::geometry::tests::rcrs();
+        let haplotypes: Haplotypes = compare::haplotypes(
+            geometry,
+            dna,
+            truth_side,
+            compare::tests::rcrs(),
+            Some(&below),
+        );
+        compare::compare(
+            geometry,
+            dna,
+            truth_side,
+            Measure::HaplotypeLod,
+            &haplotypes,
+            &below,
+        )
+        .concordance
     }
 
     fn allele(position: &str, reference: &str, alternate: &str) -> Allele {

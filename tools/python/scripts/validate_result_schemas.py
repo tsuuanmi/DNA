@@ -6,6 +6,7 @@ import argparse
 import copy
 import itertools
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -30,6 +31,14 @@ CONSENSUS_SCHEMA = CONTRACTS / "schemas" / "consensus-v1.schema.json"
 CONSENSUS_EXAMPLE = CONTRACTS / "examples" / "consensus-v1.example.json"
 REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
+# The labelling rules' one source: the `review` plugin's descriptor.
+REVIEW_SOURCE = ROOT / "src" / "report" / "review.rs"
+REVIEW_REFERENCE = CONTRACTS / "review.md"
+REVIEW_PLUGIN = re.compile(
+    r'PluginDescriptor = PluginDescriptor \{\s*id: "review",[^}]*?version: (\d+),'
+)
+RULES_HEADING = re.compile(r"^## Labels \(rules version (\d+)\)$", re.MULTILINE)
+RANK_ROW = re.compile(r"^\| (\d) \| (.+) \|$", re.MULTILINE)
 SIGNAL_SCHEMA = CONTRACTS / "schemas" / "signal-v1.schema.json"
 SIGNAL_EXAMPLE = CONTRACTS / "examples" / "signal-v1.example.json"
 RUN_CONTEXT_SCHEMA = CONTRACTS / "schemas" / "run-context-v1.schema.json"
@@ -43,57 +52,20 @@ PLACED_SCHEMA = CONTRACTS / "schemas" / "placed-read-v1.schema.json"
 PLACED_EXAMPLE = CONTRACTS / "examples" / "placed-read-v1.example.json"
 EVAL_RUN_SCHEMA = CONTRACTS / "schemas" / "eval-run-v1.schema.json"
 EVAL_RUN_EXAMPLE = CONTRACTS / "examples" / "eval-run-v1.example.json"
-# Review labels that leave an item unassured, so that it is a check.
-REVIEW_UNASSURED = frozenset(
-    {
-        "strands_disagree",
-        "read_disagrees",
-        "same_strand_dissent",
-        "possible_heteroplasmy",
-        "reference_second",
-        "estimated_length",
-        "length_unconfirmed",
-        "undecided",
-        "not_called",
-        "long_run",
-        "edge_deletion",
-        "run_deletion",
-        "run_indel",
-        "one_strand_insertion",
-        "beside_not_analysed",
-        "not_covered",
+
+
+def review_label_table(schema_path: Path) -> dict[str, tuple[int, bool]]:
+    """The review labels, in the summary's order, with their rank and whether
+    they make an item a check, as the schema's summary lists them (`x-rank`,
+    `x-check`): the published copy of DNA's label table (PROP-0004)."""
+    labels = load_json(schema_path)["$defs"]["summary"]["properties"]["labels"]
+    return {
+        name: (
+            labels["properties"][name]["x-rank"],
+            labels["properties"][name]["x-check"],
+        )
+        for name in labels["required"]
     }
-)
-# Review labels by rank, in the summary's key order (PROP-0004).
-REVIEW_LABELS = {
-    "strands_disagree": 0,
-    "read_disagrees": 0,
-    "same_strand_dissent": 0,
-    "possible_heteroplasmy": 1,
-    "reference_second": 1,
-    "estimated_length": 2,
-    "length_unconfirmed": 2,
-    "undecided": 2,
-    "not_called": 2,
-    "long_run": 2,
-    "edge_deletion": 2,
-    "run_deletion": 2,
-    "run_indel": 2,
-    "one_strand_insertion": 2,
-    "beside_not_analysed": 2,
-    "one_read": 3,
-    "one_strand": 3,
-    "noisy_signal": 4,
-    "not_covered": 4,
-    "phase_shift": 4,
-    "dephased_end": 4,
-    "read_edge": 4,
-    "poor_signal": 4,
-    "length_not_recorded": 4,
-    "tract_length": 4,
-}
-# Priority of a variant item without a label.
-UNLABELLED = 5
 
 
 def load_json(path: Path) -> Any:
@@ -1106,6 +1078,36 @@ def rejected_consensus_shapes(
     ]
 
 
+def review_rules_errors() -> list[str]:
+    """The rules version the reference and the example state is the `review`
+    plugin's version in the source, its one source."""
+    plugin = REVIEW_PLUGIN.search(REVIEW_SOURCE.read_text(encoding="utf-8"))
+    if plugin is None:
+        return [f"{REVIEW_SOURCE}: no review plugin descriptor"]
+    version = int(plugin.group(1))
+    errors: list[str] = []
+    heading = RULES_HEADING.search(REVIEW_REFERENCE.read_text(encoding="utf-8"))
+    if heading is None or int(heading.group(1)) != version:
+        errors.append(
+            f"{REVIEW_REFERENCE}: the labels heading must state rules version {version}"
+        )
+    if load_json(REVIEW_EXAMPLE)["provenance"]["rules"] != version:
+        errors.append(f"{REVIEW_EXAMPLE}: rules must be {version}")
+    # The reference's rank table lists every label at the schema's rank.
+    listed: dict[str, int] = {}
+    for rank, cell in RANK_ROW.findall(REVIEW_REFERENCE.read_text(encoding="utf-8")):
+        for name in re.findall(
+            r"^`([a-z_]+)`$", cell.replace(", ", "\n"), re.MULTILINE
+        ):
+            listed[name] = int(rank)
+    ranks = {
+        name: rank for name, (rank, _) in review_label_table(REVIEW_SCHEMA).items()
+    }
+    if listed != ranks:
+        errors.append(f"{REVIEW_REFERENCE}: the rank table disagrees with the schema")
+    return errors
+
+
 def validate_review(document: Any, label: str, errors: list[str]) -> None:
     """Check a review document's item order, kinds, and summary counts."""
     if not isinstance(document, dict):
@@ -1114,15 +1116,30 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
     summary = document.get("summary")
     if not isinstance(items, list) or not isinstance(summary, dict):
         return
+    provenance = document.get("provenance", {})
+    plugins = {
+        plugin.get("id"): plugin.get("version")
+        for plugin in provenance.get("plugins", [])
+    }
+    if provenance.get("rules") != plugins.get("review"):
+        errors.append(f"{label}: rules is not the review plugin's version")
+    table = review_label_table(REVIEW_SCHEMA)
+    # An explained possible heteroplasmy is context: the context rank, no check.
+    context = max(rank for rank, _ in table.values())
     previous: tuple[int, int, int] | None = None
     known_calls = {entry.get("call") for entry in document.get("calls", [])}
-    counts = dict.fromkeys(REVIEW_LABELS, 0)
+    counts = dict.fromkeys(table, 0)
     checks = 0
     for index, item in enumerate(items):
-        names = {entry.get("label") for entry in item.get("labels", [])}
+        labels = [
+            (entry.get("label"), entry.get("explained") is True)
+            for entry in item.get("labels", [])
+            if entry.get("label") in table
+        ]
+        names = {name for name, _ in labels}
         priority = min(
-            (REVIEW_LABELS[name] for name in names if name in REVIEW_LABELS),
-            default=UNLABELLED,
+            (context if explained else table[name][0] for name, explained in labels),
+            default=context + 1,
         )
         first = item.get("first", {})
         order = (priority, first.get("position", 0), first.get("ordinal", 0))
@@ -1132,10 +1149,18 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
         # Without notation calls, a difference is the consensus's decision.
         differs = bool(item.get("calls")) or "calls" not in document
         # A difference inside a read's poor signal is a check too (SRS-CALL-024).
-        unassured = bool(names & REVIEW_UNASSURED) or (
-            differs and "poor_signal" in names
-        )
-        kind = "variant" if differs and not unassured else "check"
+        unassured = any(
+            table[name][1] and not explained for name, explained in labels
+        ) or (differs and "poor_signal" in names)
+        # Without a difference, an explained possible heteroplasmy or a
+        # tract_length label makes a note.
+        noted = any(explained or name == "tract_length" for name, explained in labels)
+        if unassured:
+            kind = "check"
+        elif differs:
+            kind = "variant"
+        else:
+            kind = "note" if noted else None
         if item.get("kind") != kind:
             errors.append(
                 f"{label}: item {index} kind disagrees with its calls and labels"
@@ -1153,7 +1178,8 @@ def validate_review(document: Any, label: str, errors: list[str]) -> None:
                 counts[name] += 1
     if summary.get("items") != len(items) or summary.get("checks") != checks:
         errors.append(f"{label}: summary item counts disagree with the items")
-    if summary.get("variants") != len(items) - checks:
+    variants = sum(1 for item in items if item.get("kind") == "variant")
+    if summary.get("variants") != variants:
         errors.append(f"{label}: summary variant count disagrees with the items")
     if summary.get("labels") != counts:
         errors.append(f"{label}: summary label counts disagree with the items")
@@ -1866,22 +1892,6 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
     validate_eval_passes(
         header.get("workload", {}), "recheck" in header, scores, label, errors
     )
-    triage = header.get("triage")
-    if isinstance(triage, dict):
-        policies = triage.get("policies")
-        columns = document.get("triage_policies.tsv", {}).get("columns", [])
-        sweep = document.get("triage_sweep.tsv", {}).get("rows", [])
-        if len(columns) - 3 != policies or len(sweep) != policies:
-            errors.append(
-                f"{label}: triage policies disagree with the sweep and policy tables"
-            )
-        names = [row.get("policy") for row in sweep]
-        if names != columns[3:] or not triage.get("policy", "").startswith(
-            f"{names[0] if names else ''}: "
-        ):
-            errors.append(
-                f"{label}: the sweep's policies are not the policy table's, reported first"
-            )
 
 
 # The classes that split the passed units with an unreviewed block.
@@ -1991,16 +2001,8 @@ def rejected_eval_run_shapes(
     row_without_cell["windows.tsv"]["rows"][0].pop("unreviewed_upper95")
     unformatted_rate = copy.deepcopy(example)
     unformatted_rate["estimates.tsv"]["rows"][0]["rate"] = "0.5"
-    diff_without_baseline = copy.deepcopy(example)
-    diff_without_baseline["run.json"]["baseline"] = None
-    baseline_without_diff = copy.deepcopy(example)
-    baseline_without_diff.pop("diff.tsv")
     unchanged_with_changes = copy.deepcopy(example)
     unchanged_with_changes["run.json"]["truth"]["state"] = "unchanged"
-    triage_without_file = copy.deepcopy(example)
-    triage_without_file.pop("triage_leaks.tsv")
-    triage_files_without_triage = copy.deepcopy(example)
-    triage_files_without_triage["run.json"].pop("triage")
     signals_without_run_signal = copy.deepcopy(example)
     signals_without_run_signal["run.json"].pop("run_signal")
     context_table_without_context = copy.deepcopy(example)
@@ -2055,8 +2057,6 @@ def rejected_eval_run_shapes(
     forms_without_database["forms.tsv"]["comments"] = []
     commented_scores = copy.deepcopy(example)
     commented_scores["scores.tsv"]["comments"] = [["note"]]
-    unknown_policy_class = copy.deepcopy(example)
-    unknown_policy_class["triage_policies.tsv"]["rows"][0]["draft"] = "approved"
     return [
         ("eval run without scores.tsv", without_scores),
         ("eval run with a file the contract does not name", unknown_file),
@@ -2064,11 +2064,7 @@ def rejected_eval_run_shapes(
         ("eval scores with a status the harness does not write", unknown_status),
         ("eval windows row without a cell", row_without_cell),
         ("eval estimate rate without four decimals", unformatted_rate),
-        ("eval diff.tsv without a baseline", diff_without_baseline),
-        ("eval baseline without diff.tsv", baseline_without_diff),
         ("eval truth_changes.tsv with an unchanged truth", unchanged_with_changes),
-        ("eval triage without one of its files", triage_without_file),
-        ("eval triage files without the triage header", triage_files_without_triage),
         ("eval signals.tsv without the run signal", signals_without_run_signal),
         ("eval run_context.tsv without run contexts", context_table_without_context),
         ("eval run.json without its constants", run_without_constants),
@@ -2081,7 +2077,6 @@ def rejected_eval_run_shapes(
         ("eval re-check list with negative rows", recheck_with_bad_rows),
         ("eval forms.tsv without its database line", forms_without_database),
         ("eval scores.tsv with a comment line", commented_scores),
-        ("eval policy table with an unknown class", unknown_policy_class),
     ]
 
 
@@ -2180,6 +2175,7 @@ def main(argv: list[str] | None = None) -> int:
         validate_run_context(load_json(path), str(path), errors)
     for path in review_paths:
         validate_review(load_json(path), str(path), errors)
+    errors.extend(review_rules_errors())
     for path in consensus_paths:
         document = load_json(path)
         if isinstance(document, dict):
@@ -2525,6 +2521,50 @@ def main(argv: list[str] | None = None) -> int:
     validate_review(minor_first, "synthetic minor-first mixture", mixture_errors)
     if not mixture_errors:
         errors.append("expected a mixture led by a minor sequence to be rejected")
+    # An explained possible heteroplasmy without a difference is a note at
+    # the context rank, and leaves the summary's checks.
+    noted = copy.deepcopy(review_example)
+    note = next(
+        item
+        for item in noted["items"]
+        if [entry["label"] for entry in item["labels"]] == ["possible_heteroplasmy"]
+        and not item["calls"]
+    )
+    note["labels"][0]["explained"] = True
+    note["kind"] = "note"
+    noted["items"].remove(note)
+    table = review_label_table(REVIEW_SCHEMA)
+    context = max(rank for rank, _ in table.values())
+    at = next(
+        index
+        for index, item in enumerate(noted["items"])
+        if min(
+            (table[entry["label"]][0] for entry in item["labels"]),
+            default=context + 1,
+        )
+        >= context
+        and item["first"]["position"] > note["first"]["position"]
+    )
+    noted["items"].insert(at, note)
+    noted["summary"]["checks"] -= 1
+    noted["summary"]["positions"]["check"] -= (
+        note["last"]["position"] - note["first"]["position"] + 1
+    )
+    for zone in noted["zones"]:
+        if zone["first"] <= note["first"]["position"] <= zone["last"]:
+            zone["checks"] -= 1
+            noted["summary"]["zones"]["check"] -= zone["checks"] == 0
+    note_errors: list[str] = []
+    validate_review(noted, "synthetic note", note_errors)
+    if note_errors:
+        errors.extend(note_errors)
+    note["kind"] = "check"
+    still_checked: list[str] = []
+    validate_review(noted, "synthetic explained check", still_checked)
+    if not any("kind disagrees" in error for error in still_checked):
+        errors.append(
+            "expected an explained heteroplasmy listed as a check to be rejected"
+        )
     gapped_zones = copy.deepcopy(review_example)
     gapped_zones["zones"].pop()
     zone_errors: list[str] = []

@@ -29,11 +29,12 @@ use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 
 use crate::error::{Result, RunSignalError};
+use crate::median;
 use crate::model::sanger::Chromatogram;
 use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::read_processing::evidence::{PEAK_BELOW_MINIMUM, RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD};
 use crate::read_processing::{self, Admission, SangerConfig};
-use crate::signal_processing::{RunSignalParameters, SignalProcessingConfig};
+use crate::signal_processing::{RunSignalParams, SignalProcessingConfig};
 use dna_kernel::model::nucleotide::Nucleotide;
 
 /// Version of the call selection [`contributions`] applies.
@@ -121,7 +122,7 @@ pub fn refine(
     let threshold = threshold(key, signal, config);
     if peak.cause == SecondCause::SecondTemplate
         && threshold.calls.is_some()
-        && peak.share <= threshold.share
+        && peak.second.share <= threshold.share
     {
         SecondCause::Context
     } else {
@@ -157,7 +158,7 @@ pub struct Contributions {
 pub fn contributions(
     heights: &[[i32; 4]],
     evidence: &ReadEvidence,
-    parameters: &RunSignalParameters,
+    parameters: &RunSignalParams,
 ) -> Contributions {
     let (flank, resolution) = (parameters.flank, f64::from(parameters.resolution));
     let verdicts = evidence.calls();
@@ -226,16 +227,7 @@ pub fn read(trace: &Chromatogram, config: &SangerConfig) -> Result<Option<Contri
     let Admission::Processed(processed) = read_processing::admit(trace, config)? else {
         return Ok(None);
     };
-    let evidence = read_processing::read_evidence(
-        &processed.calls,
-        &processed.signal,
-        &processed.callability,
-        &processed.quality,
-        &processed.second,
-        &processed.mixtures,
-        &processed.tracts,
-        &config.sanger_evidence,
-    )?;
+    let evidence = read_processing::read_evidence(&processed, &config.sanger_evidence)?;
     Ok(Some(contributions(
         &processed.calls.heights(),
         &evidence,
@@ -274,7 +266,7 @@ impl RunSignal {
         run_id: String,
         traces: BTreeSet<String>,
         reads: impl IntoIterator<Item = Contributions>,
-        parameters: &RunSignalParameters,
+        parameters: &RunSignalParams,
     ) -> Self {
         let mut signal = Self {
             run_id,
@@ -323,10 +315,7 @@ impl RunSignal {
     /// # Errors
     ///
     /// Returns [`RunSignalError::Parameters`] on a mismatch.
-    pub fn check(
-        &self,
-        parameters: &RunSignalParameters,
-    ) -> std::result::Result<(), RunSignalError> {
+    pub fn check(&self, parameters: &RunSignalParams) -> std::result::Result<(), RunSignalError> {
         if self.flank == parameters.flank && self.resolution == parameters.resolution {
             return Ok(());
         }
@@ -343,7 +332,7 @@ impl RunSignal {
     /// fraction. `None` when the run has fewer reads than `minimum_reads` or
     /// the key fewer calls than `minimum_calls`.
     #[must_use]
-    pub fn level(&self, key: &Key, parameters: &RunSignalParameters) -> Option<f64> {
+    pub fn level(&self, key: &Key, parameters: &RunSignalParams) -> Option<f64> {
         if self.reads < parameters.minimum_reads {
             return None;
         }
@@ -352,7 +341,7 @@ impl RunSignal {
         if calls < parameters.minimum_calls {
             return None;
         }
-        let median = median(
+        let median = median::lower_of_histogram(
             histogram
                 .iter()
                 .map(|(&share, &count)| (u64::from(share), count)),
@@ -411,25 +400,9 @@ impl RunSignal {
     }
 }
 
-/// The lower median of `values`, given as (value, count) pairs in increasing
-/// value order with `total` counts.
-fn median(values: impl Iterator<Item = (u64, u64)>, total: u64) -> u64 {
-    let middle = total.div_ceil(2).max(1);
-    let mut seen = 0;
-    let mut last = 0;
-    for (value, count) in values {
-        seen += count;
-        last = value;
-        if seen >= middle {
-            return value;
-        }
-    }
-    last
-}
-
 /// The lower median of a histogram with `total` counts.
 fn median_of(histogram: &BTreeMap<u64, u64>, total: u64) -> u64 {
-    median(
+    median::lower_of_histogram(
         histogram.iter().map(|(&value, &count)| (value, count)),
         total,
     )
@@ -437,14 +410,14 @@ fn median_of(histogram: &BTreeMap<u64, u64>, total: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile};
+    use dna_kernel::read_evidence::{CallEvidence, EvidenceProfile, SecondBase};
 
     use super::*;
 
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
     /// The configured parameters: a 5-mer, shares in thousandths.
-    const PARAMETERS: RunSignalParameters = RunSignalParameters {
+    const PARAMETERS: RunSignalParams = RunSignalParams {
         flank: 2,
         resolution: 1000,
         minimum_reads: 40,
@@ -507,7 +480,7 @@ mod tests {
         assert!(!selected.keys.contains_key(&key('T')));
         // With one call of context on each side and shares in hundredths,
         // calls 1, 5, and 7 too have a context, and the share is 20.
-        let coarse = RunSignalParameters {
+        let coarse = RunSignalParams {
             flank: 1,
             resolution: 100,
             ..PARAMETERS
@@ -565,17 +538,17 @@ mod tests {
         let parameters = PARAMETERS;
         // Median 0.020, MAD 0: the margin sets the spread.
         assert!((signal.level(&key, &parameters).unwrap_or(0.0) - 0.07).abs() < 1e-9);
-        let narrow = RunSignalParameters {
+        let narrow = RunSignalParams {
             margin: 0.0001,
             ..parameters
         };
         assert!((signal.level(&key, &narrow).unwrap_or(0.0) - 0.0201).abs() < 1e-9);
-        let few = RunSignalParameters {
+        let few = RunSignalParams {
             minimum_calls: 41,
             ..parameters
         };
         assert_eq!(signal.level(&key, &few), None);
-        let small = RunSignalParameters {
+        let small = RunSignalParams {
             minimum_reads: 51,
             ..parameters
         };
@@ -602,24 +575,8 @@ mod tests {
             keys: BTreeMap::from([(key.clone(), Histogram::from([(300, 40)]))]),
         };
         let config = SignalProcessingConfig {
-            window_size_bases: 10,
-            minimum_primary_snr: 3.0,
-            minimum_noisy_windows: 2,
-            minimum_noise_sigma: 1.0,
-            second_floor: 0.21,
             run_signal: PARAMETERS,
-            second_cause: crate::signal_processing::SecondCauseParameters {
-                noise_ratio: 3.0,
-                tail_offset: 0.4,
-                blob_width: 1.8,
-                width_calls: 6,
-            },
-            decompose_unexplained_quantile: 0.99,
-            spike: crate::signal_processing::SpikeParameters {
-                height: 3.0,
-                span: 1.5,
-                level_calls: 6,
-            },
+            ..crate::signal_processing::fixture(10)
         };
         let floor = Threshold {
             share: 0.21,
@@ -641,7 +598,7 @@ mod tests {
                 calls: Some(40)
             }
         );
-        let sparse = RunSignalParameters {
+        let sparse = RunSignalParams {
             minimum_calls: 41,
             ..config.run_signal
         };
@@ -658,11 +615,11 @@ mod tests {
         let signal = RunSignal::build("run".into(), BTreeSet::new(), [], &PARAMETERS);
         assert!(signal.check(&PARAMETERS).is_ok());
         for other in [
-            RunSignalParameters {
+            RunSignalParams {
                 flank: 3,
                 ..PARAMETERS
             },
-            RunSignalParameters {
+            RunSignalParams {
                 resolution: 100,
                 ..PARAMETERS
             },
@@ -691,29 +648,16 @@ mod tests {
             ..signal
         };
         let config = SignalProcessingConfig {
-            window_size_bases: 10,
-            minimum_primary_snr: 3.0,
-            minimum_noisy_windows: 2,
-            minimum_noise_sigma: 1.0,
             second_floor: 0.20,
             run_signal: PARAMETERS,
-            second_cause: crate::signal_processing::SecondCauseParameters {
-                noise_ratio: 3.0,
-                tail_offset: 0.4,
-                blob_width: 1.8,
-                width_calls: 6,
-            },
-            decompose_unexplained_quantile: 0.99,
-            spike: crate::signal_processing::SpikeParameters {
-                height: 3.0,
-                span: 1.5,
-                level_calls: 6,
-            },
+            ..crate::signal_processing::fixture(10)
         };
         let peak = |share, cause| SecondPeak {
-            base: 'C',
-            share,
-            stands_out: true,
+            second: SecondBase {
+                base: 'C',
+                share,
+                stands_out: true,
+            },
             cause,
         };
         let template = peak(0.30, SecondCause::SecondTemplate);
@@ -732,10 +676,10 @@ mod tests {
             SecondCause::SecondTemplate
         );
         // A cause the shape gives stands.
-        let tail = peak(0.30, SecondCause::NeighbourTail);
+        let tail = peak(0.30, SecondCause::NeighborTail);
         assert_eq!(
             refine(&tail, Some(&key), Some(&signal), &config),
-            SecondCause::NeighbourTail
+            SecondCause::NeighborTail
         );
     }
 }

@@ -184,7 +184,7 @@ flowchart LR
 | normalization and nomenclature ([dna-normalize](../../crates/dna-normalize/src/README.md)) | `dna.variants/v1` | `dna.notation/v1` `notation` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
 | conformance and EMPOP query ([dna-empop](../../crates/dna-empop/src/README.md)) | `dna.variants/v1`, as represented | `dna.notation/v1` `conformance`, `empop` | `dna notation` | [notation-v1](../reference/schemas/notation-v1.schema.json) |
 | review (facade [report](../../src/report/README.md) `review.rs`) | the reads' `dna.read_evidence/v1` (in process or the files), reference FASTA, optional `dna.signal/v1`; the sample's analysis and call in process | `dna.review/v1` | `dna review`, `dna review --evidence` | [review-v1](../reference/schemas/review-v1.schema.json) |
-| evaluation ([dna-eval](../../crates/dna-eval/src/README.md)) | panel manifest, reviewer truth, ABIF traces; optionally an earlier run's `scores.tsv` (`--baseline`) and `forms.tsv` (`--forms`) | `dna.eval_run/v1`: `run.json` and the TSV tables of the run directory | `dna-eval run` | [eval-run-v1](../reference/schemas/eval-run-v1.schema.json) |
+| evaluation ([dna-eval](../../crates/dna-eval/src/README.md)) | panel manifest, reviewer truth, ABIF traces; optionally an earlier run's `forms.tsv` (`--forms`) | `dna.eval_run/v1`: `run.json` and the TSV tables of the run directory | `dna-eval run` | [eval-run-v1](../reference/schemas/eval-run-v1.schema.json) |
 
 When the profile declares notation, `dna sample` and `dna call` also carry
 dna-normalize's `notation` in their documents.

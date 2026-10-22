@@ -22,8 +22,8 @@ use std::num::NonZeroUsize;
 use dna::recorded::{self, EvidenceOutcome};
 use dna::sample_analysis::RunContext;
 use dna::sample_analysis::{
-    self, Consensus, ConventionLabel, EmpopExport, NotationCall, RejectedRead, RunSignal,
-    SampleAnalysis, SampleOutcome, TractNote,
+    self, Consensus, ConventionLabel, EmpopExport, NotationCall, RunSignal, SampleAnalysis,
+    SampleOutcome, TractNote,
 };
 use dna_consensus::model::consensus::SiteState;
 use sha2::{Digest, Sha256};
@@ -33,7 +33,6 @@ use crate::cause::loci::{self, Loci};
 use crate::compare::{Allele, Failure};
 use crate::components;
 use crate::error::{Error, Result};
-use crate::evidence::{self, Evidence};
 use crate::lod;
 use crate::manifest::Sample;
 use crate::tracts;
@@ -143,7 +142,7 @@ impl Empop {
 }
 
 /// Scientific identities DNA reports for a sample.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Identity {
     pub(crate) configuration_sha256: String,
     pub(crate) reference_name: String,
@@ -158,10 +157,6 @@ pub(crate) struct Outcome {
     /// Distinct traces given to DNA, once duplicates are removed.
     pub(crate) traces: Option<usize>,
     pub(crate) result: std::result::Result<Called, Failure>,
-    /// The draft triage evidence, when the run asks for it and DNA analysed
-    /// the sample or rejected every read; it is kept when the call fails. A
-    /// failure to take it leaves the call as it is.
-    pub(crate) triage: Option<Evidence>,
     /// Wall time of the sample, in milliseconds.
     pub(crate) millis: u128,
 }
@@ -186,12 +181,6 @@ impl Threads {
     }
 }
 
-/// Runs DNA over every sample with `threads` workers on `reference`, the
-/// FASTA path and the SHA-256 of the sequence the harness compares on (a
-/// sample DNA analyses on another sequence fails), with DNA's configuration,
-/// taking each sample's
-/// draft triage evidence when `triage` is set: from the analysis, even when
-/// its call then fails, or from the rejected reads when none is admitted.
 /// How samples are grouped into runs for their run signal (PROP-0009): the
 /// panel's batch when it has at least `batch_reads` reads, else the batch
 /// month; or the month alone.
@@ -207,9 +196,12 @@ pub(crate) type Contexts = BTreeMap<String, RunContext>;
 /// Reads `<directory>/<batch>.run_context.json` for every batch of
 /// `samples` that has one, as `dna run-context` writes them over the
 /// batches' full folders: a panel holds too few of a batch's samples to
-/// build its context in process.
-pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts> {
+/// build its context in process. With them, their digest: the SHA-256 of
+/// one `<batch>\t<file SHA-256>` line per context, in batch order, so that
+/// two runs on other contexts are told apart.
+pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<(Contexts, String)> {
     let mut contexts = Contexts::new();
+    let mut files = BTreeMap::<String, String>::new();
     for batch in samples.iter().map(|sample| &sample.batch) {
         if contexts.contains_key(batch) {
             continue;
@@ -222,6 +214,11 @@ pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts>
             path: path.clone(),
             message: error.to_string(),
         })?;
+        let sha256 = sha256_file(&path).map_err(|error| Error::RunContext {
+            path: path.clone(),
+            message: error.to_string(),
+        })?;
+        files.insert(batch.clone(), sha256);
         if context.run_id != *batch {
             return Err(Error::RunContext {
                 path,
@@ -230,29 +227,33 @@ pub(crate) fn contexts(directory: &Path, samples: &[Sample]) -> Result<Contexts>
         }
         contexts.insert(batch.clone(), context);
     }
-    Ok(contexts)
+    let mut digest = Sha256::new();
+    for (batch, sha256) in &files {
+        digest.update(format!("{batch}\t{sha256}\n"));
+    }
+    Ok((contexts, format!("{:x}", digest.finalize())))
 }
 
 /// A sample's run signal groups: its batch's and its month's.
 fn groups(sample: &Sample) -> [String; 2] {
     let month = sample
-        .batch_date
-        .as_deref()
-        .and_then(|date| date.get(..7))
-        .unwrap_or("unknown");
+        .batch_month
+        .map_or_else(|| "unknown".to_owned(), |month| month.to_string());
     [format!("batch:{}", sample.batch), format!("month:{month}")]
 }
 
-/// Runs DNA as [`run_once`] does; with a grouping, first builds each
-/// group's run signal from every sample's analysis, then runs again with
-/// each sample's review judged against its group's signal.
+/// Runs DNA over every sample with `threads` workers on `reference`, the
+/// FASTA path and the SHA-256 of the sequence the harness compares on (a
+/// sample DNA analyses on another sequence fails), with DNA's configuration,
+/// as [`run_once`] does; with a grouping, first builds each group's run
+/// signal from every sample's analysis, then runs again with each sample's
+/// review judged against its group's signal.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run(
     samples: &[Sample],
     (reference, reference_sha256): (&Path, &str),
     config: &Path,
     threads: Threads,
-    triage: bool,
     grouping: Option<Grouping>,
     (cache, contexts): (Option<&Caches>, &Contexts),
     report: &mut Vec<String>,
@@ -263,7 +264,7 @@ pub(crate) fn run(
             (reference, reference_sha256),
             config,
             threads,
-            (triage, cache, contexts),
+            (cache, contexts),
             &|_| None,
         );
     };
@@ -282,7 +283,7 @@ pub(crate) fn run(
                     .include(reads.clone(), count, &contributions);
             }
         }
-        (Err(Failure::Panic), None)
+        Err(Failure::Panic)
     })?;
     let signals = signals
         .into_inner()
@@ -322,7 +323,7 @@ pub(crate) fn run(
         (reference, reference_sha256),
         config,
         threads,
-        (triage, cache, contexts),
+        (cache, contexts),
         &choose,
     )
 }
@@ -335,40 +336,29 @@ fn run_once<'s>(
     (reference, reference_sha256): (&Path, &str),
     config: &Path,
     threads: Threads,
-    (triage, cache, contexts): (bool, Option<&Caches>, &Contexts),
+    (cache, contexts): (Option<&Caches>, &Contexts),
     signal: &(dyn Fn(&Sample) -> Option<&'s RunSignal> + Sync),
 ) -> Result<Vec<Outcome>> {
     run_with(samples, threads, |sample, traces| {
         let analysis = match analyse(traces, reference, config, cache) {
             Ok(Analysed::Analyzed(analysis)) => analysis,
-            Ok(Analysed::Rejected { reads, products }) => {
-                return (
-                    Err(Failure::Rejected { reads }),
-                    products
-                        .filter(|_| triage)
-                        .map(|products| evidence::rejected_only(products.values())),
-                );
-            }
-            Err(failure) => return (Err(failure), None),
+            Ok(Analysed::Rejected { reads }) => return Err(Failure::Rejected { reads }),
+            Err(failure) => return Err(failure),
         };
         let analysis = match contexts.get(&sample.batch) {
             Some(context) => match analysis.with_run_context(context.clone()) {
                 Ok(analysis) => Box::new(analysis),
-                Err(error) => return (Err(Failure::Dna(error.to_string())), None),
+                Err(error) => return Err(Failure::Dna(error.to_string())),
             },
             None => analysis,
         };
         if analysis.reference.sha256 != reference_sha256 {
-            return (
-                Err(Failure::Reference {
-                    analysed: analysis.reference.sha256.clone(),
-                    compared: reference_sha256.to_owned(),
-                }),
-                None,
-            );
+            return Err(Failure::Reference {
+                analysed: analysis.reference.sha256.clone(),
+                compared: reference_sha256.to_owned(),
+            });
         }
-        let evidence = triage.then(|| evidence::extract(&analysis));
-        (call(&analysis, &sample.id, signal(sample)), evidence)
+        call(&analysis, &sample.id, signal(sample))
     })
 }
 
@@ -470,19 +460,14 @@ fn call(
     })
 }
 
-/// What running DNA on one sample gives: its calls or failure, and its draft
-/// triage evidence.
-pub(crate) type Ran = (std::result::Result<Called, Failure>, Option<Evidence>);
+/// What running DNA on one sample gives: its calls or failure.
+pub(crate) type Ran = std::result::Result<Called, Failure>;
 
 /// What a sample's analysis yields: the analysis, or how many distinct
-/// reads were set aside, with their Sanger products when the reads came
-/// from their traces.
+/// reads were set aside.
 pub(crate) enum Analysed {
     Analyzed(Box<SampleAnalysis>),
-    Rejected {
-        reads: usize,
-        products: Option<BTreeMap<String, RejectedRead>>,
-    },
+    Rejected { reads: usize },
 }
 
 /// Analyses a sample from its traces, or, with an evidence cache, from
@@ -508,7 +493,6 @@ pub(crate) fn analyse(
             SampleOutcome::Analyzed(analysis) => Ok(Analysed::Analyzed(analysis)),
             SampleOutcome::Rejected(products) => Ok(Analysed::Rejected {
                 reads: products.len(),
-                products: Some(products),
             }),
         };
     };
@@ -541,10 +525,7 @@ pub(crate) fn analyse(
         .map_err(failure)?
     {
         EvidenceOutcome::Analyzed(analysis) => Ok(Analysed::Analyzed(analysis)),
-        EvidenceOutcome::Rejected { reads } => Ok(Analysed::Rejected {
-            reads,
-            products: None,
-        }),
+        EvidenceOutcome::Rejected { reads } => Ok(Analysed::Rejected { reads }),
     }
 }
 
@@ -592,18 +573,17 @@ where
     F: Fn(&Sample, &[PathBuf]) -> Ran,
 {
     let started = Instant::now();
-    let (traces, (result, triage)) = match distinct(&sample.traces) {
+    let (traces, result) = match distinct(&sample.traces) {
         Ok(traces) => {
             let ran = panic::catch_unwind(AssertUnwindSafe(|| call(sample, &traces)))
-                .unwrap_or((Err(Failure::Panic), None));
+                .unwrap_or(Err(Failure::Panic));
             (Some(traces.len()), ran)
         }
-        Err(failure) => (None, (Err(failure), None)),
+        Err(failure) => (None, Err(failure)),
     };
     Outcome {
         traces,
         result,
-        triage,
         millis: started.elapsed().as_millis(),
     }
 }
@@ -698,6 +678,7 @@ mod tests {
             retired: false,
             truth_digest: None,
             batch_date: None,
+            batch_month: None,
             fields: Vec::new(),
         }
     }
@@ -760,7 +741,7 @@ mod tests {
                 }),
             }
         };
-        let call = |sample: &Sample, traces: &[PathBuf]| -> Ran { (called(sample, traces), None) };
+        let call = |sample: &Sample, traces: &[PathBuf]| -> Ran { called(sample, traces) };
         let strip = |outcomes: Vec<Outcome>| {
             outcomes
                 .into_iter()
