@@ -24,6 +24,15 @@ vouched read ends. The configuration, profile, and reference loaders in
 edges, windows, runs 1 and 2 with histograms that sum to their pairs, and
 read identities as SHA-256, recording the document's own SHA-256.
 
+[`signal.rs`](signal.rs) reads and validates a run signal (`dna.signal/v1`,
+PROP-0009) for `review --signal`: at most 64 MiB, the schema, the Sanger
+plugin's call selection, every key's context of `2 × flank + 1` canonical
+bases centred on its base with another second base, shares within the
+resolution, and counts that add up to three times the calls, recording the
+document's own SHA-256. The Sanger plugin refuses a signal whose flank or
+resolution differs from the configuration's
+(`dna_sanger::run_signal::RunSignal::check`).
+
 [`consensus.rs`](consensus.rs) reads a `dna.consensus/v1` document for `call`
 (PROP-0006): the sample, the reference identity, the segments, and the sites
 with their runs, back into the core's consensus model, under the same
