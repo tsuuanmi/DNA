@@ -18,13 +18,14 @@ registry, and the reports.
 | [dna-trace](dna-trace/src/README.md) | trace signal engineering from plain data: phase-mixture decomposition of the windows a modality flags ([ADR-0084](../docs/decisions/adr/0084-trace-crate.md)); a library, not a plugin | `dna-kernel` |
 | [dna-normalize](dna-normalize/src/README.md) | post-calling representation, normalization, and nomenclature in the lab's reviewer convention ([ADR-0077](../docs/decisions/adr/0077-normalize-and-empop-crates.md)) | `dna-kernel` |
 | [dna-empop](dna-empop/src/README.md) | post-calling conformance to forensic (EMPOP-style) notation conventions, offline | `dna-kernel` |
-| [dna-eval](dna-eval/src/README.md) | the evaluation harness: panel manifests, reviewer truth, comparison, and reports ([ADR-0075](../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)) | `dna`, `dna-kernel`, `dna-align`, `dna-sample`, `dna-consensus`, `dna-sanger`, `dna-trace` (tests: `dna-normalize`) |
+| [dna-eval](dna-eval/src/README.md) | the evaluation harness: panel manifests, reviewer truth, comparison, reports, the artefact and simulated benches, and the evidence and placement caches ([ADR-0075](../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)) | `dna`, `dna-kernel`, `dna-align`, `dna-sample`, `dna-consensus`, `dna-sanger`, `dna-trace` (its `simulate` feature; tests: `dna-normalize`) |
 
 The core is four crates, one per step, in a chain: each depends only on the
 kernel and the steps before it ([ADR-0079](../docs/decisions/adr/0079-core-crates-by-step.md)).
 The other plugin crates never depend on one another, and only the facade
-composes them. `dna-trace` is a library, not a plugin: only `dna-sanger`
-depends on it ([ADR-0084](../docs/decisions/adr/0084-trace-crate.md)). The evaluation harness may depend on the facade and the plugin crates,
+composes them. `dna-trace` is a library, not a plugin: of the plugin crates only
+`dna-sanger` depends on it ([ADR-0084](../docs/decisions/adr/0084-trace-crate.md)), and the evaluation harness
+renders the simulated bench's reads with its `simulate` feature. The evaluation harness may depend on the facade and the plugin crates,
 and no crate depends on it; it is the only place for truth formats and
 comparison (SRS-COMPAT-003). It is tested with the workspace but not built for
 or shipped in a release. `tools/python/scripts/validate_module_layers.py`

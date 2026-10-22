@@ -19,9 +19,11 @@ Output contract: none; the kernel runs no step. The facade serializes its
 - [reference](reference/README.md) — FASTA loading and reference identity.
 - [model](model/README.md) — shared vocabulary: nucleotides, references, and
   the one-base move of 3'/right-most indel placement.
-- `nnls.rs` — the one Lawson-Hanson non-negative least squares solver, shared
-  by the tract decode (`dna-trace`) and the consensus's two-strand run-length
-  rule (`dna-consensus`).
+- `nnls.rs` — a Lawson-Hanson non-negative least squares solver, shared by
+  the tract decode (`dna-trace`) and the consensus's two-strand run-length
+  rule (`dna-consensus`). The phase-mixture decomposition (`dna-trace`) and
+  the callability shadow fit (`dna-sanger`) still solve their own; unifying
+  them is pending.
 - `checksum.rs` — SHA-256 identities; `bounds.rs` — configuration range checks.
 
 The `test-support` feature exposes evidence and profile fixtures to the tests

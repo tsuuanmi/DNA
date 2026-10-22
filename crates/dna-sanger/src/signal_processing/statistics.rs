@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::error::{Result, SignalError};
+use crate::median;
 use crate::model::sanger::Chromatogram;
 
 const NORMAL_MAD_SCALE: f64 = 0.674_489_75;
@@ -105,14 +106,8 @@ pub(super) fn median_usize(values: &[usize]) -> Result<f64> {
         )
         .into());
     }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    let middle = sorted.len() / 2;
-    Ok(if sorted.len().is_multiple_of(2) {
-        f64::midpoint(sorted[middle - 1] as f64, sorted[middle] as f64)
-    } else {
-        sorted[middle] as f64
-    })
+    let mut values = values.iter().map(|&value| value as f64).collect::<Vec<_>>();
+    Ok(median::midpoint(&mut values).unwrap_or_default())
 }
 
 pub(super) fn median_f64(values: &[f64]) -> Result<f64> {
@@ -122,7 +117,7 @@ pub(super) fn median_f64(values: &[f64]) -> Result<f64> {
         )
         .into());
     }
-    Ok(median_selected_f64(&mut values.to_vec()))
+    Ok(median::midpoint(&mut values.to_vec()).unwrap_or_default())
 }
 
 fn median_i32(values: &[i32]) -> Result<f64> {
@@ -134,7 +129,7 @@ fn median_i32(values: &[i32]) -> Result<f64> {
     }
     // Every `i32` is exact in `f64`, so the median is the integer one.
     let mut values = values.iter().copied().map(f64::from).collect::<Vec<_>>();
-    Ok(median_selected_f64(&mut values))
+    Ok(median::midpoint(&mut values).unwrap_or_default())
 }
 
 fn noise_sigma(samples: &[i32], minimum_noise_sigma: f64) -> Result<f64> {
@@ -148,25 +143,12 @@ fn noise_sigma(samples: &[i32], minimum_noise_sigma: f64) -> Result<f64> {
         .windows(2)
         .map(|pair| f64::from(pair[1]) - f64::from(pair[0]))
         .collect::<Vec<_>>();
-    let center = median_selected_f64(&mut differences);
+    let center = median::midpoint(&mut differences).unwrap_or_default();
     for difference in &mut differences {
         *difference = (*difference - center).abs();
     }
-    let mad = median_selected_f64(&mut differences);
+    let mad = median::midpoint(&mut differences).unwrap_or_default();
     Ok((mad / (NORMAL_MAD_SCALE * FIRST_DIFFERENCE_SCALE)).max(minimum_noise_sigma))
-}
-
-/// The median of non-empty `values` under `f64::total_cmp`, found by
-/// selection instead of a full sort; reorders `values`.
-fn median_selected_f64(values: &mut [f64]) -> f64 {
-    let even = values.len().is_multiple_of(2);
-    let middle = values.len() / 2;
-    let (lower, upper, _) = values.select_nth_unstable_by(middle, f64::total_cmp);
-    let upper = *upper;
-    match lower.iter().copied().max_by(f64::total_cmp) {
-        Some(lower) if even => f64::midpoint(lower, upper),
-        _ => upper,
-    }
 }
 
 #[cfg(test)]

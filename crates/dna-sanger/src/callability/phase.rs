@@ -2,6 +2,7 @@
 //! hysteresis state machine that decides where the read is callable.
 
 use crate::model::callability::{PositionFeatures, RepeatRun};
+use dna_kernel::model::runs::maximal_runs;
 
 /// Thresholds the segmentation applies.
 #[derive(Debug, Clone, Copy)]
@@ -147,17 +148,11 @@ pub(super) fn segment(
 
 /// Masks every callable run shorter than one window.
 fn absorb_islands(callable: &mut [bool], window: usize) {
-    let mut start = 0;
-    while start < callable.len() {
-        if !callable[start] {
-            start += 1;
-            continue;
-        }
-        let length = callable[start..].iter().take_while(|&&flag| flag).count();
-        if length < window {
-            callable[start..start + length].fill(false);
-        }
-        start += length;
+    let islands = maximal_runs(callable, |flag| *flag)
+        .filter(|run| callable[run.start] && run.len() < window)
+        .collect::<Vec<_>>();
+    for island in islands {
+        callable[island].fill(false);
     }
 }
 

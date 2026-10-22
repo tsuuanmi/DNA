@@ -34,6 +34,16 @@ pub struct LocusEvidence {
     pub(crate) channel_widths: [usize; 4],
 }
 
+/// The width of channel `channel`'s peak at call `call`'s event, from the
+/// locus that records that call; `None` when none does or the channel has no
+/// positive signal there.
+pub(crate) fn channel_width(loci: &[LocusEvidence], call: usize, channel: usize) -> Option<usize> {
+    loci.get(call)
+        .filter(|locus| locus.call_index_0based == call)
+        .and_then(|locus| locus.channel_widths.get(channel).copied())
+        .filter(|&width| width > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

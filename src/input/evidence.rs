@@ -428,8 +428,10 @@ impl RawPeaks {
 #[serde(rename_all = "snake_case")]
 enum RawCause {
     Noise,
-    NeighbourTail,
-    OffCentre,
+    #[serde(rename = "neighbour_tail")]
+    NeighborTail,
+    #[serde(rename = "off_centre")]
+    OffCenter,
     DyeBlob,
     PhaseShift,
     SecondTemplate,
@@ -961,8 +963,8 @@ fn second_peak(second: Option<RawSecond>, cause: Option<RawCause>) -> Result<Opt
     };
     let cause = match cause {
         RawCause::Noise => SecondCause::Noise,
-        RawCause::NeighbourTail => SecondCause::NeighbourTail,
-        RawCause::OffCentre => SecondCause::OffCentre,
+        RawCause::NeighborTail => SecondCause::NeighborTail,
+        RawCause::OffCenter => SecondCause::OffCenter,
         RawCause::DyeBlob => SecondCause::DyeBlob,
         RawCause::PhaseShift => SecondCause::PhaseShift,
         RawCause::SecondTemplate => SecondCause::SecondTemplate,
@@ -971,15 +973,19 @@ fn second_peak(second: Option<RawSecond>, cause: Option<RawCause>) -> Result<Opt
     let stands_out = cause != SecondCause::MixedStretch;
     match second {
         Some(second) if second.stands_out == stands_out => Ok(Some(SecondPeak {
-            base: second.base,
-            share: second.share,
-            stands_out,
+            second: SecondBase {
+                base: second.base,
+                share: second.share,
+                stands_out,
+            },
             cause,
         })),
         None if !stands_out => Ok(Some(SecondPeak {
-            base: 'N',
-            share: 0.0,
-            stands_out,
+            second: SecondBase {
+                base: 'N',
+                share: 0.0,
+                stands_out,
+            },
             cause,
         })),
         _ => Err(inconsistent(
@@ -1016,7 +1022,7 @@ fn call_evidence(call: &RawCall) -> Result<CallEvidence> {
     let second = call
         .second
         .map(|second| {
-            (matches!(second.base, 'A' | 'C' | 'G' | 'T')
+            (dna_kernel::model::nucleotide::is_canonical(second.base)
                 && second.share.is_finite()
                 && (0.0..=0.5).contains(&second.share))
             .then_some(SecondBase {
@@ -1258,8 +1264,13 @@ mod tests {
             .second
             .ok_or_else(|| inconsistent("no peak"))?;
         assert_eq!(
-            (second.base, second.share, second.stands_out, second.cause),
-            ('A', 168.0 / 808.0, true, SecondCause::NeighbourTail)
+            (
+                second.second.base,
+                second.second.share,
+                second.second.stands_out,
+                second.cause,
+            ),
+            ('A', 168.0 / 808.0, true, SecondCause::NeighborTail)
         );
         assert_eq!(example.sanger.calls[0].second, None);
         // A call masked as mixed whose own second peak is small.
@@ -1271,7 +1282,7 @@ mod tests {
             .second
             .ok_or_else(|| inconsistent("no peak"))?;
         assert_eq!(
-            (mixed.base, mixed.stands_out, mixed.cause),
+            (mixed.second.base, mixed.second.stands_out, mixed.cause),
             ('A', false, SecondCause::MixedStretch)
         );
         Ok(())

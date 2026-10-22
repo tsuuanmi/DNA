@@ -4,7 +4,7 @@ DNA's production core and runtime are Rust. This directory contains Python only 
 
 - repository checks and CI validators (source policy, module layering,
   workflows, documentation structure and the documentation knowledge graph,
-  result schemas);
+  result schemas, the shipped configuration against its reference table);
 - measurement and validation helpers that produce evidence about a DNA build;
 - research and exploratory analysis that no production path depends on;
 - tests for the Python tooling itself.
@@ -39,6 +39,7 @@ uv run python scripts/docs_graph.py check
 uv run python scripts/docs_graph.py sync --check
 uv run python scripts/validate_module_layers.py
 uv run python scripts/validate_workflow_policy.py
+uv run python scripts/validate_configuration_reference.py
 ```
 
 The lockfile in this directory belongs only to these Python development tools. Rust dependencies remain authoritative in the workspace `Cargo.toml` files and the root `Cargo.lock`.

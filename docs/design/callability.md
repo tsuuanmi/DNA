@@ -258,7 +258,13 @@ The core caller does not read callability directly. The Sanger adapter
   positions to review 3.20 to 3.07 %, clear samples 40.56 to 43.79 % (45.11
   to 48.22 % on batches from 2026), samples with an unreviewed difference
   unchanged, `73G` in 29 more samples, HVS-I start window `16024-16033`
-  checked in 17 % fewer samples, `haplotype_lod` none better or worse;
+  checked in 17 % fewer samples, `haplotype_lod` none better or worse. The
+  edge and start norms take their primary peak and width as the upper median
+  and their spacing as the midpoint median, the one spacing median signal
+  processing (`median_locus_spacing`) and callability use. Against the upper
+  median it replaced, on development panel v5: one `start@HV1` check fewer
+  (an undecided `16031`), 10 fewer positions to review, no sample's
+  unreviewed blocks or clear state changed; readiness-v2 unchanged;
 - every call carries its second base and its share (SRS-CALL-015);
 - the two calls beside a gap (Substep 4.1) are vouched for by their bases
   only (SRS-CALL-026): they place no insertion or deletion and show no run's
@@ -292,7 +298,7 @@ The core caller does not read callability directly. The Sanger adapter
   disagreed with the other strand become clear (current 7,646 → 7,651), and
   no coverage changes;
 - the read's poor start is asserted as an unreliable span (SRS-CALL-024):
-  from its first call to its first run of `start_identity_margin` (12)
+  from its first call to its first run of `poor_start_calls` (12)
   consecutive sound calls, the vouching rules above having judged each call
   against the read's own heights, widths, and spacing. On development panel
   v5's current data, a non-reference call inside it is right far less often
