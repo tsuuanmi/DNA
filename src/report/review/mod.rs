@@ -6,8 +6,12 @@
 //! quality of each call, joined by read identity and call index. The rules'
 //! version is the `review` plugin's version.
 
+mod labels;
 mod ranges;
+#[cfg(test)]
+mod test_support;
 
+use self::labels::{key, priority, summarize};
 use self::ranges::{clip, inside, merge, segments, span, within};
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,11 +23,11 @@ use crate::model::result::{
     CallabilitySegmentResult, ColumnResult, IntervalResult, ReferenceResult, ScopeResult,
 };
 use crate::model::review_result::{
-    CONTEXT_RANK, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
-    ItemResult, LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts,
-    ReviewCallResult, ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role,
-    RunResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, StrandsResult,
-    SummaryResult, TractRunResult, UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
+    Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
+    LabelResult, MaskedSpanResult, MixtureResult, ReviewCallResult, ReviewProvenanceResult,
+    ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult, SecondResult, ShareResult,
+    SideResult, SignalProvenanceResult, StrandsResult, TractRunResult, UnreliableSpanResult,
+    ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::model::sanger_read::{Rejection, SangerRead};
@@ -68,9 +72,6 @@ pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     ],
     config_sections: &["review"],
 };
-
-/// Priority of an unlabelled variant, after every label's rank.
-const UNLABELLED: u8 = CONTEXT_RANK + 1;
 
 /// Inputs consumed to build one review document.
 pub(crate) struct CompletedReview {
@@ -2453,47 +2454,6 @@ fn masked_spans(
     spans
 }
 
-/// Label order within an item: rank, name, then the position or read.
-fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
-    let (position, read) = match label {
-        LabelResult::PossibleHeteroplasmy { position, .. } => (*position, ""),
-        LabelResult::ReferenceSecond { position, read, .. } => (*position, read.as_str()),
-        LabelResult::EdgeDeletion { reads, .. }
-        | LabelResult::RunDeletion { reads, .. }
-        | LabelResult::RunIndel { reads, .. } => (0, reads.first().map_or("", String::as_str)),
-        LabelResult::OneRead { read }
-        | LabelResult::ReadDisagrees { read, .. }
-        | LabelResult::NoisySignal { read, .. }
-        | LabelResult::PhaseShift { read, .. }
-        | LabelResult::ReadEdge { read }
-        | LabelResult::PoorSignal { read } => (0, read.as_str()),
-        LabelResult::StrandsDisagree { .. }
-        | LabelResult::SameStrandDissent { .. }
-        | LabelResult::NotCalled
-        | LabelResult::LongRun { .. }
-        | LabelResult::OneStrandInsertion { .. }
-        | LabelResult::EstimatedLength { .. }
-        | LabelResult::LengthUnconfirmed { .. }
-        | LabelResult::LengthNotRecorded { .. }
-        | LabelResult::TractLength { .. }
-        | LabelResult::Undecided
-        | LabelResult::OneStrand { .. }
-        | LabelResult::NotCovered
-        | LabelResult::DephasedEnd { .. }
-        | LabelResult::BesideNotAnalysed => (0, ""),
-    };
-    (label.rank(), label.kind().name(), position, read)
-}
-
-/// An item's priority: its best label rank, or [`UNLABELLED`].
-fn priority(labels: &[LabelResult]) -> u8 {
-    labels
-        .iter()
-        .map(LabelResult::rank)
-        .min()
-        .unwrap_or(UNLABELLED)
-}
-
 /// The reportable positions within `regions` as zones a reviewer opens
 /// whole. Each position takes the first kind that holds, in [`ZoneKind`]
 /// order: inside a repeat window of the profile (1-based inclusive, with its
@@ -2560,61 +2520,6 @@ fn zones(
     zones
 }
 
-/// Counts over the items, the reportable positions inside `regions` that
-/// `check` items hold, the `reference_only` positions, and the `zones` the
-/// checks touch; `clear` when the call succeeded and no item is a check.
-fn summarize(
-    items: &[ItemResult],
-    status: ReviewStatus,
-    regions: &[[usize; 2]],
-    zones: &[ZoneResult],
-    reference_only: &[usize],
-    not_analysed: usize,
-) -> SummaryResult {
-    let mut labels = LabelCounts::default();
-    for item in items {
-        let kinds = item
-            .labels
-            .iter()
-            .map(LabelResult::kind)
-            .collect::<BTreeSet<_>>();
-        for kind in kinds {
-            labels.add(kind);
-        }
-    }
-    let checks = items
-        .iter()
-        .filter(|item| item.kind == ItemKind::Check)
-        .count();
-    let check = items
-        .iter()
-        .filter(|item| item.kind == ItemKind::Check)
-        .flat_map(|item| item.first.position..=item.last.position)
-        .filter(|&position| inside(regions, position))
-        .collect::<BTreeSet<_>>()
-        .len();
-    SummaryResult {
-        items: items.len(),
-        checks,
-        variants: items
-            .iter()
-            .filter(|item| item.kind == ItemKind::Variant)
-            .count(),
-        labels,
-        positions: PositionCounts {
-            reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
-            check,
-            reference_only: reference_only.len(),
-            not_analysed,
-        },
-        zones: ZoneCounts {
-            total: zones.len(),
-            check: zones.iter().filter(|zone| zone.checks > 0).count(),
-        },
-        clear: status == ReviewStatus::Called && checks == 0,
-    }
-}
-
 /// A share rounded to three decimals.
 pub(super) fn round(share: f64) -> f64 {
     (share * 1000.0).round() / 1000.0
@@ -2622,12 +2527,10 @@ pub(super) fn round(share: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use super::test_support::{F, R, item};
     use super::*;
-    use crate::model::review_result::LabelKind;
+    use crate::model::review_result::ZoneCounts;
     use dna_kernel::read_evidence::EvidenceReason;
-
-    const F: Orientation = Orientation::Forward;
-    const R: Orientation = Orientation::Reverse;
 
     fn clean(read: usize, strand: Orientation, second: char, share: f64) -> Clean {
         Clean {
@@ -3116,10 +3019,6 @@ mod tests {
         );
     }
 
-    fn read(read: &str) -> String {
-        read.to_owned()
-    }
-
     // SRS-CONS-012
     #[test]
     fn a_difference_beside_a_region_end_not_analysed_is_flagged() {
@@ -3135,70 +3034,6 @@ mod tests {
         assert!(!beside_not_analysed(&regions, &[[570, 576]], 536, 536, 40));
         // Without a cut, nothing is flagged.
         assert!(!beside_not_analysed(&regions, &[], 80, 80, 40));
-    }
-
-    // SRS-API-014
-    #[test]
-    fn labels_and_items_sort_by_priority() {
-        let mut labels = vec![
-            LabelResult::ReadEdge { read: read("b") },
-            LabelResult::NotCovered,
-            LabelResult::ReadEdge { read: read("a") },
-            LabelResult::OneStrand {
-                strand: F,
-                reads: vec![read("a")],
-            },
-            LabelResult::Undecided,
-            LabelResult::NotCalled,
-            LabelResult::EstimatedLength { runs: Vec::new() },
-            LabelResult::ReadDisagrees {
-                read: read("a"),
-                strand: F,
-                sequence: "CC".to_owned(),
-            },
-            LabelResult::StrandsDisagree { reads: Vec::new() },
-        ];
-        labels.sort_by(|left, right| key(left).cmp(&key(right)));
-        assert_eq!(
-            labels
-                .iter()
-                .map(|label| label.kind().name())
-                .collect::<Vec<_>>(),
-            [
-                "read_disagrees",
-                "strands_disagree",
-                "estimated_length",
-                "not_called",
-                "undecided",
-                "one_strand",
-                "not_covered",
-                "read_edge",
-                "read_edge",
-            ]
-        );
-        assert_eq!(labels[8], LabelResult::ReadEdge { read: read("b") });
-        assert_eq!(priority(&labels), 0);
-        assert_eq!(priority(&labels[5..]), 3);
-        assert_eq!(priority(&[]), UNLABELLED);
-    }
-
-    fn item(kind: ItemKind, labels: Vec<LabelResult>) -> ItemResult {
-        ItemResult {
-            first: ColumnResult {
-                position: 1,
-                ordinal: 0,
-            },
-            last: ColumnResult {
-                position: 1,
-                ordinal: 0,
-            },
-            kind,
-            decision: Decision::Called,
-            sequence: None,
-            calls: Vec::new(),
-            labels,
-            evidence: Vec::new(),
-        }
     }
 
     #[test]
@@ -3220,103 +3055,6 @@ mod tests {
         assert!(undecided(&site(SiteState::Unresolved, None)));
         assert!(undecided(&site(SiteState::Called, Some("CN"))));
         assert!(!undecided(&site(SiteState::Called, Some("T"))));
-    }
-
-    // SRS-API-014
-    #[test]
-    fn only_labels_that_leave_an_item_unassured_make_a_check() {
-        assert!(LabelResult::Undecided.unassured());
-        assert!(LabelResult::NotCovered.unassured());
-        assert!(
-            !LabelResult::OneRead {
-                read: "r".to_owned()
-            }
-            .unassured()
-        );
-        assert!(
-            !LabelResult::ReadEdge {
-                read: "r".to_owned()
-            }
-            .unassured()
-        );
-        // SRS-CONS-015: one strand cannot assure an insertion.
-        let insertion = LabelResult::OneStrandInsertion {
-            strand: F,
-            reads: vec!["r".to_owned()],
-            other: "not_covered",
-            from_start: 25,
-        };
-        assert!(insertion.unassured());
-        assert_eq!(
-            (insertion.rank(), insertion.kind().name()),
-            (2, "one_strand_insertion")
-        );
-    }
-
-    // SRS-API-014
-    #[test]
-    fn summary_counts_items_per_label_and_clears_only_called_samples_without_checks() {
-        let variant = item(ItemKind::Variant, Vec::new());
-        let one_strand = item(
-            ItemKind::Variant,
-            vec![
-                LabelResult::OneStrand {
-                    strand: R,
-                    reads: vec![read("a")],
-                },
-                LabelResult::ReadEdge { read: read("a") },
-                LabelResult::ReadEdge { read: read("b") },
-            ],
-        );
-        let summary = summarize(
-            &[variant, one_strand],
-            ReviewStatus::Called,
-            &[[1, 10]],
-            &[],
-            &[],
-            0,
-        );
-        assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
-        assert_eq!(summary.labels.get(LabelKind::OneStrand), 1);
-        assert_eq!(summary.labels.get(LabelKind::ReadEdge), 1);
-        assert_eq!(
-            summary.positions,
-            PositionCounts {
-                reportable: 10,
-                check: 0,
-                reference_only: 0,
-                not_analysed: 0
-            }
-        );
-        assert!(summary.clear);
-
-        let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
-        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], 0);
-        assert_eq!(
-            (summary.checks, summary.labels.get(LabelKind::NotCovered)),
-            (1, 1)
-        );
-        // The check item holds position 1 of the ten reportable positions.
-        assert_eq!(
-            summary.positions,
-            PositionCounts {
-                reportable: 10,
-                check: 1,
-                reference_only: 0,
-                not_analysed: 0
-            }
-        );
-        assert!(!summary.clear);
-        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[], &[], 0).clear);
-        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[], &[], 0).clear);
-        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 0).clear);
-        // Reference-only positions are counted, and never make a check.
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4], 0);
-        assert_eq!((summary.positions.reference_only, summary.clear), (2, true));
-        // Positions not analysed are counted, and never make a check
-        // (SRS-CONS-012).
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 6);
-        assert_eq!((summary.positions.not_analysed, summary.clear), (6, true));
     }
 
     // SRS-API-014
