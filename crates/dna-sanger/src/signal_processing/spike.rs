@@ -7,6 +7,7 @@
 //! spike's channel, not the template's base. This module only finds the
 //! spikes; the evidence adapter withholds the calls (SRS-CALL-027).
 
+use crate::median;
 use crate::model::basecalls::{BaseCall, BaseCalls};
 use crate::model::sanger::Chromatogram;
 use crate::model::signal::SignalSpike;
@@ -127,17 +128,7 @@ fn levels(calls: &[BaseCall], side: usize) -> Vec<f64> {
                 .chain(primaries.iter().skip(index + 1).take(side))
                 .copied()
                 .collect::<Vec<_>>();
-            if around.is_empty() {
-                return 1.0;
-            }
-            around.sort_unstable_by(f64::total_cmp);
-            let middle = around.len() / 2;
-            let median = if around.len().is_multiple_of(2) {
-                f64::midpoint(around[middle - 1], around[middle])
-            } else {
-                around[middle]
-            };
-            median.max(1.0)
+            median::midpoint(&mut around).map_or(1.0, |median| median.max(1.0))
         })
         .collect()
 }

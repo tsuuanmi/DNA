@@ -29,6 +29,7 @@ use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 
 use crate::error::{Result, RunSignalError};
+use crate::median;
 use crate::model::sanger::Chromatogram;
 use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::read_processing::evidence::{PEAK_BELOW_MINIMUM, RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD};
@@ -343,7 +344,7 @@ impl RunSignal {
         if calls < parameters.minimum_calls {
             return None;
         }
-        let median = median(
+        let median = median::lower_of_histogram(
             histogram
                 .iter()
                 .map(|(&share, &count)| (u64::from(share), count)),
@@ -402,25 +403,9 @@ impl RunSignal {
     }
 }
 
-/// The lower median of `values`, given as (value, count) pairs in increasing
-/// value order with `total` counts.
-fn median(values: impl Iterator<Item = (u64, u64)>, total: u64) -> u64 {
-    let middle = total.div_ceil(2).max(1);
-    let mut seen = 0;
-    let mut last = 0;
-    for (value, count) in values {
-        seen += count;
-        last = value;
-        if seen >= middle {
-            return value;
-        }
-    }
-    last
-}
-
 /// The lower median of a histogram with `total` counts.
 fn median_of(histogram: &BTreeMap<u64, u64>, total: u64) -> u64 {
-    median(
+    median::lower_of_histogram(
         histogram.iter().map(|(&value, &count)| (value, count)),
         total,
     )

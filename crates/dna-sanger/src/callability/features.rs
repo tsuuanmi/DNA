@@ -4,6 +4,7 @@
 //! order; nothing refers to the chromatogram, the reference, or a profile.
 
 use crate::error::{CallabilityError, Result};
+use crate::median;
 use crate::model::callability::{PositionEvidence, PositionFeatures};
 use crate::signal_processing::round_metric;
 
@@ -75,16 +76,7 @@ fn median_primary_amplitude(
         .zip(ranked)
         .filter_map(|(position, &(primary, _))| primary.map(|channel| position.amplitudes[channel]))
         .collect::<Vec<_>>();
-    if amplitudes.is_empty() {
-        return 0.0;
-    }
-    amplitudes.sort_by(f64::total_cmp);
-    let middle = amplitudes.len() / 2;
-    if amplitudes.len().is_multiple_of(2) {
-        f64::midpoint(amplitudes[middle - 1], amplitudes[middle])
-    } else {
-        amplitudes[middle]
-    }
+    median::midpoint(&mut amplitudes).unwrap_or(0.0)
 }
 
 /// Ranks the two strongest channels; ties favour the lower channel index and
@@ -120,16 +112,7 @@ fn local_median(index: usize, spacings: &[f64], half_window: usize) -> f64 {
         .get(window_start..window_end)
         .unwrap_or_default()
         .to_vec();
-    if window.is_empty() {
-        return 0.0;
-    }
-    window.sort_by(f64::total_cmp);
-    let middle = window.len() / 2;
-    if window.len().is_multiple_of(2) {
-        f64::midpoint(window[middle - 1], window[middle])
-    } else {
-        window[middle]
-    }
+    median::midpoint(&mut window).unwrap_or(0.0)
 }
 
 /// The junctions whose spacing marks a missing or an extra peak, each by the

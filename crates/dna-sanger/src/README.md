@@ -13,6 +13,7 @@ Output contract: [`dna.basecalls/v3`](../../../docs/reference/schemas/basecalls-
 
 - [abif](abif/README.md) — ABIF decoding into a chromatogram; the `fuzzing` feature exposes the container parser.
 - `locus.rs` — Sanger locus window geometry.
+- `median.rs` — the medians the stages take, one function per definition (midpoint, upper, lower of a histogram).
 - [basecalling](basecalling/README.md), [signal_processing](signal_processing/README.md), [callability](callability/README.md), and [quality_control](quality_control/README.md) — the reference-free stages.
 - [read_processing](read_processing/README.md) — stage orchestration, `SangerConfig`, the Sanger plugin descriptor, and the `ReadEvidence` adapter.
 - [run_signal](run_signal/README.md) — the second-channel signal a run's reads share (PROP-0009).

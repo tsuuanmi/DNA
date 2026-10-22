@@ -33,6 +33,7 @@
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::read_evidence::SecondBase;
 
+use crate::median;
 use crate::model::basecalls::{BaseCall, BaseCalls, PeakSource};
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::locus_evidence::channel_width;
@@ -179,10 +180,8 @@ fn wide(
         .filter(|&call| call != index)
         .filter_map(|call| width(call, Nucleotide::from_char(calls.calls[call].primary)?))
         .collect::<Vec<_>>();
-    widths.sort_unstable();
-    widths
-        .get(widths.len() / 2)
-        .is_some_and(|&median| own as f64 >= parameters.blob_width * median as f64)
+    median::upper(&mut widths, Ord::cmp)
+        .is_some_and(|median| own as f64 >= parameters.blob_width * median as f64)
 }
 
 // SRS-CALL-021
