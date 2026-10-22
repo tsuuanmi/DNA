@@ -813,12 +813,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   counts and `run_signal_failed`; a run that predates them reads with them
   0 or absent.
 - Review rules 36 (plugin `review` 36): a stretch at a reportable region's
-  end that the call does not analyse (SRS-CONS-012) is now held by a check
-  item labelled `not_analysed` with its reason, so a truth allele the report
+  end that the call does not analyse (SRS-CONS-012), touching stretches
+  merged, is now one check item labelled `not_analysed` with its reasons and
+  one zone of kind `not_analysed`, so a truth allele the report
   omits there (`73G` at the HVS-II read start in almost every case) is
   flagged, never passed silently (user decision 2026-10-22, ADR-0085
-  amended). `dna.review/v1` gains the label, revised in place before the
-  first release. Every stretch is a check: a variant that flags only
+  amended). `dna.review/v1` gains the label and the zone kind, revised in
+  place before the first release; `summary.positions.check` no longer counts
+  `not_analysed` positions. Every stretch is a check: a variant that flags only
   stretches whose reads depart from the reference would leave one truth
   heteroplasmy unflagged on readiness-v2. On development panel v5, current
   period, clear samples fall 8,948 → 8,596 (83.7 → 80.4 %), 351 of the 352

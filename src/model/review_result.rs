@@ -184,6 +184,9 @@ pub(crate) struct ZoneResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ZoneKind {
+    /// A stretch the call does not analyse (SRS-CONS-012), held by its
+    /// `not_analysed` check.
+    NotAnalysed,
     /// A repeat window of the profile's nomenclature.
     Repeat,
     /// No read gives a callable call there.
@@ -503,10 +506,11 @@ pub(crate) enum LabelResult {
     },
     BesideNotAnalysed,
     /// A stretch at a reportable region's end that the call does not
-    /// analyse (SRS-CONS-012), with its reason (rules version 36): a check,
-    /// so that an allele the report omits there is never passed silently.
+    /// analyse (SRS-CONS-012), those that touch merged, with every reason
+    /// (rules version 36): a check, so that an allele the report omits there
+    /// is never passed silently.
     NotAnalysed {
-        reason: &'static str,
+        reasons: Vec<&'static str>,
     },
 }
 

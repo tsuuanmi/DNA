@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0085, ADR-0082, ADR-0084, ADR-0089, ADR-0090]
+decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084, ADR-0085, ADR-0089, ADR-0090]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -134,23 +134,22 @@ output. Traces of one file name from different folders are different reads
 - `not_analysed` (`called`, rules version 20): the stretches `{first, last,
   reason}` at the reportable regions' ends that the call does not analyse
   (SRS-CONS-012): positions only reads' unreliable spans observe
-  (`poor_start_signal`), up to the last one the consensus does not settle
-  as the reference. They are poor data, not a decision: the call reports
-  nothing there, the analysed range (`callable`, EMPOP) skips them, and no
-  zone holds them; a check item labelled `not_analysed` does (rules 36).
-- `zones` (`called`, rules version 14): the reportable positions as the
-  zones a reviewer opens whole, in reference order, tiling every reportable
-  region but its `not_analysed` stretches. Each position takes the first
-  kind that holds: `repeat`, inside a nomenclature window of the profile
-  (with the window's `name`);
-  `not_callable`, outside `callable`; `dephased`, inside a read's `masked`
-  stretch with `after_repeat`; `masked`, inside any other `masked` stretch;
-  else `clean`, where every read covering it is in phase or vouched for. A
-  zone `{kind, first, last, name, checks}` is a maximal stretch of one kind
-  (and window) within one region; `checks` counts the `check` items touching
-  it. Every boundary comes from the profile and the sample's own reads, none
-  from a width, so a sample whose reads stay in phase has no `dephased`
-  zone. A zone without checks is DNA's own decision.
+  (`poor_start_signal`), up to the last one the consensus does not settle as
+  the reference. They are poor data, not a decision: the call reports nothing
+  there, and the analysed range (`callable`, EMPOP) skips them.
+- `zones` (`called`, rules version 14): the reportable positions as the zones
+  a reviewer opens whole, in reference order, tiling every reportable region.
+  Each position takes the first kind that holds: `not_analysed`, inside a
+  `not_analysed` stretch (rules version 36); `repeat`, inside a nomenclature
+  window of the profile (with the window's `name`); `not_callable`, outside
+  `callable`; `dephased`, inside a read's `masked` stretch with
+  `after_repeat`; `masked`, inside any other `masked` stretch; else `clean`,
+  where every read covering it is in phase or vouched for. A zone `{kind,
+  first, last, name, checks}` is a maximal stretch of one kind (and window)
+  within one region; `checks` counts the `check` items touching it. Every
+  boundary comes from the profile and the sample's own reads, none from a
+  width, so a sample whose reads stay in phase has no `dephased` zone. A zone
+  without checks is DNA's own decision.
 - `items`: the review items, in priority order (below).
 - `summary`:
   - `items`, `checks`, `variants`: item counts (`items` includes the
@@ -158,11 +157,11 @@ output. Traces of one file name from different folders are different reads
   - `labels`: for every label, the number of items carrying it, zeros
     included, in the label order below;
   - `positions`: `reportable`, the positions of the profile's reportable
-    regions; `check`, those a `check` item holds, which a reviewer looks at
-    (rules version 5); `reference_only`, the `reference_only` positions
-    (rules version 15; `0` without them); `not_analysed`, the positions of
-    `not_analysed` (rules version 20). Every other reportable position is DNA's own decision
-    or outside every read, as its items say;
+    regions; `check`, those a `check` item holds outside `not_analysed` (rules
+    version 5); `reference_only`, the `reference_only` positions (rules
+    version 15; `0` without them); `not_analysed`, its positions (rules
+    version 20). A reviewer looks at `check` and `not_analysed`; every other
+    reportable position is DNA's own decision or outside every read;
   - `zones`: `total`, the number of `zones`; `check`, those with a `check`
     item, which a reviewer opens (rules version 14; both `0` without
     `zones`);
@@ -396,7 +395,8 @@ exemption lifts the margin (ADR-0076).
   right after their poor start, where an indel is often wrong: on panel v5,
   three (an insertion at 111 in two samples, a shift at 102 in one) were DNA
   errors a check at the cut edge had covered before.
-- `not_analysed` `{reason}` (rules version 36): the check over one `not_analysed` stretch, so an allele omitted there is never passed silently ([[ADR-0085]]).
+- `not_analysed` `{reasons}` (rules version 36): the check over touching
+  stretches, each reason once; an omitted allele is never silent ([[ADR-0085]]).
 - `run_deletion` `{strand, reads}`: a decided site that rests on one strand
   whose call is at least `review.run_growth` bases shorter than its
   reference, where the reference holds a run of at least `review.phase_run`
