@@ -15,11 +15,11 @@ use crate::model::result::{
     CallabilitySegmentResult, ColumnResult, IntervalResult, ReferenceResult, ScopeResult,
 };
 use crate::model::review_result::{
-    Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind, ItemResult,
-    LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts, ReviewCallResult,
-    ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role, RunResult,
-    SecondResult, ShareResult, SideResult, SignalProvenanceResult, StrandsResult, SummaryResult,
-    TractRunResult, UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
+    CONTEXT_RANK, Decision, EvidencePositionResult, EvidenceReadResult, GrowthResult, ItemKind,
+    ItemResult, LabelCounts, LabelResult, MaskedSpanResult, MixtureResult, PositionCounts,
+    ReviewCallResult, ReviewProvenanceResult, ReviewReadResult, ReviewResult, ReviewStatus, Role,
+    RunResult, SecondResult, ShareResult, SideResult, SignalProvenanceResult, StrandsResult,
+    SummaryResult, TractRunResult, UnreliableSpanResult, ZoneCounts, ZoneKind, ZoneResult,
 };
 use crate::model::sample_result::ConventionResult;
 use crate::model::sanger_read::{Rejection, SangerRead};
@@ -34,10 +34,12 @@ use crate::sample_analysis::{
 use dna_align::model::alignment::{AlignmentColumn, Orientation, ReferenceSegment};
 use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
+use dna_call::{Aligned, Eligibility};
 use dna_consensus::decided::not_analysed;
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
+use dna_consensus::runs::runs_of;
 use dna_consensus::{ConsensusConfig, InsertionView};
-use dna_kernel::model::nucleotide::Nucleotide;
+use dna_kernel::model::nucleotide::{Nucleotide, is_canonical};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, LengthTract, Profile};
@@ -53,7 +55,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 33,
+    version: 34,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -64,7 +66,7 @@ pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
 };
 
 /// Priority of an unlabelled variant, after every label's rank.
-const UNLABELLED: u8 = 5;
+const UNLABELLED: u8 = CONTEXT_RANK + 1;
 
 /// Inputs consumed to build one review document.
 pub(crate) struct CompletedReview {
@@ -373,7 +375,7 @@ pub(crate) fn list(
                 labels: item
                     .labels
                     .iter()
-                    .map(name)
+                    .map(|label| label.kind().name())
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect(),
@@ -791,7 +793,10 @@ impl<'a> Sample<'a> {
                     read.evidence.tracts().iter().map(|tract| length::Decode {
                         read: read.name,
                         strand: read.strand,
-                        reference: start_reference(read.columns, tract.call_start),
+                        reference: dna_consensus::length::start_reference(
+                            read.columns,
+                            tract.call_start,
+                        ),
                         tract,
                     })
                 })
@@ -1068,12 +1073,7 @@ impl<'a> Sample<'a> {
         let runs = site
             .runs
             .iter()
-            .filter(|run| {
-                matches!(
-                    run.evidence,
-                    RunEvidence::PhaseLoss | RunEvidence::ReferenceFrame
-                ) && !not_recorded(self.conventions, site, run)
-            })
+            .filter(|run| run.evidence.is_estimate() && !not_recorded(self.conventions, site, run))
             .map(|run| RunResult {
                 base: run.base,
                 length: run.length,
@@ -1378,7 +1378,7 @@ impl<'a> Sample<'a> {
         let poor = labels
             .iter()
             .any(|label| matches!(label, LabelResult::PoorSignal { .. }));
-        let assured = !(labels.iter().any(unassured) || (differs && poor));
+        let assured = !(labels.iter().any(LabelResult::unassured) || (differs && poor));
         let noted = labels.iter().any(|label| {
             matches!(
                 label,
@@ -1462,7 +1462,7 @@ impl<'a> Sample<'a> {
                     };
                     if let Some(label) = label {
                         labels
-                            .entry((rank(&label), name(&label), index))
+                            .entry((label.rank(), label.kind().name(), index))
                             .or_insert(label);
                     }
                     // Inside the read's unreliable span, where no read shows
@@ -1478,7 +1478,7 @@ impl<'a> Sample<'a> {
                             read: read.name.to_owned(),
                         };
                         labels
-                            .entry((rank(&label), name(&label), index))
+                            .entry((label.rank(), label.kind().name(), index))
                             .or_insert(label);
                     }
                 }
@@ -1719,7 +1719,14 @@ impl<'a> Sample<'a> {
     /// The sequence one read shows over `first..=last`; see [`bounded`].
     fn shown(&self, index: usize, first: usize, last: usize) -> Option<String> {
         let read = self.reads.get(index)?;
-        bounded(read.columns, &read.trust, first, last)
+        let eligibility = Eligibility::new(read.evidence, &self.call_config.variant_calling);
+        bounded(
+            read.columns,
+            &read.trust,
+            &|call, aligned| eligibility.exempt_as(call, aligned),
+            first,
+            last,
+        )
     }
 
     /// Why call `call` of `read` shows a second peak: the modality's cause
@@ -2124,8 +2131,8 @@ fn long_runs(site: &ConsensusSite, one_strand: bool, growth: usize) -> Vec<Growt
     let Some(call) = site.call.as_deref() else {
         return Vec::new();
     };
-    let reference = runs_of(&site.reference);
-    let called = runs_of(call);
+    let reference = runs_of(site.reference.chars());
+    let called = runs_of(call.chars());
     if reference.len() != called.len()
         || reference
             .iter()
@@ -2188,7 +2195,7 @@ fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> 
 /// bases in the same run order, another length), one of them a reference
 /// run of at least `run` equal bases.
 fn run_length_change(reference: &str, call: &str, run: usize) -> bool {
-    let (from, to) = (runs_of(reference), runs_of(call));
+    let (from, to) = (runs_of(reference.chars()), runs_of(call.chars()));
     call.len() != reference.len()
         && from.len() == to.len()
         && from.iter().zip(&to).all(|(left, right)| left.0 == right.0)
@@ -2202,37 +2209,9 @@ fn run_length_change(reference: &str, call: &str, run: usize) -> bool {
 /// reference holds a run of at least `run` equal bases.
 fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
     call.len() + growth <= reference.len()
-        && runs_of(reference).iter().any(|(_, length)| *length >= run)
-}
-
-/// The reference position (1-based) a read's call `call` is aligned to, or,
-/// on an inserted column, the position the insertion follows on the
-/// reference, on either strand: an inserted base of a run lies at the run's
-/// 3' end (SRS-ALN-012), after the run's last position. The first position
-/// after it stands in only where no aligned column precedes it.
-fn start_reference(columns: &[AlignmentColumn], call: usize) -> Option<usize> {
-    let index = columns
-        .iter()
-        .position(|column| column.original_call_index_0based() == Some(call))?;
-    let aligned = |column: &AlignmentColumn| column.reference_index_0based();
-    columns[..=index]
-        .iter()
-        .rev()
-        .find_map(aligned)
-        .or_else(|| columns[index..].iter().find_map(aligned))
-        .map(|position| position + 1)
-}
-
-/// A sequence's runs of one base, in order, with their lengths.
-pub(super) fn runs_of(sequence: &str) -> Vec<(char, usize)> {
-    let mut runs: Vec<(char, usize)> = Vec::new();
-    for base in sequence.chars() {
-        match runs.last_mut() {
-            Some((last, length)) if *last == base => *length += 1,
-            _ => runs.push((base, 1)),
-        }
-    }
-    runs
+        && runs_of(reference.chars())
+            .iter()
+            .any(|(_, length)| *length >= run)
 }
 
 /// Whether the consensus left a site undecided: no clean observation, a
@@ -2296,11 +2275,14 @@ fn in_phase_end(bases: impl IntoIterator<Item = Option<char>>, phase_run: usize)
 }
 
 /// Whether a call shows its base for `read_disagrees`: no modality reason
-/// against its base, and anchoring, or scored clear of the read's edges.
-fn shows(trust: &CallTrust) -> bool {
+/// against its base, and anchoring, or scored clear of the read's edges or
+/// lifted from them by a bounded-run exemption where it is aligned as the
+/// consensus lets the exemption lift it (`exempt`,
+/// [`Eligibility::exempt_as`]).
+fn shows(trust: &CallTrust, exempt: bool) -> bool {
     trust.vetoes.is_empty()
         && match trust.placement {
-            Placement::Scored => trust.trusted || trust.exempt,
+            Placement::Scored => trust.trusted || exempt,
             Placement::Anchoring(_) => true,
             Placement::Unresolved(_) => false,
         }
@@ -2310,20 +2292,23 @@ fn shows(trust: &CallTrust) -> bool {
 /// `first..=last` within one linear span of the reference, with every
 /// inserted call after a position of the item, masked ones included; `None`
 /// unless the read aligns every position of the item and reads the positions
-/// on both sides of it, each call a base that [`shows`] it by its `trust`,
-/// so that the read bounds what it shows.
+/// on both sides of it, each call a base that [`shows`] it by its `trust`
+/// and, for a call a bounded-run exemption covers, by `exempt` (the call and
+/// how it is aligned), so that the read bounds what it shows.
 fn bounded(
     columns: &[AlignmentColumn],
     trust: &[CallTrust],
+    exempt: &dyn Fn(usize, Aligned) -> bool,
     first: usize,
     last: usize,
 ) -> Option<String> {
     let shows_call = |column: &AlignmentColumn| {
-        "ACGT".contains(column.query_base())
-            && column
-                .original_call_index_0based()
-                .and_then(|call| trust.get(call))
-                .is_some_and(shows)
+        is_canonical(column.query_base())
+            && column.original_call_index_0based().is_some_and(|call| {
+                trust
+                    .get(call)
+                    .is_some_and(|trust| shows(trust, exempt(call, Aligned::of(column))))
+            })
     };
     // 0-based reference indices of the flanks.
     let (before, after) = (first.checked_sub(2)?, last);
@@ -2357,101 +2342,6 @@ fn bounded(
         shown.push(column.query_base());
     }
     (covered == last - first + 1 && bounds == [true, true]).then_some(shown)
-}
-
-/// Whether a label leaves its item unassured, so that the item is a check:
-/// reads that disagree, a possible heteroplasmy, an estimated length, an
-/// undecided position, or no read. The read labels (one read, one strand,
-/// noisy signal, read edge, phase shift) are context for the reviewer.
-const fn unassured(label: &LabelResult) -> bool {
-    matches!(
-        label,
-        LabelResult::StrandsDisagree { .. }
-            | LabelResult::ReadDisagrees { .. }
-            | LabelResult::SameStrandDissent { .. }
-            | LabelResult::PossibleHeteroplasmy {
-                explained: false,
-                ..
-            }
-            | LabelResult::ReferenceSecond { .. }
-            | LabelResult::EstimatedLength { .. }
-            | LabelResult::LengthUnconfirmed { .. }
-            | LabelResult::Undecided
-            | LabelResult::NotCalled
-            | LabelResult::LongRun { .. }
-            | LabelResult::EdgeDeletion { .. }
-            | LabelResult::RunDeletion { .. }
-            | LabelResult::RunIndel { .. }
-            | LabelResult::OneStrandInsertion { .. }
-            | LabelResult::NotCovered
-            | LabelResult::BesideNotAnalysed
-    )
-}
-
-/// A label's rank: the lower, the earlier a reviewer looks.
-const fn rank(label: &LabelResult) -> u8 {
-    match label {
-        LabelResult::StrandsDisagree { .. }
-        | LabelResult::ReadDisagrees { .. }
-        | LabelResult::SameStrandDissent { .. } => 0,
-        LabelResult::PossibleHeteroplasmy {
-            explained: false, ..
-        }
-        | LabelResult::ReferenceSecond { .. } => 1,
-        LabelResult::EstimatedLength { .. }
-        | LabelResult::LengthUnconfirmed { .. }
-        | LabelResult::Undecided
-        | LabelResult::NotCalled
-        | LabelResult::LongRun { .. }
-        | LabelResult::EdgeDeletion { .. }
-        | LabelResult::RunDeletion { .. }
-        | LabelResult::RunIndel { .. }
-        | LabelResult::OneStrandInsertion { .. }
-        | LabelResult::BesideNotAnalysed => 2,
-        LabelResult::OneRead { .. } | LabelResult::OneStrand { .. } => 3,
-        LabelResult::PossibleHeteroplasmy {
-            explained: true, ..
-        }
-        | LabelResult::NoisySignal { .. }
-        | LabelResult::NotCovered
-        | LabelResult::PhaseShift { .. }
-        | LabelResult::DephasedEnd { .. }
-        | LabelResult::ReadEdge { .. }
-        | LabelResult::PoorSignal { .. }
-        | LabelResult::LengthNotRecorded { .. }
-        | LabelResult::TractLength { .. } => 4,
-    }
-}
-
-/// A label's published name.
-const fn name(label: &LabelResult) -> &'static str {
-    match label {
-        LabelResult::StrandsDisagree { .. } => "strands_disagree",
-        LabelResult::ReadDisagrees { .. } => "read_disagrees",
-        LabelResult::SameStrandDissent { .. } => "same_strand_dissent",
-        LabelResult::NotCalled => "not_called",
-        LabelResult::LongRun { .. } => "long_run",
-        LabelResult::EdgeDeletion { .. } => "edge_deletion",
-        LabelResult::RunDeletion { .. } => "run_deletion",
-        LabelResult::RunIndel { .. } => "run_indel",
-        LabelResult::OneStrandInsertion { .. } => "one_strand_insertion",
-        LabelResult::PossibleHeteroplasmy { .. } => "possible_heteroplasmy",
-        LabelResult::ReferenceSecond { .. } => "reference_second",
-        LabelResult::EstimatedLength { .. } => "estimated_length",
-        LabelResult::LengthUnconfirmed { .. } => "length_unconfirmed",
-        LabelResult::LengthNotRecorded { .. } => "length_not_recorded",
-        LabelResult::TractLength { .. } => "tract_length",
-        LabelResult::Undecided => "undecided",
-        LabelResult::OneRead { .. } => "one_read",
-        LabelResult::OneStrand { .. } => "one_strand",
-        LabelResult::NoisySignal { .. } => "noisy_signal",
-        LabelResult::NotCovered => "not_covered",
-        LabelResult::PhaseShift { .. } => "phase_shift",
-        LabelResult::DephasedEnd { .. } => "dephased_end",
-        LabelResult::ReadEdge { .. } => "read_edge",
-        LabelResult::PoorSignal { .. } => "poor_signal",
-        LabelResult::BesideNotAnalysed => "beside_not_analysed",
-    }
 }
 
 /// The reference positions, within `regions`, that a read's aligned calls
@@ -2568,14 +2458,31 @@ fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
         | LabelResult::PhaseShift { read, .. }
         | LabelResult::ReadEdge { read }
         | LabelResult::PoorSignal { read } => (0, read.as_str()),
-        _ => (0, ""),
+        LabelResult::StrandsDisagree { .. }
+        | LabelResult::SameStrandDissent { .. }
+        | LabelResult::NotCalled
+        | LabelResult::LongRun { .. }
+        | LabelResult::OneStrandInsertion { .. }
+        | LabelResult::EstimatedLength { .. }
+        | LabelResult::LengthUnconfirmed { .. }
+        | LabelResult::LengthNotRecorded { .. }
+        | LabelResult::TractLength { .. }
+        | LabelResult::Undecided
+        | LabelResult::OneStrand { .. }
+        | LabelResult::NotCovered
+        | LabelResult::DephasedEnd { .. }
+        | LabelResult::BesideNotAnalysed => (0, ""),
     };
-    (rank(label), name(label), position, read)
+    (label.rank(), label.kind().name(), position, read)
 }
 
 /// An item's priority: its best label rank, or [`UNLABELLED`].
 fn priority(labels: &[LabelResult]) -> u8 {
-    labels.iter().map(rank).min().unwrap_or(UNLABELLED)
+    labels
+        .iter()
+        .map(LabelResult::rank)
+        .min()
+        .unwrap_or(UNLABELLED)
 }
 
 /// The reportable positions within `regions` as zones a reviewer opens
@@ -2657,36 +2564,13 @@ fn summarize(
 ) -> SummaryResult {
     let mut labels = LabelCounts::default();
     for item in items {
-        let names = item.labels.iter().map(name).collect::<BTreeSet<_>>();
-        for label in names {
-            let count = match label {
-                "strands_disagree" => &mut labels.strands_disagree,
-                "read_disagrees" => &mut labels.read_disagrees,
-                "same_strand_dissent" => &mut labels.same_strand_dissent,
-                "not_called" => &mut labels.not_called,
-                "long_run" => &mut labels.long_run,
-                "edge_deletion" => &mut labels.edge_deletion,
-                "run_deletion" => &mut labels.run_deletion,
-                "run_indel" => &mut labels.run_indel,
-                "one_strand_insertion" => &mut labels.one_strand_insertion,
-                "beside_not_analysed" => &mut labels.beside_not_analysed,
-                "possible_heteroplasmy" => &mut labels.possible_heteroplasmy,
-                "reference_second" => &mut labels.reference_second,
-                "estimated_length" => &mut labels.estimated_length,
-                "length_unconfirmed" => &mut labels.length_unconfirmed,
-                "length_not_recorded" => &mut labels.length_not_recorded,
-                "tract_length" => &mut labels.tract_length,
-                "undecided" => &mut labels.undecided,
-                "one_read" => &mut labels.one_read,
-                "one_strand" => &mut labels.one_strand,
-                "noisy_signal" => &mut labels.noisy_signal,
-                "not_covered" => &mut labels.not_covered,
-                "phase_shift" => &mut labels.phase_shift,
-                "dephased_end" => &mut labels.dephased_end,
-                "read_edge" => &mut labels.read_edge,
-                _ => &mut labels.poor_signal,
-            };
-            *count += 1;
+        let kinds = item
+            .labels
+            .iter()
+            .map(LabelResult::kind)
+            .collect::<BTreeSet<_>>();
+        for kind in kinds {
+            labels.add(kind);
         }
     }
     let checks = items
@@ -2786,6 +2670,7 @@ pub(super) fn round(share: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::review_result::LabelKind;
     use dna_kernel::read_evidence::EvidenceReason;
 
     const F: Orientation = Orientation::Forward;
@@ -2924,8 +2809,8 @@ mod tests {
             explained,
             reads: Vec::new(),
         };
-        assert!(unassured(&label(false)) && !unassured(&label(true)));
-        assert_eq!((rank(&label(false)), rank(&label(true))), (1, 4));
+        assert!(label(false).unassured() && !label(true).unassured());
+        assert_eq!((label(false).rank(), label(true).rank()), (1, 4));
     }
 
     fn site(
@@ -3107,7 +2992,7 @@ mod tests {
                 sides(supporting, Role::Supporting),
                 sides(opposing, Role::Opposing),
             )
-            .map(|label| name(&label))
+            .map(|label| label.kind().name())
         };
         assert_eq!(label(&[F], &[R]), Some("strands_disagree"));
         assert_eq!(label(&[F, R], &[F]), Some("strands_disagree"));
@@ -3170,50 +3055,44 @@ mod tests {
             scope: TrustScope::Full,
             second: None,
         };
-        assert!(shows(&trust(Placement::Scored, Vec::new(), true, false)));
-        assert!(shows(&trust(Placement::Scored, Vec::new(), false, true)));
-        assert!(!shows(&trust(Placement::Scored, Vec::new(), false, false)));
-        assert!(!shows(&trust(Placement::Scored, vec![MIXED], true, false)));
-        assert!(shows(&trust(
-            Placement::Anchoring(DEPHASED),
-            Vec::new(),
-            false,
+        // A scored call shows its base when trusted, or when the exemption
+        // lifts `read_end` from it as it is aligned; the flag alone does not.
+        assert!(shows(
+            &trust(Placement::Scored, Vec::new(), true, false),
             false
-        )));
-        assert!(!shows(&trust(
-            Placement::Anchoring(DEPHASED),
-            vec![MIXED],
-            false,
+        ));
+        assert!(shows(
+            &trust(Placement::Scored, Vec::new(), false, true),
+            true
+        ));
+        assert!(!shows(
+            &trust(Placement::Scored, Vec::new(), false, true),
             false
-        )));
-        assert!(!shows(&trust(
-            Placement::Unresolved(DEPHASED),
-            Vec::new(),
-            true,
+        ));
+        assert!(!shows(
+            &trust(Placement::Scored, Vec::new(), false, false),
             false
-        )));
+        ));
+        assert!(!shows(
+            &trust(Placement::Scored, vec![MIXED], true, false),
+            false
+        ));
+        assert!(shows(
+            &trust(Placement::Anchoring(DEPHASED), Vec::new(), false, false),
+            false
+        ));
+        assert!(!shows(
+            &trust(Placement::Anchoring(DEPHASED), vec![MIXED], false, false),
+            false
+        ));
+        assert!(!shows(
+            &trust(Placement::Unresolved(DEPHASED), Vec::new(), true, false),
+            true
+        ));
     }
 
     fn column(base: char, call: Option<usize>, reference: Option<usize>) -> AlignmentColumn {
         AlignmentColumn::new(base, 'C', call, reference)
-    }
-
-    // SRS-API-020
-    #[test]
-    fn an_inserted_first_call_is_credited_to_the_position_it_follows() {
-        // Reference 315-316 (0-based 314-315) read C G; a reverse read's run
-        // of C starts, in its order, on the C inserted after 315.
-        let columns = [
-            column('C', Some(9), Some(313)),
-            column('C', Some(8), Some(314)),
-            column('C', Some(7), None),
-            column('G', Some(6), Some(315)),
-        ];
-        assert_eq!(start_reference(&columns, 7), Some(315));
-        assert_eq!(start_reference(&columns, 6), Some(316));
-        // With no aligned column before it, the next one stands in.
-        let leading = [column('C', Some(0), None), column('C', Some(1), Some(4))];
-        assert_eq!(start_reference(&leading, 0), Some(5));
     }
 
     fn clean_call(placement: Placement) -> CallTrust {
@@ -3251,23 +3130,37 @@ mod tests {
         // The masked inserted call extends the run; the earlier insertion
         // belongs to the position before the item.
         assert_eq!(
-            bounded(&columns('G'), &trust, 11, 13).as_deref(),
+            bounded(&columns('G'), &trust, &|_, _| false, 11, 13).as_deref(),
             Some("CCCC")
         );
         // A flank the read deletes, or does not resolve, bounds nothing.
-        assert_eq!(bounded(&columns('-'), &trust, 11, 13), None);
-        assert_eq!(bounded(&columns('N'), &trust, 11, 13), None);
+        assert_eq!(bounded(&columns('-'), &trust, &|_, _| false, 11, 13), None);
+        assert_eq!(bounded(&columns('N'), &trust, &|_, _| false, 11, 13), None);
         // A flank or a call inside with a modality reason shows nothing.
         let mut vetoed = trust.clone();
         vetoed[6].vetoes = vec![DEPHASED];
-        assert_eq!(bounded(&columns('G'), &vetoed, 11, 13), None);
+        assert_eq!(bounded(&columns('G'), &vetoed, &|_, _| false, 11, 13), None);
         let mut inside = trust.clone();
         inside[3].trusted = false;
-        assert_eq!(bounded(&columns('G'), &inside, 11, 13), None);
+        assert_eq!(bounded(&columns('G'), &inside, &|_, _| false, 11, 13), None);
         // A read that does not reach a flank, or the reference's first
         // position, shows nothing.
-        assert_eq!(bounded(&columns('G')[2..], &trust, 11, 13), None);
-        assert_eq!(bounded(&columns('G'), &trust, 1, 3), None);
+        assert_eq!(
+            bounded(&columns('G')[2..], &trust, &|_, _| false, 11, 13),
+            None
+        );
+        assert_eq!(bounded(&columns('G'), &trust, &|_, _| false, 1, 3), None);
+        // A flank only the bounded-run exemption lifts from `read_end`
+        // shows its base where it reads the reference, as the consensus
+        // lets the exemption lift a bound, and not where it substitutes.
+        let mut lifted = trust.clone();
+        lifted[6].trusted = false;
+        let exempt = |call: usize, aligned: Aligned| call == 6 && aligned == Aligned::Match;
+        assert_eq!(bounded(&columns('G'), &lifted, &exempt, 11, 13), None);
+        assert_eq!(
+            bounded(&columns('C'), &lifted, &exempt, 11, 13).as_deref(),
+            Some("CCCC")
+        );
     }
 
     fn read(read: &str) -> String {
@@ -3314,7 +3207,10 @@ mod tests {
         ];
         labels.sort_by(|left, right| key(left).cmp(&key(right)));
         assert_eq!(
-            labels.iter().map(name).collect::<Vec<_>>(),
+            labels
+                .iter()
+                .map(|label| label.kind().name())
+                .collect::<Vec<_>>(),
             [
                 "read_disagrees",
                 "strands_disagree",
@@ -3376,14 +3272,20 @@ mod tests {
     // SRS-API-014
     #[test]
     fn only_labels_that_leave_an_item_unassured_make_a_check() {
-        assert!(unassured(&LabelResult::Undecided));
-        assert!(unassured(&LabelResult::NotCovered));
-        assert!(!unassured(&LabelResult::OneRead {
-            read: "r".to_owned()
-        }));
-        assert!(!unassured(&LabelResult::ReadEdge {
-            read: "r".to_owned()
-        }));
+        assert!(LabelResult::Undecided.unassured());
+        assert!(LabelResult::NotCovered.unassured());
+        assert!(
+            !LabelResult::OneRead {
+                read: "r".to_owned()
+            }
+            .unassured()
+        );
+        assert!(
+            !LabelResult::ReadEdge {
+                read: "r".to_owned()
+            }
+            .unassured()
+        );
         // SRS-CONS-015: one strand cannot assure an insertion.
         let insertion = LabelResult::OneStrandInsertion {
             strand: F,
@@ -3391,9 +3293,9 @@ mod tests {
             other: "not_covered",
             from_start: 25,
         };
-        assert!(unassured(&insertion));
+        assert!(insertion.unassured());
         assert_eq!(
-            (rank(&insertion), name(&insertion)),
+            (insertion.rank(), insertion.kind().name()),
             (2, "one_strand_insertion")
         );
     }
@@ -3422,8 +3324,8 @@ mod tests {
             0,
         );
         assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
-        assert_eq!(summary.labels.one_strand, 1);
-        assert_eq!(summary.labels.read_edge, 1);
+        assert_eq!(summary.labels.get(LabelKind::OneStrand), 1);
+        assert_eq!(summary.labels.get(LabelKind::ReadEdge), 1);
         assert_eq!(
             summary.positions,
             PositionCounts {
@@ -3437,7 +3339,10 @@ mod tests {
 
         let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
         let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], 0);
-        assert_eq!((summary.checks, summary.labels.not_covered), (1, 1));
+        assert_eq!(
+            (summary.checks, summary.labels.get(LabelKind::NotCovered)),
+            (1, 1)
+        );
         // The check item holds position 1 of the ten reportable positions.
         assert_eq!(
             summary.positions,
